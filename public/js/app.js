@@ -316,7 +316,8 @@ async function createQuiz() {
 async function loadQuizList() {
   const quizzes = await api('/quizzes?course_id=' + courseId);
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
-  container.innerHTML = quizzes.length === 0 ? '<p style="color:var(--text-muted);padding:20px">No quizzes yet. Create one above.</p>'
+  const emptyText = currentUser.role === 'lecturer' ? 'No quizzes yet. Create one above.' : t('noQuizzes');
+  container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${emptyText}</p>`
     : quizzes.map(q => `<div class="card" style="cursor:pointer" onclick="${currentUser.role==='student' ? `takeQuiz('${q.id}')` : ''}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()}</div></div><span class="btn btn-outline btn-sm">${currentUser.role==='student'?'Take Quiz':'View'}</span></div></div>`).join('');
 }
 
