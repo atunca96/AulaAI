@@ -1,7 +1,48 @@
-// ── State ──
+// ── State & i18n ──
 let currentUser = null;
 let courseId = null;
 let curriculum = [];
+let currentLang = 'en';
+
+const i18n = {
+  en: {
+    langBtn: '🌐 EN / TR', signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome Back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress', keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter', selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.', takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check', yourScore: 'Your Score', questions: 'questions', correct: 'correct', incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓'
+  },
+  tr: {
+    langBtn: '🌐 TR / EN', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldiniz', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim', keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite', selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.', takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et', yourScore: 'Puanınız', questions: 'soru', correct: 'doğru', incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓'
+  }
+};
+
+function t(key) { return i18n[currentLang][key] || key; }
+
+function toggleLanguage() {
+  currentLang = currentLang === 'en' ? 'tr' : 'en';
+  document.getElementById('lang-btn').textContent = t('langBtn');
+  
+  // Direct DOM text replacement for static elements
+  const walkDOM = (node) => {
+    const from = currentLang === 'en' ? i18n['tr'] : i18n['en'];
+    const to = currentLang === 'en' ? i18n['en'] : i18n['tr'];
+    
+    if (node.nodeType === 3) {
+      let txt = node.nodeValue.trim();
+      let matchKey = Object.keys(from).find(k => from[k] === txt);
+      if (matchKey) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
+    } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT') {
+      if (node.placeholder) {
+        let matchKey = Object.keys(from).find(k => from[k] === node.placeholder);
+        if (matchKey) node.placeholder = to[matchKey];
+      }
+      for (let child = node.firstChild; child; child = child.nextSibling) walkDOM(child);
+    }
+  };
+  walkDOM(document.body);
+
+  if (currentUser) {
+    if (currentUser.role === 'lecturer') initLecturer();
+    else initStudent();
+  }
+}
 
 // ── API Helper ──
 async function api(path, opts = {}) {
@@ -181,7 +222,7 @@ function checkMCQ(btn, answer, cardId) {
   const fb = document.getElementById('fb-' + cardId);
   fb.classList.remove('hidden');
   fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  fb.textContent = isCorrect ? '¡Correcto! ✓' : `Incorrect. The answer is: ${answer}`;
+  fb.textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
 }
 
 function checkFill(id, answer) {
@@ -193,7 +234,7 @@ function checkFill(id, answer) {
   const fb = document.getElementById('fb-' + id);
   fb.classList.remove('hidden');
   fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  fb.textContent = isCorrect ? '¡Correcto! ✓' : `The correct answer is: ${answer}`;
+  fb.textContent = isCorrect ? t('correctMsg') : `${t('correctAns')} ${answer}`;
 }
 
 // ── Quizzes ──
@@ -236,7 +277,7 @@ function showQuizQuestion(area) {
     opts.sort(() => Math.random()-0.5);
     area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${q.prompt}</div><div class="options-grid">${opts.map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${o}</button>`).join('')}</div></div>`;
   } else {
-    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${q.prompt}</div><input class="fill-blank-input" id="quiz-fill-inp" placeholder="Your answer..." style="width:100%"><button class="btn btn-primary mt-16" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('quiz-fill-inp').value)">Submit</button></div>`;
+    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${q.prompt}</div><input class="fill-blank-input" id="quiz-fill-inp" placeholder="Your answer..." style="width:100%"><button class="btn btn-primary mt-16" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('quiz-fill-inp').value)">${t('submit')}</button></div>`;
   }
 }
 
@@ -255,7 +296,7 @@ async function submitQuizAnswers(area) {
     quiz_id: area.dataset.quizId, student_id: currentUser.id, answers: JSON.parse(area.dataset.answers)
   }});
   const pct = Math.round(result.average * 100);
-  area.innerHTML = `<div class="quiz-result-card"><div class="quiz-score-label">Your Score</div><div class="quiz-score-big" style="color:${masteryColor(result.average)}">${pct}%</div><p style="color:var(--text-secondary);margin-bottom:24px">${result.question_count} questions · ${result.total_score.toFixed(1)} correct</p>${(result.results||[]).map(r => `<div style="text-align:left;padding:10px 16px;border-radius:8px;margin-bottom:6px;background:${r.score>=0.8?'var(--success-bg)':'var(--danger-bg)'};font-size:14px"><strong>${r.score>=0.8?'✓':'✗'}</strong> ${r.feedback}</div>`).join('')}<button class="btn btn-primary mt-24" onclick="document.getElementById('quiz-taking-area').classList.add('hidden')">Done</button></div>`;
+  area.innerHTML = `<div class="quiz-result-card"><div class="quiz-score-label">${t('yourScore')}</div><div class="quiz-score-big" style="color:${masteryColor(result.average)}">${pct}%</div><p style="color:var(--text-secondary);margin-bottom:24px">${result.question_count} ${t('questions')} · ${result.total_score.toFixed(1)} ${t('correct')}</p>${(result.results||[]).map(r => `<div style="text-align:left;padding:10px 16px;border-radius:8px;margin-bottom:6px;background:${r.score>=0.8?'var(--success-bg)':'var(--danger-bg)'};font-size:14px"><strong>${r.score>=0.8?'✓':'✗'}</strong> ${r.feedback}</div>`).join('')}<button class="btn btn-primary mt-24" onclick="document.getElementById('quiz-taking-area').classList.add('hidden')">${t('done')}</button></div>`;
 }
 
 // ── Student Roster ──
@@ -313,10 +354,10 @@ async function loadStudentHome() {
   const weak = masteries.filter(m => m.score < 0.4).length;
 
   document.getElementById('student-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Overall Mastery</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg*100)}%</div></div>
-    <div class="stat-card"><div class="stat-label">Strong Topics</div><div class="stat-value success">${strong}</div></div>
-    <div class="stat-card"><div class="stat-label">Needs Work</div><div class="stat-value ${weak>0?'danger':'success'}">${weak}</div></div>
-    <div class="stat-card"><div class="stat-label">Topics Studied</div><div class="stat-value accent">${masteries.length}</div></div>`;
+    <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg*100)}%</div></div>
+    <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak>0?'danger':'success'}">${weak}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
 
   document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>${(curriculum[0].topics||[]).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${t.title}</span></div></div>`).join('')}` : '';
 }
@@ -331,7 +372,7 @@ async function startPractice(topicId, title) {
   const data = await api('/activity?topic_id=' + topicId);
   const area = document.getElementById('practice-area');
   area.classList.remove('hidden');
-  area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>Practice: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">Close</button></div>` +
+  area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>${t('practice')}: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">${t('close')}</button></div>` +
     (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
   area.scrollIntoView({ behavior: 'smooth' });
 }
