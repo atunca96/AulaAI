@@ -72,6 +72,19 @@ function fillDemo(role) {
   }
 }
 
+async function completeLogin(user) {
+  currentUser = user;
+  localStorage.setItem('aula_user', JSON.stringify(user));
+  localStorage.setItem('aula_lang', currentLang);
+  
+  const courses = await api('/courses');
+  if (courses.length) courseId = courses[0].id;
+  curriculum = await api('/curriculum?course_id=' + courseId);
+  
+  showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
+  if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
+}
+
 async function handleRegister(e) {
   e.preventDefault();
   const data = await api('/register', { method: 'POST', body: {
@@ -81,12 +94,7 @@ async function handleRegister(e) {
   }});
   if (data.error) { document.getElementById('register-error').textContent = data.error; document.getElementById('register-error').classList.remove('hidden'); return false; }
   
-  currentUser = data.user;
-  const courses = await api('/courses');
-  if (courses.length) courseId = courses[0].id;
-  curriculum = await api('/curriculum?course_id=' + courseId);
-  showScreen('student-dashboard');
-  initStudent();
+  await completeLogin(data.user);
   return false;
 }
 
@@ -97,16 +105,30 @@ async function handleLogin(e) {
     password: document.getElementById('login-password').value
   }});
   if (data.error) { document.getElementById('login-error').textContent = data.error; document.getElementById('login-error').classList.remove('hidden'); return false; }
-  currentUser = data.user;
-  const courses = await api('/courses');
-  if (courses.length) courseId = courses[0].id;
-  curriculum = await api('/curriculum?course_id=' + courseId);
-  showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
-  if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
+  
+  await completeLogin(data.user);
   return false;
 }
 
-function logout() { currentUser = null; showScreen('login-screen'); }
+function logout() { 
+  currentUser = null; 
+  localStorage.removeItem('aula_user');
+  showScreen('login-screen'); 
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const savedLang = localStorage.getItem('aula_lang');
+  if (savedLang && savedLang !== currentLang) {
+    toggleLanguage();
+  }
+  
+  const savedUser = localStorage.getItem('aula_user');
+  if (savedUser) {
+    try {
+      completeLogin(JSON.parse(savedUser));
+    } catch(e) {}
+  }
+});
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
