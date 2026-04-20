@@ -46,6 +46,38 @@ function toggleLanguage() {
   }
 }
 
+// ── Dynamic Question Translation ──
+const vocabTR = {
+  "hello": "merhaba", "good morning": "günaydın", "good afternoon": "iyi günler", "good night": "iyi geceler",
+  "What's your name?": "Adın ne?", "My name is...": "Benim adım...", "Where are you from?": "Nerelisin?",
+  "I'm from...": "Ben ...'lıyım", "nice to meet you": "memnun oldum", "goodbye": "hoşça kal", "see you later": "görüşürüz",
+  "please": "lütfen", "thank you": "teşekkür ederim", "Spanish": "İspanyol", "Mexican": "Meksikalı",
+  "American": "Amerikalı", "French": "Fransız", "German": "Alman", "Italian": "İtalyan", "Brazilian": "Brezilyalı",
+  "Chinese": "Çinli", "Japanese": "Japon", "English/British": "İngiliz", "Argentine": "Arjantinli", "Colombian": "Kolombiyalı",
+  "Multiple Choice": "Çoktan Seçmeli", "Fill in the Blank": "Boşluk Doldurma", "Arrange the dialogue in the correct order:": "Diyaloğu doğru sıraya koyun:"
+};
+
+function translatePrompt(text) {
+  if (currentLang !== 'tr') return text;
+  let t = text;
+  // Templates
+  t = t.replace(/What does '(.*)' mean\?/, "'$1' ne anlama gelir?");
+  
+  // For the reverse question, the inner word might be English! We need to translate the inner word too.
+  let match = t.match(/How do you say '(.*)' in Spanish\?/);
+  if (match) {
+    const wordTR = vocabTR[match[1]] || match[1];
+    t = `İspanyolca'da '${wordTR}' nasıl denir?`;
+  }
+  
+  return vocabTR[t] || t;
+}
+
+function translateOption(text) {
+  if (currentLang !== 'tr') return text;
+  return vocabTR[text] || text;
+}
+
 // ── API Helper ──
 async function api(path, opts = {}) {
   const res = await fetch('/api' + path, {
@@ -219,14 +251,15 @@ async function launchActivity() {
 }
 
 function renderActivityCard(a, idx, ctx) {
+  const p = translatePrompt(a.prompt);
   if (a.type === 'mcq') {
-    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">Multiple Choice</div><div class="activity-prompt">${a.prompt}</div><div class="options-grid">${(a.options||[]).map(o => `<button class="option-btn" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}')">${o}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options||[]).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   if (a.type === 'fill_blank') {
-    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">Fill in the Blank</div><div class="activity-prompt">${a.prompt}</div><div><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}')"><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}')">Check</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}')"><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   if (a.type === 'dialogue_order') {
-    return `<div class="activity-card"><div class="activity-type-label">Dialogue Order — ${a.title||''}</div><div class="activity-prompt">Arrange the dialogue in the correct order:</div><div id="dialogue-${idx}">${(a.scrambled_lines||[]).map((l,j) => `<div class="option-btn" style="margin-bottom:6px;cursor:grab" draggable="true" data-line="${esc(l)}">${l}</div>`).join('')}</div></div>`;
+    return `<div class="activity-card"><div class="activity-type-label">Dialogue Order — ${a.title||''}</div><div class="activity-prompt">${translateOption('Arrange the dialogue in the correct order:')}</div><div id="dialogue-${idx}">${(a.scrambled_lines||[]).map((l,j) => `<div class="option-btn" style="margin-bottom:6px;cursor:grab" draggable="true" data-line="${esc(l)}">${l}</div>`).join('')}</div></div>`;
   }
   return '';
 }
@@ -236,10 +269,11 @@ function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function checkMCQ(btn, answer, cardId) {
   const card = document.getElementById(cardId);
   if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
-  const picked = btn.textContent.trim();
+  const picked = btn.dataset.original || btn.textContent.trim();
   const isCorrect = picked.toLowerCase() === answer.toLowerCase();
   card.querySelectorAll('.option-btn').forEach(b => {
-    if (b.textContent.trim().toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
+    const optVal = b.dataset.original || b.textContent.trim();
+    if (optVal.toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
     else if (b === btn && !isCorrect) b.classList.add('wrong-answer');
   });
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
@@ -295,13 +329,14 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
+  const p = translatePrompt(q.prompt);
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Question ${idx+1} of ${qs.length}</span><div class="progress-bar" style="width:200px"><div class="progress-fill" style="width:${((idx+1)/qs.length)*100}%;background:var(--accent)"></div></div></div>`;
   if (q.type === 'mcq') {
     const opts = (q.distractors||[]).concat([q.answer]);
     opts.sort(() => Math.random()-0.5);
-    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${q.prompt}</div><div class="options-grid">${opts.map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${o}</button>`).join('')}</div></div>`;
+    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${p}</div><div class="options-grid">${opts.map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div></div>`;
   } else {
-    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${q.prompt}</div><input class="fill-blank-input" id="quiz-fill-inp" placeholder="Your answer..." style="width:100%"><button class="btn btn-primary mt-16" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('quiz-fill-inp').value)">${t('submit')}</button></div>`;
+    area.innerHTML += `<div class="activity-card"><div class="activity-type-label">Question ${idx+1}</div><div class="activity-prompt">${p}</div><input class="fill-blank-input" id="quiz-fill-inp" placeholder="Your answer..." style="width:100%"><button class="btn btn-primary mt-16" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('quiz-fill-inp').value)">${t('submit')}</button></div>`;
   }
 }
 
