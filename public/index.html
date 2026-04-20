@@ -212,12 +212,6 @@
                     <p class="subtitle">Monitor individual student progress</p>
                 </div>
                 <div id="student-roster" class="roster-grid"></div>
-                <div id="student-detail-modal" class="modal hidden">
-                    <div class="modal-content">
-                        <button class="modal-close" onclick="closeModal()">&times;</button>
-                        <div id="student-detail-body"></div>
-                    </div>
-                </div>
             </section>
 
             <!-- Reports Tab -->
@@ -295,6 +289,13 @@
                 <div id="progress-chart"></div>
             </section>
         </main>
+    </div>
+
+    <div id="student-detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div id="student-detail-body"></div>
+        </div>
     </div>
 
     <script src="/js/app.js"></script>
