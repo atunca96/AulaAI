@@ -16,7 +16,11 @@
     </div>
 
     <!-- Loading Screen -->
-    <div id="loading-screen" class="screen active" style="display:flex; justify-content:center; align-items:center; height:100vh; flex-direction:column; gap:16px;">
+    <style>
+        #loading-screen { display: none; justify-content:center; align-items:center; height:100vh; flex-direction:column; gap:16px; }
+        #loading-screen.active { display: flex; }
+    </style>
+    <div id="loading-screen" class="screen active">
         <div style="font-size:32px">🇪🇸</div>
         <div style="color:var(--text-muted); font-size:14px; letter-spacing:1px; text-transform:uppercase;">Loading AulaAI...</div>
     </div>
