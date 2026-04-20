@@ -322,7 +322,23 @@ async function loadQuizList() {
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   const emptyText = currentUser.role === 'lecturer' ? 'No quizzes yet. Create one above.' : t('noQuizzes');
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${emptyText}</p>`
-    : quizzes.map(q => `<div class="card" style="cursor:pointer" onclick="${currentUser.role==='student' ? `takeQuiz('${q.id}')` : ''}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()}</div></div><span class="btn btn-outline btn-sm">${currentUser.role==='student'?'Take Quiz':'View'}</span></div></div>`).join('');
+    : quizzes.map(q => `<div class="card" style="cursor:pointer" onclick="${currentUser.role==='student' ? `takeQuiz('${q.id}')` : `viewQuiz('${q.id}', '${esc(q.title)}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()}</div></div><span class="btn btn-outline btn-sm">${currentUser.role==='student'?'Take Quiz':'View'}</span></div></div>`).join('');
+}
+
+async function viewQuiz(quizId, title) {
+  const data = await api('/quiz/take?quiz_id=' + quizId);
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `
+    <h2 style="margin-bottom:20px">${title}</h2>
+    <div style="color:var(--text-secondary); margin-bottom:16px">${data.questions.length} questions</div>
+    ${data.questions.map((q, i) => `
+      <div style="margin-bottom:12px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm)">
+        <div style="font-weight:600; margin-bottom:8px">Q${i+1}: ${q.prompt}</div>
+        <div style="font-size:14px">Answer: <strong style="color:var(--success)">${q.answer}</strong></div>
+      </div>
+    `).join('')}
+  `;
 }
 
 async function takeQuiz(quizId) {
