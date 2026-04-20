@@ -15,8 +15,14 @@
         <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN / TR</button>
     </div>
 
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen active" style="display:flex; justify-content:center; align-items:center; height:100vh; flex-direction:column; gap:16px;">
+        <div style="font-size:32px">🇪🇸</div>
+        <div style="color:var(--text-muted); font-size:14px; letter-spacing:1px; text-transform:uppercase;">Loading AulaAI...</div>
+    </div>
+
     <!-- Login Screen -->
-    <div id="login-screen" class="screen active">
+    <div id="login-screen" class="screen">
         <div class="login-container">
             <div class="login-hero">
                 <div class="hero-pattern"></div>

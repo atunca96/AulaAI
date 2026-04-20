@@ -165,8 +165,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
   if (savedUser) {
     try {
-      completeLogin(JSON.parse(savedUser));
-    } catch(e) {}
+      completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen'));
+    } catch(e) {
+      showScreen('login-screen');
+    }
+  } else {
+    showScreen('login-screen');
   }
 });
 
