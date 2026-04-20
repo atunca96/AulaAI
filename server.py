@@ -140,6 +140,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/login":
             return self._login()
+        elif path == "/api/register":
+            return self._register()
         elif path == "/api/quiz/create":
             return self._create_quiz()
         elif path == "/api/quiz/submit":
@@ -183,6 +185,40 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             })
         else:
             self._send_error("Invalid credentials", 401)
+
+    def _register(self):
+        body = self._read_body()
+        name = body.get("name", "").strip()
+        email = body.get("email", "").strip()
+        password = body.get("password", "").strip()
+
+        if not name or not email or not password:
+            return self._send_error("Name, email, and password are required")
+
+        db = get_db()
+        existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if existing:
+            db.close()
+            return self._send_error("An account with this email already exists")
+
+        student_id = _uid()
+        db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
+                   (student_id, name, email, password, "student"))
+
+        # Auto-enroll in the first course
+        course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+        if course:
+            db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
+                       (_uid(), student_id, course["id"]))
+
+        db.commit()
+        db.close()
+
+        self._send_json({
+            "success": True,
+            "user": {"id": student_id, "name": name,
+                     "email": email, "role": "student"}
+        })
 
     def _get_courses(self):
         db = get_db()
@@ -569,9 +605,8 @@ def main():
 
   Server running at: http://localhost:{PORT}
 
-  Demo accounts:
-    Lecturer: garcia@university.edu / demo123
-    Student:  alejandro@student.edu / student123
+  Lecturer login: garcia@university.edu / demo123
+  Students: Register at the login page
 ============================================================
     """)
     try:

@@ -182,34 +182,17 @@ def _uid():
 
 
 def _seed_data(c):
-    """Seed the database with demo lecturer, students, course, and Aula curriculum."""
+    """Seed the database with demo lecturer, course, and Aula curriculum."""
 
     # ── Lecturer ────────────────────────────────────────────
     lecturer_id = _uid()
     c.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
               (lecturer_id, "Prof. García", "garcia@university.edu", "demo123", "lecturer"))
 
-    # ── 15 demo students ───────────────────────────────────
-    student_ids = []
-    first_names = ["Alejandro", "Beatriz", "Carlos", "Diana", "Eduardo",
-                   "Fernanda", "Gabriel", "Helena", "Iván", "Julia",
-                   "Kevin", "Laura", "Miguel", "Natalia", "Oscar"]
-    for name in first_names:
-        sid = _uid()
-        student_ids.append(sid)
-        email = f"{name.lower()}@student.edu"
-        c.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-                  (sid, name, email, "student123", "student"))
-
     # ── Course ──────────────────────────────────────────────
     course_id = _uid()
     c.execute("INSERT INTO courses VALUES (?,?,?,?,?,datetime('now'))",
               (course_id, "Spanish 101", "Spring 2026", "Aula Internacional Plus 1", lecturer_id))
-
-    # ── Enroll all students ─────────────────────────────────
-    for sid in student_ids:
-        c.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
-                  (_uid(), sid, course_id))
 
     # ── Aula Internacional Plus 1 Curriculum ────────────────
     curriculum = _get_aula_curriculum()
@@ -232,27 +215,6 @@ def _seed_data(c):
                           (_uid(), topic_id, q["type"], q["prompt"], q["answer"],
                            json.dumps(q.get("distractors")), topic["difficulty"],
                            q.get("variant_group"), json.dumps(q.get("metadata"))))
-
-    # ── Seed some mastery data for demo ─────────────────────
-    import random
-    random.seed(42)
-    topics = c.execute("SELECT id FROM topics").fetchall()
-    for sid in student_ids:
-        for t in topics[:12]:  # First 12 topics have mastery data
-            score = round(random.uniform(0.2, 0.95), 3)
-            c.execute("INSERT OR REPLACE INTO mastery_scores VALUES (?,?,?,?,datetime('now'))",
-                      (_uid(), sid, t[0], score))
-
-    # ── Seed some responses for demo reports ────────────────
-    questions_db = c.execute("SELECT id, topic_id FROM questions LIMIT 60").fetchall()
-    for sid in student_ids:
-        for q in random.sample(list(questions_db), min(30, len(questions_db))):
-            score = round(random.uniform(0.0, 1.0), 2)
-            days_ago = random.randint(0, 21)
-            submitted = (datetime.utcnow() - timedelta(days=days_ago)).isoformat()
-            c.execute("""INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                      (_uid(), sid, q[0], "quiz", _uid(),
-                       "demo_answer", score, "auto", None, submitted))
 
 
 def _get_aula_curriculum():

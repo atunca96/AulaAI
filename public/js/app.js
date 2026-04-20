@@ -13,10 +13,38 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
-// ── Login ──
+// ── Auth & Login ──
+function toggleAuth(type) {
+  document.getElementById('tab-login').classList.toggle('active', type === 'login');
+  document.getElementById('tab-register').classList.toggle('active', type === 'register');
+  document.getElementById('login-form').classList.toggle('hidden', type === 'register');
+  document.getElementById('register-form').classList.toggle('hidden', type === 'login');
+  document.getElementById('demo-login-btn').classList.toggle('hidden', type === 'register');
+}
+
 function fillDemo(role) {
-  document.getElementById('login-email').value = role === 'lecturer' ? 'garcia@university.edu' : 'alejandro@student.edu';
-  document.getElementById('login-password').value = role === 'lecturer' ? 'demo123' : 'student123';
+  if (role === 'lecturer') {
+    document.getElementById('login-email').value = 'garcia@university.edu';
+    document.getElementById('login-password').value = 'demo123';
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const data = await api('/register', { method: 'POST', body: {
+    name: document.getElementById('register-name').value,
+    email: document.getElementById('register-email').value,
+    password: document.getElementById('register-password').value
+  }});
+  if (data.error) { document.getElementById('register-error').textContent = data.error; document.getElementById('register-error').classList.remove('hidden'); return false; }
+  
+  currentUser = data.user;
+  const courses = await api('/courses');
+  if (courses.length) courseId = courses[0].id;
+  curriculum = await api('/curriculum?course_id=' + courseId);
+  showScreen('student-dashboard');
+  initStudent();
+  return false;
 }
 
 async function handleLogin(e) {

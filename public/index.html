@@ -23,9 +23,14 @@
                 </div>
             </div>
             <div class="login-form-section">
-                <h2>Welcome Back</h2>
-                <p class="login-hint">Sign in to continue</p>
+                <div style="display:flex;gap:10px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+                    <button id="tab-login" class="nav-tab active" style="flex:1" onclick="toggleAuth('login')">Sign In</button>
+                    <button id="tab-register" class="nav-tab" style="flex:1" onclick="toggleAuth('register')">Register</button>
+                </div>
+
                 <form id="login-form" onsubmit="return handleLogin(event)">
+                    <h2>Welcome Back</h2>
+                    <p class="login-hint">Sign in to continue</p>
                     <div class="form-group">
                         <label for="login-email">Email</label>
                         <input type="email" id="login-email" placeholder="your@email.edu" required>
@@ -39,15 +44,33 @@
                     </button>
                     <div id="login-error" class="error-msg hidden"></div>
                 </form>
-                <div class="demo-accounts">
-                    <p class="demo-title">Demo Accounts</p>
+
+                <form id="register-form" class="hidden" onsubmit="return handleRegister(event)">
+                    <h2>Join the Class</h2>
+                    <p class="login-hint">Create a student account</p>
+                    <div class="form-group">
+                        <label for="register-name">Full Name</label>
+                        <input type="text" id="register-name" placeholder="Alejandro Silva" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">Email</label>
+                        <input type="email" id="register-email" placeholder="your@email.edu" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">Password</label>
+                        <input type="password" id="register-password" placeholder="••••••••" minlength="6" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="register-btn">
+                        Create Account
+                    </button>
+                    <div id="register-error" class="error-msg hidden"></div>
+                </form>
+
+                <div class="demo-accounts" id="demo-login-btn">
+                    <p class="demo-title">Lecturer Access</p>
                     <button class="demo-btn" onclick="fillDemo('lecturer')">
                         <span class="demo-icon">👩‍🏫</span>
-                        <span>Prof. García (Lecturer)</span>
-                    </button>
-                    <button class="demo-btn" onclick="fillDemo('student')">
-                        <span class="demo-icon">🎓</span>
-                        <span>Alejandro (Student)</span>
+                        <span>Prof. García</span>
                     </button>
                 </div>
             </div>
