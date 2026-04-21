@@ -69,7 +69,7 @@ def init_db():
             type TEXT NOT NULL,
             title TEXT NOT NULL,
             difficulty TEXT DEFAULT 'A1.1',
-            content_json TEXT NOT NULL,
+            content TEXT NOT NULL,
             sort_order INTEGER DEFAULT 0
         );
 

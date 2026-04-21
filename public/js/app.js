@@ -106,8 +106,9 @@ async function completeLogin(user) {
   else sessionStorage.setItem('aula_user', JSON.stringify(user));
   localStorage.setItem('aula_lang', currentLang);
   const courses = await api('/courses');
-  if (courses.length) courseId = courses[0].id;
-  curriculum = await api('/curriculum?course_id=' + courseId);
+  if (courses && courses.length) courseId = courses[0].id;
+  const currData = await api('/curriculum?course_id=' + courseId);
+  curriculum = Array.isArray(currData) ? currData : [];
   showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
   if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
 }
@@ -259,6 +260,11 @@ function renderActivityCard(a, idx, ctx) {
   const p = translatePrompt(a.prompt);
   if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options||[]).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..."><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'dialogue_order') {
+    const lines = a.scrambled_lines || [];
+    const speakers = a.speakers || {};
+    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">🗣️ ${a.title || 'Dialogue'}</div><div class="activity-prompt">${currentLang === 'tr' ? 'Diyaloğu doğru sıraya koyun:' : 'Arrange the dialogue in the correct order:'}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ ${t('check')}</button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  }
   return '';
 }
 
@@ -297,6 +303,35 @@ async function checkFill(id, answer, qid) {
   document.getElementById('fb-' + id).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
   document.getElementById('fb-' + id).textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
   if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' }});
+}
+
+function moveDialogueLine(btn, direction) {
+  const row = btn.closest('.dialogue-row');
+  const container = row.parentElement;
+  const rows = Array.from(container.children);
+  const idx = rows.indexOf(row);
+  if (direction === -1 && idx > 0) {
+    container.insertBefore(row, rows[idx - 1]);
+  } else if (direction === 1 && idx < rows.length - 1) {
+    container.insertBefore(rows[idx + 1], row);
+  }
+}
+
+function checkDialogue(cardId, correctOrderJson) {
+  const card = document.getElementById(cardId);
+  if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
+  const correctOrder = JSON.parse(correctOrderJson.replace(/\\'/g, "'"));
+  const container = document.getElementById('dialogue-' + cardId);
+  const currentOrder = Array.from(container.querySelectorAll('.dialogue-row')).map(r => r.dataset.line.replace(/\\'/g, "'"));
+  const isCorrect = JSON.stringify(currentOrder) === JSON.stringify(correctOrder);
+  card.classList.add(isCorrect ? 'correct' : 'incorrect');
+  const fb = document.getElementById('fb-' + cardId);
+  fb.classList.remove('hidden');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
+  fb.textContent = isCorrect ? t('correctMsg') : (currentLang === 'tr' ? 'Doğru sıra farklı. Tekrar deneyin!' : 'Not quite right. Try again!');
+  if (!isCorrect) {
+    setTimeout(() => { card.classList.remove('incorrect'); fb.classList.add('hidden'); }, 2000);
+  }
 }
 
 async function createQuiz() {
@@ -562,8 +597,7 @@ async function generateReport() {
 async function initStudent() {
   document.getElementById('student-nav-username').textContent = currentUser.name;
   document.getElementById('student-greeting').textContent = '¡Hola, ' + currentUser.name + '!';
-  await loadStudentStats();
-  loadStudentHome();
+  await loadStudentHome();
   loadStudentPractice();
   loadQuizList();
   loadAssignmentList();
