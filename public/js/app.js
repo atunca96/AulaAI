@@ -539,6 +539,22 @@ async function generateReport() {
             `).join('')}
           </table>`
         }
+
+        <!-- AI Student Evaluations -->
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">👥 Bireysel Öğrenci Değerlendirmeleri</h3>
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
+          ${(r.student_reports||[]).map(sr => `
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong style="font-size: 15px;">${esc(sr.name)}</strong>
+                <span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ${sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')}; color: ${sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')};">
+                  ${Math.round(sr.overall_mastery * 100)}%
+                </span>
+              </div>
+              <p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">${sr.evaluation || 'Veri yetersiz.'}</p>
+            </div>
+          `).join('') || '<p style="color:var(--text-muted)">Kayıtlı öğrenci bulunmuyor.</p>'}
+        </div>
       </div>
     </div>
   `;

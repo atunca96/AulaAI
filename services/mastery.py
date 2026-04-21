@@ -190,6 +190,18 @@ def generate_weekly_report(db_conn, course_id):
         weak_topics = [t for t, m in topic_masteries.items() if m["score"] < 0.5]
         flags = generate_risk_flags(overall, trend["direction"], engagement)
 
+        # Generate personalized AI evaluation in Turkish
+        if overall > 0.85:
+            eval_text = "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede. İleri düzey alıştırmalara yönlendirilebilir."
+        elif overall > 0.70:
+            eval_text = "Genel performansı iyi durumda, ancak bazı temel konularda küçük pratik eksikleri var. İstikrarlı çalışmasını sürdürmeli."
+        elif overall > 0.50:
+            eval_text = "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik olduğu konularda geriye dönük tekrarlar yapması faydalı olacaktır."
+        elif engagement == 0:
+            eval_text = "Henüz platformda yeterli etkinlik veya sınav tamamlamamış. Derse katılımının teşvik edilmesi gerekiyor."
+        else:
+            eval_text = "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var. Temel konularda birebir çalışma planlanmalı."
+
         report = {
             "student_id": student["id"],
             "name": student["name"],
@@ -199,6 +211,7 @@ def generate_weekly_report(db_conn, course_id):
             "weak_topics": weak_topics,
             "strong_topics": [t for t, m in topic_masteries.items() if m["score"] >= 0.75],
             "flags": flags,
+            "evaluation": eval_text,
             "topic_details": {k: v["score"] for k, v in topic_masteries.items()}
         }
         student_reports.append(report)
