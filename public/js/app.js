@@ -541,19 +541,30 @@ async function generateReport() {
         }
 
         <!-- AI Student Evaluations -->
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">👥 Bireysel Öğrenci Değerlendirmeleri</h3>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">👥 ${currentLang === 'tr' ? 'Bireysel Öğrenci Değerlendirmeleri' : 'Individual Student Evaluations'}</h3>
         <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
-          ${(r.student_reports||[]).map(sr => `
-            <div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <strong style="font-size: 15px;">${esc(sr.name)}</strong>
-                <span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ${sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')}; color: ${sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')};">
-                  ${Math.round(sr.overall_mastery * 100)}%
-                </span>
+          ${(r.student_reports||[]).map(sr => {
+            const isTr = currentLang === 'tr';
+            const evalTexts = {
+              'excellent': isTr ? "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede. İleri düzey alıştırmalara yönlendirilebilir." : "Making excellent progress. Comprehension of course materials is at a very high level. Ready for advanced exercises.",
+              'good': isTr ? "Genel performansı iyi durumda, ancak bazı temel konularda küçük pratik eksikleri var. İstikrarlı çalışmasını sürdürmeli." : "General performance is good, but shows minor gaps in core topics. Should maintain steady practice.",
+              'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik olduğu konularda geriye dönük tekrarlar yapması faydalı olacaktır." : "Experiencing fluctuations in the learning process. Would benefit from reviewing weaker topics.",
+              'inactive': isTr ? "Henüz platformda yeterli etkinlik veya sınav tamamlamamış. Derse katılımının teşvik edilmesi gerekiyor." : "Has not yet completed enough activities or quizzes. Class participation needs to be encouraged.",
+              'critical': isTr ? "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var. Temel konularda birebir çalışma planlanmalı." : "Experiencing severe comprehension difficulties and needs urgent teacher support. 1-on-1 sessions on core topics recommended."
+            };
+            const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
+            return `
+              <div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <strong style="font-size: 15px;">${esc(sr.name)}</strong>
+                  <span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ${sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')}; color: ${sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')};">
+                    ${Math.round(sr.overall_mastery * 100)}%
+                  </span>
+                </div>
+                <p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">${evalText}</p>
               </div>
-              <p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">${sr.evaluation || 'Veri yetersiz.'}</p>
-            </div>
-          `).join('') || '<p style="color:var(--text-muted)">Kayıtlı öğrenci bulunmuyor.</p>'}
+            `;
+          }).join('') || `<p style="color:var(--text-muted)">${currentLang === 'tr' ? 'Kayıtlı öğrenci bulunmuyor.' : 'No enrolled students found.'}</p>`}
         </div>
       </div>
     </div>
