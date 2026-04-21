@@ -785,6 +785,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         chapter_id = body.get("chapter_id")
         title = body.get("title", "Assignment")
         due_at = body.get("due_at")
+        count = max(3, min(50, int(body.get("count", 10))))  # respect user selection, clamp 3-50
 
         db = get_db()
         if not course_id:
@@ -795,18 +796,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                    (assignment_id, course_id, title, chapter_id, due_at))
 
-        # Add questions from the chapter
+        # Add exactly `count` questions from the chapter
+        questions = []
         if chapter_id:
             topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
             topic_ids = [t["id"] for t in topics]
-            questions = generate_quiz(topic_ids, db, count=15)
+            questions = generate_quiz(topic_ids, db, count=count)
             for i, q in enumerate(questions):
                 db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
                            (assignment_id, q["id"], i))
 
         db.commit()
         db.close()
-        self._send_json({"assignment_id": assignment_id, "title": title})
+        self._send_json({"assignment_id": assignment_id, "title": title, "question_count": len(questions)})
 
 
     def _get_assignment_responses(self, assignment_id):
