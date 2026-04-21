@@ -5,6 +5,9 @@ let curriculum = [];
 let currentLang = 'en';
 let aiStatus = null;
 
+// ── Keep Render alive (ping every 10 min) ──
+setInterval(() => fetch('/api/courses').catch(() => {}), 10 * 60 * 1000);
+
 const i18n = {
   en: {
     langBtn: '🌐 EN / TR', signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress', keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter', selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.', takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check', yourScore: 'Your Score', questions: 'questions', correct: 'correct', incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓', rememberMe: 'Remember Me', takeQuizBtn: 'Take Quiz', viewBtn: 'View',
@@ -611,10 +614,52 @@ async function loadStudentProgress() {
 }
 
 async function loadAssignmentList() {
-  const assignments = await api(`/assignments?course_id=${courseId}&student_id=${currentUser.id}`);
-  const container = currentUser.role==='lecturer' ? document.getElementById('assignment-list') : document.getElementById('student-assignment-list');
+  const isTr = currentLang === 'tr';
+  const url = currentUser.role === 'lecturer'
+    ? `/assignments?course_id=${courseId}`
+    : `/assignments?course_id=${courseId}&student_id=${currentUser.id}`;
+  const assignments = await api(url);
+  const container = currentUser.role === 'lecturer'
+    ? document.getElementById('assignment-list')
+    : document.getElementById('student-assignment-list');
   if (!container) return;
-  container.innerHTML = assignments.map(a => `<div class="card" onclick="${currentUser.role==='student'&&!a.is_completed?`takeAssignment('${a.id}')`:''}"><div class="card-body flex-between"><div><strong>${a.title}</strong></div><span>${a.is_completed?'Done':'Go'}</span></div></div>`).join('');
+
+  if (!assignments || assignments.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center">${isTr ? 'Henüz ödev oluşturulmadı.' : 'No assignments yet.'}</p>`;
+    return;
+  }
+
+  if (currentUser.role === 'lecturer') {
+    container.innerHTML = assignments.map(a => `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-body flex-between">
+          <div>
+            <strong style="font-size:15px">${esc(a.title)}</strong>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
+              ${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(a.created_at).toLocaleDateString()}
+              ${a.due_at ? ' · Due: ' + new Date(a.due_at).toLocaleDateString() : ''}
+            </div>
+          </div>
+          <span class="nav-badge" style="background:var(--accent-bg);color:var(--accent)">${isTr ? 'Aktif' : 'Active'}</span>
+        </div>
+      </div>`).join('');
+  } else {
+    container.innerHTML = assignments.map(a => {
+      const done = a.is_completed;
+      return `
+        <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
+          <div class="card-body flex-between">
+            <div>
+              <strong style="font-size:15px">${esc(a.title)}</strong>
+              <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
+                ${done ? (isTr ? '✅ Tamamlandı' : '✅ Completed') : (isTr ? '📝 Başlamak için tıkla' : '📝 Click to start')}
+              </div>
+            </div>
+            <span class="nav-badge" style="background:${done ? 'var(--success-bg)' : 'var(--warning-bg)'};color:${done ? 'var(--success)' : 'var(--warning)'}">${done ? (isTr ? 'Tamam' : 'Done') : (isTr ? 'Bekliyor' : 'Pending')}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
 }
 
 async function createAssignment() {
@@ -636,22 +681,104 @@ async function takeAssignment(aid) {
   showAssignmentQuestion(area);
 }
 
+
 function showAssignmentQuestion(area) {
-  const qs = JSON.parse(area.dataset.questions), idx = parseInt(area.dataset.current);
+  const qs = JSON.parse(area.dataset.questions);
+  const idx = parseInt(area.dataset.current);
+  const isTr = currentLang === 'tr';
+
   if (idx >= qs.length) return submitAssignment(area);
+
   const q = qs[idx];
-  area.innerHTML = `<h3>Q${idx+1}</h3><p>${translatePrompt(q.prompt)}</p>` + (q.type==='mcq' ? (q.distractors||[]).concat([q.answer]).sort(()=>Math.random()-0.5).map(o=>`<button class="option-btn" onclick="assignmentAnswer('${esc(o)}')">${translateOption(o)}</button>`).join('') : `<input id="as-inp"><button onclick="assignmentAnswer(document.getElementById('as-inp').value)">Sub</button>`);
+  const total = qs.length;
+  const pct = Math.round((idx / total) * 100);
+
+  let answerHTML;
+  if (q.type === 'mcq') {
+    const options = (q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5);
+    answerHTML = `<div class="options-grid" style="margin-top:16px">
+      ${options.map(o => `<button class="option-btn" onclick="assignmentAnswer('${esc(o)}')"
+        style="text-align:left;padding:14px 18px;font-size:14px">${translateOption(o)}</button>`).join('')}
+    </div>`;
+  } else {
+    answerHTML = `<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+      <input id="as-inp" class="fill-blank-input" placeholder="${isTr ? 'Cevabınızı yazın...' : 'Type your answer...'}"
+        style="flex:1;font-size:15px" onkeydown="if(event.key==='Enter')assignmentAnswer(this.value)">
+      <button class="btn btn-primary" onclick="assignmentAnswer(document.getElementById('as-inp').value)">
+        ${isTr ? 'Gönder' : 'Submit'} →
+      </button>
+    </div>
+    ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${q.hint}</div>` : ''}`;
+  }
+
+  area.innerHTML = `
+    <div style="padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--text-muted)">${isTr ? 'Soru' : 'Question'} ${idx + 1} / ${total}</span>
+        <button class="btn btn-ghost btn-sm"
+          onclick="if(confirm('${isTr ? 'Ödevi iptal et?' : 'Cancel assignment?'}'))document.getElementById('assignment-taking-area').classList.add('hidden')">
+          ${isTr ? 'İptal' : 'Cancel'}
+        </button>
+      </div>
+      <div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:24px">
+        <div style="background:var(--accent);height:6px;border-radius:4px;width:${pct}%;transition:width 0.3s"></div>
+      </div>
+      <div class="activity-type-label" style="margin-bottom:10px">
+        ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
+      </div>
+      <div class="activity-prompt" style="font-size:16px;line-height:1.6">${translatePrompt(q.prompt)}</div>
+      ${answerHTML}
+    </div>`;
+
+  if (q.type !== 'mcq') setTimeout(() => document.getElementById('as-inp')?.focus(), 100);
 }
 
 function assignmentAnswer(ans) {
-  const area = document.getElementById('assignment-taking-area'), answers = JSON.parse(area.dataset.answers), qs = JSON.parse(area.dataset.questions), idx = parseInt(area.dataset.current);
-  answers[qs[idx].id] = ans;
+  if (!ans || !ans.trim()) return;
+  const area = document.getElementById('assignment-taking-area');
+  const answers = JSON.parse(area.dataset.answers);
+  const qs = JSON.parse(area.dataset.questions);
+  const idx = parseInt(area.dataset.current);
+  answers[qs[idx].id] = ans.trim();
   area.dataset.answers = JSON.stringify(answers);
   area.dataset.current = String(idx + 1);
   showAssignmentQuestion(area);
 }
 
 async function submitAssignment(area) {
-  await api('/assignment/submit', { method: 'POST', body: { assignment_id: area.dataset.assignmentId, student_id: currentUser.id, answers: JSON.parse(area.dataset.answers) }});
-  location.reload();
+  const isTr = currentLang === 'tr';
+  const aid = area.dataset.assignmentId;
+  const answers = JSON.parse(area.dataset.answers);
+
+  area.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">
+    ${isTr ? 'Gönderiliyor...' : 'Submitting...'}
+  </div>`;
+
+  try {
+    const result = await api('/assignment/submit', {
+      method: 'POST',
+      body: { assignment_id: aid, student_id: currentUser.id, answers }
+    });
+    const pct = Math.round((result.average || 0) * 100);
+    area.innerHTML = `
+      <div style="padding:40px;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">${pct >= 70 ? '🎉' : '📚'}</div>
+        <h2 style="margin-bottom:8px">${isTr ? 'Ödev Tamamlandı!' : 'Assignment Complete!'}</h2>
+        <div style="font-size:36px;font-weight:700;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'};margin:16px 0">${pct}%</div>
+        <p style="color:var(--text-muted);margin-bottom:24px">${isTr ? 'Puanın kaydedildi.' : 'Your score has been recorded.'}</p>
+        <button class="btn btn-primary"
+          onclick="document.getElementById('assignment-taking-area').classList.add('hidden');loadAssignmentList()">
+          ${isTr ? 'Ödevlere Dön' : 'Back to Assignments'}
+        </button>
+      </div>`;
+  } catch(e) {
+    area.innerHTML = `<div style="padding:20px;color:var(--danger);text-align:center">
+      ${isTr ? 'Hata oluştu, tekrar deneyin.' : 'An error occurred. Please try again.'}
+      <br><button class="btn btn-outline" style="margin-top:12px"
+        onclick="document.getElementById('assignment-taking-area').classList.add('hidden')">
+        ${isTr ? 'Geri Dön' : 'Go Back'}
+      </button>
+    </div>`;
+  }
 }
+
