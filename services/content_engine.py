@@ -120,25 +120,26 @@ def _generate_vocab_activity(content, difficulty, count):
 
     activities = []
     for spanish, english in items[:count]:
-        all_english = list(words.values())
-        distractors = [e for e in all_english if e != english]
-        random.shuffle(distractors)
-        distractors = distractors[:3]
+        is_reverse = random.choice([True, False])
+        
+        if not is_reverse:
+            all_english = list(words.values())
+            distractors = [e for e in all_english if e != english]
+            random.shuffle(distractors)
+            distractors = distractors[:3]
 
-        options = distractors + [english]
-        random.shuffle(options)
+            options = distractors + [english]
+            random.shuffle(options)
 
-        activities.append({
-            "id": _uid(),
-            "type": "mcq",
-            "prompt": f"What does '{spanish}' mean?",
-            "options": options,
-            "answer": english,
-            "difficulty": difficulty,
-        })
-
-        # Reverse direction for variety
-        if len(activities) < count:
+            activities.append({
+                "id": _uid(),
+                "type": "mcq",
+                "prompt": f"What does '{spanish}' mean?",
+                "options": options,
+                "answer": english,
+                "difficulty": difficulty,
+            })
+        else:
             all_spanish = list(words.keys())
             distractors_es = [s for s in all_spanish if s != spanish]
             random.shuffle(distractors_es)
