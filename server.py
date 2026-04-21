@@ -914,12 +914,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         # All responses for this assignment
         rows = db.execute("""
-            SELECT r.student_id, r.question_id, r.student_answer, r.score,
+            SELECT r.student_id, r.question_id, r.answer AS student_answer, r.score,
                    u.name AS student_name
             FROM responses r
             JOIN users u ON r.student_id = u.id
             WHERE r.context_type = 'assignment' AND r.context_id = ?
-            ORDER BY u.name, r.created_at
+            ORDER BY u.name, r.submitted_at
         """, (assignment_id,)).fetchall()
 
         # Group by student
