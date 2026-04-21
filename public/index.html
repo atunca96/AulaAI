@@ -2,40 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>AulaAI — Spanish Learning System</title>
     <meta name="description" content="AI-powered learning system for Aula Internacional Plus 1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=4">
-    <style>
-        /* Force Mobile UI Updates & Bypass Cache */
-        @media (max-width: 768px) {
-            /* Fix iOS Stacking Context Bug by disabling sticky and backdrop-filter */
-            .topnav { position: static !important; backdrop-filter: none !important; flex-wrap: nowrap !important; justify-content: space-between !important; padding: 12px 20px !important; height: 60px !important; border-bottom: 1px solid var(--border) !important; }
-            .nav-tabs { 
-                position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: 75px !important; 
-                background: var(--bg-secondary) !important; border-top: 1px solid var(--border) !important; 
-                z-index: 1000 !important; display: flex !important; justify-content: space-around !important; align-items: center !important; 
-                padding-bottom: env(safe-area-inset-bottom) !important; box-shadow: 0 -4px 20px rgba(0,0,0,0.5) !important;
-            }
-            .nav-tab { flex: 1 !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; height: 100% !important; background: transparent !important; }
-            .tab-label { display: block !important; font-size: 11px !important; font-weight: 600 !important; margin-top: 4px !important; color: var(--text-secondary) !important; transition: all 0.2s !important; }
-            .tab-icon { font-size: 22px !important; margin: 0 !important; filter: grayscale(1) opacity(0.5) !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; display: block !important; }
-            .nav-tab.active .tab-icon { filter: grayscale(0) opacity(1) !important; transform: scale(1.15) !important; }
-            .nav-tab.active .tab-label { color: var(--accent-light) !important; }
-            .nav-brand { margin-right: 0 !important; }
-            .nav-title { display: none !important; }
-            #nav-username, #student-nav-username { display: none !important; }
-            .nav-user .btn-ghost { padding: 8px 16px !important; font-size: 14px !important; background: rgba(255,255,255,0.08) !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,0.1) !important; display: block !important; }
-            .dashboard-content { padding: 16px 12px 100px 12px !important; } /* Buffer for bottom nav */
-            .lang-switcher { bottom: 90px !important; right: 16px !important; padding: 6px !important; } /* Float above bottom nav */
-        }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css?v=6">
 </head>
 <body>
     <!-- Language Switcher -->
-    <div class="lang-switcher" style="position:fixed; bottom:20px; right:20px; z-index:9999; display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+    <div class="lang-switcher" style="position:fixed; bottom:80px; right:16px; z-index:9999; display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
         <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN / TR</button>
     </div>
 
