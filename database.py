@@ -153,6 +153,22 @@ def init_db():
             ended_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS assignments (
+            id TEXT PRIMARY KEY,
+            course_id TEXT REFERENCES courses(id),
+            title TEXT NOT NULL,
+            chapter_id TEXT REFERENCES chapters(id),
+            due_at TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS assignment_questions (
+            assignment_id TEXT REFERENCES assignments(id),
+            question_id TEXT REFERENCES questions(id),
+            sort_order INTEGER,
+            PRIMARY KEY (assignment_id, question_id)
+        );
+
         CREATE TABLE IF NOT EXISTS weekly_reports (
             id TEXT PRIMARY KEY,
             course_id TEXT REFERENCES courses(id),

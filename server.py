@@ -122,13 +122,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_quiz(quiz_id)
         elif path == "/api/quizzes":
             course_id = params.get("course_id", [None])[0]
-            return self._get_quizzes(course_id)
+            student_id = params.get("student_id", [None])[0]
+            return self._get_quizzes(course_id, student_id)
         elif path == "/api/report":
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
         elif path == "/api/activity":
             topic_id = params.get("topic_id", [None])[0]
             return self._get_activity(topic_id)
+        elif path == "/api/student/stats":
+            student_id = params.get("student_id", [None])[0]
+            return self._get_student_stats(student_id)
+        elif path == "/api/assignments":
+            course_id = params.get("course_id", [None])[0]
+            student_id = params.get("student_id", [None])[0]
+            return self._get_assignments(course_id, student_id)
+        elif path == "/api/assignment/take":
+            assignment_id = params.get("assignment_id", [None])[0]
+            return self._get_assignment(assignment_id)
         elif path.startswith("/api/"):
             return self._send_error("Not found", 404)
         else:
@@ -148,6 +159,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._submit_quiz()
         elif path == "/api/activity/respond":
             return self._submit_activity_response()
+        elif path == "/api/assignment/create":
+            return self._create_assignment()
+        elif path == "/api/assignment/submit":
+            return self._submit_assignment()
         elif path == "/api/report/generate":
             return self._generate_report()
         elif path == "/api/session/start":
@@ -380,7 +395,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self._send_json({"topic": dict(topic), "activities": activities})
 
-    def _get_quizzes(self, course_id):
+    def _get_quizzes(self, course_id, student_id=None):
         db = get_db()
         if not course_id:
             course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
@@ -389,8 +404,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         quizzes = db.execute(
             "SELECT * FROM quizzes WHERE course_id = ? ORDER BY created_at DESC", (course_id,)
         ).fetchall()
+        
+        result = []
+        for q in quizzes:
+            q_dict = dict(q)
+            if student_id:
+                # Check if there are any responses for this quiz by this student
+                completed = db.execute(
+                    "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
+                    (student_id, q["id"])
+                ).fetchone()
+                q_dict["is_completed"] = True if completed else False
+            result.append(q_dict)
+            
         db.close()
-        self._send_json([dict(q) for q in quizzes])
+        self._send_json(result)
 
     def _get_quiz(self, quiz_id):
         if not quiz_id:
@@ -524,12 +552,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if student_id and question_id:
             db = get_db()
             db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                       (_uid(), student_id, question_id, "session", _uid(),
+                       (_uid(), student_id, question_id, "practice", _uid(),
                         answer, score, "auto", feedback))
+            
+            # Update mastery even for practice
+            q = db.execute("SELECT topic_id FROM questions WHERE id = ?", (question_id,)).fetchone()
+            if q:
+                tid = q["topic_id"]
+                existing = db.execute(
+                    "SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?",
+                    (student_id, tid)
+                ).fetchone()
+                new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
+                db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, tid, round(new_score, 3)))
+            
             db.commit()
             db.close()
 
         self._send_json({"score": score, "feedback": feedback})
+
+    def _get_student_stats(self, student_id):
+        if not student_id: return self._send_error("ID required")
+        db = get_db()
+        stats = {
+            "quizzes": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'quiz'", (student_id,)).fetchone()[0],
+            "practice": db.execute("SELECT COUNT(*) FROM responses WHERE student_id = ? AND context_type = 'practice'", (student_id,)).fetchone()[0],
+            "assignments": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'assignment'", (student_id,)).fetchone()[0],
+        }
+        db.close()
+        self._send_json(stats)
 
     def _get_report(self, course_id):
         db = get_db()
@@ -613,6 +665,75 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         db.close()
         self._send_json({"assignment_id": assignment_id, "title": title})
 
+
+    def _get_assignments(self, course_id, student_id=None):
+        db = get_db()
+        if not course_id:
+            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+            course_id = course["id"] if course else None
+        
+        assignments = db.execute("SELECT * FROM assignments WHERE course_id = ? ORDER BY created_at DESC", (course_id,)).fetchall()
+        result = []
+        for a in assignments:
+            a_dict = dict(a)
+            if student_id:
+                completed = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, a["id"])).fetchone()
+                a_dict["is_completed"] = True if completed else False
+            result.append(a_dict)
+        db.close()
+        self._send_json(result)
+
+    def _get_assignment(self, assignment_id):
+        db = get_db()
+        assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
+        if not assignment:
+            db.close()
+            return self._send_error("Assignment not found", 404)
+        
+        questions = db.execute("""
+            SELECT q.* FROM questions q
+            JOIN assignment_questions aq ON q.id = aq.question_id
+            WHERE aq.assignment_id = ?
+            ORDER BY aq.sort_order
+        """, (assignment_id,)).fetchall()
+        
+        result = dict(assignment)
+        result["questions"] = []
+        for q in questions:
+            q_dict = dict(q)
+            if q_dict["distractors"]: q_dict["distractors"] = json.loads(q_dict["distractors"])
+            result["questions"].append(q_dict)
+        db.close()
+        self._send_json(result)
+
+    def _submit_assignment(self):
+        body = self._read_body()
+        aid = body.get("assignment_id")
+        student_id = body.get("student_id")
+        answers = body.get("answers", {})
+
+        db = get_db()
+        total_score = 0
+        results = []
+
+        for qid, student_answer in answers.items():
+            question = db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
+            if not question: continue
+            score, feedback = grade_response(question["type"], student_answer, question["answer"])
+            total_score += score
+            db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                       (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
+            
+            # Update mastery
+            tid = question["topic_id"]
+            existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
+            new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
+            db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
+                       (_uid(), student_id, tid, round(new_score, 3)))
+
+        db.commit()
+        db.close()
+        self._send_json({"average": total_score / max(len(answers), 1)})
 
 def main():
     init_db()
