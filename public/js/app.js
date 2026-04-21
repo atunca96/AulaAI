@@ -311,14 +311,42 @@ function checkFill(id, answer) {
   fb.textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
 }
 
+function swapElements(nodeA, nodeB) {
+  const rectA = nodeA.getBoundingClientRect();
+  const rectB = nodeB.getBoundingClientRect();
+  
+  nodeA.style.transform = `translateY(${rectB.top - rectA.top}px)`;
+  nodeB.style.transform = `translateY(${rectA.top - rectB.top}px)`;
+  
+  nodeA.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
+  nodeB.style.transition = 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)';
+  nodeA.style.zIndex = '10';
+  
+  const parent = nodeA.parentNode;
+  const btns = parent.querySelectorAll('button');
+  btns.forEach(b => b.style.pointerEvents = 'none');
+  
+  setTimeout(() => {
+    nodeA.style.transition = 'none';
+    nodeA.style.transform = 'none';
+    nodeB.style.transition = 'none';
+    nodeB.style.transform = 'none';
+    nodeA.style.zIndex = '';
+    parent.insertBefore(nodeA, nodeB);
+    btns.forEach(b => b.style.pointerEvents = '');
+  }, 250);
+}
+
 function moveUp(btn) {
   const row = btn.closest('.dialogue-row');
-  if (row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+  const prev = row.previousElementSibling;
+  if (prev) swapElements(row, prev);
 }
 
 function moveDown(btn) {
   const row = btn.closest('.dialogue-row');
-  if (row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+  const next = row.nextElementSibling;
+  if (next) swapElements(next, row);
 }
 
 function checkDialogue(id, correctOrderStr) {

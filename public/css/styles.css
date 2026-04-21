@@ -511,24 +511,30 @@ body {
 @media (max-width: 768px) {
   .login-container { grid-template-columns: 1fr; }
   .login-hero { display: none; }
-  .login-form-section { padding: 32px 20px; }
+  .login-form-section { padding: 32px 16px; }
   .grid-2col { grid-template-columns: 1fr; }
   .topnav { flex-wrap: wrap; height: auto; padding: 12px; gap: 8px; justify-content: space-between; }
   .nav-tabs { overflow-x: auto; width: 100%; order: 3; padding-bottom: 4px; white-space: nowrap; -webkit-overflow-scrolling: touch; }
-  .nav-tab { flex-shrink: 0; }
+  .nav-tab { flex-shrink: 0; padding: 10px 12px; }
   .options-grid { grid-template-columns: 1fr; }
   .form-row { flex-direction: column; gap: 12px; }
   .stats-grid { grid-template-columns: 1fr; }
-  .dashboard-content { padding: 20px 16px; }
-  .page-header h1 { font-size: 24px; }
-  .card-header, .card-body { padding: 16px; }
-  .modal-content { padding: 24px 20px; margin: 20px; max-height: 90vh; }
-  .activity-card { padding: 16px; }
-  .activity-prompt { font-size: 16px; }
+  .dashboard-content { padding: 16px 12px; }
+  .page-header h1 { font-size: 22px; }
+  .card-header, .card-body { padding: 14px; }
+  .modal-content { padding: 20px 16px; margin: 12px; max-height: 90vh; }
+  .activity-card { padding: 14px; }
+  .activity-prompt { font-size: 15px; }
   .fill-blank-input { width: 100%; margin-bottom: 12px; }
   .chapter-header { padding: 16px; }
   .student-card { padding: 16px; }
   .roster-grid { grid-template-columns: 1fr; }
+  
+  /* Touch target optimizations */
+  .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .option-btn { min-height: 44px; padding: 12px; font-size: 14px; }
+  .dialogue-row { gap: 4px; }
+  .dialogue-row .btn { min-height: 44px; min-width: 44px; font-size: 18px; }
 }
 
 /* ── Utility ─────────────────────────────────────────── */
