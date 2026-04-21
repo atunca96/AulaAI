@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a3a6b"/>
+      <stop offset="100%" style="stop-color:#1e4d8c"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer circle -->
+  <circle cx="100" cy="100" r="96" fill="url(#bg)" stroke="#fff" stroke-width="2"/>
+  <!-- Inner ring -->
+  <circle cx="100" cy="100" r="78" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+  <!-- University name - top arc -->
+  <path id="topArc" d="M 30,100 a 70,70 0 0,1 140,0" fill="none"/>
+  <text fill="#fff" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="3">
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">MARMARA ÜNİVERSİTESİ</textPath>
+  </text>
+  <!-- Year - bottom -->
+  <text x="100" y="175" fill="rgba(255,255,255,0.9)" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle" letter-spacing="4">1883</text>
+  <!-- Wave symbol (stylized m) -->
+  <g transform="translate(55, 70)" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Waves representing the sea/Marmara -->
+    <path d="M 5,25 Q 15,10 25,25 Q 35,40 45,25 Q 55,10 65,25 Q 75,40 85,25"/>
+    <path d="M 5,40 Q 15,25 25,40 Q 35,55 45,40 Q 55,25 65,40 Q 75,55 85,40" opacity="0.7"/>
+    <path d="M 10,55 Q 20,42 30,55 Q 40,68 50,55 Q 60,42 70,55 Q 78,65 82,55" opacity="0.4"/>
+    <!-- Box frame -->
+    <rect x="0" y="8" width="90" height="60" rx="6" stroke-width="2.5" opacity="0.6"/>
+  </g>
+</svg>
