@@ -42,7 +42,7 @@ def _call_groq(messages, max_tokens=1500, temperature=0.7):
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:  # 8s max — safe for Render health checks
             data = json.loads(resp.read().decode("utf-8"))
             content = data["choices"][0]["message"]["content"]
             return json.loads(content)

@@ -9,6 +9,8 @@ import os
 import sys
 import uuid
 import sqlite3
+import threading
+import time
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
 
@@ -99,6 +101,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     # ── GET routes ──────────────────────────────────────────
 
     def do_GET(self):
+        try:
+            self._handle_GET()
+        except Exception as e:
+            print(f"[ERROR] GET {self.path}: {e}")
+            try:
+                self._send_json({"error": "Internal server error"}, 500)
+            except Exception:
+                pass
+
+    def _handle_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         params = parse_qs(parsed.query)
@@ -146,12 +158,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_assignment(assignment_id)
         elif path == "/api/ai-status":
             return self._get_ai_status()
+        elif path == "/health" or path == "/api/health":
+            return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
         elif path.startswith("/api/"):
             return self._send_error("Not found", 404)
         else:
             return self._serve_static(path)
 
     def do_POST(self):
+        try:
+            self._handle_POST()
+        except Exception as e:
+            print(f"[ERROR] POST {self.path}: {e}")
+            try:
+                self._send_json({"error": "Internal server error"}, 500)
+            except Exception:
+                pass
+
+    def _handle_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
 
@@ -853,23 +877,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
 def main():
     init_db()
-    server = http.server.HTTPServer(("0.0.0.0", PORT), APIHandler)
+    
+    # ThreadingHTTPServer: each request in its own thread — one slow request can't block the site
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), APIHandler)
+    server.daemon_threads = True  # threads die when main thread dies
+    
     print(f"""
 ============================================================
-  Spanish AI System - Prototype
+  AulaAI — Spanish Learning System
   Textbook: Aula Internacional Plus 1
 
   Server running at: http://localhost:{PORT}
+  Mode: Threaded (crash-safe)
 
   Lecturer login: garcia@university.edu / demo123
   Students: Register at the login page
 ============================================================
     """)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n[Server] Shutting down...")
-        server.shutdown()
+    
+    while True:  # auto-restart loop
+        try:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Server started on port {PORT}")
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\n[Server] Shutting down...")
+            server.shutdown()
+            break
+        except Exception as e:
+            print(f"[CRITICAL] Server error: {e} — restarting in 2s...")
+            time.sleep(2)
 
 
 if __name__ == "__main__":
