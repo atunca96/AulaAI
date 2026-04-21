@@ -350,25 +350,45 @@ async function loadStudentStats() {
 
 async function loadStudentHome() {
   const progress = await api('/student/progress?student_id=' + currentUser.id);
-  const m = progress.masteries || [];
-  const avg = m.length ? m.reduce((a,x)=>a+x.score,0)/m.length : 0;
-  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4>Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>` : '';
+  const masteries = progress.masteries || [];
+  const avg = masteries.length ? masteries.reduce((a,m) => a + m.score, 0) / masteries.length : 0;
+  const strong = masteries.filter(m => m.score >= 0.75).length;
+  const weak = masteries.filter(m => m.score < 0.4).length;
+
+  document.getElementById('student-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg*100)}%</div></div>
+    <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak>0?'danger':'success'}">${weak}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
+
+  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>${(curriculum[0].topics||[]).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
 }
 
 function loadStudentPractice() {
-  document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics||[]).map(t => `<div class="topic-practice-card" onclick="startPractice('${t.id}','${esc(t.title)}')"><div style="font-weight:600">${t.title}</div></div>`).join('')).join('');
+  document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics||[]).map(tp =>
+    `<div class="topic-practice-card" onclick="startPractice('${tp.id}','${esc(tp.title)}')">
+      <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
+      <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
+      <div style="font-size:13px;color:var(--text-muted)">Unit ${ch.number} · ${tp.difficulty}</div>
+    </div>`
+  ).join('')).join('');
 }
 
 async function startPractice(tid, title) {
   const data = await api('/activity?topic_id=' + tid);
   const area = document.getElementById('practice-area');
   area.classList.remove('hidden');
-  area.innerHTML = `<h2>${title}</h2>` + (data.activities||[]).map((a,i)=>renderActivityCard(a,i,'prac')).join('');
+  area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>${t('practice')}: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">${t('close')}</button></div>` +
+    (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
+  area.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function loadStudentProgress() {
   const data = await api('/student/progress?student_id=' + currentUser.id);
-  document.getElementById('progress-chart').innerHTML = (data.masteries||[]).map(m => `<div class="progress-item"><span>${m.title}</span><div class="progress-bar"><div class="progress-fill" style="width:${Math.round(m.score*100)}%"></div></div></div>`).join('');
+  document.getElementById('progress-chart').innerHTML = (data.masteries||[]).map(m => {
+    const pct = Math.round(m.score * 100);
+    return `<div class="progress-item"><div class="progress-label"><span>${m.title} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${m.type}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
+  }).join('') || `<p style="color:var(--text-muted)">Complete some activities to see your progress!</p>`;
 }
 
 async function loadAssignmentList() {
