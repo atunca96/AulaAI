@@ -11,22 +11,24 @@
     <style>
         /* Force Mobile UI Updates & Bypass Cache */
         @media (max-width: 768px) {
-            .topnav { flex-wrap: nowrap !important; justify-content: space-between !important; padding: 12px 20px !important; height: 60px !important; border-bottom: 1px solid var(--border) !important; }
+            /* Fix iOS Stacking Context Bug by disabling sticky and backdrop-filter */
+            .topnav { position: static !important; backdrop-filter: none !important; flex-wrap: nowrap !important; justify-content: space-between !important; padding: 12px 20px !important; height: 60px !important; border-bottom: 1px solid var(--border) !important; }
             .nav-tabs { 
-                position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: 65px !important; 
+                position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: 75px !important; 
                 background: var(--bg-secondary) !important; border-top: 1px solid var(--border) !important; 
                 z-index: 1000 !important; display: flex !important; justify-content: space-around !important; align-items: center !important; 
                 padding-bottom: env(safe-area-inset-bottom) !important; box-shadow: 0 -4px 20px rgba(0,0,0,0.5) !important;
             }
-            .nav-tab { flex: 1 !important; display: flex !important; align-items: center !important; justify-content: center !important; height: 100% !important; background: transparent !important; }
-            .tab-label { display: none !important; } /* Instagram style: icons only */
-            .tab-icon { font-size: 26px !important; margin: 0 !important; filter: grayscale(1) opacity(0.5) !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; display: block !important; }
+            .nav-tab { flex: 1 !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; height: 100% !important; background: transparent !important; }
+            .tab-label { display: block !important; font-size: 11px !important; font-weight: 600 !important; margin-top: 4px !important; color: var(--text-secondary) !important; transition: all 0.2s !important; }
+            .tab-icon { font-size: 22px !important; margin: 0 !important; filter: grayscale(1) opacity(0.5) !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; display: block !important; }
             .nav-tab.active .tab-icon { filter: grayscale(0) opacity(1) !important; transform: scale(1.15) !important; }
+            .nav-tab.active .tab-label { color: var(--accent-light) !important; }
             .nav-brand { margin-right: 0 !important; }
             .nav-title { display: none !important; }
             #nav-username, #student-nav-username { display: none !important; }
-            .nav-user .btn-ghost { padding: 6px 12px !important; font-size: 14px !important; background: rgba(255,255,255,0.08) !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,0.1) !important; }
-            .dashboard-content { padding: 16px 12px 90px 12px !important; } /* Buffer for bottom nav */
+            .nav-user .btn-ghost { padding: 8px 16px !important; font-size: 14px !important; background: rgba(255,255,255,0.08) !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,0.1) !important; display: block !important; }
+            .dashboard-content { padding: 16px 12px 100px 12px !important; } /* Buffer for bottom nav */
         }
     </style>
 </head>
