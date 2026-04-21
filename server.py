@@ -382,7 +382,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ch_dict["topics"] = []
             for t in topics:
                 t_dict = dict(t)
-                t_dict["content"] = json.loads(t_dict["content_json"])
+                t_dict["content"] = json.loads(t_dict["content"])
                 qcount = db.execute(
                     "SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)
                 ).fetchone()["cnt"]
@@ -544,8 +544,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         result["questions"] = []
         for q in questions:
             q_dict = dict(q)
-            if q_dict["distractors"]:
-                q_dict["distractors"] = json.loads(q_dict["distractors"])
+            if q_dict.get("distractors"):
+                try:
+                    q_dict["distractors"] = json.loads(q_dict["distractors"])
+                except Exception:
+                    q_dict["distractors"] = []
             result["questions"].append(q_dict)
 
         db.close()
@@ -997,7 +1000,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         result["questions"] = []
         for q in questions:
             q_dict = dict(q)
-            if q_dict["distractors"]: q_dict["distractors"] = json.loads(q_dict["distractors"])
+            if q_dict.get("distractors"):
+                try:
+                    q_dict["distractors"] = json.loads(q_dict["distractors"])
+                except Exception:
+                    q_dict["distractors"] = []
             result["questions"].append(q_dict)
         db.close()
         self._send_json(result)

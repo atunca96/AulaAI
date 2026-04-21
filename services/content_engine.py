@@ -105,7 +105,7 @@ def generate_activity(topic_data, difficulty="standard", count=5):
     Returns a list of question dicts ready for the frontend.
     """
     topic_type = topic_data.get("type", "vocabulary")
-    content = json.loads(topic_data["content_json"]) if isinstance(topic_data["content_json"], str) else topic_data["content_json"]
+    content = json.loads(topic_data["content"]) if isinstance(topic_data.get("content"), str) else topic_data.get("content", {})
 
     # Try AI-powered generation first
     if is_ai_available():
