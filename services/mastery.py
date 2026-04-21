@@ -169,10 +169,13 @@ def generate_weekly_report(db_conn, course_id):
                         else "struggling"
                 }
 
-        if topic_masteries:
-            overall = sum(m["score"] for m in topic_masteries.values()) / len(topic_masteries)
+        # Calculate overall mastery only from topics with activity
+        active_m = [m["score"] for m in topic_masteries.values() if m.get("confidence") != "none"]
+        if active_m:
+            overall = sum(active_m) / len(active_m)
         else:
             overall = 0.0
+            
         mastery_values.append(overall)
 
         # Engagement: responses in last 7 days vs total questions available
