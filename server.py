@@ -156,6 +156,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/assignment/take":
             assignment_id = params.get("assignment_id", [None])[0]
             return self._get_assignment(assignment_id)
+        elif path == "/api/assignment/responses":
+            assignment_id = params.get("assignment_id", [None])[0]
+            return self._get_assignment_responses(assignment_id)
         elif path == "/api/ai-status":
             return self._get_ai_status()
         elif path == "/health" or path == "/api/health":
@@ -804,6 +807,75 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         db.commit()
         db.close()
         self._send_json({"assignment_id": assignment_id, "title": title})
+
+
+    def _get_assignment_responses(self, assignment_id):
+        """Return all student responses for a specific assignment, grouped by student."""
+        if not assignment_id:
+            return self._send_error("assignment_id required")
+
+        db = get_db()
+        assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
+        if not assignment:
+            db.close()
+            return self._send_error("Assignment not found", 404)
+
+        # All questions for this assignment
+        questions = db.execute("""
+            SELECT q.id, q.prompt, q.answer, q.type FROM questions q
+            JOIN assignment_questions aq ON q.id = aq.question_id
+            WHERE aq.assignment_id = ?
+            ORDER BY aq.sort_order
+        """, (assignment_id,)).fetchall()
+        question_map = {q["id"]: dict(q) for q in questions}
+
+        # All responses for this assignment
+        rows = db.execute("""
+            SELECT r.student_id, r.question_id, r.student_answer, r.score,
+                   u.name AS student_name
+            FROM responses r
+            JOIN users u ON r.student_id = u.id
+            WHERE r.context_type = 'assignment' AND r.context_id = ?
+            ORDER BY u.name, r.created_at
+        """, (assignment_id,)).fetchall()
+
+        # Group by student
+        students = {}
+        for row in rows:
+            sid = row["student_id"]
+            if sid not in students:
+                students[sid] = {
+                    "student_id": sid,
+                    "student_name": row["student_name"],
+                    "answers": [],
+                    "total_score": 0,
+                    "answered": 0
+                }
+            q = question_map.get(row["question_id"], {})
+            students[sid]["answers"].append({
+                "question_id": row["question_id"],
+                "prompt": q.get("prompt", ""),
+                "correct_answer": q.get("answer", ""),
+                "student_answer": row["student_answer"],
+                "score": row["score"],
+                "is_correct": row["score"] >= 0.8
+            })
+            students[sid]["total_score"] += row["score"]
+            students[sid]["answered"] += 1
+
+        result = []
+        for s in students.values():
+            s["average_score"] = round(s["total_score"] / max(s["answered"], 1), 3)
+            s["total_questions"] = len(question_map)
+            result.append(s)
+
+        db.close()
+        self._send_json({
+            "assignment_id": assignment_id,
+            "title": assignment["title"],
+            "total_questions": len(question_map),
+            "student_results": sorted(result, key=lambda x: x["average_score"], reverse=True)
+        })
 
 
     def _get_assignments(self, course_id, student_id=None):

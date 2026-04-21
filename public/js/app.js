@@ -633,14 +633,16 @@ async function loadAssignmentList() {
     container.innerHTML = assignments.map(a => `
       <div class="card" style="margin-bottom:12px">
         <div class="card-body flex-between">
-          <div>
+          <div style="flex:1">
             <strong style="font-size:15px">${esc(a.title)}</strong>
             <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
               ${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(a.created_at).toLocaleDateString()}
               ${a.due_at ? ' · Due: ' + new Date(a.due_at).toLocaleDateString() : ''}
             </div>
           </div>
-          <span class="nav-badge" style="background:var(--accent-bg);color:var(--accent)">${isTr ? 'Aktif' : 'Active'}</span>
+          <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:12px">
+            📊 ${isTr ? 'Sonuçları Gör' : 'View Results'}
+          </button>
         </div>
       </div>`).join('');
   } else {
@@ -660,6 +662,99 @@ async function loadAssignmentList() {
         </div>`;
     }).join('');
   }
+}
+
+async function viewAssignment(assignmentId, title) {
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML =
+    `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+
+  const data = await api('/assignment/responses?assignment_id=' + assignmentId);
+  const isTr = currentLang === 'tr';
+  const results = data.student_results || [];
+
+  // Class average
+  const classAvg = results.length
+    ? Math.round(results.reduce((s, r) => s + r.average_score, 0) / results.length * 100)
+    : 0;
+
+  const L = {
+    noResponses: isTr ? 'Henüz hiçbir öğrenci bu ödevi teslim etmedi.' : 'No students have submitted this assignment yet.',
+    submitted: isTr ? 'teslim etti' : 'submitted',
+    classAvg: isTr ? 'Sınıf Ort.' : 'Class Avg',
+    correct: isTr ? 'Doğru' : 'Correct',
+    studentAnswer: isTr ? 'Öğrenci Cevabı' : "Student's Answer",
+    correctAnswer: isTr ? 'Doğru Cevap' : 'Correct Answer',
+    expand: isTr ? 'Detayları gör' : 'View details'
+  };
+
+  document.getElementById('student-detail-body').innerHTML = `
+    <h2 style="margin-bottom:4px">📋 ${title}</h2>
+    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
+      ${data.total_questions} ${isTr ? 'soru' : 'questions'} &nbsp;·&nbsp;
+      ${results.length} ${L.submitted}
+    </div>
+
+    ${results.length > 0 ? `
+    <!-- Summary bar -->
+    <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${isTr ? 'Teslim Eden' : 'Submitted'}</div>
+        <div style="font-size:26px;font-weight:700">${results.length}</div>
+      </div>
+      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.classAvg}</div>
+        <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg/100)}">${classAvg}%</div>
+      </div>
+      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${isTr ? 'En Yüksek' : 'Top Score'}</div>
+        <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
+      </div>
+    </div>
+
+    <!-- Score bar chart -->
+    <div style="margin-bottom:24px">
+      ${results.map((sr, i) => {
+        const pct = Math.round(sr.average_score * 100);
+        const correctCount = sr.answers.filter(a => a.is_correct).length;
+        return `
+        <div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+            <span style="font-weight:500">
+              ${i === 0 ? '🏆 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : ''}
+              ${esc(sr.student_name)}
+            </span>
+            <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
+              <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${data.total_questions} ${L.correct.toLowerCase()})</span>
+            </span>
+          </div>
+          <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
+            <div style="background:${masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${pct}%;transition:width 0.6s ease"></div>
+          </div>
+        </div>
+        <!-- Expandable detail -->
+        <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
+            ${esc(sr.student_name)} — ${isTr ? 'Detaylı Cevaplar' : 'Detailed Answers'}
+          </div>
+          ${sr.answers.map((a, qi) => `
+            <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
+              <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? '✓' : '✗'}</span>
+              <div style="flex:1;font-size:13px">
+                <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${a.prompt}</div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap">
+                  <span>${L.studentAnswer}: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
+                  ${!a.is_correct ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
+                </div>
+              </div>
+              <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score*100)}%</span>
+            </div>
+          `).join('')}
+        </div>`;
+      }).join('')}
+    </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
+  `;
 }
 
 async function createAssignment() {
