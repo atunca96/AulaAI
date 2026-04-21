@@ -115,6 +115,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         path = parsed.path
         params = parse_qs(parsed.query)
 
+        # Health check for Render
+        if path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
+
         # API Routes
         if path == "/api/courses":
             return self._get_courses()
