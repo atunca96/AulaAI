@@ -286,6 +286,22 @@ async function loadQuizList() {
       }).join('');
 }
 
+async function viewQuiz(quizId, title) {
+  const data = await api('/quiz/take?quiz_id=' + quizId);
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `
+    <h2 style="margin-bottom:20px">${title}</h2>
+    <div style="color:var(--text-secondary); margin-bottom:16px">${data.questions.length} questions</div>
+    ${data.questions.map((q, i) => `
+      <div style="margin-bottom:12px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm)">
+        <div style="font-weight:600; margin-bottom:8px">Q${i+1}: ${q.prompt}</div>
+        <div style="font-size:14px">Answer: <strong style="color:var(--success)">${q.answer}</strong></div>
+      </div>
+    `).join('')}
+  `;
+}
+
 async function takeQuiz(quizId) {
   const data = await api('/quiz/take?quiz_id=' + quizId);
   const area = document.getElementById('quiz-taking-area');
@@ -322,12 +338,87 @@ async function submitQuizAnswers(area) {
 
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
-  document.getElementById('student-roster').innerHTML = students.map(s => `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="student-name">${s.name}</div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${Math.round(s.avg_mastery*100)}%;background:${masteryColor(s.avg_mastery)}"></div></div></div>`).join('');
+  document.getElementById('student-roster').innerHTML = students.map(s => {
+    const pct = Math.round(s.avg_mastery * 100);
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">Kick</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
+  }).join('');
+}
+
+async function deleteStudent(sid, name) {
+  if (confirm(`Are you sure you want to kick ${name} from the class? This cannot be undone.`)) {
+    const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
+    if (!res.error) loadStudentRoster();
+  }
+}
+
+async function showStudentDetail(sid, name) {
+  const data = await api('/student/progress?student_id=' + sid);
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `<h2 style="margin-bottom:20px">${name}</h2><h3 style="margin-bottom:16px">Topic Mastery</h3>${(data.masteries||[]).map(m => {
+    const pct = Math.round(m.score*100);
+    return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
+  }).join('')}<h3 style="margin:24px 0 16px">Recent Activity</h3>${(data.recent_responses||[]).slice(0,10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score>=0.8?'var(--success)':'var(--danger)'};font-weight:600">${Math.round(r.score*100)}%</span> — ${r.prompt?.substring(0,60)||'Question'}</div>`).join('')}`;
 }
 
 async function generateReport() {
+  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">Generating report...</p>';
   const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
-  location.reload();
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  document.getElementById('report-content').innerHTML = `
+    <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
+      <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
+        <div style="font-size: 32px; margin-bottom: 10px;">🇪🇸</div>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">AulaAI Weekly Digest</h2>
+        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">${today}</p>
+      </div>
+      <div style="padding: 40px 30px;">
+        <p style="font-size: 16px; line-height: 1.6; margin-top: 0;">Hi Professor,</p>
+        <p style="font-size: 16px; line-height: 1.6; color: var(--text-secondary);">Here is your AI-generated weekly performance breakdown for <strong>Spanish 101</strong>.</p>
+        <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Size</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students||0}</div>
+          </div>
+          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Mastery</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${Math.round((r.summary?.class_avg_mastery||0)*100)}%</div>
+          </div>
+          <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">At Risk</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count||0}</div>
+          </div>
+        </div>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">🤖 AI Insights</h3>
+        <p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">
+          The class is tracking an average mastery of ${Math.round((r.summary?.class_avg_mastery||0)*100)}%. ${(r.review_topics||[]).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.'}
+        </p>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">📊 Topics Needing Review</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+          ${(r.review_topics||[]).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery*100) + '% avg</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">No challenging topics detected.</td></tr>'}
+        </table>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">⚠️ Students Needing Intervention</h3>
+        ${(r.at_risk_students||[]).length === 0 ? '<p style="color: var(--success); font-weight: 500;">No at-risk students 🎉</p>' :
+          '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery*100) + '% overall</td></tr>').join('') + '</table>'}
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">👥 ${currentLang === 'tr' ? 'Bireysel Öğrenci Değerlendirmeleri' : 'Individual Student Evaluations'}</h3>
+        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
+          ${(r.student_reports||[]).map(sr => {
+            const isTr = currentLang === 'tr';
+            const evalTexts = {
+              'excellent': isTr ? "Mükemmel ilerleme kaydediyor." : "Making excellent progress.",
+              'good': isTr ? "Genel performansı iyi durumda." : "General performance is good.",
+              'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor." : "Experiencing fluctuations.",
+              'inactive': isTr ? "Henüz yeterli etkinlik tamamlamamış." : "Has not yet completed enough activities.",
+              'critical': isTr ? "Ciddi anlama zorlukları yaşıyor." : "Experiencing severe comprehension difficulties."
+            };
+            const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
+            return '<div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><strong style="font-size: 15px;">' + esc(sr.name) + '</strong><span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ' + (sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')) + '; color: ' + (sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')) + ';">' + Math.round(sr.overall_mastery * 100) + '%</span></div><p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">' + evalText + '</p></div>';
+          }).join('') || '<p style="color:var(--text-muted)">No enrolled students found.</p>'}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 async function initStudent() {
