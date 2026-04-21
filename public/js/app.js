@@ -257,12 +257,17 @@ function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 async function checkMCQ(btn, answer, cardId, qid) {
   const card = document.getElementById(cardId);
   if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
-  const picked = btn.dataset.original || btn.textContent.trim();
+  
+  // Fix for escaped apostrophes in data-original attribute
+  const picked = (btn.dataset.original || btn.textContent.trim()).replace(/\\'/g, "'");
   const isCorrect = picked.toLowerCase() === answer.toLowerCase();
+  
   card.querySelectorAll('.option-btn').forEach(b => {
-    if ((b.dataset.original || b.textContent.trim()).toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
+    const bText = (b.dataset.original || b.textContent.trim()).replace(/\\'/g, "'");
+    if (bText.toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
     else if (b === btn && !isCorrect) b.classList.add('wrong-answer');
   });
+  
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   document.getElementById('fb-' + cardId).classList.remove('hidden');
   document.getElementById('fb-' + cardId).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
