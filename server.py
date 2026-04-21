@@ -216,7 +216,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/student/delete":
             return self._delete_student()
         else:
-            return self._send_error("Not found", 404)
+            self._send_error("Not found", 404)
 
     def _delete_student(self):
         body = self._read_body()
@@ -651,7 +651,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = course["id"]
 
         # Get topics for this chapter (or all)
-        if chapter_id:
+        if chapter_id and chapter_id != "all":
             topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
         else:
             topics = db.execute("""
@@ -665,7 +665,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         quiz_id = _uid()
         db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
-                   (quiz_id, course_id, title, chapter_id))
+                   (quiz_id, course_id, title, None if chapter_id == "all" else chapter_id))
 
         for i, q in enumerate(questions):
             db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
@@ -705,7 +705,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 (student_id, topic_id)
             ).fetchone()
 
-            new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
+            current_score = existing["score"] if (existing and existing["score"] is not None) else score
+            new_score = (current_score * 0.7 + score * 0.3)
             db.execute("""
                 INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at)
                 VALUES (?, ?, ?, ?, datetime('now'))
@@ -869,10 +870,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         assignment_id = _uid()
         db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
-                   (assignment_id, course_id, title, chapter_id, due_at))
+                   (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
 
         # Add exactly `count` questions
-        if chapter_id:
+        if chapter_id and chapter_id != "all":
             topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
         else:
             topics = db.execute("""
@@ -1022,7 +1023,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Update mastery
             tid = question["topic_id"]
             existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
-            new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
+            current_score = existing["score"] if (existing and existing["score"] is not None) else score
+            new_score = (current_score * 0.7 + score * 0.3)
             db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
                        (_uid(), student_id, tid, round(new_score, 3)))
 
