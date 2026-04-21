@@ -154,8 +154,27 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._start_session()
         elif path == "/api/assignment/create":
             return self._create_assignment()
+        elif path == "/api/student/delete":
+            return self._delete_student()
         else:
             return self._send_error("Not found", 404)
+
+    def _delete_student(self):
+        body = self._read_body()
+        student_id = body.get("student_id")
+        if not student_id:
+            return self._send_error("student_id required")
+            
+        db = get_db()
+        # Delete related data first
+        db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
+        db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
+        db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
+        db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
+        db.commit()
+        db.close()
+        
+        self._send_json({"success": True})
 
     def do_OPTIONS(self):
         self.send_response(200)

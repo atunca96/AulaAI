@@ -6,12 +6,14 @@ let currentLang = 'en';
 
 const i18n = {
   en: {
-    langBtn: '🌐 EN / TR', signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress', keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter', selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.', takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check', yourScore: 'Your Score', questions: 'questions', correct: 'correct', incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓', rememberMe: 'Remember Me',
-    Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', 'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers', '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty', 'active this week': 'active this week', 'Average across all topics': 'Average across all topics', 'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%', 'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery'
+    langBtn: '🌐 EN / TR', signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress', keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter', selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.', takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check', yourScore: 'Your Score', questions: 'questions', correct: 'correct', incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓', rememberMe: 'Remember Me', takeQuizBtn: 'Take Quiz', viewBtn: 'View',
+    Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', 'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers', '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty', 'active this week': 'active this week', 'Average across all topics': 'Average across all topics', 'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%', 'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery',
+    'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities', '🚀 Launch Activity': '🚀 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic', 'Generate Activity': 'Generate Activity', 'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes', '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title', 'Chapter': 'Chapter', 'All chapters': 'All chapters', 'Questions': 'Questions', 'Create Quiz': 'Create Quiz', 'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress', 'Weekly Report': 'Weekly Report', 'AI-generated class performance analysis': 'AI-generated class performance analysis', '🔄 Generate Report': '🔄 Generate Report'
   },
   tr: {
-    langBtn: '🌐 TR / EN', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim', keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite', selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.', takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et', yourScore: 'Puanınız', questions: 'soru', correct: 'doğru', incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓', rememberMe: 'Beni Hatırla',
-    Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', 'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler', '⚠️ At-Risk Students': '⚠️ Riskli Öğrenciler', '📊 Topic Difficulty': '📊 Konu Zorluğu', 'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama', 'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı', 'No at-risk students 🎉': 'Riskli öğrenci yok 🎉', mastery: 'başarı'
+    langBtn: '🌐 TR / EN', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim', keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite', selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.', takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et', yourScore: 'Puanınız', questions: 'soru', correct: 'doğru', incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓', rememberMe: 'Beni Hatırla', takeQuizBtn: 'Sınava Başla', viewBtn: 'Görüntüle',
+    Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', 'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler', '⚠️ At-Risk Students': '⚠️ Riskli Öğrenciler', '📊 Topic Difficulty': '📊 Konu Zorluğu', 'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama', 'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı', 'No at-risk students 🎉': 'Riskli öğrenci yok 🎉', mastery: 'başarı',
+    'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat', '🚀 Launch Activity': '🚀 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç', 'Generate Activity': 'Etkinlik Oluştur', 'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet', '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı', 'Chapter': 'Ünite', 'All chapters': 'Tüm üniteler', 'Questions': 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur', 'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle', 'Weekly Report': 'Haftalık Rapor', 'AI-generated class performance analysis': 'Yapay zeka destekli sınıf performans analizi', '🔄 Generate Report': '🔄 Rapor Oluştur'
   }
 };
 
@@ -322,7 +324,7 @@ async function loadQuizList() {
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   const emptyText = currentUser.role === 'lecturer' ? 'No quizzes yet. Create one above.' : t('noQuizzes');
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${emptyText}</p>`
-    : quizzes.map(q => `<div class="card" style="cursor:pointer" onclick="${currentUser.role==='student' ? `takeQuiz('${q.id}')` : `viewQuiz('${q.id}', '${esc(q.title)}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()}</div></div><span class="btn btn-outline btn-sm">${currentUser.role==='student'?'Take Quiz':'View'}</span></div></div>`).join('');
+    : quizzes.map(q => `<div class="card" style="cursor:pointer" onclick="${currentUser.role==='student' ? `takeQuiz('${q.id}')` : `viewQuiz('${q.id}', '${esc(q.title)}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()}</div></div><span class="btn btn-outline btn-sm">${currentUser.role==='student'?t('takeQuizBtn'):t('viewBtn')}</span></div></div>`).join('');
 }
 
 async function viewQuiz(quizId, title) {
@@ -392,8 +394,15 @@ async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
   document.getElementById('student-roster').innerHTML = students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="student-name">${s.name}</div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">Kick</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
   }).join('');
+}
+
+async function deleteStudent(sid, name) {
+  if (confirm(`Are you sure you want to kick ${name} from the class? This cannot be undone.`)) {
+    const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
+    if (!res.error) loadStudentRoster();
+  }
 }
 
 async function showStudentDetail(sid, name) {
@@ -410,18 +419,73 @@ async function showStudentDetail(sid, name) {
 async function generateReport() {
   document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">Generating report...</p>';
   const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
-  const s = r.summary || {};
+  
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
   document.getElementById('report-content').innerHTML = `
-    <div class="stats-grid" style="margin-bottom:28px">
-      <div class="stat-card"><div class="stat-label">Class Size</div><div class="stat-value accent">${s.total_students}</div></div>
-      <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value success">${s.active_students}</div></div>
-      <div class="stat-card"><div class="stat-label">Avg Mastery</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round(s.class_avg_mastery*100)}%</div></div>
-      <div class="stat-card"><div class="stat-label">At Risk</div><div class="stat-value ${s.at_risk_count?'danger':'success'}">${s.at_risk_count}</div></div>
+    <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
+      <!-- Email Header -->
+      <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
+        <div style="font-size: 32px; margin-bottom: 10px;">🇪🇸</div>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">AulaAI Weekly Digest</h2>
+        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">${today}</p>
+      </div>
+      
+      <!-- Email Body -->
+      <div style="padding: 40px 30px;">
+        <p style="font-size: 16px; line-height: 1.6; margin-top: 0;">Hi Professor,</p>
+        <p style="font-size: 16px; line-height: 1.6; color: var(--text-secondary);">Here is your AI-generated weekly performance breakdown for <strong>Spanish 101</strong>.</p>
+        
+        <!-- Key Metrics -->
+        <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Size</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students||0}</div>
+          </div>
+          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Mastery</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${Math.round((r.summary?.class_avg_mastery||0)*100)}%</div>
+          </div>
+          <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">At Risk</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count||0}</div>
+          </div>
+        </div>
+
+        <!-- AI Insights -->
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">🤖 AI Insights</h3>
+        <p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">
+          The class is tracking an average mastery of ${Math.round((r.summary?.class_avg_mastery||0)*100)}%. ${(r.review_topics||[]).length > 0 ? `We noticed some difficulty with <strong>${r.review_topics[0].topic}</strong>. We recommend running a quick live activity.` : 'Great job! No major review topics detected right now.'}
+        </p>
+
+        <!-- Topic Difficulty -->
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">📊 Topics Needing Review</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+          ${(r.review_topics||[]).map(td => `
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 12px 0; font-size: 15px; font-weight: 500;">${td.topic}</td>
+              <td style="padding: 12px 0; text-align: right;">
+                <span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${Math.round(td.avg_mastery*100)}% avg</span>
+              </td>
+            </tr>
+          `).join('') || `<tr><td style="padding: 12px 0; color: var(--text-muted);">No challenging topics detected.</td></tr>`}
+        </table>
+
+        <!-- Students at Risk -->
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">⚠️ Students Needing Intervention</h3>
+        ${(r.at_risk_students||[]).length === 0 ? `<p style="color: var(--success); font-weight: 500;">No at-risk students 🎉</p>` : 
+          `<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+            ${r.at_risk_students.map(rs => `
+              <tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 12px 0; font-size: 15px; font-weight: 600;">${rs.name}</td>
+                <td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">${Math.round(rs.overall_mastery*100)}% overall</td>
+              </tr>
+            `).join('')}
+          </table>`
+        }
+      </div>
     </div>
-    <div class="report-section"><h3>⚠️ At-Risk Students</h3>${(r.at_risk_students||[]).map(st => `<div class="risk-item"><div><span class="risk-name">${st.name}</span><span style="margin-left:12px;font-size:13px;color:var(--text-muted)">${st.weak_topics?.join(', ')||'—'}</span></div><div class="risk-badges">${st.flags.map(f => `<span class="risk-badge warning">${f.replace(/_/g,' ')}</span>`).join('')}<span class="risk-badge ${st.overall_mastery<0.4?'critical':'warning'}">${Math.round(st.overall_mastery*100)}%</span></div></div>`).join('')||'<p style="color:var(--text-muted)">None 🎉</p>'}</div>
-    <div class="report-section"><h3>📊 Topic Difficulty Ranking</h3>${Object.entries(r.topic_difficulty||{}).map(([n,v]) => `<div class="progress-item"><div class="progress-label"><span>${n}</span><span>${Math.round(v*100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${v*100}%;background:${masteryColor(v)}"></div></div></div>`).join('')}</div>
-    <div class="report-section"><h3>🔴 Topics Needing Review</h3>${(r.review_topics||[]).map(t => `<div class="risk-item"><span class="risk-name">${t.topic}</span><span class="risk-badge critical">${Math.round(t.avg_mastery*100)}% avg</span></div>`).join('')||'<p style="color:var(--text-muted)">All topics above threshold</p>'}</div>
-    <div class="report-section"><h3>🌟 Top Performers</h3>${(r.top_performers||[]).map(st => `<div class="risk-item"><span class="risk-name">${st.name}</span><span class="risk-badge" style="background:var(--success-bg);color:var(--success)">${Math.round(st.overall_mastery*100)}%</span></div>`).join('')||'—'}</div>`;
+  `;
 }
 
 // ── Student Init ──

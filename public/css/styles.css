@@ -511,13 +511,24 @@ body {
 @media (max-width: 768px) {
   .login-container { grid-template-columns: 1fr; }
   .login-hero { display: none; }
-  .login-form-section { padding: 32px 24px; }
+  .login-form-section { padding: 32px 20px; }
   .grid-2col { grid-template-columns: 1fr; }
-  .topnav { flex-wrap: wrap; height: auto; padding: 12px; gap: 8px; }
-  .nav-tabs { overflow-x: auto; width: 100%; order: 3; }
+  .topnav { flex-wrap: wrap; height: auto; padding: 12px; gap: 8px; justify-content: space-between; }
+  .nav-tabs { overflow-x: auto; width: 100%; order: 3; padding-bottom: 4px; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  .nav-tab { flex-shrink: 0; }
   .options-grid { grid-template-columns: 1fr; }
-  .form-row { flex-direction: column; }
-  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .form-row { flex-direction: column; gap: 12px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .dashboard-content { padding: 20px 16px; }
+  .page-header h1 { font-size: 24px; }
+  .card-header, .card-body { padding: 16px; }
+  .modal-content { padding: 24px 20px; margin: 20px; max-height: 90vh; }
+  .activity-card { padding: 16px; }
+  .activity-prompt { font-size: 16px; }
+  .fill-blank-input { width: 100%; margin-bottom: 12px; }
+  .chapter-header { padding: 16px; }
+  .student-card { padding: 16px; }
+  .roster-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Utility ─────────────────────────────────────────── */
