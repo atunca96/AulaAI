@@ -169,6 +169,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._serve_static(path)
 
     def do_POST(self):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] POST {self.path}")
         try:
             self._handle_POST()
         except Exception as e:
@@ -202,8 +203,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._generate_report()
         elif path == "/api/session/start":
             return self._start_session()
-        elif path == "/api/assignment/create":
-            return self._create_assignment()
         elif path == "/api/student/delete":
             return self._delete_student()
         else:
@@ -629,7 +628,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
         title = body.get("title", "Quiz")
-        count = body.get("count", 10)
+        
+        count_val = body.get("count")
+        try:
+            count = int(count_val) if count_val is not None else 10
+        except (ValueError, TypeError):
+            count = 10
 
         db = get_db()
         if not course_id:
@@ -832,14 +836,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         body = self._read_body()
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
+        if not chapter_id:
+            chapter_id = None
+
         title = body.get("title", "Assignment")
         due_at = body.get("due_at")
-        count = max(3, min(50, int(body.get("count", 10))))  # respect user selection, clamp 3-50
+        
+        count_val = body.get("count")
+        try:
+            count = max(3, min(50, int(count_val) if count_val is not None else 10))
+        except (ValueError, TypeError):
+            count = 10
 
         db = get_db()
         if not course_id:
             course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"]
+            if course:
+                course_id = course["id"]
+            else:
+                db.close()
+                return self._send_error("No courses found")
 
         assignment_id = _uid()
         db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",

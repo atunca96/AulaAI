@@ -249,6 +249,9 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
     c = db_conn.cursor()
     questions = []
 
+    if not topic_ids:
+        return []
+
     for topic_id in topic_ids:
         rows = c.execute(
             "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM() LIMIT ?",
@@ -287,8 +290,13 @@ def grade_response(question_type, student_answer, correct_answer):
     Grade a student response. Uses AI for fill_blank when available.
     Returns score (0-1) and feedback.
     """
-    student_clean = student_answer.strip().lower()
-    correct_clean = correct_answer.strip().lower()
+    if student_answer is None:
+        student_answer = ""
+    if correct_answer is None:
+        correct_answer = ""
+        
+    student_clean = str(student_answer).strip().lower()
+    correct_clean = str(correct_answer).strip().lower()
 
     # Quick exact match
     if student_clean == correct_clean:
