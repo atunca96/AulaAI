@@ -362,59 +362,79 @@ async function showStudentDetail(sid, name) {
 }
 
 async function generateReport() {
-  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">Generating report...</p>';
+  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + (currentLang==='tr'?'Rapor oluşturuluyor...':'Generating report...') + '</p>';
   const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const isTr = currentLang === 'tr';
+  const today = new Date().toLocaleDateString(isTr ? 'tr-TR' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const avgPct = Math.round((r.summary?.class_avg_mastery||0)*100);
+
+  const L = {
+    title: isTr ? 'AulaAI Haftalık Özet' : 'AulaAI Weekly Digest',
+    greeting: isTr ? 'Merhaba Profesör,' : 'Hi Professor,',
+    intro: isTr ? '<strong>İspanyolca 101</strong> dersiniz için yapay zeka destekli haftalık performans raporunuz.' : 'Here is your AI-generated weekly performance breakdown for <strong>Spanish 101</strong>.',
+    classSize: isTr ? 'Sınıf Mevcudu' : 'Class Size',
+    classMastery: isTr ? 'Sınıf Başarısı' : 'Class Mastery',
+    atRisk: isTr ? 'Riskli' : 'At Risk',
+    aiInsights: isTr ? '🤖 Yapay Zeka Analizi' : '🤖 AI Insights',
+    aiBody: isTr
+      ? ('Sınıf ortalaması şu an %' + avgPct + ' seviyesinde. ' + ((r.review_topics||[]).length > 0 ? '<strong>' + r.review_topics[0].topic + '</strong> konusunda zorluk tespit edildi. Hızlı bir canlı etkinlik yapmanızı öneriyoruz.' : 'Harika! Şu an ciddi bir sorun tespit edilmedi.'))
+      : ('The class is tracking an average mastery of ' + avgPct + '%. ' + ((r.review_topics||[]).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.')),
+    topicsReview: isTr ? '📊 Tekrar Gerektiren Konular' : '📊 Topics Needing Review',
+    noTopics: isTr ? 'Zorlanılan konu tespit edilmedi.' : 'No challenging topics detected.',
+    avgLabel: isTr ? 'ort' : 'avg',
+    intervention: isTr ? '⚠️ Müdahale Gerektiren Öğrenciler' : '⚠️ Students Needing Intervention',
+    noRisk: isTr ? 'Riskli öğrenci yok 🎉' : 'No at-risk students 🎉',
+    overallLabel: isTr ? 'genel' : 'overall',
+    evalTitle: isTr ? '👥 Bireysel Öğrenci Değerlendirmeleri' : '👥 Individual Student Evaluations',
+    noStudents: isTr ? 'Kayıtlı öğrenci bulunmuyor.' : 'No enrolled students found.'
+  };
 
   document.getElementById('report-content').innerHTML = `
     <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
       <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
         <div style="font-size: 32px; margin-bottom: 10px;">🇪🇸</div>
-        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">AulaAI Weekly Digest</h2>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">${L.title}</h2>
         <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">${today}</p>
       </div>
       <div style="padding: 40px 30px;">
-        <p style="font-size: 16px; line-height: 1.6; margin-top: 0;">Hi Professor,</p>
-        <p style="font-size: 16px; line-height: 1.6; color: var(--text-secondary);">Here is your AI-generated weekly performance breakdown for <strong>Spanish 101</strong>.</p>
+        <p style="font-size: 16px; line-height: 1.6; margin-top: 0;">${L.greeting}</p>
+        <p style="font-size: 16px; line-height: 1.6; color: var(--text-secondary);">${L.intro}</p>
         <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Size</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classSize}</div>
             <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students||0}</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Class Mastery</div>
-            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${Math.round((r.summary?.class_avg_mastery||0)*100)}%</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classMastery}</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${avgPct}%</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">At Risk</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">${L.atRisk}</div>
             <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count||0}</div>
           </div>
         </div>
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">🤖 AI Insights</h3>
-        <p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">
-          The class is tracking an average mastery of ${Math.round((r.summary?.class_avg_mastery||0)*100)}%. ${(r.review_topics||[]).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.'}
-        </p>
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">📊 Topics Needing Review</h3>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.aiInsights}</h3>
+        <p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.topicsReview}</h3>
         <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          ${(r.review_topics||[]).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery*100) + '% avg</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">No challenging topics detected.</td></tr>'}
+          ${(r.review_topics||[]).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery*100) + '% ' + L.avgLabel + '</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">' + L.noTopics + '</td></tr>'}
         </table>
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">⚠️ Students Needing Intervention</h3>
-        ${(r.at_risk_students||[]).length === 0 ? '<p style="color: var(--success); font-weight: 500;">No at-risk students 🎉</p>' :
-          '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery*100) + '% overall</td></tr>').join('') + '</table>'}
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">👥 ${currentLang === 'tr' ? 'Bireysel Öğrenci Değerlendirmeleri' : 'Individual Student Evaluations'}</h3>
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.intervention}</h3>
+        ${(r.at_risk_students||[]).length === 0 ? '<p style="color: var(--success); font-weight: 500;">' + L.noRisk + '</p>' :
+          '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery*100) + '% ' + L.overallLabel + '</td></tr>').join('') + '</table>'}
+        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.evalTitle}</h3>
         <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
           ${(r.student_reports||[]).map(sr => {
-            const isTr = currentLang === 'tr';
             const evalTexts = {
-              'excellent': isTr ? "Mükemmel ilerleme kaydediyor." : "Making excellent progress.",
-              'good': isTr ? "Genel performansı iyi durumda." : "General performance is good.",
-              'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor." : "Experiencing fluctuations.",
-              'inactive': isTr ? "Henüz yeterli etkinlik tamamlamamış." : "Has not yet completed enough activities.",
-              'critical': isTr ? "Ciddi anlama zorlukları yaşıyor." : "Experiencing severe comprehension difficulties."
+              'excellent': isTr ? "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede." : "Making excellent progress. Comprehension of course materials is at a very high level.",
+              'good': isTr ? "Genel performansı iyi durumda, ancak bazı konularda küçük pratik eksikleri var." : "General performance is good, but shows minor gaps in core topics.",
+              'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik konularda tekrar yapması faydalı olacaktır." : "Experiencing fluctuations in learning. Would benefit from reviewing weaker topics.",
+              'inactive': isTr ? "Henüz platformda yeterli etkinlik tamamlamamış. Katılımının teşvik edilmesi gerekiyor." : "Has not yet completed enough activities. Class participation needs encouragement.",
+              'critical': isTr ? "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var." : "Experiencing severe comprehension difficulties and needs urgent teacher support."
             };
             const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
             return '<div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><strong style="font-size: 15px;">' + esc(sr.name) + '</strong><span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ' + (sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')) + '; color: ' + (sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')) + ';">' + Math.round(sr.overall_mastery * 100) + '%</span></div><p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">' + evalText + '</p></div>';
-          }).join('') || '<p style="color:var(--text-muted)">No enrolled students found.</p>'}
+          }).join('') || '<p style="color:var(--text-muted)">' + L.noStudents + '</p>'}
         </div>
       </div>
     </div>
