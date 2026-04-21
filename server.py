@@ -133,6 +133,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/student/stats":
             student_id = params.get("student_id", [None])[0]
             return self._get_student_stats(student_id)
+        elif path == "/api/quiz/responses":
+            quiz_id = params.get("quiz_id", [None])[0]
+            return self._get_quiz_responses(quiz_id)
         elif path == "/api/assignments":
             course_id = params.get("course_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
@@ -447,6 +450,88 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         db.close()
         self._send_json(result)
+
+    def _get_quiz_responses(self, quiz_id):
+        """Get all student responses for a given quiz, grouped by student."""
+        if not quiz_id:
+            return self._send_error("quiz_id required")
+
+        db = get_db()
+        # Get quiz info
+        quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
+        if not quiz:
+            db.close()
+            return self._send_error("Quiz not found", 404)
+
+        # Get quiz questions
+        questions = db.execute("""
+            SELECT q.id, q.prompt, q.answer, q.type, q.distractors
+            FROM questions q
+            JOIN quiz_questions qq ON q.id = qq.question_id
+            WHERE qq.quiz_id = ?
+            ORDER BY qq.sort_order
+        """, (quiz_id,)).fetchall()
+        questions_list = []
+        for q in questions:
+            qd = dict(q)
+            if qd["distractors"]:
+                qd["distractors"] = json.loads(qd["distractors"])
+            questions_list.append(qd)
+
+        # Get all responses for this quiz, joined with student and question info
+        responses = db.execute("""
+            SELECT r.student_id, r.question_id, r.answer AS student_answer,
+                   r.score, r.feedback, r.submitted_at,
+                   u.name AS student_name,
+                   q.prompt, q.answer AS correct_answer, q.type AS question_type
+            FROM responses r
+            JOIN users u ON r.student_id = u.id
+            JOIN questions q ON r.question_id = q.id
+            WHERE r.context_type = 'quiz' AND r.context_id = ?
+            ORDER BY u.name, r.submitted_at
+        """, (quiz_id,)).fetchall()
+
+        # Group responses by student
+        students_map = {}
+        for r in responses:
+            r_dict = dict(r)
+            sid = r_dict["student_id"]
+            if sid not in students_map:
+                students_map[sid] = {
+                    "student_id": sid,
+                    "student_name": r_dict["student_name"],
+                    "answers": [],
+                    "total_score": 0,
+                    "total_questions": 0
+                }
+            students_map[sid]["answers"].append({
+                "question_id": r_dict["question_id"],
+                "prompt": r_dict["prompt"],
+                "student_answer": r_dict["student_answer"],
+                "correct_answer": r_dict["correct_answer"],
+                "score": r_dict["score"],
+                "is_correct": r_dict["score"] >= 0.8,
+                "submitted_at": r_dict["submitted_at"]
+            })
+            students_map[sid]["total_score"] += r_dict["score"]
+            students_map[sid]["total_questions"] += 1
+
+        # Calculate averages
+        student_results = []
+        for sid, sdata in students_map.items():
+            sdata["average_score"] = round(sdata["total_score"] / max(sdata["total_questions"], 1), 3)
+            student_results.append(sdata)
+
+        # Sort by name
+        student_results.sort(key=lambda x: x["student_name"])
+
+        db.close()
+        self._send_json({
+            "quiz": dict(quiz),
+            "questions": questions_list,
+            "student_results": student_results,
+            "total_students": len(student_results)
+        })
 
     def _create_quiz(self):
         body = self._read_body()

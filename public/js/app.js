@@ -287,19 +287,97 @@ async function loadQuizList() {
 }
 
 async function viewQuiz(quizId, title) {
-  const data = await api('/quiz/take?quiz_id=' + quizId);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+
+  const [quizData, respData] = await Promise.all([
+    api('/quiz/take?quiz_id=' + quizId),
+    api('/quiz/responses?quiz_id=' + quizId)
+  ]);
+
+  const isTr = currentLang === 'tr';
+  const L = {
+    questions: isTr ? 'Sorular' : 'Questions',
+    studentResponses: isTr ? 'Öğrenci Cevapları' : 'Student Responses',
+    answerKey: isTr ? 'Cevap Anahtarı' : 'Answer Key',
+    answer: isTr ? 'Cevap' : 'Answer',
+    noResponses: isTr ? 'Henüz hiçbir öğrenci bu sınavı çözmedi.' : 'No students have taken this quiz yet.',
+    studentCount: isTr ? 'öğrenci çözdü' : 'students completed',
+    score: isTr ? 'Puan' : 'Score',
+    studentAnswer: isTr ? 'Öğrenci Cevabı' : "Student's Answer",
+    correctAnswer: isTr ? 'Doğru Cevap' : 'Correct Answer',
+    correct: isTr ? 'Doğru' : 'Correct',
+    incorrect: isTr ? 'Yanlış' : 'Incorrect',
+    avgScore: isTr ? 'Ortalama' : 'Average'
+  };
+
+  const studentResults = respData.student_results || [];
+
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:20px">${title}</h2>
-    <div style="color:var(--text-secondary); margin-bottom:16px">${data.questions.length} questions</div>
-    ${data.questions.map((q, i) => `
-      <div style="margin-bottom:12px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm)">
-        <div style="font-weight:600; margin-bottom:8px">Q${i+1}: ${q.prompt}</div>
-        <div style="font-size:14px">Answer: <strong style="color:var(--success)">${q.answer}</strong></div>
-      </div>
-    `).join('')}
+    <h2 style="margin-bottom:4px">${title}</h2>
+    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${quizData.questions.length} ${L.questions.toLowerCase()} · ${studentResults.length} ${L.studentCount}</div>
+    
+    <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 ${L.answerKey}</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 ${L.studentResponses} (${studentResults.length})</button>
+    </div>
+
+    <div id="qv-questions">
+      ${quizData.questions.map((q, i) => `
+        <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
+          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i+1}: ${q.prompt}</div>
+          <div style="font-size:13px">${L.answer}: <strong style="color:var(--success)">${q.answer}</strong></div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div id="qv-responses" style="display:none">
+      ${studentResults.length === 0 
+        ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
+        : studentResults.map(sr => {
+            const avgPct = Math.round(sr.average_score * 100);
+            const correctCount = sr.answers.filter(a => a.is_correct).length;
+            return `
+              <div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; overflow:hidden">
+                <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+                  <div>
+                    <strong style="font-size:15px">${sr.student_name}</strong>
+                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${L.correct.toLowerCase()}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px">
+                    <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
+                    <span style="color:var(--text-muted); font-size:18px">▾</span>
+                  </div>
+                </div>
+                <div style="display:none; padding:12px 16px; background:var(--bg-card)">
+                  ${sr.answers.map((a, i) => {
+                    const isRight = a.is_correct;
+                    return `
+                      <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
+                        <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? '✓' : '✗'}</span>
+                        <div style="flex:1">
+                          <div style="margin-bottom:4px; font-weight:500">${a.prompt}</div>
+                          <div style="display:flex; gap:16px; flex-wrap:wrap">
+                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer}</strong></span>
+                            ${!isRight ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                          </div>
+                        </div>
+                      </div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+          }).join('')
+      }
+    </div>
   `;
+}
+
+function switchQuizViewTab(btn, panelId) {
+  btn.parentElement.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('qv-questions').style.display = panelId === 'qv-questions' ? 'block' : 'none';
+  document.getElementById('qv-responses').style.display = panelId === 'qv-responses' ? 'block' : 'none';
 }
 
 async function takeQuiz(quizId) {
