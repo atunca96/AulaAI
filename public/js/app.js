@@ -60,6 +60,7 @@ const vocabTR = {
 };
 
 function translatePrompt(text) {
+  if (!text) return '';
   if (currentLang !== 'tr') return text;
   let t = text;
   // Templates
