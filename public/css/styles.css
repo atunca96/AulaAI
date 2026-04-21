@@ -183,7 +183,7 @@ body {
 }
 .nav-brand { display: flex; align-items: center; gap: 10px; margin-right: 32px; }
 .nav-logo { font-size: 24px; }
-.nav-logo-img { width: 32px; height: 32px; border-radius: 50%; }
+.nav-logo-img { height: 32px; width: auto; object-fit: contain; }
 .nav-title { font-size: 18px; font-weight: 700; }
 .nav-badge {
   padding: 3px 10px;
