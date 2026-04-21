@@ -135,44 +135,32 @@ def generate_weekly_report(db_conn, course_id):
 
     for student in students:
         topic_masteries = {}
-        for topic in topics:
-            # Get responses for this student-topic
-            responses = c.execute("""
-                SELECT r.score, r.submitted_at FROM responses r
-                JOIN questions q ON r.question_id = q.id
-                WHERE r.student_id = ? AND q.topic_id = ?
-                ORDER BY r.submitted_at DESC
-            """, (student["id"], topic["id"])).fetchall()
-            responses = [dict(r) for r in responses]
-
-            mastery = compute_mastery(responses)
-            topic_masteries[topic["title"]] = mastery
-
-        # Also check mastery_scores table
+        
+        # Primary source: mastery_scores table (consistent with dashboard)
         stored_masteries = c.execute(
             "SELECT topic_id, score FROM mastery_scores WHERE student_id = ?",
             (student["id"],)
         ).fetchall()
-
+        
         for sm in stored_masteries:
             topic_name = None
             for t in topics:
                 if t["id"] == sm["topic_id"]:
                     topic_name = t["title"]
                     break
-            if topic_name and topic_name not in topic_masteries:
+            if topic_name:
+                score = float(sm["score"])
                 topic_masteries[topic_name] = {
-                    "score": float(sm["score"]),
-                    "confidence": "stored",
-                    "classification": "proficient" if sm["score"] >= MASTERY_HIGH
-                        else "developing" if sm["score"] >= MASTERY_LOW
+                    "score": score,
+                    "confidence": "high", # Stored scores have weight
+                    "classification": "proficient" if score >= MASTERY_HIGH
+                        else "developing" if score >= MASTERY_LOW
                         else "struggling"
                 }
 
-        # Calculate overall mastery only from topics with activity
-        active_m = [m["score"] for m in topic_masteries.values() if m.get("confidence") != "none"]
-        if active_m:
-            overall = sum(active_m) / len(active_m)
+        # Overall is average of active topics
+        if topic_masteries:
+            overall = sum(m["score"] for m in topic_masteries.values()) / len(topic_masteries)
         else:
             overall = 0.0
             
