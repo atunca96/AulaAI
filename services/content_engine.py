@@ -1,13 +1,14 @@
 """
 Content Engine — Generates questions, activities, and assignments
 aligned to Aula Internacional Plus 1 curriculum.
-Mock LLM implementation for the prototype (swap-ready for real API).
+Uses Groq AI when available, falls back to mock templates.
 """
 
 import random
 import json
 import uuid
 from datetime import datetime
+from services.ai_engine import is_ai_available, ai_generate_activity, ai_generate_questions, ai_grade_open_response
 
 
 def _uid():
@@ -100,11 +101,37 @@ DIALOGUE_TEMPLATES = [
 def generate_activity(topic_data, difficulty="standard", count=5):
     """
     Generate an activity set for a given topic.
+    Uses AI when available, falls back to mock templates.
     Returns a list of question dicts ready for the frontend.
     """
     topic_type = topic_data.get("type", "vocabulary")
     content = json.loads(topic_data["content_json"]) if isinstance(topic_data["content_json"], str) else topic_data["content_json"]
 
+    # Try AI-powered generation first
+    if is_ai_available():
+        try:
+            ai_activities = ai_generate_activity(topic_data["title"], topic_type, content, count=count)
+            if ai_activities:
+                print(f"[AI] Generated {len(ai_activities)} activities for '{topic_data['title']}'")
+                result = []
+                for a in ai_activities:
+                    activity = {
+                        "id": _uid(),
+                        "type": a.get("type", "mcq"),
+                        "prompt": a.get("prompt", ""),
+                        "answer": a.get("answer", ""),
+                        "difficulty": difficulty,
+                    }
+                    if a.get("type") == "mcq":
+                        activity["options"] = a.get("options", [])
+                    if a.get("hint"):
+                        activity["hint"] = a["hint"]
+                    result.append(activity)
+                return result
+        except Exception as e:
+            print(f"[AI] Fallback to mock: {e}")
+
+    # Fallback to mock templates
     if topic_type == "vocabulary":
         return _generate_vocab_activity(content, difficulty, count)
     elif topic_type == "grammar":
@@ -257,15 +284,26 @@ def generate_dialogue_activity():
 
 def grade_response(question_type, student_answer, correct_answer):
     """
-    Grade a student response. Returns score (0-1) and feedback.
+    Grade a student response. Uses AI for fill_blank when available.
+    Returns score (0-1) and feedback.
     """
     student_clean = student_answer.strip().lower()
     correct_clean = correct_answer.strip().lower()
 
-    if question_type in ("mcq", "fill_blank"):
-        if student_clean == correct_clean:
-            return 1.0, "¡Correcto! ✓"
+    # Quick exact match
+    if student_clean == correct_clean:
+        return 1.0, "¡Correcto! ✓"
 
+    # For fill_blank, try AI grading (more lenient with accents/typos)
+    if question_type == "fill_blank" and is_ai_available():
+        try:
+            ai_result = ai_grade_open_response("Fill in the blank", student_answer, correct_answer)
+            if ai_result:
+                return ai_result[0], ai_result[1]
+        except Exception:
+            pass  # Fall through to rule-based grading
+
+    if question_type in ("mcq", "fill_blank"):
         # Partial credit for accent errors
         distance = _levenshtein(student_clean, correct_clean)
         if distance <= 1 and len(correct_clean) > 3:
@@ -276,7 +314,6 @@ def grade_response(question_type, student_answer, correct_answer):
             return 0.0, f"Incorrect. The correct answer is '{correct_answer}'."
 
     elif question_type == "translation":
-        # Simplified scoring for prototype
         if student_clean == correct_clean:
             return 1.0, "¡Perfecto!"
         distance = _levenshtein(student_clean, correct_clean)

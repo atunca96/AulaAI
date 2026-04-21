@@ -3,6 +3,7 @@ let currentUser = null;
 let courseId = null;
 let curriculum = [];
 let currentLang = 'en';
+let aiStatus = null;
 
 const i18n = {
   en: {
@@ -171,6 +172,22 @@ function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' :
 async function initLecturer() {
   document.getElementById('nav-username').textContent = currentUser.name;
   document.getElementById('overview-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
+  
+  // Check AI status
+  try {
+    aiStatus = await api('/ai-status');
+    const badge = document.querySelector('.nav-badge');
+    if (badge && aiStatus.ai_enabled) {
+      badge.insertAdjacentHTML('afterend', '<span class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite">🤖 AI Active</span>');
+      if (!document.getElementById('ai-pulse-style')) {
+        const style = document.createElement('style');
+        style.id = 'ai-pulse-style';
+        style.textContent = '@keyframes pulse-glow{0%,100%{box-shadow:0 0 4px rgba(99,102,241,0.4)}50%{box-shadow:0 0 12px rgba(139,92,246,0.7)}}';
+        document.head.appendChild(style);
+      }
+    }
+  } catch(e) { aiStatus = { ai_enabled: false }; }
+
   await loadOverview();
   loadCurriculum();
   populateSelects();
@@ -492,7 +509,15 @@ async function generateReport() {
           </div>
         </div>
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.aiInsights}</h3>
-        <p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>
+        ${r.ai_insights ? `
+          <div style="background: var(--bg-input); padding: 20px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; margin-bottom: 16px;">
+            <p style="font-size: 15px; line-height: 1.7; margin: 0 0 12px 0;">${r.ai_insights.summary_text || ''}</p>
+            ${r.ai_insights.key_insight ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px 0; color: var(--warning);"><strong>💡 ${isTr ? 'Önemli' : 'Key Insight'}:</strong> ${r.ai_insights.key_insight}</p>` : ''}
+            ${r.ai_insights.recommendation ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px 0; color: var(--accent);"><strong>📌 ${isTr ? 'Öneri' : 'Recommendation'}:</strong> ${r.ai_insights.recommendation}</p>` : ''}
+            ${r.ai_insights.praise_point ? `<p style="font-size: 14px; line-height: 1.6; margin: 0; color: var(--success);"><strong>🌟 ${isTr ? 'Olumlu' : 'Praise'}:</strong> ${r.ai_insights.praise_point}</p>` : ''}
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); text-align: right; margin-bottom: 8px;">Powered by Groq · Llama 3.3 70B</div>
+        ` : `<p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>`}
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.topicsReview}</h3>
         <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
           ${(r.review_topics||[]).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery*100) + '% ' + L.avgLabel + '</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">' + L.noTopics + '</td></tr>'}

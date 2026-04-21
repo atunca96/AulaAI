@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from database import get_db, init_db
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
+from services.ai_engine import is_ai_available, ai_generate_report_insights
 
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
@@ -143,6 +144,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/assignment/take":
             assignment_id = params.get("assignment_id", [None])[0]
             return self._get_assignment(assignment_id)
+        elif path == "/api/ai-status":
+            return self._get_ai_status()
         elif path.startswith("/api/"):
             return self._send_error("Not found", 404)
         else:
@@ -202,6 +205,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     # ── API Implementations ─────────────────────────────────
+
+    def _get_ai_status(self):
+        """Return whether AI (Groq) is configured and available."""
+        self._send_json({
+            "ai_enabled": is_ai_available(),
+            "provider": "Groq (Llama 3.3 70B)" if is_ai_available() else "Mock Engine",
+            "features": {
+                "dynamic_activities": is_ai_available(),
+                "smart_grading": is_ai_available(),
+                "ai_reports": is_ai_available()
+            }
+        })
 
     def _login(self):
         body = self._read_body()
@@ -688,6 +703,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = course["id"]
 
         report = generate_weekly_report(db, course_id)
+
+        # Enhance with AI insights if available
+        if is_ai_available():
+            try:
+                ai_insights = ai_generate_report_insights({
+                    "total_students": report.get("summary", {}).get("total_students", 0),
+                    "class_avg_mastery": report.get("summary", {}).get("class_avg_mastery", 0),
+                    "at_risk_count": report.get("summary", {}).get("at_risk_count", 0),
+                    "review_topics": report.get("review_topics", []),
+                    "at_risk_students": [s["name"] for s in report.get("at_risk_students", [])]
+                })
+                if ai_insights:
+                    report["ai_insights"] = ai_insights
+            except Exception as e:
+                print(f"[AI] Report insights error: {e}")
+
         db.close()
         self._send_json(report)
 
