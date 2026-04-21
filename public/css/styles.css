@@ -522,24 +522,30 @@ body {
   .login-hero { display: none; }
   .login-form-section { padding: 32px 20px; }
 
-  /* Top Nav → slim header */
+  /* Top Nav → slim static header */
   .topnav {
+    position: static;
     flex-wrap: nowrap;
     justify-content: space-between;
     padding: 0 16px;
     height: 56px;
+    backdrop-filter: none;
   }
   .nav-brand { margin-right: 0; gap: 8px; }
   .nav-title { display: none; }
   .nav-logo { font-size: 20px; }
   .nav-badge { font-size: 10px; padding: 2px 8px; }
 
-  /* Hide username on mobile */
+  /* Hide username but keep logout visible */
   #nav-username, #student-nav-username { display: none; }
+  .nav-user {
+    display: flex !important;
+  }
   .nav-user .btn-ghost {
-    padding: 6px 12px;
+    padding: 8px 14px;
     font-size: 13px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.1);
     border-radius: var(--radius-sm);
   }
 
