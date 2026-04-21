@@ -184,6 +184,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/api/login":
             return self._login()
+        elif path == "/api/student/login":
+            return self._student_login()
         elif path == "/api/register":
             return self._register()
         elif path == "/api/quiz/create":
@@ -298,6 +300,53 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             "user": {"id": student_id, "name": name,
                      "email": email, "role": "student"}
         })
+
+    def _student_login(self):
+        """Student login by student number. Auto-registers on first login."""
+        body = self._read_body()
+        student_number = body.get("student_number", "").strip()
+        name = body.get("name", "").strip()
+
+        if not student_number:
+            return self._send_error("Student number is required")
+
+        # Use student number as the email key (internal)
+        email_key = f"{student_number}@student.aulaai"
+
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
+
+        if user:
+            # Existing student — log in directly
+            user = dict(user)
+            db.close()
+            self._send_json({
+                "success": True,
+                "user": {"id": user["id"], "name": user["name"],
+                         "email": user["email"], "role": "student"}
+            })
+        else:
+            # New student — auto-register
+            if not name:
+                db.close()
+                return self._send_error("Name is required for first login")
+
+            student_id = _uid()
+            db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
+                       (student_id, name, email_key, student_number, "student"))
+
+            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+            if course:
+                db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
+                           (_uid(), student_id, course["id"]))
+
+            db.commit()
+            db.close()
+            self._send_json({
+                "success": True,
+                "user": {"id": student_id, "name": name,
+                         "email": email_key, "role": "student"}
+            })
 
     def _get_courses(self):
         db = get_db()

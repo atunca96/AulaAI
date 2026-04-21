@@ -40,63 +40,67 @@
                 </div>
             </div>
             <div class="login-form-section">
-                <div style="display:flex;gap:10px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-                    <button id="tab-login" class="nav-tab active" style="flex:1" onclick="toggleAuth('login')">Sign In</button>
-                    <button id="tab-register" class="nav-tab" style="flex:1" onclick="toggleAuth('register')">Register</button>
+                <!-- Tab switcher -->
+                <div style="display:flex;gap:10px;margin-bottom:24px;border-bottom:1px solid var(--border)">
+                    <button id="tab-lecturer" class="nav-tab active" style="flex:1" onclick="switchLoginTab('lecturer')">
+                        👩‍🏫 Öğretmen
+                    </button>
+                    <button id="tab-student" class="nav-tab" style="flex:1" onclick="switchLoginTab('student')">
+                        🎓 Öğrenci
+                    </button>
                 </div>
 
-                <form id="login-form" onsubmit="return handleLogin(event)">
-                    <h2>Welcome Back</h2>
-                    <p class="login-hint">Sign in to continue</p>
-                    <div class="form-group">
-                        <label for="login-email">Email</label>
-                        <input type="email" id="login-email" placeholder="your@email.edu" required>
+                <!-- Lecturer Login -->
+                <div id="lecturer-login-panel">
+                    <h2 style="margin-bottom:4px">Öğretmen Girişi</h2>
+                    <p class="login-hint" style="margin-bottom:20px">E-posta ve şifrenizle giriş yapın</p>
+                    <form id="login-form" onsubmit="return handleLogin(event)">
+                        <div class="form-group">
+                            <label for="login-email">E-posta</label>
+                            <input type="email" id="login-email" placeholder="your@email.edu" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Şifre</label>
+                            <input type="password" id="login-password" placeholder="••••••••" required>
+                        </div>
+                        <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:16px">
+                            <input type="checkbox" id="login-remember" style="width:auto">
+                            <label for="login-remember" style="margin-bottom:0;font-weight:normal;cursor:pointer">Beni Hatırla</label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Giriş Yap</button>
+                        <div id="login-error" class="error-msg hidden"></div>
+                    </form>
+                    <div class="demo-accounts" style="margin-top:16px">
+                        <p class="demo-title">Hızlı Giriş</p>
+                        <button class="demo-btn" onclick="fillDemo('lecturer')">
+                            <span class="demo-icon">👩‍🏫</span>
+                            <span>Prof. García</span>
+                        </button>
                     </div>
-                    <div class="form-group">
-                        <label for="login-password">Password</label>
-                        <input type="password" id="login-password" placeholder="••••••••" required>
-                    </div>
-                    <div class="form-group" style="flex-direction:row; align-items:center; gap:8px; margin-bottom:16px;">
-                        <input type="checkbox" id="login-remember" checked style="width:auto;">
-                        <label for="login-remember" style="margin-bottom:0; font-weight:normal; cursor:pointer;" data-i18n="rememberMe">Remember Me</label>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-full" id="login-btn">
-                        Sign In
-                    </button>
-                    <div id="login-error" class="error-msg hidden"></div>
-                </form>
+                </div>
 
-                <form id="register-form" class="hidden" onsubmit="return handleRegister(event)">
-                    <h2>Join the Class</h2>
-                    <p class="login-hint">Create a student account</p>
-                    <div class="form-group">
-                        <label for="register-name">Full Name</label>
-                        <input type="text" id="register-name" placeholder="Alejandro Silva" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-email">Email</label>
-                        <input type="email" id="register-email" placeholder="your@email.edu" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="register-password">Password</label>
-                        <input type="password" id="register-password" placeholder="••••••••" minlength="6" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-full" id="register-btn">
-                        Create Account
-                    </button>
-                    <div id="register-error" class="error-msg hidden"></div>
-                </form>
-
-                <div class="demo-accounts" id="demo-login-btn">
-                    <p class="demo-title">Lecturer Access</p>
-                    <button class="demo-btn" onclick="fillDemo('lecturer')">
-                        <span class="demo-icon">👩‍🏫</span>
-                        <span>Prof. García</span>
-                    </button>
+                <!-- Student Login -->
+                <div id="student-login-panel" style="display:none">
+                    <h2 style="margin-bottom:4px">Öğrenci Girişi</h2>
+                    <p class="login-hint" style="margin-bottom:20px">Öğrenci numaranızla giriş yapın</p>
+                    <form id="student-login-form" onsubmit="return handleStudentLogin(event)">
+                        <div class="form-group">
+                            <label for="student-number">Öğrenci Numarası</label>
+                            <input type="text" id="student-number" placeholder="Örn: 2021123456" required
+                                autocomplete="off" inputmode="numeric">
+                        </div>
+                        <div class="form-group" id="student-name-group">
+                            <label for="student-name-input">Ad Soyad <span style="color:var(--text-muted);font-size:12px;font-weight:normal">(ilk girişte gerekli)</span></label>
+                            <input type="text" id="student-name-input" placeholder="Adınız Soyadınız">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="student-login-btn">Giriş Yap</button>
+                        <div id="student-login-error" class="error-msg hidden"></div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
+
 
     <!-- Lecturer Dashboard -->
     <div id="lecturer-dashboard" class="screen">

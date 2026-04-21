@@ -85,12 +85,11 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
-function toggleAuth(type) {
-  document.getElementById('tab-login').classList.toggle('active', type === 'login');
-  document.getElementById('tab-register').classList.toggle('active', type === 'register');
-  document.getElementById('login-form').classList.toggle('hidden', type === 'register');
-  document.getElementById('register-form').classList.toggle('hidden', type === 'login');
-  document.getElementById('demo-login-btn').classList.toggle('hidden', type === 'register');
+function switchLoginTab(tab) {
+  document.getElementById('tab-lecturer').classList.toggle('active', tab === 'lecturer');
+  document.getElementById('tab-student').classList.toggle('active', tab === 'student');
+  document.getElementById('lecturer-login-panel').style.display = tab === 'lecturer' ? 'block' : 'none';
+  document.getElementById('student-login-panel').style.display = tab === 'student' ? 'block' : 'none';
 }
 
 function fillDemo(role) {
@@ -113,14 +112,22 @@ async function completeLogin(user) {
   if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
 }
 
-async function handleRegister(e) {
+async function handleStudentLogin(e) {
   e.preventDefault();
-  const data = await api('/register', { method: 'POST', body: {
-    name: document.getElementById('register-name').value,
-    email: document.getElementById('register-email').value,
-    password: document.getElementById('register-password').value
-  }});
-  if (data.error) { document.getElementById('register-error').textContent = data.error; document.getElementById('register-error').classList.remove('hidden'); return false; }
+  const number = document.getElementById('student-number').value.trim();
+  const name = document.getElementById('student-name-input').value.trim();
+  const errEl = document.getElementById('student-login-error');
+  errEl.classList.add('hidden');
+
+  const data = await api('/student/login', { method: 'POST', body: { student_number: number, name } });
+  if (data.error) {
+    errEl.textContent = data.error === 'Name is required for first login'
+      ? 'İlk girişte ad soyad gereklidir.'
+      : data.error;
+    errEl.classList.remove('hidden');
+    return false;
+  }
+  // On subsequent logins, name field not needed
   await completeLogin(data.user);
   return false;
 }
@@ -640,7 +647,10 @@ async function loadAssignmentList() {
               ${a.due_at ? ' · Due: ' + new Date(a.due_at).toLocaleDateString() : ''}
             </div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:12px">
+          <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:12px">
+            👁️ ${isTr ? 'Önizle' : 'Preview'}
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:8px">
             📊 ${isTr ? 'Sonuçları Gör' : 'View Results'}
           </button>
         </div>
@@ -757,12 +767,67 @@ async function viewAssignment(assignmentId, title) {
   `;
 }
 
+async function previewAssignment(aid, title) {
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+  
+  const data = await api('/assignment/take?assignment_id=' + aid);
+  const isTr = currentLang === 'tr';
+  const qs = data.questions || [];
+  
+  document.getElementById('student-detail-body').innerHTML = `
+    <h2 style="margin-bottom:4px">👁️ ${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
+    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
+      ${qs.length} ${isTr ? 'soru' : 'questions'}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${qs.map((q, i) => `
+        <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
+            ${isTr ? 'Soru' : 'Question'} ${i+1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
+          </div>
+          <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+          ${q.type === 'mcq' ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              ${(q.distractors||[]).concat([q.answer]).map(o => `
+                <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                  ${o === q.answer ? '✓ ' : ''}${translateOption(o)}
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
+              ✓ ${q.answer}
+            </div>
+          `}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 async function createAssignment() {
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+
   const title = document.getElementById('assignment-title').value;
   const chapterId = document.getElementById('assignment-chapter-select').value;
   const count = document.getElementById('assignment-count').value;
-  await api('/assignment/create', { method: 'POST', body: { title, chapter_id: chapterId, count: parseInt(count), course_id: courseId }});
-  location.reload();
+  
+  const res = await api('/assignment/create', { method: 'POST', body: { title, chapter_id: chapterId, count: parseInt(count), course_id: courseId }});
+  
+  btn.textContent = originalText;
+  btn.disabled = false;
+  
+  document.getElementById('assignment-title').value = '';
+  loadAssignmentList();
+  
+  if(res.assignment_id) {
+    previewAssignment(res.assignment_id, res.title);
+  }
 }
 
 async function takeAssignment(aid) {
