@@ -189,7 +189,9 @@ async function initLecturer() {
     aiStatus = await api('/ai-status');
     const badge = document.querySelector('.nav-badge');
     if (badge && aiStatus.ai_enabled) {
-      badge.insertAdjacentHTML('afterend', '<span class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite">🤖 AI Active</span>');
+      if (!document.getElementById('ai-active-badge')) {
+        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite">🤖 AI Active</span>');
+      }
       if (!document.getElementById('ai-pulse-style')) {
         const style = document.createElement('style');
         style.id = 'ai-pulse-style';
