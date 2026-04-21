@@ -173,6 +173,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         try:
             self._handle_POST()
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"[ERROR] POST {self.path}: {e}")
             try:
                 self._send_json({"error": "Internal server error"}, 500)
@@ -861,15 +863,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                    (assignment_id, course_id, title, chapter_id, due_at))
 
-        # Add exactly `count` questions from the chapter
-        questions = []
+        # Add exactly `count` questions
         if chapter_id:
             topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
-            topic_ids = [t["id"] for t in topics]
-            questions = generate_quiz(topic_ids, db, count=count)
-            for i, q in enumerate(questions):
-                db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
-                           (assignment_id, q["id"], i))
+        else:
+            topics = db.execute("""
+                SELECT t.id FROM topics t
+                JOIN chapters ch ON t.chapter_id = ch.id
+                WHERE ch.course_id = ?
+            """, (course_id,)).fetchall()
+
+        topic_ids = [t["id"] for t in topics]
+        questions = generate_quiz(topic_ids, db, count=count)
+        for i, q in enumerate(questions):
+            db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
+                       (assignment_id, q["id"], i))
 
         db.commit()
         db.close()

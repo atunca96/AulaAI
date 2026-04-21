@@ -1,7 +1,7 @@
 import urllib.request
 import json
 
-data = json.dumps({'title': 'Test Script', 'count': 5}).encode()
+data = json.dumps({'title': 'All Chapters Test', 'count': 5}).encode()
 req = urllib.request.Request('http://localhost:3000/api/assignment/create', data=data, headers={'Content-Type': 'application/json'})
 
 try:
