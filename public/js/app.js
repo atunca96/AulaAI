@@ -274,7 +274,7 @@ function renderActivityCard(a, idx, ctx) {
     return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}')"><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   if (a.type === 'dialogue_order') {
-    return `<div class="activity-card"><div class="activity-type-label">Dialogue Order — ${a.title||''}</div><div class="activity-prompt">${translateOption('Arrange the dialogue in the correct order:')}</div><div id="dialogue-${idx}">${(a.scrambled_lines||[]).map((l,j) => `<div class="option-btn" style="margin-bottom:6px;cursor:grab" draggable="true" data-line="${esc(l)}">${l}</div>`).join('')}</div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">Dialogue Order — ${a.title||''}</div><div class="activity-prompt">${translateOption('Arrange the dialogue in the correct order:')}</div><div id="dialogue-container-${ctx}-${idx}">${(a.scrambled_lines||[]).map((l,j) => `<div class="dialogue-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:center"><div class="option-btn" style="flex:1;margin:0" data-line="${esc(l)}">${l}</div><button class="btn btn-outline btn-sm" style="padding:4px 12px;font-size:16px" onclick="moveUp(this)">↑</button><button class="btn btn-outline btn-sm" style="padding:4px 12px;font-size:16px" onclick="moveDown(this)">↓</button></div>`).join('')}</div><div style="margin-top:16px"><button class="btn btn-primary btn-sm" onclick="checkDialogue('${ctx}-${idx}', '${esc(JSON.stringify(a.correct_order))}')">${t('check')}</button></div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
 }
@@ -303,11 +303,38 @@ function checkFill(id, answer) {
   const card = document.getElementById(id);
   if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
   const isCorrect = inp.value.trim().toLowerCase() === answer.toLowerCase();
+  inp.disabled = true;
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   const fb = document.getElementById('fb-' + id);
   fb.classList.remove('hidden');
   fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  fb.textContent = isCorrect ? t('correctMsg') : `${t('correctAns')} ${answer}`;
+  fb.textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
+}
+
+function moveUp(btn) {
+  const row = btn.closest('.dialogue-row');
+  if (row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+}
+
+function moveDown(btn) {
+  const row = btn.closest('.dialogue-row');
+  if (row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+}
+
+function checkDialogue(id, correctOrderStr) {
+  const correctOrder = JSON.parse(correctOrderStr);
+  const container = document.getElementById('dialogue-container-' + id);
+  const rows = container.querySelectorAll('.dialogue-row .option-btn');
+  let isCorrect = true;
+  rows.forEach((row, i) => {
+    if (row.dataset.line !== correctOrder[i]) isCorrect = false;
+  });
+  const card = document.getElementById(id);
+  card.classList.add(isCorrect ? 'correct' : 'incorrect');
+  const fb = document.getElementById('fb-' + id);
+  fb.classList.remove('hidden');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
+  fb.textContent = isCorrect ? t('correctMsg') : t('incorrectAns') + ' (Try again)';
 }
 
 // ── Quizzes ──
