@@ -115,7 +115,7 @@ def generate_weekly_report(db_conn, course_id):
     students = c.execute("""
         SELECT u.* FROM users u
         JOIN enrollments e ON u.id = e.student_id
-        WHERE e.course_id = ? AND u.role = 'student'
+        WHERE e.course_id = ? AND u.role = 'student' AND (u.status = 'approved' OR u.status IS NULL)
     """, (course_id,)).fetchall()
     students = [dict(s) for s in students]
 

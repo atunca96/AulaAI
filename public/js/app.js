@@ -552,34 +552,37 @@ async function submitQuizAnswers(area) {
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
   const pending = await api('/students/pending').catch(()=>[]);
-  
-  let html = '';
   const isTr = currentLang === 'tr';
   
-  if (pending && pending.length > 0) {
-    html += `<div style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05));padding:20px;border-radius:16px;border:1px solid rgba(139,92,246,0.3);margin-bottom:24px">
-      <h3 style="color:var(--primary);margin:0 0 16px 0;font-size:1.1rem">⏳ ${isTr ? 'Bekleyen Onaylar' : 'Pending Approvals'} (${pending.length})</h3>
-      ${pending.map(s => `
-        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card-bg);padding:12px 16px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
-          <div style="min-width:0;flex:1">
-            <div style="font-weight:600;color:var(--text);font-size:0.95rem">${s.name}</div>
-            <div style="color:var(--text-light);font-size:0.8rem;margin-top:2px">${s.email}</div>
+  // Render pending approvals into separate full-width container
+  const pendingEl = document.getElementById('pending-roster');
+  if (pendingEl) {
+    if (pending && pending.length > 0) {
+      pendingEl.innerHTML = `<div style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05));padding:20px;border-radius:16px;border:1px solid rgba(139,92,246,0.3);margin-bottom:24px">
+        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ ${isTr ? 'Bekleyen Onaylar' : 'Pending Approvals'} (${pending.length})</h3>
+        ${pending.map(s => `
+          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:14px 20px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
+            <div style="min-width:0;flex:1;overflow:hidden">
+              <div style="font-weight:600;color:var(--text-primary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+              <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px">${s.email}</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${isTr ? 'Onayla' : 'Approve'}</button>
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${isTr ? 'Reddet' : 'Reject'}</button>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-            <button class="btn btn-primary btn-sm" style="padding:6px 14px;font-size:0.8rem" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${isTr ? 'Onayla' : 'Approve'}</button>
-            <button class="btn btn-outline btn-sm" style="padding:6px 14px;font-size:0.8rem" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${isTr ? 'Reddet' : 'Reject'}</button>
-          </div>
-        </div>
-      `).join('')}
-    </div>`;
+        `).join('')}
+      </div>`;
+    } else {
+      pendingEl.innerHTML = '';
+    }
   }
   
-  html += students.map(s => {
+  // Render approved students into grid
+  document.getElementById('student-roster').innerHTML = students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
     return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">Kick</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
   }).join('');
-  
-  document.getElementById('student-roster').innerHTML = html;
 }
 
 window.approveStudent = async (id) => {
