@@ -200,6 +200,10 @@ def init_db():
     if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
         _seed_data(c)
 
+    # Force update the lecturer account credentials on every startup
+    c.execute("UPDATE users SET name=?, email=?, password=? WHERE role='lecturer'",
+              ("Alper Tunca", "atunca96@gmail.com", "ALper2002@"))
+
     conn.commit()
     conn.close()
     print(f"[DB] Database initialized at {DB_PATH}")
@@ -214,8 +218,8 @@ def _seed_data(c):
 
     # ── Lecturer ────────────────────────────────────────────
     lecturer_id = _uid()
-    c.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-              (lecturer_id, "Prof. García", "garcia@university.edu", "demo123", "lecturer"))
+    c.execute("INSERT INTO users VALUES (?,?,?,?,?,'2024-01-01 00:00:00')",
+              (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
 
     # ── Course ──────────────────────────────────────────────
     course_id = _uid()
