@@ -1,4 +1,4 @@
-﻿// ── State & i18n ──
+// ── State & i18n ──
 let currentUser = null;
 let courseId = null;
 let curriculum = [];
@@ -56,13 +56,13 @@ const i18n = {
     langBtn: '🌐 EN / TR',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
-    'Öğretmen Girişi': 'Lecturer Login', 'E-posta ve şifrenizle giriş yapın': 'Sign in with your email and password',
-    'Öğrenci Girişi': 'Student Login', 'Öğrenci numaranızla giriş yapın': 'Log in with your student number',
-    'Öğrenci Numarası': 'Student Number', '(ilk girişte gerekli)': '(required)',
-    'Adınız Soyadınız': 'Your Full Name', 'Örn: 2021123456': 'e.g. 2021123456',
-    'E-posta': 'Email', 'Şifre': 'Password', 'Ad Soyad': 'Full Name',
-    'Giriş Yap': 'Sign In', 'Beni Hatırla': 'Remember Me',
-    '👩‍🏫 Öğretmen': '👩‍🏫 Lecturer', '🎓 Öğrenci': '🎓 Student',
+    'Lecturer Login': 'Lecturer Login', 'Sign in with your email and password': 'Sign in with your email and password',
+    'Student Login': 'Student Login', 'Log in with your student number': 'Log in with your student number',
+    'Student Number': 'Student Number', '(required)': '(required)',
+    'Your Full Name': 'Your Full Name', 'e.g. 2021123456': 'e.g. 2021123456',
+    Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
+    'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
+    '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
     keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter',
@@ -163,7 +163,7 @@ const i18n = {
     'Create Assignment': 'Ödev Oluştur', 'Your homework tasks': 'Ödev görevleriniz',
     // Students
     'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle',
-    Kick: 'Çıkar', 'Mastery:': 'Başarı:', responses: 'yanıt',
+    Kick: 'At', 'Mastery:': 'Başarı:', responses: 'yanıt',
     // Reports
     'Weekly Report': 'Haftalık Rapor', 'AI-generated class performance analysis': 'Yapay zeka destekli sınıf performans analizi',
     '🔄 Generate Report': '🔄 Rapor Oluştur',
@@ -724,7 +724,7 @@ async function loadStudentRoster() {
   // Render approved students into grid
   document.getElementById('student-roster').innerHTML = students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">Kick</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">${t('Kick')}</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
   }).join('');
 }
 
