@@ -1,4 +1,4 @@
-// ── State & i18n ──
+﻿// ── State & i18n ──
 let currentUser = null;
 let courseId = null;
 let curriculum = [];
@@ -53,16 +53,130 @@ function refreshCurrentView() {
 
 const i18n = {
   en: {
-    langBtn: '🌐 EN / TR', signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress', keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter', selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.', takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check', yourScore: 'Your Score', questions: 'questions', correct: 'correct', incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓', rememberMe: 'Remember Me', takeQuizBtn: 'Take Quiz', viewBtn: 'View',
-    Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', 'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers', '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty', 'active this week': 'active this week', 'Average across all topics': 'Average across all topics', 'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%', 'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery',
-    'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities', '🚀 Launch Activity': '🚀 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic', 'Generate Activity': 'Generate Activity', 'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes', '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title', 'Chapter': 'Chapter', 'All chapters': 'All chapters', 'Questions': 'Questions', 'Create Quiz': 'Create Quiz', 'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress', 'Weekly Report': 'Weekly Report', 'AI-generated class performance analysis': 'AI-generated class performance analysis', '🔄 Generate Report': '🔄 Generate Report', completed: 'Completed', Assignments: 'Assignments', 'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students', '➕ Create New Assignment': '➕ Create New Assignment', 'Assignment Title': 'Assignment Title', 'Create Assignment': 'Create Assignment', 'Your homework tasks': 'Your homework tasks', 'My Stats': 'My Stats',
-    'Account Pending Approval': 'Account Pending Approval', 'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.': 'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.'
+    langBtn: '🌐 EN / TR',
+    // Login screen
+    signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
+    'Öğretmen Girişi': 'Lecturer Login', 'E-posta ve şifrenizle giriş yapın': 'Sign in with your email and password',
+    'Öğrenci Girişi': 'Student Login', 'Öğrenci numaranızla giriş yapın': 'Log in with your student number',
+    'Öğrenci Numarası': 'Student Number', '(ilk girişte gerekli)': '(required)',
+    'Adınız Soyadınız': 'Your Full Name', 'Örn: 2021123456': 'e.g. 2021123456',
+    'E-posta': 'Email', 'Şifre': 'Password', 'Ad Soyad': 'Full Name',
+    'Giriş Yap': 'Sign In', 'Beni Hatırla': 'Remember Me',
+    '👩‍🏫 Öğretmen': '👩‍🏫 Lecturer', '🎓 Öğrenci': '🎓 Student',
+    // Student dashboard
+    home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
+    keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter',
+    selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.',
+    takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check',
+    yourScore: 'Your Score', questions: 'questions', correct: 'correct',
+    incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓',
+    takeQuizBtn: 'Take Quiz', viewBtn: 'View',
+    // Lecturer nav & tabs
+    Lecturer: 'Lecturer', Student: 'Student',
+    Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', Assignments: 'Assignments', Quizzes: 'Quizzes', 'My Stats': 'My Stats',
+    // Overview stats
+    STUDENTS: 'STUDENTS', 'CLASS MASTERY': 'CLASS MASTERY', 'AT RISK': 'AT RISK', 'TOP PERFORMERS': 'TOP PERFORMERS',
+    'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
+    '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty',
+    'active this week': 'active this week', 'Average across all topics': 'Average across all topics',
+    'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%',
+    'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery',
+    'Welcome back,': 'Welcome back,',
+    // Data Management
+    'Data Management': 'Data Management', 'Erase All Data': 'Erase All Data',
+    'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.': 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
+    // Activities
+    'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities',
+    '🚀 Launch Activity': '🚀 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
+    'Generate Activity': 'Generate Activity', 'Loading curriculum...': 'Loading curriculum...',
+    // Quiz Management
+    'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
+    '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title',
+    Chapter: 'Chapter', 'All chapters': 'All chapters', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
+    completed: 'Completed',
+    // Assignments
+    'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students',
+    '➕ Create New Assignment': '➕ Create New Assignment', 'Assignment Title': 'Assignment Title',
+    'Create Assignment': 'Create Assignment', 'Your homework tasks': 'Your homework tasks',
+    // Students
+    'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress',
+    Kick: 'Kick', 'Mastery:': 'Mastery:', responses: 'responses',
+    // Reports
+    'Weekly Report': 'Weekly Report', 'AI-generated class performance analysis': 'AI-generated class performance analysis',
+    '🔄 Generate Report': '🔄 Generate Report',
+    // Curriculum
+    'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — Content Map',
+    // Waiting Room
+    'Account Pending Approval': 'Account Pending Approval',
+    'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.': 'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.',
+    // Nav badge
+    'AI ACTIVE': 'AI ACTIVE',
+    // Student home
+    '📖 Current Chapter': '📖 Current Chapter',
+    Practice: 'Practice', Home: 'Home'
   },
   tr: {
-    langBtn: '🌐 TR / EN', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim', keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite', selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.', takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et', yourScore: 'Puanınız', questions: 'soru', correct: 'doğru', incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓', rememberMe: 'Beni Hatırla', takeQuizBtn: 'Sınava Başla', viewBtn: 'Görüntüle',
-    Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', 'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler', '⚠️ At-Risk Students': '⚠️ Riskli Öğrenciler', '📊 Topic Difficulty': '📊 Konu Zorluğu', 'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama', 'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı', 'No at-risk students 🎉': 'Riskli öğrenci yok 🎉', mastery: 'başarı',
-    'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat', '🚀 Launch Activity': '🚀 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç', 'Generate Activity': 'Etkinlik Oluştur', 'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet', '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı', 'Chapter': 'Ünite', 'All chapters': 'Tüm üniteler', 'Questions': 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur', 'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle', 'Weekly Report': 'Haftalık Rapor', 'AI-generated class performance analysis': 'Yapay zeka destekli sınıf performans analizi', '🔄 Generate Report': '🔄 Rapor Oluştur', completed: 'Tamamlandı', Assignments: 'Ödevler', 'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın', '➕ Create New Assignment': '➕ Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı', 'Create Assignment': 'Ödev Oluştur', 'Your homework tasks': 'Ödev görevleriniz', 'My Stats': 'İstatistiklerim',
-    'Account Pending Approval': 'Hesabınız Onay Bekliyor', 'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.': 'Lütfen öğretmeninizin hesabınızı onaylamasını bekleyin. Onaylandıktan sonra bu ekran otomatik olarak yenilenecektir.'
+    langBtn: '🌐 TR / EN',
+    // Login screen
+    signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
+    'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
+    'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
+    'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
+    'Your Full Name': 'Adınız Soyadınız', 'e.g. 2021123456': 'Örn: 2021123456',
+    Email: 'E-posta', Password: 'Şifre', 'Full Name': 'Ad Soyad',
+    'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
+    '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
+    // Student dashboard
+    home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
+    keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite',
+    selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.',
+    takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et',
+    yourScore: 'Puanınız', questions: 'soru', correct: 'doğru',
+    incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓',
+    takeQuizBtn: 'Sınava Başla', viewBtn: 'Görüntüle',
+    // Lecturer nav & tabs
+    Lecturer: 'Öğretmen', Student: 'Öğrenci',
+    Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', Assignments: 'Ödevler', Quizzes: 'Sınavlar', 'My Stats': 'İstatistiklerim',
+    // Overview stats
+    STUDENTS: 'ÖĞRENCİLER', 'CLASS MASTERY': 'SINIF BAŞARISI', 'AT RISK': 'RİSKLİ', 'TOP PERFORMERS': 'EN İYİLER',
+    'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler',
+    '⚠️ At-Risk Students': '⚠️ Riskli Öğrenciler', '📊 Topic Difficulty': '📊 Konu Zorluğu',
+    'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama',
+    'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı',
+    'No at-risk students 🎉': 'Riskli öğrenci yok 🎉', mastery: 'başarı',
+    'Welcome back,': 'Tekrar hoş geldin,',
+    // Data Management
+    'Data Management': 'Veri Yönetimi', 'Erase All Data': 'Tüm Verileri Sil',
+    'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.': 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
+    // Activities
+    'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat',
+    '🚀 Launch Activity': '🚀 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
+    'Generate Activity': 'Etkinlik Oluştur', 'Loading curriculum...': 'Müfredat yükleniyor...',
+    // Quiz Management
+    'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
+    '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
+    Chapter: 'Ünite', 'All chapters': 'Tüm üniteler', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
+    completed: 'Tamamlandı',
+    // Assignments
+    'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
+    '➕ Create New Assignment': '➕ Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
+    'Create Assignment': 'Ödev Oluştur', 'Your homework tasks': 'Ödev görevleriniz',
+    // Students
+    'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle',
+    Kick: 'Çıkar', 'Mastery:': 'Başarı:', responses: 'yanıt',
+    // Reports
+    'Weekly Report': 'Haftalık Rapor', 'AI-generated class performance analysis': 'Yapay zeka destekli sınıf performans analizi',
+    '🔄 Generate Report': '🔄 Rapor Oluştur',
+    // Curriculum
+    'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — İçerik Haritası',
+    // Waiting Room
+    'Account Pending Approval': 'Hesabınız Onay Bekliyor',
+    'Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.': 'Lütfen öğretmeninizin hesabınızı onaylamasını bekleyin. Onaylandıktan sonra bu ekran otomatik olarak yenilenecektir.',
+    // Nav badge
+    'AI ACTIVE': 'AI AKTİF',
+    // Student home
+    '📖 Current Chapter': '📖 Mevcut Ünite',
+    Practice: 'Alıştırma', Home: 'Ana Sayfa'
   }
 };
 
@@ -70,28 +184,40 @@ function t(key) { return i18n[currentLang][key] || key; }
 
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
+  localStorage.setItem('aula_lang', currentLang);
   document.getElementById('lang-btn').textContent = t('langBtn');
+
+  const from = currentLang === 'en' ? i18n['tr'] : i18n['en'];
+  const to = currentLang === 'en' ? i18n['en'] : i18n['tr'];
+
   const walkDOM = (node) => {
-    const from = currentLang === 'en' ? i18n['tr'] : i18n['en'];
-    const to = currentLang === 'en' ? i18n['en'] : i18n['tr'];
     if (node.nodeType === 3) {
       let txt = node.nodeValue.trim();
-      let matchKey = Object.keys(from).find(k => from[k] === txt);
-      if (matchKey) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
+      if (txt) {
+        let matchKey = Object.keys(from).find(k => from[k] === txt);
+        if (matchKey) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
+      }
     } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT') {
       if (node.placeholder) {
         let matchKey = Object.keys(from).find(k => from[k] === node.placeholder);
         if (matchKey) node.placeholder = to[matchKey];
       }
+      if (node.dataset && node.dataset.i18n) {
+        const key = node.dataset.i18n;
+        if (to[key]) node.textContent = to[key];
+      }
       for (let child = node.firstChild; child; child = child.nextSibling) walkDOM(child);
     }
   };
   walkDOM(document.body);
+
+  // Re-render all dynamic content in the correct language
   if (currentUser) {
     if (currentUser.role === 'lecturer') initLecturer();
     else initStudent();
   }
 }
+
 
 const vocabTR = {
   "hello": "merhaba", "good morning": "günaydın", "good afternoon": "iyi günler", "good night": "iyi geceler",
