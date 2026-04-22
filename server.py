@@ -179,6 +179,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_assignment_responses(assignment_id)
         elif path == "/api/ai-status":
             return self._get_ai_status()
+        elif path == "/api/students/pending":
+            return self._get_pending_students()
         elif path == "/api/version":
             return self._send_json({"version": _data_version})
         elif path == "/health" or path == "/api/health":
