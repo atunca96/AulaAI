@@ -25,6 +25,16 @@ from services.ai_engine import is_ai_available, ai_generate_report_insights
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
 
+# ── Live-sync version counter ──
+# Incremented on every data mutation; clients poll /api/version to detect changes.
+_data_version = 0
+_version_lock = threading.Lock()
+
+def _bump_version():
+    global _data_version
+    with _version_lock:
+        _data_version += 1
+
 MIME_TYPES = {
     ".html": "text/html",
     ".css": "text/css",
@@ -169,6 +179,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_assignment_responses(assignment_id)
         elif path == "/api/ai-status":
             return self._get_ai_status()
+        elif path == "/api/version":
+            return self._send_json({"version": _data_version})
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
         elif path.startswith("/api/"):
@@ -213,10 +225,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._generate_report()
         elif path == "/api/session/start":
             return self._start_session()
+        elif path == "/api/data/reset":
+            return self._reset_data()
         elif path == "/api/student/delete":
             return self._delete_student()
         else:
             self._send_error("Not found", 404)
+
+    def _reset_data(self):
+        """Erase all student data while preserving curriculum and lecturer account."""
+        body = self._read_body()
+        confirm = body.get("confirm")
+        if confirm != "ERASE ALL DATA":
+            return self._send_error("Confirmation text does not match")
+
+        with db_connection() as db:
+            db.execute("DELETE FROM responses")
+            db.execute("DELETE FROM mastery_scores")
+            db.execute("DELETE FROM quiz_questions")
+            db.execute("DELETE FROM quizzes")
+            db.execute("DELETE FROM assignment_questions")
+            db.execute("DELETE FROM assignments")
+            db.execute("DELETE FROM sessions")
+            db.execute("DELETE FROM enrollments")
+            db.execute("DELETE FROM users WHERE role = 'student'")
+            db.execute("DELETE FROM weekly_reports")
+            db.commit()
+
+        _bump_version()
+        print("[RESET] All student data erased by lecturer.")
+        self._send_json({"success": True, "message": "All student data has been erased."})
 
     def _delete_student(self):
         body = self._read_body()
@@ -232,6 +270,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
+        _bump_version()
         self._send_json({"success": True})
 
     def do_OPTIONS(self):
@@ -300,6 +339,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             db.commit()
 
+        _bump_version()
         self._send_json({
             "success": True,
             "user": {"id": student_id, "name": name,
@@ -344,6 +384,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                (_uid(), student_id, course["id"]))
 
                 db.commit()
+                _bump_version()
                 self._send_json({
                     "success": True,
                     "user": {"id": student_id, "name": name,
@@ -648,6 +689,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (quiz_id, q["id"], i))
 
             db.commit()
+        _bump_version()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
 
     def _submit_quiz(self):
@@ -694,6 +736,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             db.commit()
 
+        _bump_version()
         avg = total_score / max(len(answers), 1)
         self._send_json({
             "total_score": round(total_score, 2),
@@ -729,6 +772,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                (_uid(), student_id, tid, round(new_score, 3)))
                 db.commit()
 
+        _bump_version()
         self._send_json({"score": score, "feedback": feedback})
 
     def _get_student_stats(self, student_id):
@@ -846,6 +890,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (assignment_id, q["id"], i))
             db.commit()
 
+        _bump_version()
         self._send_json({"assignment_id": assignment_id, "title": title, "question_count": len(questions)})
 
     def _get_assignment_responses(self, assignment_id):
@@ -973,6 +1018,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (_uid(), student_id, tid, round(new_score, 3)))
             db.commit()
 
+        _bump_version()
         self._send_json({"average": total_score / max(len(answers), 1)})
 
 def main():

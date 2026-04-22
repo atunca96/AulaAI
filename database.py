@@ -11,7 +11,7 @@ import math
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "prototype.db")
+DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "prototype.db"))
 
 
 def get_db():

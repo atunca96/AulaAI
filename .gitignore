@@ -4,3 +4,6 @@ __pycache__/
 data/prototype.db
 .env
 *.db-journal
+*.db-wal
+*.log
+scratch/

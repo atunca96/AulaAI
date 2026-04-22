@@ -4,9 +4,48 @@ let courseId = null;
 let curriculum = [];
 let currentLang = 'en';
 let aiStatus = null;
+let _lastVersion = -1;
+let _syncInterval = null;
 
 // ── Keep Render alive (ping every 10 min) ──
 setInterval(() => fetch('/api/courses').catch(() => {}), 10 * 60 * 1000);
+
+// ── Live-sync: poll for data changes every 4 seconds ──
+function startLiveSync() {
+  if (_syncInterval) clearInterval(_syncInterval);
+  _syncInterval = setInterval(async () => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch('/api/version');
+      const data = await res.json();
+      if (_lastVersion === -1) { _lastVersion = data.version; return; }
+      if (data.version !== _lastVersion) {
+        _lastVersion = data.version;
+        console.log('[LiveSync] Data changed, refreshing...');
+        refreshCurrentView();
+      }
+    } catch (e) { /* ignore network errors */ }
+  }, 4000);
+}
+
+function stopLiveSync() {
+  if (_syncInterval) { clearInterval(_syncInterval); _syncInterval = null; }
+}
+
+function refreshCurrentView() {
+  if (!currentUser) return;
+  if (currentUser.role === 'lecturer') {
+    loadOverview();
+    loadQuizList();
+    loadAssignmentList();
+    loadStudentRoster();
+  } else {
+    loadStudentHome();
+    loadQuizList();
+    loadAssignmentList();
+    loadStudentProgress();
+  }
+}
 
 const i18n = {
   en: {
@@ -111,6 +150,7 @@ async function completeLogin(user) {
   curriculum = Array.isArray(currData) ? currData : [];
   showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
   if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
+  startLiveSync();
 }
 
 async function handleStudentLogin(e) {
@@ -146,6 +186,8 @@ async function handleLogin(e) {
 
 function logout() { 
   currentUser = null; 
+  _lastVersion = -1;
+  stopLiveSync();
   localStorage.removeItem('aula_user');
   sessionStorage.removeItem('aula_user');
   showScreen('login-screen'); 
@@ -495,6 +537,31 @@ async function deleteStudent(sid, name) {
   if (confirm(`Are you sure you want to kick ${name} from the class? This cannot be undone.`)) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
     if (!res.error) loadStudentRoster();
+  }
+}
+
+async function eraseAllData() {
+  const isTr = currentLang === 'tr';
+  const msg1 = isTr
+    ? 'DİKKAT: Tüm öğrenci verileri, sınav sonuçları, ödev teslimleris ve başarı puanları silinecektir. Bu işlem geri alınamaz.\n\nDevam etmek istiyor musunuz?'
+    : 'WARNING: This will permanently delete ALL students, quiz results, assignment submissions, and mastery scores. This cannot be undone.\n\nAre you sure?';
+  if (!confirm(msg1)) return;
+
+  const msg2 = isTr
+    ? 'Onaylamak için "ERASE ALL DATA" yazın:'
+    : 'Type "ERASE ALL DATA" to confirm:';
+  const typed = prompt(msg2);
+  if (typed !== 'ERASE ALL DATA') {
+    alert(isTr ? 'İşlem iptal edildi.' : 'Operation cancelled.');
+    return;
+  }
+
+  const res = await api('/data/reset', { method: 'POST', body: { confirm: 'ERASE ALL DATA' } });
+  if (res.success) {
+    alert(isTr ? 'Tüm veriler silindi.' : 'All data has been erased.');
+    location.reload();
+  } else {
+    alert(res.error || 'Error');
   }
 }
 
