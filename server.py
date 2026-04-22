@@ -17,7 +17,7 @@ from datetime import datetime
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from database import get_db, init_db
+from database import get_db, init_db, db_connection
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights
@@ -224,14 +224,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not student_id:
             return self._send_error("student_id required")
             
-        db = get_db()
-        # Delete related data first
-        db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
-        db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
-        db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
-        db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
-        db.commit()
-        db.close()
+        with db_connection() as db:
+            # Delete related data first
+            db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
+            db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
+            db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
+            db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
+            db.commit()
         
         self._send_json({"success": True})
 
@@ -261,10 +260,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         email = body.get("email", "")
         password = body.get("password", "")
 
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE email = ? AND password = ?",
-                          (email, password)).fetchone()
-        db.close()
+        with db_connection() as db:
+            user = db.execute("SELECT * FROM users WHERE email = ? AND password = ?",
+                              (email, password)).fetchone()
 
         if user:
             user = dict(user)
@@ -285,24 +283,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not name or not email or not password:
             return self._send_error("Name, email, and password are required")
 
-        db = get_db()
-        existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
-        if existing:
-            db.close()
-            return self._send_error("An account with this email already exists")
+        with db_connection() as db:
+            existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+            if existing:
+                return self._send_error("An account with this email already exists")
 
-        student_id = _uid()
-        db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-                   (student_id, name, email, password, "student"))
+            student_id = _uid()
+            db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
+                       (student_id, name, email, password, "student"))
 
-        # Auto-enroll in the first course
-        course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-        if course:
-            db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
-                       (_uid(), student_id, course["id"]))
+            # Auto-enroll in the first course
+            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+            if course:
+                db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
+                           (_uid(), student_id, course["id"]))
 
-        db.commit()
-        db.close()
+            db.commit()
 
         self._send_json({
             "success": True,
@@ -322,139 +318,132 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # Use student number as the email key (internal)
         email_key = f"{student_number}@student.aulaai"
 
-        db = get_db()
-        user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
+        with db_connection() as db:
+            user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
 
-        if user:
-            # Existing student — log in directly
-            user = dict(user)
-            db.close()
-            self._send_json({
-                "success": True,
-                "user": {"id": user["id"], "name": user["name"],
-                         "email": user["email"], "role": "student"}
-            })
-        else:
-            # New student — auto-register
-            if not name:
-                db.close()
-                return self._send_error("Name is required for first login")
+            if user:
+                # Existing student — log in directly
+                user = dict(user)
+                self._send_json({
+                    "success": True,
+                    "user": {"id": user["id"], "name": user["name"],
+                             "email": user["email"], "role": "student"}
+                })
+            else:
+                # New student — auto-register
+                if not name:
+                    return self._send_error("Name is required for first login")
 
-            student_id = _uid()
-            db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-                       (student_id, name, email_key, student_number, "student"))
+                student_id = _uid()
+                db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
+                           (student_id, name, email_key, student_number, "student"))
 
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            if course:
-                db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
-                           (_uid(), student_id, course["id"]))
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                if course:
+                    db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
+                               (_uid(), student_id, course["id"]))
 
-            db.commit()
-            db.close()
-            self._send_json({
-                "success": True,
-                "user": {"id": student_id, "name": name,
-                         "email": email_key, "role": "student"}
-            })
+                db.commit()
+                self._send_json({
+                    "success": True,
+                    "user": {"id": student_id, "name": name,
+                             "email": email_key, "role": "student"}
+                })
 
     def _get_courses(self):
-        db = get_db()
-        courses = db.execute("SELECT * FROM courses").fetchall()
-        db.close()
+        with db_connection() as db:
+            courses = db.execute("SELECT * FROM courses").fetchall()
         self._send_json([dict(c) for c in courses])
 
     def _get_curriculum(self, course_id):
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"] if course else None
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"] if course else None
 
-        chapters = db.execute(
-            "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
-        ).fetchall()
-
-        result = []
-        for ch in chapters:
-            ch_dict = dict(ch)
-            topics = db.execute(
-                "SELECT * FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)
+            chapters = db.execute(
+                "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
-            ch_dict["topics"] = []
-            for t in topics:
-                t_dict = dict(t)
-                t_dict["content"] = json.loads(t_dict["content"])
-                qcount = db.execute(
-                    "SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)
-                ).fetchone()["cnt"]
-                t_dict["question_count"] = qcount
-                ch_dict["topics"].append(t_dict)
-            result.append(ch_dict)
 
-        db.close()
+            result = []
+            for ch in chapters:
+                ch_dict = dict(ch)
+                topics = db.execute(
+                    "SELECT * FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)
+                ).fetchall()
+                ch_dict["topics"] = []
+                for t in topics:
+                    t_dict = dict(t)
+                    t_dict["content"] = json.loads(t_dict["content"])
+                    qcount = db.execute(
+                        "SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)
+                    ).fetchone()["cnt"]
+                    t_dict["question_count"] = qcount
+                    ch_dict["topics"].append(t_dict)
+                result.append(ch_dict)
+
         self._send_json(result)
 
     def _get_students(self, course_id):
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"] if course else None
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"] if course else None
 
-        students = db.execute("""
-            SELECT u.id, u.name, u.email FROM users u
-            JOIN enrollments e ON u.id = e.student_id
-            WHERE e.course_id = ?
-            ORDER BY u.name
-        """, (course_id,)).fetchall()
+            students = db.execute("""
+                SELECT u.id, u.name, u.email FROM users u
+                JOIN enrollments e ON u.id = e.student_id
+                WHERE e.course_id = ?
+                ORDER BY u.name
+            """, (course_id,)).fetchall()
 
-        result = []
-        for s in students:
-            s_dict = dict(s)
-            # Get mastery scores
-            masteries = db.execute(
-                "SELECT score FROM mastery_scores WHERE student_id = ?", (s["id"],)
-            ).fetchall()
-            if masteries:
-                scores = [m["score"] for m in masteries]
-                s_dict["avg_mastery"] = round(sum(scores) / len(scores), 3)
-            else:
-                s_dict["avg_mastery"] = 0.0
+            result = []
+            for s in students:
+                s_dict = dict(s)
+                # Get mastery scores
+                masteries = db.execute(
+                    "SELECT score FROM mastery_scores WHERE student_id = ?", (s["id"],)
+                ).fetchall()
+                if masteries:
+                    scores = [m["score"] for m in masteries]
+                    s_dict["avg_mastery"] = round(sum(scores) / len(scores), 3)
+                else:
+                    s_dict["avg_mastery"] = 0.0
 
-            # Response count
-            resp_count = db.execute(
-                "SELECT COUNT(*) as cnt FROM responses WHERE student_id = ?", (s["id"],)
-            ).fetchone()["cnt"]
-            s_dict["total_responses"] = resp_count
+                # Response count
+                resp_count = db.execute(
+                    "SELECT COUNT(*) as cnt FROM responses WHERE student_id = ?", (s["id"],)
+                ).fetchone()["cnt"]
+                s_dict["total_responses"] = resp_count
 
-            result.append(s_dict)
+                result.append(s_dict)
 
-        db.close()
         self._send_json(result)
 
     def _get_student_progress(self, student_id):
         if not student_id:
             return self._send_error("student_id required")
 
-        db = get_db()
-        # Get mastery per topic
-        masteries = db.execute("""
-            SELECT t.title, t.type, ms.score, ch.title as chapter_title, ch.number
-            FROM mastery_scores ms
-            JOIN topics t ON ms.topic_id = t.id
-            JOIN chapters ch ON t.chapter_id = ch.id
-            WHERE ms.student_id = ?
-            ORDER BY ch.number, t.sort_order
-        """, (student_id,)).fetchall()
+        with db_connection() as db:
+            # Get mastery per topic
+            masteries = db.execute("""
+                SELECT t.title, t.type, ms.score, ch.title as chapter_title, ch.number
+                FROM mastery_scores ms
+                JOIN topics t ON ms.topic_id = t.id
+                JOIN chapters ch ON t.chapter_id = ch.id
+                WHERE ms.student_id = ?
+                ORDER BY ch.number, t.sort_order
+            """, (student_id,)).fetchall()
 
-        # Recent responses
-        responses = db.execute("""
-            SELECT r.score, r.submitted_at, q.prompt, q.type as question_type
-            FROM responses r
-            JOIN questions q ON r.question_id = q.id
-            WHERE r.student_id = ?
-            ORDER BY r.submitted_at DESC LIMIT 20
-        """, (student_id,)).fetchall()
+            # Recent responses
+            responses = db.execute("""
+                SELECT r.score, r.submitted_at, q.prompt, q.type as question_type
+                FROM responses r
+                JOIN questions q ON r.question_id = q.id
+                WHERE r.student_id = ?
+                ORDER BY r.submitted_at DESC LIMIT 20
+            """, (student_id,)).fetchall()
 
-        db.close()
         self._send_json({
             "masteries": [dict(m) for m in masteries],
             "recent_responses": [dict(r) for r in responses],
@@ -464,11 +453,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not topic_id:
             return self._send_error("topic_id required")
 
-        db = get_db()
-        questions = db.execute(
-            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1", (topic_id,)
-        ).fetchall()
-        db.close()
+        with db_connection() as db:
+            questions = db.execute(
+                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1", (topic_id,)
+            ).fetchall()
 
         result = []
         for q in questions:
@@ -483,9 +471,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not topic_id:
             return self._send_error("topic_id required")
 
-        db = get_db()
-        topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-        db.close()
+        with db_connection() as db:
+            topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
 
         if not topic:
             return self._send_error("Topic not found", 404)
@@ -499,59 +486,55 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json({"topic": dict(topic), "activities": activities})
 
     def _get_quizzes(self, course_id, student_id=None):
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"] if course else None
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"] if course else None
 
-        quizzes = db.execute(
-            "SELECT * FROM quizzes WHERE course_id = ? ORDER BY created_at DESC", (course_id,)
-        ).fetchall()
-        
-        result = []
-        for q in quizzes:
-            q_dict = dict(q)
-            if student_id:
-                # Check if there are any responses for this quiz by this student
-                completed = db.execute(
-                    "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
-                    (student_id, q["id"])
-                ).fetchone()
-                q_dict["is_completed"] = True if completed else False
-            result.append(q_dict)
+            quizzes = db.execute(
+                "SELECT * FROM quizzes WHERE course_id = ? ORDER BY created_at DESC", (course_id,)
+            ).fetchall()
             
-        db.close()
+            result = []
+            for q in quizzes:
+                q_dict = dict(q)
+                if student_id:
+                    completed = db.execute(
+                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
+                        (student_id, q["id"])
+                    ).fetchone()
+                    q_dict["is_completed"] = True if completed else False
+                result.append(q_dict)
+
         self._send_json(result)
 
     def _get_quiz(self, quiz_id):
         if not quiz_id:
             return self._send_error("quiz_id required")
 
-        db = get_db()
-        quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
-        if not quiz:
-            db.close()
-            return self._send_error("Quiz not found", 404)
+        with db_connection() as db:
+            quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
+            if not quiz:
+                return self._send_error("Quiz not found", 404)
 
-        questions = db.execute("""
-            SELECT q.* FROM questions q
-            JOIN quiz_questions qq ON q.id = qq.question_id
-            WHERE qq.quiz_id = ?
-            ORDER BY qq.sort_order
-        """, (quiz_id,)).fetchall()
+            questions = db.execute("""
+                SELECT q.* FROM questions q
+                JOIN quiz_questions qq ON q.id = qq.question_id
+                WHERE qq.quiz_id = ?
+                ORDER BY qq.sort_order
+            """, (quiz_id,)).fetchall()
 
-        result = dict(quiz)
-        result["questions"] = []
-        for q in questions:
-            q_dict = dict(q)
-            if q_dict.get("distractors"):
-                try:
-                    q_dict["distractors"] = json.loads(q_dict["distractors"])
-                except Exception:
-                    q_dict["distractors"] = []
-            result["questions"].append(q_dict)
+            result = dict(quiz)
+            result["questions"] = []
+            for q in questions:
+                q_dict = dict(q)
+                if q_dict.get("distractors"):
+                    try:
+                        q_dict["distractors"] = json.loads(q_dict["distractors"])
+                    except Exception:
+                        q_dict["distractors"] = []
+                result["questions"].append(q_dict)
 
-        db.close()
         self._send_json(result)
 
     def _get_quiz_responses(self, quiz_id):
@@ -559,76 +542,67 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not quiz_id:
             return self._send_error("quiz_id required")
 
-        db = get_db()
-        # Get quiz info
-        quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
-        if not quiz:
-            db.close()
-            return self._send_error("Quiz not found", 404)
+        with db_connection() as db:
+            quiz = db.execute("SELECT * FROM quizzes WHERE id = ?", (quiz_id,)).fetchone()
+            if not quiz:
+                return self._send_error("Quiz not found", 404)
 
-        # Get quiz questions
-        questions = db.execute("""
-            SELECT q.id, q.prompt, q.answer, q.type, q.distractors
-            FROM questions q
-            JOIN quiz_questions qq ON q.id = qq.question_id
-            WHERE qq.quiz_id = ?
-            ORDER BY qq.sort_order
-        """, (quiz_id,)).fetchall()
-        questions_list = []
-        for q in questions:
-            qd = dict(q)
-            if qd["distractors"]:
-                qd["distractors"] = json.loads(qd["distractors"])
-            questions_list.append(qd)
+            questions = db.execute("""
+                SELECT q.id, q.prompt, q.answer, q.type, q.distractors
+                FROM questions q
+                JOIN quiz_questions qq ON q.id = qq.question_id
+                WHERE qq.quiz_id = ?
+                ORDER BY qq.sort_order
+            """, (quiz_id,)).fetchall()
+            questions_list = []
+            for q in questions:
+                qd = dict(q)
+                if qd["distractors"]:
+                    qd["distractors"] = json.loads(qd["distractors"])
+                questions_list.append(qd)
 
-        # Get all responses for this quiz, joined with student and question info
-        responses = db.execute("""
-            SELECT r.student_id, r.question_id, r.answer AS student_answer,
-                   r.score, r.feedback, r.submitted_at,
-                   u.name AS student_name,
-                   q.prompt, q.answer AS correct_answer, q.type AS question_type
-            FROM responses r
-            JOIN users u ON r.student_id = u.id
-            JOIN questions q ON r.question_id = q.id
-            WHERE r.context_type = 'quiz' AND r.context_id = ?
-            ORDER BY u.name, r.submitted_at
-        """, (quiz_id,)).fetchall()
+            responses = db.execute("""
+                SELECT r.student_id, r.question_id, r.answer AS student_answer,
+                       r.score, r.feedback, r.submitted_at,
+                       u.name AS student_name,
+                       q.prompt, q.answer AS correct_answer, q.type AS question_type
+                FROM responses r
+                JOIN users u ON r.student_id = u.id
+                JOIN questions q ON r.question_id = q.id
+                WHERE r.context_type = 'quiz' AND r.context_id = ?
+                ORDER BY u.name, r.submitted_at
+            """, (quiz_id,)).fetchall()
 
-        # Group responses by student
-        students_map = {}
-        for r in responses:
-            r_dict = dict(r)
-            sid = r_dict["student_id"]
-            if sid not in students_map:
-                students_map[sid] = {
-                    "student_id": sid,
-                    "student_name": r_dict["student_name"],
-                    "answers": [],
-                    "total_score": 0,
-                    "total_questions": 0
-                }
-            students_map[sid]["answers"].append({
-                "question_id": r_dict["question_id"],
-                "prompt": r_dict["prompt"],
-                "student_answer": r_dict["student_answer"],
-                "correct_answer": r_dict["correct_answer"],
-                "score": r_dict["score"],
-                "is_correct": r_dict["score"] >= 0.8,
-                "submitted_at": r_dict["submitted_at"]
-            })
-            students_map[sid]["total_score"] += r_dict["score"]
-            students_map[sid]["total_questions"] += 1
+            students_map = {}
+            for r in responses:
+                r_dict = dict(r)
+                sid = r_dict["student_id"]
+                if sid not in students_map:
+                    students_map[sid] = {
+                        "student_id": sid,
+                        "student_name": r_dict["student_name"],
+                        "answers": [],
+                        "total_score": 0,
+                        "total_questions": 0
+                    }
+                students_map[sid]["answers"].append({
+                    "question_id": r_dict["question_id"],
+                    "prompt": r_dict["prompt"],
+                    "student_answer": r_dict["student_answer"],
+                    "correct_answer": r_dict["correct_answer"],
+                    "score": r_dict["score"],
+                    "is_correct": r_dict["score"] >= 0.8,
+                    "submitted_at": r_dict["submitted_at"]
+                })
+                students_map[sid]["total_score"] += r_dict["score"]
+                students_map[sid]["total_questions"] += 1
 
-        # Calculate averages
-        student_results = []
-        for sid, sdata in students_map.items():
-            sdata["average_score"] = round(sdata["total_score"] / max(sdata["total_questions"], 1), 3)
-            student_results.append(sdata)
+            student_results = []
+            for sid, sdata in students_map.items():
+                sdata["average_score"] = round(sdata["total_score"] / max(sdata["total_questions"], 1), 3)
+                student_results.append(sdata)
+            student_results.sort(key=lambda x: x["student_name"])
 
-        # Sort by name
-        student_results.sort(key=lambda x: x["student_name"])
-
-        db.close()
         self._send_json({
             "quiz": dict(quiz),
             "questions": questions_list,
@@ -648,34 +622,32 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             count = 10
 
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"]
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"]
 
-        # Get topics for this chapter (or all)
-        if chapter_id and chapter_id != "all":
-            topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
-        else:
-            topics = db.execute("""
-                SELECT t.id FROM topics t
-                JOIN chapters ch ON t.chapter_id = ch.id
-                WHERE ch.course_id = ?
-            """, (course_id,)).fetchall()
+            if chapter_id and chapter_id != "all":
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+            else:
+                topics = db.execute("""
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                """, (course_id,)).fetchall()
 
-        topic_ids = [t["id"] for t in topics]
-        questions = generate_quiz(topic_ids, db, count=count)
+            topic_ids = [t["id"] for t in topics]
+            questions = generate_quiz(topic_ids, db, count=count)
 
-        quiz_id = _uid()
-        db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
-                   (quiz_id, course_id, title, None if chapter_id == "all" else chapter_id))
+            quiz_id = _uid()
+            db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
+                       (quiz_id, course_id, title, None if chapter_id == "all" else chapter_id))
 
-        for i, q in enumerate(questions):
-            db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
-                       (quiz_id, q["id"], i))
+            for i, q in enumerate(questions):
+                db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
+                           (quiz_id, q["id"], i))
 
-        db.commit()
-        db.close()
+            db.commit()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
 
     def _submit_quiz(self):
@@ -684,46 +656,43 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         student_id = body.get("student_id")
         answers = body.get("answers", {})  # {question_id: answer}
 
-        db = get_db()
-        results = []
-        total_score = 0
+        with db_connection() as db:
+            results = []
+            total_score = 0
 
-        for qid, student_answer in answers.items():
-            question = db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
-            if not question:
-                continue
+            for qid, student_answer in answers.items():
+                question = db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
+                if not question:
+                    continue
 
-            score, feedback = grade_response(question["type"], student_answer, question["answer"])
-            total_score += score
+                score, feedback = grade_response(question["type"], student_answer, question["answer"])
+                total_score += score
 
-            # Save response
-            db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                       (_uid(), student_id, qid, "quiz", quiz_id,
-                        student_answer, score, "auto", feedback))
+                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, qid, "quiz", quiz_id,
+                            student_answer, score, "auto", feedback))
 
-            # Update mastery
-            topic_id = question["topic_id"]
-            existing = db.execute(
-                "SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?",
-                (student_id, topic_id)
-            ).fetchone()
+                topic_id = question["topic_id"]
+                existing = db.execute(
+                    "SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?",
+                    (student_id, topic_id)
+                ).fetchone()
 
-            current_score = existing["score"] if (existing and existing["score"] is not None) else score
-            new_score = (current_score * 0.7 + score * 0.3)
-            db.execute("""
-                INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            """, (_uid(), student_id, topic_id, round(new_score, 3)))
+                current_score = existing["score"] if (existing and existing["score"] is not None) else score
+                new_score = (current_score * 0.7 + score * 0.3)
+                db.execute("""
+                    INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                """, (_uid(), student_id, topic_id, round(new_score, 3)))
 
-            results.append({
-                "question_id": qid,
-                "score": score,
-                "feedback": feedback,
-                "correct_answer": question["answer"]
-            })
+                results.append({
+                    "question_id": qid,
+                    "score": score,
+                    "feedback": feedback,
+                    "correct_answer": question["answer"]
+                })
 
-        db.commit()
-        db.close()
+            db.commit()
 
         avg = total_score / max(len(answers), 1)
         self._send_json({
@@ -744,59 +713,51 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         score, feedback = grade_response(question_type, answer, correct_answer)
 
         if student_id and question_id:
-            db = get_db()
-            db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                       (_uid(), student_id, question_id, "practice", _uid(),
-                        answer, score, "auto", feedback))
-            
-            # Update mastery even for practice
-            q = db.execute("SELECT topic_id FROM questions WHERE id = ?", (question_id,)).fetchone()
-            if q:
-                tid = q["topic_id"]
-                existing = db.execute(
-                    "SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?",
-                    (student_id, tid)
-                ).fetchone()
-                new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
-                db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
-                           (_uid(), student_id, tid, round(new_score, 3)))
-            
-            db.commit()
-            db.close()
+            with db_connection() as db:
+                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, question_id, "practice", _uid(),
+                            answer, score, "auto", feedback))
+                q = db.execute("SELECT topic_id FROM questions WHERE id = ?", (question_id,)).fetchone()
+                if q:
+                    tid = q["topic_id"]
+                    existing = db.execute(
+                        "SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?",
+                        (student_id, tid)
+                    ).fetchone()
+                    new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
+                    db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
+                               (_uid(), student_id, tid, round(new_score, 3)))
+                db.commit()
 
         self._send_json({"score": score, "feedback": feedback})
 
     def _get_student_stats(self, student_id):
         if not student_id: return self._send_error("ID required")
-        db = get_db()
-        stats = {
-            "quizzes": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'quiz'", (student_id,)).fetchone()[0],
-            "practice": db.execute("SELECT COUNT(*) FROM responses WHERE student_id = ? AND context_type = 'practice'", (student_id,)).fetchone()[0],
-            "assignments": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'assignment'", (student_id,)).fetchone()[0],
-        }
-        db.close()
+        with db_connection() as db:
+            stats = {
+                "quizzes": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'quiz'", (student_id,)).fetchone()[0],
+                "practice": db.execute("SELECT COUNT(*) FROM responses WHERE student_id = ? AND context_type = 'practice'", (student_id,)).fetchone()[0],
+                "assignments": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'assignment'", (student_id,)).fetchone()[0],
+            }
         self._send_json(stats)
 
     def _get_report(self, course_id):
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"] if course else None
-
-        report = generate_weekly_report(db, course_id)
-        db.close()
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"] if course else None
+            report = generate_weekly_report(db, course_id)
         self._send_json(report)
 
     def _generate_report(self):
         body = self._read_body()
         course_id = body.get("course_id")
 
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"]
-
-        report = generate_weekly_report(db, course_id)
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"]
+            report = generate_weekly_report(db, course_id)
 
         # Enhance with AI insights if available
         if is_ai_available():
@@ -813,7 +774,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"[AI] Report insights error: {e}")
 
-        db.close()
         self._send_json(report)
 
     def _start_session(self):
@@ -822,24 +782,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         chapter_id = body.get("chapter_id")
         topic_id = body.get("topic_id")
 
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"]
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"]
+            session_id = _uid()
+            db.execute("INSERT INTO sessions VALUES (?,?,?,date('now'),'active',datetime('now'),NULL)",
+                       (session_id, course_id, chapter_id))
+            db.commit()
+            if topic_id:
+                topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+                activities = generate_activity(dict(topic), count=8) if topic else []
+            else:
+                activities = []
 
-        session_id = _uid()
-        db.execute("INSERT INTO sessions VALUES (?,?,?,date('now'),'active',datetime('now'),NULL)",
-                   (session_id, course_id, chapter_id))
-        db.commit()
-
-        # Generate activities for the session
-        if topic_id:
-            topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-            activities = generate_activity(dict(topic), count=8) if topic else []
-        else:
-            activities = []
-
-        db.close()
         self._send_json({
             "session_id": session_id,
             "status": "active",
@@ -862,101 +818,92 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             count = 10
 
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            if course:
-                course_id = course["id"]
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                if course:
+                    course_id = course["id"]
+                else:
+                    return self._send_error("No courses found")
+
+            assignment_id = _uid()
+            db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
+                       (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
+
+            if chapter_id and chapter_id != "all":
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
             else:
-                db.close()
-                return self._send_error("No courses found")
+                topics = db.execute("""
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                """, (course_id,)).fetchall()
 
-        assignment_id = _uid()
-        db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
-                   (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
+            topic_ids = [t["id"] for t in topics]
+            questions = generate_quiz(topic_ids, db, count=count)
+            for i, q in enumerate(questions):
+                db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
+                           (assignment_id, q["id"], i))
+            db.commit()
 
-        # Add exactly `count` questions
-        if chapter_id and chapter_id != "all":
-            topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
-        else:
-            topics = db.execute("""
-                SELECT t.id FROM topics t
-                JOIN chapters ch ON t.chapter_id = ch.id
-                WHERE ch.course_id = ?
-            """, (course_id,)).fetchall()
-
-        topic_ids = [t["id"] for t in topics]
-        questions = generate_quiz(topic_ids, db, count=count)
-        for i, q in enumerate(questions):
-            db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
-                       (assignment_id, q["id"], i))
-
-        db.commit()
-        db.close()
         self._send_json({"assignment_id": assignment_id, "title": title, "question_count": len(questions)})
-
 
     def _get_assignment_responses(self, assignment_id):
         """Return all student responses for a specific assignment, grouped by student."""
         if not assignment_id:
             return self._send_error("assignment_id required")
 
-        db = get_db()
-        assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
-        if not assignment:
-            db.close()
-            return self._send_error("Assignment not found", 404)
+        with db_connection() as db:
+            assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
+            if not assignment:
+                return self._send_error("Assignment not found", 404)
 
-        # All questions for this assignment
-        questions = db.execute("""
-            SELECT q.id, q.prompt, q.answer, q.type FROM questions q
-            JOIN assignment_questions aq ON q.id = aq.question_id
-            WHERE aq.assignment_id = ?
-            ORDER BY aq.sort_order
-        """, (assignment_id,)).fetchall()
-        question_map = {q["id"]: dict(q) for q in questions}
+            questions = db.execute("""
+                SELECT q.id, q.prompt, q.answer, q.type FROM questions q
+                JOIN assignment_questions aq ON q.id = aq.question_id
+                WHERE aq.assignment_id = ?
+                ORDER BY aq.sort_order
+            """, (assignment_id,)).fetchall()
+            question_map = {q["id"]: dict(q) for q in questions}
 
-        # All responses for this assignment
-        rows = db.execute("""
-            SELECT r.student_id, r.question_id, r.answer AS student_answer, r.score,
-                   u.name AS student_name
-            FROM responses r
-            JOIN users u ON r.student_id = u.id
-            WHERE r.context_type = 'assignment' AND r.context_id = ?
-            ORDER BY u.name, r.submitted_at
-        """, (assignment_id,)).fetchall()
+            rows = db.execute("""
+                SELECT r.student_id, r.question_id, r.answer AS student_answer, r.score,
+                       u.name AS student_name
+                FROM responses r
+                JOIN users u ON r.student_id = u.id
+                WHERE r.context_type = 'assignment' AND r.context_id = ?
+                ORDER BY u.name, r.submitted_at
+            """, (assignment_id,)).fetchall()
 
-        # Group by student
-        students = {}
-        for row in rows:
-            sid = row["student_id"]
-            if sid not in students:
-                students[sid] = {
-                    "student_id": sid,
-                    "student_name": row["student_name"],
-                    "answers": [],
-                    "total_score": 0,
-                    "answered": 0
-                }
-            q = question_map.get(row["question_id"], {})
-            students[sid]["answers"].append({
-                "question_id": row["question_id"],
-                "prompt": q.get("prompt", ""),
-                "correct_answer": q.get("answer", ""),
-                "student_answer": row["student_answer"],
-                "score": row["score"],
-                "is_correct": row["score"] >= 0.8
-            })
-            students[sid]["total_score"] += row["score"]
-            students[sid]["answered"] += 1
+            students = {}
+            for row in rows:
+                sid = row["student_id"]
+                if sid not in students:
+                    students[sid] = {
+                        "student_id": sid,
+                        "student_name": row["student_name"],
+                        "answers": [],
+                        "total_score": 0,
+                        "answered": 0
+                    }
+                q = question_map.get(row["question_id"], {})
+                students[sid]["answers"].append({
+                    "question_id": row["question_id"],
+                    "prompt": q.get("prompt", ""),
+                    "correct_answer": q.get("answer", ""),
+                    "student_answer": row["student_answer"],
+                    "score": row["score"],
+                    "is_correct": row["score"] >= 0.8
+                })
+                students[sid]["total_score"] += row["score"]
+                students[sid]["answered"] += 1
 
-        result = []
-        for s in students.values():
-            s["average_score"] = round(s["total_score"] / max(s["answered"], 1), 3)
-            s["total_questions"] = len(question_map)
-            result.append(s)
+            result = []
+            for s in students.values():
+                s["average_score"] = round(s["total_score"] / max(s["answered"], 1), 3)
+                s["total_questions"] = len(question_map)
+                result.append(s)
 
-        db.close()
         self._send_json({
             "assignment_id": assignment_id,
             "title": assignment["title"],
@@ -964,49 +911,42 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             "student_results": sorted(result, key=lambda x: x["average_score"], reverse=True)
         })
 
-
     def _get_assignments(self, course_id, student_id=None):
-        db = get_db()
-        if not course_id:
-            course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-            course_id = course["id"] if course else None
-        
-        assignments = db.execute("SELECT * FROM assignments WHERE course_id = ? ORDER BY created_at DESC", (course_id,)).fetchall()
-        result = []
-        for a in assignments:
-            a_dict = dict(a)
-            if student_id:
-                completed = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, a["id"])).fetchone()
-                a_dict["is_completed"] = True if completed else False
-            result.append(a_dict)
-        db.close()
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                course_id = course["id"] if course else None
+            assignments = db.execute("SELECT * FROM assignments WHERE course_id = ? ORDER BY created_at DESC", (course_id,)).fetchall()
+            result = []
+            for a in assignments:
+                a_dict = dict(a)
+                if student_id:
+                    completed = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, a["id"])).fetchone()
+                    a_dict["is_completed"] = True if completed else False
+                result.append(a_dict)
         self._send_json(result)
 
     def _get_assignment(self, assignment_id):
-        db = get_db()
-        assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
-        if not assignment:
-            db.close()
-            return self._send_error("Assignment not found", 404)
-        
-        questions = db.execute("""
-            SELECT q.* FROM questions q
-            JOIN assignment_questions aq ON q.id = aq.question_id
-            WHERE aq.assignment_id = ?
-            ORDER BY aq.sort_order
-        """, (assignment_id,)).fetchall()
-        
-        result = dict(assignment)
-        result["questions"] = []
-        for q in questions:
-            q_dict = dict(q)
-            if q_dict.get("distractors"):
-                try:
-                    q_dict["distractors"] = json.loads(q_dict["distractors"])
-                except Exception:
-                    q_dict["distractors"] = []
-            result["questions"].append(q_dict)
-        db.close()
+        with db_connection() as db:
+            assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
+            if not assignment:
+                return self._send_error("Assignment not found", 404)
+            questions = db.execute("""
+                SELECT q.* FROM questions q
+                JOIN assignment_questions aq ON q.id = aq.question_id
+                WHERE aq.assignment_id = ?
+                ORDER BY aq.sort_order
+            """, (assignment_id,)).fetchall()
+            result = dict(assignment)
+            result["questions"] = []
+            for q in questions:
+                q_dict = dict(q)
+                if q_dict.get("distractors"):
+                    try:
+                        q_dict["distractors"] = json.loads(q_dict["distractors"])
+                    except Exception:
+                        q_dict["distractors"] = []
+                result["questions"].append(q_dict)
         self._send_json(result)
 
     def _submit_assignment(self):
@@ -1015,28 +955,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         student_id = body.get("student_id")
         answers = body.get("answers", {})
 
-        db = get_db()
-        total_score = 0
-        results = []
+        with db_connection() as db:
+            total_score = 0
+            results = []
+            for qid, student_answer in answers.items():
+                question = db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
+                if not question: continue
+                score, feedback = grade_response(question["type"], student_answer, question["answer"])
+                total_score += score
+                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
+                tid = question["topic_id"]
+                existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
+                current_score = existing["score"] if (existing and existing["score"] is not None) else score
+                new_score = (current_score * 0.7 + score * 0.3)
+                db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, tid, round(new_score, 3)))
+            db.commit()
 
-        for qid, student_answer in answers.items():
-            question = db.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
-            if not question: continue
-            score, feedback = grade_response(question["type"], student_answer, question["answer"])
-            total_score += score
-            db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                       (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
-            
-            # Update mastery
-            tid = question["topic_id"]
-            existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
-            current_score = existing["score"] if (existing and existing["score"] is not None) else score
-            new_score = (current_score * 0.7 + score * 0.3)
-            db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
-                       (_uid(), student_id, tid, round(new_score, 3)))
-
-        db.commit()
-        db.close()
         self._send_json({"average": total_score / max(len(answers), 1)})
 
 def main():
