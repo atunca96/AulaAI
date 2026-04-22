@@ -367,7 +367,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json({
             "success": True,
             "user": {"id": student_id, "name": name,
-                     "email": email, "role": "student"}
+                     "email": email, "role": "student", "status": "pending"}
         })
 
     def _student_login(self):
@@ -412,7 +412,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({
                     "success": True,
                     "user": {"id": student_id, "name": name,
-                             "email": email_key, "role": "student"}
+                             "email": email_key, "role": "student", "status": "pending"}
                 })
 
     def _get_courses(self):
