@@ -181,6 +181,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_ai_status()
         elif path == "/api/students/pending":
             return self._get_pending_students()
+        elif path == "/api/user/status":
+            user_id = params.get("user_id", [None])[0]
+            return self._get_user_status(user_id)
         elif path == "/api/version":
             return self._send_json({"version": _data_version})
         elif path == "/health" or path == "/api/health":
@@ -298,6 +301,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
         _bump_version()
         self._send_json({"success": True})
+
+    def _get_user_status(self, user_id):
+        """Check current approval status for a user."""
+        if not user_id:
+            return self._send_error("user_id required")
+        with db_connection() as db:
+            user = db.execute("SELECT status FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user:
+            self._send_json({"status": user["status"] or "approved"})
+        else:
+            self._send_error("User not found", 404)
 
     def do_OPTIONS(self):
         self.send_response(200)
