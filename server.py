@@ -395,6 +395,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not student_number:
             return self._send_error("Student number is required")
 
+        if not name:
+            return self._send_error("Name is required")
+
         # Use student number as the email key (internal)
         email_key = f"{student_number}@student.aulaai"
 
@@ -402,8 +405,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
 
             if user:
-                # Existing student — log in directly
+                # Existing student — verify name matches
                 user = dict(user)
+                stored_name = user["name"].strip().lower()
+                input_name = name.strip().lower()
+                if stored_name != input_name:
+                    return self._send_error("Student number and name do not match")
+                
                 self._send_json({
                     "success": True,
                     "user": {"id": user["id"], "name": user["name"],

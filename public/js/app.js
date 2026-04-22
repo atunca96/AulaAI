@@ -198,9 +198,14 @@ async function handleStudentLogin(e) {
 
   const data = await api('/student/login', { method: 'POST', body: { student_number: number, name } });
   if (data.error) {
-    errEl.textContent = data.error === 'Name is required for first login'
-      ? 'İlk girişte ad soyad gereklidir.'
-      : data.error;
+    const isTr = currentLang === 'tr';
+    const errorMap = {
+      'Name is required': isTr ? 'Ad Soyad alanı zorunludur.' : 'Full name is required.',
+      'Name is required for first login': isTr ? 'İlk girişte ad soyad gereklidir.' : 'Full name is required for first login.',
+      'Student number and name do not match': isTr ? 'Öğrenci numarası ve isim eşleşmiyor. Lütfen kayıtlı bilgilerinizi giriniz.' : 'Student number and name do not match. Please enter your registered information.',
+      'Student number is required': isTr ? 'Öğrenci numarası gereklidir.' : 'Student number is required.'
+    };
+    errEl.textContent = errorMap[data.error] || data.error;
     errEl.classList.remove('hidden');
     return false;
   }
