@@ -458,7 +458,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             students = db.execute("""
                 SELECT u.id, u.name, u.email FROM users u
                 JOIN enrollments e ON u.id = e.student_id
-                WHERE e.course_id = ?
+                WHERE e.course_id = ? AND (u.status = 'approved' OR u.status IS NULL)
                 ORDER BY u.name
             """, (course_id,)).fetchall()
 

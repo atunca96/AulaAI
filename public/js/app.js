@@ -34,7 +34,7 @@ function stopLiveSync() {
 
 function refreshCurrentView() {
   if (!currentUser) return;
-  if (!document.getElementById('waiting-room-screen').classList.contains('hidden')) {
+  if (document.getElementById('waiting-room-screen').classList.contains('active')) {
     window.location.reload();
     return;
   }
