@@ -34,6 +34,10 @@ function stopLiveSync() {
 
 function refreshCurrentView() {
   if (!currentUser) return;
+  if (!document.getElementById('waiting-room-screen').classList.contains('hidden')) {
+    window.location.reload();
+    return;
+  }
   if (currentUser.role === 'lecturer') {
     loadOverview();
     loadQuizList();
@@ -148,6 +152,12 @@ async function completeLogin(user) {
   if (courses && courses.length) courseId = courses[0].id;
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
+  if (currentUser.status === 'pending') {
+    showScreen('waiting-room-screen');
+    startLiveSync();
+    return;
+  }
+  
   showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
   if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
   startLiveSync();
@@ -527,11 +537,38 @@ async function submitQuizAnswers(area) {
 
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
-  document.getElementById('student-roster').innerHTML = students.map(s => {
+  const pending = await api('/students/pending').catch(()=>[]);
+  
+  let html = '';
+  const isTr = currentLang === 'tr';
+  
+  if (pending && pending.length > 0) {
+    html += `<div style="background:var(--card-bg);padding:16px;border-radius:12px;border:2px solid var(--primary);margin-bottom:24px">
+      <h3 style="color:var(--primary);margin-bottom:12px">⏳ ${isTr ? 'Bekleyen Onaylar' : 'Pending Approvals'} (${pending.length})</h3>
+      ${pending.map(s => `
+        <div class="student-card flex-between" style="border:1px solid var(--border);margin-bottom:8px">
+          <div><strong style="color:var(--text)">${s.name}</strong><br><small style="color:var(--text-light)">${s.email}</small></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${isTr ? 'Onayla' : 'Approve'}</button>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${isTr ? 'Reddet' : 'Reject'}</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+  
+  html += students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
     return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">Kick</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>Mastery: ${pct}%</span><span>${s.total_responses} responses</span></div></div>`;
   }).join('');
+  
+  document.getElementById('student-roster').innerHTML = html;
 }
+
+window.approveStudent = async (id) => {
+  await api('/students/approve', { method: 'POST', body: { student_id: id } });
+  loadStudentRoster();
+};
 
 async function deleteStudent(sid, name) {
   if (confirm(`Are you sure you want to kick ${name} from the class? This cannot be undone.`)) {

@@ -48,8 +48,18 @@ def init_db():
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             role TEXT NOT NULL CHECK (role IN ('lecturer','student')),
+            status TEXT DEFAULT 'pending',
             created_at TEXT DEFAULT (datetime('now'))
         );
+    """)
+
+    # ── Safe Migration: Add status column to existing DB ────
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
+    except sqlite3.OperationalError:
+        pass # Column already exists
+        
+    c.executescript("""
 
         CREATE TABLE IF NOT EXISTS courses (
             id TEXT PRIMARY KEY,

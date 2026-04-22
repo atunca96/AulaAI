@@ -211,6 +211,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._student_login()
         elif path == "/api/register":
             return self._register()
+        elif path == "/api/students/pending":
+            return self._get_pending_students()
+        elif path == "/api/students/approve":
+            return self._approve_student()
         elif path == "/api/quiz/create":
             return self._create_quiz()
         elif path == "/api/quiz/submit":
@@ -273,6 +277,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         _bump_version()
         self._send_json({"success": True})
 
+    def _get_pending_students(self):
+        """Lecturer only: Get students waiting for approval."""
+        with db_connection() as db:
+            students = db.execute("SELECT id, name, email, created_at FROM users WHERE role = 'student' AND status = 'pending' ORDER BY created_at DESC").fetchall()
+        self._send_json([dict(s) for s in students])
+
+    def _approve_student(self):
+        """Lecturer only: Approve a pending student."""
+        body = self._read_body()
+        student_id = body.get("student_id")
+        if not student_id:
+            return self._send_error("student_id required")
+            
+        with db_connection() as db:
+            db.execute("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'student'", (student_id,))
+            db.commit()
+            
+        _bump_version()
+        self._send_json({"success": True})
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -308,7 +332,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_json({
                 "success": True,
                 "user": {"id": user["id"], "name": user["name"],
-                         "email": user["email"], "role": user["role"]}
+                         "email": user["email"], "role": user["role"], "status": user.get("status", "approved")}
             })
         else:
             self._send_error("Invalid credentials", 401)
@@ -328,8 +352,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("An account with this email already exists")
 
             student_id = _uid()
-            db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-                       (student_id, name, email, password, "student"))
+            db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                       (student_id, name, email, password, "student", "pending"))
 
             # Auto-enroll in the first course
             course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
@@ -367,7 +391,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({
                     "success": True,
                     "user": {"id": user["id"], "name": user["name"],
-                             "email": user["email"], "role": "student"}
+                             "email": user["email"], "role": "student", "status": user.get("status", "approved")}
                 })
             else:
                 # New student — auto-register
@@ -375,8 +399,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return self._send_error("Name is required for first login")
 
                 student_id = _uid()
-                db.execute("INSERT INTO users VALUES (?,?,?,?,?,datetime('now'))",
-                           (student_id, name, email_key, student_number, "student"))
+                db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                           (student_id, name, email_key, student_number, "student", "pending"))
 
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 if course:
