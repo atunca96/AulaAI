@@ -22,6 +22,15 @@ function startLiveSync() {
       if (data.version !== _lastVersion) {
         _lastVersion = data.version;
         console.log('[LiveSync] Data changed, refreshing...');
+        
+        // If data changed, ensure we weren't just kicked
+        const statusCheck = await api('/user/status?user_id=' + currentUser.id);
+        if (statusCheck && statusCheck.error === 'User not found') {
+          alert(currentLang === 'tr' ? 'Hesabınız silindi veya oturumunuz kapatıldı.' : 'Your account has been removed or logged out.');
+          logout();
+          return;
+        }
+
         refreshCurrentView();
       }
     } catch (e) { /* ignore network errors */ }
@@ -303,6 +312,10 @@ async function completeLogin(user) {
             localStorage.setItem('aula_user', JSON.stringify(currentUser));
             sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
             window.location.reload();
+          } else if (check && check.error === 'User not found') {
+            clearInterval(waitingPoll);
+            alert(currentLang === 'tr' ? 'Hesabınız reddedildi ve silindi.' : 'Your account was rejected and removed.');
+            logout();
           }
         } catch(e) {}
       }, 3000);
