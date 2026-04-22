@@ -155,7 +155,7 @@ async function completeLogin(user) {
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
   if (currentUser.status === 'pending') {
-    // Re-check status from server in case lecturer approved
+    // Re-check status from server in case lecturer already approved
     try {
       const check = await api('/user/status?user_id=' + currentUser.id);
       if (check && check.status === 'approved') {
@@ -167,7 +167,19 @@ async function completeLogin(user) {
     
     if (currentUser.status === 'pending') {
       showScreen('waiting-room-screen');
-      startLiveSync();
+      // Poll every 3 seconds until approved
+      const waitingPoll = setInterval(async () => {
+        try {
+          const check = await api('/user/status?user_id=' + currentUser.id);
+          if (check && check.status === 'approved') {
+            clearInterval(waitingPoll);
+            currentUser.status = 'approved';
+            localStorage.setItem('aula_user', JSON.stringify(currentUser));
+            sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
+            window.location.reload();
+          }
+        } catch(e) {}
+      }, 3000);
       return;
     }
   }
