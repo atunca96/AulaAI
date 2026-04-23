@@ -801,3 +801,15 @@ body {
     height: 100%;
     border: none;
 }
+
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+    .pdf-container {
+        height: 60vh; /* Shorter to avoid overlapping mobile nav */
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-top: 10px;
+    }
+    .mobile-only { display: block; }
+}
