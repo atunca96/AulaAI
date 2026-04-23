@@ -803,13 +803,20 @@ body {
 }
 
 .mobile-only { display: none; }
+.pc-only { display: flex; }
 
 @media (max-width: 768px) {
     .pdf-container {
-        height: 60vh; /* Shorter to avoid overlapping mobile nav */
+        height: 60vh;
         overflow: auto;
         -webkit-overflow-scrolling: touch;
         margin-top: 10px;
     }
     .mobile-only { display: block; }
+    .pc-only { display: none !important; }
+    
+    .mobile-preview {
+        padding: 20px 0;
+        animation: fadeIn 0.5s ease;
+    }
 }
