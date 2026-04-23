@@ -862,7 +862,7 @@ async function viewQuiz(quizId, title) {
                         <div style="flex:1">
                           <div style="margin-bottom:4px; font-weight:500">${a.prompt}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer}</strong></span>
+                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
                             ${!isRight ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
@@ -1364,7 +1364,7 @@ async function viewAssignment(assignmentId, title) {
               <div style="flex:1;font-size:13px">
                 <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${a.prompt}</div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap">
-                  <span>${L.studentAnswer}: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
+                  <span>${L.studentAnswer}: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
                   ${!a.is_correct ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
                 </div>
               </div>
