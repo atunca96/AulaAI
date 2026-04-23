@@ -162,6 +162,7 @@
                 <button class="nav-tab" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label">Assignments</span></button>
                 <button class="nav-tab" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label">Students</span></button>
                 <button class="nav-tab" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label">Reports</span></button>
+                <button class="nav-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">📥</span><span class="tab-label" data-i18n="inbox">Inbox</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -336,6 +337,17 @@
                     </div>
                 </div>
             </section>
+            
+            <!-- Book Tab -->
+            <section id="tab-book" class="tab-panel">
+                <div class="page-header">
+                    <h1>📖 <span data-i18n="book">Book</span></h1>
+                    <p class="subtitle">Aula Internacional Plus 1</p>
+                </div>
+                <div class="pdf-container">
+                    <iframe src="/books/textbook.pdf" class="pdf-viewer"></iframe>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -353,6 +365,7 @@
                 <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Quizzes</span></button>
                 <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Assignments</span></button>
                 <button class="nav-tab" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label">My Stats</span></button>
+                <button class="nav-tab" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -419,6 +432,17 @@
                         <input type="text" id="message-text" class="text-input" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
                         <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                     </div>
+                </div>
+            </section>
+
+            <!-- Book Tab -->
+            <section id="tab-s-book" class="tab-panel">
+                <div class="page-header">
+                    <h1>📖 <span data-i18n="book">Book</span></h1>
+                    <p class="subtitle">Aula Internacional Plus 1</p>
+                </div>
+                <div class="pdf-container">
+                    <iframe src="/books/textbook.pdf" class="pdf-viewer"></iframe>
                 </div>
             </section>
         </main>

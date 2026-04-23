@@ -110,7 +110,7 @@ const i18n = {
     'Your Full Name': 'Your Full Name', 'e.g. 2021123456': 'e.g. 2021123456',
     Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
-    messageTeacher: 'Message Teacher', inbox: 'Inbox',
+    messageTeacher: 'Message Teacher', inbox: 'Inbox', book: 'Book',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -195,7 +195,7 @@ const i18n = {
     'Your Full Name': 'Adınız Soyadınız', 'e.g. 2021123456': 'Örn: 2021123456',
     Email: 'E-posta', Password: 'Şifre', 'Full Name': 'Ad Soyad',
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
-    messageTeacher: 'Öğretmene Mesaj', inbox: 'Gelen Kutusu',
+    messageTeacher: 'Öğretmene Mesaj', inbox: 'Gelen Kutusu', book: 'Kitap',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
@@ -694,7 +694,7 @@ async function initLecturer() {
     const badge = document.querySelector('.nav-badge');
     if (badge && aiStatus.ai_enabled) {
       if (!document.getElementById('ai-active-badge')) {
-        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite">🤖 AI Active</span>');
+        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite;padding:3px 6px;">🤖</span>');
       }
       if (!document.getElementById('ai-pulse-style')) {
         const style = document.createElement('style');
