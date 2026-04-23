@@ -214,7 +214,7 @@ body {
   z-index: 100;
   backdrop-filter: blur(12px);
 }
-.nav-brand { display: flex; align-items: center; gap: 10px; margin-right: 32px; }
+.nav-brand { display: flex; align-items: center; gap: 10px; margin-right: 24px; flex-shrink: 0; }
 .nav-logo { font-size: 24px; }
 .nav-logo-img { height: 32px; width: auto; object-fit: contain; }
 .nav-title { font-size: 18px; font-weight: 700; }
@@ -229,9 +229,9 @@ body {
   letter-spacing: 0.5px;
 }
 .student-badge { background: linear-gradient(135deg, #22c55e, #16a34a); }
-.nav-tabs { display: flex; gap: 4px; flex: 1; }
+.nav-tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
 .nav-tab {
-  padding: 8px 16px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
@@ -244,7 +244,7 @@ body {
 }
 .nav-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
 .nav-tab.active { color: var(--accent-light); background: var(--accent-glow); }
-.nav-user { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); }
+.nav-user { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); margin-left: 12px; flex-shrink: 0; }
 
 /* ── Dashboard Content ───────────────────────────────── */
 .dashboard-content { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
