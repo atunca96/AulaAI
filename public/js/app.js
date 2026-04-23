@@ -53,11 +53,11 @@ function refreshCurrentView() {
     loadAssignmentList();
     loadStudentRoster();
     api('/messages').then(messages => {
-      if (messages) {
-        const unread = messages.filter(m => !m.is_read).length;
+      if (messages && Array.isArray(messages)) {
+        const unread = messages.filter(m => !m.is_read && m.sender === 'student').length;
         const badge = document.getElementById('inbox-badge');
         if (unread > 0) {
-          badge.style.display = 'block';
+          badge.style.display = 'flex';
           badge.textContent = unread;
         } else {
           badge.style.display = 'none';
@@ -69,6 +69,18 @@ function refreshCurrentView() {
     loadQuizList();
     loadAssignmentList();
     loadStudentProgress();
+    api(`/messages?student_id=${currentUser.id}`).then(messages => {
+      if (messages && Array.isArray(messages)) {
+        const unread = messages.filter(m => !m.is_read && m.sender === 'lecturer').length;
+        const badge = document.getElementById('message-badge');
+        if (unread > 0) {
+          badge.style.display = 'flex';
+          badge.textContent = unread;
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    });
   }
 }
 
@@ -470,55 +482,153 @@ function switchTab(btn) {
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
 
 // ── Messages ──
-function openMessageModal() {
+let currentChatStudentId = null;
+
+async function openMessageModal() {
   document.getElementById('message-text').value = '';
   document.getElementById('message-modal').classList.remove('hidden');
+  await loadStudentChat();
+}
+
+async function loadStudentChat() {
+  const messages = await api(`/messages?student_id=${currentUser.id}`);
+  const container = document.getElementById('student-chat-history');
+  
+  if (!messages || messages.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang==='tr'?'Henüz mesaj yok.':'No messages yet.'}</p>`;
+    return;
+  }
+  
+  container.innerHTML = messages.map(m => {
+    const isMe = m.sender === 'student';
+    return `
+      <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
+        <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+          ${esc(m.content)}
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  messages.filter(m => m.sender === 'lecturer' && !m.is_read).forEach(m => {
+    api('/message/read', { method: 'POST', body: { message_id: m.id } });
+  });
+  
+  container.scrollTop = container.scrollHeight;
 }
 
 async function sendMessage() {
   const text = document.getElementById('message-text').value.trim();
   if (!text) return;
-  const res = await api('/message/send', { method: 'POST', body: { student_id: currentUser.id, content: text } });
-  if (!res.error) {
-    alert(currentLang === 'tr' ? 'Mesajınız öğretmene gönderildi.' : 'Your message has been sent to the teacher.');
-    closeModal();
-  } else {
-    alert(res.error);
-  }
+  document.getElementById('message-text').value = '';
+  await api('/message/send', { method: 'POST', body: { student_id: currentUser.id, sender: 'student', content: text } });
+  await loadStudentChat();
 }
 
 async function openInboxModal() {
   document.getElementById('inbox-modal').classList.remove('hidden');
+  await loadInbox();
+}
+
+async function loadInbox() {
   const messages = await api('/messages');
   const container = document.getElementById('inbox-messages');
-  const unreadCount = messages.filter(m => !m.is_read).length;
+  document.getElementById('inbox-back-btn').classList.add('hidden');
+  document.getElementById('inbox-reply-area').classList.add('hidden');
+  document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">Inbox</span>`;
+  currentChatStudentId = null;
   
+  const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
+  const badge = document.getElementById('inbox-badge');
   if (unreadCount > 0) {
-    document.getElementById('inbox-badge').style.display = 'block';
-    document.getElementById('inbox-badge').textContent = unreadCount;
+    badge.style.display = 'flex';
+    badge.textContent = unreadCount;
   } else {
-    document.getElementById('inbox-badge').style.display = 'none';
+    badge.style.display = 'none';
   }
-
+  
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center;">${currentLang==='tr'?'Mesaj yok.':'No messages.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang==='tr'?'Mesaj yok.':'No messages.'}</p>`;
     return;
   }
   
-  container.innerHTML = messages.map(m => `
-    <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px; opacity:${m.is_read ? '0.7' : '1'}; cursor:pointer;" onclick="markRead('${m.id}')">
-      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-        <strong style="font-size:14px; color:var(--primary);">${m.student_name}</strong>
-        <span style="font-size:12px; color:var(--text-muted);">${new Date(m.created_at).toLocaleString()}</span>
+  const threads = {};
+  messages.forEach(m => {
+    if (!threads[m.student_id]) {
+      threads[m.student_id] = { student_name: m.student_name, latest: m, unread: 0 };
+    } else {
+      if (new Date(m.created_at) > new Date(threads[m.student_id].latest.created_at)) {
+        threads[m.student_id].latest = m;
+      }
+    }
+    if (m.sender === 'student' && !m.is_read) {
+      threads[m.student_id].unread++;
+    }
+  });
+  
+  const threadList = Object.entries(threads).sort((a,b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
+  
+  container.innerHTML = threadList.map(([sId, data]) => `
+    <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition);" onclick="openChat('${sId}', '${esc(data.student_name).replace(/'/g, "\\'")}')">
+      <div style="flex:1; min-width:0; margin-right:12px;">
+        <strong style="font-size:15px; color:var(--text-primary);">${esc(data.student_name)}</strong>
+        <div style="font-size:13px; color:var(--text-muted); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          ${data.latest.sender === 'lecturer' ? 'You: ' : ''}${esc(data.latest.content)}
+        </div>
       </div>
-      <div style="font-size:14px;">${esc(m.content)}</div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+        <span style="font-size:11px; color:var(--text-muted);">${new Date(data.latest.created_at).toLocaleDateString()}</span>
+        ${data.unread > 0 ? `<span style="background:var(--accent); color:#fff; border-radius:12px; padding:2px 8px; font-size:11px; font-weight:bold;">${data.unread}</span>` : ''}
+      </div>
     </div>
   `).join('');
 }
 
-async function markRead(mid) {
-  await api('/message/read', { method: 'POST', body: { message_id: mid } });
-  openInboxModal();
+async function openChat(studentId, studentName) {
+  currentChatStudentId = studentId;
+  document.getElementById('inbox-back-btn').classList.remove('hidden');
+  document.getElementById('inbox-reply-area').classList.remove('hidden');
+  document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
+  
+  const messages = await api(`/messages?student_id=${studentId}`);
+  const container = document.getElementById('inbox-messages');
+  
+  container.innerHTML = messages.map(m => {
+    const isMe = m.sender === 'lecturer';
+    return `
+      <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
+        <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+          ${esc(m.content)}
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
+    api('/message/read', { method: 'POST', body: { message_id: m.id } });
+  });
+  
+  const badge = document.getElementById('inbox-badge');
+  const remaining = Math.max(0, parseInt(badge.textContent || '0') - messages.filter(m => m.sender === 'student' && !m.is_read).length);
+  if (remaining > 0) {
+    badge.textContent = remaining;
+  } else {
+    badge.style.display = 'none';
+  }
+  
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendLecturerMessage() {
+  const text = document.getElementById('inbox-reply-text').value.trim();
+  if (!text || !currentChatStudentId) return;
+  document.getElementById('inbox-reply-text').value = '';
+  await api('/message/send', { method: 'POST', body: { student_id: currentChatStudentId, sender: 'lecturer', content: text } });
+  
+  const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
+  await openChat(currentChatStudentId, name);
 }
 
 // ── Settings ──

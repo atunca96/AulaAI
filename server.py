@@ -1232,25 +1232,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json({"average": total_score / max(len(answers), 1)})
 
     def _get_messages(self):
+        student_id = self._read_query().get("student_id", [None])[0]
         with db_connection() as db:
-            messages = db.execute("""
-                SELECT m.*, u.name as student_name 
-                FROM messages m 
-                JOIN users u ON m.student_id = u.id 
-                ORDER BY m.created_at DESC
-            """).fetchall()
+            if student_id:
+                messages = db.execute("""
+                    SELECT m.*, u.name as student_name 
+                    FROM messages m 
+                    JOIN users u ON m.student_id = u.id 
+                    WHERE m.student_id = ?
+                    ORDER BY m.created_at ASC
+                """, (student_id,)).fetchall()
+            else:
+                messages = db.execute("""
+                    SELECT m.*, u.name as student_name 
+                    FROM messages m 
+                    JOIN users u ON m.student_id = u.id 
+                    ORDER BY m.created_at DESC
+                """).fetchall()
             self._send_json([dict(m) for m in messages])
 
     def _message_send(self):
         body = self._read_body()
         student_id = body.get("student_id")
         content = body.get("content", "").strip()
+        sender = body.get("sender", "student")
         if not student_id or not content:
             return self._send_error("student_id and content required")
         
         with db_connection() as db:
-            db.execute("INSERT INTO messages (id, student_id, content) VALUES (?,?,?)",
-                       (_uid(), student_id, content))
+            db.execute("INSERT INTO messages (id, student_id, sender, content) VALUES (?,?,?,?)",
+                       (_uid(), student_id, sender, content))
             db.commit()
         _bump_version()
         self._send_json({"success": True})

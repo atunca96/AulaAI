@@ -169,6 +169,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             student_id TEXT REFERENCES users(id),
+            sender TEXT DEFAULT 'student',
             content TEXT NOT NULL,
             is_read INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now'))
@@ -214,6 +215,11 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_mastery_student ON mastery_scores(student_id);
         CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic_id);
     """)
+
+    try:
+        c.execute("ALTER TABLE messages ADD COLUMN sender TEXT DEFAULT 'student'")
+    except sqlite3.OperationalError:
+        pass
 
     # ── Seed data only if empty ─────────────────────────────
     if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
