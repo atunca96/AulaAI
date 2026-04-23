@@ -663,11 +663,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 # Lock it by inserting 0 score for all questions
                 for q in questions:
-                    db.execute("UPDATE responses SET answer = '[STARTED]', score = 0.0, submitted_at = datetime('now') WHERE student_id = ? AND question_id = ? AND context_id = ?",
-                               (student_id, q["id"], quiz_id))
-                    if db.cursor.rowcount == 0:
-                        db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, submitted_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
-                                   (_uid(), student_id, q["id"], "quiz", quiz_id, "[STARTED]", 0.0, "auto"))
+                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, submitted_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                               (_uid(), student_id, q["id"], "quiz", quiz_id, "[STARTED]", 0.0, "auto"))
                 db.commit()
 
             result = dict(quiz)
