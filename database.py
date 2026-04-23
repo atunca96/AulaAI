@@ -210,6 +210,9 @@ def init_db():
     # ── Seed data only if empty ─────────────────────────────
     if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
         _seed_data(c)
+    else:
+        # ── Migration: ensure all chapters exist ──────────────
+        _migrate_curriculum(c)
 
     # Force update the lecturer account credentials on every startup
     c.execute("UPDATE users SET name=?, email=?, password=? WHERE role='lecturer'",
@@ -222,6 +225,63 @@ def init_db():
 
 def _uid():
     return str(uuid.uuid4())
+
+
+def _migrate_curriculum(c):
+    """Ensure all 9 chapters and their topics exist. Adds missing ones."""
+    course = c.execute("SELECT id FROM courses LIMIT 1").fetchone()
+    if not course:
+        return
+    course_id = course[0]
+
+    curriculum = _get_aula_curriculum()
+    existing_chapters = {row[0]: row[1] for row in c.execute("SELECT number, id FROM chapters WHERE course_id = ?", (course_id,)).fetchall()}
+    
+    added_chapters = 0
+    added_topics = 0
+
+    for ch in curriculum:
+        if ch["number"] not in existing_chapters:
+            # Entire chapter is missing — add it
+            chapter_id = _uid()
+            c.execute("INSERT INTO chapters VALUES (?,?,?,?)",
+                      (chapter_id, course_id, ch["number"], ch["title"]))
+            existing_chapters[ch["number"]] = chapter_id
+            added_chapters += 1
+
+            for i, topic in enumerate(ch["topics"]):
+                topic_id = _uid()
+                c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?)",
+                          (topic_id, chapter_id, topic["type"], topic["title"],
+                           topic["difficulty"], json.dumps(topic["content"]), i))
+                questions = _generate_seed_questions(topic)
+                for q in questions:
+                    c.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
+                              (_uid(), topic_id, q["type"], q["prompt"], q["answer"],
+                               json.dumps(q.get("distractors")), topic["difficulty"],
+                               q.get("variant_group"), json.dumps(q.get("metadata"))))
+                added_topics += 1
+        else:
+            # Chapter exists — check if any topics are missing
+            chapter_id = existing_chapters[ch["number"]]
+            existing_topics = [row[0] for row in c.execute("SELECT title FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()]
+            
+            for i, topic in enumerate(ch["topics"]):
+                if topic["title"] not in existing_topics:
+                    topic_id = _uid()
+                    c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?)",
+                              (topic_id, chapter_id, topic["type"], topic["title"],
+                               topic["difficulty"], json.dumps(topic["content"]), i))
+                    questions = _generate_seed_questions(topic)
+                    for q in questions:
+                        c.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
+                                  (_uid(), topic_id, q["type"], q["prompt"], q["answer"],
+                                   json.dumps(q.get("distractors")), topic["difficulty"],
+                                   q.get("variant_group"), json.dumps(q.get("metadata"))))
+                    added_topics += 1
+
+    if added_chapters or added_topics:
+        print(f"[MIGRATION] Added {added_chapters} chapters, {added_topics} topics")
 
 
 def _seed_data(c):
