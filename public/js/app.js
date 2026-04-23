@@ -1536,12 +1536,14 @@ function saveCustomQuestion() {
     return;
   }
   
+  const distArray = type === 'mcq' && dist ? dist.split(',').map(s => s.trim()).filter(Boolean) : [];
+  
   currentDraft.questions.unshift({
     id: 'new_' + Date.now(),
     type: type,
     prompt: prompt,
     answer: answer,
-    distractors: type === 'mcq' ? dist : ''
+    distractors: distArray
   });
   
   renderDraftList();

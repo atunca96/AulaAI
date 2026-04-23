@@ -150,7 +150,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_questions(topic_id)
         elif path == "/api/quiz/take":
             quiz_id = params.get("quiz_id", [None])[0]
-            return self._get_quiz(quiz_id)
+            student_id = params.get("student_id", [None])[0]
+            return self._get_quiz(quiz_id, student_id)
         elif path == "/api/quizzes":
             course_id = params.get("course_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
@@ -175,7 +176,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_assignments(course_id, student_id)
         elif path == "/api/assignment/take":
             assignment_id = params.get("assignment_id", [None])[0]
-            return self._get_assignment(assignment_id)
+            student_id = params.get("student_id", [None])[0]
+            return self._get_assignment(assignment_id, student_id)
         elif path == "/api/assignment/responses":
             assignment_id = params.get("assignment_id", [None])[0]
             return self._get_assignment_responses(assignment_id)
@@ -637,7 +639,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self._send_json(result)
 
-    def _get_quiz(self, quiz_id):
+    def _get_quiz(self, quiz_id, student_id=None):
         if not quiz_id:
             return self._send_error("quiz_id required")
 
@@ -652,6 +654,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 WHERE qq.quiz_id = ?
                 ORDER BY qq.sort_order
             """, (quiz_id,)).fetchall()
+
+            if student_id:
+                # Check if already started or completed
+                existing = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'quiz' LIMIT 1", (student_id, quiz_id)).fetchone()
+                if existing:
+                    return self._send_error("Quiz already taken or in progress. You cannot retake it.", 403)
+                
+                # Lock it by inserting 0 score for all questions
+                for q in questions:
+                    db.execute("UPDATE responses SET answer = '[STARTED]', score = 0.0, submitted_at = datetime('now') WHERE student_id = ? AND question_id = ? AND context_id = ?",
+                               (student_id, q["id"], quiz_id))
+                    if db.cursor.rowcount == 0:
+                        db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, submitted_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                                   (_uid(), student_id, q["id"], "quiz", quiz_id, "[STARTED]", 0.0, "auto"))
+                db.commit()
 
             result = dict(quiz)
             result["questions"] = []
@@ -885,9 +902,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 score, feedback = grade_response(question["type"], student_answer, question["answer"])
                 total_score += score
 
-                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                           (_uid(), student_id, qid, "quiz", quiz_id,
-                            student_answer, score, "auto", feedback))
+                existing_resp = db.execute("SELECT id FROM responses WHERE student_id = ? AND context_id = ? AND question_id = ?", (student_id, quiz_id, qid)).fetchone()
+                if existing_resp:
+                    db.execute("UPDATE responses SET answer = ?, score = ?, feedback = ?, submitted_at = datetime('now') WHERE id = ?",
+                               (student_answer, score, feedback, existing_resp["id"]))
+                else:
+                    db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                               (_uid(), student_id, qid, "quiz", quiz_id,
+                                student_answer, score, "auto", feedback))
 
                 topic_id = question["topic_id"]
                 existing = db.execute(
@@ -1146,7 +1168,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 result.append(a_dict)
         self._send_json(result)
 
-    def _get_assignment(self, assignment_id):
+    def _get_assignment(self, assignment_id, student_id=None):
         with db_connection() as db:
             assignment = db.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,)).fetchone()
             if not assignment:
@@ -1157,6 +1179,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 WHERE aq.assignment_id = ?
                 ORDER BY aq.sort_order
             """, (assignment_id,)).fetchall()
+
+            if student_id:
+                existing = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, assignment_id)).fetchone()
+                if existing:
+                    return self._send_error("Assignment already taken or in progress. You cannot retake it.", 403)
+                
+                for q in questions:
+                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, submitted_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
+                               (_uid(), student_id, q["id"], "assignment", assignment_id, "[STARTED]", 0.0, "auto"))
+                db.commit()
+
             result = dict(assignment)
             result["questions"] = []
             for q in questions:
@@ -1183,8 +1216,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if not question: continue
                 score, feedback = grade_response(question["type"], student_answer, question["answer"])
                 total_score += score
-                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
-                           (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
+                existing_resp = db.execute("SELECT id FROM responses WHERE student_id = ? AND context_id = ? AND question_id = ?", (student_id, aid, qid)).fetchone()
+                if existing_resp:
+                    db.execute("UPDATE responses SET answer = ?, score = ?, feedback = ?, submitted_at = datetime('now') WHERE id = ?",
+                               (student_answer, score, feedback, existing_resp["id"]))
+                else:
+                    db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                               (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
                 tid = question["topic_id"]
                 existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
                 current_score = existing["score"] if (existing and existing["score"] is not None) else score
