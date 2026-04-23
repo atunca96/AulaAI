@@ -8,6 +8,7 @@ import json
 import uuid
 import os
 import math
+import random
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
@@ -228,7 +229,7 @@ def _seed_data(c):
 
     # ── Lecturer ────────────────────────────────────────────
     lecturer_id = _uid()
-    c.execute("INSERT INTO users VALUES (?,?,?,?,?,'2024-01-01 00:00:00')",
+    c.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
               (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
 
     # ── Course ──────────────────────────────────────────────
@@ -264,58 +265,54 @@ def _get_aula_curriculum():
     return [
         {
             "number": 1,
-            "title": "Nosotros",
+            "title": "Nosotros y nosotras",
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "Saludos y presentaciones",
+                    "title": "Saludos, despedidas y presentaciones",
                     "difficulty": "A1.1",
                     "content": {
                         "words": {
                             "hola": "hello", "buenos días": "good morning",
                             "buenas tardes": "good afternoon", "buenas noches": "good night",
-                            "¿Cómo te llamas?": "What's your name?",
-                            "Me llamo...": "My name is...",
-                            "¿De dónde eres?": "Where are you from?",
-                            "Soy de...": "I'm from...", "mucho gusto": "nice to meet you",
-                            "adiós": "goodbye", "hasta luego": "see you later",
-                            "por favor": "please", "gracias": "thank you"
+                            "¿Cómo te llamas?": "What's your name?", "Me llamo...": "My name is...",
+                            "¿De dónde eres?": "Where are you from?", "Soy de...": "I'm from...",
+                            "mucho gusto": "nice to meet you", "adiós": "goodbye",
+                            "hasta luego": "see you later", "por favor": "please", "gracias": "thank you"
                         }
                     }
                 },
                 {
                     "type": "vocabulary",
-                    "title": "Nacionalidades y países",
+                    "title": "Nacionalidades",
                     "difficulty": "A1.1",
                     "content": {
                         "words": {
                             "español/española": "Spanish", "mexicano/mexicana": "Mexican",
-                            "estadounidense": "American", "francés/francesa": "French",
-                            "alemán/alemana": "German", "italiano/italiana": "Italian",
-                            "brasileño/brasileña": "Brazilian", "chino/china": "Chinese",
-                            "japonés/japonesa": "Japanese", "inglés/inglesa": "English/British",
-                            "argentino/argentina": "Argentine", "colombiano/colombiana": "Colombian"
+                            "francés/francesa": "French", "alemán/alemana": "German",
+                            "italiano/italiana": "Italian", "brasileño/brasileña": "Brazilian",
+                            "estadounidense": "American", "colombiano/colombiana": "Colombian",
+                            "argentino/argentina": "Argentinian", "turco/turca": "Turkish"
                         }
                     }
                 },
                 {
-                    "type": "grammar",
-                    "title": "Verbos ser y llamarse (presente)",
+                    "type": "vocabulary",
+                    "title": "Profesiones y lugares de trabajo",
                     "difficulty": "A1.1",
                     "content": {
-                        "rules": [
-                            "ser: soy, eres, es, somos, sois, son",
-                            "llamarse: me llamo, te llamas, se llama, nos llamamos, os llamáis, se llaman"
-                        ],
-                        "examples": [
-                            "Yo soy estudiante.", "Ella se llama María.",
-                            "Nosotros somos de México.", "¿Tú eres español?"
-                        ]
+                        "words": {
+                            "médico/médica": "doctor", "profesor/profesora": "teacher",
+                            "estudiante": "student", "abogado/abogada": "lawyer",
+                            "periodista": "journalist", "camarero/camarera": "waiter",
+                            "ingeniero/ingeniera": "engineer", "arquitecto/arquitecta": "architect",
+                            "enfermero/enfermera": "nurse", "músico/música": "musician"
+                        }
                     }
                 },
                 {
                     "type": "vocabulary",
-                    "title": "Números del 0 al 20",
+                    "title": "Números (0-20)",
                     "difficulty": "A1.1",
                     "content": {
                         "words": {
@@ -327,6 +324,23 @@ def _get_aula_curriculum():
                             "diecinueve": "19", "veinte": "20"
                         }
                     }
+                },
+                {
+                    "type": "grammar",
+                    "title": "Verbos ser, tener y llamarse",
+                    "difficulty": "A1.1",
+                    "content": {
+                        "rules": [
+                            "ser: soy, eres, es, somos, sois, son",
+                            "tener: tengo, tienes, tiene, tenemos, tenéis, tienen",
+                            "llamarse: me llamo, te llamas, se llama, nos llamamos, os llamáis, se llaman",
+                            "Género en nacionalidades y profesiones (-o / -a / -e)"
+                        ],
+                        "examples": [
+                            "Yo soy estudiante.", "Ella se llama María.",
+                            "Nosotros somos de México.", "Él tiene veinte años."
+                        ]
+                    }
                 }
             ]
         },
@@ -336,16 +350,14 @@ def _get_aula_curriculum():
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "En el aula",
+                    "title": "En el aula y actividades de ocio",
                     "difficulty": "A1.1",
                     "content": {
                         "words": {
                             "el libro": "the book", "el cuaderno": "the notebook",
-                            "el bolígrafo": "the pen", "el lápiz": "the pencil",
-                            "la pizarra": "the whiteboard", "el profesor": "the teacher (m)",
-                            "la profesora": "the teacher (f)", "el estudiante": "the student (m)",
-                            "la estudiante": "the student (f)", "la clase": "the class",
-                            "el ejercicio": "the exercise", "la palabra": "the word"
+                            "el bolígrafo": "the pen", "la pizarra": "the whiteboard",
+                            "leer": "to read", "escribir": "to write", "escuchar": "to listen",
+                            "ver la tele": "to watch TV", "ir al cine": "to go to the cinema"
                         }
                     }
                 },
@@ -366,31 +378,19 @@ def _get_aula_curriculum():
                     }
                 },
                 {
-                    "type": "vocabulary",
-                    "title": "Días de la semana y meses",
-                    "difficulty": "A1.1",
-                    "content": {
-                        "words": {
-                            "lunes": "Monday", "martes": "Tuesday", "miércoles": "Wednesday",
-                            "jueves": "Thursday", "viernes": "Friday", "sábado": "Saturday",
-                            "domingo": "Sunday", "enero": "January", "febrero": "February",
-                            "marzo": "March", "abril": "April", "mayo": "May"
-                        }
-                    }
-                },
-                {
                     "type": "grammar",
-                    "title": "Presente regular (-ar, -er, -ir)",
+                    "title": "Presente regular (-ar, -er, -ir) y por/para/porque",
                     "difficulty": "A1.2",
                     "content": {
                         "rules": [
                             "-ar (hablar): hablo, hablas, habla, hablamos, habláis, hablan",
                             "-er (comer): como, comes, come, comemos, coméis, comen",
-                            "-ir (vivir): vivo, vives, vive, vivimos, vivís, viven"
+                            "-ir (vivir): vivo, vives, vive, vivimos, vivís, viven",
+                            "por/para (motivos), porque (razones)"
                         ],
                         "examples": [
-                            "Yo hablo español.", "Tú comes en casa.",
-                            "Ella vive en Madrid.", "Nosotros estudiamos mucho."
+                            "Yo hablo español.", "Estudio para trabajar en España.",
+                            "Quiero aprender porque es útil."
                         ]
                     }
                 }
@@ -402,50 +402,33 @@ def _get_aula_curriculum():
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "Geografía y lugares",
+                    "title": "Geografía, el clima y las estaciones",
                     "difficulty": "A1.2",
                     "content": {
                         "words": {
-                            "la ciudad": "the city", "el país": "the country",
-                            "la playa": "the beach", "la montaña": "the mountain",
-                            "el río": "the river", "el lago": "the lake",
-                            "la isla": "the island", "el norte": "the north",
-                            "el sur": "the south", "el este": "the east",
-                            "el oeste": "the west", "el centro": "the center"
+                            "la ciudad": "the city", "la playa": "the beach",
+                            "la montaña": "the mountain", "el río": "the river",
+                            "el norte": "the north", "el sur": "the south",
+                            "hace calor": "it's hot", "hace frío": "it's cold",
+                            "llueve": "it rains", "el verano": "summer", "el invierno": "winter"
                         }
                     }
                 },
                 {
                     "type": "grammar",
-                    "title": "Ser vs. Estar",
+                    "title": "Ser vs. Estar, Hay y Superlativos",
                     "difficulty": "A1.2",
                     "content": {
                         "rules": [
-                            "Ser: identidad, origen, profesión, características permanentes",
-                            "Estar: ubicación, estado temporal, emociones temporales",
-                            "estar: estoy, estás, está, estamos, estáis, están"
+                            "Ser (identidad) vs. Estar (ubicación, estado)",
+                            "Hay (existencia)",
+                            "Superlativo: el/la/los/las más...",
+                            "Cuantificadores: muy, mucho/mucha/muchos/muchas"
                         ],
                         "examples": [
-                            "Madrid es la capital de España. (identity)",
-                            "Santiago está en Chile. (location)",
-                            "Ella es alta. (permanent trait)",
-                            "Yo estoy cansado. (temporary state)"
+                            "Santiago está en Chile.", "Es la ciudad más bonita.",
+                            "Hay muchos parques.", "Hace mucho frío."
                         ]
-                    }
-                },
-                {
-                    "type": "vocabulary",
-                    "title": "El clima y el tiempo",
-                    "difficulty": "A1.2",
-                    "content": {
-                        "words": {
-                            "hace calor": "it's hot", "hace frío": "it's cold",
-                            "hace sol": "it's sunny", "llueve": "it rains",
-                            "nieva": "it snows", "hace viento": "it's windy",
-                            "nublado": "cloudy", "la temperatura": "the temperature",
-                            "el verano": "summer", "el invierno": "winter",
-                            "la primavera": "spring", "el otoño": "autumn"
-                        }
                     }
                 }
             ]
@@ -456,32 +439,32 @@ def _get_aula_curriculum():
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "La ropa y los colores",
+                    "title": "La ropa, los colores y los números (>100)",
                     "difficulty": "A1.2",
                     "content": {
                         "words": {
                             "la camiseta": "the t-shirt", "los pantalones": "the pants",
                             "el vestido": "the dress", "los zapatos": "the shoes",
-                            "la falda": "the skirt", "la chaqueta": "the jacket",
-                            "rojo": "red", "azul": "blue", "verde": "green",
-                            "negro": "black", "blanco": "white", "amarillo": "yellow"
+                            "rojo": "red", "azul": "blue", "negro": "black",
+                            "cien": "100", "doscientos": "200", "mil": "1000"
                         }
                     }
                 },
                 {
                     "type": "grammar",
-                    "title": "Demostrativos y comparativos",
+                    "title": "Demostrativos, tener que + inf, preferir",
                     "difficulty": "A1.3",
                     "content": {
                         "rules": [
-                            "este/esta/estos/estas (this/these - near)",
-                            "ese/esa/esos/esas (that/those - medium)",
-                            "más... que, menos... que, tan... como"
+                            "este/esta/estos/estas (near)",
+                            "ese/esa/esos/esas (medium)",
+                            "tener que + infinitivo (obligación)",
+                            "preferir (e -> ie), ir (voy, vas, va...)"
                         ],
                         "examples": [
-                            "Esta camiseta es más bonita que esa.",
-                            "Estos zapatos son menos caros que esos.",
-                            "Este vestido es tan elegante como ese."
+                            "Prefiero este vestido.",
+                            "Tengo que comprar esos zapatos.",
+                            "Voy a la tienda."
                         ]
                     }
                 }
@@ -493,33 +476,31 @@ def _get_aula_curriculum():
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "La familia",
+                    "title": "La familia, carácter y música",
                     "difficulty": "A1.2",
                     "content": {
                         "words": {
                             "la madre": "mother", "el padre": "father",
                             "el hermano": "brother", "la hermana": "sister",
-                            "el abuelo": "grandfather", "la abuela": "grandmother",
-                            "el tío": "uncle", "la tía": "aunt",
-                            "el primo": "cousin (m)", "la prima": "cousin (f)",
-                            "el hijo": "son", "la hija": "daughter"
+                            "simpático": "nice/friendly", "inteligente": "intelligent",
+                            "tímido": "shy", "la música pop": "pop music"
                         }
                     }
                 },
                 {
                     "type": "grammar",
-                    "title": "Posesivos y descripción de personas",
+                    "title": "Verbo gustar y Posesivos",
                     "difficulty": "A1.3",
                     "content": {
                         "rules": [
-                            "mi/mis, tu/tus, su/sus, nuestro-a/nuestros-as",
-                            "tener: tengo, tienes, tiene, tenemos, tenéis, tienen",
-                            "Describir: ser + adjetivo / tener + sustantivo"
+                            "Verbo gustar: me/te/le/nos/os/les gusta(n)",
+                            "También / tampoco",
+                            "Posesivos: mi(s), tu(s), su(s), nuestro/a(s)"
                         ],
                         "examples": [
-                            "Mi hermana tiene pelo largo.",
-                            "Nuestros abuelos son muy simpáticos.",
-                            "Su primo es alto y tiene ojos verdes."
+                            "Me gusta la música pop.",
+                            "A ella también le gustan los perros.",
+                            "Mi hermano es muy tímido."
                         ]
                     }
                 }
@@ -531,33 +512,138 @@ def _get_aula_curriculum():
             "topics": [
                 {
                     "type": "vocabulary",
-                    "title": "Rutinas diarias",
+                    "title": "Rutinas diarias y la hora",
                     "difficulty": "A1.3",
                     "content": {
                         "words": {
-                            "despertarse": "to wake up", "levantarse": "to get up",
-                            "ducharse": "to shower", "vestirse": "to get dressed",
-                            "desayunar": "to have breakfast", "almorzar": "to have lunch",
-                            "cenar": "to have dinner", "acostarse": "to go to bed",
-                            "trabajar": "to work", "estudiar": "to study",
-                            "hacer ejercicio": "to exercise", "dormir": "to sleep"
+                            "despertarse": "to wake up", "ducharse": "to shower",
+                            "desayunar": "to have breakfast", "trabajar": "to work",
+                            "lunes": "Monday", "viernes": "Friday", "la mañana": "morning",
+                            "la tarde": "afternoon"
                         }
                     }
                 },
                 {
                     "type": "grammar",
-                    "title": "Verbos reflexivos y la hora",
+                    "title": "Verbos pronominales e irregulares en presente",
                     "difficulty": "A1.3",
                     "content": {
                         "rules": [
                             "Reflexivos: me, te, se, nos, os, se + verbo",
-                            "La hora: Es la una / Son las dos, tres...",
-                            "Frecuencia: siempre, normalmente, a veces, nunca"
+                            "Irregulares: despertarse (e->ie), acostarse (o->ue)",
+                            "Conectores: primero, después, luego"
                         ],
                         "examples": [
-                            "Me levanto a las siete de la mañana.",
-                            "Ella se ducha antes de desayunar.",
-                            "Nosotros nos acostamos a las once."
+                            "Me levanto a las siete.",
+                            "Primero me ducho, luego desayuno.",
+                            "Él se acuesta tarde."
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "number": 7,
+            "title": "¡A comer!",
+            "topics": [
+                {
+                    "type": "vocabulary",
+                    "title": "Alimentos y restaurantes",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "words": {
+                            "el restaurante": "restaurant", "el menú": "menu",
+                            "el plato": "plate/dish", "el agua": "water",
+                            "el vino": "wine", "la carne": "meat", "el pescado": "fish",
+                            "las verduras": "vegetables", "el postre": "dessert"
+                        }
+                    }
+                },
+                {
+                    "type": "grammar",
+                    "title": "Poner/traer y Pronombres de OD",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "rules": [
+                            "poner: pongo, pones... traer: traigo, traes...",
+                            "Pronombres de Objeto Directo: lo, la, los, las",
+                            "Usos de 'con' y 'de'"
+                        ],
+                        "examples": [
+                            "¿Me trae la cuenta, por favor?",
+                            "El pescado lo preparan a la plancha.",
+                            "Café con leche, por favor."
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "number": 8,
+            "title": "El barrio ideal",
+            "topics": [
+                {
+                    "type": "vocabulary",
+                    "title": "La ciudad y el barrio",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "words": {
+                            "el barrio": "neighborhood", "la calle": "street",
+                            "el parque": "park", "el hospital": "hospital",
+                            "el supermercado": "supermarket", "la farmacia": "pharmacy",
+                            "tranquilo": "quiet", "ruidoso": "noisy"
+                        }
+                    }
+                },
+                {
+                    "type": "grammar",
+                    "title": "Cuantificadores y Preposiciones de lugar",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "rules": [
+                            "algún, ningún, mucho, demasiado, poco",
+                            "a, en, al lado de, cerca de, lejos de, enfrente de"
+                        ],
+                        "examples": [
+                            "Mi barrio es muy tranquilo y hay muchos parques.",
+                            "La farmacia está cerca de mi casa.",
+                            "No hay ningún cine."
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "number": 9,
+            "title": "¿Sabes conducir?",
+            "topics": [
+                {
+                    "type": "vocabulary",
+                    "title": "Habilidades y profesiones",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "words": {
+                            "conducir": "to drive", "cocinar": "to cook",
+                            "tocar un instrumento": "to play an instrument",
+                            "el arquitecto": "architect", "el informático": "IT specialist",
+                            "paciente": "patient", "creativo": "creative"
+                        }
+                    }
+                },
+                {
+                    "type": "grammar",
+                    "title": "Pretérito perfecto y Saber/Poder",
+                    "difficulty": "A2.1",
+                    "content": {
+                        "rules": [
+                            "Pretérito perfecto: he, has, ha, hemos, habéis, han + participio (-ado, -ido)",
+                            "saber + infinitivo (habilidad)",
+                            "poder + infinitivo (capacidad/posibilidad)"
+                        ],
+                        "examples": [
+                            "He trabajado en muchos países.",
+                            "Sé tocar la guitarra.",
+                            "¿Puedes ayudarme?"
                         ]
                     }
                 }
@@ -572,9 +658,38 @@ def _generate_seed_questions(topic):
     if topic["type"] == "vocabulary":
         words = topic["content"].get("words", {})
         items = list(words.items())
+
+        # ── Smart distractor grouping ──
+        # Classify each word into a semantic category so distractors
+        # are always plausible (numbers with numbers, food with food, etc.)
+        categories = _categorize_words(words)
+
         for spanish, english in items[:8]:
+            # Find which category this word belongs to
+            word_cat = None
+            for cat, members in categories.items():
+                if english in [m[1] for m in members]:
+                    word_cat = cat
+                    break
+
+            # Pick distractors from the SAME category first
+            same_cat_pool = []
+            if word_cat and word_cat in categories:
+                same_cat_pool = [e for (s, e) in categories[word_cat] if e != english]
+
+            # If not enough in same category, fall back to full list
             all_english = list(words.values())
-            distractors = [e for e in all_english if e != english][:3]
+            fallback_pool = [e for e in all_english if e != english]
+
+            if len(same_cat_pool) >= 3:
+                random.shuffle(same_cat_pool)
+                distractors = same_cat_pool[:3]
+            else:
+                distractors = same_cat_pool[:]
+                remaining = [e for e in fallback_pool if e not in distractors]
+                random.shuffle(remaining)
+                distractors += remaining[:3 - len(distractors)]
+
             questions.append({
                 "type": "mcq",
                 "prompt": f"What does '{spanish}' mean in English?",
@@ -582,9 +697,24 @@ def _generate_seed_questions(topic):
                 "distractors": distractors,
                 "metadata": {"skill": "recognition"}
             })
-            # Reverse direction
+
+            # Reverse direction — same logic for Spanish distractors
+            same_cat_es = []
+            if word_cat and word_cat in categories:
+                same_cat_es = [s for (s, e) in categories[word_cat] if s != spanish]
+
             all_spanish = list(words.keys())
-            distractors_es = [s for s in all_spanish if s != spanish][:3]
+            fallback_es = [s for s in all_spanish if s != spanish]
+
+            if len(same_cat_es) >= 3:
+                random.shuffle(same_cat_es)
+                distractors_es = same_cat_es[:3]
+            else:
+                distractors_es = same_cat_es[:]
+                remaining_es = [s for s in fallback_es if s not in distractors_es]
+                random.shuffle(remaining_es)
+                distractors_es += remaining_es[:3 - len(distractors_es)]
+
             questions.append({
                 "type": "mcq",
                 "prompt": f"How do you say '{english}' in Spanish?",
@@ -615,6 +745,72 @@ def _generate_seed_questions(topic):
                 })
 
     return questions
+
+
+def _categorize_words(words):
+    """Classify vocabulary words into semantic groups for smart distractors."""
+    categories = {}
+
+    # Define keyword patterns for each category
+    patterns = {
+        "number": {"0","1","2","3","4","5","6","7","8","9","10","11","12","13",
+                   "14","15","16","17","18","19","20","30","40","50","60","70",
+                   "80","90","100","first","second","third","zero","one","two",
+                   "three","four","five","six","seven","eight","nine","ten",
+                   "eleven","twelve","thirteen","fourteen","fifteen","sixteen",
+                   "seventeen","eighteen","nineteen","twenty","thirty","forty",
+                   "fifty","sixty","seventy","eighty","ninety","hundred"},
+        "nationality": {"spanish","mexican","french","german","italian","brazilian",
+                       "american","english","chinese","japanese","colombian","argentinian",
+                       "chilean","peruvian","cuban","portuguese","turkish","dutch",
+                       "russian","korean","swedish","polish","greek"},
+        "profession": {"doctor","teacher","student","engineer","lawyer","architect",
+                      "nurse","journalist","waiter","waitress","cook","chef","pilot",
+                      "musician","artist","writer","actor","actress","secretary",
+                      "police officer","firefighter","programmer","designer"},
+        "color": {"red","blue","green","yellow","white","black","brown","pink",
+                 "orange","purple","gray","grey"},
+        "family": {"father","mother","brother","sister","son","daughter","uncle",
+                  "aunt","grandfather","grandmother","cousin","husband","wife",
+                  "parents","children","nephew","niece","family"},
+        "food": {"bread","milk","water","meat","fish","chicken","rice","egg","eggs",
+                "cheese","fruit","vegetables","salad","soup","coffee","tea","juice",
+                "wine","beer","sugar","salt","pepper","butter","oil","apple","orange",
+                "tomato","potato","onion","lettuce","dessert","cake","ice cream"},
+        "day_time": {"monday","tuesday","wednesday","thursday","friday","saturday",
+                    "sunday","morning","afternoon","evening","night","today","tomorrow",
+                    "yesterday","week","weekend","month","year"},
+        "clothing": {"shirt","pants","dress","shoes","hat","jacket","coat","skirt",
+                    "tie","socks","boots","sweater","jeans","suit","t-shirt"},
+        "body": {"head","hand","arm","leg","foot","eye","nose","mouth","ear","hair",
+                "face","neck","shoulder","knee","finger","tooth","back","stomach"},
+        "place": {"house","school","office","hospital","restaurant","store","shop",
+                 "park","beach","museum","library","church","bank","hotel","airport",
+                 "station","market","pharmacy","supermarket","street","square",
+                 "neighborhood","building"},
+        "transport": {"car","bus","train","plane","bicycle","motorcycle","taxi",
+                     "subway","boat","ship","truck"},
+        "greeting": {"hello","goodbye","good morning","good afternoon","good night",
+                    "see you later","nice to meet you","please","thank you","sorry",
+                    "excuse me","you're welcome","how are you"},
+    }
+
+    for spanish, english in words.items():
+        eng_lower = english.lower().strip()
+        matched = False
+        for cat, keywords in patterns.items():
+            if eng_lower in keywords or any(kw in eng_lower for kw in keywords):
+                if cat not in categories:
+                    categories[cat] = []
+                categories[cat].append((spanish, english))
+                matched = True
+                break
+        if not matched:
+            if "other" not in categories:
+                categories["other"] = []
+            categories["other"].append((spanish, english))
+
+    return categories
 
 
 if __name__ == "__main__":

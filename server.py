@@ -230,6 +230,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._create_assignment()
         elif path == "/api/assignment/submit":
             return self._submit_assignment()
+        elif path == "/api/draft/generate":
+            return self._draft_generate()
+        elif path == "/api/draft/publish":
+            return self._draft_publish()
         elif path == "/api/report/generate":
             return self._generate_report()
         elif path == "/api/session/start":
@@ -238,6 +242,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._reset_data()
         elif path == "/api/student/delete":
             return self._delete_student()
+        elif path == "/api/quiz/delete":
+            return self._delete_quiz()
+        elif path == "/api/assignment/delete":
+            return self._delete_assignment()
         else:
             self._send_error("Not found", 404)
 
@@ -279,6 +287,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
+        _bump_version()
+        self._send_json({"success": True})
+
+    def _delete_quiz(self):
+        body = self._read_body()
+        quiz_id = body.get("quiz_id")
+        if not quiz_id: return self._send_error("quiz_id required")
+        with db_connection() as db:
+            db.execute("DELETE FROM responses WHERE context_id = ?", (quiz_id,))
+            db.execute("DELETE FROM quiz_questions WHERE quiz_id = ?", (quiz_id,))
+            db.execute("DELETE FROM quizzes WHERE id = ?", (quiz_id,))
+            db.commit()
+        _bump_version()
+        self._send_json({"success": True})
+
+    def _delete_assignment(self):
+        body = self._read_body()
+        assignment_id = body.get("assignment_id")
+        if not assignment_id: return self._send_error("assignment_id required")
+        with db_connection() as db:
+            db.execute("DELETE FROM responses WHERE context_id = ?", (assignment_id,))
+            db.execute("DELETE FROM assignment_questions WHERE assignment_id = ?", (assignment_id,))
+            db.execute("DELETE FROM assignments WHERE id = ?", (assignment_id,))
+            db.commit()
         _bump_version()
         self._send_json({"success": True})
 
@@ -739,6 +771,93 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
         _bump_version()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
+
+    def _draft_generate(self):
+        body = self._read_body()
+        course_id = body.get("course_id")
+        chapter_id = body.get("chapter_id")
+        try:
+            count = int(body.get("count", 10))
+        except (ValueError, TypeError):
+            count = 10
+            
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                if course: course_id = course["id"]
+                
+            if chapter_id and chapter_id != "all":
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+            else:
+                topics = db.execute("""
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                """, (course_id,)).fetchall()
+                
+            topic_ids = [t["id"] for t in topics]
+            questions = generate_quiz(topic_ids, db, count=count)
+            result = []
+            for q in questions:
+                q_dict = dict(q)
+                if isinstance(q_dict.get("distractors"), str):
+                    try:
+                        q_dict["distractors"] = json.loads(q_dict["distractors"])
+                    except:
+                        q_dict["distractors"] = []
+                result.append(q_dict)
+                
+        self._send_json({"questions": result})
+
+    def _draft_publish(self):
+        body = self._read_body()
+        pub_type = body.get("type", "quiz") # quiz or assignment
+        course_id = body.get("course_id")
+        chapter_id = body.get("chapter_id")
+        title = body.get("title", "Draft")
+        due_at = body.get("due_at")
+        questions = body.get("questions", [])
+
+        with db_connection() as db:
+            if not course_id:
+                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                if course: course_id = course["id"]
+                
+            pub_id = _uid()
+            if pub_type == "quiz":
+                db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
+                           (pub_id, course_id, title, None if chapter_id == "all" else chapter_id))
+            else:
+                db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
+                           (pub_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
+                
+            for i, q in enumerate(questions):
+                qid = q.get("id")
+                if not qid or str(qid).startswith("new_"):
+                    qid = _uid()
+                    topic_id = None
+                    if chapter_id and chapter_id != "all":
+                        t = db.execute("SELECT id FROM topics WHERE chapter_id = ? LIMIT 1", (chapter_id,)).fetchone()
+                        if t: topic_id = t["id"]
+                    if not topic_id:
+                        t = db.execute("SELECT id FROM topics LIMIT 1").fetchone()
+                        if t: topic_id = t["id"]
+                        
+                    distractors = q.get("distractors", [])
+                    if isinstance(distractors, str):
+                        distractors = [d.strip() for d in distractors.split(",") if d.strip()]
+                    db.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
+                               (qid, topic_id, q.get("type", "mcq"), q.get("prompt"), q.get("answer"),
+                                json.dumps(distractors), "custom", None, "{}"))
+                
+                if pub_type == "quiz":
+                    db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)", (pub_id, qid, i))
+                else:
+                    db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)", (pub_id, qid, i))
+            
+            db.commit()
+        _bump_version()
+        self._send_json({"id": pub_id, "title": title, "question_count": len(questions)})
 
     def _submit_quiz(self):
         body = self._read_body()

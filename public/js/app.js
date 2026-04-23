@@ -122,12 +122,33 @@ const i18n = {
     'AI ACTIVE': 'AI ACTIVE',
     // Student home
     '📖 Current Chapter': '📖 Current Chapter',
-    Practice: 'Practice', Home: 'Home'
+    Practice: 'Practice', Home: 'Home',
+    // Settings
+    'settings.title': 'Settings',
+    'settings.appearance': 'Appearance',
+    'settings.dark': 'Dark',
+    'settings.light': 'Light',
+    'settings.hud_size': 'HUD Size',
+    'settings.normal': 'Normal',
+    'settings.large': 'Large',
+    'settings.done': 'Done',
+    // Draft Modal
+    'draft.review': 'Review Questions',
+    'draft.publish': 'Publish',
+    'draft.add_question': 'Add Question',
+    'draft.prompt': 'Question Prompt',
+    'draft.answer': 'Correct Answer',
+    'draft.distractors': 'Distractors (comma separated)',
+    'draft.save': 'Save',
+    'draft.cancel': 'Cancel',
+    'draft.remove': 'Remove',
+    'draft.type': 'Question Type',
+    'draft.fill_blank': 'Fill in the gap',
+    'draft.mcq': 'Multiple Choice'
   },
   tr: {
-    langBtn: '🌐 TR / EN',
-    // Login screen
-    signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
+    langBtn: 'EN',
+    loginTitle: 'Öğrenci Girişi',gnInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
     'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
@@ -185,7 +206,29 @@ const i18n = {
     'AI ACTIVE': 'AI AKTİF',
     // Student home
     '📖 Current Chapter': '📖 Mevcut Ünite',
-    Practice: 'Alıştırma', Home: 'Ana Sayfa'
+    Practice: 'Alıştırma', Home: 'Ana Sayfa',
+    // Settings
+    'settings.title': 'Ayarlar',
+    'settings.appearance': 'Görünüm',
+    'settings.dark': 'Karanlık',
+    'settings.light': 'Aydınlık',
+    'settings.hud_size': 'Arayüz Boyutu',
+    'settings.normal': 'Normal',
+    'settings.large': 'Büyük',
+    'settings.done': 'Bitti',
+    // Draft Modal
+    'draft.review': 'Soruları Gözden Geçir',
+    'draft.publish': 'Yayınla',
+    'draft.add_question': 'Soru Ekle',
+    'draft.prompt': 'Soru Metni',
+    'draft.answer': 'Doğru Cevap',
+    'draft.distractors': 'Yanlış Seçenekler (virgülle ayırın)',
+    'draft.save': 'Kaydet',
+    'draft.cancel': 'İptal',
+    'draft.remove': 'Kaldır',
+    'draft.type': 'Soru Tipi',
+    'draft.fill_blank': 'Boşluk Doldurma',
+    'draft.mcq': 'Çoktan Seçmeli'
   }
 };
 
@@ -376,6 +419,13 @@ function logout() {
 window.addEventListener('DOMContentLoaded', () => {
   const savedLang = localStorage.getItem('aula_lang');
   if (savedLang && savedLang !== currentLang) toggleLanguage();
+  
+  // Apply saved theme and HUD size
+  const savedTheme = localStorage.getItem('aula_theme') || 'dark';
+  setTheme(savedTheme);
+  const savedHud = localStorage.getItem('aula_hud') || 'normal';
+  setHudSize(savedHud);
+
   const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
   if (savedUser) {
     try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
@@ -398,6 +448,49 @@ function switchTab(btn) {
 }
 
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+
+// ── Settings ──
+function openSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('hidden');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.add('hidden');
+}
+
+function setTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('theme-light-btn')?.classList.add('active', 'btn-primary');
+    document.getElementById('theme-light-btn')?.classList.remove('btn-outline');
+    document.getElementById('theme-dark-btn')?.classList.remove('active', 'btn-primary');
+    document.getElementById('theme-dark-btn')?.classList.add('btn-outline');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('theme-dark-btn')?.classList.add('active', 'btn-primary');
+    document.getElementById('theme-dark-btn')?.classList.remove('btn-outline');
+    document.getElementById('theme-light-btn')?.classList.remove('active', 'btn-primary');
+    document.getElementById('theme-light-btn')?.classList.add('btn-outline');
+  }
+  localStorage.setItem('aula_theme', theme);
+}
+
+function setHudSize(size) {
+  if (size === 'large') {
+    document.body.style.zoom = '1.1';
+    document.getElementById('hud-large-btn')?.classList.add('active', 'btn-primary');
+    document.getElementById('hud-large-btn')?.classList.remove('btn-outline');
+    document.getElementById('hud-normal-btn')?.classList.remove('active', 'btn-primary');
+    document.getElementById('hud-normal-btn')?.classList.add('btn-outline');
+  } else {
+    document.body.style.zoom = '1.0';
+    document.getElementById('hud-normal-btn')?.classList.add('active', 'btn-primary');
+    document.getElementById('hud-normal-btn')?.classList.remove('btn-outline');
+    document.getElementById('hud-large-btn')?.classList.remove('active', 'btn-primary');
+    document.getElementById('hud-large-btn')?.classList.add('btn-outline');
+  }
+  localStorage.setItem('aula_hud', size);
+}
 
 function masteryColor(s) { return s >= 0.75 ? 'var(--success)' : s >= 0.4 ? 'var(--warning)' : 'var(--danger)'; }
 function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' : 'danger'; }
@@ -483,7 +576,7 @@ async function launchActivity() {
 function renderActivityCard(a, idx, ctx) {
   const p = translatePrompt(a.prompt);
   if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options||[]).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..."><button class="btn btn-primary btn-sm" style="margin-left:8px" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
@@ -558,23 +651,70 @@ function checkDialogue(cardId, correctOrderJson) {
   }
 }
 
+let currentDraft = null;
+
 async function createQuiz() {
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+
   const title = document.getElementById('quiz-title').value || 'Quiz';
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
   const count = parseInt(document.getElementById('quiz-count').value) || 10;
-  await api('/quiz/create', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, title, count } });
-  loadQuizList();
+  
+  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+  
+  btn.textContent = originalText;
+  btn.disabled = false;
+  
+  if(res && res.questions) {
+    currentDraft = {
+      type: 'quiz',
+      title: title,
+      chapter_id: chapterId,
+      due_at: null,
+      questions: res.questions
+    };
+    openDraftModal();
+  }
 }
 
 async function loadQuizList() {
   const quizzes = await api(`/quizzes?course_id=${courseId}&student_id=${currentUser.id}`);
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
+  const isTr = currentLang === 'tr';
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${t('noQuizzes')}</p>`
     : quizzes.map(q => {
-        const isCompleted = q.is_completed && currentUser.role !== 'lecturer';
-        return `<div class="card" style="cursor:${isCompleted?'default':'pointer'};opacity:${isCompleted?'0.6':'1'}" onclick="${currentUser.role==='lecturer'?`viewQuiz('${q.id}','${esc(q.title)}')` : (isCompleted?'':`takeQuiz('${q.id}')`)}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">Created: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted?` · <span style="color:var(--success)">✓ ${t('completed')}</span>`:''}</div></div><span class="btn btn-sm ${isCompleted?'btn-ghost':'btn-outline'}">${currentUser.role==='lecturer'?t('viewBtn'):(isCompleted?t('completed'):t('takeQuizBtn'))}</span></div></div>`;
+        if (currentUser.role === 'lecturer') {
+          return `<div class="card" style="margin-bottom:12px">
+            <div class="card-body flex-between">
+              <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}','${esc(q.title)}')">
+                <strong>${q.title}</strong>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()}</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">${t('viewBtn')}</button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${isTr ? 'Sil' : 'Delete'}</button>
+              </div>
+            </div>
+          </div>`;
+        } else {
+          const isCompleted = q.is_completed;
+          return `<div class="card" style="cursor:${isCompleted?'default':'pointer'};opacity:${isCompleted?'0.6':'1'};margin-bottom:12px" onclick="${isCompleted?'':`takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted?` · <span style="color:var(--success)">✓ ${t('completed')}</span>`:''}</div></div><span class="btn btn-sm ${isCompleted?'btn-ghost':'btn-outline'}">${isCompleted?t('completed'):t('takeQuizBtn')}</span></div></div>`;
+        }
       }).join('');
+}
+
+async function deleteQuiz(quizId, title) {
+  const isTr = currentLang === 'tr';
+  const msg = isTr
+    ? `"${title}" sınavını silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci sonuçları da silinir.`
+    : `Are you sure you want to delete the quiz "${title}"? This cannot be undone and all student results will be removed.`;
+  if (!confirm(msg)) return;
+  const res = await api('/quiz/delete', { method: 'POST', body: { quiz_id: quizId } });
+  if (res && !res.error) loadQuizList();
 }
 
 async function viewQuiz(quizId, title) {
@@ -688,7 +828,7 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx+1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` + 
-    (q.type==='mcq' ? `<div class="options-grid">${((q.distractors||[]).concat([q.answer]).sort(()=>Math.random()-0.5)).map(o=>`<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<input class="fill-blank-input" id="q-inp"><button class="btn btn-primary mt-16" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">Submit</button>`) + `</div>`;
+    (q.type==='mcq' ? `<div class="options-grid">${((q.distractors||[]).concat([q.answer]).sort(()=>Math.random()-0.5)).map(o=>`<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="${currentLang==='tr'?'Cevabınızı yazın...':'Type your answer...'}" onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${currentLang==='tr'?'Gönder':'Submit'}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -963,12 +1103,17 @@ async function loadAssignmentList() {
               ${a.due_at ? ' · Due: ' + new Date(a.due_at).toLocaleDateString() : ''}
             </div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:12px">
-            👁️ ${isTr ? 'Önizle' : 'Preview'}
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')" style="margin-left:8px">
-            📊 ${isTr ? 'Sonuçları Gör' : 'View Results'}
-          </button>
+          <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
+            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')">
+              👁️ ${isTr ? 'Önizle' : 'Preview'}
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')">
+              📊 ${isTr ? 'Sonuçları Gör' : 'View Results'}
+            </button>
+            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">
+              🗑️ ${isTr ? 'Sil' : 'Delete'}
+            </button>
+          </div>
         </div>
       </div>`).join('');
   } else {
@@ -988,6 +1133,16 @@ async function loadAssignmentList() {
         </div>`;
     }).join('');
   }
+}
+
+async function deleteAssignment(assignmentId, title) {
+  const isTr = currentLang === 'tr';
+  const msg = isTr
+    ? `"${title}" ödevini silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci teslimleri de silinir.`
+    : `Are you sure you want to delete the assignment "${title}"? This cannot be undone and all student submissions will be removed.`;
+  if (!confirm(msg)) return;
+  const res = await api('/assignment/delete', { method: 'POST', body: { assignment_id: assignmentId } });
+  if (res && !res.error) loadAssignmentList();
 }
 
 async function viewAssignment(assignmentId, title) {
@@ -1129,20 +1284,171 @@ async function createAssignment() {
   btn.textContent = '...';
   btn.disabled = true;
 
-  const title = document.getElementById('assignment-title').value;
-  const chapterId = document.getElementById('assignment-chapter-select').value;
-  const count = document.getElementById('assignment-count').value;
+  const title = document.getElementById('assignment-title').value || 'Assignment';
+  const chapterId = document.getElementById('assignment-chapter-select').value || null;
+  const count = parseInt(document.getElementById('assignment-count').value) || 10;
   
-  const res = await api('/assignment/create', { method: 'POST', body: { title, chapter_id: chapterId, count: parseInt(count), course_id: courseId }});
+  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
   
   btn.textContent = originalText;
   btn.disabled = false;
   
-  document.getElementById('assignment-title').value = '';
-  loadAssignmentList();
+  if(res && res.questions) {
+    currentDraft = {
+      type: 'assignment',
+      title: title,
+      chapter_id: chapterId,
+      due_at: null,
+      questions: res.questions
+    };
+    openDraftModal();
+  }
+}
+
+function openDraftModal() {
+  const modal = document.getElementById('draft-modal');
+  modal.classList.remove('hidden');
+  renderDraftList();
+}
+
+function closeDraftModal() {
+  document.getElementById('draft-modal').classList.add('hidden');
+  currentDraft = null;
+}
+
+function renderDraftList() {
+  const container = document.getElementById('draft-body');
   
-  if(res.assignment_id) {
-    previewAssignment(res.assignment_id, res.title);
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="margin:0">${t('draft.review')} - ${esc(currentDraft.title)}</h2>
+      <div>
+        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">➕ ${t('draft.add_question')}</button>
+        <button class="btn btn-primary btn-sm" onclick="publishDraft()">✅ ${t('draft.publish')}</button>
+      </div>
+    </div>
+    <div id="custom-question-form" class="card hidden" style="margin-bottom:16px; border:2px solid var(--primary);">
+      <div class="card-body">
+        <div class="form-group">
+          <label>${t('draft.type')}</label>
+          <select id="cq-type" class="select-input">
+            <option value="mcq">${t('draft.mcq')}</option>
+            <option value="fill_blank">${t('draft.fill_blank')}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>${t('draft.prompt')}</label>
+          <input type="text" id="cq-prompt" class="text-input" placeholder="Ej: La capital de España es ___">
+        </div>
+        <div class="form-group">
+          <label>${t('draft.answer')}</label>
+          <input type="text" id="cq-answer" class="text-input" placeholder="Madrid">
+        </div>
+        <div class="form-group" id="cq-distractors-group">
+          <label>${t('draft.distractors')}</label>
+          <input type="text" id="cq-distractors" class="text-input" placeholder="Barcelona, Sevilla, Valencia">
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+          <button class="btn btn-primary btn-sm" onclick="saveCustomQuestion()">${t('draft.save')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('custom-question-form').classList.add('hidden')">${t('draft.cancel')}</button>
+        </div>
+      </div>
+    </div>
+    <div style="max-height: 60vh; overflow-y: auto; padding-right:8px;">
+  `;
+  
+  currentDraft.questions.forEach((q, i) => {
+    html += `
+      <div class="card" style="margin-bottom:12px; position:relative;">
+        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ ${t('draft.remove')}</button>
+        <div class="card-body">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i+1}. ${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</div>
+          <div style="font-weight:600; margin-bottom:8px;">${esc(q.prompt)}</div>
+          <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(q.answer)}</div>
+          ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? `<div style="color:var(--danger); font-size:13px;">✗ ${q.distractors.join(', ')}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
+  container.innerHTML = html;
+  
+  // Show/hide distractors based on type
+  document.getElementById('cq-type')?.addEventListener('change', (e) => {
+    if(e.target.value === 'fill_blank') {
+      document.getElementById('cq-distractors-group').style.display = 'none';
+    } else {
+      document.getElementById('cq-distractors-group').style.display = 'block';
+    }
+  });
+}
+
+function showAddCustomQuestionForm() {
+  const form = document.getElementById('custom-question-form');
+  form.classList.remove('hidden');
+  document.getElementById('cq-prompt').value = '';
+  document.getElementById('cq-answer').value = '';
+  document.getElementById('cq-distractors').value = '';
+}
+
+function saveCustomQuestion() {
+  const type = document.getElementById('cq-type').value;
+  const prompt = document.getElementById('cq-prompt').value.trim();
+  const answer = document.getElementById('cq-answer').value.trim();
+  const dist = document.getElementById('cq-distractors').value;
+  
+  if(!prompt || !answer) {
+    alert('Prompt and Answer are required.');
+    return;
+  }
+  
+  currentDraft.questions.unshift({
+    id: 'new_' + Date.now(),
+    type: type,
+    prompt: prompt,
+    answer: answer,
+    distractors: type === 'mcq' ? dist : ''
+  });
+  
+  renderDraftList();
+}
+
+function removeDraftQuestion(index) {
+  currentDraft.questions.splice(index, 1);
+  renderDraftList();
+}
+
+async function publishDraft() {
+  if(!currentDraft || currentDraft.questions.length === 0) {
+    alert('You need at least 1 question to publish.');
+    return;
+  }
+  
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
+  
+  const res = await api('/draft/publish', {
+    method: 'POST',
+    body: currentDraft
+  });
+  
+  btn.textContent = originalText;
+  btn.disabled = false;
+  
+  if(!res.error) {
+    closeDraftModal();
+    if(currentDraft.type === 'quiz') {
+      document.getElementById('quiz-title').value = '';
+      loadQuizList();
+    } else {
+      document.getElementById('assignment-title').value = '';
+      loadAssignmentList();
+    }
+  } else {
+    alert(res.error);
   }
 }
 

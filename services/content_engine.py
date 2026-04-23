@@ -140,20 +140,38 @@ def generate_activity(topic_data, difficulty="standard", count=5):
 
 
 def _generate_vocab_activity(content, difficulty, count):
-    """Generate vocabulary MCQ activities."""
+    """Generate vocabulary MCQ activities with smart distractors."""
     words = content.get("words", {})
     items = list(words.items())
     random.shuffle(items)
 
+    # Import semantic categorizer for smart distractors
+    from database import _categorize_words
+    categories = _categorize_words(words)
+
     activities = []
     for spanish, english in items[:count]:
         is_reverse = random.choice([True, False])
-        
+
+        # Find this word's category
+        word_cat = None
+        for cat, members in categories.items():
+            if english in [m[1] for m in members]:
+                word_cat = cat
+                break
+
         if not is_reverse:
-            all_english = list(words.values())
-            distractors = [e for e in all_english if e != english]
-            random.shuffle(distractors)
-            distractors = distractors[:3]
+            # English distractors
+            same_cat = [e for (s, e) in categories.get(word_cat, []) if e != english] if word_cat else []
+            all_pool = [e for e in words.values() if e != english]
+            if len(same_cat) >= 3:
+                random.shuffle(same_cat)
+                distractors = same_cat[:3]
+            else:
+                distractors = same_cat[:]
+                remaining = [e for e in all_pool if e not in distractors]
+                random.shuffle(remaining)
+                distractors += remaining[:3 - len(distractors)]
 
             options = distractors + [english]
             random.shuffle(options)
@@ -167,10 +185,17 @@ def _generate_vocab_activity(content, difficulty, count):
                 "difficulty": difficulty,
             })
         else:
-            all_spanish = list(words.keys())
-            distractors_es = [s for s in all_spanish if s != spanish]
-            random.shuffle(distractors_es)
-            distractors_es = distractors_es[:3]
+            # Spanish distractors
+            same_cat_es = [s for (s, e) in categories.get(word_cat, []) if s != spanish] if word_cat else []
+            all_pool_es = [s for s in words.keys() if s != spanish]
+            if len(same_cat_es) >= 3:
+                random.shuffle(same_cat_es)
+                distractors_es = same_cat_es[:3]
+            else:
+                distractors_es = same_cat_es[:]
+                remaining_es = [s for s in all_pool_es if s not in distractors_es]
+                random.shuffle(remaining_es)
+                distractors_es += remaining_es[:3 - len(distractors_es)]
 
             options_es = distractors_es + [spanish]
             random.shuffle(options_es)
@@ -253,9 +278,10 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
         return []
 
     for topic_id in topic_ids:
+        per_topic = max(3, -(-count // len(topic_ids)))  # ceiling division
         rows = c.execute(
             "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM() LIMIT ?",
-            (topic_id, max(3, count // len(topic_ids)))
+            (topic_id, per_topic)
         ).fetchall()
 
         for row in rows:

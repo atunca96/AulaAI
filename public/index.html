@@ -13,9 +13,48 @@
     <link rel="icon" type="image/x-icon" href="/img/favicon.ico">
 </head>
 <body>
-    <!-- Language Switcher -->
-    <div class="lang-switcher" style="position:fixed; bottom:80px; right:16px; z-index:9999; display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
-        <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN / TR</button>
+    <!-- Floating Actions -->
+    <div class="floating-actions" style="position:fixed; bottom:80px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+        <button class="btn btn-secondary btn-sm" onclick="openSettingsModal()" id="settings-btn" title="Settings" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer;">⚙️</button>
+        <div class="lang-switcher" style="display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+            <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN / TR</button>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+            <h2 style="margin-bottom:24px; display:flex; align-items:center; gap:8px;">⚙️ <span data-i18n="settings.title">Settings</span></h2>
+            
+            <div class="form-group" style="margin-bottom:24px;">
+                <label style="display:block; margin-bottom:12px;"><span data-i18n="settings.appearance">Appearance</span></label>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-outline" id="theme-dark-btn" style="flex:1; justify-content:center; flex-direction:column; gap:8px; padding:16px;" onclick="setTheme('dark')">
+                        <span style="font-size:24px;">🌙</span>
+                        <span data-i18n="settings.dark">Dark</span>
+                    </button>
+                    <button class="btn btn-outline" id="theme-light-btn" style="flex:1; justify-content:center; flex-direction:column; gap:8px; padding:16px;" onclick="setTheme('light')">
+                        <span style="font-size:24px;">☀️</span>
+                        <span data-i18n="settings.light">Light</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display:block; margin-bottom:12px;"><span data-i18n="settings.hud_size">HUD Size</span></label>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-outline" id="hud-normal-btn" style="flex:1; justify-content:center;" onclick="setHudSize('normal')">
+                        <span data-i18n="settings.normal">Normal</span>
+                    </button>
+                    <button class="btn btn-outline" id="hud-large-btn" style="flex:1; justify-content:center; font-size:16px;" onclick="setHudSize('large')">
+                        <span data-i18n="settings.large">Large</span>
+                    </button>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary btn-full mt-24" onclick="closeSettingsModal()" data-i18n="settings.done">Done</button>
+        </div>
     </div>
 
     <!-- Loading Screen -->
@@ -358,6 +397,13 @@
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()">&times;</button>
             <div id="student-detail-body"></div>
+        </div>
+    </div>
+
+    <div id="draft-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:800px;">
+            <button class="modal-close" onclick="closeDraftModal()">&times;</button>
+            <div id="draft-body"></div>
         </div>
     </div>
 
