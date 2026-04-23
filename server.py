@@ -157,7 +157,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             student_id = params.get("student_id", [None])[0]
             return self._get_quizzes(course_id, student_id)
         elif path == "/api/messages":
-            return self._get_messages()
+            student_id = params.get("student_id", [None])[0]
+            return self._get_messages(student_id)
         elif path == "/api/report":
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
@@ -1231,8 +1232,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         _bump_version()
         self._send_json({"average": total_score / max(len(answers), 1)})
 
-    def _get_messages(self):
-        student_id = self._read_query().get("student_id", [None])[0]
+    def _get_messages(self, student_id=None):
         with db_connection() as db:
             if student_id:
                 messages = db.execute("""

@@ -1073,9 +1073,14 @@ async function loadStudentRoster() {
     const pct = Math.round(s.avg_mastery * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}${schoolNumHtml}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">${t('Kick')}</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}${schoolNumHtml}</div><div style="display:flex;gap:6px"><button class="btn btn-sm" style="background:var(--accent);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:14px" onclick="event.stopPropagation();openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('Message')}</button><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px;border-radius:6px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">${t('Kick')}</button></div></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
   }).join('');
 }
+
+window.openChatFromRoster = async (studentId, studentName) => {
+  document.getElementById('inbox-modal').classList.remove('hidden');
+  await openChat(studentId, studentName);
+};
 
 window.approveStudent = async (id) => {
   await api('/students/approve', { method: 'POST', body: { student_id: id } });
