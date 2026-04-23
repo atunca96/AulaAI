@@ -52,6 +52,18 @@ function refreshCurrentView() {
     loadQuizList();
     loadAssignmentList();
     loadStudentRoster();
+    api('/messages').then(messages => {
+      if (messages) {
+        const unread = messages.filter(m => !m.is_read).length;
+        const badge = document.getElementById('inbox-badge');
+        if (unread > 0) {
+          badge.style.display = 'block';
+          badge.textContent = unread;
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    });
   } else {
     loadStudentHome();
     loadQuizList();
@@ -62,7 +74,7 @@ function refreshCurrentView() {
 
 const i18n = {
   en: {
-    langBtn: '🌐 EN / TR',
+    langBtn: '🌐 TR',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     'Lecturer Login': 'Lecturer Login', 'Sign in with your email and password': 'Sign in with your email and password',
@@ -71,6 +83,7 @@ const i18n = {
     'Your Full Name': 'Your Full Name', 'e.g. 2021123456': 'e.g. 2021123456',
     Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
+    messageTeacher: 'Message Teacher', inbox: 'Inbox',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -147,7 +160,7 @@ const i18n = {
     'draft.mcq': 'Multiple Choice'
   },
   tr: {
-    langBtn: 'EN',
+    langBtn: '🌐 EN',
     loginTitle: 'Öğrenci Girişi',gnInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
@@ -155,6 +168,7 @@ const i18n = {
     'Your Full Name': 'Adınız Soyadınız', 'e.g. 2021123456': 'Örn: 2021123456',
     Email: 'E-posta', Password: 'Şifre', 'Full Name': 'Ad Soyad',
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
+    messageTeacher: 'Öğretmene Mesaj', inbox: 'Gelen Kutusu',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
@@ -367,7 +381,13 @@ async function completeLogin(user) {
   }
   
   showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
-  if (currentUser.role === 'lecturer') initLecturer(); else initStudent();
+  if (currentUser.role === 'lecturer') {
+    document.getElementById('inbox-btn').classList.remove('hidden');
+    initLecturer();
+  } else {
+    document.getElementById('message-btn').classList.remove('hidden');
+    initStudent();
+  }
   startLiveSync();
 }
 
@@ -448,6 +468,58 @@ function switchTab(btn) {
 }
 
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+
+// ── Messages ──
+function openMessageModal() {
+  document.getElementById('message-text').value = '';
+  document.getElementById('message-modal').classList.remove('hidden');
+}
+
+async function sendMessage() {
+  const text = document.getElementById('message-text').value.trim();
+  if (!text) return;
+  const res = await api('/message/send', { method: 'POST', body: { student_id: currentUser.id, content: text } });
+  if (!res.error) {
+    alert(currentLang === 'tr' ? 'Mesajınız öğretmene gönderildi.' : 'Your message has been sent to the teacher.');
+    closeModal();
+  } else {
+    alert(res.error);
+  }
+}
+
+async function openInboxModal() {
+  document.getElementById('inbox-modal').classList.remove('hidden');
+  const messages = await api('/messages');
+  const container = document.getElementById('inbox-messages');
+  const unreadCount = messages.filter(m => !m.is_read).length;
+  
+  if (unreadCount > 0) {
+    document.getElementById('inbox-badge').style.display = 'block';
+    document.getElementById('inbox-badge').textContent = unreadCount;
+  } else {
+    document.getElementById('inbox-badge').style.display = 'none';
+  }
+
+  if (!messages || messages.length === 0) {
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center;">${currentLang==='tr'?'Mesaj yok.':'No messages.'}</p>`;
+    return;
+  }
+  
+  container.innerHTML = messages.map(m => `
+    <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px; opacity:${m.is_read ? '0.7' : '1'}; cursor:pointer;" onclick="markRead('${m.id}')">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <strong style="font-size:14px; color:var(--primary);">${m.student_name}</strong>
+        <span style="font-size:12px; color:var(--text-muted);">${new Date(m.created_at).toLocaleString()}</span>
+      </div>
+      <div style="font-size:14px;">${esc(m.content)}</div>
+    </div>
+  `).join('');
+}
+
+async function markRead(mid) {
+  await api('/message/read', { method: 'POST', body: { message_id: mid } });
+  openInboxModal();
+}
 
 // ── Settings ──
 function openSettingsModal() {
@@ -812,6 +884,12 @@ function switchQuizViewTab(btn, panelId) {
 }
 
 async function takeQuiz(quizId) {
+  const isTr = currentLang === 'tr';
+  const title = isTr ? 'Sınava Başla' : 'Start Quiz';
+  const msg = isTr ? 'Emin misiniz? Sınava başladıktan sonra soruları görüp geri dönemezsiniz, yarıda bırakmak 0 puan almanıza sebep olabilir.' : 'Are you sure? Once you start, you cannot go back or cancel without submitting.';
+  const confirmed = await showConfirmModal(title, msg);
+  if (!confirmed) return;
+
   const data = await api('/quiz/take?quiz_id=' + quizId);
   const area = document.getElementById('quiz-taking-area');
   area.classList.remove('hidden');
@@ -877,7 +955,9 @@ async function loadStudentRoster() {
   // Render approved students into grid
   document.getElementById('student-roster').innerHTML = students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">${t('Kick')}</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
+    const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
+    const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}${schoolNumHtml}</div><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name)}')">${t('Kick')}</button></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
   }).join('');
 }
 
@@ -886,8 +966,58 @@ window.approveStudent = async (id) => {
   loadStudentRoster();
 };
 
+function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    
+    const inputContainer = document.getElementById('confirm-input-container');
+    const inputEl = document.getElementById('confirm-input');
+    
+    if (inputPlaceholder !== null) {
+      inputContainer.classList.remove('hidden');
+      inputEl.placeholder = inputPlaceholder;
+      inputEl.value = '';
+    } else {
+      inputContainer.classList.add('hidden');
+    }
+    
+    const okBtn = document.getElementById('confirm-ok-btn');
+    const cancelBtn = document.getElementById('confirm-cancel-btn');
+    
+    if (isDanger) {
+      okBtn.style.background = 'var(--danger)';
+      okBtn.style.boxShadow = '0 0 10px rgba(239,68,68,0.4)';
+    } else {
+      okBtn.style.background = 'var(--primary)';
+      okBtn.style.boxShadow = '0 0 10px rgba(99,102,241,0.4)';
+    }
+    
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+    };
+    
+    const onOk = () => { cleanup(); resolve(inputPlaceholder !== null ? inputEl.value : true); };
+    const onCancel = () => { cleanup(); resolve(inputPlaceholder !== null ? null : false); };
+    
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    
+    modal.classList.remove('hidden');
+    if (inputPlaceholder !== null) inputEl.focus();
+  });
+}
+
 async function deleteStudent(sid, name) {
-  if (confirm(`Are you sure you want to kick ${name} from the class? This cannot be undone.`)) {
+  const isTr = currentLang === 'tr';
+  const title = isTr ? 'Öğrenciyi At' : 'Kick Student';
+  const msg = isTr ? `${name} adlı öğrenciyi sınıftan atmak istediğinize emin misiniz? Bu işlem geri alınamaz.` : `Are you sure you want to kick ${name} from the class? This cannot be undone.`;
+  
+  const confirmed = await showConfirmModal(title, msg, true);
+  if (confirmed) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
     if (!res.error) loadStudentRoster();
   }
@@ -895,17 +1025,20 @@ async function deleteStudent(sid, name) {
 
 async function eraseAllData() {
   const isTr = currentLang === 'tr';
+  const title = isTr ? 'Tüm Verileri Sil' : 'Erase All Data';
   const msg1 = isTr
-    ? 'DİKKAT: Tüm öğrenci verileri, sınav sonuçları, ödev teslimleris ve başarı puanları silinecektir. Bu işlem geri alınamaz.\n\nDevam etmek istiyor musunuz?'
-    : 'WARNING: This will permanently delete ALL students, quiz results, assignment submissions, and mastery scores. This cannot be undone.\n\nAre you sure?';
-  if (!confirm(msg1)) return;
+    ? 'DİKKAT: Tüm öğrenci verileri, sınav sonuçları, ödev teslimleri ve başarı puanları silinecektir. Bu işlem geri alınamaz.'
+    : 'WARNING: This will permanently delete ALL students, quiz results, assignment submissions, and mastery scores. This cannot be undone.';
+  
+  const confirmed1 = await showConfirmModal(title, msg1, true);
+  if (!confirmed1) return;
 
   const msg2 = isTr
-    ? 'Onaylamak için "ERASE ALL DATA" yazın:'
+    ? 'Devam etmek için aşağıdaki kutuya "ERASE ALL DATA" yazın:'
     : 'Type "ERASE ALL DATA" to confirm:';
-  const typed = prompt(msg2);
+  
+  const typed = await showConfirmModal(title, msg2, true, 'ERASE ALL DATA');
   if (typed !== 'ERASE ALL DATA') {
-    alert(isTr ? 'İşlem iptal edildi.' : 'Operation cancelled.');
     return;
   }
 
@@ -1453,6 +1586,12 @@ async function publishDraft() {
 }
 
 async function takeAssignment(aid) {
+  const isTr = currentLang === 'tr';
+  const title = isTr ? 'Ödeve Başla' : 'Start Assignment';
+  const msg = isTr ? 'Emin misiniz? Ödeve başladıktan sonra geri dönemezsiniz, yarıda bırakmak yarım teslim yapmanıza sebep olabilir.' : 'Are you sure? Once you start, you cannot go back or cancel without submitting.';
+  const confirmed = await showConfirmModal(title, msg);
+  if (!confirmed) return;
+
   const data = await api('/assignment/take?assignment_id=' + aid);
   const area = document.getElementById('assignment-taking-area');
   area.classList.remove('hidden');

@@ -155,6 +155,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = params.get("course_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
             return self._get_quizzes(course_id, student_id)
+        elif path == "/api/messages":
+            return self._get_messages()
         elif path == "/api/report":
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
@@ -246,6 +248,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._delete_quiz()
         elif path == "/api/assignment/delete":
             return self._delete_assignment()
+        elif path == "/api/message/send":
+            return self._message_send()
+        elif path == "/api/message/read":
+            return self._message_read()
         else:
             self._send_error("Not found", 404)
 
@@ -265,6 +271,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM assignments")
             db.execute("DELETE FROM sessions")
             db.execute("DELETE FROM enrollments")
+            db.execute("DELETE FROM messages")
             db.execute("DELETE FROM users WHERE role = 'student'")
             db.execute("DELETE FROM weekly_reports")
             db.commit()
@@ -284,6 +291,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
+            db.execute("DELETE FROM messages WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
@@ -1187,6 +1195,42 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         _bump_version()
         self._send_json({"average": total_score / max(len(answers), 1)})
+
+    def _get_messages(self):
+        with db_connection() as db:
+            messages = db.execute("""
+                SELECT m.*, u.name as student_name 
+                FROM messages m 
+                JOIN users u ON m.student_id = u.id 
+                ORDER BY m.created_at DESC
+            """).fetchall()
+            self._send_json([dict(m) for m in messages])
+
+    def _message_send(self):
+        body = self._read_body()
+        student_id = body.get("student_id")
+        content = body.get("content", "").strip()
+        if not student_id or not content:
+            return self._send_error("student_id and content required")
+        
+        with db_connection() as db:
+            db.execute("INSERT INTO messages (id, student_id, content) VALUES (?,?,?)",
+                       (_uid(), student_id, content))
+            db.commit()
+        _bump_version()
+        self._send_json({"success": True})
+
+    def _message_read(self):
+        body = self._read_body()
+        message_id = body.get("message_id")
+        if not message_id:
+            return self._send_error("message_id required")
+        
+        with db_connection() as db:
+            db.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (message_id,))
+            db.commit()
+        _bump_version()
+        self._send_json({"success": True})
 
 def main():
     init_db()

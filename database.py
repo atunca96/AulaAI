@@ -166,6 +166,14 @@ def init_db():
             UNIQUE(student_id, topic_id)
         );
 
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            student_id TEXT REFERENCES users(id),
+            content TEXT NOT NULL,
+            is_read INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             course_id TEXT REFERENCES courses(id),
