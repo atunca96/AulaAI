@@ -483,7 +483,7 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-function switchTab(btn) {
+function switchTab(btn, skipLoad = false) {
   const nav = btn.closest('.topnav') || btn.closest('nav');
   nav.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
@@ -491,8 +491,10 @@ function switchTab(btn) {
   main.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   
-  if (btn.dataset.tab === 'inbox') loadInbox();
-  if (btn.dataset.tab === 's-messages') loadStudentChat();
+  if (!skipLoad) {
+    if (btn.dataset.tab === 'inbox') loadInbox();
+    if (btn.dataset.tab === 's-messages') loadStudentChat();
+  }
 }
 
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
@@ -1084,7 +1086,7 @@ async function loadStudentRoster() {
 
 window.openChatFromRoster = async (studentId, studentName) => {
   const tabBtn = document.querySelector('button[data-tab="inbox"]');
-  if (tabBtn) switchTab(tabBtn);
+  if (tabBtn) switchTab(tabBtn, true);
   await openChat(studentId, studentName);
 };
 
