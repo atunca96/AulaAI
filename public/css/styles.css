@@ -791,9 +791,11 @@ body {
     border: 1px solid var(--border);
     overflow: hidden;
     box-shadow: var(--shadow-lg);
-    height: 80vh;
+    height: 85vh;
+    aspect-ratio: 9 / 12; /* 9:16 is too narrow for a book, 9:12 is closer to A4/Letter and fits better */
+    margin: 24px auto 0;
     display: flex;
-    margin-top: 16px;
+    max-width: 95%;
 }
 .pdf-viewer {
     width: 100%;
