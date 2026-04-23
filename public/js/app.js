@@ -62,6 +62,18 @@ function refreshCurrentView() {
         } else {
           badge.style.display = 'none';
         }
+        if (document.getElementById('tab-inbox') && document.getElementById('tab-inbox').classList.contains('active')) {
+          if (currentChatStudentId) {
+            const titleEl = document.getElementById('inbox-title');
+            if (titleEl) {
+              const nameText = titleEl.textContent;
+              const name = nameText.includes('💬') ? nameText.split('💬 ')[1] : nameText;
+              openChat(currentChatStudentId, name);
+            }
+          } else {
+            loadInbox();
+          }
+        }
       }
     });
   } else {
@@ -78,6 +90,9 @@ function refreshCurrentView() {
           badge.textContent = unread;
         } else {
           badge.style.display = 'none';
+        }
+        if (document.getElementById('tab-s-messages') && document.getElementById('tab-s-messages').classList.contains('active')) {
+          loadStudentChat();
         }
       }
     });
@@ -477,18 +492,15 @@ function switchTab(btn) {
   const main = btn.closest('.screen').querySelector('main');
   main.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  
+  if (btn.dataset.tab === 'inbox') loadInbox();
+  if (btn.dataset.tab === 's-messages') loadStudentChat();
 }
 
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
 
 // ── Messages ──
 let currentChatStudentId = null;
-
-async function openMessageModal() {
-  document.getElementById('message-text').value = '';
-  document.getElementById('message-modal').classList.remove('hidden');
-  await loadStudentChat();
-}
 
 async function loadStudentChat() {
   const messages = await api(`/messages?student_id=${currentUser.id}`);
@@ -524,11 +536,6 @@ async function sendMessage() {
   document.getElementById('message-text').value = '';
   await api('/message/send', { method: 'POST', body: { student_id: currentUser.id, sender: 'student', content: text } });
   await loadStudentChat();
-}
-
-async function openInboxModal() {
-  document.getElementById('inbox-modal').classList.remove('hidden');
-  await loadInbox();
 }
 
 async function loadInbox() {
@@ -1078,7 +1085,8 @@ async function loadStudentRoster() {
 }
 
 window.openChatFromRoster = async (studentId, studentName) => {
-  document.getElementById('inbox-modal').classList.remove('hidden');
+  const tabBtn = document.querySelector('button[data-tab="inbox"]');
+  if (tabBtn) switchTab(tabBtn);
   await openChat(studentId, studentName);
 };
 

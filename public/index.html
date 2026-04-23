@@ -14,47 +14,13 @@
 </head>
 <body>
     <!-- Floating Actions -->
-    <div class="floating-actions" style="position:fixed; bottom:80px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-        <button class="btn btn-secondary btn-sm hidden" onclick="openInboxModal()" id="inbox-btn" title="Inbox" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative;">
-            📥
-            <span id="inbox-badge" style="position:absolute; top:-5px; right:-5px; background:var(--danger); color:white; font-size:10px; font-weight:bold; border-radius:10px; padding:2px 6px; display:none;">0</span>
-        </button>
-        <button class="btn btn-primary btn-sm hidden" onclick="openMessageModal()" id="message-btn" title="Message Teacher" style="box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer; position:relative;">
-            💬
-            <span id="message-badge" style="position:absolute; top:-5px; right:-5px; background:var(--danger); color:white; font-size:10px; font-weight:bold; border-radius:10px; padding:2px 6px; display:none; justify-content:center; align-items:center;">0</span>
-        </button>
+
         <button class="btn btn-secondary btn-sm" onclick="openSettingsModal()" id="settings-btn" title="Settings" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer;">⚙️</button>
         <div class="lang-switcher" style="display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
             <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 TR</button>
         </div>
     </div>
 
-    <!-- Inbox Modal (Lecturer) -->
-    <div id="inbox-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:500px; display:flex; flex-direction:column; max-height:80vh;">
-            <button class="modal-close" onclick="document.getElementById('inbox-modal').classList.add('hidden')">&times;</button>
-            <h2 id="inbox-title" style="margin-bottom:16px;">📥 <span data-i18n="inbox">Inbox</span></h2>
-            <div id="inbox-back-btn" class="hidden" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
-            <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
-            <div id="inbox-reply-area" class="hidden" style="display:flex; gap:8px;">
-                <input type="text" id="inbox-reply-text" class="text-input" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
-                <button class="btn btn-primary" onclick="sendLecturerMessage()">Send</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Message Modal (Student) -->
-    <div id="message-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:500px; display:flex; flex-direction:column; max-height:80vh;">
-            <button class="modal-close" onclick="document.getElementById('message-modal').classList.add('hidden')">&times;</button>
-            <h2 style="margin-bottom:16px;">💬 <span data-i18n="messageTeacher">Message Teacher</span></h2>
-            <div id="student-chat-history" style="flex:1; min-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="message-text" class="text-input" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
-                <button class="btn btn-primary" onclick="sendMessage()">Send</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="modal hidden">
@@ -196,6 +162,7 @@
                 <button class="nav-tab" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label">Assignments</span></button>
                 <button class="nav-tab" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label">Students</span></button>
                 <button class="nav-tab" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label">Reports</span></button>
+                <button class="nav-tab" data-tab="inbox" onclick="switchTab(this)"><span class="tab-icon" style="position:relative">📥<span id="inbox-badge" style="position:absolute; top:-5px; right:-8px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none;">0</span></span><span class="tab-label" data-i18n="inbox">Inbox</span></button>
             </div>
             <div class="nav-user">
                 <span id="nav-username"></span>
@@ -354,6 +321,21 @@
                 </div>
                 <div id="report-content"></div>
             </section>
+            
+            <!-- Inbox Tab -->
+            <section id="tab-inbox" class="tab-panel">
+                <div class="page-header" style="margin-bottom:16px;">
+                    <h1 id="inbox-title">📥 <span data-i18n="inbox">Inbox</span></h1>
+                </div>
+                <div style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
+                    <div id="inbox-back-btn" class="hidden" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
+                    <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
+                    <div id="inbox-reply-area" class="hidden" style="display:flex; gap:8px;">
+                        <input type="text" id="inbox-reply-text" class="text-input" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
+                        <button class="btn btn-primary" onclick="sendLecturerMessage()">Send</button>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -369,8 +351,9 @@
                 <button class="nav-tab active" data-tab="s-home" onclick="switchTab(this)"><span class="tab-icon">🏠</span><span class="tab-label">Home</span></button>
                 <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon">✍️</span><span class="tab-label">Practice</span></button>
                 <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Quizzes</span></button>
-                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label">Assignments</span></button>
+                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Assignments</span></button>
                 <button class="nav-tab" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label">My Stats</span></button>
+                <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)"><span class="tab-icon" style="position:relative">💬<span id="message-badge" style="position:absolute; top:-5px; right:-8px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none;">0</span></span><span class="tab-label" data-i18n="messageTeacher">Messages</span></button>
             </div>
             <div class="nav-user">
                 <span id="student-nav-username"></span>
@@ -424,6 +407,19 @@
                     <p class="subtitle">Track your mastery across topics</p>
                 </div>
                 <div id="progress-chart"></div>
+            </section>
+            
+            <section id="tab-s-messages" class="tab-panel">
+                <div class="page-header" style="margin-bottom:16px;">
+                    <h1>💬 <span data-i18n="messageTeacher">Message Teacher</span></h1>
+                </div>
+                <div style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
+                    <div id="student-chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="message-text" class="text-input" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
+                        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
             </section>
         </main>
     </div>
