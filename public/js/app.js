@@ -409,10 +409,8 @@ async function completeLogin(user) {
   
   showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
   if (currentUser.role === 'lecturer') {
-    document.getElementById('inbox-btn').classList.remove('hidden');
     initLecturer();
   } else {
-    document.getElementById('message-btn').classList.remove('hidden');
     initStudent();
   }
   startLiveSync();
