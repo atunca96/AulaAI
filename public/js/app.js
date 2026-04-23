@@ -890,7 +890,13 @@ async function takeQuiz(quizId) {
   const confirmed = await showConfirmModal(title, msg);
   if (!confirmed) return;
 
-  const data = await api('/quiz/take?quiz_id=' + quizId);
+  const data = await api(`/quiz/take?quiz_id=${quizId}&student_id=${currentUser.id}`);
+  if (data.error) {
+    alert(data.error);
+    loadQuizList();
+    return;
+  }
+  
   const area = document.getElementById('quiz-taking-area');
   area.classList.remove('hidden');
   area.dataset.quizId = quizId;
@@ -1594,7 +1600,13 @@ async function takeAssignment(aid) {
   const confirmed = await showConfirmModal(title, msg);
   if (!confirmed) return;
 
-  const data = await api('/assignment/take?assignment_id=' + aid);
+  const data = await api(`/assignment/take?assignment_id=${aid}&student_id=${currentUser.id}`);
+  if (data.error) {
+    alert(data.error);
+    loadAssignmentList();
+    return;
+  }
+  
   const area = document.getElementById('assignment-taking-area');
   area.classList.remove('hidden');
   area.dataset.assignmentId = aid;
