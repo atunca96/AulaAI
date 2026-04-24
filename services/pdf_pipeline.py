@@ -81,41 +81,13 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         return
 
     # 2. Detect Language
-    _log("Step 2: Detecting language (Inlined)...")
-    language = "Unknown"
-    for attempt in range(3):
-        try:
-            key = "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"
-            url = "https://openrouter.ai/api/v1/chat/completions"
-            prompt = f"Detect the language of the following text. Return ONLY a JSON object with a 'language' field (e.g., 'Spanish', 'French', 'German').\n\nText:\n{toc_text[:1000]}"
-            payload = json.dumps({
-                "model": "google/gemini-2.0-flash-001",
-                "messages": [{"role": "user", "content": prompt}],
-                "response_format": {"type": "json_object"}
-            }).encode("utf-8")
-            req = urllib.request.Request(url, data=payload, headers={
-                "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://aula-ai.com",
-                "X-Title": "AulaAI"
-            })
-            
-            # Bypass Windows proxy auto-detection which can deadlock in background threads
-            proxy_handler = urllib.request.ProxyHandler({})
-            opener = urllib.request.build_opener(proxy_handler)
-            
-            with opener.open(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                res_content = data["choices"][0]["message"]["content"]
-                language = json.loads(res_content).get("language", "Unknown")
-                break  # Success, exit retry loop
-        except Exception as e:
-            _log(f"Inlined language detection failed on attempt {attempt + 1}: {e}.")
-            if attempt < 2:
-                _log("Retrying in 5 seconds...")
-                time.sleep(5)
-            else:
-                _log("All retries failed. Defaulting to Unknown language.")
+    _log("Step 2: Detecting language...")
+    try:
+        from services.ai_engine import detect_language
+        language = detect_language(toc_text)
+    except Exception as e:
+        _log(f"Language detection failed: {e}. Defaulting to Unknown.")
+        language = "Unknown"
     
     _log(f"Language detected: {language}")
     

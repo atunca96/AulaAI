@@ -72,7 +72,26 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                     raise Exception(f"OpenRouter API Error: {resp_body}")
                 content = data["choices"][0]["message"]["content"]
                 if response_json:
-                    return json.loads(content)
+                    # Robust cleaning for JSON responses
+                    clean_content = content.strip()
+                    if "```" in clean_content:
+                        # Extract content from markdown code block
+                        parts = clean_content.split("```")
+                        for p in parts:
+                            if p.strip().startswith("{") or p.strip().startswith("["):
+                                clean_content = p.strip()
+                                # Remove language hints like "json"
+                                if clean_content.startswith("json"):
+                                    clean_content = clean_content[4:].strip()
+                                break
+                    try:
+                        return json.loads(clean_content)
+                    except json.JSONDecodeError as jde:
+                        print(f"[AI] JSON Decode Error: {jde}. Raw content: {content[:200]}...")
+                        # If it's a list response (questions), return empty list as fallback
+                        if clean_content.startswith("["): return []
+                        # If it's a dict response (toc/content), return None and let caller handle
+                        raise Exception(f"Malformed JSON from AI: {jde}")
                 return content
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
