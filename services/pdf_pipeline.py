@@ -150,7 +150,8 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
         topic_count = 0
         
         _log(f"Phase 2: Generating content for topics (limit: {MAX_TOTAL_TOPICS})...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        start_time = datetime.now()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = []
             for ch in chapters_data:
                 chapter_id = chapter_map.get(str(ch.get("title")))
@@ -163,24 +164,24 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                     t_type = topic.get("type", "vocabulary")
                     
                     _log(f"Queueing topic: {t_title} ({t_type})")
-                    f_content = executor.submit(generate_topic_content, t_title, t_type, language)
-                    f_questions = executor.submit(ai_generate_questions, t_title, t_type, {}, language, 8)
+                    f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 8)
                     
-                    futures.append((chapter_id, t_title, f_content, f_questions))
+                    futures.append((chapter_id, t_title, f_lesson))
                     topic_count += 1
                 if topic_count >= MAX_TOTAL_TOPICS: break
 
             completed = 0
-            for chapter_id, t_title, f_content, f_questions in futures:
+            for chapter_id, t_title, f_lesson in futures:
                 _log(f"Waiting for results: {t_title}...")
-                content = f_content.result() or {}
-                questions = f_questions.result() or []
+                lesson = f_lesson.result() or {}
+                content = lesson.get("content", {})
+                questions = lesson.get("questions", [])
                 
                 with db_connection() as db:
                     topic_row = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND title = ?", (chapter_id, t_title)).fetchone()
                     if topic_row:
                         topic_id = topic_row["id"]
-                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content), topic_id))
+                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
                         
                         for q in questions:
                             # Defensive coercion for SQLite (handles lists/dicts/None)
@@ -205,6 +206,8 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                 _log(f"✓ Topic finalized: {t_title} ({completed}/{len(futures)})")
 
         # Mark as complete
+        duration = (datetime.now() - start_time).total_seconds()
+        _log(f"[PHASE 2] Completed {topic_count} topics in {duration:.1f}s")
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()

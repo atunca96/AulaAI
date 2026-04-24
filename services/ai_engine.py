@@ -221,6 +221,36 @@ Return ONLY valid JSON:
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 
+def generate_full_lesson(topic_title, topic_type, language, question_count=8):
+    """Generate both content and questions in a single LLM call for maximum speed."""
+    lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
+    
+    if topic_type == "vocabulary":
+        structure = """
+          "content": { "words": { "word": "translation" } },
+          "questions": [ { "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] } ]
+        """
+        detail = "Include 10-15 essential words/phrases with their English translations."
+    else:
+        structure = """
+          "content": { "rules": ["..."], "examples": ["..."] },
+          "questions": [ { "type": "fill_blank", "prompt": "...", "answer": "..." } ]
+        """
+        detail = "Include 3-5 clear rules and 4 illustrative examples."
+
+    prompt = f"""Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
+    
+    1. CONTENT: {detail}
+    2. QUESTIONS: Generate exactly {question_count} interactive questions (mix of 'mcq' and 'fill_blank').
+    
+    Return ONLY valid JSON:
+    {{
+      {structure}
+    }}"""
+    
+    return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+
+
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6):
     """Generate quiz/practice questions using AI in the specified language."""
     if not topic_content:
