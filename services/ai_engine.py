@@ -67,7 +67,13 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
             with opener.open(req, timeout=30) as resp:
                 file_log("AI Request returned.")
                 resp_body = resp.read().decode("utf-8")
-                data = json.loads(resp_body)
+                
+                try:
+                    data = json.loads(resp_body)
+                except json.JSONDecodeError as e:
+                    print(f"[AI] FATAL: OpenRouter returned non-JSON response. Snippet: {resp_body[:500]}")
+                    raise Exception(f"Invalid API response (not JSON): {e}")
+
                 if "choices" not in data:
                     raise Exception(f"OpenRouter API Error: {resp_body}")
                 content = data["choices"][0]["message"]["content"]
