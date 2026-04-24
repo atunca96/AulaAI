@@ -1392,15 +1392,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return fields, files
 
     def _create_classroom_from_pdf(self):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Starting _create_classroom_from_pdf")
         try:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Reading multipart data...")
             fields, files = self._read_multipart()
+            
+            if fields is None:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Multipart parsing failed (fields is None)")
+                return self._send_error("Invalid multipart data")
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Fields received: {list(fields.keys())}")
             if not files or "pdf" not in files:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] PDF file missing in request")
                 return self._send_error("PDF file required")
             
             course_name = fields.get("course_name")
             toc_range = fields.get("toc_range", "1-5")
             lecturer_id = fields.get("lecturer_id")
             
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing PDF for {lecturer_id} | Name: {course_name} | TOC: {toc_range}")
+
             if not lecturer_id:
                 return self._send_error("lecturer_id required")
                 
@@ -1413,16 +1424,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             os.makedirs(dest_dir, exist_ok=True)
             pdf_path = os.path.join(dest_dir, safe_filename)
             
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
+
             with open(pdf_path, "wb") as f:
                 f.write(pdf_data)
-                
+            
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Calling PDF pipeline...")
             result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name)
+            
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Pipeline result: {result}")
+
             if result.get("success"):
                 _bump_version()
                 self._send_json(result)
             else:
                 self._send_error(result.get("error", "Failed to process PDF"))
         except Exception as e:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [CRITICAL] Error in _create_classroom_from_pdf")
             import traceback
             traceback.print_exc()
             self._send_error(f"Server error during processing: {str(e)}")
