@@ -184,18 +184,7 @@ const i18n = {
     'draft.remove': 'Remove',
     'draft.type': 'Question Type',
     'draft.fill_blank': 'Fill in the gap',
-    'draft.mcq': 'Multiple Choice',
-    // Classroom Selection
-    'class.selection': 'Classroom Selection',
-    'class.subtitle': 'Select a classroom to manage or create a new one',
-    'class.create': 'Create New Classroom from PDF',
-    'class.enter': 'Enter Classroom',
-    'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
-    'class.upload_pdf': 'Upload PDF Textbook',
-    'class.toc_range': 'Contents Page Range (e.g. 2-5)',
-    'class.toc_placeholder': '2-5',
-    'class.processing': 'Processing PDF & generating curriculum... This may take a minute.',
-    'class.start_pipeline': 'Start Pipeline'
+    'draft.mcq': 'Multiple Choice'
   },
   tr: {
     langBtn: '🌐 EN',
@@ -280,18 +269,7 @@ const i18n = {
     'draft.remove': 'Kaldır',
     'draft.type': 'Soru Tipi',
     'draft.fill_blank': 'Boşluk Doldurma',
-    'draft.mcq': 'Çoktan Seçmeli',
-    // Classroom Selection
-    'class.selection': 'Sınıf Seçimi',
-    'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
-    'class.create': 'PDF\'den Yeni Sınıf Oluştur',
-    'class.enter': 'Sınıfa Gir',
-    'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
-    'class.upload_pdf': 'PDF Ders Kitabı Yükle',
-    'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 2-5)',
-    'class.toc_placeholder': '2-5',
-    'class.processing': 'PDF işleniyor ve müfredat oluşturuluyor... Bu işlem bir dakika sürebilir.',
-    'class.start_pipeline': 'İşlemi Başlat'
+    'draft.mcq': 'Çoktan Seçmeli'
   }
 };
 
@@ -316,10 +294,6 @@ function toggleLanguage() {
       if (node.placeholder) {
         let matchKey = Object.keys(from).find(k => from[k] === node.placeholder);
         if (matchKey) node.placeholder = to[matchKey];
-      }
-      if (node.dataset && node.dataset.i18nPlaceholder) {
-        const key = node.dataset.i18nPlaceholder;
-        if (to[key]) node.placeholder = to[key];
       }
       if (node.dataset && node.dataset.i18n) {
         const key = node.dataset.i18n;
@@ -395,8 +369,12 @@ async function completeLogin(user) {
   if (remember) localStorage.setItem('aula_user', JSON.stringify(user));
   else sessionStorage.setItem('aula_user', JSON.stringify(user));
   localStorage.setItem('aula_lang', currentLang);
-
+  const courses = await api('/courses');
+  if (courses && courses.length) courseId = courses[0].id;
+  const currData = await api('/curriculum?course_id=' + courseId);
+  curriculum = Array.isArray(currData) ? currData : [];
   if (currentUser.status === 'pending') {
+    // Re-check status from server in case lecturer already approved
     try {
       const check = await api('/user/status?user_id=' + currentUser.id);
       if (check && check.status === 'approved') {
@@ -408,6 +386,7 @@ async function completeLogin(user) {
     
     if (currentUser.status === 'pending') {
       showScreen('waiting-room-screen');
+      // Poll every 3 seconds until approved
       const waitingPoll = setInterval(async () => {
         try {
           const check = await api('/user/status?user_id=' + currentUser.id);
@@ -427,126 +406,14 @@ async function completeLogin(user) {
       return;
     }
   }
-
+  
+  showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
   if (currentUser.role === 'lecturer') {
-    showClassroomSelection();
-  } else {
-    const courses = await api('/courses');
-    if (courses && courses.length) {
-      await selectClassroom(courses[0].id, false);
-    } else {
-      showScreen('student-dashboard');
-      initStudent();
-    }
-  }
-  startLiveSync();
-}
-
-async function showClassroomSelection() {
-  const courses = await api('/courses');
-  const container = document.getElementById('classroom-list');
-  showScreen('classroom-selection-screen');
-  
-  if (!courses || courses.length === 0) {
-    container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">No classrooms found. Create your first one!</p>`;
-    return;
-  }
-  
-  container.innerHTML = courses.map(c => {
-    const isSpanish = c.name === "Spanish 101" || c.name.includes("Spanish") || c.textbook === "Aula Internacional Plus 1";
-    return `
-      <div class="card classroom-card" style="padding:24px; display:flex; flex-direction:column; justify-content:space-between; transition:var(--transition); border:1px solid var(--border);">
-        <div>
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-            <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
-            ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
-          </div>
-          <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
-          <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.textbook)} · ${esc(c.semester)}</p>
-        </div>
-        <button class="btn btn-outline btn-full" onclick="selectClassroom('${c.id}')" data-i18n="class.enter">${t('class.enter')}</button>
-      </div>
-    `;
-  }).join('');
-}
-
-async function selectClassroom(id, isLecturer = true) {
-  courseId = id;
-  const courses = await api('/courses');
-  const course = courses.find(c => c.id === id);
-  if (course && document.getElementById('nav-course-name')) {
-    document.getElementById('nav-course-name').textContent = course.name;
-  }
-  
-  const currData = await api('/curriculum?course_id=' + courseId);
-  curriculum = Array.isArray(currData) ? currData : [];
-  
-  if (currentUser.role === 'lecturer') {
-    showScreen('lecturer-dashboard');
     initLecturer();
   } else {
-    showScreen('student-dashboard');
     initStudent();
   }
-}
-
-async function deleteClassroom(id) {
-  if (!confirm(t('class.delete_confirm'))) return;
-  
-  const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
-  if (res.success) {
-    showClassroomSelection();
-  } else {
-    alert(res.error || 'Failed to delete classroom');
-  }
-}
-
-function openCreateClassroomModal() {
-  document.getElementById('create-classroom-modal').classList.remove('hidden');
-  document.getElementById('creation-status').classList.add('hidden');
-  document.getElementById('submit-creation-btn').disabled = false;
-}
-
-function closeCreateClassroomModal() {
-  document.getElementById('create-classroom-modal').classList.add('hidden');
-}
-
-async function handleCreateClassroom(e) {
-  e.preventDefault();
-  const fileInput = document.getElementById('pdf-upload');
-  const rangeInput = document.getElementById('toc-range');
-  const statusEl = document.getElementById('creation-status');
-  const btn = document.getElementById('submit-creation-btn');
-  
-  if (!fileInput.files[0]) return alert('Please select a PDF file');
-  
-  const formData = new FormData();
-  formData.append('pdf', fileInput.files[0]);
-  formData.append('toc_range', rangeInput.value);
-  formData.append('lecturer_id', currentUser.id);
-  
-  statusEl.classList.remove('hidden');
-  btn.disabled = true;
-  
-  try {
-    const res = await fetch('/api/classroom/create-from-pdf', {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-      closeCreateClassroomModal();
-      showClassroomSelection();
-    } else {
-      alert(data.error || 'Failed to create classroom');
-    }
-  } catch (err) {
-    alert('An error occurred during classroom creation.');
-  } finally {
-    statusEl.classList.add('hidden');
-    btn.disabled = false;
-  }
+  startLiveSync();
 }
 
 async function handleStudentLogin(e) {

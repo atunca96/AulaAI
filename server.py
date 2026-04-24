@@ -21,7 +21,6 @@ from database import get_db, init_db, db_connection
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights
-from services.pdf_pipeline import process_pdf_to_classroom
 
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
@@ -215,16 +214,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_POST(self):
         parsed = urlparse(self.path)
-        path = parsed.path.rstrip('/')
+        path = parsed.path
 
-        # Classroom management routes (check these first to be safe)
-        if path == "/api/classroom/delete":
-            return self._delete_classroom()
-        elif path == "/api/classroom/create-from-pdf":
-            return self._create_classroom_from_pdf()
-            
-        # Other routes
-        elif path == "/api/login":
+        if path == "/api/login":
             return self._login()
         elif path == "/api/student/login":
             return self._student_login()
@@ -618,19 +610,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not topic:
             return self._send_error("Topic not found", 404)
 
-        with db_connection() as db:
-            row = db.execute("""
-                SELECT co.language FROM courses co
-                JOIN chapters ch ON co.id = ch.course_id
-                JOIN topics t ON ch.id = t.chapter_id
-                WHERE t.id = ?
-            """, (topic_id,)).fetchone()
-            language = row["language"] if row else "Spanish"
-
-        activities = generate_activity(dict(topic), count=6, language=language)
+        activities = generate_activity(dict(topic), count=6)
 
         # Add a dialogue activity if available
-        dialogue = generate_dialogue_activity(language=language)
+        dialogue = generate_dialogue_activity()
         activities.append(dialogue)
 
         self._send_json({"topic": dict(topic), "activities": activities})
@@ -1049,14 +1032,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
             if topic_id:
                 topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-                row = db.execute("""
-                    SELECT co.language FROM courses co
-                    JOIN chapters ch ON co.id = ch.course_id
-                    JOIN topics t ON ch.id = t.chapter_id
-                    WHERE t.id = ?
-                """, (topic_id,)).fetchone()
-                language = row["language"] if row else "Spanish"
-                activities = generate_activity(dict(topic), count=8, language=language) if topic else []
+                activities = generate_activity(dict(topic), count=8) if topic else []
             else:
                 activities = []
 
@@ -1300,130 +1276,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             db.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (message_id,))
             db.commit()
-        _bump_version()
-        self._send_json({"success": True})
-
-    def _read_multipart(self):
-        """Simple multipart parser for PDF upload."""
-        import re
-        ctype = self.headers.get("Content-Type")
-        if not ctype or "multipart/form-data" not in ctype:
-            return None, None
-        
-        try:
-            boundary_str = ctype.split("boundary=")[1]
-            boundary = b"--" + boundary_str.encode()
-        except (IndexError, AttributeError):
-            return None, None
-
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length)
-        
-        parts = body.split(boundary)
-        files = {}
-        fields = {}
-        
-        for part in parts:
-            if not part or part.strip() == b"--" or part.strip() == b"":
-                continue
-            
-            header_end = part.find(b"\r\n\r\n")
-            if header_end == -1: continue
-            
-            header = part[:header_end].decode("utf-8", "ignore")
-            content = part[header_end+4:]
-            
-            # Remove trailing \r\n
-            if content.endswith(b"\r\n"):
-                content = content[:-2]
-
-            name_match = re.search(r'name="([^"]+)"', header)
-            if not name_match: continue
-            name = name_match.group(1)
-
-            file_match = re.search(r'filename="([^"]+)"', header)
-            if file_match:
-                files[name] = {"filename": file_match.group(1), "content": content}
-            else:
-                fields[name] = content.decode("utf-8", "ignore").strip()
-                
-        return fields, files
-
-    def _create_classroom_from_pdf(self):
-        fields, files = self._read_multipart()
-        if not files or "pdf" not in files:
-            return self._send_error("PDF file required")
-        
-        toc_range = fields.get("toc_range", "1-5")
-        lecturer_id = fields.get("lecturer_id")
-        
-        if not lecturer_id:
-            return self._send_error("lecturer_id required")
-            
-        pdf_data = files["pdf"]["content"]
-        pdf_filename = files["pdf"]["filename"]
-        
-        # Save temp file
-        temp_path = os.path.join(os.path.dirname(__file__), "scratch", f"upload_{_uid()}.pdf")
-        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-        with open(temp_path, "wb") as f:
-            f.write(pdf_data)
-            
-        try:
-            result = process_pdf_to_classroom(temp_path, toc_range, lecturer_id)
-            if result.get("success"):
-                _bump_version()
-                self._send_json(result)
-            else:
-                self._send_error(result.get("error", "Failed to process PDF"))
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-    def _delete_classroom(self):
-        body = self._read_body()
-        course_id = body.get("course_id")
-        if not course_id:
-            return self._send_error("course_id required")
-            
-        with db_connection() as db:
-            course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
-            if not course:
-                return self._send_error("Course not found")
-            
-            # Protection for Spanish classroom
-            if course["name"] == "Spanish 101" or "Spanish" in course["name"] or course["textbook"] == "Aula Internacional Plus 1":
-                return self._send_error("Default Spanish classroom cannot be deleted", 403)
-            
-            # 1. Delete student responses (quizzes, assignments, and topic activities)
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            
-            # 2. Delete mastery scores
-            db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            
-            # 3. Delete quiz and assignment structure
-            db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
-            
-            # 4. Delete other course-related entities
-            db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
-            
-            # 5. Delete curriculum (questions, topics, chapters)
-            # Questions are linked to topics
-            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
-            
-            # 6. Finally delete the course
-            db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
-            db.commit()
-            
         _bump_version()
         self._send_json({"success": True})
 

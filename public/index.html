@@ -136,61 +136,23 @@
     </div>
 
 
-    <!-- Classroom Selection Screen -->
-    <div id="classroom-selection-screen" class="screen">
-        <div class="dashboard-content" style="max-width:900px; margin:0 auto; padding-top:60px;">
-            <div class="page-header" style="margin-bottom:40px; text-align:center; display:block;">
-                <h1 style="font-size:32px; margin-bottom:8px;" data-i18n="class.selection">Classroom Selection</h1>
-                <p class="subtitle" data-i18n="class.subtitle">Select a classroom to manage or create a new one</p>
-            </div>
-            
-            <div id="classroom-list" class="grid-2col" style="gap:24px; margin-bottom:40px;">
-                <!-- Classrooms rendered here -->
-            </div>
-            
-            <div style="text-align:center;">
-                <button class="btn btn-primary" onclick="openCreateClassroomModal()" style="padding:16px 32px; font-size:16px; display:inline-flex; align-items:center; gap:10px;">
-                    <span style="font-size:20px;">➕</span> <span data-i18n="class.create">Create New Classroom from PDF</span>
-                </button>
-            </div>
-            
-            <div style="text-align:center; margin-top:32px;">
-                <button class="btn btn-ghost" onclick="logout()">Sign Out</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Create Classroom Modal -->
-    <div id="create-classroom-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:500px;">
-            <button class="modal-close" onclick="closeCreateClassroomModal()">&times;</button>
-            <h2 style="margin-bottom:24px;">🚀 <span data-i18n="class.create">Create Classroom from PDF</span></h2>
-            <form id="create-classroom-form" onsubmit="handleCreateClassroom(event)">
-                <div class="form-group">
-                    <label data-i18n="class.upload_pdf">Upload PDF Textbook</label>
-                    <input type="file" id="pdf-upload" accept="application/pdf" required style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
-                </div>
-                <div class="form-group">
-                    <label data-i18n="class.toc_range">Contents Page Range (e.g. 2-5)</label>
-                    <input type="text" id="toc-range" class="text-input" placeholder="2-5" data-i18n-placeholder="class.toc_placeholder" required>
-                </div>
-                <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:12px; border-radius:8px; background:var(--bg-secondary); border:1px solid var(--accent); color:var(--accent-light); font-size:14px; display:flex; align-items:center; gap:10px;">
-                    <div class="spinner" style="width:16px; height:16px; border:2px solid var(--accent); border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
-                    <span data-i18n="class.processing">Processing PDF & generating curriculum... This may take a minute.</span>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" data-i18n="class.start_pipeline">Start Pipeline</button>
-            </form>
+    <!-- Waiting Room Screen -->
+    <div id="waiting-room-screen" class="screen">
+        <div class="login-card" style="text-align:center; padding:48px 32px">
+            <div style="font-size:64px; margin-bottom:24px">⏳</div>
+            <h2 id="waiting-title" style="margin-bottom:16px; color:var(--text)">Account Pending Approval</h2>
+            <p id="waiting-msg" style="color:var(--text-light); margin-bottom:32px; line-height:1.6">Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.</p>
+            <button class="btn btn-outline" onclick="logout()">Sign Out</button>
         </div>
     </div>
 
     <!-- Lecturer Dashboard -->
     <div id="lecturer-dashboard" class="screen">
         <nav class="topnav">
-            <div class="nav-brand" style="cursor:pointer" onclick="showClassroomSelection()">
+            <div class="nav-brand">
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>
                 <span class="nav-badge">Lecturer</span>
-                <span id="nav-course-name" style="margin-left:12px; font-size:14px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:12px;"></span>
             </div>
             <div class="nav-tabs">
                 <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
