@@ -45,6 +45,22 @@ function stopLiveSync() {
 
 function refreshCurrentView() {
   if (!currentUser) return;
+
+  // Track building status for notifications
+  api('/courses').then(courses => {
+    if (!courses || !Array.isArray(courses)) return;
+    const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
+    _buildingCourses.forEach(id => {
+        if (!currentlyBuilding.includes(id)) {
+            const course = courses.find(c => c.id === id);
+            if (course) {
+                showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
+            }
+        }
+    });
+    _buildingCourses = currentlyBuilding;
+  });
+
   if (document.getElementById('waiting-room-screen').classList.contains('active')) {
     window.location.reload();
     return;
@@ -512,16 +528,6 @@ async function showClassroomSelection() {
     document.head.appendChild(style);
   }
 
-  // Detect completion and notify
-  const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
-  _buildingCourses.forEach(id => {
-    if (!currentlyBuilding.includes(id)) {
-      const course = courses.find(c => c.id === id);
-      if (course) {
-        showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
-      }
-    }
-  });
   _buildingCourses = currentlyBuilding;
 }
 

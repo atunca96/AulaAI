@@ -68,6 +68,8 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 toc_text = ""
 
         _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
+        if len(toc_text) < 200:
+            _log("WARNING: Very little text extracted. Check if TOC pages are correct (e.g. 1-10).")
     except Exception as e:
         _log(f"ERROR in TOC Extraction: {e}")
         # Error will be caught by the empty check below
@@ -143,7 +145,8 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
             chapter_map = {c["title"]: c["id"] for c in chapters}
             
         # Increase limit to cover full curriculum (typically 9-12 chapters, 20-30 topics)
-        MAX_TOTAL_TOPICS = 100 
+        # Allow up to 250 topics for massive textbooks
+        MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
         _log(f"Phase 2: Generating content for topics (limit: {MAX_TOTAL_TOPICS})...")

@@ -137,7 +137,8 @@ def detect_language(text):
 
 def parse_toc(text, language):
     """Parse a Table of Contents text into structured chapters and topics."""
-    prompt = f"""You are a curriculum expert. Parse this Table of Contents from a {language} textbook.
+    prompt = f"""You are an exhaustive curriculum extractor. Parse this Table of Contents from a {language} textbook.
+You MUST capture EVERY single chapter and EVERY single topic mentioned in the text. Do not skip or summarize.
 Organize it into a list of chapters, each with a list of topics.
 Each topic must have a title and a type ('vocabulary' or 'grammar').
 
@@ -146,7 +147,7 @@ Return ONLY valid JSON:
   "chapters": [
     {{
       "number": 1,
-      "title": "Unit Title",
+      "title": "Exact Unit Title from Text",
       "topics": [
         {{ "title": "Topic Title", "type": "vocabulary" }},
         {{ "title": "Topic Title", "type": "grammar" }}

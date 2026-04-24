@@ -360,7 +360,7 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
                     added_this_retry += 1
                 
                 if added_this_retry > 0:
-                    c.commit()
+                    db_conn.commit()
                     bump_version()
                     print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_data['title']}'")
         except Exception as e:
