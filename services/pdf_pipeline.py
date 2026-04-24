@@ -248,9 +248,24 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None)
     
     _log(f"Initial record created. Course ID: {course_id}, Code: {code}")
 
-    # Kick off background process
-    thread = threading.Thread(target=start_pipeline_background, args=(pdf_path, toc_range, lecturer_id, course_id, course_name))
-    thread.daemon = True
-    thread.start()
+    # Kick off background process using a separate OS process for reliability on Linux/Railway
+    import subprocess
+    import sys
+    
+    # Use the same python interpreter
+    python_exe = sys.executable
+    cmd = [
+        python_exe, "worker.py",
+        pdf_path,
+        toc_range,
+        lecturer_id,
+        course_id,
+        course_name
+    ]
+    
+    _log(f"Spawning background process: {' '.join(cmd)}")
+    # We use Popen and don't wait for it.
+    # On Linux/Railway, this process will be independent of the parent thread's lifecycle.
+    subprocess.Popen(cmd, stdout=None, stderr=None, close_fds=True)
 
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
