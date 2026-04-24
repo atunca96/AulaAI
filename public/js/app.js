@@ -450,7 +450,8 @@ async function completeLogin(user) {
 }
 
 async function showClassroomSelection() {
-  const courses = await api('/courses');
+  const courses = await api('/courses?t=' + Date.now());
+  window.allCourses = courses; // Store globally for other functions
   const container = document.getElementById('classroom-list');
   showScreen('classroom-selection-screen');
   
@@ -478,6 +479,9 @@ async function showClassroomSelection() {
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
               <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
+              <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}')">
+                ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}
+              </button>
             ` : ''}
         </div>
         <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
@@ -542,7 +546,13 @@ async function selectClassroom(id, isLecturer = true) {
 }
 
 async function deleteClassroom(id) {
-  if (!confirm(t('class.delete_confirm'))) return;
+  const course = (window.allCourses) ? window.allCourses.find(c => c.id === id) : null;
+  const isBuilding = course && course.is_building === 1;
+  const msg = isBuilding 
+    ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?') 
+    : (t('class.delete_confirm') || 'Delete this classroom?');
+    
+  if (!confirm(msg)) return;
   
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
   if (res.success) {
@@ -593,7 +603,45 @@ async function handleCreateClassroom(e) {
     if (data.success) {
       alert(`${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
       closeCreateClassroomModal();
-      showClassroomSelection(); // Refresh list to show the "ghost" card
+      await showClassroomSelection();
+      
+      // If it's still missing from global list (race condition), manually inject it
+      if (window.allCourses && !window.allCourses.find(c => c.id === data.course_id)) {
+        const ghost = { id: data.course_id, name: data.name, code: data.code, semester: 'Fall 2026', is_building: 1, language: 'Detecting...' };
+        window.allCourses.unshift(ghost);
+        // Refresh local UI using global state
+        const container = document.getElementById('classroom-list');
+        if (container) {
+          container.innerHTML = window.allCourses.map(c => {
+            const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
+            const isBuilding = c.is_building === 1;
+            return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">
+                ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
+                <div class="card-body">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                        <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
+                        ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+                    </div>
+                    <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
+                    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>
+                    
+                    ${isBuilding ? `
+                      <div class="flex-center" style="margin: 20px 0;">
+                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                      </div>
+                      <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
+                      <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}')">
+                        ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}
+                      </button>
+                    ` : ''}
+                </div>
+                <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
+                    ${isBuilding ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Processing...') : (currentLang === 'tr' ? 'Sınıfı Seç' : 'Select Classroom')}
+                </button>
+            </div>`;
+          }).join('');
+        }
+      }
     } else {
       alert(data.error || 'Failed to create classroom');
     }

@@ -7,10 +7,18 @@ import os
 import json
 import urllib.request
 import urllib.error
+from datetime import datetime
+import time
+
+def file_log(msg):
+    with open("pipeline.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI] {msg}\n")
+        f.flush()
 
 OPENROUTER_API_KEY = "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"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-flash-1.5"
+MODEL = "google/gemini-2.0-flash-001"
+file_log(f"AI ENGINE LOADED - MODEL: {MODEL}")
 
 
 def is_ai_available():
@@ -27,8 +35,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
         "model": MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": temperature,
-        "route": "no-fallback"
+        "temperature": temperature
     }
     if response_json:
         payload_dict["response_format"] = {"type": "json_object"}
@@ -47,23 +54,42 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
         method="POST"
     )
 
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            resp_body = resp.read().decode("utf-8")
-            data = json.loads(resp_body)
-            if "choices" not in data:
-                raise Exception(f"OpenRouter API Error: {resp_body}")
-            content = data["choices"][0]["message"]["content"]
-            if response_json:
-                return json.loads(content)
-            return content
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8")
-        print(f"[AI] HTTP Error {e.code}: {error_body}")
-        raise Exception(f"OpenRouter HTTP {e.code}: {error_body}")
-    except Exception as e:
-        print(f"[AI] OpenRouter API error: {e}")
-        raise e
+    MAX_RETRIES = 3
+    for attempt in range(MAX_RETRIES):
+        try:
+            file_log(f"Requesting AI ({MODEL}) - Attempt {attempt + 1}...")
+            
+            # Bypass Windows proxy auto-detection which can deadlock in background threads
+            proxy_handler = urllib.request.ProxyHandler({})
+            opener = urllib.request.build_opener(proxy_handler)
+            
+            with opener.open(req, timeout=30) as resp:
+                file_log("AI Request returned.")
+                resp_body = resp.read().decode("utf-8")
+                data = json.loads(resp_body)
+                if "choices" not in data:
+                    raise Exception(f"OpenRouter API Error: {resp_body}")
+                content = data["choices"][0]["message"]["content"]
+                if response_json:
+                    return json.loads(content)
+                return content
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8")
+            if e.code in [429, 504] and attempt < MAX_RETRIES - 1:
+                wait_time = 5 * (2 ** attempt)
+                file_log(f"HTTP {e.code} received. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            print(f"[AI] HTTP Error {e.code}: {error_body}")
+            raise Exception(f"OpenRouter HTTP {e.code}: {error_body}")
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1 and ("timeout" in str(e).lower() or "connection" in str(e).lower()):
+                wait_time = 5 * (2 ** attempt)
+                file_log(f"Network error: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            print(f"[AI] OpenRouter API error: {e}")
+            raise e
 
 
 def detect_language(text):

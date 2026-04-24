@@ -11,8 +11,16 @@ import uuid
 import sqlite3
 import threading
 import time
+import logging
+
+logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
-from datetime import datetime
+from datetime import datetime, timedelta
+
+def file_log(msg):
+    with open("pipeline.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [SERVER] {msg}\n")
+        f.flush()
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -534,6 +542,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             })
 
     def _get_courses(self):
+        _cleanup_stale_classrooms()
         with db_connection() as db:
             courses = db.execute("SELECT * FROM courses").fetchall()
         self._send_json([dict(c) for c in courses])
@@ -1424,15 +1433,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             os.makedirs(dest_dir, exist_ok=True)
             pdf_path = os.path.join(dest_dir, safe_filename)
             
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
+            file_log(f"[DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
 
             with open(pdf_path, "wb") as f:
                 f.write(pdf_data)
             
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Calling PDF pipeline...")
+            file_log('LAUNCHING PHASE2 THREAD')
             result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name)
             
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Pipeline result: {result}")
+            file_log(f"[DEBUG] Pipeline result: {result}")
 
             if result.get("success"):
                 _bump_version()
@@ -1492,12 +1501,63 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         _bump_version()
         self._send_json({"success": True})
 
+def _cleanup_stale_classrooms():
+    """Find and delete classrooms stuck in 'building' state for too long or from previous session."""
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Cleaning up stale classroom tasks...")
+    try:
+        with db_connection() as db:
+            # 1. Any classroom with is_building=1 created more than 30 minutes ago
+            # 2. On startup, we can just clear ALL is_building=1 if we assume no threads are running yet
+            stale_threshold = (datetime.utcnow() - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+            
+            stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (stale_threshold,)).fetchall()
+            
+            for course in stale:
+                cid = course["id"]
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Deleting stalled classroom: {course['name']} ({cid})")
+                
+                # Use the same thorough deletion logic
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (cid,))
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (cid,))
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
+                db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
+                db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (cid,))
+                db.execute("DELETE FROM quizzes WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (cid,))
+                db.execute("DELETE FROM assignments WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM sessions WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM enrollments WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
+                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
+                db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
+                db.execute("DELETE FROM courses WHERE id = ?", (cid,))
+            
+            db.commit()
+    except Exception as e:
+        print(f"[ERROR] Maintenance cleanup failed: {e}")
+
 def main():
     init_db()
     
-    # ThreadingHTTPServer: each request in its own thread — one slow request can't block the site
+    # Startup check: Clear ANY classrooms still marked as building (since threads were killed)
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building flags...")
+    with db_connection() as db:
+        # We delete them because they are in an inconsistent state without their Phase 2 thread
+        orphaned = db.execute("SELECT id, name FROM courses WHERE is_building = 1").fetchall()
+        for course in orphaned:
+            cid = course["id"]
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Cleaning up orphaned classroom: {course['name']}")
+            # Standard cleanup (following dependency order)
+            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
+            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
+            db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
+            db.execute("DELETE FROM courses WHERE id = ?", (cid,))
+        db.commit()
+
+    # ThreadingHTTPServer: each request in its own thread
     server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), APIHandler)
-    server.daemon_threads = True  # threads die when main thread dies
+    server.daemon_threads = True
     
     print(f"""
 ============================================================
@@ -1506,6 +1566,7 @@ def main():
 
   Server running at: http://localhost:{PORT}
   Mode: Threaded (crash-safe)
+  Maintenance: Auto-cleanup of stale tasks (30min timeout)
 
   Lecturer login: garcia@university.edu / demo123
   Students: Register at the login page

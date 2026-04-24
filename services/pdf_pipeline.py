@@ -4,16 +4,20 @@ import os
 import random
 import concurrent.futures
 import threading
+import logging
 from datetime import datetime
-from pypdf import PdfReader
+import urllib.request
+import time
 from database import db_connection
-from services.ai_engine import detect_language, parse_toc, generate_topic_content, ai_generate_questions
+from services.ai_engine import parse_toc, generate_topic_content, ai_generate_questions
 
 def _uid():
     return str(uuid.uuid4())
 
 def _log(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [PIPELINE] {msg}")
+    with open("pipeline.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [PIPELINE] {msg}\n")
+        f.flush()
 
 def generate_classroom_code():
     return "".join([str(random.randint(0, 9)) for _ in range(5)])
@@ -27,32 +31,88 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
     # 1. Extract TOC Text
     _log("Step 1: Extracting TOC text from PDF...")
     try:
-        reader = PdfReader(pdf_path)
         if "-" in toc_range:
             parts = toc_range.split("-")
             start_pg = int(parts[0].strip())
             end_pg = int(parts[1].strip())
         else:
             start_pg = end_pg = int(toc_range.strip())
-            
+
+        # Try Primary Parser (pypdf)
         toc_text = ""
-        for i in range(start_pg - 1, end_pg):
-            if i < len(reader.pages):
-                page_text = reader.pages[i].extract_text()
-                if page_text:
-                    toc_text += page_text + "\n"
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(pdf_path)
+            for i in range(start_pg - 1, end_pg):
+                if i < len(reader.pages):
+                    page_text = reader.pages[i].extract_text()
+                    if page_text:
+                        toc_text += page_text + "\n"
+        except Exception as e:
+            _log(f"pypdf failed: {e}. Trying fallback parser...")
+            # Try Fallback Parser (pdfplumber)
+            try:
+                import pdfplumber
+                with pdfplumber.open(pdf_path) as pdf:
+                    for i in range(start_pg - 1, end_pg):
+                        if i < len(pdf.pages):
+                            page_text = pdf.pages[i].extract_text()
+                            if page_text:
+                                toc_text += page_text + "\n"
+            except (ImportError, Exception) as e2:
+                _log(f"Fallback parser failed: {e2}")
+                toc_text = ""
+
         _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
     except Exception as e:
         _log(f"ERROR in TOC Extraction: {e}")
-        return
+        # Error will be caught by the empty check below
 
     if not toc_text.strip():
-        _log("ERROR: No text extracted from TOC pages.")
+        _log("ERROR: This PDF could not be read — try a different file or a text-based PDF.")
+        # Update the DB record to show failure
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.commit()
         return
 
     # 2. Detect Language
-    _log("Step 2: Detecting language...")
-    language = detect_language(toc_text[:1000])
+    _log("Step 2: Detecting language (Inlined)...")
+    language = "Unknown"
+    for attempt in range(3):
+        try:
+            key = "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"
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            prompt = f"Detect the language of the following text. Return ONLY a JSON object with a 'language' field (e.g., 'Spanish', 'French', 'German').\n\nText:\n{toc_text[:1000]}"
+            payload = json.dumps({
+                "model": "google/gemini-2.0-flash-001",
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {"type": "json_object"}
+            }).encode("utf-8")
+            req = urllib.request.Request(url, data=payload, headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://aula-ai.com",
+                "X-Title": "AulaAI"
+            })
+            
+            # Bypass Windows proxy auto-detection which can deadlock in background threads
+            proxy_handler = urllib.request.ProxyHandler({})
+            opener = urllib.request.build_opener(proxy_handler)
+            
+            with opener.open(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                res_content = data["choices"][0]["message"]["content"]
+                language = json.loads(res_content).get("language", "Unknown")
+                break  # Success, exit retry loop
+        except Exception as e:
+            _log(f"Inlined language detection failed on attempt {attempt + 1}: {e}.")
+            if attempt < 2:
+                _log("Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                _log("All retries failed. Defaulting to Unknown language.")
+    
     _log(f"Language detected: {language}")
     
     # 3. Parse TOC
@@ -96,58 +156,75 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
     """
     Phase 2: Async. Enriches topics with content and questions.
     """
-    _log(f"Phase 2 Enrichment started for {course_id}")
-    
-    with db_connection() as db:
-        chapters = db.execute("SELECT id, title FROM chapters WHERE course_id = ?", (course_id,)).fetchall()
-        chapter_map = {c["title"]: c["id"] for c in chapters}
+    with open("pipeline.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [PIPELINE] PHASE2 THREAD STARTED\n")
+        f.flush()
+    try:
+        _log(f"Phase 2 Enrichment started for {course_id}")
         
-    MAX_TOTAL_TOPICS = 6
-    topic_count = 0
-    
-    _log(f"Generating content for up to {MAX_TOTAL_TOPICS} topics...")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
-        for ch in chapters_data:
-            chapter_id = chapter_map.get(str(ch.get("title")))
-            if not chapter_id: continue
+        with db_connection() as db:
+            chapters = db.execute("SELECT id, title FROM chapters WHERE course_id = ?", (course_id,)).fetchall()
+            chapter_map = {c["title"]: c["id"] for c in chapters}
             
-            for i, topic in enumerate(ch.get("topics", [])):
-                if topic_count >= MAX_TOTAL_TOPICS: break
+        MAX_TOTAL_TOPICS = 6
+        topic_count = 0
+        
+        _log(f"Generating content for up to {MAX_TOTAL_TOPICS} topics...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = []
+            for ch in chapters_data:
+                chapter_id = chapter_map.get(str(ch.get("title")))
+                if not chapter_id: continue
                 
-                t_title = topic.get("title", "Untitled Topic")
-                t_type = topic.get("type", "vocabulary")
-                
-                _log(f"Queueing topic: {t_title} ({t_type})")
-                f_content = executor.submit(generate_topic_content, t_title, t_type, language)
-                f_questions = executor.submit(ai_generate_questions, t_title, t_type, {}, language, 4)
-                
-                futures.append((chapter_id, t_title, f_content, f_questions))
-                topic_count += 1
-            if topic_count >= MAX_TOTAL_TOPICS: break
-
-        for chapter_id, t_title, f_content, f_questions in futures:
-            _log(f"Finalizing topic: {t_title}")
-            content = f_content.result() or {}
-            questions = f_questions.result() or []
-            
-            with db_connection() as db:
-                topic_row = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND title = ?", (chapter_id, t_title)).fetchone()
-                if topic_row:
-                    topic_id = topic_row["id"]
-                    db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content), topic_id))
+                for i, topic in enumerate(ch.get("topics", [])):
+                    if topic_count >= MAX_TOTAL_TOPICS: break
                     
-                    for q in questions:
-                        db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                   (_uid(), topic_id, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                    json.dumps(q.get("distractors", [])), "A1.1"))
-                db.commit()
+                    t_title = topic.get("title", "Untitled Topic")
+                    t_type = topic.get("type", "vocabulary")
+                    
+                    _log(f"Queueing topic: {t_title} ({t_type})")
+                    f_content = executor.submit(generate_topic_content, t_title, t_type, language)
+                    f_questions = executor.submit(ai_generate_questions, t_title, t_type, {}, language, 4)
+                    
+                    futures.append((chapter_id, t_title, f_content, f_questions))
+                    topic_count += 1
+                if topic_count >= MAX_TOTAL_TOPICS: break
 
-    # Mark as complete
-    with db_connection() as db:
-        db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
-        db.commit()
-    _log(f"Phase 2 Complete. Course {course_id} is now fully built.")
+            completed = 0
+            for chapter_id, t_title, f_content, f_questions in futures:
+                _log(f"Waiting for results: {t_title}...")
+                content = f_content.result() or {}
+                questions = f_questions.result() or []
+                
+                with db_connection() as db:
+                    topic_row = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND title = ?", (chapter_id, t_title)).fetchone()
+                    if topic_row:
+                        topic_id = topic_row["id"]
+                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content), topic_id))
+                        
+                        for q in questions:
+                            db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                       (_uid(), topic_id, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
+                                        json.dumps(q.get("distractors", [])), "A1.1"))
+                    db.commit()
+                completed += 1
+                _log(f"✓ Topic finalized: {t_title} ({completed}/{len(futures)})")
+
+        # Mark as complete
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.commit()
+        _log(f"Phase 2 Complete. Course {course_id} is now fully built.")
+    except Exception as e:
+        import traceback
+        _log(f"CRITICAL ERROR in Phase 2 Enrichment for {course_id}: {e}")
+        traceback.print_exc()
+        # Ensure we at least try to mark it as not building so it doesn't stay ghosted forever (though it might be broken)
+        try:
+            with db_connection() as db:
+                db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+                db.commit()
+        except: pass
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None):
     # This is now the entry point that initializes the DB and kicks off the background thread
