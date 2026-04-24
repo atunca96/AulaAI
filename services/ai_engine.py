@@ -93,6 +93,13 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                     try:
                         return json.loads(clean_content)
                     except json.JSONDecodeError as jde:
+                        # Handle "Extra data" (valid JSON followed by trailing text)
+                        if "Extra data" in str(jde):
+                            try:
+                                obj, _ = json.JSONDecoder().raw_decode(clean_content)
+                                return obj
+                            except: pass
+
                         # Attempt to salvage truncated JSON by finding the last closing brace/bracket
                         if clean_content.endswith("...") or len(clean_content) > 1000:
                             print("[AI] Attempting to salvage truncated JSON...")
