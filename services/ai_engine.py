@@ -18,7 +18,7 @@ def file_log(msg):
 # Railway uses environment variables for security
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.0-flash-001"
+MODEL = "anthropic/claude-3.5-haiku"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 
 
@@ -55,7 +55,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
         method="POST"
     )
 
-    MAX_RETRIES = 3
+    MAX_RETRIES = 5
     for attempt in range(MAX_RETRIES):
         try:
             file_log(f"Requesting AI ({MODEL}) - Attempt {attempt + 1}...")
@@ -110,9 +110,10 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                 return content
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
-            if e.code in [429, 504] and attempt < MAX_RETRIES - 1:
-                wait_time = 5 * (2 ** attempt)
-                file_log(f"HTTP {e.code} received. Retrying in {wait_time}s...")
+            if e.code in [429, 502, 503, 504] and attempt < MAX_RETRIES - 1:
+                # Aggressive backoff for rate limits: 10s, 20s, 40s...
+                wait_time = 10 * (2 ** attempt)
+                file_log(f"HTTP {e.code} (Rate Limit/Busy) received. Waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
                 continue
             print(f"[AI] HTTP Error {e.code}: {error_body}")
