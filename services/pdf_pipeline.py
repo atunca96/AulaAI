@@ -130,7 +130,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
     # 4. Update Course and Create structure
     _log("Step 4: Creating classroom structure in DB...")
     with db_connection() as db:
-        db.execute("UPDATE courses SET language = ?, is_building = 0 WHERE id = ?", (language, course_id))
+        db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
         
         for idx, ch in enumerate(chapters_data):
             chapter_id = _uid()
