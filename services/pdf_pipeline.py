@@ -268,7 +268,6 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None)
     
     # We use Popen and don't wait for it.
     # We set PYTHONUNBUFFERED to ensure logs show up immediately in Railway
-    import os
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     
