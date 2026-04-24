@@ -266,9 +266,13 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None)
         course_name
     ]
     
-    _log(f"Spawning background process: {' '.join(cmd)}")
     # We use Popen and don't wait for it.
-    # On Linux/Railway, this process will be independent of the parent thread's lifecycle.
-    subprocess.Popen(cmd, stdout=None, stderr=None, close_fds=True)
+    # We set PYTHONUNBUFFERED to ensure logs show up immediately in Railway
+    import os
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    
+    _log(f"Spawning background process: {' '.join(cmd)}")
+    subprocess.Popen(cmd, stdout=None, stderr=None, close_fds=True, env=env)
 
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
