@@ -255,7 +255,7 @@ def init_db():
     spanish_courses = c.execute("SELECT id FROM courses WHERE name='Spanish 101'").fetchall()
     if len(spanish_courses) > 1:
         print(f"[DB] Found {len(spanish_courses)} Spanish 101 courses. Consolidating...")
-        primary_id = "spanish-101"
+        primary_id = "11111"
         
         # Purge existing curriculum for the primary ID to ensure we move to stable IDs cleanly
         c.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (primary_id,))
@@ -284,8 +284,8 @@ def init_db():
 
     # ── Seed data only if empty or default course curriculum missing ──
     has_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
-    has_default_course = c.execute("SELECT COUNT(*) FROM courses WHERE id='spanish-101'").fetchone()[0] > 0
-    has_curriculum = c.execute("SELECT COUNT(*) FROM chapters WHERE course_id='spanish-101'").fetchone()[0] > 0
+    has_default_course = c.execute("SELECT COUNT(*) FROM courses WHERE id='11111'").fetchone()[0] > 0
+    has_curriculum = c.execute("SELECT COUNT(*) FROM chapters WHERE course_id='11111'").fetchone()[0] > 0
     
     if not has_users or not has_default_course or not has_curriculum:
         _seed_data(c)
@@ -379,10 +379,10 @@ def _seed_data(c):
         lecturer_id = existing[0]
 
     # ── Course ──────────────────────────────────────────────
-    course_id = "spanish-101"
+    course_id = "11111"
     # Use INSERT OR IGNORE for the course
-    c.execute("INSERT OR IGNORE INTO courses (id, name, semester, textbook, lecturer_id) VALUES (?,?,?,?,?)",
-              (course_id, "Spanish 101", "Spring 2026", "/books/textbook.pdf", lecturer_id))
+    c.execute("INSERT OR IGNORE INTO courses (id, name, semester, textbook, lecturer_id, code) VALUES (?,?,?,?,?,?)",
+              (course_id, "Spanish 101", "Spring 2026", "/books/textbook.pdf", lecturer_id, "11111"))
 
     # ── Aula Internacional Plus 1 Curriculum ────────────────
     curriculum = _get_aula_curriculum()
