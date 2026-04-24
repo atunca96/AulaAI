@@ -98,7 +98,7 @@ DIALOGUE_TEMPLATES = [
 ]
 
 
-def generate_activity(topic_data, difficulty="standard", count=5, language="Spanish"):
+def generate_activity(topic_data, difficulty="standard", count=5, language="Unknown"):
     """
     Generate an activity set for a given topic.
     Uses AI when available, falls back to mock templates.
@@ -294,7 +294,7 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
     return questions[:count]
 
 
-def generate_dialogue_activity(language="Spanish"):
+def generate_dialogue_activity(language="Unknown"):
     """Generate a dialogue ordering activity."""
     if is_ai_available():
         try:

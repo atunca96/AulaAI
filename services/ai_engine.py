@@ -161,17 +161,18 @@ Text:
 
 def generate_topic_content(topic_title, topic_type, language):
     """Generate vocabulary or grammar content for a topic in the specified language."""
+    lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
     if topic_type == "vocabulary":
-        prompt = f"""Generate a vocabulary list for the topic '{topic_title}' in {language}.
+        prompt = f"""Generate a vocabulary list for the topic '{topic_title}' {lang_instruction}.
 Include 10-15 essential words/phrases with their English translations.
 Return ONLY valid JSON:
 {{
   "words": {{
-    "word in {language}": "translation in English"
+    "word in target language": "translation in English"
   }}
 }}"""
     else:
-        prompt = f"""Generate grammar rules and examples for the topic '{topic_title}' in {language}.
+        prompt = f"""Generate grammar rules and examples for the topic '{topic_title}' {lang_instruction}.
 Include 3-5 clear rules and 4 illustrative examples.
 Return ONLY valid JSON:
 {{
@@ -193,10 +194,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         examples = topic_content.get("examples", [])
         context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
-    prompt = f"""You are a {language} teacher creating exercises for A1/A2 level students.
+    lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
+    prompt = f"""You are a language teacher creating exercises for A1/A2 level students.
 Topic: {topic_title}
 Type: {topic_type}
-Language: {language}
+{lang_context}
 {context}
 
 Generate exactly {count} questions. Mix:
@@ -208,7 +210,7 @@ Return ONLY valid JSON:
   "questions": [
     {{
       "type": "mcq",
-      "prompt": "question text in {language} or English depending on context",
+      "prompt": "question text in the target language or English depending on context",
       "answer": "correct answer",
       "distractors": ["wrong1", "wrong2", "wrong3"]
     }}
@@ -230,9 +232,10 @@ def ai_generate_activity(topic_title, topic_type, topic_content, language, count
         examples = topic_content.get("examples", [])
         context = f"Rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
-    prompt = f"""You are a {language} teacher creating practice exercises for A1/A2 students.
+    lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
+    prompt = f"""You are a language teacher creating practice exercises for A1/A2 students.
 Topic: {topic_title} ({topic_type})
-Language: {language}
+{lang_context}
 {context}
 
 Generate {count} exercises. Each should be either:

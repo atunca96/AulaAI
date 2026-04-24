@@ -676,7 +676,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 JOIN topics t ON ch.id = t.chapter_id
                 WHERE t.id = ?
             """, (topic_id,)).fetchone()
-            language = row["language"] if row else "Spanish"
+            language = row["language"] if row and row["language"] else "Unknown"
 
         activities = generate_activity(dict(topic), count=6, language=language)
 
@@ -1106,7 +1106,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     JOIN topics t ON ch.id = t.chapter_id
                     WHERE t.id = ?
                 """, (topic_id,)).fetchone()
-                language = row["language"] if row else "Spanish"
+                language = row["language"] if row and row["language"] else "Unknown"
                 activities = generate_activity(dict(topic), count=8, language=language) if topic else []
             else:
                 activities = []
