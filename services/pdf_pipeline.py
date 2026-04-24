@@ -183,9 +183,23 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                         db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content), topic_id))
                         
                         for q in questions:
+                            # Defensive coercion for SQLite (handles lists/dicts/None)
+                            p_val = q.get("prompt", "")
+                            if isinstance(p_val, (list, dict)): p_text = json.dumps(p_val, ensure_ascii=False)
+                            else: p_text = str(p_val) if p_val is not None else ""
+                            
+                            a_val = q.get("answer", "")
+                            if isinstance(a_val, (list, dict)): a_text = json.dumps(a_val, ensure_ascii=False)
+                            else: a_text = str(a_val) if a_val is not None else ""
+                            
+                            # Guard distractors
+                            d_list = q.get("distractors", [])
+                            if d_list is None: d_list = []
+                            elif isinstance(d_list, str): d_list = [d_list]
+
                             db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                       (_uid(), topic_id, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                        json.dumps(q.get("distractors", [])), "A1.1"))
+                                       (_uid(), topic_id, q.get("type", "mcq"), p_text, a_text, 
+                                        json.dumps(d_list, ensure_ascii=False), "A1.1"))
                     db.commit()
                 completed += 1
                 _log(f"✓ Topic finalized: {t_title} ({completed}/{len(futures)})")
