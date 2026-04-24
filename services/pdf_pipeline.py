@@ -9,7 +9,7 @@ from datetime import datetime
 import urllib.request
 import time
 from database import db_connection
-from services.ai_engine import parse_toc, generate_topic_content, ai_generate_questions
+from services.ai_engine import parse_toc, generate_topic_content, ai_generate_questions, generate_full_lesson
 from services.state import bump_version
 
 def _uid():
