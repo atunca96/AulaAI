@@ -1122,9 +1122,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _get_report(self, course_id):
         with db_connection() as db:
-            if not course_id:
+            if not course_id or course_id == 'null':
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 course_id = course["id"] if course else None
+            
+            if not course_id:
+                return self._send_json({"error": "No course found"})
+                
             report = generate_weekly_report(db, course_id)
         self._send_json(report)
 
@@ -1133,9 +1137,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_id = body.get("course_id")
 
         with db_connection() as db:
-            if not course_id:
+            if not course_id or course_id == 'null':
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-                course_id = course["id"]
+                course_id = course["id"] if course else None
+            
+            if not course_id:
+                return self._send_json({"error": "No course found"})
+                
             report = generate_weekly_report(db, course_id)
 
         # Enhance with AI insights if available

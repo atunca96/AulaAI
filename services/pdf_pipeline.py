@@ -16,8 +16,11 @@ def _uid():
     return str(uuid.uuid4())
 
 def _log(msg):
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    log_line = f"[{timestamp}] [PIPELINE] {msg}"
+    print(log_line, flush=True) # Mirror to stdout for Railway/Console
     with open("pipeline.log", "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [PIPELINE] {msg}\n")
+        f.write(log_line + "\n")
         f.flush()
 
 def generate_classroom_code():
