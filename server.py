@@ -16,7 +16,7 @@ import subprocess
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def file_log(msg):
     with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -1606,7 +1606,7 @@ def _cleanup_stale_classrooms():
         with db_connection() as db:
             # 1. Any classroom with is_building=1 created more than 30 minutes ago
             # 2. On startup, we can just clear ALL is_building=1 if we assume no threads are running yet
-            stale_threshold = (datetime.utcnow() - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+            stale_threshold = (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
             
             stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (stale_threshold,)).fetchall()
             
@@ -1645,7 +1645,7 @@ def _cleanup_orphaned_building_flags():
     with db_connection() as db:
         # We delete them because they are in an inconsistent state without their Phase 2 thread
         # Only delete orphaned building records if they are older than 1 hour (to avoid deleting active ones during a quick restart)
-        cutoff = (datetime.utcnow() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
         orphaned = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (cutoff,)).fetchall()
         for course in orphaned:
             cid = course["id"]
