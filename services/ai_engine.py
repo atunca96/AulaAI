@@ -8,71 +8,173 @@ import json
 import urllib.request
 import urllib.error
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = "llama-3.3-70b-versatile"
+OPENROUTER_API_KEY = "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"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL = "google/gemini-flash-1.5"
 
 
 def is_ai_available():
-    """Check if Groq API key is configured."""
-    return bool(GROQ_API_KEY)
+    """Check if OpenRouter API key is configured."""
+    return bool(OPENROUTER_API_KEY)
 
 
-def _call_groq(messages, max_tokens=1500, temperature=0.7):
-    """Call the Groq API using urllib (no pip dependencies)."""
-    if not GROQ_API_KEY:
+def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
+    """Call the OpenRouter API using urllib."""
+    if not OPENROUTER_API_KEY:
         return None
 
-    payload = json.dumps({
+    payload_dict = {
         "model": MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
-        "response_format": {"type": "json_object"}
-    }).encode("utf-8")
+        "route": "no-fallback"
+    }
+    if response_json:
+        payload_dict["response_format"] = {"type": "json_object"}
+
+    payload = json.dumps(payload_dict).encode("utf-8")
 
     req = urllib.request.Request(
-        GROQ_URL,
+        OPENROUTER_URL,
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {GROQ_API_KEY}"
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "HTTP-Referer": "https://aula-ai.com",  # Required by OpenRouter
+            "X-Title": "AulaAI"
         },
         method="POST"
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:  # 8s max — safe for Render health checks
-            data = json.loads(resp.read().decode("utf-8"))
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp_body = resp.read().decode("utf-8")
+            data = json.loads(resp_body)
+            if "choices" not in data:
+                raise Exception(f"OpenRouter API Error: {resp_body}")
             content = data["choices"][0]["message"]["content"]
-            return json.loads(content)
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError, Exception) as e:
-        print(f"[AI] Groq API error: {e}")
-        return None
+            if response_json:
+                return json.loads(content)
+            return content
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        print(f"[AI] HTTP Error {e.code}: {error_body}")
+        raise Exception(f"OpenRouter HTTP {e.code}: {error_body}")
+    except Exception as e:
+        print(f"[AI] OpenRouter API error: {e}")
+        raise e
 
 
-def ai_generate_questions(topic_title, topic_type, topic_content, count=6):
-    """
-    Generate quiz/practice questions using AI.
-    Returns a list of question dicts or None if AI is unavailable.
-    """
+def detect_language(text):
+    """Detect the language of the provided text."""
+    prompt = f"Detect the language of the following text. Return ONLY a JSON object with a 'language' field (e.g., 'Spanish', 'French', 'German').\n\nText:\n{text[:2000]}"
+    result = _call_ai([{"role": "user", "content": prompt}])
+    return result.get("language", "Unknown") if result else "Unknown"
+
+
+def parse_toc(text, language):
+    """Parse a Table of Contents text into structured chapters and topics."""
+    prompt = f"""You are a curriculum expert. Parse this Table of Contents from a {language} textbook.
+Organize it into a list of chapters, each with a list of topics.
+Each topic must have a title and a type ('vocabulary' or 'grammar').
+
+Return ONLY valid JSON:
+{{
+  "chapters": [
+    {{
+      "number": 1,
+      "title": "Chapter Title",
+      "topics": [
+        {{ "title": "Topic Title", "type": "vocabulary" }},
+        {{ "title": "Topic Title", "type": "grammar" }}
+      ]
+    }}
+  ]
+}}
+
+Text:
+{text}"""
+    result = _call_ai([{"role": "user", "content": prompt}])
+    chapters = result.get("chapters", []) if result else []
+    
+    if chapters and isinstance(chapters, list) and len(chapters) > 0:
+        return chapters
+        
+    # Robust Fallback: Simple text-based extraction if AI fails
+    print("[AI_ENGINE] TOC Parsing failed or returned empty. Using resilient fallback.")
+    # Extract lines that look like titles (not too short, not just numbers)
+    lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 3]
+    
+    # If even that fails, use generic placeholders to ensure pipeline doesn't crash
+    if not lines:
+        lines = ["Introduction", "Essential Vocabulary", "Basic Grammar", "Common Phrases", "Review"]
+    
+    fallback_chapters = []
+    current_chapter = {"number": 1, "title": "Unit 1", "topics": []}
+    
+    for i, line in enumerate(lines):
+        # Alternate between vocabulary and grammar
+        t_type = "grammar" if i % 2 == 1 else "vocabulary"
+        current_chapter["topics"].append({
+            "title": line[:60], # Limit length
+            "type": t_type
+        })
+        
+        # Group every 4 topics into a new chapter
+        if len(current_chapter["topics"]) >= 4:
+            fallback_chapters.append(current_chapter)
+            num = len(fallback_chapters) + 1
+            current_chapter = {"number": num, "title": f"Unit {num}", "topics": []}
+            
+    if current_chapter["topics"]:
+        fallback_chapters.append(current_chapter)
+        
+    return fallback_chapters
+
+
+def generate_topic_content(topic_title, topic_type, language):
+    """Generate vocabulary or grammar content for a topic in the specified language."""
+    if topic_type == "vocabulary":
+        prompt = f"""Generate a vocabulary list for the topic '{topic_title}' in {language}.
+Include 10-15 essential words/phrases with their English translations.
+Return ONLY valid JSON:
+{{
+  "words": {{
+    "word in {language}": "translation in English"
+  }}
+}}"""
+    else:
+        prompt = f"""Generate grammar rules and examples for the topic '{topic_title}' in {language}.
+Include 3-5 clear rules and 4 illustrative examples.
+Return ONLY valid JSON:
+{{
+  "rules": ["rule 1", "rule 2"],
+  "examples": ["example 1", "example 2"]
+}}"""
+
+    return _call_ai([{"role": "user", "content": prompt}])
+
+
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6):
+    """Generate quiz/practice questions using AI in the specified language."""
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
-        word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())[:12]])
+        word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
         context = f"Vocabulary list: {word_list}"
     else:
         rules = topic_content.get("rules", [])
         examples = topic_content.get("examples", [])
         context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
-    prompt = f"""You are a Spanish language teacher creating exercises for freshman college students (CEFR A1/A2 level).
-
+    prompt = f"""You are a {language} teacher creating exercises for A1/A2 level students.
 Topic: {topic_title}
 Type: {topic_type}
+Language: {language}
 {context}
 
-Generate exactly {count} questions. Mix these types:
-- "mcq" (multiple choice with 3 distractors)  
+Generate exactly {count} questions. Mix:
+- "mcq" (multiple choice with 3 distractors)
 - "fill_blank" (fill in the blank)
 
 Return ONLY valid JSON:
@@ -80,54 +182,35 @@ Return ONLY valid JSON:
   "questions": [
     {{
       "type": "mcq",
-      "prompt": "question text",
+      "prompt": "question text in {language} or English depending on context",
       "answer": "correct answer",
       "distractors": ["wrong1", "wrong2", "wrong3"]
-    }},
-    {{
-      "type": "fill_blank", 
-      "prompt": "sentence with ___ blank",
-      "answer": "correct word",
-      "distractors": null
     }}
   ]
-}}
-
-Rules:
-- Questions must match A1/A2 level exactly
-- Only use vocabulary and grammar from the given topic
-- Make questions varied and interesting, not repetitive
-- For vocabulary MCQs, mix both directions (Spanish→English and English→Spanish)
-- For grammar fill-blanks, use realistic sentences
-- Prompts should be clear and unambiguous"""
-
-    result = _call_groq([{"role": "user", "content": prompt}], max_tokens=1500)
-    if result and "questions" in result:
-        return result["questions"]
-    return None
+}}"""
+    result = _call_ai([{"role": "user", "content": prompt}])
+    return result.get("questions") if result else None
 
 
-def ai_generate_activity(topic_title, topic_type, topic_content, count=6):
-    """
-    Generate interactive classroom activities using AI.
-    Returns a list of activity dicts or None.
-    """
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
+    """Generate interactive activities in the specified language."""
+    # Similar to ai_generate_questions but for activities
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
-        word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())[:12]])
+        word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
         context = f"Vocabulary: {word_list}"
     else:
         rules = topic_content.get("rules", [])
         examples = topic_content.get("examples", [])
         context = f"Rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
-    prompt = f"""You are a Spanish teacher creating interactive practice exercises for A1/A2 students.
-
+    prompt = f"""You are a {language} teacher creating practice exercises for A1/A2 students.
 Topic: {topic_title} ({topic_type})
+Language: {language}
 {context}
 
 Generate {count} exercises. Each should be either:
-- "mcq": multiple choice (4 options including correct answer)
+- "mcq": multiple choice (4 options)
 - "fill_blank": fill in the blank
 
 Return ONLY valid JSON:
@@ -135,84 +218,26 @@ Return ONLY valid JSON:
   "activities": [
     {{
       "type": "mcq",
-      "prompt": "What does 'hola' mean?",
-      "answer": "hello",
-      "options": ["hello", "goodbye", "please", "thank you"]
-    }},
-    {{
-      "type": "fill_blank",
-      "prompt": "Yo ___ estudiante. (ser)",
-      "answer": "soy",
-      "hint": "First person singular of 'ser'"
+      "prompt": "...",
+      "answer": "...",
+      "options": ["...", "...", "...", "..."]
     }}
   ]
-}}
-
-Rules:
-- Keep everything at A1/A2 level
-- Make exercises fun and engaging
-- Vary the difficulty slightly within the set
-- For MCQs, always include exactly 4 options
-- Shuffle the correct answer position"""
-
-    result = _call_groq([{"role": "user", "content": prompt}], max_tokens=1500)
-    if result and "activities" in result:
-        return result["activities"]
-    return None
+}}"""
+    result = _call_ai([{"role": "user", "content": prompt}])
+    return result.get("activities") if result else None
 
 
 def ai_generate_report_insights(cohort_data):
-    """
-    Generate AI-powered insights for the weekly report.
-    Returns a dict with insights or None.
-    """
-    prompt = f"""You are an educational data analyst. Analyze this Spanish class performance data and provide insights.
-
-Data:
-{json.dumps(cohort_data, indent=2, default=str)}
-
-Return ONLY valid JSON:
-{{
-  "summary_text": "A 2-3 sentence overview of class performance in a warm, professional tone",
-  "key_insight": "The single most important thing the lecturer should know",
-  "recommendation": "One specific, actionable teaching recommendation",
-  "praise_point": "Something positive to highlight about the class"
-}}
-
-Rules:
-- Use educator-friendly language, not corporate
-- Be specific and data-driven
-- Keep each field under 50 words
-- If data is limited, say so honestly"""
-
-    return _call_groq([{"role": "user", "content": prompt}], max_tokens=500, temperature=0.5)
+    """Generate AI insights for reports."""
+    prompt = f"Analyze this class performance data and provide insights. Return JSON.\n\nData:\n{json.dumps(cohort_data)}"
+    return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
 
 
 def ai_grade_open_response(question, student_answer, correct_answer):
-    """
-    Use AI to grade open-ended or fill-in-the-blank responses more intelligently.
-    Returns (score, feedback) or None.
-    """
-    prompt = f"""You are grading a Spanish language student's answer. Be lenient with accents and minor typos.
-
-Question: {question}
-Correct answer: {correct_answer}  
-Student's answer: {student_answer}
-
-Return ONLY valid JSON:
-{{
-  "score": 0.0 to 1.0,
-  "is_correct": true/false,
-  "feedback": "brief encouraging feedback in English (max 15 words)"
-}}
-
-Rules:
-- Accept answers without accents (e.g., "esta" for "está")
-- Accept minor spelling variations
-- Score 1.0 for correct, 0.5 for partially correct, 0.0 for wrong
-- Be encouraging in feedback"""
-
-    result = _call_groq([{"role": "user", "content": prompt}], max_tokens=150, temperature=0.2)
+    """Grade open responses intelligently."""
+    prompt = f"Grade this student's answer. Question: {question}, Correct: {correct_answer}, Student: {student_answer}. Return JSON with 'score' (0-1) and 'feedback'."
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150, temperature=0.2)
     if result and "score" in result:
         return (result["score"], result.get("feedback", ""))
-    return None
+    return (0.0, "Could not grade automatically.")

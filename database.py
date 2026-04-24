@@ -67,10 +67,30 @@ def init_db():
             name TEXT NOT NULL,
             semester TEXT NOT NULL,
             textbook TEXT,
+            language TEXT DEFAULT 'Spanish',
+            code TEXT,
+            is_building INTEGER DEFAULT 0,
             lecturer_id TEXT REFERENCES users(id),
             created_at TEXT DEFAULT (datetime('now'))
         );
+    """)
 
+    # ── Safe Migration: Add language column to existing courses table ──
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN language TEXT DEFAULT 'Spanish'")
+    except sqlite3.OperationalError:
+        pass # Column already exists
+
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN code TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN is_building INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    c.executescript("""
         CREATE TABLE IF NOT EXISTS enrollments (
             id TEXT PRIMARY KEY,
             student_id TEXT REFERENCES users(id),
@@ -308,8 +328,8 @@ def _seed_data(c):
 
     # ── Course ──────────────────────────────────────────────
     course_id = _uid()
-    c.execute("INSERT INTO courses VALUES (?,?,?,?,?,datetime('now'))",
-              (course_id, "Spanish 101", "Spring 2026", "Aula Internacional Plus 1", lecturer_id))
+    c.execute("INSERT INTO courses (id, name, semester, textbook, lecturer_id) VALUES (?,?,?,?,?)",
+              (course_id, "Spanish 101", "Spring 2026", "/books/textbook.pdf", lecturer_id))
 
     # ── Aula Internacional Plus 1 Curriculum ────────────────
     curriculum = _get_aula_curriculum()

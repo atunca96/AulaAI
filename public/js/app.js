@@ -184,7 +184,18 @@ const i18n = {
     'draft.remove': 'Remove',
     'draft.type': 'Question Type',
     'draft.fill_blank': 'Fill in the gap',
-    'draft.mcq': 'Multiple Choice'
+    'draft.mcq': 'Multiple Choice',
+    // Classroom Selection
+    'class.selection': 'Classroom Selection',
+    'class.subtitle': 'Select a classroom to manage or create a new one',
+    'class.create': 'Create New Classroom from PDF',
+    'class.enter': 'Enter Classroom',
+    'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
+    'class.upload_pdf': 'Upload PDF Textbook',
+    'class.toc_range': 'Contents Page Range (e.g. 2-5)',
+    'class.toc_placeholder': '2-5',
+    'class.processing': 'Processing PDF & generating curriculum... This may take a minute.',
+    'class.start_pipeline': 'Start Pipeline'
   },
   tr: {
     langBtn: '🌐 EN',
@@ -269,7 +280,18 @@ const i18n = {
     'draft.remove': 'Kaldır',
     'draft.type': 'Soru Tipi',
     'draft.fill_blank': 'Boşluk Doldurma',
-    'draft.mcq': 'Çoktan Seçmeli'
+    'draft.mcq': 'Çoktan Seçmeli',
+    // Classroom Selection
+    'class.selection': 'Sınıf Seçimi',
+    'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
+    'class.create': 'PDF\'den Yeni Sınıf Oluştur',
+    'class.enter': 'Sınıfa Gir',
+    'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
+    'class.upload_pdf': 'PDF Ders Kitabı Yükle',
+    'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 2-5)',
+    'class.toc_placeholder': '2-5',
+    'class.processing': 'PDF işleniyor ve müfredat oluşturuluyor... Bu işlem bir dakika sürebilir.',
+    'class.start_pipeline': 'İşlemi Başlat'
   }
 };
 
@@ -294,6 +316,10 @@ function toggleLanguage() {
       if (node.placeholder) {
         let matchKey = Object.keys(from).find(k => from[k] === node.placeholder);
         if (matchKey) node.placeholder = to[matchKey];
+      }
+      if (node.dataset && node.dataset.i18nPlaceholder) {
+        const key = node.dataset.i18nPlaceholder;
+        if (to[key]) node.placeholder = to[key];
       }
       if (node.dataset && node.dataset.i18n) {
         const key = node.dataset.i18n;
@@ -369,12 +395,8 @@ async function completeLogin(user) {
   if (remember) localStorage.setItem('aula_user', JSON.stringify(user));
   else sessionStorage.setItem('aula_user', JSON.stringify(user));
   localStorage.setItem('aula_lang', currentLang);
-  const courses = await api('/courses');
-  if (courses && courses.length) courseId = courses[0].id;
-  const currData = await api('/curriculum?course_id=' + courseId);
-  curriculum = Array.isArray(currData) ? currData : [];
+
   if (currentUser.status === 'pending') {
-    // Re-check status from server in case lecturer already approved
     try {
       const check = await api('/user/status?user_id=' + currentUser.id);
       if (check && check.status === 'approved') {
@@ -386,7 +408,6 @@ async function completeLogin(user) {
     
     if (currentUser.status === 'pending') {
       showScreen('waiting-room-screen');
-      // Poll every 3 seconds until approved
       const waitingPoll = setInterval(async () => {
         try {
           const check = await api('/user/status?user_id=' + currentUser.id);
@@ -406,31 +427,204 @@ async function completeLogin(user) {
       return;
     }
   }
-  
-  showScreen(currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard');
+
   if (currentUser.role === 'lecturer') {
-    initLecturer();
+    showClassroomSelection();
   } else {
-    initStudent();
+    const courses = await api('/courses');
+    if (courses && courses.length) {
+      await selectClassroom(courses[0].id, false);
+    } else {
+      showScreen('student-dashboard');
+      initStudent();
+    }
   }
   startLiveSync();
+  // Force full reload to ensure fresh data and UI state
+  if (!sessionStorage.getItem('reloaded')) {
+    sessionStorage.setItem('reloaded', '1');
+    window.location.reload();
+  } else {
+    sessionStorage.removeItem('reloaded');
+  }
+}
+
+async function showClassroomSelection() {
+  const courses = await api('/courses');
+  const container = document.getElementById('classroom-list');
+  showScreen('classroom-selection-screen');
+  
+  if (!courses || courses.length === 0) {
+    container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">No classrooms found. Create your first one!</p>`;
+    return;
+  }
+  
+  container.innerHTML = courses.map(c => {
+    const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
+    const isBuilding = c.is_building === 1;
+    return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">
+        ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
+        <div class="card-body">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
+                ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+            </div>
+            <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
+            <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>
+            
+            
+            ${isBuilding ? `
+              <div class="flex-center" style="margin: 20px 0;">
+                <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+              </div>
+              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
+            ` : ''}
+        </div>
+        <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
+            ${isBuilding ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Processing...') : t('class.enter')}
+        </button>
+    </div>`;
+  }).join('');
+
+  if (!document.getElementById('slide-anim')) {
+    const style = document.createElement('style');
+    style.id = 'slide-anim';
+    style.innerHTML = `@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(100%); } }`;
+    document.head.appendChild(style);
+  }
+}
+
+async function selectClassroom(id, isLecturer = true) {
+  courseId = id;
+  const courses = await api('/courses');
+  const course = courses.find(c => c.id === id);
+  if (course && document.getElementById('nav-course-name')) {
+    document.getElementById('nav-course-name').textContent = course.name;
+  }
+
+  // Show building banner if needed
+  const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
+  if (buildBanner) {
+    if (course && course.is_building) {
+        buildBanner.classList.remove('hidden');
+    } else {
+        buildBanner.classList.add('hidden');
+    }
+  }
+  
+  const currData = await api('/curriculum?course_id=' + courseId);
+  curriculum = Array.isArray(currData) ? currData : [];
+  
+  // Update Book Tab with classroom-specific PDF
+  let bookPath = course ? course.textbook : '';
+  // Hardcoded fallback for Spanish 101 to ensure the default textbook always loads
+  if (course && (course.id === 'spanish-101' || course.name === 'Spanish 101')) {
+      bookPath = '/books/textbook.pdf';
+  }
+  const pdfViewerSrc = (bookPath && bookPath !== '/books/' && bookPath !== '/books/undefined') ? bookPath : '';
+  
+  document.querySelectorAll('.pdf-viewer').forEach(el => {
+    // If we have a valid PDF path, use it; otherwise clear or use a safe empty state
+    el.src = pdfViewerSrc || 'about:blank'; 
+  });
+  
+  document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
+    if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
+  });
+
+  if (currentUser.role === 'lecturer') {
+    showScreen('lecturer-dashboard');
+    initLecturer();
+  } else {
+    showScreen('student-dashboard');
+    initStudent();
+  }
+}
+
+async function deleteClassroom(id) {
+  if (!confirm(t('class.delete_confirm'))) return;
+  
+  const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
+  if (res.success) {
+    showClassroomSelection();
+  } else {
+    alert(res.error || 'Failed to delete classroom');
+  }
+}
+
+function openCreateClassroomModal() {
+  document.getElementById('create-classroom-modal').classList.remove('hidden');
+  document.getElementById('creation-status').classList.add('hidden');
+  document.getElementById('submit-creation-btn').disabled = false;
+}
+
+function closeCreateClassroomModal() {
+  document.getElementById('create-classroom-modal').classList.add('hidden');
+}
+
+async function handleCreateClassroom(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById('course-name-input');
+  const fileInput = document.getElementById('pdf-upload');
+  const rangeInput = document.getElementById('toc-range');
+  const statusEl = document.getElementById('creation-status');
+  const btn = document.getElementById('submit-creation-btn');
+  
+  if (!fileInput.files[0]) return alert('Please select a PDF file');
+  
+  const formData = new FormData();
+  formData.append('course_name', nameInput.value.trim());
+  formData.append('pdf', fileInput.files[0]);
+  formData.append('toc_range', rangeInput.value);
+  formData.append('lecturer_id', currentUser.id);
+  
+  statusEl.classList.remove('hidden');
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  btn.style.cursor = 'default';
+  
+  try {
+    const res = await fetch('/api/classroom/create-from-pdf', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      alert(`${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
+      closeCreateClassroomModal();
+      showClassroomSelection(); // Refresh list to show the "ghost" card
+    } else {
+      alert(data.error || 'Failed to create classroom');
+    }
+  } catch (err) {
+    alert('An error occurred during classroom creation.');
+  } finally {
+    statusEl.classList.add('hidden');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
 }
 
 async function handleStudentLogin(e) {
   e.preventDefault();
   const number = document.getElementById('student-number').value.trim();
   const name = document.getElementById('student-name-input').value.trim();
+  const code = document.getElementById('classroom-code').value.trim();
   const errEl = document.getElementById('student-login-error');
   errEl.classList.add('hidden');
 
-  const data = await api('/student/login', { method: 'POST', body: { student_number: number, name } });
+  const data = await api('/student/login', { method: 'POST', body: { student_number: number, name, classroom_code: code } });
   if (data.error) {
     const isTr = currentLang === 'tr';
     const errorMap = {
       'Name is required': isTr ? 'Ad Soyad alanı zorunludur.' : 'Full name is required.',
       'Name is required for first login': isTr ? 'İlk girişte ad soyad gereklidir.' : 'Full name is required for first login.',
       'Student number and name do not match': isTr ? 'Öğrenci numarası ve isim eşleşmiyor. Lütfen kayıtlı bilgilerinizi giriniz.' : 'Student number and name do not match. Please enter your registered information.',
-      'Student number is required': isTr ? 'Öğrenci numarası gereklidir.' : 'Student number is required.'
+      'Student number is required': isTr ? 'Öğrenci numarası gereklidir.' : 'Student number is required.',
+      'Classroom code is required': isTr ? 'Sınıf kodu gereklidir.' : 'Classroom code is required.',
+      'Invalid classroom code': isTr ? 'Geçersiz sınıf kodu.' : 'Invalid classroom code.'
     };
     errEl.textContent = errorMap[data.error] || data.error;
     errEl.classList.remove('hidden');
@@ -893,7 +1087,7 @@ async function loadQuizList() {
           const isCompleted = q.is_completed;
           return `<div class="card" style="cursor:${isCompleted?'default':'pointer'};opacity:${isCompleted?'0.6':'1'};margin-bottom:12px" onclick="${isCompleted?'':`takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted?` · <span style="color:var(--success)">✓ ${t('completed')}</span>`:''}</div></div><span class="btn btn-sm ${isCompleted?'btn-ghost':'btn-outline'}">${isCompleted?t('completed'):t('takeQuizBtn')}</span></div></div>`;
         }
-      }).join('');
+    }).join('');
 }
 
 async function deleteQuiz(quizId, title) {

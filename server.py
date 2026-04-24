@@ -21,6 +21,7 @@ from database import get_db, init_db, db_connection
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights
+from services.pdf_pipeline import process_pdf_to_classroom
 
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
@@ -34,6 +35,26 @@ def _bump_version():
     global _data_version
     with _version_lock:
         _data_version += 1
+    clear_cache()
+
+# ── Global Cache ──
+_cache = {}
+_cache_lock = threading.Lock()
+
+def get_cache(key):
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry and (time.time() - entry['ts']) < 300: # 5 min TTL
+            return entry['data']
+    return None
+
+def set_cache(key, data):
+    with _cache_lock:
+        _cache[key] = {'ts': time.time(), 'data': data}
+
+def clear_cache():
+    with _cache_lock:
+        _cache.clear()
 
 MIME_TYPES = {
     ".html": "text/html",
@@ -62,6 +83,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
     def _send_json(self, data, status=200):
+        # Auto-cache eligible GET requests
+        if status == 200 and self.command == 'GET' and '/api/' in self.path:
+            set_cache(self.path, data)
+            
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -112,6 +137,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     # ── GET routes ──────────────────────────────────────────
 
     def do_GET(self):
+        start_time = time.time()
         try:
             self._handle_GET()
         except Exception as e:
@@ -120,6 +146,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"error": "Internal server error"}, 500)
             except Exception:
                 pass
+        duration = time.time() - start_time
+        if duration > 0.1: # Profile slow requests (>100ms)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [PROFILE] slow GET {self.path} ({duration:.3f}s)")
 
     def _handle_GET(self):
         parsed = urlparse(self.path)
@@ -133,6 +162,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"OK")
             return
+
+        # Cache lookup for GET requests
+        cached_data = get_cache(self.path)
+        if cached_data:
+            return self._send_json(cached_data)
 
         # API Routes
         if path == "/api/courses":
@@ -200,7 +234,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._serve_static(path)
 
     def do_POST(self):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] POST {self.path}")
+        start_time = time.time()
         try:
             self._handle_POST()
         except Exception as e:
@@ -211,12 +245,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json({"error": "Internal server error"}, 500)
             except Exception:
                 pass
+        duration = time.time() - start_time
+        if duration > 0.1:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [PROFILE] slow POST {self.path} ({duration:.3f}s)")
 
     def _handle_POST(self):
         parsed = urlparse(self.path)
-        path = parsed.path
+        path = parsed.path.rstrip('/')
 
-        if path == "/api/login":
+        # Classroom management routes (check these first to be safe)
+        if path == "/api/classroom/delete":
+            return self._delete_classroom()
+        elif path == "/api/classroom/create-from-pdf":
+            return self._create_classroom_from_pdf()
+            
+        # Other routes
+        elif path == "/api/login":
             return self._login()
         elif path == "/api/student/login":
             return self._student_login()
@@ -431,57 +475,63 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         })
 
     def _student_login(self):
-        """Student login by student number. Auto-registers on first login."""
+        """Student login by student number and classroom code."""
         body = self._read_body()
         student_number = body.get("student_number", "").strip()
         name = body.get("name", "").strip()
+        classroom_code = body.get("classroom_code", "").strip()
 
         if not student_number:
             return self._send_error("Student number is required")
-
         if not name:
             return self._send_error("Name is required")
+        if not classroom_code:
+            return self._send_error("Classroom code is required")
 
-        # Use student number as the email key (internal)
-        email_key = f"{student_number}@student.aulaai"
-
+        # Verify classroom code
         with db_connection() as db:
+            course = db.execute("SELECT id FROM courses WHERE code = ?", (classroom_code,)).fetchone()
+            if not course:
+                return self._send_error("Invalid classroom code")
+            course_id = course["id"]
+
+            # Use student number as the email key (internal)
+            email_key = f"{student_number}@student.aulaai"
             user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
 
             if user:
                 # Existing student — verify name matches
                 user = dict(user)
-                stored_name = user["name"].strip().lower()
-                input_name = name.strip().lower()
-                if stored_name != input_name:
+                if user["name"].strip().lower() != name.strip().lower():
                     return self._send_error("Student number and name do not match")
                 
+                # Check if already enrolled or add enrollment
+                enr = db.execute("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
+                if not enr:
+                    db.execute("INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?,?,?,datetime('now'))",
+                               (_uid(), user["id"], course_id))
+                    db.commit()
+
                 self._send_json({
                     "success": True,
                     "user": {"id": user["id"], "name": user["name"],
                              "email": user["email"], "role": "student", "status": user.get("status", "approved")}
                 })
             else:
-                # New student — auto-register
-                if not name:
-                    return self._send_error("Name is required for first login")
-
+                # New student — auto-register and enroll in specific classroom
                 student_id = _uid()
                 db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
                            (student_id, name, email_key, student_number, "student", "pending"))
+                
+                db.execute("INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?,?,?,datetime('now'))",
+                           (_uid(), student_id, course_id))
 
-                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-                if course:
-                    db.execute("INSERT INTO enrollments VALUES (?,?,?,datetime('now'))",
-                               (_uid(), student_id, course["id"]))
-
-                db.commit()
-                _bump_version()
-                self._send_json({
-                    "success": True,
-                    "user": {"id": student_id, "name": name,
-                             "email": email_key, "role": "student", "status": "pending"}
-                })
+            db.commit()
+            _bump_version()
+            self._send_json({
+                "success": True,
+                "user": {"id": student_id, "name": name, "email": email_key, "role": "student", "status": "pending"}
+            })
 
     def _get_courses(self):
         with db_connection() as db:
@@ -610,10 +660,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not topic:
             return self._send_error("Topic not found", 404)
 
-        activities = generate_activity(dict(topic), count=6)
+        with db_connection() as db:
+            row = db.execute("""
+                SELECT co.language FROM courses co
+                JOIN chapters ch ON co.id = ch.course_id
+                JOIN topics t ON ch.id = t.chapter_id
+                WHERE t.id = ?
+            """, (topic_id,)).fetchone()
+            language = row["language"] if row else "Spanish"
+
+        activities = generate_activity(dict(topic), count=6, language=language)
 
         # Add a dialogue activity if available
-        dialogue = generate_dialogue_activity()
+        dialogue = generate_dialogue_activity(language=language)
         activities.append(dialogue)
 
         self._send_json({"topic": dict(topic), "activities": activities})
@@ -1032,7 +1091,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
             if topic_id:
                 topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-                activities = generate_activity(dict(topic), count=8) if topic else []
+                row = db.execute("""
+                    SELECT co.language FROM courses co
+                    JOIN chapters ch ON co.id = ch.course_id
+                    JOIN topics t ON ch.id = t.chapter_id
+                    WHERE t.id = ?
+                """, (topic_id,)).fetchone()
+                language = row["language"] if row else "Spanish"
+                activities = generate_activity(dict(topic), count=8, language=language) if topic else []
             else:
                 activities = []
 
@@ -1276,6 +1342,135 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             db.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (message_id,))
             db.commit()
+        _bump_version()
+        self._send_json({"success": True})
+
+    def _read_multipart(self):
+        """Simple multipart parser for PDF upload."""
+        import re
+        ctype = self.headers.get("Content-Type")
+        if not ctype or "multipart/form-data" not in ctype:
+            return None, None
+        
+        try:
+            boundary_str = ctype.split("boundary=")[1]
+            boundary = b"--" + boundary_str.encode()
+        except (IndexError, AttributeError):
+            return None, None
+
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        
+        parts = body.split(boundary)
+        files = {}
+        fields = {}
+        
+        for part in parts:
+            if not part or part.strip() == b"--" or part.strip() == b"":
+                continue
+            
+            header_end = part.find(b"\r\n\r\n")
+            if header_end == -1: continue
+            
+            header = part[:header_end].decode("utf-8", "ignore")
+            content = part[header_end+4:]
+            
+            # Remove trailing \r\n
+            if content.endswith(b"\r\n"):
+                content = content[:-2]
+
+            name_match = re.search(r'name="([^"]+)"', header)
+            if not name_match: continue
+            name = name_match.group(1)
+
+            file_match = re.search(r'filename="([^"]+)"', header)
+            if file_match:
+                files[name] = {"filename": file_match.group(1), "content": content}
+            else:
+                fields[name] = content.decode("utf-8", "ignore").strip()
+                
+        return fields, files
+
+    def _create_classroom_from_pdf(self):
+        try:
+            fields, files = self._read_multipart()
+            if not files or "pdf" not in files:
+                return self._send_error("PDF file required")
+            
+            course_name = fields.get("course_name")
+            toc_range = fields.get("toc_range", "1-5")
+            lecturer_id = fields.get("lecturer_id")
+            
+            if not lecturer_id:
+                return self._send_error("lecturer_id required")
+                
+            pdf_data = files["pdf"]["content"]
+            pdf_filename = files["pdf"]["filename"]
+            
+            # Save file persistently in public/books/
+            safe_filename = f"course_{_uid()}.pdf"
+            dest_dir = os.path.join(os.path.dirname(__file__), "public", "books")
+            os.makedirs(dest_dir, exist_ok=True)
+            pdf_path = os.path.join(dest_dir, safe_filename)
+            
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_data)
+                
+            result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name)
+            if result.get("success"):
+                _bump_version()
+                self._send_json(result)
+            else:
+                self._send_error(result.get("error", "Failed to process PDF"))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self._send_error(f"Server error during processing: {str(e)}")
+
+    def _delete_classroom(self):
+        body = self._read_body()
+        course_id = body.get("course_id")
+        if not course_id:
+            return self._send_error("course_id required")
+            
+        with db_connection() as db:
+            course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+            if not course:
+                return self._send_error("Course not found")
+            
+            # Protection for Spanish classroom
+            if course["name"] == "Spanish 101" or "Spanish" in course["name"] or course["textbook"] == "Aula Internacional Plus 1":
+                return self._send_error("Default Spanish classroom cannot be deleted", 403)
+            
+            # 1. Delete student responses (quizzes, assignments, and topic activities)
+            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+            
+            # 2. Delete mastery scores
+            db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+            
+            # 3. Delete quiz and assignment structure
+            db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
+            db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
+            
+            # 4. Delete other course-related entities
+            db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
+            db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
+            db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
+            
+            # 5. Delete curriculum (questions, topics, chapters)
+            # Questions are linked to topics
+            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
+            
+            # 6. Finally delete the course
+            db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+            db.commit()
+            
         _bump_version()
         self._send_json({"success": True})
 

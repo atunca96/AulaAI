@@ -98,7 +98,7 @@ DIALOGUE_TEMPLATES = [
 ]
 
 
-def generate_activity(topic_data, difficulty="standard", count=5):
+def generate_activity(topic_data, difficulty="standard", count=5, language="Spanish"):
     """
     Generate an activity set for a given topic.
     Uses AI when available, falls back to mock templates.
@@ -110,9 +110,9 @@ def generate_activity(topic_data, difficulty="standard", count=5):
     # Try AI-powered generation first
     if is_ai_available():
         try:
-            ai_activities = ai_generate_activity(topic_data["title"], topic_type, content, count=count)
+            ai_activities = ai_generate_activity(topic_data["title"], topic_type, content, language=language, count=count)
             if ai_activities:
-                print(f"[AI] Generated {len(ai_activities)} activities for '{topic_data['title']}'")
+                print(f"[AI] Generated {len(ai_activities)} activities for '{topic_data['title']}' ({language})")
                 result = []
                 for a in ai_activities:
                     activity = {
@@ -131,7 +131,7 @@ def generate_activity(topic_data, difficulty="standard", count=5):
         except Exception as e:
             print(f"[AI] Fallback to mock: {e}")
 
-    # Fallback to mock templates
+    # Fallback to mock templates (Note: Mock templates are hardcoded Spanish)
     if topic_type == "vocabulary":
         return _generate_vocab_activity(content, difficulty, count)
     elif topic_type == "grammar":
@@ -278,10 +278,10 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
         return []
 
     for topic_id in topic_ids:
-        per_topic = max(3, -(-count // len(topic_ids)))  # ceiling division
+        # Pull all approved questions for the selected topics without per-topic limits
         rows = c.execute(
-            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM() LIMIT ?",
-            (topic_id, per_topic)
+            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM()",
+            (topic_id,)
         ).fetchall()
 
         for row in rows:
@@ -294,8 +294,39 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
     return questions[:count]
 
 
-def generate_dialogue_activity():
+def generate_dialogue_activity(language="Spanish"):
     """Generate a dialogue ordering activity."""
+    if is_ai_available():
+        try:
+            prompt = f"""Generate a dialogue between two people in {language} for A1 level.
+Include 6-8 lines.
+Return ONLY valid JSON:
+{{
+  "title": "Dialogue Title",
+  "lines": [
+    {{ "order": 1, "speaker": "A", "text": "..." }},
+    {{ "order": 2, "speaker": "B", "text": "..." }}
+  ]
+}}"""
+            from services.ai_engine import _call_ai
+            result = _call_ai([{"role": "user", "content": prompt}])
+            if result:
+                lines = result.get("lines", [])
+                correct_order = [l["text"] for l in sorted(lines, key=lambda x: x.get("order", 0))]
+                scrambled = lines[:]
+                random.shuffle(scrambled)
+                return {
+                    "id": _uid(),
+                    "type": "dialogue_order",
+                    "title": result.get("title", "Dialogue"),
+                    "scrambled_lines": [l["text"] for l in scrambled],
+                    "correct_order": correct_order,
+                    "speakers": {l["text"]: l["speaker"] for l in lines},
+                }
+        except Exception as e:
+            print(f"[AI] Dialogue generation error: {e}")
+
+    # Fallback to Spanish templates
     dialogue = random.choice(DIALOGUE_TEMPLATES)
     lines = dialogue["lines"][:]
     correct_order = [l["text"] for l in lines]
