@@ -67,11 +67,19 @@ def init_db():
             name TEXT NOT NULL,
             semester TEXT NOT NULL,
             textbook TEXT,
+            language TEXT DEFAULT 'Spanish',
             lecturer_id TEXT REFERENCES users(id),
             created_at TEXT DEFAULT (datetime('now'))
         );
+    """)
 
-        CREATE TABLE IF NOT EXISTS enrollments (
+    # ── Safe Migration: Add language column to existing courses table ──
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN language TEXT DEFAULT 'Spanish'")
+    except sqlite3.OperationalError:
+        pass # Column already exists
+
+    c.executescript("""
             id TEXT PRIMARY KEY,
             student_id TEXT REFERENCES users(id),
             course_id TEXT REFERENCES courses(id),
