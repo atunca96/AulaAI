@@ -147,15 +147,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         content_type = MIME_TYPES.get(ext, "application/octet-stream")
 
         try:
-            with open(filepath, "rb") as f:
-                content = f.read()
+            file_size = os.path.getsize(filepath)
             self.send_response(200)
             self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(file_size))
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
-            self.wfile.write(content)
+            
+            # Stream the file in chunks to prevent memory spikes and connection resets
+            with open(filepath, "rb") as f:
+                while True:
+                    chunk = f.read(64 * 1024) # 64KB chunks
+                    if not chunk:
+                        break
+                    try:
+                        self.wfile.write(chunk)
+                    except (ConnectionResetError, BrokenPipeError):
+                        print(f"[DEBUG] Client disconnected while reading {path}")
+                        return
         except FileNotFoundError:
             self.send_error(404)
+        except Exception as e:
+            print(f"[ERROR] Serving {path}: {e}")
+            if not self.wfile.closed:
+                self.send_error(500)
 
     # ── GET routes ──────────────────────────────────────────
 
@@ -1447,7 +1462,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return None, None
 
         length = int(self.headers.get("Content-Length", 0))
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [UPLOAD] Receiving {length / 1024 / 1024:.2f} MB...")
+        
+        # Read in one go for now, but we can improve this to stream-parse if needed
         body = self.rfile.read(length)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [UPLOAD] Data received, parsing parts...")
         
         parts = body.split(boundary)
         files = {}
