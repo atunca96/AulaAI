@@ -12,6 +12,7 @@ import sqlite3
 import threading
 import time
 import logging
+import subprocess
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
@@ -30,20 +31,29 @@ from services.content_engine import generate_activity, generate_quiz, grade_resp
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights
 from services.pdf_pipeline import process_pdf_to_classroom
+from services.state import bump_version, get_version
 
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
 
-# ── Live-sync version counter ──
-# Incremented on every data mutation; clients poll /api/version to detect changes.
-_data_version = 0
-_version_lock = threading.Lock()
+# Auto-reload logic
+def watch_files():
+    last_mtime = {}
+    while True:
+        for root, dirs, files in os.walk(os.path.dirname(__file__)):
+            for f in files:
+                if f.endswith('.py'):
+                    path = os.path.join(root, f)
+                    mtime = os.path.getmtime(path)
+                    if path in last_mtime and mtime > last_mtime[path]:
+                        print("[RELOAD] Change detected, restarting...")
+                        os.execv(sys.executable, ['python'] + sys.argv)
+                    last_mtime[path] = mtime
+        time.sleep(2)
 
-def _bump_version():
-    global _data_version
-    with _version_lock:
-        _data_version += 1
-    clear_cache()
+threading.Thread(target=watch_files, daemon=True).start()
+
+# Version tracking moved to services.state
 
 # ── Global Cache ──
 _cache = {}
@@ -57,8 +67,8 @@ def get_cache(key):
     return None
 
 def set_cache(key, data):
-    with _cache_lock:
-        _cache[key] = {'ts': time.time(), 'data': data}
+    # Caching disabled during stabilization phase
+    pass
 
 def clear_cache():
     with _cache_lock:
@@ -96,10 +106,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             set_cache(self.path, data)
             
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(json.dumps(data, default=str).encode())
+        try:
+            payload = json.dumps(data, default=str, ensure_ascii=False)
+            self.wfile.write(payload.encode("utf-8"))
+        except Exception as e:
+            print(f"[ERROR] Failed to send JSON: {e}")
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def _send_error(self, message, status=400):
         self._send_json({"error": message}, status)
@@ -233,7 +248,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             user_id = params.get("user_id", [None])[0]
             return self._get_user_status(user_id)
         elif path == "/api/version":
-            return self._send_json({"version": _data_version})
+            return self._send_json({"version": get_version()})
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
         elif path.startswith("/api/"):
@@ -332,7 +347,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM weekly_reports")
             db.commit()
 
-        _bump_version()
+        bump_version()
         print("[RESET] All student data erased by lecturer.")
         self._send_json({"success": True, "message": "All student data has been erased."})
 
@@ -351,7 +366,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _delete_quiz(self):
@@ -363,7 +378,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM quiz_questions WHERE quiz_id = ?", (quiz_id,))
             db.execute("DELETE FROM quizzes WHERE id = ?", (quiz_id,))
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _delete_assignment(self):
@@ -375,39 +390,72 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM assignment_questions WHERE assignment_id = ?", (assignment_id,))
             db.execute("DELETE FROM assignments WHERE id = ?", (assignment_id,))
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _get_pending_students(self):
-        """Lecturer only: Get students waiting for approval."""
+        """Lecturer only: Get students waiting for approval for a specific classroom."""
+        params = parse_qs(urlparse(self.path).query)
+        course_id = params.get("course_id", [None])[0]
+        
         with db_connection() as db:
-            students = db.execute("SELECT id, name, email, created_at FROM users WHERE role = 'student' AND status = 'pending' ORDER BY created_at DESC").fetchall()
+            if course_id:
+                query = """
+                    SELECT u.id, u.name, u.email, e.enrolled_at as created_at 
+                    FROM users u 
+                    JOIN enrollments e ON u.id = e.student_id 
+                    WHERE e.course_id = ? AND e.status = 'pending' 
+                    ORDER BY e.enrolled_at DESC
+                """
+                students = db.execute(query, (course_id,)).fetchall()
+            else:
+                # Fallback to global pending (legacy support)
+                students = db.execute("SELECT id, name, email, created_at FROM users WHERE role = 'student' AND status = 'pending' ORDER BY created_at DESC").fetchall()
         self._send_json([dict(s) for s in students])
 
     def _approve_student(self):
-        """Lecturer only: Approve a pending student."""
+        """Lecturer only: Approve a pending student for a specific classroom."""
         body = self._read_body()
         student_id = body.get("student_id")
+        course_id = body.get("course_id")
+        
         if not student_id:
             return self._send_error("student_id required")
             
         with db_connection() as db:
+            if course_id:
+                # Classroom-specific approval
+                db.execute("UPDATE enrollments SET status = 'approved' WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+            
+            # Also sync the global status for compatibility
             db.execute("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
             
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _get_user_status(self, user_id):
-        """Check current approval status for a user."""
+        """Check current approval status for a user in a specific classroom."""
+        params = parse_qs(urlparse(self.path).query)
+        course_id = params.get("course_id", [None])[0]
+        
         if not user_id:
             return self._send_error("user_id required")
+            
         with db_connection() as db:
             user = db.execute("SELECT status FROM users WHERE id = ?", (user_id,)).fetchone()
-        if user:
-            self._send_json({"status": user["status"] or "approved"})
-        else:
-            self._send_error("User not found", 404)
+            if not user:
+                return self._send_error("User not found", 404)
+
+            if course_id:
+                enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user_id, course_id)).fetchone()
+                if not enr:
+                    return self._send_error("User not found", 404)
+                status = enr["status"]
+            else:
+                status = user["status"]
+                
+        self._send_json({"status": status or "pending"})
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -422,7 +470,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         """Return whether AI (Groq) is configured and available."""
         self._send_json({
             "ai_enabled": is_ai_available(),
-            "provider": "Groq (Llama 3.3 70B)" if is_ai_available() else "Mock Engine",
+            "provider": "OpenRouter (Gemini 2.0 Flash)" if is_ai_available() else "Mock Engine",
             "features": {
                 "dynamic_activities": is_ai_available(),
                 "smart_grading": is_ai_available(),
@@ -475,7 +523,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             db.commit()
 
-        _bump_version()
+        bump_version()
         self._send_json({
             "success": True,
             "user": {"id": student_id, "name": name,
@@ -514,32 +562,40 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return self._send_error("Student number and name do not match")
                 
                 # Check if already enrolled or add enrollment
-                enr = db.execute("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
+                enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
                 if not enr:
-                    db.execute("INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?,?,?,datetime('now'))",
-                               (_uid(), user["id"], course_id))
+                    # New enrollment for this classroom is ALWAYS pending
+                    db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
+                               (_uid(), user["id"], course_id, "pending"))
                     db.commit()
+                    current_status = "pending"
+                else:
+                    current_status = enr["status"] or "pending"
 
                 self._send_json({
                     "success": True,
                     "user": {"id": user["id"], "name": user["name"],
-                             "email": user["email"], "role": "student", "status": user.get("status", "approved")}
+                             "email": user["email"], "role": "student", "status": current_status,
+                             "course_id": course_id}
                 })
             else:
                 # New student — auto-register and enroll in specific classroom
                 student_id = _uid()
+                # Global user record (status here is legacy/global, we mostly care about enrollment status now)
                 db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
                            (student_id, name, email_key, student_number, "student", "pending"))
                 
-                db.execute("INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?,?,?,datetime('now'))",
-                           (_uid(), student_id, course_id))
+                # Specific enrollment for THIS classroom: Default to pending
+                db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, course_id, "pending"))
 
-            db.commit()
-            _bump_version()
-            self._send_json({
-                "success": True,
-                "user": {"id": student_id, "name": name, "email": email_key, "role": "student", "status": "pending"}
-            })
+                db.commit()
+                bump_version()
+                self._send_json({
+                    "success": True,
+                    "user": {"id": student_id, "name": name, "email": email_key, "role": "student", "status": "pending",
+                             "course_id": course_id}
+                })
 
     def _get_courses(self):
         _cleanup_stale_classrooms()
@@ -549,10 +605,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _get_curriculum(self, course_id):
         with db_connection() as db:
-            if not course_id:
+            # If no course_id provided, or if the provided ID doesn't exist, fallback to first course
+            exists = False
+            if course_id:
+                exists = db.execute("SELECT 1 FROM courses WHERE id=?", (course_id,)).fetchone()
+            
+            if not course_id or not exists:
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 course_id = course["id"] if course else None
-
+            
             chapters = db.execute(
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
@@ -566,7 +627,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 ch_dict["topics"] = []
                 for t in topics:
                     t_dict = dict(t)
-                    t_dict["content"] = json.loads(t_dict["content"])
+                    try:
+                        t_dict["content"] = json.loads(t_dict["content"])
+                    except Exception as e:
+                        t_dict["content"] = {}
+                    
                     qcount = db.execute(
                         "SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)
                     ).fetchone()["cnt"]
@@ -678,11 +743,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             """, (topic_id,)).fetchone()
             language = row["language"] if row and row["language"] else "Unknown"
 
-        activities = generate_activity(dict(topic), count=6, language=language)
-
-        # Add a dialogue activity if available
-        dialogue = generate_dialogue_activity(language=language)
-        activities.append(dialogue)
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            f_activities = executor.submit(generate_activity, dict(topic), count=6, language=language)
+            f_dialogue = executor.submit(generate_dialogue_activity, language=language)
+            activities = f_activities.result() or []
+            dialogue = f_dialogue.result()
+            if dialogue: activities.append(dialogue)
 
         self._send_json({"topic": dict(topic), "activities": activities})
 
@@ -768,11 +835,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 ORDER BY qq.sort_order
             """, (quiz_id,)).fetchall()
             questions_list = []
-            for q in questions:
-                qd = dict(q)
-                if qd["distractors"]:
-                    qd["distractors"] = json.loads(qd["distractors"])
-                questions_list.append(qd)
+            for row in questions:
+                q = dict(row)
+                if q["id"] in [sq["id"] for sq in questions_list]: continue
+                if q["distractors"]:
+                    q["distractors"] = json.loads(q["distractors"])
+                questions_list.append(q)
 
             responses = db.execute("""
                 SELECT r.student_id, r.question_id, r.answer AS student_answer,
@@ -849,7 +917,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     WHERE ch.course_id = ?
                 """, (course_id,)).fetchall()
 
-            topic_ids = [t["id"] for t in topics]
+            topic_ids = list(set(t["id"] for t in topics))
             questions = generate_quiz(topic_ids, db, count=count)
 
             quiz_id = _uid()
@@ -861,7 +929,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (quiz_id, q["id"], i))
 
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
 
     def _draft_generate(self):
@@ -923,9 +991,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                            (pub_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
                 
+            seen_ids = set()
             for i, q in enumerate(questions):
                 qid = q.get("id")
-                if not qid or str(qid).startswith("new_"):
+                if not qid or str(qid).startswith("new_") or qid in seen_ids:
                     qid = _uid()
                     topic_id = None
                     if chapter_id and chapter_id != "all":
@@ -938,17 +1007,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     distractors = q.get("distractors", [])
                     if isinstance(distractors, str):
                         distractors = [d.strip() for d in distractors.split(",") if d.strip()]
-                    db.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
+                    db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, metadata, approved, created_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
                                (qid, topic_id, q.get("type", "mcq"), q.get("prompt"), q.get("answer"),
-                                json.dumps(distractors), "custom", None, "{}"))
+                                json.dumps(distractors), "custom", "{}", 1))
                 
-                if pub_type == "quiz":
-                    db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)", (pub_id, qid, i))
-                else:
-                    db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)", (pub_id, qid, i))
+                if qid not in seen_ids:
+                    seen_ids.add(qid)
+                    if pub_type == "quiz":
+                        db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
+                    else:
+                        db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
             
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"id": pub_id, "title": title, "question_count": len(questions)})
 
     def _submit_quiz(self):
@@ -1000,7 +1071,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             db.commit()
 
-        _bump_version()
+        bump_version()
         avg = total_score / max(len(answers), 1)
         self._send_json({
             "total_score": round(total_score, 2),
@@ -1036,7 +1107,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                (_uid(), student_id, tid, round(new_score, 3)))
                 db.commit()
 
-        _bump_version()
+        bump_version()
         self._send_json({"score": score, "feedback": feedback})
 
     def _get_student_stats(self, student_id):
@@ -1161,7 +1232,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (assignment_id, q["id"], i))
             db.commit()
 
-        _bump_version()
+        bump_version()
         self._send_json({"assignment_id": assignment_id, "title": title, "question_count": len(questions)})
 
     def _get_assignment_responses(self, assignment_id):
@@ -1305,7 +1376,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (_uid(), student_id, tid, round(new_score, 3)))
             db.commit()
 
-        _bump_version()
+        bump_version()
         self._send_json({"average": total_score / max(len(answers), 1)})
 
     def _get_messages(self, student_id=None):
@@ -1339,7 +1410,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("INSERT INTO messages (id, student_id, sender, content) VALUES (?,?,?,?)",
                        (_uid(), student_id, sender, content))
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _message_read(self):
@@ -1351,7 +1422,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             db.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (message_id,))
             db.commit()
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
     def _read_multipart(self):
@@ -1444,7 +1515,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             file_log(f"[DEBUG] Pipeline result: {result}")
 
             if result.get("success"):
-                _bump_version()
+                bump_version()
                 self._send_json(result)
             else:
                 self._send_error(result.get("error", "Failed to process PDF"))
@@ -1498,7 +1569,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
             db.commit()
             
-        _bump_version()
+        bump_version()
         self._send_json({"success": True})
 
 def _cleanup_stale_classrooms():
@@ -1541,10 +1612,14 @@ def main():
     init_db()
     
     # Startup check: Clear ANY classrooms still marked as building (since threads were killed)
+def _cleanup_orphaned_building_flags():
+    """Reset building flags for tasks that were interrupted by a server restart."""
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building flags...")
     with db_connection() as db:
         # We delete them because they are in an inconsistent state without their Phase 2 thread
-        orphaned = db.execute("SELECT id, name FROM courses WHERE is_building = 1").fetchall()
+        # Only delete orphaned building records if they are older than 1 hour (to avoid deleting active ones during a quick restart)
+        cutoff = (datetime.utcnow() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+        orphaned = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (cutoff,)).fetchall()
         for course in orphaned:
             cid = course["id"]
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Cleaning up orphaned classroom: {course['name']}")
@@ -1555,11 +1630,19 @@ def main():
             db.execute("DELETE FROM courses WHERE id = ?", (cid,))
         db.commit()
 
-    # ThreadingHTTPServer: each request in its own thread
-    server = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), APIHandler)
-    server.daemon_threads = True
-    
-    print(f"""
+class RobustServer(http.server.ThreadingHTTPServer):
+    allow_reuse_address = True
+
+def main():
+    try:
+        init_db()
+        _cleanup_stale_classrooms()
+        _cleanup_orphaned_building_flags()
+        
+        server = RobustServer(("0.0.0.0", PORT), APIHandler)
+        server.daemon_threads = True
+        
+        print(f"""
 ============================================================
   AulaAI — Spanish Learning System
   Textbook: Aula Internacional Plus 1
@@ -1571,20 +1654,16 @@ def main():
   Lecturer login: garcia@university.edu / demo123
   Students: Register at the login page
 ============================================================
-    """)
-    
-    while True:  # auto-restart loop
-        try:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Server started on port {PORT}")
-            server.serve_forever()
-        except KeyboardInterrupt:
-            print("\n[Server] Shutting down...")
-            server.shutdown()
-            break
-        except Exception as e:
-            print(f"[CRITICAL] Server error: {e} — restarting in 2s...")
-            time.sleep(2)
-
+        """)
+        
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[Server] Shutting down...")
+    except Exception as e:
+        print(f"\n[FATAL ERROR] Server failed to start: {e}")
+        import traceback
+        traceback.print_exc()
+        input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
     main()

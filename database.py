@@ -95,9 +95,18 @@ def init_db():
             id TEXT PRIMARY KEY,
             student_id TEXT REFERENCES users(id),
             course_id TEXT REFERENCES courses(id),
+            status TEXT DEFAULT 'pending',
             enrolled_at TEXT DEFAULT (datetime('now')),
             UNIQUE(student_id, course_id)
         );
+    """)
+
+    try:
+        c.execute("ALTER TABLE enrollments ADD COLUMN status TEXT DEFAULT 'pending'")
+    except sqlite3.OperationalError:
+        pass
+
+    c.executescript("""
 
         CREATE TABLE IF NOT EXISTS chapters (
             id TEXT PRIMARY KEY,
@@ -241,8 +250,44 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # ── Seed data only if empty ─────────────────────────────
-    if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+    # ── Consolidate Duplicate Spanish Courses ────────────────
+    # Find all courses named "Spanish 101"
+    spanish_courses = c.execute("SELECT id FROM courses WHERE name='Spanish 101'").fetchall()
+    if len(spanish_courses) > 1:
+        print(f"[DB] Found {len(spanish_courses)} Spanish 101 courses. Consolidating...")
+        primary_id = "spanish-101"
+        
+        # Purge existing curriculum for the primary ID to ensure we move to stable IDs cleanly
+        c.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (primary_id,))
+        c.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (primary_id,))
+        c.execute("DELETE FROM chapters WHERE course_id = ?", (primary_id,))
+
+        for row in spanish_courses:
+            cid = row[0]
+            if cid != primary_id:
+                # Migrate enrollments to primary ID
+                c.execute("UPDATE enrollments SET course_id=? WHERE course_id=?", (primary_id, cid))
+                
+                # Delete all dependent data for the duplicate course to avoid FK violations
+                c.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id=?) OR context_id IN (SELECT id FROM assignments WHERE course_id=?)", (cid, cid))
+                c.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id=?)", (cid,))
+                c.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id=?)", (cid,))
+                c.execute("DELETE FROM quizzes WHERE course_id=?", (cid,))
+                c.execute("DELETE FROM assignments WHERE course_id=?", (cid,))
+                c.execute("DELETE FROM sessions WHERE course_id=?", (cid,))
+                c.execute("DELETE FROM weekly_reports WHERE course_id=?", (cid,))
+                c.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
+                c.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
+                c.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
+                c.execute("DELETE FROM courses WHERE id = ?", (cid,))
+        print("[DB] Consolidation complete.")
+
+    # ── Seed data only if empty or default course curriculum missing ──
+    has_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
+    has_default_course = c.execute("SELECT COUNT(*) FROM courses WHERE id='spanish-101'").fetchone()[0] > 0
+    has_curriculum = c.execute("SELECT COUNT(*) FROM chapters WHERE course_id='spanish-101'").fetchone()[0] > 0
+    
+    if not has_users or not has_default_course or not has_curriculum:
         _seed_data(c)
     else:
         # ── Migration: ensure all chapters exist ──────────────
@@ -322,26 +367,36 @@ def _seed_data(c):
     """Seed the database with demo lecturer, course, and Aula curriculum."""
 
     # ── Lecturer ────────────────────────────────────────────
-    lecturer_id = _uid()
-    c.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
+    lecturer_id = "lecturer-demo-id"
+    # Use INSERT OR IGNORE for the lecturer
+    c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
               (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
+    
+    # If the user already exists with a different ID (because of the email UNIQUE constraint), 
+    # we MUST find that ID to avoid Foreign Key violations when creating the course.
+    existing = c.execute("SELECT id FROM users WHERE email=?", ("atunca96@gmail.com",)).fetchone()
+    if existing:
+        lecturer_id = existing[0]
 
     # ── Course ──────────────────────────────────────────────
-    course_id = _uid()
-    c.execute("INSERT INTO courses (id, name, semester, textbook, lecturer_id) VALUES (?,?,?,?,?)",
+    course_id = "spanish-101"
+    # Use INSERT OR IGNORE for the course
+    c.execute("INSERT OR IGNORE INTO courses (id, name, semester, textbook, lecturer_id) VALUES (?,?,?,?,?)",
               (course_id, "Spanish 101", "Spring 2026", "/books/textbook.pdf", lecturer_id))
 
     # ── Aula Internacional Plus 1 Curriculum ────────────────
     curriculum = _get_aula_curriculum()
 
     for ch in curriculum:
-        chapter_id = _uid()
-        c.execute("INSERT INTO chapters VALUES (?,?,?,?)",
+        # Use stable ID for chapters
+        chapter_id = f"ch-101-{ch['number']}"
+        c.execute("INSERT OR IGNORE INTO chapters VALUES (?,?,?,?)",
                   (chapter_id, course_id, ch["number"], ch["title"]))
 
         for i, topic in enumerate(ch["topics"]):
-            topic_id = _uid()
-            c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?)",
+            # Use stable ID for topics
+            topic_id = f"topic-101-{ch['number']}-{i+1}"
+            c.execute("INSERT OR IGNORE INTO topics VALUES (?,?,?,?,?,?,?)",
                       (topic_id, chapter_id, topic["type"], topic["title"],
                        topic["difficulty"], json.dumps(topic["content"]), i))
 
@@ -758,7 +813,7 @@ def _generate_seed_questions(topic):
         # are always plausible (numbers with numbers, food with food, etc.)
         categories = _categorize_words(words)
 
-        for spanish, english in items[:8]:
+        for spanish, english in items[:20]:
             # Find which category this word belongs to
             word_cat = None
             for cat, members in categories.items():

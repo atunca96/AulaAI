@@ -1,5 +1,5 @@
 """
-AI Engine — Groq API integration using only Python stdlib.
+AI Engine — OpenRouter API integration using only Python stdlib.
 Zero external dependencies. Falls back to mock data if API key is missing.
 """
 
@@ -15,10 +15,11 @@ def file_log(msg):
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI] {msg}\n")
         f.flush()
 
-OPENROUTER_API_KEY = "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"
+# Railway uses environment variables for security
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "google/gemini-2.0-flash-001"
-file_log(f"AI ENGINE LOADED - MODEL: {MODEL}")
+file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 
 
 def is_ai_available():
@@ -110,7 +111,7 @@ Return ONLY valid JSON:
   "chapters": [
     {{
       "number": 1,
-      "title": "Chapter Title",
+      "title": "Unit Title",
       "topics": [
         {{ "title": "Topic Title", "type": "vocabulary" }},
         {{ "title": "Topic Title", "type": "grammar" }}
@@ -185,14 +186,17 @@ Return ONLY valid JSON:
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6):
     """Generate quiz/practice questions using AI in the specified language."""
+    if not topic_content:
+        topic_content = {}
+        
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
         word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
-        context = f"Vocabulary list: {word_list}"
+        context = f"Vocabulary list: {word_list}" if word_list else "Generate common words for this topic."
     else:
         rules = topic_content.get("rules", [])
         examples = topic_content.get("examples", [])
-        context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
+        context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}" if (rules or examples) else "Generate basic grammar rules for this level."
 
     lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
     prompt = f"""You are a language teacher creating exercises for A1/A2 level students.

@@ -2,15 +2,17 @@
 let currentUser = null;
 let courseId = null;
 let curriculum = [];
+let currentCourse = null;
 let currentLang = 'tr';
 let aiStatus = null;
 let _lastVersion = -1;
 let _syncInterval = null;
+let _buildingCourses = [];
 
 // ── Keep Render alive (ping every 10 min) ──
 setInterval(() => fetch('/api/courses').catch(() => {}), 10 * 60 * 1000);
 
-// ── Live-sync: poll for data changes every 4 seconds ──
+// ── Live-sync: poll for data changes every 1 second ──
 function startLiveSync() {
   if (_syncInterval) clearInterval(_syncInterval);
   _syncInterval = setInterval(async () => {
@@ -24,9 +26,9 @@ function startLiveSync() {
         console.log('[LiveSync] Data changed, refreshing...');
         
         // If data changed, ensure we weren't just kicked
-        const statusCheck = await api('/user/status?user_id=' + currentUser.id);
+        const statusCheck = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
         if (statusCheck && statusCheck.error === 'User not found') {
-          alert(currentLang === 'tr' ? 'Hesabınız silindi veya oturumunuz kapatıldı.' : 'Your account has been removed or logged out.');
+          await showAlert(currentLang === 'tr' ? 'Oturum Kapatıldı' : 'Session Ended', currentLang === 'tr' ? 'Hesabınız silindi veya oturumunuz kapatıldı.' : 'Your account has been removed or logged out.', true);
           logout();
           return;
         }
@@ -34,7 +36,7 @@ function startLiveSync() {
         refreshCurrentView();
       }
     } catch (e) { /* ignore network errors */ }
-  }, 4000);
+  }, 1000);
 }
 
 function stopLiveSync() {
@@ -48,6 +50,9 @@ function refreshCurrentView() {
     return;
   }
   if (currentUser.role === 'lecturer') {
+    if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
+      showClassroomSelection();
+    }
     loadOverview();
     loadQuizList();
     loadAssignmentList();
@@ -104,6 +109,7 @@ const i18n = {
     langBtn: '🌐 TR',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
+    loginTitle: 'Student Login',
     'Lecturer Login': 'Lecturer Login', 'Sign in with your email and password': 'Sign in with your email and password',
     'Student Login': 'Student Login', 'Log in with your student number': 'Log in with your student number',
     'Student Number': 'Student Number', '(required)': '(required)',
@@ -310,7 +316,7 @@ function toggleLanguage() {
       let txt = node.nodeValue.trim();
       if (txt) {
         let matchKey = Object.keys(from).find(k => from[k] === txt);
-        if (matchKey) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
+        if (matchKey && to[matchKey]) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
       }
     } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT') {
       if (node.placeholder) {
@@ -398,7 +404,7 @@ async function completeLogin(user) {
 
   if (currentUser.status === 'pending') {
     try {
-      const check = await api('/user/status?user_id=' + currentUser.id);
+      const check = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
       if (check && check.status === 'approved') {
         currentUser.status = 'approved';
         localStorage.setItem('aula_user', JSON.stringify(currentUser));
@@ -410,7 +416,7 @@ async function completeLogin(user) {
       showScreen('waiting-room-screen');
       const waitingPoll = setInterval(async () => {
         try {
-          const check = await api('/user/status?user_id=' + currentUser.id);
+          const check = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
           if (check && check.status === 'approved') {
             clearInterval(waitingPoll);
             currentUser.status = 'approved';
@@ -419,11 +425,12 @@ async function completeLogin(user) {
             window.location.reload();
           } else if (check && check.error === 'User not found') {
             clearInterval(waitingPoll);
-            alert(currentLang === 'tr' ? 'Hesabınız reddedildi ve silindi.' : 'Your account was rejected and removed.');
+            await showAlert(currentLang === 'tr' ? 'Hesap Reddedildi' : 'Account Rejected', currentLang === 'tr' ? 'Hesabınız reddedildi ve silindi.' : 'Your account was rejected and removed.', true);
             logout();
           }
         } catch(e) {}
-      }, 3000);
+      }, 1000);
+      startLiveSync();
       return;
     }
   }
@@ -431,12 +438,16 @@ async function completeLogin(user) {
   if (currentUser.role === 'lecturer') {
     showClassroomSelection();
   } else {
-    const courses = await api('/courses');
-    if (courses && courses.length) {
-      await selectClassroom(courses[0].id, false);
+    if (currentUser.course_id) {
+      await selectClassroom(currentUser.course_id, false);
     } else {
-      showScreen('student-dashboard');
-      initStudent();
+      const courses = await api('/courses');
+      if (courses && courses.length) {
+        await selectClassroom(courses[0].id, false);
+      } else {
+        showScreen('student-dashboard');
+        initStudent();
+      }
     }
   }
   startLiveSync();
@@ -471,7 +482,11 @@ async function showClassroomSelection() {
                 ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
-            <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>
+            <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
+            <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:8px 12px; margin-bottom:16px; border:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Join Code</span>
+                <span style="font-family:monospace; font-size:16px; color:var(--accent); font-weight:700; letter-spacing:2px;">${c.code}</span>
+            </div>
             
             
             ${isBuilding ? `
@@ -496,14 +511,35 @@ async function showClassroomSelection() {
     style.innerHTML = `@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(100%); } }`;
     document.head.appendChild(style);
   }
+
+  // Detect completion and notify
+  const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
+  _buildingCourses.forEach(id => {
+    if (!currentlyBuilding.includes(id)) {
+      const course = courses.find(c => c.id === id);
+      if (course) {
+        showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
+      }
+    }
+  });
+  _buildingCourses = currentlyBuilding;
 }
 
 async function selectClassroom(id, isLecturer = true) {
-  courseId = id;
   const courses = await api('/courses');
-  const course = courses.find(c => c.id === id);
+  let course = courses.find(c => c.id === id);
+  
+  // Fallback if the course was deleted/consolidated
+  if (!course && courses.length > 0) {
+    course = courses[0];
+    id = course.id;
+  }
+  
+  courseId = id;
   if (course && document.getElementById('nav-course-name')) {
     document.getElementById('nav-course-name').textContent = course.name;
+    const codeEl = document.getElementById('nav-course-code');
+    if (codeEl) codeEl.textContent = '#' + course.code;
   }
 
   // Show building banner if needed
@@ -516,6 +552,7 @@ async function selectClassroom(id, isLecturer = true) {
     }
   }
   
+  currentCourse = course;
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
   
@@ -552,13 +589,13 @@ async function deleteClassroom(id) {
     ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?') 
     : (t('class.delete_confirm') || 'Delete this classroom?');
     
-  if (!confirm(msg)) return;
+  if (!(await showConfirmModal(currentLang === 'tr' ? 'Sınıfı Sil' : 'Delete Classroom', msg, true))) return;
   
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
   if (res.success) {
     showClassroomSelection();
   } else {
-    alert(res.error || 'Failed to delete classroom');
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error || 'Failed to delete classroom', true);
   }
 }
 
@@ -580,7 +617,7 @@ async function handleCreateClassroom(e) {
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
   
-  if (!fileInput.files[0]) return alert('Please select a PDF file');
+  if (!fileInput.files[0]) return showAlert(currentLang === 'tr' ? 'Dosya Gerekli' : 'File Required', 'Please select a PDF file', true);
   
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
@@ -601,7 +638,7 @@ async function handleCreateClassroom(e) {
     const data = await res.json();
     
     if (data.success) {
-      alert(`${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
+      await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
       closeCreateClassroomModal();
       await showClassroomSelection();
       
@@ -643,10 +680,10 @@ async function handleCreateClassroom(e) {
         }
       }
     } else {
-      alert(data.error || 'Failed to create classroom');
+      showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error || 'Failed to create classroom', true);
     }
   } catch (err) {
-    alert('An error occurred during classroom creation.');
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', 'An error occurred during classroom creation.', true);
   } finally {
     statusEl.classList.add('hidden');
     btn.disabled = false;
@@ -973,14 +1010,26 @@ async function loadOverview() {
 }
 
 function loadCurriculum() {
-  document.getElementById('curriculum-tree').innerHTML = curriculum.map((ch, i) => `
-    <div class="chapter-block">
-      <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
-        <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${ch.title}</span></div>
-        <span class="chapter-toggle">▸</span>
-      </div>
-      <div class="chapter-topics">${(ch.topics||[]).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${t.title}</span></div><div class="topic-meta"><span>${t.difficulty}</span><span>${t.question_count||0} questions</span></div></div>`).join('')}</div>
-    </div>`).join('');
+  try {
+    const subtitleEl = document.getElementById('curriculum-subtitle');
+    if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — Content Map`;
+    
+    if (!curriculum || !Array.isArray(curriculum)) {
+      document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">No curriculum data available for this classroom.</p>`;
+      return;
+    }
+
+    document.getElementById('curriculum-tree').innerHTML = curriculum.map((ch, i) => `
+      <div class="chapter-block">
+        <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
+          <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
+          <span class="chapter-toggle">▸</span>
+        </div>
+        <div class="chapter-topics">${(ch.topics||[]).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${esc(t.title)}</span></div><div class="topic-meta"><span>${t.difficulty}</span><span>${t.question_count||0} questions</span></div></div>`).join('')}</div>
+      </div>`).join('');
+  } catch (err) {
+    console.error('Render Error:', err);
+  }
 }
 
 function populateSelects() {
@@ -997,7 +1046,7 @@ function populateSelects() {
 
 async function launchActivity() {
   const topicId = document.getElementById('activity-topic-select').value;
-  if (!topicId) return alert('Please select a topic');
+  if (!topicId) return showAlert(currentLang === 'tr' ? 'Seçim Gerekli' : 'Selection Required', 'Please select a topic', true);
   const data = await api('/activity?topic_id=' + topicId);
   const preview = document.getElementById('activity-preview');
   preview.classList.remove('hidden');
@@ -1103,8 +1152,8 @@ async function createQuiz() {
     currentDraft = {
       type: 'quiz',
       title: title,
+      course_id: courseId,
       chapter_id: chapterId,
-      due_at: null,
       questions: res.questions
     };
     openDraftModal();
@@ -1143,7 +1192,7 @@ async function deleteQuiz(quizId, title) {
   const msg = isTr
     ? `"${title}" sınavını silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci sonuçları da silinir.`
     : `Are you sure you want to delete the quiz "${title}"? This cannot be undone and all student results will be removed.`;
-  if (!confirm(msg)) return;
+  if (!(await showConfirmModal(isTr ? 'Sınavı Sil' : 'Delete Quiz', msg, true))) return;
   const res = await api('/quiz/delete', { method: 'POST', body: { quiz_id: quizId } });
   if (res && !res.error) loadQuizList();
 }
@@ -1251,7 +1300,7 @@ async function takeQuiz(quizId) {
 
   const data = await api(`/quiz/take?quiz_id=${quizId}&student_id=${currentUser.id}`);
   if (data.error) {
-    alert(data.error);
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error, true);
     loadQuizList();
     return;
   }
@@ -1290,7 +1339,7 @@ async function submitQuizAnswers(area) {
 
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
-  const pending = await api('/students/pending').catch(()=>[]);
+  const pending = await api('/students/pending?course_id=' + courseId).catch(()=>[]);
   const isTr = currentLang === 'tr';
   
   // Render pending approvals into separate full-width container
@@ -1333,11 +1382,11 @@ window.openChatFromRoster = async (studentId, studentName) => {
 };
 
 window.approveStudent = async (id) => {
-  await api('/students/approve', { method: 'POST', body: { student_id: id } });
+  await api('/students/approve', { method: 'POST', body: { student_id: id, course_id: courseId } });
   loadStudentRoster();
 };
 
-function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null) {
+function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null, hideCancel = false) {
   return new Promise(resolve => {
     const modal = document.getElementById('confirm-modal');
     document.getElementById('confirm-title').textContent = title;
@@ -1357,6 +1406,9 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     const okBtn = document.getElementById('confirm-ok-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
     
+    if (hideCancel) cancelBtn.style.display = 'none';
+    else cancelBtn.style.display = 'block';
+
     if (isDanger) {
       okBtn.style.background = 'var(--danger)';
       okBtn.style.boxShadow = '0 0 10px rgba(239,68,68,0.4)';
@@ -1380,6 +1432,19 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     modal.classList.remove('hidden');
     if (inputPlaceholder !== null) inputEl.focus();
   });
+}
+
+async function showAlert(title, message, isDanger = false) {
+  return showConfirmModal(title, message, isDanger, null, true);
+}
+
+async function confirmCancelAssignment() {
+  const isTr = currentLang === 'tr';
+  const title = isTr ? 'Ödevi İptal Et' : 'Cancel Assignment';
+  const msg = isTr ? 'Ödevi iptal etmek istediğinize emin misiniz? Tüm ilerlemeniz kaybolacak.' : 'Are you sure you want to cancel the assignment? All progress will be lost.';
+  if (await showConfirmModal(title, msg, true)) {
+    document.getElementById('assignment-taking-area').classList.add('hidden');
+  }
 }
 
 async function deleteStudent(sid, name) {
@@ -1415,10 +1480,10 @@ async function eraseAllData() {
 
   const res = await api('/data/reset', { method: 'POST', body: { confirm: 'ERASE ALL DATA' } });
   if (res.success) {
-    alert(isTr ? 'Tüm veriler silindi.' : 'All data has been erased.');
+    await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', isTr ? 'Tüm veriler silindi.' : 'All data has been erased.');
     location.reload();
   } else {
-    alert(res.error || 'Error');
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error || 'Error', true);
   }
 }
 
@@ -1492,7 +1557,7 @@ async function generateReport() {
             ${r.ai_insights.recommendation ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px 0; color: var(--accent);"><strong>📌 ${isTr ? 'Öneri' : 'Recommendation'}:</strong> ${r.ai_insights.recommendation}</p>` : ''}
             ${r.ai_insights.praise_point ? `<p style="font-size: 14px; line-height: 1.6; margin: 0; color: var(--success);"><strong>🌟 ${isTr ? 'Olumlu' : 'Praise'}:</strong> ${r.ai_insights.praise_point}</p>` : ''}
           </div>
-          <div style="font-size: 11px; color: var(--text-muted); text-align: right; margin-bottom: 8px;">Powered by Groq · Llama 3.3 70B</div>
+          <div style="font-size: 11px; color: var(--text-muted); text-align: right; margin-bottom: 8px;">Powered by OpenRouter · Gemini 2.0 Flash</div>
         ` : `<p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>`}
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.topicsReview}</h3>
         <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
@@ -1644,7 +1709,7 @@ async function deleteAssignment(assignmentId, title) {
   const msg = isTr
     ? `"${title}" ödevini silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci teslimleri de silinir.`
     : `Are you sure you want to delete the assignment "${title}"? This cannot be undone and all student submissions will be removed.`;
-  if (!confirm(msg)) return;
+  if (!(await showConfirmModal(isTr ? 'Ödevi Sil' : 'Delete Assignment', msg, true))) return;
   const res = await api('/assignment/delete', { method: 'POST', body: { assignment_id: assignmentId } });
   if (res && !res.error) loadAssignmentList();
 }
@@ -1801,6 +1866,7 @@ async function createAssignment() {
     currentDraft = {
       type: 'assignment',
       title: title,
+      course_id: courseId,
       chapter_id: chapterId,
       due_at: null,
       questions: res.questions
@@ -1903,7 +1969,7 @@ function saveCustomQuestion() {
   const dist = document.getElementById('cq-distractors').value;
   
   if(!prompt || !answer) {
-    alert('Prompt and Answer are required.');
+    showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'Prompt and Answer are required.', true);
     return;
   }
   
@@ -1927,7 +1993,7 @@ function removeDraftQuestion(index) {
 
 async function publishDraft() {
   if(!currentDraft || currentDraft.questions.length === 0) {
-    alert('You need at least 1 question to publish.');
+    showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'You need at least 1 question to publish.', true);
     return;
   }
   
@@ -1954,7 +2020,7 @@ async function publishDraft() {
       loadAssignmentList();
     }
   } else {
-    alert(res.error);
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error, true);
   }
 }
 
@@ -1967,7 +2033,7 @@ async function takeAssignment(aid) {
 
   const data = await api(`/assignment/take?assignment_id=${aid}&student_id=${currentUser.id}`);
   if (data.error) {
-    alert(data.error);
+    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error, true);
     loadAssignmentList();
     return;
   }
@@ -2016,7 +2082,7 @@ function showAssignmentQuestion(area) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span style="font-size:13px;color:var(--text-muted)">${isTr ? 'Soru' : 'Question'} ${idx + 1} / ${total}</span>
         <button class="btn btn-ghost btn-sm"
-          onclick="if(confirm('${isTr ? 'Ödevi iptal et?' : 'Cancel assignment?'}'))document.getElementById('assignment-taking-area').classList.add('hidden')">
+          onclick="confirmCancelAssignment()">
           ${isTr ? 'İptal' : 'Cancel'}
         </button>
       </div>

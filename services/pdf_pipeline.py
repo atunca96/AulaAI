@@ -10,6 +10,7 @@ import urllib.request
 import time
 from database import db_connection
 from services.ai_engine import parse_toc, generate_topic_content, ai_generate_questions
+from services.state import bump_version
 
 def _uid():
     return str(uuid.uuid4())
@@ -126,25 +127,25 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
     # 4. Update Course and Create structure
     _log("Step 4: Creating classroom structure in DB...")
     with db_connection() as db:
-        db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+        db.execute("UPDATE courses SET language = ?, is_building = 0 WHERE id = ?", (language, course_id))
         
-        for ch in chapters_data:
+        for idx, ch in enumerate(chapters_data):
             chapter_id = _uid()
-            ch_num = ch.get("number", 0)
-            if not isinstance(ch_num, int):
-                try: ch_num = int(ch_num)
-                except: ch_num = 0
+            ch_num = idx + 1 # Force sequential numbering
+            ch_title = str(ch.get("title", "Untitled Chapter"))
+            _log(f"Inserting Chapter {ch_num}: {ch_title}")
             
             db.execute("INSERT INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
-                       (chapter_id, course_id, ch_num, str(ch.get("title", "Untitled Chapter"))))
+                       (chapter_id, course_id, ch_num, ch_title))
             
-            for i, topic in enumerate(ch.get("topics", [])):
+            for topic_idx, topic in enumerate(ch.get("topics", [])):
                 topic_id = _uid()
                 t_title = topic.get("title", "Untitled Topic")
                 t_type = topic.get("type", "vocabulary")
                 db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order) VALUES (?,?,?,?,?,?,?)",
-                           (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), i))
+                           (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx))
         db.commit()
+        bump_version()
     _log("Structure creation complete.")
 
     # Start Phase 2: Enrichment
@@ -166,11 +167,12 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
             chapters = db.execute("SELECT id, title FROM chapters WHERE course_id = ?", (course_id,)).fetchall()
             chapter_map = {c["title"]: c["id"] for c in chapters}
             
-        MAX_TOTAL_TOPICS = 6
+        # Increase limit to cover full curriculum (typically 9-12 chapters, 20-30 topics)
+        MAX_TOTAL_TOPICS = 100 
         topic_count = 0
         
-        _log(f"Generating content for up to {MAX_TOTAL_TOPICS} topics...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        _log(f"Phase 2: Generating content for topics (limit: {MAX_TOTAL_TOPICS})...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = []
             for ch in chapters_data:
                 chapter_id = chapter_map.get(str(ch.get("title")))
@@ -184,7 +186,7 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                     
                     _log(f"Queueing topic: {t_title} ({t_type})")
                     f_content = executor.submit(generate_topic_content, t_title, t_type, language)
-                    f_questions = executor.submit(ai_generate_questions, t_title, t_type, {}, language, 4)
+                    f_questions = executor.submit(ai_generate_questions, t_title, t_type, {}, language, 8)
                     
                     futures.append((chapter_id, t_title, f_content, f_questions))
                     topic_count += 1
@@ -214,6 +216,7 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
+        bump_version()
         _log(f"Phase 2 Complete. Course {course_id} is now fully built.")
     except Exception as e:
         import traceback
