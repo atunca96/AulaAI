@@ -87,10 +87,19 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                     try:
                         return json.loads(clean_content)
                     except json.JSONDecodeError as jde:
+                        # Attempt to salvage truncated JSON by finding the last closing brace/bracket
+                        if clean_content.endswith("...") or len(clean_content) > 1000:
+                            print("[AI] Attempting to salvage truncated JSON...")
+                            last_brace = clean_content.rfind("}")
+                            last_bracket = clean_content.rfind("]")
+                            last_valid = max(last_brace, last_bracket)
+                            if last_valid > 0:
+                                try:
+                                    return json.loads(clean_content[:last_valid+1])
+                                except: pass
+                        
                         print(f"[AI] JSON Decode Error: {jde}. Raw content: {content[:200]}...")
-                        # If it's a list response (questions), return empty list as fallback
                         if clean_content.startswith("["): return []
-                        # If it's a dict response (toc/content), return None and let caller handle
                         raise Exception(f"Malformed JSON from AI: {jde}")
                 return content
         except urllib.error.HTTPError as e:
@@ -115,7 +124,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
 def detect_language(text):
     """Detect the language of the provided text."""
     prompt = f"Detect the language of the following text. Return ONLY a JSON object with a 'language' field (e.g., 'Spanish', 'French', 'German').\n\nText:\n{text[:2000]}"
-    result = _call_ai([{"role": "user", "content": prompt}])
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     return result.get("language", "Unknown") if result else "Unknown"
 
 
@@ -141,7 +150,7 @@ Return ONLY valid JSON:
 
 Text:
 {text}"""
-    result = _call_ai([{"role": "user", "content": prompt}])
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     chapters = result.get("chapters", []) if result else []
     
     if chapters and isinstance(chapters, list) and len(chapters) > 0:
@@ -200,7 +209,8 @@ Return ONLY valid JSON:
   "examples": ["example 1", "example 2"]
 }}"""
 
-    return _call_ai([{"role": "user", "content": prompt}])
+    # Increase max_tokens for detailed topic descriptions
+    return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6):
@@ -239,7 +249,7 @@ Return ONLY valid JSON:
     }}
   ]
 }}"""
-    result = _call_ai([{"role": "user", "content": prompt}])
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     return result.get("questions") if result else None
 
 
@@ -276,7 +286,7 @@ Return ONLY valid JSON:
     }}
   ]
 }}"""
-    result = _call_ai([{"role": "user", "content": prompt}])
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     return result.get("activities") if result else None
 
 
