@@ -46,10 +46,24 @@ function stopLiveSync() {
 function refreshCurrentView() {
   if (!currentUser) return;
 
-  // Track building status for notifications
+  // Track building status for notifications and UI updates
   api('/courses').then(courses => {
     if (!courses || !Array.isArray(courses)) return;
     const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
+    
+    // Auto-update building banner if we're inside a classroom
+    if (currentCourse) {
+        const updated = courses.find(c => c.id === currentCourse.id);
+        if (updated) {
+            currentCourse = updated;
+            const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
+            if (buildBanner) {
+                if (currentCourse.is_building) buildBanner.classList.remove('hidden');
+                else buildBanner.classList.add('hidden');
+            }
+        }
+    }
+
     _buildingCourses.forEach(id => {
         if (!currentlyBuilding.includes(id)) {
             const course = courses.find(c => c.id === id);
