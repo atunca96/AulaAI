@@ -2213,7 +2213,7 @@ function loadQuizList() {
   });
 
   // Update chapter select
-  api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
+  api(`/chapters?course_id=${currentCourse.id}`).then(async chapters => {
       if (!select) return;
       let html = '<option value="">All Lessons</option>';
       for (const ch of chapters) {
@@ -2287,8 +2287,8 @@ function loadAssignmentList() {
     `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">No assignments created yet.</p>';
   });
 
-  // Update chapter select
-  api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
+  // Update topic/chapter select
+  api(`/chapters?course_id=${currentCourse.id}`).then(async chapters => {
       if (!select) return;
       let html = '<option value="">All Lessons</option>';
       for (const ch of chapters) {
