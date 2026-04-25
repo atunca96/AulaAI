@@ -1472,7 +1472,24 @@ async function loadStudentRoster() {
     const pct = Math.round(s.avg_mastery * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')"><div class="flex-between" style="margin-bottom:8px"><div class="student-name" style="margin-bottom:0">${s.name}${schoolNumHtml}</div><div style="display:flex;gap:6px"><button class="btn btn-sm" style="background:var(--accent);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:14px" onclick="event.stopPropagation();openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('Message')}</button><button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);padding:4px 8px;border-radius:6px" onclick="event.stopPropagation();deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">${t('Kick')}</button></div></div><div class="student-mastery-bar"><div class="student-mastery-fill" style="width:${pct}%;background:${masteryColor(s.avg_mastery)}"></div></div><div class="student-meta-row"><span>${t('Mastery:')} ${pct}%</span><span>${s.total_responses} ${t('responses')}</span></div></div>`;
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')">
+      <div class="flex-between" style="margin-bottom:8px; gap:12px">
+        <div class="student-name" style="margin-bottom:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
+          ${s.name}${schoolNumHtml}
+        </div>
+        <div style="display:flex; gap:6px; flex-shrink:0">
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('Message')}</button>
+          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">${t('Kick')}</button>
+        </div>
+      </div>
+      <div class="student-mastery-bar">
+        <div class="student-mastery-fill" style="width:${pct}%; background:${masteryColor(s.avg_mastery)}"></div>
+      </div>
+      <div class="student-meta-row">
+        <span>${t('Mastery:')} ${pct}%</span>
+        <span>${s.total_responses} ${t('responses')}</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -1592,10 +1609,34 @@ async function showStudentDetail(sid, name) {
   const data = await api('/student/progress?student_id=' + sid);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML = `<h2 style="margin-bottom:20px">${name}</h2><h3 style="margin-bottom:16px">Topic Mastery</h3>${(data.masteries || []).map(m => {
-    const pct = Math.round(m.score * 100);
-    return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
-  }).join('')}<h3 style="margin:24px 0 16px">Recent Activity</h3>${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}`;
+  
+  const isTr = currentLang === 'tr';
+  const L = {
+    management: isTr ? 'Öğrenci Yönetimi' : 'Student Management',
+    message: isTr ? 'Mesaj Gönder' : 'Send Message',
+    kick: isTr ? 'Sınıftan At' : 'Kick from Class',
+    mastery: isTr ? 'Konu Başarısı' : 'Topic Mastery',
+    activity: isTr ? 'Son Etkinlikler' : 'Recent Activity'
+  };
+
+  document.getElementById('student-detail-body').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
+      <h2 style="margin:0">${name}</h2>
+      <div style="display:flex; gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 ${L.message}</button>
+        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 ${L.kick}</button>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom:16px">${L.mastery}</h3>
+    ${(data.masteries || []).map(m => {
+      const pct = Math.round(m.score * 100);
+      return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
+    }).join('')}
+
+    <h3 style="margin:24px 0 16px">${L.activity}</h3>
+    ${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}
+  `;
 }
 
 async function generateReport() {
