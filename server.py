@@ -361,7 +361,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM sessions")
             db.execute("DELETE FROM enrollments")
             db.execute("DELETE FROM messages")
-            db.execute("DELETE FROM users WHERE role = 'student'")
+            # Thoroughly delete student users by both role and email pattern
+            db.execute("DELETE FROM users WHERE role = 'student' OR email LIKE '%@student.aulaai'")
             db.execute("DELETE FROM weekly_reports")
             db.commit()
 
@@ -576,19 +577,32 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if user:
                 # Existing student — verify name matches
                 user = dict(user)
-                if user["name"].strip().lower() != name.strip().lower():
-                    return self._send_error("Student number and name do not match")
                 
-                # Check if already enrolled or add enrollment
-                enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
-                if not enr:
-                    # New enrollment for this classroom is ALWAYS pending
+                # Check if this user has ANY enrollments in the entire system
+                has_any_enrollment = db.execute("SELECT 1 FROM enrollments WHERE student_id = ?", (user["id"],)).fetchone()
+                
+                if not has_any_enrollment:
+                    # Orphaned user from a previous reset/partial deletion
+                    # Allow them to re-register with a new name
+                    db.execute("UPDATE users SET name = ?, status = 'pending' WHERE id = ?", (name, user["id"]))
                     db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
                                (_uid(), user["id"], course_id, "pending"))
                     db.commit()
+                    user["name"] = name
                     current_status = "pending"
+                elif user["name"].strip().lower() != name.strip().lower():
+                    return self._send_error("Student number and name do not match")
                 else:
-                    current_status = enr["status"] or "pending"
+                    # Check if already enrolled in THIS classroom
+                    enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
+                    if not enr:
+                        # New enrollment for this classroom is ALWAYS pending
+                        db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
+                                   (_uid(), user["id"], course_id, "pending"))
+                        db.commit()
+                        current_status = "pending"
+                    else:
+                        current_status = enr["status"] or "pending"
 
                 self._send_json({
                     "success": True,
