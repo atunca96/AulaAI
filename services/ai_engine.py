@@ -243,27 +243,31 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     """Generate both content and questions in a single LLM call for maximum speed."""
     lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
     
+    structure = """
+      "content": { ... },
+      "questions": [
+        { "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] },
+        { "type": "fill_blank", "prompt": "...", "answer": "..." }
+      ]
+    """
+    
     if topic_type == "vocabulary":
-        structure = """
-          "content": { "words": { "word": "translation" } },
-          "questions": [ { "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] } ]
-        """
-        detail = "Include 10-15 essential words/phrases with their English translations."
+        detail = "Include 10-15 essential words/phrases with their English translations in the 'content.words' object."
     else:
-        structure = """
-          "content": { "rules": ["..."], "examples": ["..."] },
-          "questions": [ { "type": "fill_blank", "prompt": "...", "answer": "..." } ]
-        """
-        detail = "Include 3-5 clear rules and 4 illustrative examples."
+        detail = "Include 3-5 clear rules and 4 illustrative examples in 'content.rules' and 'content.examples'."
 
     prompt = f"""Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
     
     1. CONTENT: {detail}
-    2. QUESTIONS: Generate exactly {question_count} interactive questions (mix of 'mcq' and 'fill_blank').
+    2. QUESTIONS: Generate exactly {question_count} interactive questions.
+       - Use 'mcq' for multiple choice (MUST include exactly 3 'distractors').
+       - Use 'fill_blank' for fill in the blank.
+       - Provide a mix of both types.
     
-    Return ONLY valid JSON:
+    Return ONLY valid JSON with this exact structure:
     {{
-      {structure}
+      "content": {{ ... }},
+      "questions": [ {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}, ... ]
     }}"""
     
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)

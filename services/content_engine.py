@@ -286,8 +286,23 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
             q = dict(row)
             # Ensure no duplicates in the pool
             if q["id"] in [sq["id"] for sq in questions]: continue
-            if q["distractors"]:
-                q["distractors"] = json.loads(q["distractors"])
+            
+            # Handle missing distractors for MCQ
+            if q["type"] == "mcq" and (not q["distractors"] or q["distractors"] == "[]"):
+                # Fallback: pull other answers from the same topic as distractors
+                others = [r["answer"] for r in rows if r["id"] != q["id"] and r["type"] == q["type"]]
+                if len(others) >= 3:
+                    random.shuffle(others)
+                    q["distractors"] = others[:3]
+                else:
+                    # Generic fallback if not enough other questions
+                    q["distractors"] = ["Option A", "Option B", "Option C"] if currentLang == 'en' else ["Seçenek A", "Seçenek B", "Seçenek C"]
+            elif q["distractors"]:
+                try:
+                    q["distractors"] = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                except:
+                    q["distractors"] = []
+            
             questions.append(q)
 
     random.shuffle(questions)
