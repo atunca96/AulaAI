@@ -165,7 +165,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
             futures = []
             for ch in chapters_data:
                 chapter_id = ch.get("id")

@@ -2193,3 +2193,149 @@ async function submitAssignment(area) {
   }
 }
 
+function openCreateQuizModal() {
+    document.getElementById('create-quiz-modal').classList.remove('hidden');
+    renderTopicSelectionList('quiz');
+}
+
+function closeCreateQuizModal() {
+    document.getElementById('create-quiz-modal').classList.add('hidden');
+}
+
+function openCreateAssignmentModal() {
+    document.getElementById('create-assignment-modal').classList.remove('hidden');
+    renderTopicSelectionList('assignment');
+}
+
+function closeCreateAssignmentModal() {
+    document.getElementById('create-assignment-modal').classList.add('hidden');
+}
+
+async function renderTopicSelectionList(type) {
+    const container = document.getElementById(`${type}-topic-selection-list`);
+    if (!container) return;
+    
+    container.innerHTML = `<div style="padding:20px; text-align:center;"><div class="spinner-small"></div></div>`;
+    
+    try {
+        const chapters = await api(`/chapters?course_id=${currentCourse.id}`);
+        if (!chapters || !Array.isArray(chapters)) {
+            container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--danger);">Failed to load curriculum.</div>`;
+            return;
+        }
+        
+        let html = '';
+        for (const ch of chapters) {
+            const topics = await api(`/topics?chapter_id=${ch.id}`);
+            if (topics && topics.length > 0) {
+                html += `<div style="margin-bottom:12px;">
+                    <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:flex; align-items:center; gap:8px; padding:0 4px;">
+                        U${ch.number} — ${esc(ch.title)}
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        ${topics.map(t => `
+                            <label class="topic-selection-item" style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; cursor:pointer; background:rgba(255,255,255,0.03); transition:background 0.2s;">
+                                <input type="checkbox" name="${type}-topics" value="${t.id}" style="width:16px; height:16px; accent-color:var(--accent);">
+                                <div style="flex:1;">
+                                    <div style="font-size:13px; font-weight:500;">${esc(t.title)}</div>
+                                    <div style="font-size:10px; color:var(--text-muted); text-transform:capitalize;">${t.type}</div>
+                                </div>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>`;
+            }
+        }
+        
+        container.innerHTML = html || `<div style="padding:20px; text-align:center; color:var(--text-muted);">No topics found.</div>`;
+        
+        if (!document.getElementById('topic-selection-styles')) {
+            const style = document.createElement('style');
+            style.id = 'topic-selection-styles';
+            style.innerHTML = `
+                .topic-selection-item:hover { background: rgba(255,255,255,0.08) !important; }
+                .topic-selection-item input:checked + div { color: var(--accent); }
+            `;
+            document.head.appendChild(style);
+        }
+    } catch(e) {
+        container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--danger);">Error loading topics.</div>`;
+    }
+}
+
+function selectAllTopics(type) {
+    document.querySelectorAll(`input[name="${type}-topics"]`).forEach(cb => cb.checked = true);
+}
+
+function deselectAllTopics(type) {
+    document.querySelectorAll(`input[name="${type}-topics"]`).forEach(cb => cb.checked = false);
+}
+
+async function handleCreateQuiz() {
+    const title = document.getElementById('quiz-title-input').value.trim();
+    const count = parseInt(document.getElementById('quiz-q-count').value);
+    const selected = Array.from(document.querySelectorAll('input[name="quiz-topics"]:checked')).map(cb => cb.value);
+    
+    if (!title) return showAlert('Missing Info', 'Please enter a quiz title.', true);
+    if (selected.length === 0) return showAlert('Missing Selection', 'Please select at least one lesson.', true);
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+    
+    const res = await api('/quiz/create', {
+        method: 'POST',
+        body: {
+            course_id: currentCourse.id,
+            title: title,
+            topic_ids: selected,
+            count: count
+        }
+    });
+    
+    if (res.error) {
+        showAlert('Error', res.error, true);
+    } else {
+        closeCreateQuizModal();
+        loadQuizList();
+        showAlert('Success', 'Quiz created successfully!');
+    }
+    btn.disabled = false;
+    btn.textContent = originalText;
+}
+
+async function handleCreateAssignment() {
+    const title = document.getElementById('assignment-title-input').value.trim();
+    const count = parseInt(document.getElementById('assignment-q-count').value);
+    const selected = Array.from(document.querySelectorAll('input[name="assignment-topics"]:checked')).map(cb => cb.value);
+    
+    if (!title) return showAlert('Missing Info', 'Please enter an assignment title.', true);
+    if (selected.length === 0) return showAlert('Missing Selection', 'Please select at least one lesson.', true);
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+    
+    const res = await api('/assignment/create', {
+        method: 'POST',
+        body: {
+            course_id: currentCourse.id,
+            title: title,
+            topic_ids: selected,
+            count: count
+        }
+    });
+    
+    if (res.error) {
+        showAlert('Error', res.error, true);
+    } else {
+        closeCreateAssignmentModal();
+        loadAssignmentList();
+        showAlert('Success', 'Assignment created successfully!');
+    }
+    btn.disabled = false;
+    btn.textContent = originalText;
+}
+
