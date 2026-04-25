@@ -160,11 +160,49 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             db.commit()
         _log("Structure creation complete.")
         
-        # Phase 2: Enrichment
-        _log("Phase 2: Starting content enrichment...")
+        # Phase 2: Enrichment is now handled by worker.py calling enrich_classroom_phase2
+        _log(f"Phase 1 Complete for {course_id}. Worker will now take over for Phase 2.")
+
+    except Exception as e:
+        _log(f"CRITICAL ERROR in Phase 1: {e}")
+        traceback.print_exc()
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.commit()
+
+def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
+    """
+    Standalone entry point for Phase 2 enrichment.
+    Called by worker.py.
+    """
+    import traceback
+    start_time = datetime.now()
+    manual_toc = None
+    if manual_toc_path and os.path.exists(manual_toc_path):
+        with open(manual_toc_path, "r", encoding="utf-8") as f:
+            manual_toc = f.read()
+
+    try:
+        # Get language and structure from DB
+        with db_connection() as db:
+            course = db.execute("SELECT language FROM courses WHERE id = ?", (course_id,)).fetchone()
+            language = course["language"] if course else "Unknown"
+            
+            chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
+            chapters_data = []
+            for ch in chapters:
+                topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)).fetchall()
+                chapters_data.append({
+                    "id": ch["id"],
+                    "title": ch["title"],
+                    "topics": [dict(t) for t in topics]
+                })
+
+        _log(f"Phase 2: Starting content enrichment for {course_id} ({language})...")
         with db_connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.commit()
+
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
@@ -188,34 +226,43 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             completed = 0
             for t_id, t_title, f_lesson in futures:
                 _log(f"Finalizing topic: {t_title}...")
-                lesson = f_lesson.result() or {}
-                content = lesson.get("content", {})
-                questions = lesson.get("questions", [])
-                
-                with db_connection() as db:
-                    if t_id:
-                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), t_id))
-                        for q in questions:
-                            p_val = q.get("prompt", "")
-                            p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)
-                            a_val = q.get("answer", "")
-                            a_text = json.dumps(a_val, ensure_ascii=False) if isinstance(a_val, (list, dict)) else str(a_val)
-                            d_list = q.get("distractors", [])
-                            if not isinstance(d_list, list): d_list = [d_list] if d_list else []
-                            
-                            db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                       (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
-                    db.commit()
-                completed += 1
-                print(f"[PIPELINE] Topic {completed}/{len(futures)} finalized: {t_title}")
-                sys.stdout.flush()
-        
+                try:
+                    lesson = f_lesson.result() or {}
+                    content = lesson.get("content", {})
+                    questions = lesson.get("questions", [])
+                    
+                    with db_connection() as db:
+                        if t_id:
+                            db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), t_id))
+                            for q in questions:
+                                p_val = q.get("prompt", "")
+                                p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)
+                                a_val = q.get("answer", "")
+                                a_text = json.dumps(a_val, ensure_ascii=False) if isinstance(a_val, (list, dict)) else str(a_val)
+                                d_list = q.get("distractors", [])
+                                if not isinstance(d_list, list): d_list = [d_list] if d_list else []
+                                
+                                db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                           (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
+                        db.commit()
+                    completed += 1
+                    print(f"[PIPELINE] Topic {completed}/{len(futures)} finalized: {t_title}")
+                    sys.stdout.flush()
+                except Exception as e:
+                    _log(f"ERROR finalizing topic '{t_title}': {e}")
+
         _log(f"Phase 2 Complete. Duration: {(datetime.now() - start_time).total_seconds():.1f}s")
         with db_connection() as db:
-            db.execute("PRAGMA journal_mode=WAL")
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
         bump_version()
+
+    except Exception as e:
+        _log(f"FATAL ERROR in Phase 2: {e}")
+        traceback.print_exc()
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.commit()
         
     except Exception as e:
         _log(f"CRITICAL ERROR: {e}")
