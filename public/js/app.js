@@ -3,7 +3,7 @@ let currentUser = null;
 let courseId = null;
 let curriculum = [];
 let currentCourse = null;
-let currentLang = 'tr';
+let currentLang = 'en';
 let aiStatus = null;
 let _lastVersion = -1;
 let _syncInterval = null;
@@ -28,7 +28,7 @@ function startLiveSync() {
         // If data changed, ensure we weren't just kicked
         const statusCheck = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
         if (statusCheck && statusCheck.error === 'User not found') {
-          await showAlert(currentLang === 'tr' ? 'Oturum Kapatıldı' : 'Session Ended', currentLang === 'tr' ? 'Hesabınız silindi veya oturumunuz kapatıldı.' : 'Your account has been removed or logged out.', true);
+          await showAlert(t('alert.session_ended'), t('alert.account_removed'), true);
           logout();
           return;
         }
@@ -68,7 +68,7 @@ function refreshCurrentView() {
       if (!currentlyBuilding.includes(id)) {
         const course = courses.find(c => c.id === id);
         if (course) {
-          showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
+          showAlert(t('Tebrikler!'), `"${course.name}" ${t('is ready!')}`);
           // Force a list refresh to show the "Enter" button
           if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
             showClassroomSelection();
@@ -243,10 +243,43 @@ const i18n = {
     'class.toc_range': 'Contents Page Range (e.g. 2-5)',
     'class.toc_placeholder': '2-5',
     'class.processing': 'Processing PDF & generating curriculum... This may take a minute.',
-    'class.start_pipeline': 'Start Pipeline'
+    'class.start_pipeline': 'Start Pipeline',
+    'gen.loading': 'Questions are being generated...',
+    'gen.time': 'This may take 5-10 seconds.',
+    'Unit': 'Unit',
+    'SelectTopic': 'Select a topic...',
+    'AllChapters': 'All chapters',
+    'ok': 'OK',
+    'cancel': 'Cancel',
+    'confirm.delete_classroom': 'Delete Classroom',
+    'confirm.delete_quiz': 'Delete Quiz',
+    'confirm.delete_assignment': 'Delete Assignment',
+    'confirm.start_assignment_title': 'Start Assignment',
+    'confirm.start_assignment_msg': 'Are you sure? Once you start, you cannot go back or cancel without submitting.',
+    'confirm.kick_student_title': 'Kick Student',
+    'confirm.kick_student_msg': 'Are you sure you want to kick this student from the class? This cannot be undone.',
+    'confirm.erase_all_title': 'ERASE ALL DATA',
+    'confirm.erase_all_msg1': 'This will permanently remove all student accounts, results, and mastery data. The curriculum will stay. Are you sure?',
+    'confirm.erase_all_msg2': 'LAST WARNING: Type "ERASE ALL DATA" to confirm absolute deletion.',
+    'alert.session_ended': 'Session Ended',
+    'alert.account_removed': 'Your account has been removed or logged out.'
   },
   tr: {
     langBtn: '🌐 EN',
+    ok: 'Tamam',
+    cancel: 'İptal',
+    'confirm.delete_classroom': 'Sınıfı Sil',
+    'confirm.delete_quiz': 'Sınavı Sil',
+    'confirm.delete_assignment': 'Ödevi Sil',
+    'confirm.start_assignment_title': 'Ödeve Başla',
+    'confirm.start_assignment_msg': 'Emin misiniz? Ödeve başladıktan sonra geri dönemezsiniz, yarıda bırakmak yarım teslim yapmanıza sebep olabilir.',
+    'confirm.kick_student_title': 'Öğrenciyi At',
+    'confirm.kick_student_msg': 'Bu öğrenciyi sınıftan atmak istediğinize emin misiniz? Bu işlem geri alınamaz.',
+    'confirm.erase_all_title': 'TÜM VERİLERİ SİL',
+    'confirm.erase_all_msg1': 'Bu işlem tüm öğrenci hesaplarını, sonuçlarını ve başarı verilerini kalıcı olarak silecektir. Müfredat kalacaktır. Emin misiniz?',
+    'confirm.erase_all_msg2': 'SON UYARI: Kesin silme işlemini onaylamak için "ERASE ALL DATA" yazın.',
+    'alert.session_ended': 'Oturum Kapatıldı',
+    'alert.account_removed': 'Hesabınız silindi veya oturumunuz kapatıldı.',
     loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
@@ -334,49 +367,50 @@ const i18n = {
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
     'class.create': 'PDF\'den Yeni Sınıf Oluştur',
     'class.enter': 'Sınıfa Gir',
-    'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
+'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
     'class.upload_pdf': 'PDF Ders Kitabı Yükle',
     'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 2-5)',
     'class.toc_placeholder': '2-5',
     'class.processing': 'PDF işleniyor ve müfredat oluşturuluyor... Bu işlem bir dakika sürebilir.',
-    'class.start_pipeline': 'İşlemi Başlat'
+    'class.start_pipeline': 'İşlemi Başlat',
+    'gen.loading': 'Sorular oluşturuluyor...',
+    'gen.time': 'Bu işlem 5-10 saniye sürebilir.',
+    'Unit': 'Ünite',
+    'SelectTopic': 'Bir konu seçin...',
+    'AllChapters': 'Tüm üniteler',
+    'ok': 'Tamam',
+    'cancel': 'İptal'
   }
 };
 
-function t(key) { return i18n[currentLang][key] || key; }
+function t(key) { return (i18n[currentLang] && i18n[currentLang][key]) || key; }
+
+function applyTranslations() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (i18n[currentLang][key]) {
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = i18n[currentLang][key];
+      } else {
+        el.textContent = i18n[currentLang][key];
+      }
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (i18n[currentLang][key]) {
+      el.placeholder = i18n[currentLang][key];
+    }
+  });
+  // Update the toggle button
+  const langBtn = document.getElementById('lang-btn');
+  if (langBtn) langBtn.textContent = t('langBtn');
+}
 
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
-  localStorage.setItem('aula_lang', currentLang);
-  document.getElementById('lang-btn').textContent = t('langBtn');
-
-  const from = currentLang === 'en' ? i18n['tr'] : i18n['en'];
-  const to = currentLang === 'en' ? i18n['en'] : i18n['tr'];
-
-  const walkDOM = (node) => {
-    if (node.nodeType === 3) {
-      let txt = node.nodeValue.trim();
-      if (txt) {
-        let matchKey = Object.keys(from).find(k => from[k] === txt);
-        if (matchKey && to[matchKey]) node.nodeValue = node.nodeValue.replace(txt, to[matchKey]);
-      }
-    } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT') {
-      if (node.placeholder) {
-        let matchKey = Object.keys(from).find(k => from[k] === node.placeholder);
-        if (matchKey) node.placeholder = to[matchKey];
-      }
-      if (node.dataset && node.dataset.i18nPlaceholder) {
-        const key = node.dataset.i18nPlaceholder;
-        if (to[key]) node.placeholder = to[key];
-      }
-      if (node.dataset && node.dataset.i18n) {
-        const key = node.dataset.i18n;
-        if (to[key]) node.textContent = to[key];
-      }
-      for (let child = node.firstChild; child; child = child.nextSibling) walkDOM(child);
-    }
-  };
-  walkDOM(document.body);
+  // Note: We don't save to localStorage because user wants EN on refresh
+  applyTranslations();
 
   // Re-render all dynamic content in the correct language
   if (currentUser) {
@@ -471,7 +505,7 @@ async function completeLogin(user, isFresh = false) {
             window.location.reload();
           } else if (check && check.error === 'User not found') {
             clearInterval(waitingPoll);
-            await showAlert(currentLang === 'tr' ? 'Hesap Reddedildi' : 'Account Rejected', currentLang === 'tr' ? 'Hesabınız reddedildi ve silindi.' : 'Your account was rejected and removed.', true);
+            await showAlert(t('alert.session_ended'), t('alert.account_removed'), true);
             logout();
           }
         } catch (e) { }
@@ -533,7 +567,7 @@ async function showClassroomSelection() {
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
-                ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+                ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
@@ -586,7 +620,7 @@ async function selectClassroom(id, isLecturer = true) {
   const inboxReplyArea = document.getElementById('inbox-reply-area');
   if (inboxReplyArea) inboxReplyArea.classList.add('hidden');
   const inboxTitle = document.getElementById('inbox-title');
-  if (inboxTitle) inboxTitle.innerHTML = `📥 <span data-i18n="inbox">Inbox</span>`;
+  if (inboxTitle) inboxTitle.innerHTML = `📥 <span data-i18n="inbox">${t('inbox')}</span>`;
 
   // 2. Fetch course data
   const courses = await api('/courses');
@@ -647,14 +681,14 @@ async function selectClassroom(id, isLecturer = true) {
   localStorage.setItem('aula_last_course', id);
 }
 
-async function deleteClassroom(id) {
+async function deleteClassroom(id, name) {
   const course = (window.allCourses) ? window.allCourses.find(c => c.id === id) : null;
   const isBuilding = course && course.is_building === 1;
   const msg = isBuilding
     ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?')
-    : (t('class.delete_confirm') || 'Delete this classroom?');
+    : (currentLang === 'tr' ? `"${name}" sınıfını silmek istediğinize emin misiniz?` : `Are you sure you want to delete the classroom "${name}"?`);
 
-  if (!(await showConfirmModal(currentLang === 'tr' ? 'Sınıfı Sil' : 'Delete Classroom', msg, true))) return;
+  if (!(await showConfirmModal(t('confirm.delete_classroom'), msg, true))) return;
 
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
   if (res.success) {
@@ -762,7 +796,7 @@ async function handleCreateClassroom(e) {
               <div class="card-body">
                   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                       <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
-                      ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+                      ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
                   </div>
                   <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
                   <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>
@@ -772,7 +806,7 @@ async function handleCreateClassroom(e) {
                       <div class="spinner-small" style="border-top-color:var(--accent);"></div>
                     </div>
                     <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
-                    <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}')">
+                    <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')">
                       ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}
                     </button>
                   ` : ''}
@@ -842,8 +876,9 @@ function logout() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  const savedLang = localStorage.getItem('aula_lang');
-  if (savedLang && savedLang !== currentLang) toggleLanguage();
+  // Force English on refresh per user request
+  currentLang = 'en';
+  applyTranslations();
 
   // Apply saved theme and HUD size
   const savedTheme = localStorage.getItem('aula_theme') || 'dark';
@@ -945,7 +980,7 @@ async function loadInbox() {
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
-  document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">Inbox</span>`;
+  document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">${t('inbox')}</span>`;
   currentChatStudentId = null;
 
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
@@ -1164,26 +1199,24 @@ function loadCurriculum() {
 function populateSelects() {
   let topicOpts = '', chapterOpts = '';
   curriculum.forEach(ch => {
-    chapterOpts += `<option value="${ch.id}">Unit ${ch.number}: ${ch.title}</option>`;
+    chapterOpts += `<option value="${ch.id}">${t('Unit')} ${ch.number}: ${ch.title}</option>`;
     (ch.topics || []).forEach(t => { topicOpts += `<option value="${t.id}">U${ch.number} — ${t.title} (${t.type})</option>`; });
   });
-  document.getElementById('activity-topic-select').innerHTML = '<option value="">Select a topic...</option>' + topicOpts;
-  document.getElementById('quiz-chapter-select').innerHTML = '<option value="">All chapters</option>' + chapterOpts;
+  document.getElementById('activity-topic-select').innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
+  document.getElementById('quiz-chapter-select').innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
   const as = document.getElementById('assignment-chapter-select');
-  if (as) as.innerHTML = '<option value="">All chapters</option>' + chapterOpts;
+  if (as) as.innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
 }
 
 function showGenerationLoading(el) {
-  const isTr = currentLang === 'tr';
-  const loadingMsg = isTr ? 'Sorular oluşturuluyor...' : 'Questions are being generated...';
   el.innerHTML = `
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg);">
       <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
-      <h3 style="margin-bottom:12px;">${loadingMsg}</h3>
+      <h3 style="margin-bottom:12px;">${t('gen.loading')}</h3>
       <div class="progress-container" style="background:rgba(255,255,255,0.05); height:8px; border-radius:4px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
         <div class="progress-bar-shimmer"></div>
       </div>
-      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">${isTr ? 'Bu işlem 5-10 saniye sürebilir.' : 'This may take 5-10 seconds.'}</p>
+      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">${t('gen.time')}</p>
     </div>
     <style>
       .bot-animation {
@@ -1233,7 +1266,7 @@ async function launchActivity() {
     preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (data.topic?.title||'') + '</h2>' + (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
   } catch (err) {
     preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
-      ${isTr ? 'Bir hata oluştu.' : 'An error occurred during generation.'}
+      ${currentLang === 'tr' ? 'Bir hata oluştu.' : 'An error occurred during generation.'}
     </div>`;
   }
 }
@@ -1349,7 +1382,6 @@ async function loadQuizList() {
   const quizzes = await api(`/quizzes?course_id=${courseId}&student_id=${currentUser.id}`);
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
-  const isTr = currentLang === 'tr';
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${t('noQuizzes')}</p>`
     : quizzes.map(q => {
       if (currentUser.role === 'lecturer') {
@@ -1357,28 +1389,25 @@ async function loadQuizList() {
             <div class="card-body flex-between">
               <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}','${esc(q.title)}')">
                 <strong>${q.title}</strong>
-                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()}</div>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${isTr ? 'Önizle' : 'Preview'}</button>
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${isTr ? 'Sonuçlar' : 'Results'}</button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${isTr ? 'Sil' : 'Delete'}</button>
+                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${t('View')}</button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${t('view')}</button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${t('close')}</button>
               </div>
             </div>
           </div>`;
       } else {
         const isCompleted = q.is_completed;
-        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
+        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
       }
     }).join('');
 }
 
 async function deleteQuiz(quizId, title) {
-  const isTr = currentLang === 'tr';
-  const msg = isTr
-    ? `"${title}" sınavını silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci sonuçları da silinir.`
-    : `Are you sure you want to delete the quiz "${title}"? This cannot be undone and all student results will be removed.`;
-  if (!(await showConfirmModal(isTr ? 'Sınavı Sil' : 'Delete Quiz', msg, true))) return;
+  const msg = currentLang === 'tr' ? `"${title}" sınavını silmek istediğinize emin misiniz?` : `Are you sure you want to delete the quiz "${title}"?`;
+  if (!(await showConfirmModal(t('confirm.delete_quiz'), msg, true))) return;
   const res = await api('/quiz/delete', { method: 'POST', body: { quiz_id: quizId } });
   if (res && !res.error) loadQuizList();
 }
@@ -1393,45 +1422,29 @@ async function viewQuiz(quizId, title) {
     api('/quiz/responses?quiz_id=' + quizId)
   ]);
 
-  const isTr = currentLang === 'tr';
-  const L = {
-    questions: isTr ? 'Sorular' : 'Questions',
-    studentResponses: isTr ? 'Öğrenci Cevapları' : 'Student Responses',
-    answerKey: isTr ? 'Cevap Anahtarı' : 'Answer Key',
-    answer: isTr ? 'Cevap' : 'Answer',
-    noResponses: isTr ? 'Henüz hiçbir öğrenci bu sınavı çözmedi.' : 'No students have taken this quiz yet.',
-    studentCount: isTr ? 'öğrenci çözdü' : 'students completed',
-    score: isTr ? 'Puan' : 'Score',
-    studentAnswer: isTr ? 'Öğrenci Cevabı' : "Student's Answer",
-    correctAnswer: isTr ? 'Doğru Cevap' : 'Correct Answer',
-    correct: isTr ? 'Doğru' : 'Correct',
-    incorrect: isTr ? 'Yanlış' : 'Incorrect',
-    avgScore: isTr ? 'Ortalama' : 'Average'
-  };
-
   const studentResults = respData.student_results || [];
 
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">${title}</h2>
-    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${quizData.questions.length} ${L.questions.toLowerCase()} · ${studentResults.length} ${L.studentCount}</div>
+    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${quizData.questions.length} ${t('questions')} · ${studentResults.length} ${t('responses')}</div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 ${L.answerKey}</button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 ${L.studentResponses} (${studentResults.length})</button>
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 ${t('answer')}</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 ${t('responses')} (${studentResults.length})</button>
     </div>
 
     <div id="qv-questions">
       ${quizData.questions.map((q, i) => `
         <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
           <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${q.prompt}</div>
-          <div style="font-size:13px">${L.answer}: <strong style="color:var(--success)">${q.answer}</strong></div>
+          <div style="font-size:13px">${t('answer')}: <strong style="color:var(--success)">${q.answer}</strong></div>
         </div>
       `).join('')}
     </div>
 
     <div id="qv-responses" style="display:none">
       ${studentResults.length === 0
-      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${t('noQuizzes')}</p>`
       : studentResults.map(sr => {
         const avgPct = Math.round(sr.average_score * 100);
         const correctCount = sr.answers.filter(a => a.is_correct).length;
@@ -1440,7 +1453,7 @@ async function viewQuiz(quizId, title) {
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
                     <strong style="font-size:15px">${sr.student_name}</strong>
-                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${L.correct.toLowerCase()}</span>
+                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${t('correct')}</span>
                   </div>
                   <div style="display:flex; align-items:center; gap:10px">
                     <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
@@ -1456,8 +1469,8 @@ async function viewQuiz(quizId, title) {
                         <div style="flex:1">
                           <div style="margin-bottom:4px; font-weight:500">${a.prompt}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            <span>${t('yourScore')}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
+                            ${!isRight ? `<span>${t('correctAns')}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
                       </div>`;
@@ -1478,15 +1491,12 @@ function switchQuizViewTab(btn, panelId) {
 }
 
 async function takeQuiz(quizId) {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? 'Sınava Başla' : 'Start Quiz';
-  const msg = isTr ? 'Emin misiniz? Sınava başladıktan sonra soruları görüp geri dönemezsiniz, yarıda bırakmak 0 puan almanıza sebep olabilir.' : 'Are you sure? Once you start, you cannot go back or cancel without submitting.';
-  const confirmed = await showConfirmModal(title, msg);
+  const confirmed = await showConfirmModal(t('confirm.start_assignment_title'), t('confirm.start_assignment_msg'));
   if (!confirmed) return;
 
   const data = await api(`/quiz/take?quiz_id=${quizId}&student_id=${currentUser.id}`);
   if (data.error) {
-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error, true);
+    showAlert(t('confirm.delete_classroom'), data.error, true);
     loadQuizList();
     return;
   }
@@ -1506,7 +1516,7 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` +
-    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="${currentLang === 'tr' ? 'Cevabınızı yazın...' : 'Type your answer...'}" onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${currentLang === 'tr' ? 'Gönder' : 'Submit'}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -1526,14 +1536,13 @@ async function submitQuizAnswers(area) {
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
   const pending = await api('/students/pending?course_id=' + courseId).catch(() => []);
-  const isTr = currentLang === 'tr';
 
   // Render pending approvals into separate full-width container
   const pendingEl = document.getElementById('pending-roster');
   if (pendingEl) {
     if (pending && pending.length > 0) {
       pendingEl.innerHTML = `<div style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05));padding:20px;border-radius:16px;border:1px solid rgba(139,92,246,0.3);margin-bottom:24px">
-        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ ${isTr ? 'Bekleyen Onaylar' : 'Pending Approvals'} (${pending.length})</h3>
+        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ ${t('Account Pending Approval')} (${pending.length})</h3>
         ${pending.map(s => `
           <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:14px 20px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
             <div style="min-width:0;flex:1;overflow:hidden">
@@ -1541,8 +1550,8 @@ async function loadStudentRoster() {
               <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px">${s.email}</div>
             </div>
             <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${isTr ? 'Onayla' : 'Approve'}</button>
-              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${isTr ? 'Reddet' : 'Reject'}</button>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${t('confirm.start_assignment_title').split(' ')[0]}</button>
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${t('cancel')}</button>
             </div>
           </div>
         `).join('')}
@@ -1563,7 +1572,7 @@ async function loadStudentRoster() {
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('Message')}</button>
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('messageTeacher')}</button>
           <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">${t('Kick')}</button>
         </div>
       </div>
@@ -1609,8 +1618,8 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     const okBtn = document.getElementById('confirm-ok-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
 
-    okBtn.textContent = okLabel || 'OK';
-    cancelBtn.textContent = cancelLabel || (currentLang === 'tr' ? 'İptal' : 'Cancel');
+    okBtn.textContent = okLabel || t('ok');
+    cancelBtn.textContent = cancelLabel || t('cancel');
 
     if (hideCancel) cancelBtn.style.display = 'none';
     else cancelBtn.style.display = 'block';
@@ -1645,51 +1654,36 @@ async function showAlert(title, message, isDanger = false) {
 }
 
 async function confirmCancelAssignment() {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? 'Ödevi İptal Et' : 'Cancel Assignment';
-  const msg = isTr ? 'Ödevi iptal etmek istediğinize emin misiniz? Tüm ilerlemeniz kaybolacak.' : 'Are you sure you want to cancel the assignment? All progress will be lost.';
-  if (await showConfirmModal(title, msg, true)) {
+  if (await showConfirmModal(t('cancel'), t('confirm.start_assignment_msg'), true)) {
     document.getElementById('assignment-taking-area').classList.add('hidden');
   }
 }
 
 async function deleteStudent(sid, name) {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? 'Öğrenciyi At' : 'Kick Student';
-  const msg = isTr ? `${name} adlı öğrenciyi sınıftan atmak istediğinize emin misiniz? Bu işlem geri alınamaz.` : `Are you sure you want to kick ${name} from the class? This cannot be undone.`;
-
-  const confirmed = await showConfirmModal(title, msg, true);
+  const confirmed = await showConfirmModal(t('confirm.kick_student_title'), t('confirm.kick_student_msg'), true);
   if (confirmed) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
     if (!res.error) loadStudentRoster();
   }
 }
 
-async function eraseAllData() {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? 'Tüm Verileri Sil' : 'Erase All Data';
-  const msg1 = isTr
-    ? 'DİKKAT: Tüm öğrenci verileri, sınav sonuçları, ödev teslimleri ve başarı puanları silinecektir. Bu işlem geri alınamaz.'
-    : 'WARNING: This will permanently delete ALL students, quiz results, assignment submissions, and mastery scores. This cannot be undone.';
+async function resetAllData() {
+  const title = t('confirm.erase_all_title');
+  const msg1 = t('confirm.erase_all_msg1');
+  const msg2 = t('confirm.erase_all_msg2');
 
   const confirmed1 = await showConfirmModal(title, msg1, true);
   if (!confirmed1) return;
 
-  const msg2 = isTr
-    ? 'Devam etmek için aşağıdaki kutuya "ERASE ALL DATA" yazın:'
-    : 'Type "ERASE ALL DATA" to confirm:';
-
   const typed = await showConfirmModal(title, msg2, true, 'ERASE ALL DATA');
-  if (typed !== 'ERASE ALL DATA') {
-    return;
-  }
+  if (typed !== 'ERASE ALL DATA') return;
 
   const res = await api('/data/reset', { method: 'POST', body: { confirm: 'ERASE ALL DATA' } });
   if (res.success) {
-    await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', isTr ? 'Tüm veriler silindi.' : 'All data has been erased.');
+    await showAlert(t('ok'), t('confirm.erase_all_msg1')); // Simplified status
     location.reload();
   } else {
-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error || 'Error', true);
+    showAlert(t('cancel'), res.error || 'Error', true);
   }
 }
 
@@ -1698,119 +1692,52 @@ async function showStudentDetail(sid, name, studentId = '') {
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
   
-  const isTr = currentLang === 'tr';
-  const L = {
-    management: isTr ? 'Öğrenci Yönetimi' : 'Student Management',
-    message: isTr ? 'Mesaj Gönder' : 'Send Message',
-    kick: isTr ? 'Sınıftan At' : 'Kick from Class',
-    mastery: isTr ? 'Konu Başarısı' : 'Topic Mastery',
-    activity: isTr ? 'Son Etkinlikler' : 'Recent Activity'
-  };
-
   const idHtml = studentId ? `<span style="font-size:16px; color:var(--text-muted); margin-left:12px; font-weight:normal">#${studentId}</span>` : '';
 
   document.getElementById('student-detail-body').innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 ${L.message}</button>
-        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 ${L.kick}</button>
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 ${t('messageTeacher')}</button>
+        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 ${t('Kick')}</button>
       </div>
     </div>
 
-    <h3 style="margin-bottom:16px">${L.mastery}</h3>
+    <h3 style="margin-bottom:16px">${t('Mastery:')}</h3>
     ${(data.masteries || []).map(m => {
       const pct = Math.round(m.score * 100);
       return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
     }).join('')}
 
-    <h3 style="margin:24px 0 16px">${L.activity}</h3>
+    <h3 style="margin:24px 0 16px">${t('Activities')}</h3>
     ${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}
   `;
 }
 
 async function generateReport() {
-  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + (currentLang === 'tr' ? 'Rapor oluşturuluyor...' : 'Generating report...') + '</p>';
+  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + t('Loading curriculum...') + '</p>';
   const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
-  const isTr = currentLang === 'tr';
-  const today = new Date().toLocaleDateString(isTr ? 'tr-TR' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const avgPct = Math.round((r.summary?.class_avg_mastery || 0) * 100);
-
-  const L = {
-    title: isTr ? 'AulaAI Haftalık Özet' : 'AulaAI Weekly Digest',
-    greeting: isTr ? 'Merhaba Profesör,' : 'Hi Professor,',
-    intro: isTr ? '<strong>İspanyolca 101</strong> dersiniz için yapay zeka destekli haftalık performans raporunuz.' : 'Here is your AI-generated weekly performance breakdown for <strong>Spanish 101</strong>.',
-    classSize: isTr ? 'Sınıf Mevcudu' : 'Class Size',
-    classMastery: isTr ? 'Sınıf Başarısı' : 'Class Mastery',
-    atRisk: isTr ? 'Riskli' : 'At Risk',
-    aiInsights: isTr ? '🤖 Yapay Zeka Analizi' : '🤖 AI Insights',
-    aiBody: isTr
-      ? ('Sınıf ortalaması şu an %' + avgPct + ' seviyesinde. ' + ((r.review_topics || []).length > 0 ? '<strong>' + r.review_topics[0].topic + '</strong> konusunda zorluk tespit edildi. Hızlı bir canlı etkinlik yapmanızı öneriyoruz.' : 'Harika! Şu an ciddi bir sorun tespit edilmedi.'))
-      : ('The class is tracking an average mastery of ' + avgPct + '%. ' + ((r.review_topics || []).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.')),
-    topicsReview: isTr ? '📊 Tekrar Gerektiren Konular' : '📊 Topics Needing Review',
-    noTopics: isTr ? 'Zorlanılan konu tespit edilmedi.' : 'No challenging topics detected.',
-    avgLabel: isTr ? 'ort' : 'avg',
-    intervention: isTr ? '⚠️ Müdahale Gerektiren Öğrenciler' : '⚠️ Students Needing Intervention',
-    noRisk: isTr ? 'Riskli öğrenci yok 🎉' : 'No at-risk students 🎉',
-    overallLabel: isTr ? 'genel' : 'overall',
-    evalTitle: isTr ? '👥 Bireysel Öğrenci Değerlendirmeleri' : '👥 Individual Student Evaluations',
-    noStudents: isTr ? 'Kayıtlı öğrenci bulunmuyor.' : 'No enrolled students found.'
-  };
 
   document.getElementById('report-content').innerHTML = `
     <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
       <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
-        <div style="font-size: 32px; margin-bottom: 10px;">🇪🇸</div>
-        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">${L.title}</h2>
-        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">${today}</p>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">${t('Weekly Report')}</h2>
       </div>
       <div style="padding: 40px 30px;">
-        <p style="font-size: 16px; line-height: 1.6; margin-top: 0;">${L.greeting}</p>
-        <p style="font-size: 16px; line-height: 1.6; color: var(--text-secondary);">${L.intro}</p>
         <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classSize}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${t('STUDENTS')}</div>
             <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students || 0}</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classMastery}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${t('CLASS MASTERY')}</div>
             <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${avgPct}%</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">${L.atRisk}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">${t('AT RISK')}</div>
             <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count || 0}</div>
           </div>
-        </div>
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.aiInsights}</h3>
-        ${r.ai_insights ? `
-          <div style="background: var(--bg-input); padding: 20px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0; margin-bottom: 16px;">
-            <p style="font-size: 15px; line-height: 1.7; margin: 0 0 12px 0;">${r.ai_insights.summary_text || ''}</p>
-            ${r.ai_insights.key_insight ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px 0; color: var(--warning);"><strong>💡 ${isTr ? 'Önemli' : 'Key Insight'}:</strong> ${r.ai_insights.key_insight}</p>` : ''}
-            ${r.ai_insights.recommendation ? `<p style="font-size: 14px; line-height: 1.6; margin: 0 0 8px 0; color: var(--accent);"><strong>📌 ${isTr ? 'Öneri' : 'Recommendation'}:</strong> ${r.ai_insights.recommendation}</p>` : ''}
-            ${r.ai_insights.praise_point ? `<p style="font-size: 14px; line-height: 1.6; margin: 0; color: var(--success);"><strong>🌟 ${isTr ? 'Olumlu' : 'Praise'}:</strong> ${r.ai_insights.praise_point}</p>` : ''}
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted); text-align: right; margin-bottom: 8px;">Powered by OpenRouter · Gemini 2.0 Flash</div>
-        ` : `<p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>`}
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.topicsReview}</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          ${(r.review_topics || []).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery * 100) + '% ' + L.avgLabel + '</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">' + L.noTopics + '</td></tr>'}
-        </table>
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.intervention}</h3>
-        ${(r.at_risk_students || []).length === 0 ? '<p style="color: var(--success); font-weight: 500;">' + L.noRisk + '</p>' :
-      '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery * 100) + '% ' + L.overallLabel + '</td></tr>').join('') + '</table>'}
-        <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.evalTitle}</h3>
-        <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
-          ${(r.student_reports || []).map(sr => {
-        const evalTexts = {
-          'excellent': isTr ? "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede." : "Making excellent progress. Comprehension of course materials is at a very high level.",
-          'good': isTr ? "Genel performansı iyi durumda, ancak bazı konularda küçük pratik eksikleri var." : "General performance is good, but shows minor gaps in core topics.",
-          'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik konularda tekrar yapması faydalı olacaktır." : "Experiencing fluctuations in learning. Would benefit from reviewing weaker topics.",
-          'inactive': isTr ? "Henüz platformda yeterli etkinlik tamamlamamış. Katılımının teşvik edilmesi gerekiyor." : "Has not yet completed enough activities. Class participation needs encouragement.",
-          'critical': isTr ? "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var." : "Experiencing severe comprehension difficulties and needs urgent teacher support."
-        };
-        const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
-        return '<div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><strong style="font-size: 15px;">' + esc(sr.name) + '</strong><span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ' + (sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')) + '; color: ' + (sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')) + ';">' + Math.round(sr.overall_mastery * 100) + '%</span></div><p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">' + evalText + '</p></div>';
-      }).join('') || '<p style="color:var(--text-muted)">' + L.noStudents + '</p>'}
         </div>
       </div>
     </div>
@@ -1831,7 +1758,7 @@ async function loadStudentStats() {
   const stats = await api('/student/stats?student_id=' + currentUser.id);
   const container = document.getElementById('student-stats');
   if (!container) return;
-  container.innerHTML = `<div class="stat-card"><div class="stat-label">Quizzes</div><div class="stat-value accent">${stats.quizzes || 0}</div></div><div class="stat-card"><div class="stat-label">Practice</div><div class="stat-value success">${stats.practice || 0}</div></div><div class="stat-card"><div class="stat-label">Assignments</div><div class="stat-value warning">${stats.assignments || 0}</div></div>`;
+  container.innerHTML = `<div class="stat-card"><div class="stat-label">${t('Quizzes')}</div><div class="stat-value accent">${stats.quizzes || 0}</div></div><div class="stat-card"><div class="stat-label">${t('practice')}</div><div class="stat-value success">${stats.practice || 0}</div></div><div class="stat-card"><div class="stat-label">${t('Assignments')}</div><div class="stat-value warning">${stats.assignments || 0}</div></div>`;
 }
 
 async function loadStudentHome() {
@@ -1847,7 +1774,7 @@ async function loadStudentHome() {
     <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
     <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
 
-  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
 }
 
 function loadStudentPractice() {
@@ -1879,11 +1806,10 @@ async function loadStudentProgress() {
   document.getElementById('progress-chart').innerHTML = (data.masteries || []).map(m => {
     const pct = Math.round(m.score * 100);
     return `<div class="progress-item"><div class="progress-label"><span>${m.title} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${m.type}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
-  }).join('') || `<p style="color:var(--text-muted)">Complete some activities to see your progress!</p>`;
+  }).join('') || `<p style="color:var(--text-muted)">${t('No quizzes yet.')}</p>`;
 }
 
 async function loadAssignmentList() {
-  const isTr = currentLang === 'tr';
   const url = currentUser.role === 'lecturer'
     ? `/assignments?course_id=${courseId}`
     : `/assignments?course_id=${courseId}&student_id=${currentUser.id}`;
@@ -1894,7 +1820,7 @@ async function loadAssignmentList() {
   if (!container) return;
 
   if (!assignments || assignments.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center">${isTr ? 'Henüz ödev oluşturulmadı.' : 'No assignments yet.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center">${t('No quizzes yet.')}</p>`;
     return;
   }
 
@@ -1905,19 +1831,18 @@ async function loadAssignmentList() {
           <div style="flex:1">
             <strong style="font-size:15px">${esc(a.title)}</strong>
             <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-              ${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(a.created_at).toLocaleDateString()}
-              ${a.due_at ? ' · Due: ' + new Date(a.due_at).toLocaleDateString() : ''}
+              ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()}
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
             <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')">
-              👁️ ${isTr ? 'Önizle' : 'Preview'}
+              👁️ ${t('View')}
             </button>
             <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')">
-              📊 ${isTr ? 'Sonuçları Gör' : 'View Results'}
+              📊 ${t('view')}
             </button>
             <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">
-              🗑️ ${isTr ? 'Sil' : 'Delete'}
+              🗑️ ${t('close')}
             </button>
           </div>
         </div>
@@ -1931,10 +1856,6 @@ async function loadAssignmentList() {
             <div>
               <strong style="font-size:15px">${esc(a.title)}</strong>
               <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-                ${done ? (isTr ? '✅ Tamamlandı' : '✅ Completed') : (isTr ? '📝 Başlamak için tıkla' : '📝 Click to start')}
-              </div>
-            </div>
-            <span class="nav-badge" style="background:${done ? 'var(--success-bg)' : 'var(--warning-bg)'};color:${done ? 'var(--success)' : 'var(--warning)'}">${done ? (isTr ? 'Tamam' : 'Done') : (isTr ? 'Bekliyor' : 'Pending')}</span>
           </div>
         </div>`;
     }).join('');
@@ -2302,10 +2223,7 @@ async function publishDraft() {
 }
 
 async function takeAssignment(aid) {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? 'Ödeve Başla' : 'Start Assignment';
-  const msg = isTr ? 'Emin misiniz? Ödeve başladıktan sonra geri dönemezsiniz, yarıda bırakmak yarım teslim yapmanıza sebep olabilir.' : 'Are you sure? Once you start, you cannot go back or cancel without submitting.';
-  const confirmed = await showConfirmModal(title, msg);
+  const confirmed = await showConfirmModal(t('confirm.start_assignment_title'), t('confirm.start_assignment_msg'));
   if (!confirmed) return;
 
   const data = await api(`/assignment/take?assignment_id=${aid}&student_id=${currentUser.id}`);
