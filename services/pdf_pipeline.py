@@ -8,6 +8,7 @@ import json
 import concurrent.futures
 import time
 import urllib.request
+import traceback
 from datetime import datetime
 from database import db_connection, _uid
 from services.state import bump_version
@@ -26,7 +27,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
     """
     start_time = datetime.now()
     toc_text = ""
-    language = "Unknown"
+    language = "Detecting..."
     
     try:
         _log(f"Phase 1: Starting for {course_id} ({course_name})")
@@ -63,7 +64,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         # 3. Parse Structure
         _log("Step 3: Parsing curriculum structure...")
         if manual_toc:
-            _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars):\n{manual_toc}")
+            _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
             _log("Using Manual Curriculum provided by teacher.")
             prompt = f"""
             Task: Convert this messy curriculum text into a structured JSON Roadmap for a {language} course.
@@ -94,28 +95,23 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nText:\n{toc_text}"
         
         resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
-        _log(f"RAW AI RESPONSE:\n{resp}")
         
         chapters_data = []
         try:
             if isinstance(resp, dict):
-                _log("AI returned pre-parsed dictionary.")
                 chapters_data = resp.get("chapters", [])
             elif isinstance(resp, str) and resp.strip():
-                # Simple cleanup for AI markdown
                 clean_resp = resp.replace("```json", "").replace("```", "").strip()
-                # Find first { and last } to handle extra text
                 start_idx = clean_resp.find('{')
                 end_idx = clean_resp.rfind('}')
                 if start_idx != -1 and end_idx != -1:
                     clean_resp = clean_resp[start_idx:end_idx+1]
-                
                 data = json.loads(clean_resp)
                 chapters_data = data.get("chapters", [])
         except Exception as e:
             _log(f"AI Parsing failed ({e}). Attempting manual fallback.")
             
-        # Fallback Logic: If still empty, split manual_toc by newlines
+        # Fallback Logic
         if not chapters_data and manual_toc:
             _log("Using line-by-line fallback for manual curriculum.")
             topics = []
@@ -123,15 +119,11 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 t = line.strip().strip('-').strip('*').strip()
                 if len(t) > 3:
                     topics.append({"title": t, "type": "vocabulary"})
-            
             if topics:
-                chapters_data = [{
-                    "title": "Imported Curriculum",
-                    "topics": topics
-                }]
+                chapters_data = [{"title": "Imported Curriculum", "topics": topics}]
         
         if not chapters_data:
-            _log("ERROR: All parsing attempts failed (including fallback).")
+            _log("ERROR: All parsing attempts failed.")
             with db_connection() as db:
                 db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
                 db.commit()
@@ -143,26 +135,21 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         _log("Step 4: Creating classroom structure in DB...")
         with db_connection() as db:
             db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
-            
             for idx, ch in enumerate(chapters_data):
                 chapter_id = _uid()
                 ch_num = idx + 1
                 ch_title = str(ch.get("title", "Untitled Chapter"))
-                ch["id"] = chapter_id
-                _log(f"Inserting Chapter {ch_num}: {ch_title}")
-                
                 db.execute("INSERT INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
                            (chapter_id, course_id, ch_num, ch_title))
-                
                 for topic_idx, topic in enumerate(ch.get("topics", [])):
                     topic_id = _uid()
-                    topic["id"] = topic_id
                     t_title = topic.get("title", "Untitled Topic")
                     t_type = topic.get("type", "vocabulary")
                     db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order) VALUES (?,?,?,?,?,?,?)",
                                (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx))
             db.commit()
         _log("Structure creation complete.")
+        bump_version()
         
         # Phase 2: Enrichment
         _log(f"Phase 1 Complete for {course_id}. Starting Phase 2...")
@@ -178,9 +165,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
 def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
     """
     Standalone entry point for Phase 2 enrichment.
-    Called by worker.py.
     """
-    import traceback
     start_time = datetime.now()
     manual_toc = None
     if manual_toc_path and os.path.exists(manual_toc_path):
@@ -190,20 +175,34 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
     try:
         # Get language and structure from DB
         with db_connection() as db:
+            db.row_factory = lambda cursor, row: row # Standard tuple fallback
             course = db.execute("SELECT language FROM courses WHERE id = ?", (course_id,)).fetchone()
-            language = course["language"] if course else "Unknown"
+            language = course[0] if course else "Unknown" # fallback if Row doesn't work
             
             chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
             chapters_data = []
             for ch in chapters:
-                topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)).fetchall()
+                topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
                 chapters_data.append({
-                    "id": ch["id"],
-                    "title": ch["title"],
-                    "topics": [dict(t) for t in topics]
+                    "id": ch[0],
+                    "title": ch[1],
+                    "topics": [{"id": t[0], "title": t[1], "type": t[2]} for t in topics]
                 })
+        
+        if not chapters_data:
+            _log(f"WARNING: No chapters/topics found for {course_id}. Retrying...")
+            time.sleep(2)
+            with db_connection() as db:
+                chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
+                for ch in chapters:
+                    topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
+                    chapters_data.append({
+                        "id": ch[0],
+                        "title": ch[1],
+                        "topics": [{"id": t[0], "title": t[1], "type": t[2]} for t in topics]
+                    })
 
-        _log(f"Phase 2: Starting content enrichment for {course_id} ({language})...")
+        _log(f"Phase 2: Loaded {len(chapters_data)} chapters. Starting enrichment...")
         with db_connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.commit()
@@ -211,26 +210,22 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
-        print(f"[PIPELINE] Starting Phase 2 Enrichment with 10 workers for {len(chapters_data)} chapters...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for ch in chapters_data:
-                chapter_id = ch.get("id")
-                topics = ch.get("topics", [])
-                for topic in topics:
+                for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
-                    t_title = topic.get("title", "Untitled Topic")
-                    t_type = topic.get("type", "vocabulary")
+                    t_title = topic.get("title")
+                    t_type = topic.get("type")
                     t_id = topic.get("id")
                     
-                    _log(f"Queueing topic: {t_title}")
+                    _log(f"Queueing: {t_title}")
                     f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 8)
                     futures.append((t_id, t_title, f_lesson))
                     topic_count += 1
             
             completed = 0
             for t_id, t_title, f_lesson in futures:
-                _log(f"Finalizing topic: {t_title}...")
                 try:
                     lesson = f_lesson.result() or {}
                     content = lesson.get("content", {})
@@ -238,7 +233,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                     
                     with db_connection() as db:
                         if t_id:
-                            db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), t_id))
+                            content_json = json.dumps(content, ensure_ascii=False)
+                            db.execute("UPDATE topics SET content = ? WHERE id = ?", (content_json, t_id))
                             for q in questions:
                                 p_val = q.get("prompt", "")
                                 p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)
@@ -251,12 +247,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                                            (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
                         db.commit()
                     completed += 1
-                    print(f"[PIPELINE] Topic {completed}/{len(futures)} finalized: {t_title}")
-                    sys.stdout.flush()
+                    _log(f"Topic {completed}/{len(futures)} finalized: {t_title}")
+                    bump_version()
                 except Exception as e:
                     _log(f"ERROR finalizing topic '{t_title}': {e}")
 
-        _log(f"Phase 2 Complete. Duration: {(datetime.now() - start_time).total_seconds():.1f}s")
+        _log(f"Phase 2 Complete for {course_id}.")
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
@@ -268,19 +264,14 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
-        
-    except Exception as e:
-        _log(f"CRITICAL ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        try:
-            with db_connection() as db:
-                db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
-                db.commit()
-        except: pass
+
+def _log(msg):
+    try:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] [PIPELINE] {msg}", flush=True)
+    except: pass
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None):
-    """Initializes the classroom and spawns the background worker process."""
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
     
@@ -293,14 +284,12 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
                    (course_id, course_name, "Fall 2026", textbook_url, "Detecting...", code, 1, lecturer_id))
         db.commit()
     
-    # Save manual_toc to file if it exists to pass to worker
     manual_toc_file = None
     if manual_toc:
         manual_toc_file = pdf_path.replace(".pdf", "_toc.txt")
         with open(manual_toc_file, "w", encoding="utf-8") as f:
             f.write(manual_toc)
 
-    # Spawn worker.py
     python_exe = sys.executable
     cmd = [python_exe, "worker.py", pdf_path, toc_range or "0-0", lecturer_id, course_id, course_name]
     if manual_toc_file:
@@ -309,6 +298,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     _log(f"Spawning worker: {' '.join(cmd)}")
-    subprocess.Popen(cmd, env=env, close_fds=True)
+    with open("worker.log", "a", encoding="utf-8") as log_file:
+        subprocess.Popen(cmd, env=env, stdout=log_file, stderr=log_file, close_fds=True)
     
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}

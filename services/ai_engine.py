@@ -16,10 +16,20 @@ def file_log(msg):
         f.flush()
 
 # Railway uses environment variables for security
+# Load .env file manually (zero dependencies)
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            if "=" in line:
+                key, val = line.strip().split("=", 1)
+                os.environ[key] = val
+
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL = "anthropic/claude-3.5-haiku"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
+if not OPENROUTER_API_KEY:
+    file_log("CRITICAL: OPENROUTER_API_KEY IS MISSING!")
 
 
 def is_ai_available():

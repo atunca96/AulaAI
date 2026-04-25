@@ -10,7 +10,7 @@ let _syncInterval = null;
 let _buildingCourses = [];
 
 // ── Keep Render alive (ping every 10 min) ──
-setInterval(() => fetch('/api/courses').catch(() => {}), 10 * 60 * 1000);
+setInterval(() => fetch('/api/courses').catch(() => { }), 10 * 60 * 1000);
 
 // ── Live-sync: poll for data changes every 1 second ──
 function startLiveSync() {
@@ -24,7 +24,7 @@ function startLiveSync() {
       if (data.version !== _lastVersion) {
         _lastVersion = data.version;
         console.log('[LiveSync] Data changed, refreshing...');
-        
+
         // If data changed, ensure we weren't just kicked
         const statusCheck = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
         if (statusCheck && statusCheck.error === 'User not found') {
@@ -50,31 +50,31 @@ function refreshCurrentView() {
   api('/courses').then(courses => {
     if (!courses || !Array.isArray(courses)) return;
     const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
-    
+
     // Auto-update building banner if we're inside a classroom
     if (currentCourse) {
-        const updated = courses.find(c => c.id === currentCourse.id);
-        if (updated) {
-            currentCourse = updated;
-            const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
-            if (buildBanner) {
-                if (currentCourse.is_building) buildBanner.classList.remove('hidden');
-                else buildBanner.classList.add('hidden');
-            }
+      const updated = courses.find(c => c.id === currentCourse.id);
+      if (updated) {
+        currentCourse = updated;
+        const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
+        if (buildBanner) {
+          if (currentCourse.is_building) buildBanner.classList.remove('hidden');
+          else buildBanner.classList.add('hidden');
         }
+      }
     }
 
     _buildingCourses.forEach(id => {
-        if (!currentlyBuilding.includes(id)) {
-            const course = courses.find(c => c.id === id);
-            if (course) {
-                showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
-                // Force a list refresh to show the "Enter" button
-                if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
-                    showClassroomSelection();
-                }
-            }
+      if (!currentlyBuilding.includes(id)) {
+        const course = courses.find(c => c.id === id);
+        if (course) {
+          showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
+          // Force a list refresh to show the "Enter" button
+          if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
+            showClassroomSelection();
+          }
         }
+      }
     });
     _buildingCourses = currentlyBuilding;
   });
@@ -444,8 +444,8 @@ async function completeLogin(user) {
         localStorage.setItem('aula_user', JSON.stringify(currentUser));
         sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
       }
-    } catch(e) {}
-    
+    } catch (e) { }
+
     if (currentUser.status === 'pending') {
       showScreen('waiting-room-screen');
       const waitingPoll = setInterval(async () => {
@@ -462,7 +462,7 @@ async function completeLogin(user) {
             await showAlert(currentLang === 'tr' ? 'Hesap Reddedildi' : 'Account Rejected', currentLang === 'tr' ? 'Hesabınız reddedildi ve silindi.' : 'Your account was rejected and removed.', true);
             logout();
           }
-        } catch(e) {}
+        } catch (e) { }
       }, 1000);
       startLiveSync();
       return;
@@ -499,23 +499,23 @@ async function showClassroomSelection() {
   window.allCourses = courses; // Store globally for other functions
   const container = document.getElementById('classroom-list');
   showScreen('classroom-selection-screen');
-  
+
   if (!courses || courses.length === 0) {
     container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">No classrooms found. Create your first one!</p>`;
     return;
   }
-  
+
   container.innerHTML = courses.map(c => {
     const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
     const isBuilding = c.is_building === 1;
     const isPhase1 = c.language === "Detecting...";
-    
+
     return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isPhase1 ? '0.65' : '1'}; transition: opacity 0.3s ease;">
         ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
-                ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+                ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
@@ -552,13 +552,13 @@ async function showClassroomSelection() {
 async function selectClassroom(id, isLecturer = true) {
   const courses = await api('/courses');
   let course = courses.find(c => c.id === id);
-  
+
   // Fallback if the course was deleted/consolidated
   if (!course && courses.length > 0) {
     course = courses[0];
     id = course.id;
   }
-  
+
   courseId = id;
   if (course && document.getElementById('nav-course-name')) {
     document.getElementById('nav-course-name').textContent = course.name;
@@ -570,29 +570,29 @@ async function selectClassroom(id, isLecturer = true) {
   const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
   if (buildBanner) {
     if (course && course.is_building) {
-        buildBanner.classList.remove('hidden');
+      buildBanner.classList.remove('hidden');
     } else {
-        buildBanner.classList.add('hidden');
+      buildBanner.classList.add('hidden');
     }
   }
-  
+
   currentCourse = course;
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
-  
+
   // Update Book Tab with classroom-specific PDF
   let bookPath = course ? course.textbook : '';
   // Hardcoded fallback for Spanish 101 to ensure the default textbook always loads
   if (course && (course.id === 'spanish-101' || course.name === 'Spanish 101')) {
-      bookPath = '/books/textbook.pdf';
+    bookPath = '/books/textbook.pdf';
   }
   const pdfViewerSrc = (bookPath && bookPath !== '/books/' && bookPath !== '/books/undefined') ? bookPath : '';
-  
+
   document.querySelectorAll('.pdf-viewer').forEach(el => {
     // If we have a valid PDF path, use it; otherwise clear or use a safe empty state
-    el.src = pdfViewerSrc || 'about:blank'; 
+    el.src = pdfViewerSrc || 'about:blank';
   });
-  
+
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
   });
@@ -609,12 +609,12 @@ async function selectClassroom(id, isLecturer = true) {
 async function deleteClassroom(id) {
   const course = (window.allCourses) ? window.allCourses.find(c => c.id === id) : null;
   const isBuilding = course && course.is_building === 1;
-  const msg = isBuilding 
-    ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?') 
+  const msg = isBuilding
+    ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?')
     : (t('class.delete_confirm') || 'Delete this classroom?');
-    
+
   if (!(await showConfirmModal(currentLang === 'tr' ? 'Sınıfı Sil' : 'Delete Classroom', msg, true))) return;
-  
+
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
   if (res.success) {
     showClassroomSelection();
@@ -641,21 +641,21 @@ async function handleCreateClassroom(e) {
   const manualTocInput = document.getElementById('manual-toc-input');
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
-  
+
   if (!fileInput.files[0]) return showAlert(currentLang === 'tr' ? 'Dosya Gerekli' : 'File Required', 'Please select a PDF file', true);
-  
+
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
   formData.append('pdf', fileInput.files[0]);
   formData.append('toc_range', rangeInput.value);
   formData.append('manual_toc', manualTocInput.value.trim());
   formData.append('lecturer_id', currentUser.id);
-  
+
   statusEl.classList.remove('hidden');
   btn.disabled = true;
   btn.style.opacity = '0.5';
   btn.style.cursor = 'default';
-  
+
   let data;
   try {
     const res = await fetch('/api/classroom/create-from-pdf', {
@@ -686,14 +686,14 @@ async function handleCreateClassroom(e) {
   try {
     await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
     closeCreateClassroomModal();
-    
+
     // Register for completion notification
     if (typeof _buildingCourses !== 'undefined') {
-        _buildingCourses.push(data.course_id);
+      _buildingCourses.push(data.course_id);
     }
 
     await showClassroomSelection();
-    
+
     // If it's still missing from global list (race condition), manually inject it
     if (!Array.isArray(window.allCourses)) { window.allCourses = []; }
     if (!window.allCourses.find(c => c.id === data.course_id)) {
@@ -767,28 +767,30 @@ async function handleStudentLogin(e) {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const data = await api('/login', { method: 'POST', body: {
-    email: document.getElementById('login-email').value,
-    password: document.getElementById('login-password').value
-  }});
+  const data = await api('/login', {
+    method: 'POST', body: {
+      email: document.getElementById('login-email').value,
+      password: document.getElementById('login-password').value
+    }
+  });
   if (data.error) { document.getElementById('login-error').textContent = data.error; document.getElementById('login-error').classList.remove('hidden'); return false; }
   await completeLogin(data.user);
   return false;
 }
 
-function logout() { 
-  currentUser = null; 
+function logout() {
+  currentUser = null;
   _lastVersion = -1;
   stopLiveSync();
   localStorage.removeItem('aula_user');
   sessionStorage.removeItem('aula_user');
-  showScreen('login-screen'); 
+  showScreen('login-screen');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   const savedLang = localStorage.getItem('aula_lang');
   if (savedLang && savedLang !== currentLang) toggleLanguage();
-  
+
   // Apply saved theme and HUD size
   const savedTheme = localStorage.getItem('aula_theme') || 'dark';
   setTheme(savedTheme);
@@ -798,7 +800,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
   if (savedUser) {
     try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
-    catch(e) { showScreen('login-screen'); }
+    catch (e) { showScreen('login-screen'); }
   } else showScreen('login-screen');
 });
 
@@ -814,7 +816,7 @@ function switchTab(btn, skipLoad = false) {
   const main = btn.closest('.screen').querySelector('main');
   main.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-  
+
   if (!skipLoad) {
     if (btn.dataset.tab === 'inbox') loadInbox();
     if (btn.dataset.tab === 's-messages') loadStudentChat();
@@ -829,28 +831,28 @@ let currentChatStudentId = null;
 async function loadStudentChat() {
   const messages = await api(`/messages?student_id=${currentUser.id}`);
   const container = document.getElementById('student-chat-history');
-  
+
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang==='tr'?'Henüz mesaj yok.':'No messages yet.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang === 'tr' ? 'Henüz mesaj yok.' : 'No messages yet.'}</p>`;
     return;
   }
-  
+
   container.innerHTML = messages.map(m => {
     const isMe = m.sender === 'student';
     return `
       <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
         <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
           ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
       </div>
     `;
   }).join('');
-  
+
   messages.filter(m => m.sender === 'lecturer' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
   });
-  
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -869,7 +871,7 @@ async function loadInbox() {
   document.getElementById('inbox-reply-area').classList.add('hidden');
   document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">Inbox</span>`;
   currentChatStudentId = null;
-  
+
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
   const badge = document.getElementById('inbox-badge');
   if (unreadCount > 0) {
@@ -878,12 +880,12 @@ async function loadInbox() {
   } else {
     badge.style.display = 'none';
   }
-  
+
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang==='tr'?'Mesaj yok.':'No messages.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang === 'tr' ? 'Mesaj yok.' : 'No messages.'}</p>`;
     return;
   }
-  
+
   const threads = {};
   messages.forEach(m => {
     if (!threads[m.student_id]) {
@@ -897,9 +899,9 @@ async function loadInbox() {
       threads[m.student_id].unread++;
     }
   });
-  
-  const threadList = Object.entries(threads).sort((a,b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
-  
+
+  const threadList = Object.entries(threads).sort((a, b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
+
   container.innerHTML = threadList.map(([sId, data]) => `
     <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition);" onclick="openChat('${sId}', '${esc(data.student_name).replace(/'/g, "\\'")}')">
       <div style="flex:1; min-width:0; margin-right:12px;">
@@ -921,26 +923,26 @@ async function openChat(studentId, studentName) {
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
-  
+
   const messages = await api(`/messages?student_id=${studentId}`);
   const container = document.getElementById('inbox-messages');
-  
+
   container.innerHTML = messages.map(m => {
     const isMe = m.sender === 'lecturer';
     return `
       <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
         <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
           ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
       </div>
     `;
   }).join('');
-  
+
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
   });
-  
+
   const badge = document.getElementById('inbox-badge');
   const remaining = Math.max(0, parseInt(badge.textContent || '0') - messages.filter(m => m.sender === 'student' && !m.is_read).length);
   if (remaining > 0) {
@@ -948,7 +950,7 @@ async function openChat(studentId, studentName) {
   } else {
     badge.style.display = 'none';
   }
-  
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -957,7 +959,7 @@ async function sendLecturerMessage() {
   if (!text || !currentChatStudentId) return;
   document.getElementById('inbox-reply-text').value = '';
   await api('/message/send', { method: 'POST', body: { student_id: currentChatStudentId, sender: 'lecturer', content: text } });
-  
+
   const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
   await openChat(currentChatStudentId, name);
 }
@@ -1011,7 +1013,7 @@ function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' :
 async function initLecturer() {
   document.getElementById('nav-username').textContent = currentUser.name;
   document.getElementById('overview-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
-  
+
   // Check AI status
   try {
     aiStatus = await api('/ai-status');
@@ -1027,7 +1029,7 @@ async function initLecturer() {
         document.head.appendChild(style);
       }
     }
-  } catch(e) { aiStatus = { ai_enabled: false }; }
+  } catch (e) { aiStatus = { ai_enabled: false }; }
 
   await loadOverview();
   loadCurriculum();
@@ -1041,16 +1043,16 @@ async function loadOverview() {
   const report = await api('/report?course_id=' + courseId);
   const s = report.summary || {};
   document.getElementById('overview-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">${t('Students')}</div><div class="stat-value accent">${s.total_students||0}</div><div class="stat-sub">${s.active_students||0} ${t('active this week')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('Class Mastery')}</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery||0)*100)}%</div><div class="stat-sub">${t('Average across all topics')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('At Risk')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count||0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('Top Performers')}</div><div class="stat-value success">${s.top_performer_count||0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
+    <div class="stat-card"><div class="stat-label">${t('Students')}</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub">${s.active_students || 0} ${t('active this week')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('Class Mastery')}</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub">${t('Average across all topics')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('At Risk')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('Top Performers')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
   const atRisk = report.at_risk_students || [];
   document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)">${t('No at-risk students 🎉')}</p>`
-    : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery*100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${f.replace(/_/g,' ')}</span>`).join('')}</div></div>`).join('');
+    : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${f.replace(/_/g, ' ')}</span>`).join('')}</div></div>`).join('');
   const td = report.topic_difficulty || {};
   document.getElementById('topic-difficulty-chart').innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
-    `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score*100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score*100}%;background:${masteryColor(score)}"></div></div></div>`
+    `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
   ).join('');
 }
 
@@ -1058,7 +1060,7 @@ function loadCurriculum() {
   try {
     const subtitleEl = document.getElementById('curriculum-subtitle');
     if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — Content Map`;
-    
+
     if (!curriculum || !Array.isArray(curriculum)) {
       document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">No curriculum data available for this classroom.</p>`;
       return;
@@ -1070,7 +1072,7 @@ function loadCurriculum() {
           <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
           <span class="chapter-toggle">▸</span>
         </div>
-        <div class="chapter-topics">${(ch.topics||[]).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${esc(t.title)}</span></div><div class="topic-meta"><span>${t.difficulty}</span><span>${t.question_count||0} questions</span></div></div>`).join('')}</div>
+        <div class="chapter-topics">${(ch.topics || []).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${esc(t.title)}</span></div><div class="topic-meta"><span>${t.difficulty}</span><span>${t.question_count || 0} questions</span></div></div>`).join('')}</div>
       </div>`).join('');
   } catch (err) {
     console.error('Render Error:', err);
@@ -1081,7 +1083,7 @@ function populateSelects() {
   let topicOpts = '', chapterOpts = '';
   curriculum.forEach(ch => {
     chapterOpts += `<option value="${ch.id}">Unit ${ch.number}: ${ch.title}</option>`;
-    (ch.topics||[]).forEach(t => { topicOpts += `<option value="${t.id}">U${ch.number} — ${t.title} (${t.type})</option>`; });
+    (ch.topics || []).forEach(t => { topicOpts += `<option value="${t.id}">U${ch.number} — ${t.title} (${t.type})</option>`; });
   });
   document.getElementById('activity-topic-select').innerHTML = '<option value="">Select a topic...</option>' + topicOpts;
   document.getElementById('quiz-chapter-select').innerHTML = '<option value="">All chapters</option>' + chapterOpts;
@@ -1092,15 +1094,68 @@ function populateSelects() {
 async function launchActivity() {
   const topicId = document.getElementById('activity-topic-select').value;
   if (!topicId) return showAlert(currentLang === 'tr' ? 'Seçim Gerekli' : 'Selection Required', 'Please select a topic', true);
-  const data = await api('/activity?topic_id=' + topicId);
+  
   const preview = document.getElementById('activity-preview');
   preview.classList.remove('hidden');
-  preview.innerHTML = '<h2 style="margin-bottom:20px">📋 Generated Activities — ' + (data.topic?.title||'') + '</h2>' + (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+  
+  const isTr = currentLang === 'tr';
+  const loadingMsg = isTr ? 'Sorular oluşturuluyor...' : 'Questions are being generated...';
+  
+  // Show Loading State
+  preview.innerHTML = `
+    <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg);">
+      <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
+      <h3 style="margin-bottom:12px;">${loadingMsg}</h3>
+      <div class="progress-container" style="background:rgba(255,255,255,0.05); height:8px; border-radius:4px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
+        <div class="progress-bar-shimmer"></div>
+      </div>
+      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">${isTr ? 'Bu işlem 5-10 saniye sürebilir.' : 'This may take 5-10 seconds.'}</p>
+    </div>
+    <style>
+      .bot-animation {
+        animation: bot-bounce 2s infinite ease-in-out;
+        display: inline-block;
+      }
+      .progress-bar-shimmer {
+        position: absolute;
+        top: 0;
+        left: -100%;
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, 
+          transparent 0%, 
+          rgba(99, 102, 241, 0.8) 40%, 
+          rgba(168, 85, 247, 0.8) 50%, 
+          rgba(99, 102, 241, 0.8) 60%, 
+          transparent 100%
+        );
+        animation: shimmer-slide 1.5s infinite linear;
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+      }
+      @keyframes bot-bounce {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-12px) scale(1.1); }
+      }
+      @keyframes shimmer-slide {
+        0% { left: -100%; }
+        100% { left: 100%; }
+      }
+    </style>
+  `;
+
+  try {
+    const data = await api('/activity?topic_id=' + topicId);
+    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (data.topic?.title||'') + '</h2>' + (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+  } catch (err) {
+    preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
+      ${isTr ? 'Bir hata oluştu.' : 'An error occurred during generation.'}
+    </div>`;
+  }
 }
 
 function renderActivityCard(a, idx, ctx) {
   const p = translatePrompt(a.prompt);
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options||[]).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
@@ -1110,27 +1165,27 @@ function renderActivityCard(a, idx, ctx) {
   return '';
 }
 
-function esc(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function esc(s) { return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
 async function checkMCQ(btn, answer, cardId, qid) {
   const card = document.getElementById(cardId);
   if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
-  
+
   // Fix for escaped apostrophes in data-original attribute
   const picked = (btn.dataset.original || btn.textContent.trim()).replace(/\\'/g, "'");
   const isCorrect = picked.toLowerCase() === answer.toLowerCase();
-  
+
   card.querySelectorAll('.option-btn').forEach(b => {
     const bText = (b.dataset.original || b.textContent.trim()).replace(/\\'/g, "'");
     if (bText.toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
     else if (b === btn && !isCorrect) b.classList.add('wrong-answer');
   });
-  
+
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   document.getElementById('fb-' + cardId).classList.remove('hidden');
   document.getElementById('fb-' + cardId).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
   document.getElementById('fb-' + cardId).textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
-  if (cardId.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: picked, correct_answer: answer, question_type: 'mcq' }});
+  if (cardId.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: picked, correct_answer: answer, question_type: 'mcq' } });
 }
 
 async function checkFill(id, answer, qid) {
@@ -1144,7 +1199,7 @@ async function checkFill(id, answer, qid) {
   document.getElementById('fb-' + id).classList.remove('hidden');
   document.getElementById('fb-' + id).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
   document.getElementById('fb-' + id).textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
-  if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' }});
+  if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' } });
 }
 
 function moveDialogueLine(btn, direction) {
@@ -1187,13 +1242,13 @@ async function createQuiz() {
   const title = document.getElementById('quiz-title').value || 'Quiz';
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
   const count = parseInt(document.getElementById('quiz-count').value) || 10;
-  
+
   const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
-  
+
   btn.textContent = originalText;
   btn.disabled = false;
-  
-  if(res && res.questions) {
+
+  if (res && res.questions) {
     currentDraft = {
       type: 'quiz',
       title: title,
@@ -1212,23 +1267,24 @@ async function loadQuizList() {
   const isTr = currentLang === 'tr';
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${t('noQuizzes')}</p>`
     : quizzes.map(q => {
-        if (currentUser.role === 'lecturer') {
-          return `<div class="card" style="margin-bottom:12px">
+      if (currentUser.role === 'lecturer') {
+        return `<div class="card" style="margin-bottom:12px">
             <div class="card-body flex-between">
               <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}','${esc(q.title)}')">
                 <strong>${q.title}</strong>
                 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">${t('viewBtn')}</button>
+                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${isTr ? 'Önizle' : 'Preview'}</button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${isTr ? 'Sonuçlar' : 'Results'}</button>
                 <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${isTr ? 'Sil' : 'Delete'}</button>
               </div>
             </div>
           </div>`;
-        } else {
-          const isCompleted = q.is_completed;
-          return `<div class="card" style="cursor:${isCompleted?'default':'pointer'};opacity:${isCompleted?'0.6':'1'};margin-bottom:12px" onclick="${isCompleted?'':`takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted?` · <span style="color:var(--success)">✓ ${t('completed')}</span>`:''}</div></div><span class="btn btn-sm ${isCompleted?'btn-ghost':'btn-outline'}">${isCompleted?t('completed'):t('takeQuizBtn')}</span></div></div>`;
-        }
+      } else {
+        const isCompleted = q.is_completed;
+        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${isTr ? 'Oluşturulma' : 'Created'}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
+      }
     }).join('');
 }
 
@@ -1282,19 +1338,19 @@ async function viewQuiz(quizId, title) {
     <div id="qv-questions">
       ${quizData.questions.map((q, i) => `
         <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
-          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i+1}: ${q.prompt}</div>
+          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${q.prompt}</div>
           <div style="font-size:13px">${L.answer}: <strong style="color:var(--success)">${q.answer}</strong></div>
         </div>
       `).join('')}
     </div>
 
     <div id="qv-responses" style="display:none">
-      ${studentResults.length === 0 
-        ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
-        : studentResults.map(sr => {
-            const avgPct = Math.round(sr.average_score * 100);
-            const correctCount = sr.answers.filter(a => a.is_correct).length;
-            return `
+      ${studentResults.length === 0
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
+      : studentResults.map(sr => {
+        const avgPct = Math.round(sr.average_score * 100);
+        const correctCount = sr.answers.filter(a => a.is_correct).length;
+        return `
               <div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; overflow:hidden">
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
@@ -1308,8 +1364,8 @@ async function viewQuiz(quizId, title) {
                 </div>
                 <div style="display:none; padding:12px 16px; background:var(--bg-card)">
                   ${sr.answers.map((a, i) => {
-                    const isRight = a.is_correct;
-                    return `
+          const isRight = a.is_correct;
+          return `
                       <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
                         <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? '✓' : '✗'}</span>
                         <div style="flex:1">
@@ -1320,11 +1376,11 @@ async function viewQuiz(quizId, title) {
                           </div>
                         </div>
                       </div>`;
-                  }).join('')}
+        }).join('')}
                 </div>
               </div>`;
-          }).join('')
-      }
+      }).join('')
+    }
     </div>
   `;
 }
@@ -1349,7 +1405,7 @@ async function takeQuiz(quizId) {
     loadQuizList();
     return;
   }
-  
+
   const area = document.getElementById('quiz-taking-area');
   area.classList.remove('hidden');
   area.dataset.quizId = quizId;
@@ -1364,8 +1420,8 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
-  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx+1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` + 
-    (q.type==='mcq' ? `<div class="options-grid">${((q.distractors||[]).concat([q.answer]).sort(()=>Math.random()-0.5)).map(o=>`<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="${currentLang==='tr'?'Cevabınızı yazın...':'Type your answer...'}" onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${currentLang==='tr'?'Gönder':'Submit'}</button></div>`) + `</div>`;
+  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` +
+    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="${currentLang === 'tr' ? 'Cevabınızı yazın...' : 'Type your answer...'}" onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${currentLang === 'tr' ? 'Gönder' : 'Submit'}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -1378,15 +1434,15 @@ function quizAnswer(btn, qid, ans) {
 }
 
 async function submitQuizAnswers(area) {
-  await api('/quiz/submit', { method: 'POST', body: { quiz_id: area.dataset.quizId, student_id: currentUser.id, answers: JSON.parse(area.dataset.answers) }});
+  await api('/quiz/submit', { method: 'POST', body: { quiz_id: area.dataset.quizId, student_id: currentUser.id, answers: JSON.parse(area.dataset.answers) } });
   location.reload();
 }
 
 async function loadStudentRoster() {
   const students = await api('/students?course_id=' + courseId);
-  const pending = await api('/students/pending?course_id=' + courseId).catch(()=>[]);
+  const pending = await api('/students/pending?course_id=' + courseId).catch(() => []);
   const isTr = currentLang === 'tr';
-  
+
   // Render pending approvals into separate full-width container
   const pendingEl = document.getElementById('pending-roster');
   if (pendingEl) {
@@ -1410,7 +1466,7 @@ async function loadStudentRoster() {
       pendingEl.innerHTML = '';
     }
   }
-  
+
   // Render approved students into grid
   document.getElementById('student-roster').innerHTML = students.map(s => {
     const pct = Math.round(s.avg_mastery * 100);
@@ -1436,10 +1492,10 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     const modal = document.getElementById('confirm-modal');
     document.getElementById('confirm-title').textContent = title;
     document.getElementById('confirm-message').textContent = message;
-    
+
     const inputContainer = document.getElementById('confirm-input-container');
     const inputEl = document.getElementById('confirm-input');
-    
+
     if (inputPlaceholder !== null) {
       inputContainer.classList.remove('hidden');
       inputEl.placeholder = inputPlaceholder;
@@ -1447,10 +1503,10 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     } else {
       inputContainer.classList.add('hidden');
     }
-    
+
     const okBtn = document.getElementById('confirm-ok-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
-    
+
     if (hideCancel) cancelBtn.style.display = 'none';
     else cancelBtn.style.display = 'block';
 
@@ -1461,19 +1517,19 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
       okBtn.style.background = 'var(--primary)';
       okBtn.style.boxShadow = '0 0 10px rgba(99,102,241,0.4)';
     }
-    
+
     const cleanup = () => {
       modal.classList.add('hidden');
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancel);
     };
-    
+
     const onOk = () => { cleanup(); resolve(inputPlaceholder !== null ? inputEl.value : true); };
     const onCancel = () => { cleanup(); resolve(inputPlaceholder !== null ? null : false); };
-    
+
     okBtn.addEventListener('click', onOk);
     cancelBtn.addEventListener('click', onCancel);
-    
+
     modal.classList.remove('hidden');
     if (inputPlaceholder !== null) inputEl.focus();
   });
@@ -1496,7 +1552,7 @@ async function deleteStudent(sid, name) {
   const isTr = currentLang === 'tr';
   const title = isTr ? 'Öğrenciyi At' : 'Kick Student';
   const msg = isTr ? `${name} adlı öğrenciyi sınıftan atmak istediğinize emin misiniz? Bu işlem geri alınamaz.` : `Are you sure you want to kick ${name} from the class? This cannot be undone.`;
-  
+
   const confirmed = await showConfirmModal(title, msg, true);
   if (confirmed) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
@@ -1510,14 +1566,14 @@ async function eraseAllData() {
   const msg1 = isTr
     ? 'DİKKAT: Tüm öğrenci verileri, sınav sonuçları, ödev teslimleri ve başarı puanları silinecektir. Bu işlem geri alınamaz.'
     : 'WARNING: This will permanently delete ALL students, quiz results, assignment submissions, and mastery scores. This cannot be undone.';
-  
+
   const confirmed1 = await showConfirmModal(title, msg1, true);
   if (!confirmed1) return;
 
   const msg2 = isTr
     ? 'Devam etmek için aşağıdaki kutuya "ERASE ALL DATA" yazın:'
     : 'Type "ERASE ALL DATA" to confirm:';
-  
+
   const typed = await showConfirmModal(title, msg2, true, 'ERASE ALL DATA');
   if (typed !== 'ERASE ALL DATA') {
     return;
@@ -1536,18 +1592,18 @@ async function showStudentDetail(sid, name) {
   const data = await api('/student/progress?student_id=' + sid);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML = `<h2 style="margin-bottom:20px">${name}</h2><h3 style="margin-bottom:16px">Topic Mastery</h3>${(data.masteries||[]).map(m => {
-    const pct = Math.round(m.score*100);
+  document.getElementById('student-detail-body').innerHTML = `<h2 style="margin-bottom:20px">${name}</h2><h3 style="margin-bottom:16px">Topic Mastery</h3>${(data.masteries || []).map(m => {
+    const pct = Math.round(m.score * 100);
     return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
-  }).join('')}<h3 style="margin:24px 0 16px">Recent Activity</h3>${(data.recent_responses||[]).slice(0,10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score>=0.8?'var(--success)':'var(--danger)'};font-weight:600">${Math.round(r.score*100)}%</span> — ${r.prompt?.substring(0,60)||'Question'}</div>`).join('')}`;
+  }).join('')}<h3 style="margin:24px 0 16px">Recent Activity</h3>${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}`;
 }
 
 async function generateReport() {
-  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + (currentLang==='tr'?'Rapor oluşturuluyor...':'Generating report...') + '</p>';
+  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + (currentLang === 'tr' ? 'Rapor oluşturuluyor...' : 'Generating report...') + '</p>';
   const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
   const isTr = currentLang === 'tr';
   const today = new Date().toLocaleDateString(isTr ? 'tr-TR' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const avgPct = Math.round((r.summary?.class_avg_mastery||0)*100);
+  const avgPct = Math.round((r.summary?.class_avg_mastery || 0) * 100);
 
   const L = {
     title: isTr ? 'AulaAI Haftalık Özet' : 'AulaAI Weekly Digest',
@@ -1558,8 +1614,8 @@ async function generateReport() {
     atRisk: isTr ? 'Riskli' : 'At Risk',
     aiInsights: isTr ? '🤖 Yapay Zeka Analizi' : '🤖 AI Insights',
     aiBody: isTr
-      ? ('Sınıf ortalaması şu an %' + avgPct + ' seviyesinde. ' + ((r.review_topics||[]).length > 0 ? '<strong>' + r.review_topics[0].topic + '</strong> konusunda zorluk tespit edildi. Hızlı bir canlı etkinlik yapmanızı öneriyoruz.' : 'Harika! Şu an ciddi bir sorun tespit edilmedi.'))
-      : ('The class is tracking an average mastery of ' + avgPct + '%. ' + ((r.review_topics||[]).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.')),
+      ? ('Sınıf ortalaması şu an %' + avgPct + ' seviyesinde. ' + ((r.review_topics || []).length > 0 ? '<strong>' + r.review_topics[0].topic + '</strong> konusunda zorluk tespit edildi. Hızlı bir canlı etkinlik yapmanızı öneriyoruz.' : 'Harika! Şu an ciddi bir sorun tespit edilmedi.'))
+      : ('The class is tracking an average mastery of ' + avgPct + '%. ' + ((r.review_topics || []).length > 0 ? 'We noticed some difficulty with <strong>' + r.review_topics[0].topic + '</strong>. We recommend running a quick live activity.' : 'Great job! No major review topics detected right now.')),
     topicsReview: isTr ? '📊 Tekrar Gerektiren Konular' : '📊 Topics Needing Review',
     noTopics: isTr ? 'Zorlanılan konu tespit edilmedi.' : 'No challenging topics detected.',
     avgLabel: isTr ? 'ort' : 'avg',
@@ -1583,7 +1639,7 @@ async function generateReport() {
         <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
             <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classSize}</div>
-            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students||0}</div>
+            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students || 0}</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
             <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${L.classMastery}</div>
@@ -1591,7 +1647,7 @@ async function generateReport() {
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
             <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">${L.atRisk}</div>
-            <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count||0}</div>
+            <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count || 0}</div>
           </div>
         </div>
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.aiInsights}</h3>
@@ -1606,24 +1662,24 @@ async function generateReport() {
         ` : `<p style="font-size: 15px; line-height: 1.6; background: var(--bg-input); padding: 15px; border-left: 4px solid var(--accent); border-radius: 0 8px 8px 0;">${L.aiBody}</p>`}
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.topicsReview}</h3>
         <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          ${(r.review_topics||[]).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery*100) + '% ' + L.avgLabel + '</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">' + L.noTopics + '</td></tr>'}
+          ${(r.review_topics || []).map(td => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 500;">' + td.topic + '</td><td style="padding: 12px 0; text-align: right;"><span style="background: var(--warning-bg); color: var(--warning); padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">' + Math.round(td.avg_mastery * 100) + '% ' + L.avgLabel + '</span></td></tr>').join('') || '<tr><td style="padding: 12px 0; color: var(--text-muted);">' + L.noTopics + '</td></tr>'}
         </table>
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.intervention}</h3>
-        ${(r.at_risk_students||[]).length === 0 ? '<p style="color: var(--success); font-weight: 500;">' + L.noRisk + '</p>' :
-          '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery*100) + '% ' + L.overallLabel + '</td></tr>').join('') + '</table>'}
+        ${(r.at_risk_students || []).length === 0 ? '<p style="color: var(--success); font-weight: 500;">' + L.noRisk + '</p>' :
+      '<table style="width: 100%; border-collapse: collapse; margin-top: 15px;">' + r.at_risk_students.map(rs => '<tr style="border-bottom: 1px solid var(--border);"><td style="padding: 12px 0; font-size: 15px; font-weight: 600;">' + rs.name + '</td><td style="padding: 12px 0; text-align: right; color: var(--danger); font-weight: 600;">' + Math.round(rs.overall_mastery * 100) + '% ' + L.overallLabel + '</td></tr>').join('') + '</table>'}
         <h3 style="font-size: 18px; border-bottom: 2px solid var(--border); padding-bottom: 10px; margin-top: 40px;">${L.evalTitle}</h3>
         <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 15px;">
-          ${(r.student_reports||[]).map(sr => {
-            const evalTexts = {
-              'excellent': isTr ? "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede." : "Making excellent progress. Comprehension of course materials is at a very high level.",
-              'good': isTr ? "Genel performansı iyi durumda, ancak bazı konularda küçük pratik eksikleri var." : "General performance is good, but shows minor gaps in core topics.",
-              'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik konularda tekrar yapması faydalı olacaktır." : "Experiencing fluctuations in learning. Would benefit from reviewing weaker topics.",
-              'inactive': isTr ? "Henüz platformda yeterli etkinlik tamamlamamış. Katılımının teşvik edilmesi gerekiyor." : "Has not yet completed enough activities. Class participation needs encouragement.",
-              'critical': isTr ? "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var." : "Experiencing severe comprehension difficulties and needs urgent teacher support."
-            };
-            const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
-            return '<div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><strong style="font-size: 15px;">' + esc(sr.name) + '</strong><span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ' + (sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')) + '; color: ' + (sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')) + ';">' + Math.round(sr.overall_mastery * 100) + '%</span></div><p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">' + evalText + '</p></div>';
-          }).join('') || '<p style="color:var(--text-muted)">' + L.noStudents + '</p>'}
+          ${(r.student_reports || []).map(sr => {
+        const evalTexts = {
+          'excellent': isTr ? "Mükemmel ilerleme kaydediyor. Ders materyallerini kavraması çok yüksek seviyede." : "Making excellent progress. Comprehension of course materials is at a very high level.",
+          'good': isTr ? "Genel performansı iyi durumda, ancak bazı konularda küçük pratik eksikleri var." : "General performance is good, but shows minor gaps in core topics.",
+          'fluctuating': isTr ? "Öğrenme sürecinde dalgalanmalar yaşıyor. Eksik konularda tekrar yapması faydalı olacaktır." : "Experiencing fluctuations in learning. Would benefit from reviewing weaker topics.",
+          'inactive': isTr ? "Henüz platformda yeterli etkinlik tamamlamamış. Katılımının teşvik edilmesi gerekiyor." : "Has not yet completed enough activities. Class participation needs encouragement.",
+          'critical': isTr ? "Ciddi anlama zorlukları yaşıyor ve acil öğretmen desteğine ihtiyacı var." : "Experiencing severe comprehension difficulties and needs urgent teacher support."
+        };
+        const evalText = evalTexts[sr.eval_code] || (isTr ? 'Veri yetersiz.' : 'Insufficient data.');
+        return '<div style="background: var(--bg-secondary); border: 1px solid var(--border); padding: 15px; border-radius: 8px;"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><strong style="font-size: 15px;">' + esc(sr.name) + '</strong><span style="font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 12px; background: ' + (sr.overall_mastery >= 0.75 ? 'var(--success-bg)' : (sr.overall_mastery < 0.5 ? 'var(--danger-bg)' : 'var(--warning-bg)')) + '; color: ' + (sr.overall_mastery >= 0.75 ? 'var(--success)' : (sr.overall_mastery < 0.5 ? 'var(--danger)' : 'var(--warning)')) + ';">' + Math.round(sr.overall_mastery * 100) + '%</span></div><p style="margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.5;">' + evalText + '</p></div>';
+      }).join('') || '<p style="color:var(--text-muted)">' + L.noStudents + '</p>'}
         </div>
       </div>
     </div>
@@ -1644,27 +1700,27 @@ async function loadStudentStats() {
   const stats = await api('/student/stats?student_id=' + currentUser.id);
   const container = document.getElementById('student-stats');
   if (!container) return;
-  container.innerHTML = `<div class="stat-card"><div class="stat-label">Quizzes</div><div class="stat-value accent">${stats.quizzes||0}</div></div><div class="stat-card"><div class="stat-label">Practice</div><div class="stat-value success">${stats.practice||0}</div></div><div class="stat-card"><div class="stat-label">Assignments</div><div class="stat-value warning">${stats.assignments||0}</div></div>`;
+  container.innerHTML = `<div class="stat-card"><div class="stat-label">Quizzes</div><div class="stat-value accent">${stats.quizzes || 0}</div></div><div class="stat-card"><div class="stat-label">Practice</div><div class="stat-value success">${stats.practice || 0}</div></div><div class="stat-card"><div class="stat-label">Assignments</div><div class="stat-value warning">${stats.assignments || 0}</div></div>`;
 }
 
 async function loadStudentHome() {
   const progress = await api('/student/progress?student_id=' + currentUser.id);
   const masteries = progress.masteries || [];
-  const avg = masteries.length ? masteries.reduce((a,m) => a + m.score, 0) / masteries.length : 0;
+  const avg = masteries.length ? masteries.reduce((a, m) => a + m.score, 0) / masteries.length : 0;
   const strong = masteries.filter(m => m.score >= 0.75).length;
   const weak = masteries.filter(m => m.score < 0.4).length;
 
   document.getElementById('student-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg*100)}%</div></div>
+    <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
     <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak>0?'danger':'success'}">${weak}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
     <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
 
-  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>${(curriculum[0].topics||[]).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">Unit ${curriculum[0].number}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
 }
 
 function loadStudentPractice() {
-  document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics||[]).map(tp =>
+  document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
     `<div class="topic-practice-card" onclick="startPractice('${tp.id}','${esc(tp.title)}')">
       <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
       <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
@@ -1678,13 +1734,13 @@ async function startPractice(tid, title) {
   const area = document.getElementById('practice-area');
   area.classList.remove('hidden');
   area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>${t('practice')}: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">${t('close')}</button></div>` +
-    (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
+    (data.activities || []).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
   area.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function loadStudentProgress() {
   const data = await api('/student/progress?student_id=' + currentUser.id);
-  document.getElementById('progress-chart').innerHTML = (data.masteries||[]).map(m => {
+  document.getElementById('progress-chart').innerHTML = (data.masteries || []).map(m => {
     const pct = Math.round(m.score * 100);
     return `<div class="progress-item"><div class="progress-label"><span>${m.title} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${m.type}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
   }).join('') || `<p style="color:var(--text-muted)">Complete some activities to see your progress!</p>`;
@@ -1800,7 +1856,7 @@ async function viewAssignment(assignmentId, title) {
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
         <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.classAvg}</div>
-        <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg/100)}">${classAvg}%</div>
+        <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
         <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${isTr ? 'En Yüksek' : 'Top Score'}</div>
@@ -1811,9 +1867,9 @@ async function viewAssignment(assignmentId, title) {
     <!-- Score bar chart -->
     <div style="margin-bottom:24px">
       ${results.map((sr, i) => {
-        const pct = Math.round(sr.average_score * 100);
-        const correctCount = sr.answers.filter(a => a.is_correct).length;
-        return `
+    const pct = Math.round(sr.average_score * 100);
+    const correctCount = sr.answers.filter(a => a.is_correct).length;
+    return `
         <div style="margin-bottom:6px">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
             <span style="font-weight:500">
@@ -1843,11 +1899,11 @@ async function viewAssignment(assignmentId, title) {
                   ${!a.is_correct ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
                 </div>
               </div>
-              <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score*100)}%</span>
+              <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score * 100)}%</span>
             </div>
           `).join('')}
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
   `;
 }
@@ -1856,11 +1912,11 @@ async function previewAssignment(aid, title) {
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
   document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
-  
+
   const data = await api('/assignment/take?assignment_id=' + aid);
   const isTr = currentLang === 'tr';
   const qs = data.questions || [];
-  
+
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">👁️ ${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
@@ -1870,12 +1926,52 @@ async function previewAssignment(aid, title) {
       ${qs.map((q, i) => `
         <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
           <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
-            ${isTr ? 'Soru' : 'Question'} ${i+1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
+            ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
           </div>
           <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
           ${q.type === 'mcq' ? `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              ${(q.distractors||[]).concat([q.answer]).map(o => `
+              ${(q.distractors || []).concat([q.answer]).map(o => `
+                <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                  ${o === q.answer ? '✓ ' : ''}${translateOption(o)}
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
+              ✓ ${q.answer}
+            </div>
+          `}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function previewQuiz(qid, title) {
+  const modal = document.getElementById('student-detail-modal');
+  modal.classList.remove('hidden');
+  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+
+  const data = await api('/quiz/take?quiz_id=' + qid);
+  const isTr = currentLang === 'tr';
+  const qs = data.questions || [];
+
+  document.getElementById('student-detail-body').innerHTML = `
+    <h2 style="margin-bottom:4px">👁️ ${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
+    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
+      ${qs.length} ${isTr ? 'soru' : 'questions'}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      ${qs.map((q, i) => `
+        <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
+            ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
+          </div>
+          <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+          ${q.type === 'mcq' ? `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              ${(q.distractors || []).concat([q.answer]).map(o => `
                 <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
                   ${o === q.answer ? '✓ ' : ''}${translateOption(o)}
                 </div>
@@ -1901,13 +1997,13 @@ async function createAssignment() {
   const title = document.getElementById('assignment-title').value || 'Assignment';
   const chapterId = document.getElementById('assignment-chapter-select').value || null;
   const count = parseInt(document.getElementById('assignment-count').value) || 10;
-  
+
   const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
-  
+
   btn.textContent = originalText;
   btn.disabled = false;
-  
-  if(res && res.questions) {
+
+  if (res && res.questions) {
     currentDraft = {
       type: 'assignment',
       title: title,
@@ -1933,7 +2029,7 @@ function closeDraftModal() {
 
 function renderDraftList() {
   const container = document.getElementById('draft-body');
-  
+
   let html = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <h2 style="margin:0">${t('draft.review')} - ${esc(currentDraft.title)}</h2>
@@ -1971,13 +2067,13 @@ function renderDraftList() {
     </div>
     <div style="max-height: 60vh; overflow-y: auto; padding-right:8px;">
   `;
-  
+
   currentDraft.questions.forEach((q, i) => {
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
         <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ ${t('draft.remove')}</button>
         <div class="card-body">
-          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i+1}. ${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</div>
           <div style="font-weight:600; margin-bottom:8px;">${esc(q.prompt)}</div>
           <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(q.answer)}</div>
           ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? `<div style="color:var(--danger); font-size:13px;">✗ ${q.distractors.join(', ')}</div>` : ''}
@@ -1985,13 +2081,13 @@ function renderDraftList() {
       </div>
     `;
   });
-  
+
   html += `</div>`;
   container.innerHTML = html;
-  
+
   // Show/hide distractors based on type
   document.getElementById('cq-type')?.addEventListener('change', (e) => {
-    if(e.target.value === 'fill_blank') {
+    if (e.target.value === 'fill_blank') {
       document.getElementById('cq-distractors-group').style.display = 'none';
     } else {
       document.getElementById('cq-distractors-group').style.display = 'block';
@@ -2012,14 +2108,14 @@ function saveCustomQuestion() {
   const prompt = document.getElementById('cq-prompt').value.trim();
   const answer = document.getElementById('cq-answer').value.trim();
   const dist = document.getElementById('cq-distractors').value;
-  
-  if(!prompt || !answer) {
+
+  if (!prompt || !answer) {
     showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'Prompt and Answer are required.', true);
     return;
   }
-  
+
   const distArray = type === 'mcq' && dist ? dist.split(',').map(s => s.trim()).filter(Boolean) : [];
-  
+
   currentDraft.questions.unshift({
     id: 'new_' + Date.now(),
     type: type,
@@ -2027,7 +2123,7 @@ function saveCustomQuestion() {
     answer: answer,
     distractors: distArray
   });
-  
+
   renderDraftList();
 }
 
@@ -2037,27 +2133,27 @@ function removeDraftQuestion(index) {
 }
 
 async function publishDraft() {
-  if(!currentDraft || currentDraft.questions.length === 0) {
+  if (!currentDraft || currentDraft.questions.length === 0) {
     showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'You need at least 1 question to publish.', true);
     return;
   }
-  
+
   const btn = event.target;
   const originalText = btn.textContent;
   btn.textContent = '...';
   btn.disabled = true;
-  
+
   const res = await api('/draft/publish', {
     method: 'POST',
     body: currentDraft
   });
-  
+
   btn.textContent = originalText;
   btn.disabled = false;
-  
-  if(!res.error) {
+
+  if (!res.error) {
     closeDraftModal();
-    if(currentDraft.type === 'quiz') {
+    if (currentDraft.type === 'quiz') {
       document.getElementById('quiz-title').value = '';
       loadQuizList();
     } else {
@@ -2082,7 +2178,7 @@ async function takeAssignment(aid) {
     loadAssignmentList();
     return;
   }
-  
+
   const area = document.getElementById('assignment-taking-area');
   area.classList.remove('hidden');
   area.dataset.assignmentId = aid;
@@ -2182,7 +2278,7 @@ async function submitAssignment(area) {
           ${isTr ? 'Ödevlere Dön' : 'Back to Assignments'}
         </button>
       </div>`;
-  } catch(e) {
+  } catch (e) {
     area.innerHTML = `<div style="padding:20px;color:var(--danger);text-align:center">
       ${isTr ? 'Hata oluştu, tekrar deneyin.' : 'An error occurred. Please try again.'}
       <br><button class="btn btn-outline" style="margin-top:12px"
@@ -2193,165 +2289,30 @@ async function submitAssignment(area) {
   }
 }
 
-function loadQuizList() {
-  const container = document.getElementById('quiz-list');
-  const select = document.getElementById('quiz-chapter-select');
-  if (!container || !currentCourse) return;
-  
-  api(`/quizzes?course_id=${currentCourse.id}`).then(data => {
-    container.innerHTML = data.map(q => `
-      <div class="card" style="margin-bottom:12px; border:1px solid var(--border);">
-        <div class="card-body" style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h4 style="margin-bottom:4px;">${esc(q.title)}</h4>
-            <div style="font-size:12px; color:var(--text-muted);">${q.q_count} questions • ${q.chapter_name || 'All Chapters'}</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteQuiz('${q.id}')">🗑️</button>
-        </div>
-      </div>
-    `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">No quizzes created yet.</p>';
-  });
-
-  // Update chapter select
-  api(`/chapters?course_id=${currentCourse.id}`).then(async chapters => {
-      if (!select) return;
-      let html = '<option value="">All Lessons</option>';
-      for (const ch of chapters) {
-          const topics = await api(`/topics?chapter_id=${ch.id}`);
-          if (topics && topics.length > 0) {
-              html += `<option value="chapter_${ch.id}">U${ch.number} — ALL CHAPTER ${ch.number}</option>`;
-              topics.forEach(t => {
-                  html += `<option value="topic_${t.id}">U${ch.number} — ${esc(t.title)} (${t.type})</option>`;
-              });
-          }
-      }
-      select.innerHTML = html;
-  });
-}
-
 async function createQuiz() {
-    const title = document.getElementById('quiz-title').value.trim();
-    const val = document.getElementById('quiz-chapter-select').value;
-    let chapterId = null;
-    let topicId = null;
-    
-    if (val.startsWith('chapter_')) chapterId = val.replace('chapter_', '');
-    else if (val.startsWith('topic_')) topicId = val.replace('topic_', '');
-    
-    const count = parseInt(document.getElementById('quiz-count').value);
-    
-    if (!title) return showAlert('Missing Info', 'Please enter a quiz title.', true);
-    
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = 'Creating...';
-    
-    const res = await api('/quiz/create', {
-        method: 'POST',
-        body: {
-            course_id: currentCourse.id,
-            title: title,
-            chapter_id: chapterId,
-            topic_id: topicId,
-            count: count
-        }
-    });
-    
-    if (res.error) {
-        showAlert('Error', res.error, true);
-    } else {
-        loadQuizList();
-        document.getElementById('quiz-title').value = '';
-        showAlert('Success', 'Quiz created successfully!');
-    }
-    btn.disabled = false;
-    btn.textContent = 'Create Quiz';
-}
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = '...';
+  btn.disabled = true;
 
-function loadAssignmentList() {
-  const container = document.getElementById('assignment-list');
-  const select = document.getElementById('assignment-chapter-select');
-  if (!container || !currentCourse) return;
-  
-  api(`/assignments?course_id=${currentCourse.id}`).then(data => {
-    container.innerHTML = data.map(a => `
-      <div class="card" style="margin-bottom:12px; border:1px solid var(--border);">
-        <div class="card-body" style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h4 style="margin-bottom:4px;">${esc(a.title)}</h4>
-            <div style="font-size:12px; color:var(--text-muted);">${a.q_count} questions • ${a.chapter_name || 'All Chapters'}</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteAssignment('${a.id}')">🗑️</button>
-        </div>
-      </div>
-    `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">No assignments created yet.</p>';
-  });
+  const title = document.getElementById('quiz-title').value || 'Quiz';
+  const chapterId = document.getElementById('quiz-chapter-select').value || null;
+  const count = parseInt(document.getElementById('quiz-count').value) || 10;
 
-  // Update topic/chapter select
-  api(`/chapters?course_id=${currentCourse.id}`).then(async chapters => {
-      if (!select) return;
-      let html = '<option value="">All Lessons</option>';
-      for (const ch of chapters) {
-          const topics = await api(`/topics?chapter_id=${ch.id}`);
-          if (topics && topics.length > 0) {
-              html += `<option value="chapter_${ch.id}">U${ch.number} — ALL CHAPTER ${ch.number}</option>`;
-              topics.forEach(t => {
-                  html += `<option value="topic_${t.id}">U${ch.number} — ${esc(t.title)} (${t.type})</option>`;
-              });
-          }
-      }
-      select.innerHTML = html;
-  });
-}
+  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
 
-async function createAssignment() {
-    const title = document.getElementById('assignment-title').value.trim();
-    const val = document.getElementById('assignment-chapter-select').value;
-    let chapterId = null;
-    let topicId = null;
-    
-    if (val.startsWith('chapter_')) chapterId = val.replace('chapter_', '');
-    else if (val.startsWith('topic_')) topicId = val.replace('topic_', '');
-    
-    const count = parseInt(document.getElementById('assignment-count').value);
-    
-    if (!title) return showAlert('Missing Info', 'Please enter an assignment title.', true);
-    
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = 'Creating...';
-    
-    const res = await api('/assignment/create', {
-        method: 'POST',
-        body: {
-            course_id: currentCourse.id,
-            title: title,
-            chapter_id: chapterId,
-            topic_id: topicId,
-            count: count
-        }
-    });
-    
-    if (res.error) {
-        showAlert('Error', res.error, true);
-    } else {
-        loadAssignmentList();
-        document.getElementById('assignment-title').value = '';
-        showAlert('Success', 'Assignment created successfully!');
-    }
-    btn.disabled = false;
-    btn.textContent = 'Create Assignment';
-}
+  btn.textContent = originalText;
+  btn.disabled = false;
 
-async function deleteQuiz(id) {
-    if (!confirm('Are you sure you want to delete this quiz?')) return;
-    await api(`/quiz/delete?id=${id}`, { method: 'DELETE' });
-    loadQuizList();
-}
-
-async function deleteAssignment(id) {
-    if (!confirm('Are you sure you want to delete this assignment?')) return;
-    await api(`/assignment/delete?id=${id}`, { method: 'DELETE' });
-    loadAssignmentList();
+  if (res && res.questions) {
+    currentDraft = {
+      type: 'quiz',
+      title: title,
+      course_id: courseId,
+      chapter_id: chapterId,
+      questions: res.questions
+    };
+    openDraftModal();
+  }
 }
 

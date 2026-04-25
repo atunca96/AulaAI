@@ -1,0 +1,104 @@
+[1mdiff --git a/public/js/app.js b/public/js/app.js[m
+[1mindex 3137ac7..3773ff5 100644[m
+[1m--- a/public/js/app.js[m
+[1m+++ b/public/js/app.js[m
+[36m@@ -636,65 +636,78 @@[m [masync function handleCreateClassroom(e) {[m
+   btn.style.opacity = '0.5';[m
+   btn.style.cursor = 'default';[m
+   [m
+[32m+[m[32m  let data;[m
+   try {[m
+     const res = await fetch('/api/classroom/create-from-pdf', {[m
+       method: 'POST',[m
+       body: formData[m
+     });[m
+[31m-    const data = await res.json();[m
+[31m-    [m
+[31m-    if (data.success) {[m
+[31m-      await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);[m
+[31m-      closeCreateClassroomModal();[m
+[31m-      await showClassroomSelection();[m
+[31m-      [m
+[31m-      // If it's still missing from global list (race condition), manually inject it[m
+[31m-      if (window.allCourses && !window.allCourses.find(c => c.id === data.course_id)) {[m
+[31m-        const ghost = { id: data.course_id, name: data.name, code: data.code, semester: 'Fall 2026', is_building: 1, language: 'Detecting...' };[m
+[31m-        window.allCourses.unshift(ghost);[m
+[31m-        // Refresh local UI using global state[m
+[31m-        const container = document.getElementById('classroom-list');[m
+[31m-        if (container) {[m
+[31m-          container.innerHTML = window.allCourses.map(c => {[m
+[31m-            const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";[m
+[31m-            const isBuilding = c.is_building === 1;[m
+[31m-            return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">[m
+[31m-                ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}[m
+[31m-                <div class="card-body">[m
+[31m-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">[m
+[31m-                        <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>[m
+[31m-                        ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}[m
+[31m-                    </div>[m
+[31m-                    <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>[m
+[31m-                    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>[m
+[31m-                    [m
+[31m-                    ${isBuilding ? `[m
+[31m-                      <div class="flex-center" style="margin: 20px 0;">[m
+[31m-                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>[m
+[31m-                      </div>[m
+[31m-                      <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>[m
+[31m-                      <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}')">[m
+[31m-                        ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}[m
+[31m-                      </button>[m
+[31m-                    ` : ''}[m
+[31m-                </div>[m
+[31m-                <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">[m
+[31m-                    ${isBuilding ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Processing...') : (currentLang === 'tr' ? 'Sınıfı Seç' : 'Select Classroom')}[m
+[31m-                </button>[m
+[31m-            </div>`;[m
+[31m-          }).join('');[m
+[31m-        }[m
+[31m-      }[m
+[31m-    } else {[m
+[31m-      showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error || 'Failed to create classroom', true);[m
+[31m-    }[m
+[32m+[m[32m    data = await res.json();[m
+   } catch (err) {[m
+[31m-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', 'An error occurred during classroom creation.', true);[m
+[31m-  } finally {[m
+[32m+[m[32m    console.error('[CLASSROOM] Creation network error:', err);[m
+     statusEl.classList.add('hidden');[m
+     btn.disabled = false;[m
+     btn.style.opacity = '1';[m
+     btn.style.cursor = 'pointer';[m
+[32m+[m[32m    return showAlert(currentLang === 'tr' ? 'Hata' : 'Error', currentLang === 'tr' ? 'Sınıf oluşturulurken bir ağ hatası oluştu.' : 'A network error occurred during classroom creation.', true);[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  // Always reset button state after the request completes[m
+[32m+[m[32m  statusEl.classList.add('hidden');[m
+[32m+[m[32m  btn.disabled = false;[m
+[32m+[m[32m  btn.style.opacity = '1';[m
+[32m+[m[32m  btn.style.cursor = 'pointer';[m
+[32m+[m
+[32m+[m[32m  if (!data.success) {[m
+[32m+[m[32m    return showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  // Success path logic (wrapped in a separate try-catch so UI refresh errors don't look like creation errors)[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);[m
+[32m+[m[32m    closeCreateClassroomModal();[m
+[32m+[m[32m    await showClassroomSelection();[m
+[32m+[m[41m    [m
+[32m+[m[32m    // If it's still missing from global list (race condition), manually inject it[m
+[32m+[m[32m    if (!Array.isArray(window.allCourses)) { window.allCourses = []; }[m
+[32m+[m[32m    if (!window.allCourses.find(c => c.id === data.course_id)) {[m
+[32m+[m[32m      const ghost = { id: data.course_id, name: data.name, code: data.code, semester: 'Fall 2026', is_building: 1, language: 'Detecting...' };[m
+[32m+[m[32m      window.allCourses.unshift(ghost);[m
+[32m+[m[32m      // Refresh local UI using global state[m
+[32m+[m[32m      const container = document.getElementById('classroom-list');[m
+[32m+[m[32m      if (container) {[m
+[32m+[m[32m        container.innerHTML = window.allCourses.map(c => {[m
+[32m+[m[32m          const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";[m
+[32m+[m[32m          const isBuilding = c.is_building === 1;[m
+[32m+[m[32m          return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">[m
+[32m+[m[32m              ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}[m
+[32m+[m[32m              <div class="card-body">[m
+[32m+[m[32m                  <div style="display:fle

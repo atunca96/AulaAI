@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import uuid
+import sys
 import sqlite3
 import threading
 import time
@@ -288,6 +289,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [PROFILE] slow POST {self.path} ({duration:.3f}s)")
 
     def _handle_POST(self):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] [POST] {self.path}")
         parsed = urlparse(self.path)
         path = parsed.path.rstrip('/')
 
@@ -616,7 +618,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         _cleanup_stale_classrooms()
         with db_connection() as db:
             courses = db.execute("SELECT * FROM courses").fetchall()
-        self._send_json([dict(c) for c in courses])
+            result = []
+            for c in courses:
+                c_dict = dict(c)
+                # Compute progress based on topics with content
+                total = db.execute("""
+                    SELECT COUNT(t.id) as cnt FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                """, (c["id"],)).fetchone()["cnt"]
+                
+                done = db.execute("""
+                    SELECT COUNT(t.id) as cnt FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ? AND t.content IS NOT NULL AND t.content != '' AND t.content != '{}'
+                """, (c["id"],)).fetchone()["cnt"]
+                
+                c_dict["progress"] = (done / total) if total > 0 else 0
+                result.append(c_dict)
+        self._send_json(result)
 
     def _get_curriculum(self, course_id):
         with db_connection() as db:
@@ -1557,8 +1577,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if result.get("success"):
                 bump_version()
                 self._send_json(result)
-            else:
-                self._send_error(result.get("error", "Failed to process PDF"))
+        except Exception as e:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [ERROR] _create_classroom_from_pdf: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._send_json({"success": False, "error": str(e)}, 500)
         except Exception as e:
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [CRITICAL] Error in _create_classroom_from_pdf")
             import traceback
