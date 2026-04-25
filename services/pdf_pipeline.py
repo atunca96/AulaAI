@@ -110,6 +110,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             chapter_id = _uid()
             ch_num = idx + 1 # Force sequential numbering
             ch_title = str(ch.get("title", "Untitled Chapter"))
+            ch["id"] = chapter_id # Attach ID directly to avoid title-matching bugs in Phase 2
             _log(f"Inserting Chapter {ch_num}: {ch_title}")
             
             db.execute("INSERT INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
@@ -140,10 +141,8 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
     try:
         _log(f"Phase 2 Enrichment started for {course_id}")
         
-        with db_connection() as db:
-            chapters = db.execute("SELECT id, title FROM chapters WHERE course_id = ?", (course_id,)).fetchall()
-            chapter_map = {c["title"]: c["id"] for c in chapters}
-            
+        # We no longer need to build a chapter_map because IDs are injected in Phase 1
+        
         # Increase limit to cover full curriculum (typically 9-12 chapters, 20-30 topics)
         # Allow up to 250 topics for massive textbooks
         MAX_TOTAL_TOPICS = 250 
@@ -154,10 +153,13 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
             futures = []
             for ch in chapters_data:
-                chapter_id = chapter_map.get(str(ch.get("title")))
-                if not chapter_id: continue
+                chapter_id = ch.get("id")
+                if not chapter_id:
+                    _log(f"WARNING: Skipping chapter '{ch.get('title')}' - No ID found.")
+                    continue
                 
-                for i, topic in enumerate(ch.get("topics", [])):
+                topics = ch.get("topics", [])
+                for i, topic in enumerate(topics):
                     if topic_count >= MAX_TOTAL_TOPICS: break
                     
                     t_title = topic.get("title", "Untitled Topic")
