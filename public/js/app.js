@@ -91,50 +91,58 @@ function refreshCurrentView() {
     loadQuizList();
     loadAssignmentList();
     loadStudentRoster();
-    api('/messages').then(messages => {
-      if (messages && Array.isArray(messages)) {
-        const unread = messages.filter(m => !m.is_read && m.sender === 'student').length;
-        const badge = document.getElementById('inbox-badge');
-        if (unread > 0) {
-          badge.style.display = 'flex';
-          badge.textContent = unread;
-        } else {
-          badge.style.display = 'none';
-        }
-        if (document.getElementById('tab-inbox') && document.getElementById('tab-inbox').classList.contains('active')) {
-          if (currentChatStudentId) {
-            const titleEl = document.getElementById('inbox-title');
-            if (titleEl) {
-              const nameText = titleEl.textContent;
-              const name = nameText.includes('💬') ? nameText.split('💬 ')[1] : nameText;
-              openChat(currentChatStudentId, name);
+    if (currentCourse) {
+      api('/messages?course_id=' + currentCourse.id).then(messages => {
+        if (messages && Array.isArray(messages)) {
+          const unread = messages.filter(m => !m.is_read && m.sender === 'student').length;
+          const badge = document.getElementById('inbox-badge');
+          if (badge) {
+            if (unread > 0) {
+              badge.style.display = 'flex';
+              badge.textContent = unread;
+            } else {
+              badge.style.display = 'none';
             }
-          } else {
-            loadInbox();
+          }
+          if (document.getElementById('tab-inbox') && document.getElementById('tab-inbox').classList.contains('active')) {
+            if (currentChatStudentId) {
+              const titleEl = document.getElementById('inbox-title');
+              if (titleEl) {
+                const nameText = titleEl.textContent;
+                const name = nameText.includes('💬') ? nameText.split('💬 ')[1] : nameText;
+                openChat(currentChatStudentId, name);
+              }
+            } else {
+              loadInbox();
+            }
           }
         }
-      }
-    });
+      });
+    }
   } else {
     loadStudentHome();
     loadQuizList();
     loadAssignmentList();
     loadStudentProgress();
-    api(`/messages?student_id=${currentUser.id}`).then(messages => {
-      if (messages && Array.isArray(messages)) {
-        const unread = messages.filter(m => !m.is_read && m.sender === 'lecturer').length;
-        const badge = document.getElementById('message-badge');
-        if (unread > 0) {
-          badge.style.display = 'flex';
-          badge.textContent = unread;
-        } else {
-          badge.style.display = 'none';
+    if (currentCourse) {
+      api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`).then(messages => {
+        if (messages && Array.isArray(messages)) {
+          const unread = messages.filter(m => !m.is_read && m.sender === 'lecturer').length;
+          const badge = document.getElementById('message-badge');
+          if (badge) {
+            if (unread > 0) {
+              badge.style.display = 'flex';
+              badge.textContent = unread;
+            } else {
+              badge.style.display = 'none';
+            }
+          }
+          if (document.getElementById('tab-s-messages') && document.getElementById('tab-s-messages').classList.contains('active')) {
+            loadStudentChat();
+          }
         }
-        if (document.getElementById('tab-s-messages') && document.getElementById('tab-s-messages').classList.contains('active')) {
-          loadStudentChat();
-        }
-      }
-    });
+      });
+    }
   }
 }
 
@@ -429,8 +437,12 @@ function fillDemo(role) {
   }
 }
 
-async function completeLogin(user) {
+async function completeLogin(user, isFresh = false) {
   currentUser = user;
+  if (isFresh) {
+    localStorage.removeItem('aula_last_tab');
+    localStorage.removeItem('aula_last_course');
+  }
   const remember = document.getElementById('login-remember') ? document.getElementById('login-remember').checked : true;
   if (remember) localStorage.setItem('aula_user', JSON.stringify(user));
   else sessionStorage.setItem('aula_user', JSON.stringify(user));
@@ -498,6 +510,9 @@ async function completeLogin(user) {
 }
 
 async function showClassroomSelection() {
+  localStorage.removeItem('aula_last_course');
+  localStorage.removeItem('aula_last_tab');
+  
   const courses = await api('/courses?t=' + Date.now());
   window.allCourses = courses; // Store globally for other functions
   const container = document.getElementById('classroom-list');
@@ -550,11 +565,30 @@ async function showClassroomSelection() {
   }
 
   _buildingCourses = currentlyBuilding;
-  localStorage.removeItem('aula_last_course');
-  localStorage.removeItem('aula_last_tab');
 }
 
 async function selectClassroom(id, isLecturer = true) {
+  // 1. Immediate UI Cleanup to prevent ghosting/flicker
+  const activityPreview = document.getElementById('activity-preview');
+  if (activityPreview) { activityPreview.classList.add('hidden'); activityPreview.innerHTML = ''; }
+  const activitySelect = document.getElementById('activity-topic-select');
+  if (activitySelect) activitySelect.value = '';
+
+  ['student-roster', 'pending-roster', 'overview-stats', 'at-risk-list', 'quiz-list', 'student-quiz-list', 'assignment-list', 'student-assignment-list', 'inbox-messages', 'student-chat-history', 'topic-difficulty-chart', 'report-content', 'practice-topics', 'progress-chart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  // Reset chat/inbox state
+  currentChatStudentId = null;
+  const inboxBackBtn = document.getElementById('inbox-back-btn');
+  if (inboxBackBtn) inboxBackBtn.classList.add('hidden');
+  const inboxReplyArea = document.getElementById('inbox-reply-area');
+  if (inboxReplyArea) inboxReplyArea.classList.add('hidden');
+  const inboxTitle = document.getElementById('inbox-title');
+  if (inboxTitle) inboxTitle.innerHTML = `📥 <span data-i18n="inbox">Inbox</span>`;
+
+  // 2. Fetch course data
   const courses = await api('/courses');
   let course = courses.find(c => c.id === id);
 
@@ -585,37 +619,32 @@ async function selectClassroom(id, isLecturer = true) {
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
 
-  // Update Book Tab with classroom-specific PDF
+  // Update Book Tab
   let bookPath = course ? course.textbook : '';
-  // Hardcoded fallback for Spanish 101 to ensure the default textbook always loads
-  if (course && (course.id === 'spanish-101' || course.name === 'Spanish 101')) {
+  if (course && (course.id === 'spanish-101' || course.name === 'Spanish' || course.name === 'Spanish 101')) {
     bookPath = '/books/textbook.pdf';
   }
   const pdfViewerSrc = (bookPath && bookPath !== '/books/' && bookPath !== '/books/undefined') ? bookPath : '';
-
-  document.querySelectorAll('.pdf-viewer').forEach(el => {
-    // If we have a valid PDF path, use it; otherwise clear or use a safe empty state
-    el.src = pdfViewerSrc || 'about:blank';
-  });
-
+  document.querySelectorAll('.pdf-viewer').forEach(el => { el.src = pdfViewerSrc || 'about:blank'; });
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
   });
 
   if (currentUser.role === 'lecturer') {
     showScreen('lecturer-dashboard');
+    const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
+    const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${targetTab}"]`);
+    if (tabBtn) switchTab(tabBtn, true);
     await initLecturer();
   } else {
     showScreen('student-dashboard');
+    const targetTab = localStorage.getItem('aula_last_tab') || 's-home';
+    const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
+    if (tabBtn) switchTab(tabBtn, true);
     await initStudent();
   }
 
   localStorage.setItem('aula_last_course', id);
-  const savedTab = localStorage.getItem('aula_last_tab');
-  if (savedTab) {
-    const tabBtn = document.querySelector(`[data-tab="${savedTab}"]`);
-    if (tabBtn) switchTab(tabBtn, true);
-  }
 }
 
 async function deleteClassroom(id) {
@@ -773,7 +802,7 @@ async function handleStudentLogin(e) {
     return false;
   }
   // On subsequent logins, name field not needed
-  await completeLogin(data.user);
+  await completeLogin(data.user, true);
   return false;
 }
 
@@ -786,7 +815,7 @@ async function handleLogin(e) {
     }
   });
   if (data.error) { document.getElementById('login-error').textContent = data.error; document.getElementById('login-error').classList.remove('hidden'); return false; }
-  await completeLogin(data.user);
+  await completeLogin(data.user, true);
   return false;
 }
 
@@ -856,7 +885,8 @@ function closeModal() { document.querySelectorAll('.modal').forEach(m => m.class
 let currentChatStudentId = null;
 
 async function loadStudentChat() {
-  const messages = await api(`/messages?student_id=${currentUser.id}`);
+  if (!currentCourse) return;
+  const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
   const container = document.getElementById('student-chat-history');
 
   if (!messages || messages.length === 0) {
@@ -866,11 +896,13 @@ async function loadStudentChat() {
 
   container.innerHTML = messages.map(m => {
     const isMe = m.sender === 'student';
+    // Ensure timestamp is treated as UTC
+    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
       <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
         <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
           ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
       </div>
     `;
@@ -885,14 +917,20 @@ async function loadStudentChat() {
 
 async function sendMessage() {
   const text = document.getElementById('message-text').value.trim();
-  if (!text) return;
+  if (!text || !currentCourse) return;
   document.getElementById('message-text').value = '';
-  await api('/message/send', { method: 'POST', body: { student_id: currentUser.id, sender: 'student', content: text } });
+  await api('/message/send', { method: 'POST', body: { 
+    student_id: currentUser.id, 
+    course_id: currentCourse.id,
+    sender: 'student', 
+    content: text 
+  } });
   await loadStudentChat();
 }
 
 async function loadInbox() {
-  const messages = await api('/messages');
+  if (!currentCourse) return;
+  const messages = await api(`/messages?course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
@@ -951,16 +989,17 @@ async function openChat(studentId, studentName) {
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
 
-  const messages = await api(`/messages?student_id=${studentId}`);
+  const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
 
   container.innerHTML = messages.map(m => {
     const isMe = m.sender === 'lecturer';
+    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
       <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
         <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
           ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         </div>
       </div>
     `;
@@ -983,9 +1022,14 @@ async function openChat(studentId, studentName) {
 
 async function sendLecturerMessage() {
   const text = document.getElementById('inbox-reply-text').value.trim();
-  if (!text || !currentChatStudentId) return;
+  if (!text || !currentChatStudentId || !currentCourse) return;
   document.getElementById('inbox-reply-text').value = '';
-  await api('/message/send', { method: 'POST', body: { student_id: currentChatStudentId, sender: 'lecturer', content: text } });
+  await api('/message/send', { method: 'POST', body: { 
+    student_id: currentChatStudentId, 
+    course_id: currentCourse.id,
+    sender: 'lecturer', 
+    content: text 
+  } });
 
   const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
   await openChat(currentChatStudentId, name);
@@ -1499,7 +1543,7 @@ async function loadStudentRoster() {
     const pct = Math.round(s.avg_mastery * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}')">
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}', '${schoolNum}')">
       <div class="flex-between" style="margin-bottom:8px; gap:12px">
         <div class="student-name" style="margin-bottom:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
           ${s.name}${schoolNumHtml}
@@ -1632,7 +1676,7 @@ async function eraseAllData() {
   }
 }
 
-async function showStudentDetail(sid, name) {
+async function showStudentDetail(sid, name, studentId = '') {
   const data = await api('/student/progress?student_id=' + sid);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
@@ -1646,9 +1690,11 @@ async function showStudentDetail(sid, name) {
     activity: isTr ? 'Son Etkinlikler' : 'Recent Activity'
   };
 
+  const idHtml = studentId ? `<span style="font-size:16px; color:var(--text-muted); margin-left:12px; font-weight:normal">#${studentId}</span>` : '';
+
   document.getElementById('student-detail-body').innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
-      <h2 style="margin:0">${name}</h2>
+      <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
         <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 ${L.message}</button>
         <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 ${L.kick}</button>

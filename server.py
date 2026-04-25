@@ -232,7 +232,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_quizzes(course_id, student_id)
         elif path == "/api/messages":
             student_id = params.get("student_id", [None])[0]
-            return self._get_messages(student_id)
+            course_id = params.get("course_id", [None])[0]
+            return self._get_messages(student_id, course_id)
         elif path == "/api/report":
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
@@ -685,7 +686,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             students = db.execute("""
                 SELECT u.id, u.name, u.email FROM users u
                 JOIN enrollments e ON u.id = e.student_id
-                WHERE e.course_id = ? AND (u.status = 'approved' OR u.status IS NULL)
+                WHERE e.course_id = ? AND (e.status = 'approved' OR e.status IS NULL)
                 ORDER BY u.name
             """, (course_id,)).fetchall()
 
@@ -1432,9 +1433,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         bump_version()
         self._send_json({"average": total_score / max(len(answers), 1)})
 
-    def _get_messages(self, student_id=None):
+    def _get_messages(self, student_id=None, course_id=None):
         with db_connection() as db:
-            if student_id:
+            if student_id and course_id:
+                messages = db.execute("""
+                    SELECT m.*, u.name as student_name 
+                    FROM messages m 
+                    JOIN users u ON m.student_id = u.id 
+                    WHERE m.student_id = ? AND m.course_id = ?
+                    ORDER BY m.created_at ASC
+                """, (student_id, course_id)).fetchall()
+            elif student_id:
                 messages = db.execute("""
                     SELECT m.*, u.name as student_name 
                     FROM messages m 
@@ -1442,6 +1451,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     WHERE m.student_id = ?
                     ORDER BY m.created_at ASC
                 """, (student_id,)).fetchall()
+            elif course_id:
+                messages = db.execute("""
+                    SELECT m.*, u.name as student_name 
+                    FROM messages m 
+                    JOIN users u ON m.student_id = u.id 
+                    WHERE m.course_id = ?
+                    ORDER BY m.created_at DESC
+                """, (course_id,)).fetchall()
             else:
                 messages = db.execute("""
                     SELECT m.*, u.name as student_name 
@@ -1454,14 +1471,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _message_send(self):
         body = self._read_body()
         student_id = body.get("student_id")
+        course_id = body.get("course_id")
         content = body.get("content", "").strip()
         sender = body.get("sender", "student")
         if not student_id or not content:
             return self._send_error("student_id and content required")
-        
+        if not course_id:
+            # Fallback for old clients if any
+            with db_connection() as db:
+                course = db.execute("SELECT course_id FROM enrollments WHERE student_id = ? LIMIT 1", (student_id,)).fetchone()
+                course_id = course["course_id"] if course else None
+
         with db_connection() as db:
-            db.execute("INSERT INTO messages (id, student_id, sender, content) VALUES (?,?,?,?)",
-                       (_uid(), student_id, sender, content))
+            db.execute("INSERT INTO messages (id, student_id, course_id, sender, content) VALUES (?,?,?,?,?)",
+                       (_uid(), student_id, course_id, sender, content))
             db.commit()
         bump_version()
         self._send_json({"success": True})

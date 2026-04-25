@@ -198,6 +198,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             student_id TEXT REFERENCES users(id),
+            course_id TEXT REFERENCES courses(id),
             sender TEXT DEFAULT 'student',
             content TEXT NOT NULL,
             is_read INTEGER DEFAULT 0,
@@ -247,6 +248,10 @@ def init_db():
 
     try:
         c.execute("ALTER TABLE messages ADD COLUMN sender TEXT DEFAULT 'student'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE messages ADD COLUMN course_id TEXT REFERENCES courses(id)")
     except sqlite3.OperationalError:
         pass
 
