@@ -2193,94 +2193,41 @@ async function submitAssignment(area) {
   }
 }
 
-function openCreateQuizModal() {
-    document.getElementById('create-quiz-modal').classList.remove('hidden');
-    renderTopicSelectionList('quiz');
+function loadQuizList() {
+  const container = document.getElementById('quiz-list');
+  const select = document.getElementById('quiz-chapter-select');
+  if (!container || !currentCourse) return;
+  
+  api(`/quizzes?course_id=${currentCourse.id}`).then(data => {
+    container.innerHTML = data.map(q => `
+      <div class="card" style="margin-bottom:12px; border:1px solid var(--border);">
+        <div class="card-body" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h4 style="margin-bottom:4px;">${esc(q.title)}</h4>
+            <div style="font-size:12px; color:var(--text-muted);">${q.q_count} questions • ${q.chapter_name || 'All Chapters'}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteQuiz('${q.id}')">🗑️</button>
+        </div>
+      </div>
+    `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">No quizzes created yet.</p>';
+  });
+
+  // Update chapter select
+  api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
+      if (!select) return;
+      select.innerHTML = '<option value="">All chapters</option>' + 
+          chapters.map(ch => `<option value="${ch.id}">Chapter ${ch.number}: ${esc(ch.title)}</option>`).join('');
+  });
 }
 
-function closeCreateQuizModal() {
-    document.getElementById('create-quiz-modal').classList.add('hidden');
-}
-
-function openCreateAssignmentModal() {
-    document.getElementById('create-assignment-modal').classList.remove('hidden');
-    renderTopicSelectionList('assignment');
-}
-
-function closeCreateAssignmentModal() {
-    document.getElementById('create-assignment-modal').classList.add('hidden');
-}
-
-async function renderTopicSelectionList(type) {
-    const container = document.getElementById(`${type}-topic-selection-list`);
-    if (!container) return;
-    
-    container.innerHTML = `<div style="padding:20px; text-align:center;"><div class="spinner-small"></div></div>`;
-    
-    try {
-        const chapters = await api(`/chapters?course_id=${currentCourse.id}`);
-        if (!chapters || !Array.isArray(chapters)) {
-            container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--danger);">Failed to load curriculum.</div>`;
-            return;
-        }
-        
-        let html = '';
-        for (const ch of chapters) {
-            const topics = await api(`/topics?chapter_id=${ch.id}`);
-            if (topics && topics.length > 0) {
-                html += `<div style="margin-bottom:12px;">
-                    <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:flex; align-items:center; gap:8px; padding:0 4px;">
-                        U${ch.number} — ${esc(ch.title)}
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        ${topics.map(t => `
-                            <label class="topic-selection-item" style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; cursor:pointer; background:rgba(255,255,255,0.03); transition:background 0.2s;">
-                                <input type="checkbox" name="${type}-topics" value="${t.id}" style="width:16px; height:16px; accent-color:var(--accent);">
-                                <div style="flex:1;">
-                                    <div style="font-size:13px; font-weight:500;">${esc(t.title)}</div>
-                                    <div style="font-size:10px; color:var(--text-muted); text-transform:capitalize;">${t.type}</div>
-                                </div>
-                            </label>
-                        `).join('')}
-                    </div>
-                </div>`;
-            }
-        }
-        
-        container.innerHTML = html || `<div style="padding:20px; text-align:center; color:var(--text-muted);">No topics found.</div>`;
-        
-        if (!document.getElementById('topic-selection-styles')) {
-            const style = document.createElement('style');
-            style.id = 'topic-selection-styles';
-            style.innerHTML = `
-                .topic-selection-item:hover { background: rgba(255,255,255,0.08) !important; }
-                .topic-selection-item input:checked + div { color: var(--accent); }
-            `;
-            document.head.appendChild(style);
-        }
-    } catch(e) {
-        container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--danger);">Error loading topics.</div>`;
-    }
-}
-
-function selectAllTopics(type) {
-    document.querySelectorAll(`input[name="${type}-topics"]`).forEach(cb => cb.checked = true);
-}
-
-function deselectAllTopics(type) {
-    document.querySelectorAll(`input[name="${type}-topics"]`).forEach(cb => cb.checked = false);
-}
-
-async function handleCreateQuiz() {
-    const title = document.getElementById('quiz-title-input').value.trim();
-    const count = parseInt(document.getElementById('quiz-q-count').value);
-    const selected = Array.from(document.querySelectorAll('input[name="quiz-topics"]:checked')).map(cb => cb.value);
+async function createQuiz() {
+    const title = document.getElementById('quiz-title').value.trim();
+    const chapterId = document.getElementById('quiz-chapter-select').value;
+    const count = parseInt(document.getElementById('quiz-count').value);
     
     if (!title) return showAlert('Missing Info', 'Please enter a quiz title.', true);
-    if (selected.length === 0) return showAlert('Missing Selection', 'Please select at least one lesson.', true);
     
     const btn = event.target;
-    const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Creating...';
     
@@ -2289,7 +2236,7 @@ async function handleCreateQuiz() {
         body: {
             course_id: currentCourse.id,
             title: title,
-            topic_ids: selected,
+            chapter_id: chapterId || null,
             count: count
         }
     });
@@ -2297,24 +2244,49 @@ async function handleCreateQuiz() {
     if (res.error) {
         showAlert('Error', res.error, true);
     } else {
-        closeCreateQuizModal();
         loadQuizList();
+        document.getElementById('quiz-title').value = '';
         showAlert('Success', 'Quiz created successfully!');
     }
     btn.disabled = false;
-    btn.textContent = originalText;
+    btn.textContent = 'Create Quiz';
 }
 
-async function handleCreateAssignment() {
-    const title = document.getElementById('assignment-title-input').value.trim();
-    const count = parseInt(document.getElementById('assignment-q-count').value);
-    const selected = Array.from(document.querySelectorAll('input[name="assignment-topics"]:checked')).map(cb => cb.value);
+function loadAssignmentList() {
+  const container = document.getElementById('assignment-list');
+  const select = document.getElementById('assignment-chapter-select');
+  if (!container || !currentCourse) return;
+  
+  api(`/assignments?course_id=${currentCourse.id}`).then(data => {
+    container.innerHTML = data.map(a => `
+      <div class="card" style="margin-bottom:12px; border:1px solid var(--border);">
+        <div class="card-body" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h4 style="margin-bottom:4px;">${esc(a.title)}</h4>
+            <div style="font-size:12px; color:var(--text-muted);">${a.q_count} questions • ${a.chapter_name || 'All Chapters'}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger);" onclick="deleteAssignment('${a.id}')">🗑️</button>
+        </div>
+      </div>
+    `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">No assignments created yet.</p>';
+  });
+
+  // Update chapter select
+  api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
+      if (!select) return;
+      select.innerHTML = '<option value="">All chapters</option>' + 
+          chapters.map(ch => `<option value="${ch.id}">Chapter ${ch.number}: ${esc(ch.title)}</option>`).join('');
+  });
+}
+
+async function createAssignment() {
+    const title = document.getElementById('assignment-title').value.trim();
+    const chapterId = document.getElementById('assignment-chapter-select').value;
+    const count = parseInt(document.getElementById('assignment-count').value);
     
     if (!title) return showAlert('Missing Info', 'Please enter an assignment title.', true);
-    if (selected.length === 0) return showAlert('Missing Selection', 'Please select at least one lesson.', true);
     
     const btn = event.target;
-    const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Creating...';
     
@@ -2323,7 +2295,7 @@ async function handleCreateAssignment() {
         body: {
             course_id: currentCourse.id,
             title: title,
-            topic_ids: selected,
+            chapter_id: chapterId || null,
             count: count
         }
     });
@@ -2331,11 +2303,23 @@ async function handleCreateAssignment() {
     if (res.error) {
         showAlert('Error', res.error, true);
     } else {
-        closeCreateAssignmentModal();
         loadAssignmentList();
+        document.getElementById('assignment-title').value = '';
         showAlert('Success', 'Assignment created successfully!');
     }
     btn.disabled = false;
-    btn.textContent = originalText;
+    btn.textContent = 'Create Assignment';
+}
+
+async function deleteQuiz(id) {
+    if (!confirm('Are you sure you want to delete this quiz?')) return;
+    await api(`/quiz/delete?id=${id}`, { method: 'DELETE' });
+    loadQuizList();
+}
+
+async function deleteAssignment(id) {
+    if (!confirm('Are you sure you want to delete this assignment?')) return;
+    await api(`/assignment/delete?id=${id}`, { method: 'DELETE' });
+    loadAssignmentList();
 }
 
