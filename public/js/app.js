@@ -508,7 +508,9 @@ async function showClassroomSelection() {
   container.innerHTML = courses.map(c => {
     const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
     const isBuilding = c.is_building === 1;
-    return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">
+    const isPhase1 = c.language === "Detecting...";
+    
+    return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isPhase1 ? '0.65' : '1'}; transition: opacity 0.3s ease;">
         ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
@@ -522,19 +524,17 @@ async function showClassroomSelection() {
                 <span style="font-family:monospace; font-size:16px; color:var(--accent); font-weight:700; letter-spacing:2px;">${c.code}</span>
             </div>
             
-            
             ${isBuilding ? `
-              <div class="flex-center" style="margin: 20px 0;">
+              <div class="flex-center" style="margin: 10px 0;">
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
-              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
-              <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}')">
-                ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}
-              </button>
+              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">
+                ⏳ ${isPhase1 ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Preparing Classroom...') : (currentLang === 'tr' ? 'İçerik Oluşturuluyor...' : 'Building Lessons...')}
+              </p>
             ` : ''}
         </div>
-        <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-            ${isBuilding ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Processing...') : t('class.enter')}
+        <button class="btn ${isPhase1 ? 'btn-ghost' : 'btn-outline'} btn-full" ${isPhase1 ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
+            ${isPhase1 ? (currentLang === 'tr' ? 'Lütfen Bekleyin' : 'Please Wait') : t('class.enter')}
         </button>
     </div>`;
   }).join('');

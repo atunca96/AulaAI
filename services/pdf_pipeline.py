@@ -55,6 +55,10 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             except:
                 language = "Unknown"
         _log(f"Language detected: {language}")
+        with db_connection() as db:
+            db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+            db.commit()
+        bump_version()
         
         # 3. Parse Structure
         _log("Step 3: Parsing curriculum structure...")
@@ -160,8 +164,9 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             db.commit()
         _log("Structure creation complete.")
         
-        # Phase 2: Enrichment is now handled by worker.py calling enrich_classroom_phase2
-        _log(f"Phase 1 Complete for {course_id}. Worker will now take over for Phase 2.")
+        # Phase 2: Enrichment
+        _log(f"Phase 1 Complete for {course_id}. Starting Phase 2...")
+        enrich_classroom_phase2(course_id, pdf_path)
 
     except Exception as e:
         _log(f"CRITICAL ERROR in Phase 1: {e}")
