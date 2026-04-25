@@ -84,12 +84,16 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
 
     # 2. Detect Language
     _log("Step 2: Detecting language...")
-    try:
-        from services.ai_engine import detect_language
-        language = detect_language(toc_text)
-    except Exception as e:
-        _log(f"Language detection failed: {e}. Defaulting to Unknown.")
-        language = "Unknown"
+    language = "Unknown"
+    if not toc_text.strip():
+        _log("Step 2: No text extracted. Skipping language detection.")
+    else:
+        try:
+            from services.ai_engine import detect_language
+            language = detect_language(toc_text)
+        except Exception as e:
+            _log(f"Language detection failed: {e}. Defaulting to Unknown.")
+            language = "Unknown"
     
     _log(f"Language detected: {language}")
     

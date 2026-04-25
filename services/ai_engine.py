@@ -29,6 +29,7 @@ def is_ai_available():
 
 def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     """Call the OpenRouter API using urllib."""
+    file_log(f"Calling _call_ai with model {MODEL}, response_json={response_json}")
     if not OPENROUTER_API_KEY:
         return None
 
@@ -58,7 +59,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     MAX_RETRIES = 5
     for attempt in range(MAX_RETRIES):
         try:
-            file_log(f"Requesting AI ({MODEL}) - Attempt {attempt + 1}...")
+            print(f"[AI] Requesting {MODEL} (Attempt {attempt+1}/{MAX_RETRIES})...")
             
             # Bypass Windows proxy auto-detection which can deadlock in background threads
             proxy_handler = urllib.request.ProxyHandler({})
