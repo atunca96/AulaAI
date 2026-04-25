@@ -664,8 +664,19 @@ async function deleteClassroom(id) {
   }
 }
 
-function openCreateClassroomModal() {
-  document.getElementById('create-classroom-modal').classList.remove('hidden');
+async function openCreateClassroomModal() {
+  const isTr = currentLang === 'tr';
+  const title = isTr ? '📄 PDF Durumu Onayı' : '📄 PDF Status Confirmation';
+  const msg = isTr 
+    ? 'Yükleyeceğeniz PDF dosyası taranmış bir resim (flat scan) mi yoksa seçilebilir metin içeren dijital bir dosya mı? Taranmış resimler hatalı sonuçlara neden olabilir. Dosyanızın metin araması yapılabilir/seçilebilir olduğundan emin misiniz?'
+    : 'Is the PDF you are about to upload a digital file with selectable text, or a flat scan (scanned image)? Flat scans can lead to distorted outcomes. Are you sure your file has selectable/searchable text?';
+
+  const okText = isTr ? 'Evet, metin seçilebiliyor' : 'Yes, it is searchable';
+  const cancelText = isTr ? 'Hayır, kontrol edeceğim' : 'No, let me check';
+
+  if (await showConfirmModal(title, msg, false, null, false, okText, cancelText)) {
+    document.getElementById('create-classroom-modal').classList.remove('hidden');
+  }
   document.getElementById('creation-status').classList.add('hidden');
   document.getElementById('submit-creation-btn').disabled = false;
 }
@@ -1578,7 +1589,7 @@ window.approveStudent = async (id) => {
   loadStudentRoster();
 };
 
-function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null, hideCancel = false) {
+function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null, hideCancel = false, okLabel = null, cancelLabel = null) {
   return new Promise(resolve => {
     const modal = document.getElementById('confirm-modal');
     document.getElementById('confirm-title').textContent = title;
@@ -1597,6 +1608,9 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
 
     const okBtn = document.getElementById('confirm-ok-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
+
+    okBtn.textContent = okLabel || 'OK';
+    cancelBtn.textContent = cancelLabel || (currentLang === 'tr' ? 'İptal' : 'Cancel');
 
     if (hideCancel) cancelBtn.style.display = 'none';
     else cancelBtn.style.display = 'block';
