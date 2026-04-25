@@ -94,8 +94,11 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         
         chapters_data = []
         try:
-            # Simple cleanup for AI markdown
-            if resp:
+            if isinstance(resp, dict):
+                _log("AI returned pre-parsed dictionary.")
+                chapters_data = resp.get("chapters", [])
+            elif isinstance(resp, str) and resp.strip():
+                # Simple cleanup for AI markdown
                 clean_resp = resp.replace("```json", "").replace("```", "").strip()
                 # Find first { and last } to handle extra text
                 start_idx = clean_resp.find('{')
