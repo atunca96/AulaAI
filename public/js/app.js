@@ -470,17 +470,27 @@ async function completeLogin(user) {
   }
 
   if (currentUser.role === 'lecturer') {
-    showClassroomSelection();
+    const savedCourse = localStorage.getItem('aula_last_course');
+    if (savedCourse) {
+      await selectClassroom(savedCourse);
+    } else {
+      showClassroomSelection();
+    }
   } else {
     if (currentUser.course_id) {
       await selectClassroom(currentUser.course_id, false);
     } else {
-      const courses = await api('/courses');
-      if (courses && courses.length) {
-        await selectClassroom(courses[0].id, false);
+      const savedCourse = localStorage.getItem('aula_last_course');
+      if (savedCourse) {
+        await selectClassroom(savedCourse, false);
       } else {
-        showScreen('student-dashboard');
-        initStudent();
+        const courses = await api('/courses');
+        if (courses && courses.length) {
+          await selectClassroom(courses[0].id, false);
+        } else {
+          showScreen('student-dashboard');
+          initStudent();
+        }
       }
     }
   }
@@ -547,6 +557,8 @@ async function showClassroomSelection() {
   }
 
   _buildingCourses = currentlyBuilding;
+  localStorage.removeItem('aula_last_course');
+  localStorage.removeItem('aula_last_tab');
 }
 
 async function selectClassroom(id, isLecturer = true) {
@@ -599,10 +611,17 @@ async function selectClassroom(id, isLecturer = true) {
 
   if (currentUser.role === 'lecturer') {
     showScreen('lecturer-dashboard');
-    initLecturer();
+    await initLecturer();
   } else {
     showScreen('student-dashboard');
-    initStudent();
+    await initStudent();
+  }
+
+  localStorage.setItem('aula_last_course', id);
+  const savedTab = localStorage.getItem('aula_last_tab');
+  if (savedTab) {
+    const tabBtn = document.querySelector(`[data-tab="${savedTab}"]`);
+    if (tabBtn) switchTab(tabBtn, true);
   }
 }
 
@@ -784,6 +803,8 @@ function logout() {
   stopLiveSync();
   localStorage.removeItem('aula_user');
   sessionStorage.removeItem('aula_user');
+  localStorage.removeItem('aula_last_course');
+  localStorage.removeItem('aula_last_tab');
   showScreen('login-screen');
 }
 
@@ -816,6 +837,8 @@ function switchTab(btn, skipLoad = false) {
   const main = btn.closest('.screen').querySelector('main');
   main.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+  localStorage.setItem('aula_last_tab', btn.dataset.tab);
 
   if (!skipLoad) {
     if (btn.dataset.tab === 'inbox') loadInbox();
