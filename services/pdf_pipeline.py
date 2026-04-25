@@ -118,6 +118,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             
             for topic_idx, topic in enumerate(ch.get("topics", [])):
                 topic_id = _uid()
+                topic["id"] = topic_id # Attach ID directly for Phase 2
                 t_title = topic.get("title", "Untitled Topic")
                 t_type = topic.get("type", "vocabulary")
                 db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order) VALUES (?,?,?,?,?,?,?)",
@@ -164,26 +165,25 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                     
                     t_title = topic.get("title", "Untitled Topic")
                     t_type = topic.get("type", "vocabulary")
+                    t_id = topic.get("id")
                     
                     _log(f"Queueing topic: {t_title} ({t_type})")
                     f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 8)
                     
-                    futures.append((chapter_id, t_title, f_lesson))
+                    futures.append((t_id, t_title, f_lesson))
                     topic_count += 1
                 if topic_count >= MAX_TOTAL_TOPICS: break
 
             completed = 0
-            for chapter_id, t_title, f_lesson in futures:
+            for t_id, t_title, f_lesson in futures:
                 _log(f"Waiting for results: {t_title}...")
                 lesson = f_lesson.result() or {}
                 content = lesson.get("content", {})
                 questions = lesson.get("questions", [])
                 
                 with db_connection() as db:
-                    topic_row = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND title = ?", (chapter_id, t_title)).fetchone()
-                    if topic_row:
-                        topic_id = topic_row["id"]
-                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
+                    if t_id:
+                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), t_id))
                         
                         for q in questions:
                             # Defensive coercion for SQLite (handles lists/dicts/None)
@@ -201,7 +201,7 @@ def enrich_classroom_phase2(course_id, chapters_data, language):
                             elif isinstance(d_list, str): d_list = [d_list]
 
                             db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                       (_uid(), topic_id, q.get("type", "mcq"), p_text, a_text, 
+                                       (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, 
                                         json.dumps(d_list, ensure_ascii=False), "A1.1"))
                     db.commit()
                 completed += 1
