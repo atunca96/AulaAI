@@ -9,7 +9,8 @@ import concurrent.futures
 import time
 import urllib.request
 from datetime import datetime
-from database import db_connection, _uid, bump_version
+from database import db_connection, _uid
+from services.state import bump_version
 from services.ai_engine import detect_language, generate_full_lesson, _call_ai
 
 def _log(msg):
