@@ -59,20 +59,72 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         # 3. Parse Structure
         _log("Step 3: Parsing curriculum structure...")
         if manual_toc:
+            _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars):\n{manual_toc}")
             _log("Using Manual Curriculum provided by teacher.")
-            prompt = f"Parse the following manual curriculum text into a structured JSON. Extract Chapters and their Topics. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nManual Text:\n{manual_toc}"
+            prompt = f"""
+            Task: Convert this messy curriculum text into a structured JSON Roadmap for a {language} course.
+            Input can be: numbered lists, plain text, indented outlines, or comma-separated items.
+            
+            Rules:
+            1. Identify Chapters/Units: Look for lines starting with 'Chapter', 'Unit', 'Tema', 'Section', or Roman Numerals.
+            2. Identify Topics: Everything under a Chapter is a topic. If no chapters are found, treat the whole list as topics under one 'General Curriculum' chapter.
+            3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
+            
+            Return ONLY a valid JSON object with this exact structure:
+            {{
+              "chapters": [
+                {{
+                  "title": "Chapter 1: ...",
+                  "topics": [
+                    {{ "title": "Topic Name", "type": "vocabulary" }}
+                  ]
+                }}
+              ]
+            }}
+            
+            Manual Text to Parse:
+            {manual_toc}
+            """
         else:
             _log("Extracting curriculum from PDF TOC text.")
             prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nText:\n{toc_text}"
         
         resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+        _log(f"RAW AI RESPONSE:\n{resp}")
+        
+        chapters_data = []
         try:
             # Simple cleanup for AI markdown
-            clean_resp = resp.replace("```json", "").replace("```", "").strip()
-            data = json.loads(clean_resp)
-            chapters_data = data.get("chapters", [])
-        except:
-            _log("ERROR: AI failed to parse structure structure.")
+            if resp:
+                clean_resp = resp.replace("```json", "").replace("```", "").strip()
+                # Find first { and last } to handle extra text
+                start_idx = clean_resp.find('{')
+                end_idx = clean_resp.rfind('}')
+                if start_idx != -1 and end_idx != -1:
+                    clean_resp = clean_resp[start_idx:end_idx+1]
+                
+                data = json.loads(clean_resp)
+                chapters_data = data.get("chapters", [])
+        except Exception as e:
+            _log(f"AI Parsing failed ({e}). Attempting manual fallback.")
+            
+        # Fallback Logic: If still empty, split manual_toc by newlines
+        if not chapters_data and manual_toc:
+            _log("Using line-by-line fallback for manual curriculum.")
+            topics = []
+            for line in manual_toc.split('\n'):
+                t = line.strip().strip('-').strip('*').strip()
+                if len(t) > 3:
+                    topics.append({"title": t, "type": "vocabulary"})
+            
+            if topics:
+                chapters_data = [{
+                    "title": "Imported Curriculum",
+                    "topics": topics
+                }]
+        
+        if not chapters_data:
+            _log("ERROR: All parsing attempts failed (including fallback).")
             with db_connection() as db:
                 db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
                 db.commit()
