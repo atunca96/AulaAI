@@ -162,10 +162,14 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         
         # Phase 2: Enrichment
         _log("Phase 2: Starting content enrichment...")
+        with db_connection() as db:
+            db.execute("PRAGMA journal_mode=WAL")
+            db.commit()
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
+        print(f"[PIPELINE] Starting Phase 2 Enrichment with 10 workers for {len(chapters_data)} chapters...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for ch in chapters_data:
                 chapter_id = ch.get("id")
@@ -203,9 +207,12 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                                        (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
                     db.commit()
                 completed += 1
+                print(f"[PIPELINE] Topic {completed}/{len(futures)} finalized: {t_title}")
+                sys.stdout.flush()
         
         _log(f"Phase 2 Complete. Duration: {(datetime.now() - start_time).total_seconds():.1f}s")
         with db_connection() as db:
+            db.execute("PRAGMA journal_mode=WAL")
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
         bump_version()
