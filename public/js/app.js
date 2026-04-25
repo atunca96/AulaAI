@@ -839,6 +839,17 @@ function switchTab(btn, skipLoad = false) {
   }
 }
 
+function goToHome() {
+  if (!currentUser) return;
+  if (currentUser.role === 'lecturer') {
+    const tabBtn = document.querySelector('button[data-tab="overview"]');
+    if (tabBtn) switchTab(tabBtn);
+  } else {
+    const tabBtn = document.querySelector('button[data-tab="s-home"]');
+    if (tabBtn) switchTab(tabBtn);
+  }
+}
+
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
 
 // ── Messages ──
