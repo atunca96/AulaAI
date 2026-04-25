@@ -495,13 +495,6 @@ async function completeLogin(user) {
     }
   }
   startLiveSync();
-  // Force full reload to ensure fresh data and UI state
-  if (!sessionStorage.getItem('reloaded')) {
-    sessionStorage.setItem('reloaded', '1');
-    window.location.reload();
-  } else {
-    sessionStorage.removeItem('reloaded');
-  }
 }
 
 async function showClassroomSelection() {
