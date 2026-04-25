@@ -923,16 +923,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 course_id = course["id"]
 
-            if chapter_id and chapter_id != "all":
+            topic_id = body.get("topic_id")
+
+            if topic_id:
+                topic_ids = [topic_id]
+            elif chapter_id and chapter_id != "all":
                 topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                topic_ids = list(set(t["id"] for t in topics))
             else:
                 topics = db.execute("""
                     SELECT t.id FROM topics t
                     JOIN chapters ch ON t.chapter_id = ch.id
                     WHERE ch.course_id = ?
                 """, (course_id,)).fetchall()
+                topic_ids = list(set(t["id"] for t in topics))
 
-            topic_ids = list(set(t["id"] for t in topics))
             questions = generate_quiz(topic_ids, db, count=count)
 
             quiz_id = _uid()
@@ -1239,16 +1244,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                        (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
 
-            if chapter_id and chapter_id != "all":
+            topic_id = body.get("topic_id")
+
+            if topic_id:
+                topic_ids = [topic_id]
+            elif chapter_id and chapter_id != "all":
                 topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                topic_ids = [t["id"] for t in topics]
             else:
                 topics = db.execute("""
                     SELECT t.id FROM topics t
                     JOIN chapters ch ON t.chapter_id = ch.id
                     WHERE ch.course_id = ?
                 """, (course_id,)).fetchall()
+                topic_ids = [t["id"] for t in topics]
 
-            topic_ids = [t["id"] for t in topics]
             questions = generate_quiz(topic_ids, db, count=count)
             for i, q in enumerate(questions):
                 db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",

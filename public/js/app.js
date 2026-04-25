@@ -2215,14 +2215,29 @@ function loadQuizList() {
   // Update chapter select
   api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
       if (!select) return;
-      select.innerHTML = '<option value="">All chapters</option>' + 
-          chapters.map(ch => `<option value="${ch.id}">Chapter ${ch.number}: ${esc(ch.title)}</option>`).join('');
+      let html = '<option value="">All Lessons</option>';
+      for (const ch of chapters) {
+          const topics = await api(`/topics?chapter_id=${ch.id}`);
+          if (topics && topics.length > 0) {
+              html += `<option value="chapter_${ch.id}">U${ch.number} — ALL CHAPTER ${ch.number}</option>`;
+              topics.forEach(t => {
+                  html += `<option value="topic_${t.id}">U${ch.number} — ${esc(t.title)} (${t.type})</option>`;
+              });
+          }
+      }
+      select.innerHTML = html;
   });
 }
 
 async function createQuiz() {
     const title = document.getElementById('quiz-title').value.trim();
-    const chapterId = document.getElementById('quiz-chapter-select').value;
+    const val = document.getElementById('quiz-chapter-select').value;
+    let chapterId = null;
+    let topicId = null;
+    
+    if (val.startsWith('chapter_')) chapterId = val.replace('chapter_', '');
+    else if (val.startsWith('topic_')) topicId = val.replace('topic_', '');
+    
     const count = parseInt(document.getElementById('quiz-count').value);
     
     if (!title) return showAlert('Missing Info', 'Please enter a quiz title.', true);
@@ -2236,7 +2251,8 @@ async function createQuiz() {
         body: {
             course_id: currentCourse.id,
             title: title,
-            chapter_id: chapterId || null,
+            chapter_id: chapterId,
+            topic_id: topicId,
             count: count
         }
     });
@@ -2274,14 +2290,29 @@ function loadAssignmentList() {
   // Update chapter select
   api(`/chapters?course_id=${currentCourse.id}`).then(chapters => {
       if (!select) return;
-      select.innerHTML = '<option value="">All chapters</option>' + 
-          chapters.map(ch => `<option value="${ch.id}">Chapter ${ch.number}: ${esc(ch.title)}</option>`).join('');
+      let html = '<option value="">All Lessons</option>';
+      for (const ch of chapters) {
+          const topics = await api(`/topics?chapter_id=${ch.id}`);
+          if (topics && topics.length > 0) {
+              html += `<option value="chapter_${ch.id}">U${ch.number} — ALL CHAPTER ${ch.number}</option>`;
+              topics.forEach(t => {
+                  html += `<option value="topic_${t.id}">U${ch.number} — ${esc(t.title)} (${t.type})</option>`;
+              });
+          }
+      }
+      select.innerHTML = html;
   });
 }
 
 async function createAssignment() {
     const title = document.getElementById('assignment-title').value.trim();
-    const chapterId = document.getElementById('assignment-chapter-select').value;
+    const val = document.getElementById('assignment-chapter-select').value;
+    let chapterId = null;
+    let topicId = null;
+    
+    if (val.startsWith('chapter_')) chapterId = val.replace('chapter_', '');
+    else if (val.startsWith('topic_')) topicId = val.replace('topic_', '');
+    
     const count = parseInt(document.getElementById('assignment-count').value);
     
     if (!title) return showAlert('Missing Info', 'Please enter an assignment title.', true);
@@ -2295,7 +2326,8 @@ async function createAssignment() {
         body: {
             course_id: currentCourse.id,
             title: title,
-            chapter_id: chapterId || null,
+            chapter_id: chapterId,
+            topic_id: topicId,
             count: count
         }
     });
