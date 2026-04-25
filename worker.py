@@ -10,7 +10,7 @@ from services.pdf_pipeline import start_pipeline_background
 if __name__ == "__main__":
     if len(sys.argv) < 6:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [WORKER] Error: Missing arguments.")
-        print("Usage: python worker.py <pdf_path> <toc_range> <lecturer_id> <course_id> <course_name>")
+        print("Usage: python worker.py <pdf_path> <toc_range> <lecturer_id> <course_id> <course_name> [manual_toc_file]")
         sys.exit(1)
 
     pdf_path = sys.argv[1]
@@ -18,10 +18,21 @@ if __name__ == "__main__":
     lecturer_id = sys.argv[3]
     course_id = sys.argv[4]
     course_name = sys.argv[5]
+    
+    manual_toc = None
+    if len(sys.argv) > 6:
+        toc_file = sys.argv[6]
+        if os.path.exists(toc_file):
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [WORKER] Reading manual TOC from {toc_file}", flush=True)
+            with open(toc_file, "r", encoding="utf-8") as f:
+                manual_toc = f.read()
+            # Clean up the temp file
+            try: os.remove(toc_file)
+            except: pass
 
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [WORKER] Background process starting for course {course_id} ({course_name})", flush=True)
     try:
-        start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name)
+        start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=manual_toc)
         print(f"[{datetime.now().strftime('%H:%M:%S')}] [WORKER] Background process finished successfully for course {course_id}", flush=True)
     except Exception as e:
         import traceback

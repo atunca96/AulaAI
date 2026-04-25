@@ -1515,9 +1515,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             course_name = fields.get("course_name")
             toc_range = fields.get("toc_range", "1-5")
+            manual_toc = fields.get("manual_toc")
             lecturer_id = fields.get("lecturer_id")
             
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing PDF for {lecturer_id} | Name: {course_name} | TOC: {toc_range}")
+            if manual_toc:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Manual TOC detected (Length: {len(manual_toc)})")
 
             if not lecturer_id:
                 return self._send_error("lecturer_id required")
@@ -1537,7 +1540,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 f.write(pdf_data)
             
             file_log('LAUNCHING PHASE2 THREAD')
-            result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name)
+            result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name, manual_toc=manual_toc)
             
             file_log(f"[DEBUG] Pipeline result: {result}")
 

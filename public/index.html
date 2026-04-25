@@ -216,13 +216,18 @@
                     <input type="text" id="course-name-input" class="text-input" placeholder="e.g. Spanish 102" required>
                 </div>
                 <div class="form-group">
-                    <label data-i18n="class.upload_pdf">Upload PDF Textbook</label>
+                    <label data-i18n="class.upload_pdf">1. Upload PDF Textbook (for content)</label>
                     <input type="file" id="pdf-upload" accept="application/pdf" required style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
                 </div>
                 <div class="form-group">
-                    <label data-i18n="class.toc_range">Contents Page Range (e.g. 1-15)</label>
-                    <input type="text" id="toc-range" class="text-input" placeholder="1-15" data-i18n-placeholder="class.toc_placeholder" required>
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Tip: For large books, include all Table of Contents pages.</small>
+                    <label>2. Manual Curriculum / TOC (Paste here)</label>
+                    <textarea id="manual-toc-input" class="text-input" style="height:120px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Chapter 1: Greetings&#10;- Hello and Goodbye&#10;Chapter 2: Numbers..."></textarea>
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Paste the book's contents or your syllabus. The AI will use this as a roadmap.</small>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="class.toc_range">3. PDF Context Range (Optional)</label>
+                    <input type="text" id="toc-range" class="text-input" placeholder="e.g. 1-15">
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">If you leave this blank, the AI will use the Manual Curriculum above as the primary source.</small>
                 </div>
                 <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:12px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font-size:14px; display:flex; align-items:center; gap:12px;">
                     <div class="spinner"></div>

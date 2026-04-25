@@ -620,6 +620,7 @@ async function handleCreateClassroom(e) {
   const nameInput = document.getElementById('course-name-input');
   const fileInput = document.getElementById('pdf-upload');
   const rangeInput = document.getElementById('toc-range');
+  const manualTocInput = document.getElementById('manual-toc-input');
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
   
@@ -629,6 +630,7 @@ async function handleCreateClassroom(e) {
   formData.append('course_name', nameInput.value.trim());
   formData.append('pdf', fileInput.files[0]);
   formData.append('toc_range', rangeInput.value);
+  formData.append('manual_toc', manualTocInput.value.trim());
   formData.append('lecturer_id', currentUser.id);
   
   statusEl.classList.remove('hidden');
