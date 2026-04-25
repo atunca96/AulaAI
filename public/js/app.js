@@ -69,6 +69,10 @@ function refreshCurrentView() {
             const course = courses.find(c => c.id === id);
             if (course) {
                 showAlert(currentLang === 'tr' ? 'Tebrikler!' : 'Congratulations!', `"${course.name}" ${currentLang === 'tr' ? 'hazır!' : 'is ready!'}`);
+                // Force a list refresh to show the "Enter" button
+                if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
+                    showClassroomSelection();
+                }
             }
         }
     });
@@ -682,6 +686,12 @@ async function handleCreateClassroom(e) {
   try {
     await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
     closeCreateClassroomModal();
+    
+    // Register for completion notification
+    if (typeof _buildingCourses !== 'undefined') {
+        _buildingCourses.push(data.course_id);
+    }
+
     await showClassroomSelection();
     
     // If it's still missing from global list (race condition), manually inject it
