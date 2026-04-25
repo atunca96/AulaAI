@@ -1162,18 +1162,10 @@ function populateSelects() {
   if (as) as.innerHTML = '<option value="">All chapters</option>' + chapterOpts;
 }
 
-async function launchActivity() {
-  const topicId = document.getElementById('activity-topic-select').value;
-  if (!topicId) return showAlert(currentLang === 'tr' ? 'Seçim Gerekli' : 'Selection Required', 'Please select a topic', true);
-  
-  const preview = document.getElementById('activity-preview');
-  preview.classList.remove('hidden');
-  
+function showGenerationLoading(el) {
   const isTr = currentLang === 'tr';
   const loadingMsg = isTr ? 'Sorular oluşturuluyor...' : 'Questions are being generated...';
-  
-  // Show Loading State
-  preview.innerHTML = `
+  el.innerHTML = `
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg);">
       <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
       <h3 style="margin-bottom:12px;">${loadingMsg}</h3>
@@ -1213,6 +1205,17 @@ async function launchActivity() {
       }
     </style>
   `;
+}
+
+async function launchActivity() {
+  const topicId = document.getElementById('activity-topic-select').value;
+  if (!topicId) return showAlert(currentLang === 'tr' ? 'Seçim Gerekli' : 'Selection Required', 'Please select a topic', true);
+  
+  const preview = document.getElementById('activity-preview');
+  preview.classList.remove('hidden');
+  
+  // Show Loading State
+  showGenerationLoading(preview);
 
   try {
     const data = await api('/activity?topic_id=' + topicId);
@@ -1844,12 +1847,17 @@ function loadStudentPractice() {
 }
 
 async function startPractice(tid, title) {
-  const data = await api('/activity?topic_id=' + tid);
   const area = document.getElementById('practice-area');
   area.classList.remove('hidden');
+  area.scrollIntoView({ behavior: 'smooth' });
+  
+  // Show Loading State
+  showGenerationLoading(area);
+  
+  const data = await api('/activity?topic_id=' + tid);
+  
   area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>${t('practice')}: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">${t('close')}</button></div>` +
     (data.activities || []).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
-  area.scrollIntoView({ behavior: 'smooth' });
 }
 
 async function loadStudentProgress() {
