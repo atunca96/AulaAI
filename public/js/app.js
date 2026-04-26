@@ -986,7 +986,6 @@ async function handleCreateClassroom(e) {
   e.preventDefault();
   const nameInput = document.getElementById('course-name-input');
   const fileInput = document.getElementById('pdf-upload');
-  const rangeInput = document.getElementById('toc-range');
   const manualTocInput = document.getElementById('manual-toc-input');
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
@@ -996,7 +995,6 @@ async function handleCreateClassroom(e) {
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
   formData.append('pdf', fileInput.files[0]);
-  formData.append('toc_range', rangeInput.value);
   formData.append('manual_toc', manualTocInput.value.trim());
   formData.append('lecturer_id', currentUser.id);
 
@@ -1813,7 +1811,7 @@ async function loadStudentRoster() {
   if (pendingEl) {
     if (pending && pending.length > 0) {
       pendingEl.innerHTML = `<div style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05));padding:20px;border-radius:16px;border:1px solid rgba(139,92,246,0.3);margin-bottom:24px">
-        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ ${t('Account Pending Approval')} (${pending.length})</h3>
+        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ <span data-i18n="Account Pending Approval">${t('Account Pending Approval')}</span> (${pending.length})</h3>
         ${pending.map(s => `
           <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:14px 20px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
             <div style="min-width:0;flex:1;overflow:hidden">
@@ -1821,8 +1819,8 @@ async function loadStudentRoster() {
               <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px">${s.email}</div>
             </div>
             <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${t('ok')}</button>
-              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${t('cancel')}</button>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ <span data-i18n="ok">${t('ok')}</span></button>
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ <span data-i18n="cancel">${t('cancel')}</span></button>
             </div>
           </div>
         `).join('')}
@@ -1856,6 +1854,7 @@ async function loadStudentRoster() {
       </div>
     </div>`;
   }).join('');
+  applyTranslations();
 }
 
 window.openChatFromRoster = async (studentId, studentName) => {
