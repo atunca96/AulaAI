@@ -643,13 +643,14 @@ Topic Content/Context (Study Guide):
 {json.dumps(topic_content)}
 
 STRICT PEDAGOGICAL REQUIREMENTS:
-1. INSTRUCTIONAL LANGUAGE: The 'prompt' (the instructions for the student) MUST be 100% in ENGLISH (e.g., "Translate this word:", "Fill in the blank with the correct verb form:").
+1. INSTRUCTIONAL LANGUAGE: The 'prompt' (the instructions for the student) MUST be 100% in ENGLISH.
 2. TARGET LANGUAGE: All answer choices, Spanish text, and Spanish examples MUST be in {language}.
-3. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word (e.g., Avoid: "The word for house is ___"). Instead, ask "How do you say 'house' in {language}?" or "La ___ (house) es grande."
-4. VARIETY: Do NOT repeat the same word or concept across the {count} activities. Each activity must focus on a different aspect of the topic.
-5. PROGRESSION: Order the activities from easiest (simple vocabulary) to hardest (complex sentences/dialogue).
-6. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
-7. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
+3. STRICT CONTEXT ADHERENCE: You MUST only use vocabulary, grammar, and concepts present in the provided "Topic Content/Context". Do NOT hallucinate external trivia or unrelated pronunciation rules unless they are explicitly mentioned in the context.
+4. HIGH-QUALITY DISTRACTORS: For 'mcq', distractors must be plausible and related to the correct answer. (e.g., if asking about a specific letter, all options should contain that letter).
+5. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word.
+6. VARIETY: Each activity must focus on a different aspect of the topic context.
+7. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
+8. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
 
 REQUIRED JSON STRUCTURES:
 - 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "Spanish Correct Word", "options": ["Spanish Opt 1", "Spanish Opt 2", "Spanish Opt 3", "Spanish Opt 4"] }}
