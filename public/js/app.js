@@ -2066,7 +2066,6 @@ async function generateReport() {
   `;
   applyTranslations(document.getElementById('report-content'));
 }
-}
 
 async function initStudent() {
   document.getElementById('student-nav-username').textContent = currentUser.name;
