@@ -1201,16 +1201,18 @@ function initViewportFix() {
       activeWrapper.style.bottom = `${offset}px`;
       activeWrapper.style.height = `${viewport.height}px`;
       
-      // Ensure messages are scrolled to bottom
+      const inputArea = activeWrapper.querySelector('.chat-input-area');
+      if (inputArea) inputArea.style.paddingBottom = '12px';
+
       const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
       if (msgList) {
-        setTimeout(() => {
-           msgList.scrollTop = msgList.scrollHeight;
-        }, 50);
+        setTimeout(() => { msgList.scrollTop = msgList.scrollHeight; }, 100);
       }
     } else {
       activeWrapper.style.bottom = '0';
       activeWrapper.style.height = '100dvh';
+      const inputArea = activeWrapper.querySelector('.chat-input-area');
+      if (inputArea) inputArea.style.paddingBottom = '';
     }
   };
 
