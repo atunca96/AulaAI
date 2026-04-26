@@ -78,12 +78,10 @@ def format_activity_by_template(data, level, language):
         mcq_instr = f"Selecciona la opción correcta: "
 
     # 1. Missing Letter Template (A1-A2 Focused)
-    if atype == "fill_blank" and is_beginner and "word" in data:
+    if atype == "fill_blank" and is_beginner and data.get("word") and not data.get("sentence"):
         word = data["word"]
         translation = data.get("translation", "")
-        # Create underscores (e.g., 'hola' -> 'h__a')
         if len(word) > 3:
-            # Hide middle letters
             display = word[0] + ("_" * (len(word)-2)) + word[-1]
         else:
             display = word[0] + "_" + (word[2] if len(word) > 2 else "")
@@ -91,7 +89,7 @@ def format_activity_by_template(data, level, language):
         return {
             "type": "fill_blank",
             "prompt": f"Complete the {language} word for '{translation}': {display}",
-            "answer": word, # Student types full word for better learning
+            "answer": word,
             "metadata": {"template": "missing_letter"}
         }
 
@@ -100,34 +98,73 @@ def format_activity_by_template(data, level, language):
         sentence = data["sentence"]
         word = data.get("word", data.get("answer", ""))
         translation = data.get("translation", "")
-        
-        # Ensure sentence has a blank
         if "____" not in sentence:
             sentence = sentence.replace(word, "____") if word in sentence else sentence + " ____"
-            
         hint = f" ({translation})" if translation else ""
-        prompt = f"Complete the sentence{hint}: {sentence}"
-        
         return {
             "type": "fill_blank",
-            "prompt": prompt,
+            "prompt": f"Complete the sentence{hint}: {sentence}",
             "answer": word,
             "metadata": {"template": "sentence_context"}
         }
 
-    # 3. Multiple Choice Template
+    # 3. Multiple Choice: Pragmatic Response
+    if atype == "mcq" and data.get("scenario"):
+        scenario = data["scenario"]
+        target = data.get("answer", data.get("word", ""))
+        return {
+            "type": "mcq",
+            "prompt": f"In this situation: '{scenario}', what would you say in {language}?",
+            "answer": target,
+            "distractors": data.get("distractors", []),
+            "metadata": {"template": "pragmatic_response"}
+        }
+
+    # 4. Multiple Choice: Definition / Meaning
+    if atype == "mcq" and data.get("definition"):
+        definition = data["definition"]
+        target = data.get("answer", data.get("word", ""))
+        return {
+            "type": "mcq",
+            "prompt": f"Which {language} word matches this description: '{definition}'?",
+            "answer": target,
+            "distractors": data.get("distractors", []),
+            "metadata": {"template": "definition_match"}
+        }
+
+    # 5. Multiple Choice: Opposites
+    if atype == "mcq" and data.get("opposite"):
+        opposite_of = data["opposite"]
+        target = data.get("answer", data.get("word", ""))
+        return {
+            "type": "mcq",
+            "prompt": f"What is the opposite of the {language} word '{opposite_of}'?",
+            "answer": target,
+            "distractors": data.get("distractors", []),
+            "metadata": {"template": "opposite_match"}
+        }
+
+    # 6. Multiple Choice: Categorization
+    if atype == "mcq" and data.get("category"):
+        category = data["category"]
+        target = data.get("answer", data.get("word", ""))
+        return {
+            "type": "mcq",
+            "prompt": f"Which of these is a type of '{category}' in {language}?",
+            "answer": target,
+            "distractors": data.get("distractors", []),
+            "metadata": {"template": "categorization"}
+        }
+
+    # 7. Standard Multiple Choice: Translation (Default MCQ)
     if atype == "mcq":
         target = data.get("word", data.get("answer", ""))
         translation = data.get("translation", "")
-        distractors = data.get("distractors", [])
-        
-        prompt = f"{mcq_instr} '{translation}'?"
-        
         return {
             "type": "mcq",
-            "prompt": prompt,
+            "prompt": f"{mcq_instr} '{translation}'?",
             "answer": target,
-            "distractors": distractors,
+            "distractors": data.get("distractors", []),
             "metadata": {"template": "mcq_translation"}
         }
 
@@ -138,7 +175,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     """Generate quiz/practice questions using the Template Factory approach."""
     level_norm = (level or 'A1').upper()
     
-    prompt = f"Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Return JSON: {{ 'data': [ {{'type':'mcq', 'word':'...', 'translation':'...', 'distractors':[]}}, ... ] }}. Rules: No instructions, simple distractors, constructive content."
+    prompt = f"Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the types (mcq, fill_blank) and the internal logic (use keys like: word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON: {{ 'data': [ ... ] }}."
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     raw_list = result.get("data") if result else None
@@ -165,7 +202,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None, level='A1'):
     """Generate one interactive activity using the Template Factory."""
     level_norm = (level or 'A1').upper()
-    prompt = f"Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Types: mcq or fill_blank. Rule: Return JSON ONLY."
+    prompt = f"Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the logic (word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON ONLY."
     
     data = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
     if not data: return None
