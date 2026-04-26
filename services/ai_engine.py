@@ -633,33 +633,40 @@ def ai_grade_open_response(question, student_answer, correct_answer):
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6):
     """Generate a cohesive batch of activities using a single AI call."""
-    prompt = f"""You are a professional Spanish teacher. 
+    # Use a high-entropy seed to force variety
+    seed = f"{time.time()}-{py_random.randint(1000, 9999)}"
+    
+    prompt = f"""You are a professional language teacher creating content for students.
 Generate a COHESIVE LEARNING JOURNEY of {count} unique activities for the topic: "{topic_title}".
 
-Topic Content/Context:
+Topic Content/Context (Study Guide):
 {json.dumps(topic_content)}
 
-Instructional Language: MUST be English (e.g., "Choose the correct...", "Fill in the blank...")
-Spanish Subject Matter: The answers and the Spanish words themselves must be in Spanish.
-Topic Category: {topic_type}
+STRICT PEDAGOGICAL REQUIREMENTS:
+1. INSTRUCTIONAL LANGUAGE: The 'prompt' (the instructions for the student) MUST be 100% in ENGLISH (e.g., "Translate this word:", "Fill in the blank with the correct verb form:").
+2. TARGET LANGUAGE: All answer choices, Spanish text, and Spanish examples MUST be in {language}.
+3. VARIETY: Do NOT repeat the same word or concept across the {count} activities. Each activity must focus on a different aspect of the topic.
+4. PROGRESSION: Order the activities from easiest (simple vocabulary) to hardest (complex sentences/dialogue).
+5. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
+6. TYPES: Mix 'mcq' (Multiple Choice), 'fill_blank', and 'dialogue_order'.
 
-REQUIREMENTS:
-1. VARIETY: Do NOT repeat the same concept or word across activities. 
-2. PROGRESSION: Start easy and gradually increase complexity.
-3. TYPES: Use a mix of 'mcq' (Multiple Choice), 'fill_blank', and 'dialogue_order'.
-4. STRUCTURE: 
-   - 'mcq': {{ "type": "mcq", "prompt": "...", "answer": "...", "options": ["Option A", "Option B", "Option C", "Option D"] }}
-   - 'fill_blank': {{ "type": "fill_blank", "prompt": "...", "answer": "..." }}
-   - 'dialogue_order': {{ "type": "dialogue_order", "scrambled_lines": ["Line 2", "Line 1"], "speakers": {{ "Line 1": "Persona A", "Line 2": "Persona B" }}, "correct_order": ["Line 1", "Line 2"] }}
+REQUIRED JSON STRUCTURES:
+- 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "Spanish Correct Word", "options": ["Spanish Opt 1", "Spanish Opt 2", "Spanish Opt 3", "Spanish Opt 4"] }}
+- 'fill_blank': {{ "type": "fill_blank", "prompt": "English instruction with ____ (4 underscores)", "answer": "Spanish Missing Word" }}
+- 'dialogue_order': {{ "type": "dialogue_order", "prompt": "English instruction (e.g. 'Order this conversation')", "scrambled_lines": ["Line B", "Line A"], "speakers": {{ "Line A": "Persona 1", "Line B": "Persona 2" }}, "correct_order": ["Line A", "Line B"] }}
 
-Return ONLY a JSON object with this structure:
+RANDOM VARIETY SEED: {seed}
+
+Return ONLY a JSON object:
 {{
   "activities": [
-     // {count} activity objects here
+     // exactly {count} activity objects
   ]
 }}
+
+SELF-CORRECTION: Before returning, ensure every 'mcq' has an 'options' array and every 'dialogue_order' has 'scrambled_lines'.
 """
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.8, bypass_cache=True)
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.9, bypass_cache=True)
     if result and "activities" in result:
         return result["activities"]
     return []

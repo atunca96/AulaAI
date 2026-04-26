@@ -1060,31 +1060,52 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             final_activities = []
             for act in raw_activities:
-                if not act: continue
+                if not act or not isinstance(act, dict): continue
                 
                 # Normalization Layer: Ensure frontend gets exactly what it expects
                 atype = act.get("type", "mcq")
                 
                 # 1. MCQ Normalization
                 if atype == 'mcq':
-                    if not act.get("options") and act.get("distractors"):
-                        # Combine answer + distractors if AI used the old format
-                        ans = act.get("answer", "")
-                        opts = [ans] + act.get("distractors", [])
+                    ans = act.get("answer", "")
+                    dist = act.get("distractors", [])
+                    if not isinstance(dist, list): dist = [str(dist)]
+                    
+                    # Ensure answer is not in distractors
+                    dist = [d for d in dist if str(d).strip().lower() != str(ans).strip().lower()]
+                    act["distractors"] = dist[:3]
+                    
+                    if not act.get("options") or not isinstance(act["options"], list) or len(act["options"]) < 2:
+                        # Combine answer + distractors if AI used the old format or missed options
+                        opts = [ans] + dist
                         py_random.shuffle(opts)
                         act["options"] = opts
+                    
+                    # Final check: if still no options or no prompt, discard
+                    if not act.get("options") or not act.get("prompt"):
+                        file_log(f"Discarding broken MCQ: {json.dumps(act)}")
+                        continue
                 
                 # 2. Dialogue Normalization
                 if atype == 'dialogue_order':
                     if not act.get("scrambled_lines") and act.get("lines"):
                         act["scrambled_lines"] = act.get("lines")
-                    if not act.get("correct_order") and act.get("answer"):
-                        # If AI sent indices, convert to actual lines
-                        if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
-                            lines = act.get("scrambled_lines", [])
-                            act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
+                    
+                    if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list):
+                        file_log(f"Discarding broken dialogue: {json.dumps(act)}")
+                        continue
+
+                    if not act.get("correct_order"):
+                        if act.get("answer"):
+                            # If AI sent indices, convert to actual lines
+                            if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
+                                lines = act.get("scrambled_lines", [])
+                                act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
+                            else:
+                                act["correct_order"] = act.get("answer")
                         else:
-                            act["correct_order"] = act.get("answer")
+                            # Try to use the original order if it's there
+                            act["correct_order"] = act.get("scrambled_lines")
                 
                 act["id"] = _uid()
                 final_activities.append(act)
