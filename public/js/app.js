@@ -260,8 +260,8 @@ const i18n = {
     'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
     'class.toc_range_hint': 'If you leave this blank, the AI will use the Manual Curriculum above as the primary source.',
     'class.toc_range': '3. PDF Context Range (Optional)',
-    'answer': 'answer',
-    'responses': 'responses',
+    'answer': 'Answer',
+    'responses': 'Responses',
     'gen.loading': 'Questions are being generated...',
     'gen.time': 'This may take 5-10 seconds.',
     'Unit': 'Unit',
@@ -297,12 +297,12 @@ const i18n = {
     'gen.building': 'Building Lessons...',
     'gen.please_wait': 'Please Wait',
     'assign.no_responses': 'No students have submitted this assignment yet.',
-    'assign.submitted': 'submitted',
+    'assign.submitted': 'Submitted',
     'assign.class_avg': 'Class Avg',
     'assign.correct': 'Correct',
     'assign.student_answer': "Student's Answer",
     'assign.correct_answer': 'Correct Answer',
-    'assign.view_details': 'View details',
+    'assign.view_details': 'View Details',
     'assign.top_score': 'Top Score',
     'assign.detailed_answers': 'Detailed Answers',
     'assign.left_blank': '[Left Blank]',
@@ -373,13 +373,13 @@ const i18n = {
     'gen.building': 'İçerik Oluşturuluyor...',
     'gen.please_wait': 'Lütfen Bekleyin',
     'assign.no_responses': 'Henüz hiçbir öğrenci bu ödevi teslim etmedi.',
-    'assign.submitted': 'teslim etti',
+    'assign.submitted': 'Teslim Edildi',
     'assign.class_avg': 'Sınıf Ort.',
     'assign.correct': 'Doğru',
     'assign.student_answer': 'Öğrenci Cevabı',
     'assign.correct_answer': 'Doğru Cevap',
-    'assign.view_details': 'Detayları gör',
-    'assign.top_score': 'En Yüksek',
+    'assign.view_details': 'Detayları Gör',
+    'assign.top_score': 'En Yüksek Puan',
     'assign.detailed_answers': 'Detaylı Cevaplar',
     'assign.left_blank': '[Boş Bırakıldı]',
     'assign.preview': 'Önizleme',
@@ -512,8 +512,8 @@ const i18n = {
     'class.toc_manual_hint': 'Kitabın içindekilerini veya müfredatınızı yapıştırın. Yapay zeka bunu yol haritası olarak kullanacaktır.',
     'class.toc_range_hint': 'Burayı boş bırakırsanız, yapay zeka yukarıdaki Manuel Müfredatı birincil kaynak olarak kullanacaktır.',
     'class.toc_range': '3. PDF İçindekiler Sayfa Aralığı (Opsiyonel)',
-    'answer': 'cevaplar',
-    'responses': 'sonuçlar',
+    'answer': 'Cevaplar',
+    'responses': 'Sonuçlar',
     'gen.loading': 'Sorular oluşturuluyor...',
     'gen.time': 'Bu işlem 5-10 saniye sürebilir.',
     'Unit': 'Ünite',
@@ -1723,7 +1723,7 @@ async function viewQuiz(quizId, title) {
     <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${L.classAvg}: <strong style="color:var(--accent)">${classAvg}%</strong> · ${studentResults.length} ${L.submitted}</div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 <span data-i18n="answer">${t('answer')}</span></button>
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📄 <span data-i18n="answer">${t('answer')}</span></button>
       <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 <span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
     </div>
 
