@@ -18,6 +18,7 @@ let _lastStudentRosterData = null;
 let _lastStudentHomeData = null;
 let _lastClassroomsData = null;
 let _lastStudentDetailData = null;
+let _lastReportData = null;
 
 function toggleSidebar() {
   const sidebar = document.getElementById('mobile-sidebar');
@@ -699,12 +700,19 @@ function applyTranslations() {
     langBtn.setAttribute('data-i18n', 'langBtn');
     langBtn.textContent = t('langBtn');
   }
+  
+  // Re-render report if it's currently visible
+  if (_lastReportData && document.getElementById('tab-reports').classList.contains('active')) {
+    renderReport(_lastReportData);
+  }
 }
 
 function toggleLanguage() {
   window.currentLang = window.currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', window.currentLang);
   applyTranslations();
+  
+  if (_lastReportData) renderReport(_lastReportData);
 
   // Re-render all dynamic content SYNCHRONOUSLY using cached data
   if (currentUser) {
@@ -2149,34 +2157,115 @@ async function showStudentDetail(sid, name, studentId = '') {
 }
 
 async function generateReport() {
-  document.getElementById('report-content').innerHTML = '<p style="color:var(--text-muted)">' + t('Loading curriculum...') + '</p>';
-  const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
-  const avgPct = Math.round((r.summary?.class_avg_mastery || 0) * 100);
+  const content = document.getElementById('report-content');
+  if (!content) return;
+  
+  showGenerationLoading(content);
+  
+  try {
+    const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
+    _lastReportData = r;
+    renderReport(r);
+  } catch (err) {
+    content.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
+      ${t('assign.retry')}
+    </div>`;
+  }
+}
 
-  document.getElementById('report-content').innerHTML = `
-    <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
-      <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
-        <h2 style="margin: 0; font-size: 24px; font-weight: 600;" data-i18n="report.title">${t('Weekly Report')}</h2>
+function renderReport(report) {
+  const content = document.getElementById('report-content');
+  if (!content || !report) return;
+
+  const lang = window.currentLang;
+  // Pick the appropriate language from AI insights, or use a default if it's the old format
+  let data = null;
+  if (report.ai_insights) {
+    if (report.ai_insights[lang]) {
+      data = report.ai_insights[lang];
+    } else if (report.ai_insights.summary) {
+      // Legacy format fallback
+      data = {
+        summary: report.ai_insights.summary,
+        topic_breakdown: (report.review_topics || []).map(t => ({ topic: t.topic, analysis: "N/A", recommendation: "N/A" })),
+        at_risk_commentaries: (report.at_risk_students || []).map(s => ({ name: s.name, commentary: "N/A" })),
+        general_advice: "N/A"
+      };
+    }
+  }
+  
+  if (!data) {
+     content.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">${t('report.no_data')}</div>`;
+     return;
+  }
+
+  const s = report.summary || {};
+  const avgPct = Math.round((s.class_avg_mastery || 0) * 100);
+
+  content.innerHTML = `
+    <div class="report-card animate-slide-up" style="background:var(--bg-card); border-radius:24px; border:1px solid var(--border); overflow:hidden; box-shadow:var(--shadow-xl); max-width:800px; margin:0 auto;">
+      <div style="background:var(--gradient-1); padding:40px; text-align:center; color:white; position:relative; overflow:hidden;">
+        <h2 style="margin:0; font-size:28px; font-weight:800; letter-spacing:-0.5px;">${t('Weekly Report')}</h2>
+        <p style="margin:8px 0 0; opacity:0.8; font-size:14px;">${new Date(report.generated_at).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
       </div>
-      <div style="padding: 40px 30px;">
-        <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
-          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;" data-i18n="STUDENTS">${t('STUDENTS')}</div>
-            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students || 0}</div>
+      
+      <div style="padding:32px;">
+        <!-- Stats Row -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:16px; margin-bottom:32px;">
+          <div style="background:var(--bg-input); padding:16px; border-radius:16px; border:1px solid var(--border); text-align:center;">
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:800; margin-bottom:4px;">${t('STUDENTS')}</div>
+            <div style="font-size:24px; font-weight:800; color:var(--accent-light);">${s.total_students || 0}</div>
           </div>
-          <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;" data-i18n="CLASS MASTERY">${t('CLASS MASTERY')}</div>
-            <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${avgPct}%</div>
+          <div style="background:var(--bg-input); padding:16px; border-radius:16px; border:1px solid var(--border); text-align:center;">
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:800; margin-bottom:4px;">${t('CLASS MASTERY')}</div>
+            <div style="font-size:24px; font-weight:800; color:var(--success);">${avgPct}%</div>
           </div>
-          <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;" data-i18n="AT RISK">${t('AT RISK')}</div>
-            <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count || 0}</div>
+          <div style="background:rgba(239,68,68,0.05); padding:16px; border-radius:16px; border:1px solid rgba(239,68,68,0.2); text-align:center;">
+            <div style="font-size:11px; text-transform:uppercase; color:var(--danger); font-weight:800; margin-bottom:4px;">${t('AT RISK')}</div>
+            <div style="font-size:24px; font-weight:800; color:var(--danger);">${s.at_risk_count || 0}</div>
           </div>
+        </div>
+
+        <div style="margin-bottom:32px; padding:24px; background:var(--bg-input); border-radius:20px; border:1px solid var(--border);">
+          <h3 style="margin:0 0 12px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>📝</span> ${lang === 'tr' ? 'Yönetici Özeti' : 'Executive Summary'}</h3>
+          <div style="font-size:14.5px; line-height:1.7; color:var(--text-secondary);">${data.summary}</div>
+        </div>
+
+        <div style="margin-bottom:32px;">
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>📉</span> ${lang === 'tr' ? 'Hatalı Konular ve Analiz' : 'Flawed Topics & Analysis'}</h3>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            ${(data.topic_breakdown || []).map(topic => `
+              <div style="background:var(--bg-input); border:1px solid var(--border); padding:20px; border-radius:20px;">
+                <div style="font-weight:700; color:var(--accent-light); margin-bottom:8px; font-size:15px;">${topic.topic}</div>
+                <div style="font-size:13.5px; line-height:1.6; color:var(--text-secondary); margin-bottom:12px;">${topic.analysis}</div>
+                <div style="background:rgba(16,185,129,0.05); border:1px dashed rgba(16,185,129,0.3); padding:12px; border-radius:12px;">
+                  <div style="font-size:11px; font-weight:800; color:var(--success); text-transform:uppercase; margin-bottom:4px;">${lang === 'tr' ? 'Tavsiye' : 'Recommendation'}</div>
+                  <div style="font-size:13px; color:var(--text-secondary);">${topic.recommendation}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="margin-bottom:32px;">
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>👤</span> ${lang === 'tr' ? 'Öğrenci Spotlight' : 'Student Spotlights'}</h3>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
+            ${(data.at_risk_commentaries || []).map(sc => `
+              <div style="background:var(--bg-input); border:1px solid var(--border); padding:16px; border-radius:16px; border-left:4px solid var(--danger);">
+                <div style="font-weight:700; margin-bottom:6px; font-size:14px;">${sc.name}</div>
+                <div style="font-size:13px; line-height:1.5; font-style:italic; color:var(--text-muted);">"${sc.commentary}"</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="padding:24px; background:var(--gradient-2); border-radius:20px; color:white;">
+          <h3 style="margin:0 0 10px; font-size:18px; font-weight:700;">💡 ${lang === 'tr' ? 'Genel Tavsiye' : 'General Advice'}</h3>
+          <div style="font-size:14px; line-height:1.6; opacity:0.9;">${data.general_advice}</div>
         </div>
       </div>
     </div>
   `;
-  applyTranslations(document.getElementById('report-content'));
 }
 
 async function initStudent() {

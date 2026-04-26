@@ -351,9 +351,37 @@ Return ONLY valid JSON:
 
 
 def ai_generate_report_insights(cohort_data):
-    """Generate AI insights for reports."""
-    prompt = f"Analyze this class performance data and provide insights. Return JSON.\n\nData:\n{json.dumps(cohort_data)}"
-    return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
+    """Generate detailed AI insights for reports in both English and Turkish."""
+    prompt = f"""You are an expert educational consultant. Analyze the following class performance data and generate a DETAILED weekly report.
+    
+    Data:
+    {json.dumps(cohort_data)}
+    
+    Requirements:
+    1. Provide an executive summary of the class performance.
+    2. Identify specific 'Flawed Topics' with detailed breakdowns of why students are struggling (e.g. specific grammar confusion, vocabulary retention).
+    3. Provide actionable recommendations for the lecturer.
+    4. Provide individual 'Student Spotlights' for at-risk students with personalized original commentaries.
+    
+    YOU MUST GENERATE THE ENTIRE REPORT IN BOTH ENGLISH AND TURKISH.
+    
+    Return ONLY a JSON object with this structure:
+    {{
+      "en": {{
+        "summary": "Detailed English summary",
+        "topic_breakdown": [{{ "topic": "Topic Name", "analysis": "Detailed Analysis", "recommendation": "Step-by-step advice" }}],
+        "at_risk_commentaries": [{{ "name": "Student Name", "commentary": "Personalized commentary" }}],
+        "general_advice": "Overall advice for next week"
+      }},
+      "tr": {{
+        "summary": "Detaylı Türkçe özet",
+        "topic_breakdown": [{{ "topic": "Konu Adı", "analysis": "Detaylı Analiz", "recommendation": "Adım adım tavsiye" }}],
+        "at_risk_commentaries": [{{ "name": "Öğrenci Adı", "commentary": "Kişiselleştirilmiş yorum" }}],
+        "general_advice": "Gelecek hafta için genel tavsiye"
+      }}
+    }}
+    """
+    return _call_ai([{"role": "user", "content": prompt}], max_tokens=3500)
 
 
 def ai_grade_open_response(question, student_answer, correct_answer):

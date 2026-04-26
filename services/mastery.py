@@ -134,6 +134,12 @@ def generate_weekly_report(db_conn, course_id):
     top_performers = []
 
     for student in students:
+        # Check if student has completed at least one quiz AND one assignment
+        quiz_done = c.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_type = 'quiz' AND score > 0 LIMIT 1", (student["id"],)).fetchone()
+        assign_done = c.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_type = 'assignment' AND score > 0 LIMIT 1", (student["id"],)).fetchone()
+        if not quiz_done or not assign_done:
+            continue
+
         topic_masteries = {}
         
         # Primary source: mastery_scores table (consistent with dashboard)
