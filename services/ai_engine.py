@@ -113,6 +113,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     # depending on the provider. We'll rely on the prompt for JSON structure.
 
     payload = json.dumps(payload_dict).encode("utf-8")
+    print(f"[AI] Payload: {json.dumps(payload_dict)[:200]}...")
 
     req = urllib.request.Request(
         OPENROUTER_URL,

@@ -1,8 +1,18 @@
-from database import db_connection
+import sqlite3
+import os
+import json
 
-with db_connection() as db:
-    courses = db.execute("SELECT id, name, is_building FROM courses").fetchall()
-    for c in courses:
-        print(f"ID: {c['id']}, Name: {c['name']}, Building: {c['is_building']}")
-        topics = db.execute("SELECT COUNT(*) FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id=?)", (c['id'],)).fetchone()
-        print(f"  Topics: {topics[0]}")
+DB_PATH = os.path.normpath(os.path.join(os.getcwd(), "data", "prototype.db"))
+
+def check():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("SELECT id, name, activity_status, activity_progress, activity_total FROM courses").fetchall()
+        for r in rows:
+            print(dict(r))
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    check()

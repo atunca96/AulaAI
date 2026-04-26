@@ -977,6 +977,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json(result)
 
     def _activity_start(self):
+        file_log("DEBUG: _activity_start endpoint reached")
         try:
             content_len = int(self.headers.get("Content-Length", 0))
             post_data = json.loads(self.rfile.read(content_len).decode("utf-8"))
@@ -998,11 +999,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
             # Start background thread
             import threading
+            file_log(f"Starting background generation for course {course_id}, topic {topic_id}")
             thread = threading.Thread(target=self._bg_generate_activities, args=(course_id, topic_id, count))
+            thread.daemon = True
             thread.start()
             
             self._send_json({"status": "success"})
         except Exception as e:
+            print(f"[ERROR] _activity_start failed: {e}")
+            import traceback
+            traceback.print_exc()
             self._send_error(str(e))
 
     def _bg_generate_activities(self, course_id, topic_id, count):
@@ -1012,9 +1018,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             with db_connection() as db:
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+                if not row:
+                    print(f"[ERROR] Topic {topic_id} not found in DB")
+                    raise Exception(f"Topic {topic_id} not found")
                 topic = dict(row)
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Spanish"
+            
+            print(f"[BG] Starting activity generation for {topic['title']} ({language})")
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
@@ -1040,6 +1051,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             # Start generation loop (Real Progress)
             for i in range(count):
+                print(f"[BG] [{course_id}] Generating activity {i+1}/{count}...")
                 file_log(f"Generating activity {i+1}/{count} for {topic['title']}")
                 try:
                     act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
