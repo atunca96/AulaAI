@@ -25,7 +25,7 @@ function toggleSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
   if (!sidebar || !content) return;
 
-  const isOpen = content.style.transform === 'translateX(280px)';
+  const isOpen = content.style.transform === 'translateX(240px)';
   if (isOpen) {
     content.style.transform = 'translateX(0)';
     overlay.style.opacity = '0';
@@ -52,7 +52,7 @@ function toggleSidebar() {
     // Apply translations to sidebar elements
     applyTranslations();
 
-    content.style.transform = 'translateX(280px)';
+    content.style.transform = 'translateX(240px)';
     overlay.style.opacity = '1';
     overlay.style.pointerEvents = 'auto';
     sidebar.style.pointerEvents = 'auto';
