@@ -97,10 +97,6 @@ def generate_risk_flags(mastery_score, trend_direction, engagement):
         flags.append("low_mastery")
     if trend_direction == "declining":
         flags.append("declining_performance")
-    if engagement < 0.6:
-        flags.append("low_engagement")
-    if mastery_score < MASTERY_LOW and engagement < 0.5:
-        flags.append("critical_risk")
     return flags
 
 
