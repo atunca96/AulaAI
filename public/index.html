@@ -98,7 +98,7 @@
                 <div style="margin-top:auto; padding:24px 8px 8px; border-top:1px solid rgba(255,255,255,0.05);">
                     <div style="margin-bottom:12px; font-size:10px; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:1px; padding-left:8px;" data-i18n="language">Language</div>
                     <button class="btn btn-outline btn-full" onclick="toggleLanguage()" id="sidebar-lang-btn" style="justify-content:space-between; padding:10px 14px; border-radius:10px; background:rgba(255,255,255,0.03); font-size:13px;">
-                        <span>🌐</span> <span id="sidebar-lang-text">English (EN)</span>
+                        <span>🌐</span> <span id="sidebar-lang-label">EN</span>
                     </button>
                 </div>
             </div>
@@ -337,13 +337,13 @@
                 <div class="grid-2col">
                     <div class="card" id="at-risk-card">
                         <div class="card-header">
-                            <h3 data-i18n="⚠️ At-Risk Students">⚠️ At-Risk Students</h3>
+                            <h3 data-i18n="at_risk_students">⚠️ At-Risk Students</h3>
                         </div>
                         <div class="card-body" id="at-risk-list"></div>
                     </div>
                     <div class="card" id="topic-difficulty-card">
                         <div class="card-header">
-                            <h3 data-i18n="📊 Topic Difficulty">📊 Topic Difficulty</h3>
+                            <h3 data-i18n="topic_difficulty">📊 Topic Difficulty</h3>
                         </div>
                         <div class="card-body" id="topic-difficulty-chart"></div>
                     </div>
@@ -351,10 +351,10 @@
                 <!-- Data Management -->
                 <div class="card" style="margin-top:24px;border:1px solid var(--danger)">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                        <h3 data-i18n="Data Management">🗑️ Data Management</h3>
-                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="resetData()" data-i18n="Erase All Data">Erase All Data</button>
+                        <h3 data-i18n="data_mgmt">🗑️ Data Management</h3>
+                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="resetData()" data-i18n="erase_all_btn">Erase All Data</button>
                     </div>
-                    <div class="card-body" style="font-size:13px;color:var(--text-muted)" data-i18n="Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.">
+                    <div class="card-body" style="font-size:13px;color:var(--text-muted)" data-i18n="erase_all_desc">
                         Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.
                     </div>
                 </div>

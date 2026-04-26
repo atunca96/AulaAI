@@ -267,16 +267,17 @@ const i18n = {
     // Overview stats
     STUDENTS: 'STUDENTS', 'CLASS MASTERY': 'CLASS MASTERY', 'AT RISK': 'AT RISK', 'TOP PERFORMERS': 'TOP PERFORMERS',
     'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
-    '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty',
+    at_risk_students: '⚠️ At-Risk Students', topic_difficulty: '📊 Topic Difficulty',
     'prac.dialogue_order': 'Reorder the dialogue correctly:',
     'prac.dialogue': 'Dialogue',
     'active this week': 'active this week', 'Average across all topics': 'Average across all topics',
     'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%',
-    'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery',
+    no_at_risk: 'No at-risk students 🎉', mastery: 'mastery',
     'Welcome back,': 'Welcome back,',
     // Data Management
-    'Data Management': 'Data Management', 'Erase All Data': 'Erase All Data',
-    'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.': 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
+    data_mgmt: '🗑️ Data Management',
+    erase_all_btn: 'Erase All Data',
+    erase_all_desc: 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
     // Activities
     'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities',
     '🚀 Launch Activity': '🚀 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
@@ -541,14 +542,15 @@ const i18n = {
     // Overview stats
     STUDENTS: 'ÖĞRENCİLER', 'CLASS MASTERY': 'SINIF BAŞARISI', 'AT RISK': 'RİSKLİ', 'TOP PERFORMERS': 'EN İYİLER',
     'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler',
-    '⚠️ At-Risk Students': '⚠️ Riskli Öğrenciler', '📊 Topic Difficulty': '📊 Konu Zorluğu',
+    at_risk_students: '⚠️ Riskli Öğrenciler', topic_difficulty: '📊 Konu Zorluğu',
     'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama',
     'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı',
-    'No at-risk students 🎉': 'Riskli öğrenci yok 🎉', mastery: 'başarı',
-    'Welcome back,': 'Tekrar hoş geldin,',
+    no_at_risk: 'Riskli öğrenci yok 🎉', mastery: 'başarı',
+    'Welcome back,': 'Tekrar Hoş Geldin,',
     // Data Management
-    'Data Management': 'Veri Yönetimi', 'Erase All Data': 'Tüm Verileri Sil',
-    'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.': 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
+    data_mgmt: 'Veri Yönetimi',
+    erase_all_btn: 'Tüm Verileri Sil',
+    erase_all_desc: 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
     // Activities
     'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat',
     '🚀 Launch Activity': '🚀 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
@@ -718,6 +720,10 @@ function applyTranslations() {
     langBtn.setAttribute('data-i18n', 'langBtn');
     langBtn.textContent = t('langBtn');
   }
+  const sidebarLangLabel = document.getElementById('sidebar-lang-label');
+  if (sidebarLangLabel) {
+    sidebarLangLabel.textContent = currentLang === 'en' ? 'TR' : 'EN';
+  }
   
   // Re-render report if it's currently visible
   if (_lastReportData && document.getElementById('tab-reports').classList.contains('active')) {
@@ -726,8 +732,8 @@ function applyTranslations() {
 }
 
 function toggleLanguage() {
-  window.currentLang = window.currentLang === 'en' ? 'tr' : 'en';
-  localStorage.setItem('aula_lang', window.currentLang);
+  currentLang = currentLang === 'en' ? 'tr' : 'en';
+  localStorage.setItem('aula_lang', currentLang);
   applyTranslations();
   
   if (_lastReportData) renderReport(_lastReportData);
@@ -1678,7 +1684,7 @@ function renderOverview(report) {
     <div class="stat-card"><div class="stat-label">${t('AT RISK')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
     <div class="stat-card"><div class="stat-label">${t('TOP PERFORMERS')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
   const atRisk = report.at_risk_students || [];
-  document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)">${t('No at-risk students 🎉')}</p>`
+  document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)" data-i18n="no_at_risk">${t('no_at_risk')}</p>`
     : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${t(f)}</span>`).join('')}</div></div>`).join('');
   const td = report.topic_difficulty || {};
   document.getElementById('topic-difficulty-chart').innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>

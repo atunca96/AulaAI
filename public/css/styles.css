@@ -732,7 +732,8 @@ body {
     }
 
     .chat-wrapper:not(.is-active) {
-        display: none !important;
+        display: flex !important;
+        flex: 1;
     }
 
     .chat-header {
