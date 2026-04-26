@@ -1209,8 +1209,7 @@ function initViewportFix() {
 window.addEventListener('DOMContentLoaded', () => {
   initViewportFix();
   
-  // Force English on refresh per user request
-  currentLang = 'en';
+  // Apply translations based on saved preference
   applyTranslations();
 
   // Apply saved theme and HUD size
