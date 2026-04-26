@@ -573,35 +573,78 @@ body {
     position: static;
     flex-wrap: nowrap;
     justify-content: flex-start;
-    padding: 0 12px;
-    height: 56px;
+    padding: 0 10px;
+    height: 52px;
     backdrop-filter: none;
     overflow: hidden;
+    gap: 4px;
   }
   .nav-brand { 
     margin-right: 0; 
-    gap: 6px; 
+    gap: 4px; 
     flex: 1; 
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
   }
   .nav-title { display: none; }
-  .nav-logo { font-size: 18px; }
-  .nav-logo-img { height: 24px; }
+  .nav-logo-img { height: 20px; }
   .nav-badge { font-size: 9px; padding: 2px 6px; flex-shrink: 0; }
 
-  /* Hide username but keep logout visible */
-  #nav-username, #student-nav-username { display: none; }
+  #nav-course-name, #student-nav-course-name {
+    font-size: 11px !important;
+    max-width: 80px !important;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    border-left: 1px solid rgba(255,255,255,0.1) !important;
+    padding-left: 6px !important;
+    margin-left: 4px !important;
+  }
+
   .nav-user {
     display: flex !important;
+    gap: 4px;
+    align-items: center;
   }
-  .nav-user .btn-ghost {
-    padding: 8px 14px;
-    font-size: 13px;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: var(--radius-sm);
+  .nav-user .btn {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  #theme-toggle-btn, #student-theme-toggle-btn {
+    font-size: 14px !important;
+    margin-right: 0 !important;
+    padding: 6px !important;
+  }
+
+  /* Sidebar Styles */
+  .sidebar-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+    padding: 10px 14px !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    margin-bottom: 4px;
+    border: none !important;
+    width: 100% !important;
+    color: var(--text-primary) !important;
+    background: transparent !important;
+  }
+  .sidebar-item:active {
+    background: rgba(255,255,255,0.1) !important;
+    transform: scale(0.98);
+  }
+  .sidebar-icon {
+    font-size: 18px;
+    width: 24px;
+    display: flex;
+    justify-content: center;
   }
 
   /* Tabs → Fixed Bottom Navigation Bar */

@@ -25,12 +25,13 @@ function toggleSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
   if (!sidebar || !content) return;
 
-  const isOpen = content.style.transform === 'translateX(240px)';
+  const isOpen = content.style.transform === 'translateX(220px)';
   if (isOpen) {
     content.style.transform = 'translateX(0)';
     overlay.style.opacity = '0';
     overlay.style.pointerEvents = 'none';
     sidebar.style.pointerEvents = 'none';
+    document.body.style.overflow = ''; // Restore scroll
   } else {
     // Update user info before showing
     if (currentUser) {
@@ -58,10 +59,11 @@ function toggleSidebar() {
     // Apply translations to sidebar elements
     applyTranslations();
 
-    content.style.transform = 'translateX(240px)';
+    content.style.transform = 'translateX(220px)';
     overlay.style.opacity = '1';
     overlay.style.pointerEvents = 'auto';
     sidebar.style.pointerEvents = 'auto';
+    document.body.style.overflow = 'hidden'; // Lock scroll
   }
 }
 
