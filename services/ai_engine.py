@@ -25,11 +25,7 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
         return None
     
     try:
-        # Check if we should use 3.5 Haiku or 3.5 Sonnet
-        # Using 3.5 Haiku as default for cost/speed
         model = "claude-3-5-haiku-20241022"
-        
-        # Clean messages
         clean_msgs = []
         for m in messages:
             clean_msgs.append({"role": m["role"], "content": str(m["content"])})
@@ -43,7 +39,6 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
         )
         
         text = response.content[0].text
-        # Extract JSON if wrapped in markdown
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0]
         elif "```" in text:
@@ -57,16 +52,76 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
 def is_ai_available():
     return client is not None
 
+def detect_language(text):
+    """Detect the language of the provided text."""
+    if not client: return "Spanish"
+    try:
+        prompt = f"Identify the primary language of this text. Respond with ONLY the language name (e.g. 'Spanish', 'French'). Text: {text[:500]}"
+        response = client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=20,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text.strip()
+    except:
+        return "Spanish"
+
+def generate_full_lesson(topic_title, topic_type, language, question_count=8):
+    """Generate both content and questions in a single LLM call for maximum speed."""
+    lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
+    
+    if topic_type == "vocabulary":
+        structure = """
+          "content": { "words": { "word": "translation" } },
+          "questions": [ { "type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "...", "..."] } ]
+        """
+        detail = "Include 10-15 essential words/phrases with their English translations."
+    else:
+        structure = """
+          "content": { "rules": ["..."], "examples": ["..."] },
+          "questions": [ { "type": "fill_blank", "word": "...", "translation": "...", "sentence": "..." } ]
+        """
+        detail = "Include 3-5 clear rules and 4 illustrative examples."
+
+    prompt = f"""Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
+    
+    1. CONTENT: {detail}
+    2. QUESTIONS: Generate exactly {question_count} interactive questions.
+    
+    Return ONLY valid JSON:
+    {{
+      {structure}
+    }}"""
+    
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    if not result: return None
+    
+    # Process the questions through the template factory
+    raw_qs = result.get("questions", [])
+    final_qs = []
+    for q in raw_qs:
+        assembled = format_activity_by_template(q, "A1", language) # Default A1 for lesson generation
+        if assembled:
+            if assembled["type"] == "mcq":
+                ans = str(assembled["answer"]).strip()
+                dist = assembled.get("distractors", [])
+                if not isinstance(dist, list): dist = [str(dist)]
+                dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
+                import random
+                opts = [ans] + dist[:3]
+                random.shuffle(opts)
+                assembled["options"] = opts
+            final_qs.append(assembled)
+    
+    result["questions"] = final_qs
+    return result
+
 def format_activity_by_template(data, level, language):
-    """
-    Assembles raw AI data into a consistent, un-breakable student activity.
-    Ensures that underscores, instructions, and levels are handled deterministically in code.
-    """
+    """Assembles raw AI data into a consistent, un-breakable student activity."""
     atype = data.get("type", "mcq")
     level_norm = (level or "A1").upper()
     is_beginner = any(x in level_norm for x in ["A1", "A2"])
     
-    # Standard Instructions based on level
     if is_beginner:
         instr_pfx = "Type the full word to complete: "
         mcq_instr = f"Which of these {language} words means "
@@ -77,15 +132,10 @@ def format_activity_by_template(data, level, language):
         instr_pfx = f"Completa la frase en {language}: "
         mcq_instr = f"Selecciona la opción correcta: "
 
-    # 1. Missing Letter Template (A1-A2 Focused)
     if atype == "fill_blank" and is_beginner and data.get("word") and not data.get("sentence"):
         word = data["word"]
         translation = data.get("translation", "")
-        if len(word) > 3:
-            display = word[0] + ("_" * (len(word)-2)) + word[-1]
-        else:
-            display = word[0] + "_" + (word[2] if len(word) > 2 else "")
-        
+        display = word[0] + ("_" * (len(word)-2)) + word[-1] if len(word) > 3 else word[0] + "_" + (word[2] if len(word) > 2 else "")
         return {
             "type": "fill_blank",
             "prompt": f"Complete the {language} word for '{translation}': {display}",
@@ -93,7 +143,6 @@ def format_activity_by_template(data, level, language):
             "metadata": {"template": "missing_letter"}
         }
 
-    # 2. Sentence Context Template
     if atype == "fill_blank" and "sentence" in data:
         sentence = data["sentence"]
         word = data.get("word", data.get("answer", ""))
@@ -108,55 +157,42 @@ def format_activity_by_template(data, level, language):
             "metadata": {"template": "sentence_context"}
         }
 
-    # 3. Multiple Choice: Pragmatic Response
     if atype == "mcq" and data.get("scenario"):
-        scenario = data["scenario"]
-        target = data.get("answer", data.get("word", ""))
         return {
             "type": "mcq",
-            "prompt": f"In this situation: '{scenario}', what would you say in {language}?",
-            "answer": target,
+            "prompt": f"In this situation: '{data['scenario']}', what would you say in {language}?",
+            "answer": data.get("answer", data.get("word", "")),
             "distractors": data.get("distractors", []),
             "metadata": {"template": "pragmatic_response"}
         }
 
-    # 4. Multiple Choice: Definition / Meaning
     if atype == "mcq" and data.get("definition"):
-        definition = data["definition"]
-        target = data.get("answer", data.get("word", ""))
         return {
             "type": "mcq",
-            "prompt": f"Which {language} word matches this description: '{definition}'?",
-            "answer": target,
+            "prompt": f"Which {language} word matches this description: '{data['definition']}'?",
+            "answer": data.get("answer", data.get("word", "")),
             "distractors": data.get("distractors", []),
             "metadata": {"template": "definition_match"}
         }
 
-    # 5. Multiple Choice: Opposites
     if atype == "mcq" and data.get("opposite"):
-        opposite_of = data["opposite"]
-        target = data.get("answer", data.get("word", ""))
         return {
             "type": "mcq",
-            "prompt": f"What is the opposite of the {language} word '{opposite_of}'?",
-            "answer": target,
+            "prompt": f"What is the opposite of the {language} word '{data['opposite']}'?",
+            "answer": data.get("answer", data.get("word", "")),
             "distractors": data.get("distractors", []),
             "metadata": {"template": "opposite_match"}
         }
 
-    # 6. Multiple Choice: Categorization
     if atype == "mcq" and data.get("category"):
-        category = data["category"]
-        target = data.get("answer", data.get("word", ""))
         return {
             "type": "mcq",
-            "prompt": f"Which of these is a type of '{category}' in {language}?",
-            "answer": target,
+            "prompt": f"Which of these is a type of '{data['category']}' in {language}?",
+            "answer": data.get("answer", data.get("word", "")),
             "distractors": data.get("distractors", []),
             "metadata": {"template": "categorization"}
         }
 
-    # 7. Standard Multiple Choice: Translation (Default MCQ)
     if atype == "mcq":
         target = data.get("word", data.get("answer", ""))
         translation = data.get("translation", "")
@@ -168,14 +204,12 @@ def format_activity_by_template(data, level, language):
             "metadata": {"template": "mcq_translation"}
         }
 
-    # Fallback to whatever AI sent if no template matched
     return data
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Generate quiz/practice questions using the Template Factory approach."""
     level_norm = (level or 'A1').upper()
-    
-    prompt = f"Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the types (mcq, fill_blank) and the internal logic (use keys like: word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON: {{ 'data': [ ... ] }}."
+    prompt = f"Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the types (mcq, fill_blank) and logic (word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON ONLY."
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     raw_list = result.get("data") if result else None
