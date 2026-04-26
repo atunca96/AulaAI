@@ -1194,35 +1194,22 @@ function initViewportFix() {
     const activeWrapper = document.querySelector('.chat-wrapper.is-active');
     if (!activeWrapper) return;
     
-    const viewport = window.visualViewport;
-    const offset = window.innerHeight - viewport.height;
-    
-    if (offset > 50) { // Keyboard likely open
-      activeWrapper.style.bottom = `${offset}px`;
-      activeWrapper.style.height = `${viewport.height}px`;
-      
-      const inputArea = activeWrapper.querySelector('.chat-input-area');
-      if (inputArea) {
-        inputArea.style.paddingBottom = '0px'; // Sit flush on keyboard
-        inputArea.style.paddingTop = '8px';
-        inputArea.style.paddingLeft = '8px';
-        inputArea.style.paddingRight = '8px';
-      }
+    const vv = window.visualViewport;
+    const isKeyboardOpen = vv.height < window.innerHeight * 0.85;
 
-      const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
-      if (msgList) {
-        setTimeout(() => { msgList.scrollTop = msgList.scrollHeight; }, 100);
-      }
-    } else {
-      activeWrapper.style.bottom = '0';
-      activeWrapper.style.height = '100dvh';
-      const inputArea = activeWrapper.querySelector('.chat-input-area');
-      if (inputArea) {
-        inputArea.style.paddingBottom = ''; // Let CSS handle safe area
-        inputArea.style.paddingTop = '';
-        inputArea.style.paddingLeft = '';
-        inputArea.style.paddingRight = '';
-      }
+    // Use Visual Viewport API for pinpoint positioning
+    activeWrapper.style.top = `${vv.offsetTop}px`;
+    activeWrapper.style.height = `${vv.height}px`;
+    
+    const inputArea = activeWrapper.querySelector('.chat-input-area');
+    if (inputArea) {
+      // Eliminate gap when keyboard is open
+      inputArea.style.paddingBottom = isKeyboardOpen ? '8px' : '';
+    }
+
+    const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
+    if (msgList) {
+      setTimeout(() => { msgList.scrollTop = msgList.scrollHeight; }, 100);
     }
   };
 

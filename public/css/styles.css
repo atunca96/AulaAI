@@ -724,12 +724,11 @@ body {
     .chat-wrapper.is-active {
         position: fixed !important;
         top: 0;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0;
+        left: 0;
+        width: 100% !important;
         height: 100dvh;
         z-index: 9999 !important;
-        background: var(--bg-primary) !important;
+        background: var(--bg-card) !important;
         display: flex !important;
         flex-direction: column !important;
         padding: 0 !important;
