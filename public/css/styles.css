@@ -770,6 +770,14 @@ body {
         position: fixed !important;
         width: 100% !important;
     }
+
+    /* Crucial: Kill transforms on parents so fixed positioning works relative to screen */
+    html.chat-open main, 
+    html.chat-open section,
+    html.chat-open .container {
+        transform: none !important;
+        animation: none !important;
+    }
     
     .chat-wrapper.is-active #inbox-messages,
     .chat-wrapper.is-active #student-chat-history {

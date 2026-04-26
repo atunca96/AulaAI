@@ -1202,9 +1202,12 @@ function initViewportFix() {
           activeWrapper.style.top = `${vv.offsetTop}px`;
           activeWrapper.style.height = `${vv.height}px`;
           
+          // Use transform for smoother positioning if top/height lag
+          // activeWrapper.style.transform = `translateY(${vv.offsetTop}px)`;
+          
           const inputArea = activeWrapper.querySelector('.chat-input-area');
           if (inputArea) {
-            inputArea.style.paddingBottom = isKeyboardOpen ? '8px' : '';
+            inputArea.style.paddingBottom = isKeyboardOpen ? '4px' : '';
           }
         }
         ticking = false;
