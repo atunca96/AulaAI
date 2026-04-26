@@ -1190,31 +1190,31 @@ function logout() {
 function initViewportFix() {
   if (!window.visualViewport) return;
   
+  let ticking = false;
   const handleViewportChange = () => {
-    const activeWrapper = document.querySelector('.chat-wrapper.is-active');
-    if (!activeWrapper) return;
-    
-    const vv = window.visualViewport;
-    const isKeyboardOpen = vv.height < window.innerHeight * 0.85;
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        const activeWrapper = document.querySelector('.chat-wrapper.is-active');
+        if (activeWrapper) {
+          const vv = window.visualViewport;
+          const isKeyboardOpen = vv.height < window.innerHeight * 0.85;
 
-    // Use Visual Viewport API for pinpoint positioning
-    activeWrapper.style.top = `${vv.offsetTop}px`;
-    activeWrapper.style.height = `${vv.height}px`;
-    
-    const inputArea = activeWrapper.querySelector('.chat-input-area');
-    if (inputArea) {
-      // Eliminate gap when keyboard is open
-      inputArea.style.paddingBottom = isKeyboardOpen ? '8px' : '';
-    }
-
-    const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
-    if (msgList) {
-      setTimeout(() => { msgList.scrollTop = msgList.scrollHeight; }, 100);
+          activeWrapper.style.top = `${vv.offsetTop}px`;
+          activeWrapper.style.height = `${vv.height}px`;
+          
+          const inputArea = activeWrapper.querySelector('.chat-input-area');
+          if (inputArea) {
+            inputArea.style.paddingBottom = isKeyboardOpen ? '8px' : '';
+          }
+        }
+        ticking = false;
+      });
+      ticking = true;
     }
   };
 
   window.visualViewport.addEventListener('resize', handleViewportChange);
-  window.visualViewport.addEventListener('scroll', handleViewportChange);
+  // Removed scroll listener as it often causes jitters on mobile
 }
 
 window.addEventListener('DOMContentLoaded', () => {

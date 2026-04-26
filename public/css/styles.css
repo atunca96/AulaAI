@@ -735,6 +735,7 @@ body {
         padding-top: env(safe-area-inset-top) !important;
         border-radius: 0 !important;
         border: none !important;
+        overscroll-behavior: none !important;
     }
 
     .chat-header {
