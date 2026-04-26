@@ -332,7 +332,8 @@ const i18n = {
     'class.pdf_status_msg': 'Is the PDF you are about to upload a digital file with selectable text, or a flat scan (scanned image)? Flat scans can lead to distorted outcomes. Are you sure your file has selectable/searchable text?',
     'class.pdf_status_ok': 'Yes, it is searchable',
     'class.pdf_status_cancel': 'No, let me check',
-    'draft.lang_warning': 'Note: Question content language is fixed upon generation and will not change with the UI toggle.'
+    'draft.lang_warning': 'Note: Question content language is fixed upon generation and will not change with the UI toggle.',
+    'message.placeholder': 'Write your message here...',
   },
   tr: {
     langBtn: '🌐 EN',
@@ -522,7 +523,8 @@ const i18n = {
     'No assignments yet.': 'Henüz ödev yok.',
     'No quizzes yet.': 'Henüz sınav yok.',
     'prac.dialogue': 'Diyalog',
-    'draft.lang_warning': 'Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.'
+    'draft.lang_warning': 'Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.',
+    'message.placeholder': 'Mesajınızı buraya yazın...',
   }
 };
 
