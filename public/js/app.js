@@ -998,7 +998,7 @@ async function selectClassroom(id, isLecturer = true) {
   const inboxReplyArea = document.getElementById('inbox-reply-area');
   if (inboxReplyArea) inboxReplyArea.classList.add('hidden');
   const inboxTitle = document.getElementById('inbox-title');
-  if (inboxTitle) inboxTitle.innerHTML = `📥 <span data-i18n="inbox">${t('inbox')}</span>`;
+  if (inboxTitle) inboxTitle.innerHTML = `💬 <span data-i18n="inbox">${t('inbox')}</span>`;
 
   // 2. Fetch course data
   const courses = await api('/courses');
@@ -1056,13 +1056,13 @@ async function selectClassroom(id, isLecturer = true) {
     showScreen('lecturer-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
     const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${targetTab}"]`);
-    if (tabBtn) switchTab(tabBtn, true);
+    if (tabBtn) switchTab(tabBtn);
     await initLecturer();
   } else {
     showScreen('student-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 's-home';
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
-    if (tabBtn) switchTab(tabBtn, true);
+    if (tabBtn) switchTab(tabBtn);
     await initStudent();
   }
 
