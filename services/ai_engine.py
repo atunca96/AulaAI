@@ -408,8 +408,21 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Generate quiz/practice questions using AI in the specified language."""
+    level_norm = (level or 'A1').upper()
+    is_beginner = any(x in level_norm for x in ['A1', 'A2'])
+    
+    # Pedagogical Logic for Prompts
+    if is_beginner:
+        prompt_lang_instruction = "1. PROMPT LANGUAGE: Write the 'prompt' (the question) in 100% ENGLISH to help beginners grasp fundamentals."
+        fill_blank_instruction = "5. FILL_BLANK STYLE: Use 'missing letter' style (e.g. 'H__a' for 'Hola') to help beginners with spelling/recognition."
+    elif 'B1' in level_norm or 'B2' in level_norm:
+        prompt_lang_instruction = "1. PROMPT LANGUAGE: Mix ENGLISH and target language instructions to gradually transition."
+        fill_blank_instruction = "5. FILL_BLANK STYLE: Use full missing words in sentences."
+    else: # C1/C2
+        prompt_lang_instruction = f"1. PROMPT LANGUAGE: Write the 'prompt' (the question) in 100% {language}."
+        fill_blank_instruction = "5. FILL_BLANK STYLE: Use complex missing words/phrases."
     if not topic_content:
         topic_content = {}
         
@@ -430,12 +443,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     {context}
 
     STRICT PEDAGOGICAL RULES:
-    1. PROMPT LANGUAGE: Write the 'prompt' (the question) in ENGLISH (e.g. "Which of these means 'water'?"). 
+    {prompt_lang_instruction}
     2. OPTION LANGUAGE: All answer choices (correct and distractors) MUST be in {language}.
     3. NO AMBIGUITY: There must be only ONE logically and grammatically correct answer.
     4. VARIETY: Test different words and grammar points. Do not repeat the same logic.
-    5. FILL_BLANK MUST HAVE BLANKS: For 'fill_blank', include '____' in the prompt where the answer goes.
+    {fill_blank_instruction}
     6. NO OPEN-ENDED TASKS: Every question must have a single concrete answer.
+    7. CONSTRUCTIVE: Always build questions that help the student understand the topic further.
+    8. DISTRACTORS: Do NOT overthink distractors. Just use options that are similar to the correct answer.
+    9. NO OVERTHINKING: Function properly and efficiently. Do not try to be "smarter" than you are.
+    10. NO AUDIO CUES: Do NOT use words like 'Listen' or 'Audio'.
 
     Generate exactly 12 unique questions. Mix 'mcq' and 'fill_blank'.
     Return ONLY valid JSON:
@@ -509,8 +526,20 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     return unique_questions[:count] if unique_questions else None
 
 
-def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None):
+def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None, level='A1'):
     """Generate exactly ONE interactive activity with awareness of previous questions to ensure variety."""
+    level_norm = (level or 'A1').upper()
+    is_beginner = any(x in level_norm for x in ['A1', 'A2'])
+    
+    if is_beginner:
+        prompt_lang_instruction = "1. PROMPT LANGUAGE: Write the 'prompt' in 100% ENGLISH."
+        fb_style = "6. FILL_BLANK STYLE: Use 'missing letter' style (e.g. 'H__a' for 'Hola') for A1/A2."
+    elif 'B1' in level_norm or 'B2' in level_norm:
+        prompt_lang_instruction = "1. PROMPT LANGUAGE: Mix ENGLISH and target language."
+        fb_style = "6. FILL_BLANK STYLE: Use full words."
+    else:
+        prompt_lang_instruction = f"1. PROMPT LANGUAGE: Use 100% {language}."
+        fb_style = "6. FILL_BLANK STYLE: Use complex phrases."
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
         word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
@@ -531,13 +560,15 @@ Context: {context}
 {history_str}
 
 STRICT PEDAGOGICAL RULES:
-1. PROMPT LANGUAGE: Write the 'prompt' (the question) in ENGLISH to ensure clarity for beginners.
+{prompt_lang_instruction}
 2. OPTION LANGUAGE: The 'answer' and 'distractors' MUST be entirely in {language}.
 3. NO AMBIGUITY: Ensure there is only ONE logically and grammatically correct answer.
-4. QUALITY DISTRACTORS: Distractors must be plausible words in {language} but clearly incorrect for this specific question.
+4. SIMPLE DISTRACTORS: Do NOT overthink distractors. Use options similar to the correct answer.
 5. NO REPETITION: Do not use the same word for both 'answer' and 'distractors'.
-6. FILL_BLANK: Must include '____' (4 underscores) in the prompt where the answer goes.
-7. NO AUDIO CUES: Do NOT use words like 'Listen', 'Hear', or 'Audio' in the prompt. This is a TEXT-ONLY system.
+{fb_style}
+7. NO AUDIO CUES: Do NOT use words like 'Listen' or 'Audio'.
+8. CONSTRUCTIVE: Build questions that help the student understand the topic further.
+9. EFFICIENCY: Function properly and efficiently. Do not overthink.
 
 Generate exactly ONE exercise (Exercise #{index}). Return ONLY JSON:
 {{
@@ -644,16 +675,17 @@ Topic Content/Context (Study Guide):
 {json.dumps(topic_content)}
 
 STRICT PEDAGOGICAL REQUIREMENTS:
-1. INSTRUCTIONAL LANGUAGE: The 'prompt' (the instructions for the student) MUST be 100% in ENGLISH.
+1. INSTRUCTIONAL LANGUAGE: For A1-A2, use 100% ENGLISH prompts. For B1-B2, mix English and {language}. For C1-C2, use 100% {language}.
 2. TARGET LANGUAGE: All answer choices, {language} text, and {language} examples MUST be in {language}.
 3. STRICT CONTEXT ADHERENCE: You MUST only use vocabulary, grammar, and concepts present in the provided "Topic Content/Context". Do NOT hallucinate external trivia.
-4. PEDAGOGICAL DEPTH: Questions should test UNDERSTANDING, not just translation. (e.g., "Which response is most appropriate to 'How are you?'").
-5. HIGH-QUALITY DISTRACTORS: For 'mcq', distractors must be plausible and related to the correct answer. Avoid obviously unrelated words.
+4. PEDAGOGICAL DEPTH: Questions should test UNDERSTANDING, not just translation. Build constructive questions to help the student understand the topic further.
+5. SIMPLE DISTRACTORS: For 'mcq', do NOT overthink distractors. Just use options that are similar to the correct answer.
 6. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word.
-7. VARIETY: Each activity must focus on a different aspect of the topic context. Mix difficulty levels.
-8. NO AUDIO CUES: Do NOT use words like 'Listen', 'Hear', or 'Audio' in the 'prompt'. This is a TEXT-ONLY system.
+7. FILL_BLANK STYLE: For A1-A2, use 'missing letter' style (e.g. 'H__a'). For higher levels, use full words.
+8. NO AUDIO CUES: Do NOT use words like 'Listen' or 'Audio'.
 9. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
 10. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
+11. EFFICIENCY: Function properly and efficiently. Do not overthink or try to be "smarter" than you are.
 
 REQUIRED JSON STRUCTURES:
 - 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "{language} Correct Word", "options": ["{language} Opt 1", "{language} Opt 2", "{language} Opt 3", "{language} Opt 4"] }}

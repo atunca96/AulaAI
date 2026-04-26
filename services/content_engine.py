@@ -334,7 +334,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             try:
                 thread_conn = get_db()
                 tc = thread_conn.cursor()
-                t_data = tc.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+                t_data = tc.execute("SELECT title, type, content, difficulty FROM topics WHERE id = ?", (tid,)).fetchone()
                 if not t_data: return [], tid, ""
                 
                 l_row = tc.execute("""
@@ -348,7 +348,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                 raw_content = t_data["content"]
                 parsed_content = json.loads(raw_content) if raw_content else {}
                 
-                return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch), tid, t_data["title"]
+                return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch, level=t_data["difficulty"]), tid, t_data["title"]
             except Exception as e:
                 print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
                 return [], tid, ""

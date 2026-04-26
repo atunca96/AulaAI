@@ -1126,7 +1126,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             for i in range(count):
                 # Generate one by one for TRUE real-time progress
-                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
+                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history, level=topic.get("difficulty", "A1"))
                 if act:
                     raw_activities.append(act)
                     history.append(act.get("prompt"))
