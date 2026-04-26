@@ -260,6 +260,8 @@ const i18n = {
     'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
     'class.toc_range_hint': 'If you leave this blank, the AI will use the Manual Curriculum above as the primary source.',
     'class.toc_range': '3. PDF Context Range (Optional)',
+    'answer': 'answer',
+    'responses': 'responses',
     'gen.loading': 'Questions are being generated...',
     'gen.time': 'This may take 5-10 seconds.',
     'Unit': 'Unit',
@@ -506,6 +508,8 @@ const i18n = {
     'class.toc_manual_hint': 'Kitabın içindekilerini veya müfredatınızı yapıştırın. Yapay zeka bunu yol haritası olarak kullanacaktır.',
     'class.toc_range_hint': 'Burayı boş bırakırsanız, yapay zeka yukarıdaki Manuel Müfredatı birincil kaynak olarak kullanacaktır.',
     'class.toc_range': '3. PDF İçindekiler Sayfa Aralığı (Opsiyonel)',
+    'answer': 'cevaplar',
+    'responses': 'sonuçlar',
     'gen.loading': 'Sorular oluşturuluyor...',
     'gen.time': 'Bu işlem 5-10 saniye sürebilir.',
     'Unit': 'Ünite',
@@ -1711,22 +1715,22 @@ async function viewQuiz(quizId, title) {
     <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${L.classAvg}: <strong style="color:var(--accent)">${classAvg}%</strong> · ${studentResults.length} ${L.submitted}</div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 ${t('answer')}</button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 ${t('responses')} (${studentResults.length})</button>
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 <span data-i18n="answer">${t('answer')}</span></button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 <span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
     </div>
 
     <div id="qv-questions">
       ${quizData.questions.map((q, i) => `
         <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
           <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${translatePrompt(q.prompt)}</div>
-          <div style="font-size:13px">${t('answer')}: <strong style="color:var(--success)">${q.answer}</strong></div>
+          <div style="font-size:13px"><span data-i18n="answer">${t('answer')}</span>: <strong style="color:var(--success)">${q.answer}</strong></div>
         </div>
       `).join('')}
     </div>
 
     <div id="qv-responses" style="display:none">
       ${studentResults.length === 0
-      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="assign.no_responses">${L.noResponses}</p>`
       : studentResults.map(sr => {
         const avgPct = Math.round(sr.average_score * 100);
         const correctCount = sr.answers.filter(a => a.is_correct).length;
@@ -1735,7 +1739,7 @@ async function viewQuiz(quizId, title) {
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
                     <strong style="font-size:15px">${sr.student_name}</strong>
-                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${L.correct}</span>
+                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span data-i18n="assign.correct">${L.correct}</span></span>
                   </div>
                   <div style="display:flex; align-items:center; gap:10px">
                     <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
@@ -1751,18 +1755,18 @@ async function viewQuiz(quizId, title) {
                         <div style="flex:1">
                           <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span>${L.correctAns}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            <span><span data-i18n="assign.student_answer">${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
+                            ${!isRight ? `<span><span data-i18n="assign.correct_ans">${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
                       </div>`;
         }).join('')}
                 </div>
               </div>`;
-      }).join('')
-    }
+      }).join('')}
     </div>
   `;
+  applyTranslations(document.getElementById('student-detail-body'));
 }
 
 function switchQuizViewTab(btn, panelId) {
@@ -2015,20 +2019,21 @@ async function showStudentDetail(sid, name, studentId = '') {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 ${t('messageTeacher')}</button>
-        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 ${t('Kick')}</button>
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageTeacher">${t('messageTeacher')}</span></button>
+        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 <span data-i18n="Kick">${t('Kick')}</span></button>
       </div>
     </div>
 
-    <h3 style="margin-bottom:16px">${t('Mastery:')}</h3>
+    <h3 style="margin-bottom:16px" data-i18n="Mastery:">${t('Mastery:')}</h3>
     ${(data.masteries || []).map(m => {
       const pct = Math.round(m.score * 100);
       return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
     }).join('')}
 
-    <h3 style="margin:24px 0 16px">${t('Activities')}</h3>
+    <h3 style="margin:24px 0 16px" data-i18n="Activities">${t('Activities')}</h3>
     ${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}
   `;
+  applyTranslations(document.getElementById('student-detail-body'));
 }
 
 async function generateReport() {
@@ -2039,26 +2044,28 @@ async function generateReport() {
   document.getElementById('report-content').innerHTML = `
     <div style="max-width: 800px; margin: 0 auto; background: var(--bg-card); border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
       <div style="background: var(--gradient-1); padding: 30px; text-align: center; color: white;">
-        <h2 style="margin: 0; font-size: 24px; font-weight: 600;">${t('Weekly Report')}</h2>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600;" data-i18n="report.title">${t('Weekly Report')}</h2>
       </div>
       <div style="padding: 40px 30px;">
         <div style="display: flex; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${t('STUDENTS')}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;" data-i18n="STUDENTS">${t('STUDENTS')}</div>
             <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${r.summary?.total_students || 0}</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--bg-input); border: 1px solid var(--border); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">${t('CLASS MASTERY')}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;" data-i18n="CLASS MASTERY">${t('CLASS MASTERY')}</div>
             <div style="font-size: 28px; font-weight: 700; margin-top: 5px;">${avgPct}%</div>
           </div>
           <div style="flex: 1; min-width: 120px; background: var(--danger-bg); border: 1px solid var(--danger); padding: 20px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;">${t('AT RISK')}</div>
+            <div style="font-size: 12px; text-transform: uppercase; color: var(--danger); font-weight: 600;" data-i18n="AT RISK">${t('AT RISK')}</div>
             <div style="font-size: 28px; font-weight: 700; color: var(--danger); margin-top: 5px;">${r.summary?.at_risk_count || 0}</div>
           </div>
         </div>
       </div>
     </div>
   `;
+  applyTranslations(document.getElementById('report-content'));
+}
 }
 
 async function initStudent() {
@@ -2244,23 +2251,23 @@ async function viewAssignment(assignmentId, title) {
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">📋 ${title}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${data.total_questions} ${t('questions')} &nbsp;·&nbsp;
-      ${results.length} ${L.submitted}
+      ${data.total_questions} <span data-i18n="questions">${t('questions')}</span> &nbsp;·&nbsp;
+      ${results.length} <span data-i18n="assign.submitted">${L.submitted}</span>
     </div>
 
     ${results.length > 0 ? `
     <!-- Summary bar -->
     <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.submitted')}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="assign.submitted">${t('assign.submitted')}</div>
         <div style="font-size:26px;font-weight:700">${results.length}</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.class_avg')}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="CLASS MASTERY">${t('CLASS MASTERY')}</div>
         <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.top_score')}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="assign.top_score">${t('assign.top_score')}</div>
         <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
       </div>
     </div>
@@ -2278,7 +2285,7 @@ async function viewAssignment(assignmentId, title) {
               ${esc(sr.student_name)}
             </span>
             <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
-              <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${data.total_questions} ${L.correct.toLowerCase()})</span>
+              <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${data.total_questions} <span data-i18n="correct">${L.correct.toLowerCase()}</span>)</span>
             </span>
           </div>
           <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
@@ -2288,7 +2295,7 @@ async function viewAssignment(assignmentId, title) {
         <!-- Expandable detail -->
         <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
           <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
-            ${esc(sr.student_name)} — ${t('assign.detailed_answers')}
+            ${esc(sr.student_name)} — <span data-i18n="assign.detailed_answers">${t('assign.detailed_answers')}</span>
           </div>
           ${sr.answers.map((a, qi) => `
             <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
@@ -2296,8 +2303,8 @@ async function viewAssignment(assignmentId, title) {
               <div style="flex:1;font-size:13px">
                 <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${a.prompt}</div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap">
-                  <span>${L.studentAnswer}: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
-                  ${!a.is_correct ? `<span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
+                  <span><span data-i18n="assign.student_answer">${L.studentAnswer}</span>: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
+                  ${!a.is_correct ? `<span><span data-i18n="assign.correct_answer">${L.correctAnswer}</span>: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
                 </div>
               </div>
               <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score * 100)}%</span>
@@ -2305,8 +2312,10 @@ async function viewAssignment(assignmentId, title) {
           `).join('')}
         </div>`;
   }).join('')}
-    </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
+    </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="assign.no_responses">${L.noResponses}</p>`}
   `;
+  applyTranslations(document.getElementById('student-detail-body'));
+}
 }
 
 async function previewAssignment(aid, title) {
