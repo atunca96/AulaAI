@@ -1373,6 +1373,7 @@ function closeMobileChat() {
 
 // ── Messages ──
 let currentChatStudentId = null;
+let currentChatCourseId = null;
 
 async function loadStudentChat() {
   if (!currentCourse) return;
@@ -1448,7 +1449,8 @@ async function loadInbox() {
   if (!currentCourse) return;
   closeMobileChat();
   
-  const messages = await api(`/messages?course_id=${currentCourse.id}`);
+  // Fetch all messages for lecturer (global inbox)
+  const messages = await api('/messages');
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
@@ -1470,26 +1472,36 @@ async function loadInbox() {
 
   const threads = {};
   messages.forEach(m => {
-    if (!threads[m.student_id]) {
-      threads[m.student_id] = { student_name: m.student_name, latest: m, unread: 0 };
+    // Group by student + course to keep context clear
+    const threadKey = `${m.student_id}_${m.course_id}`;
+    if (!threads[threadKey]) {
+      threads[threadKey] = { 
+        student_id: m.student_id,
+        course_id: m.course_id,
+        student_name: m.student_name, 
+        course_name: m.course_name,
+        latest: m, 
+        unread: 0 
+      };
     } else {
-      if (new Date(m.created_at) > new Date(threads[m.student_id].latest.created_at)) {
-        threads[m.student_id].latest = m;
+      if (new Date(m.created_at) > new Date(threads[threadKey].latest.created_at)) {
+        threads[threadKey].latest = m;
       }
     }
     if (m.sender === 'student' && !m.is_read) {
-      threads[m.student_id].unread++;
+      threads[threadKey].unread++;
     }
   });
 
   const threadList = Object.entries(threads).sort((a, b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
 
-  container.innerHTML = threadList.map(([sId, data]) => `
-    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${sId}', '${esc(data.student_name).replace(/'/g, "\\'")}')">
+  container.innerHTML = threadList.map(([key, data]) => `
+    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${data.student_id}', '${esc(data.student_name).replace(/'/g, "\\'")}', '${data.course_id}')">
       <div style="flex:1; min-width:0; margin-right:12px;">
         <div style="display:flex; align-items:center; gap:8px;">
            <div style="width:10px; height:10px; border-radius:50%; background:${data.unread > 0 ? 'var(--accent)' : 'transparent'};"></div>
            <strong style="font-size:16px; color:var(--text-primary); font-weight:700;">${esc(data.student_name)}</strong>
+           <span style="font-size:10px; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 8px; border-radius:6px; border:1px solid rgba(99,102,241,0.2);">${esc(data.course_name)}</span>
         </div>
         <div style="font-size:13px; color:var(--text-muted); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:18px;">
           ${data.latest.sender === 'lecturer' ? '<span style="color:var(--accent-light); font-weight:600;">' + t('You') + ':</span> ' : ''}${esc(data.latest.content)}
@@ -1503,8 +1515,11 @@ async function loadInbox() {
   `).join('');
 }
 
-async function openChat(studentId, studentName) {
+async function openChat(studentId, studentName, cid) {
   currentChatStudentId = studentId;
+  const activeCourseId = cid || currentCourse?.id;
+  currentChatCourseId = activeCourseId;
+
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
   const isTabActive = document.getElementById('tab-inbox')?.classList.contains('active');
 
@@ -1530,7 +1545,7 @@ async function openChat(studentId, studentName) {
   const container = document.getElementById('inbox-messages');
   if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
-  const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
+  const messages = await api(`/messages?student_id=${studentId}&course_id=${activeCourseId}`);
 
   if (container) {
     container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
@@ -1545,6 +1560,7 @@ async function openChat(studentId, studentName) {
         </div>
       `;
     }).join('') + `</div>`;
+    container.scrollTop = container.scrollHeight;
   }
 
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
@@ -1552,29 +1568,29 @@ async function openChat(studentId, studentName) {
   });
 
   const badge = document.getElementById('inbox-badge');
-  const remaining = Math.max(0, parseInt(badge.textContent || '0') - messages.filter(m => m.sender === 'student' && !m.is_read).length);
-  if (remaining > 0) {
-    badge.textContent = remaining;
-  } else {
-    badge.style.display = 'none';
+  if (badge) {
+    const remaining = Math.max(0, parseInt(badge.textContent || '0') - messages.filter(m => m.sender === 'student' && !m.is_read).length);
+    if (remaining > 0) {
+      badge.textContent = remaining;
+    } else {
+      badge.style.display = 'none';
+    }
   }
-
-  container.scrollTop = container.scrollHeight;
 }
 
 async function sendLecturerMessage() {
   const text = document.getElementById('inbox-reply-text').value.trim();
-  if (!text || !currentChatStudentId || !currentCourse) return;
+  if (!text || !currentChatStudentId || !currentChatCourseId) return;
   document.getElementById('inbox-reply-text').value = '';
   await api('/message/send', { method: 'POST', body: { 
     student_id: currentChatStudentId, 
-    course_id: currentCourse.id,
+    course_id: currentChatCourseId,
     sender: 'lecturer', 
     content: text 
   } });
 
   const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
-  await openChat(currentChatStudentId, name);
+  await openChat(currentChatStudentId, name, currentChatCourseId);
 }
 
 // ── New Chat Logic ──

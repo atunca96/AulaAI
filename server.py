@@ -1516,33 +1516,37 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             if student_id and course_id:
                 messages = db.execute("""
-                    SELECT m.*, u.name as student_name 
+                    SELECT m.*, u.name as student_name, c.name as course_name
                     FROM messages m 
                     JOIN users u ON m.student_id = u.id 
+                    JOIN courses c ON m.course_id = c.id
                     WHERE m.student_id = ? AND m.course_id = ?
                     ORDER BY m.created_at ASC
                 """, (student_id, course_id)).fetchall()
             elif student_id:
                 messages = db.execute("""
-                    SELECT m.*, u.name as student_name 
+                    SELECT m.*, u.name as student_name, c.name as course_name
                     FROM messages m 
                     JOIN users u ON m.student_id = u.id 
+                    JOIN courses c ON m.course_id = c.id
                     WHERE m.student_id = ?
                     ORDER BY m.created_at ASC
                 """, (student_id,)).fetchall()
             elif course_id:
                 messages = db.execute("""
-                    SELECT m.*, u.name as student_name 
+                    SELECT m.*, u.name as student_name, c.name as course_name
                     FROM messages m 
                     JOIN users u ON m.student_id = u.id 
+                    JOIN courses c ON m.course_id = c.id
                     WHERE m.course_id = ?
                     ORDER BY m.created_at DESC
                 """, (course_id,)).fetchall()
             else:
                 messages = db.execute("""
-                    SELECT m.*, u.name as student_name 
+                    SELECT m.*, u.name as student_name, c.name as course_name
                     FROM messages m 
                     JOIN users u ON m.student_id = u.id 
+                    JOIN courses c ON m.course_id = c.id
                     ORDER BY m.created_at DESC
                 """).fetchall()
             self._send_json([dict(m) for m in messages])
