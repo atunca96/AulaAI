@@ -256,8 +256,9 @@ const i18n = {
     selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.',
     takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check',
     yourScore: 'Your Score', questions: 'questions', correct: 'correct',
-    incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: '¡Correcto! ✓',
+    incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: 'Correct! ✓',
     takeQuizBtn: 'Take Quiz', viewBtn: 'View',
+    noQuizzes: 'No quizzes yet.', noAssignments: 'No assignments yet.',
     // Lecturer nav & tabs
     Lecturer: 'Lecturer', Student: 'Student',
     settings: 'Settings', language: 'Language',
@@ -528,11 +529,12 @@ const i18n = {
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
     keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite',
-    selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin', noQuizzes: 'Henüz sınav yok.',
+    selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin',
     takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et',
     yourScore: 'Puanınız', questions: 'soru', correct: 'doğru',
     incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓',
-    takeQuizBtn: 'Sınava Başla', viewBtn: 'Görüntüle',
+    takeQuizBtn: 'Sınavı Başlat', viewBtn: 'Görüntüle',
+    noQuizzes: 'Henüz sınav yok.', noAssignments: 'Henüz ödev yok.',
     // Lecturer nav & tabs
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', Assignments: 'Ödevler', Quizzes: 'Sınavlar', 'My Stats': 'İstatistiklerim',
@@ -1939,7 +1941,7 @@ async function loadQuizList() {
 function renderQuizList(quizzes) {
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
-  container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${t('noQuizzes')}</p>`
+  container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px" data-i18n="noQuizzes">${t('noQuizzes')}</p>`
     : quizzes.map(q => {
       if (currentUser.role === 'lecturer') {
         return `<div class="card" style="margin-bottom:12px">
@@ -2542,7 +2544,7 @@ function renderAssignmentList(assignments) {
   if (!container) return;
 
   if (!assignments || assignments.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="No assignments yet.">${t('No assignments yet.')}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="noAssignments">${t('noAssignments')}</p>`;
     return;
   }
 
