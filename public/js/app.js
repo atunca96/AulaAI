@@ -1303,7 +1303,10 @@ let currentChatStudentId = null;
 async function loadStudentChat() {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
-  if (wrapper && window.innerWidth <= 768) wrapper.classList.add('is-active');
+  if (wrapper && window.innerWidth <= 768) {
+    wrapper.classList.add('is-active');
+    document.body.style.overflow = 'hidden';
+  }
   
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
   const container = document.getElementById('student-chat-history');
@@ -1350,9 +1353,8 @@ async function sendMessage() {
 async function loadInbox() {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
-  if (wrapper) wrapper.classList.add('is-active'); // This is wrong, it should be REMOVE
-  // Wait, I'll fix this in the next replacement
   if (wrapper) wrapper.classList.remove('is-active');
+  document.body.style.overflow = '';
   
   const messages = await api(`/messages?course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
@@ -1413,7 +1415,10 @@ async function loadInbox() {
 async function openChat(studentId, studentName) {
   currentChatStudentId = studentId;
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
-  if (wrapper) wrapper.classList.add('is-active');
+  if (wrapper) {
+    wrapper.classList.add('is-active');
+    if (window.innerWidth <= 768) document.body.style.overflow = 'hidden';
+  }
   
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
