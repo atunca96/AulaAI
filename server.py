@@ -1004,6 +1004,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             thread.daemon = True
             thread.start()
             
+            # Final check to ensure status is set
+            with db_connection() as db:
+                db.execute("UPDATE courses SET activity_status='generating' WHERE id=?", (course_id,))
+                db.commit()
+            
             self._send_json({"status": "success"})
         except Exception as e:
             print(f"[ERROR] _activity_start failed: {e}")
@@ -1101,21 +1106,27 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.commit()
 
     def _activity_progress(self, course_id):
+        if not course_id:
+            return self._send_json({"status": "error", "percentage": 0, "message": "Missing course_id"})
+
         with db_connection() as db:
-            row = db.execute("SELECT activity_progress, activity_total, activity_status, activity_result FROM courses WHERE id=?", (course_id,)).fetchone()
-            if not row: return self._send_error("Course not found")
+            row = db.execute("SELECT activity_status, activity_progress, activity_total, activity_result FROM courses WHERE id=?", (course_id,)).fetchone()
+            if not row:
+                return self._send_json({"status": "error", "percentage": 0, "message": "Course not found"})
+            
             data = dict(row)
+            status = data.get("activity_status", "idle")
+            progress = data.get("activity_progress", 0)
+            total = data.get("activity_total") or 100
             
-            # Calculate percentage
-            total = data["activity_total"] or 1
-            percent = int((data["activity_progress"] / total) * 100)
+            if total <= 0: total = 100
+            percent = min(100, int((progress / total) * 100))
             
-            res = {
+            self._send_json({
+                "status": status,
                 "percentage": percent,
-                "status": data["activity_status"],
                 "results": json.loads(data["activity_result"]) if data["activity_result"] else None
-            }
-            self._send_json(res)
+            })
 
     def _get_quizzes(self, course_id, student_id=None):
         with db_connection() as db:
