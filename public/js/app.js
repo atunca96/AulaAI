@@ -1305,7 +1305,8 @@ async function loadStudentChat() {
   const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
   if (wrapper && window.innerWidth <= 768) {
     wrapper.classList.add('is-active');
-    document.body.style.overflow = 'hidden';
+    document.documentElement.classList.add('chat-open');
+    document.body.classList.add('chat-open');
   }
   
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
@@ -1354,6 +1355,8 @@ async function loadInbox() {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
   if (wrapper) wrapper.classList.remove('is-active');
+  document.documentElement.classList.remove('chat-open');
+  document.body.classList.remove('chat-open');
   document.body.style.overflow = '';
   
   const messages = await api(`/messages?course_id=${currentCourse.id}`);
@@ -1417,7 +1420,10 @@ async function openChat(studentId, studentName) {
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
   if (wrapper) {
     wrapper.classList.add('is-active');
-    if (window.innerWidth <= 768) document.body.style.overflow = 'hidden';
+    if (window.innerWidth <= 768) {
+      document.documentElement.classList.add('chat-open');
+      document.body.classList.add('chat-open');
+    }
   }
   
   document.getElementById('inbox-back-btn').classList.remove('hidden');
@@ -2316,7 +2322,8 @@ async function initStudent() {
     loadStudentHome(),
     loadQuizList(),
     loadAssignmentList(),
-    loadStudentProgress()
+    loadStudentProgress(),
+    loadStudentChat()
   ]);
   loadStudentPractice();
 }
