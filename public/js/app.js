@@ -4,7 +4,6 @@ let courseId = null;
 let curriculum = [];
 let currentCourse = null;
 let currentLang = localStorage.getItem('aula_lang') || 'en';
-window.currentLang = currentLang;
 let aiStatus = null;
 let _lastVersion = -1;
 let _syncInterval = null;
@@ -62,7 +61,7 @@ function toggleSidebar() {
     }
     
     // Update language text
-    const langText = window.currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
+    const langText = currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
     const sidebarLangText = document.getElementById('sidebar-lang-text');
     if (sidebarLangText) sidebarLangText.textContent = langText;
 
@@ -666,7 +665,7 @@ const i18n = {
 };
 
 function t(key, data = {}) {
-  const lang = window.currentLang || 'en';
+  const lang = currentLang || 'en';
   let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
   Object.keys(data).forEach(k => {
     str = str.replace(new RegExp(`{${k}}`, 'g'), data[k]);
@@ -733,7 +732,6 @@ function applyTranslations() {
 
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
-  window.currentLang = currentLang;
   localStorage.setItem('aula_lang', currentLang);
   applyTranslations();
   
@@ -750,16 +748,6 @@ function toggleLanguage() {
     }
   }
 
-  // Update Sidebar & Floating Buttons text immediately
-  const langText = window.currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
-  const sidebarLangText = document.getElementById('sidebar-lang-text');
-  if (sidebarLangText) sidebarLangText.textContent = langText;
-  
-  const langBtn = document.getElementById('lang-btn');
-  if (langBtn) langBtn.textContent = window.currentLang === 'en' ? '🌐 TR' : '🌐 EN';
-
-  // Apply translations to all data-i18n elements (including sidebar)
-  applyTranslations();
   // Re-render activity preview if visible
   const preview = document.getElementById('activity-preview');
   if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
@@ -1222,7 +1210,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initViewportFix();
   
   // Force English on refresh per user request
-  window.currentLang = 'en';
+  currentLang = 'en';
   applyTranslations();
 
   // Apply saved theme and HUD size
@@ -2350,7 +2338,7 @@ function renderReport(report) {
   const content = document.getElementById('report-content');
   if (!content || !report) return;
 
-  const lang = window.currentLang;
+  const lang = currentLang;
   // Pick the appropriate language from AI insights, or use a default if it's the old format
   let data = null;
   if (report.ai_insights) {
