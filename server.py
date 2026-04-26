@@ -620,6 +620,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
                                    (_uid(), user["id"], course_id, "pending"))
                         db.commit()
+                        bump_version()
                         current_status = "pending"
                     else:
                         current_status = enr["status"] or "pending"

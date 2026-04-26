@@ -94,7 +94,12 @@ function refreshCurrentView() {
   });
 
   if (document.getElementById('waiting-room-screen').classList.contains('active')) {
-    window.location.reload();
+    api('/user/status?user_id=' + currentUser.id + '&course_id=' + (currentUser.course_id || currentCourse?.id)).then(status => {
+      if (status && status.status === 'approved') {
+        window.location.reload();
+      }
+    });
+    applyTranslations();
     return;
   }
   if (currentUser.role === 'lecturer') {
