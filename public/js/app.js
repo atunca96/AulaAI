@@ -1810,7 +1810,7 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` +
-    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)">${t('submit')}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -2625,7 +2625,7 @@ function showAssignmentQuestion(area) {
     answerHTML = `<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
       <input id="as-inp" class="fill-blank-input" placeholder="${t('assign.type_answer')}"
         style="flex:1;font-size:15px" onkeydown="if(event.key==='Enter')assignmentAnswer(this.value)">
-      <button class="btn btn-primary" onclick="assignmentAnswer(document.getElementById('as-inp').value)">
+      <button class="btn btn-primary" onclick="assignmentAnswer(document.getElementById('as-inp').value)" data-i18n="submit">
         ${t('submit')} →
       </button>
     </div>
