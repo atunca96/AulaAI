@@ -2256,8 +2256,8 @@ function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlacehold
       okBtn.style.background = 'var(--danger)';
       okBtn.style.boxShadow = '0 0 10px rgba(239,68,68,0.4)';
     } else {
-      okBtn.style.background = 'var(--primary)';
-      okBtn.style.boxShadow = '0 0 10px rgba(99,102,241,0.4)';
+      okBtn.style.background = '';
+      okBtn.style.boxShadow = '';
     }
 
     const cleanup = () => {
