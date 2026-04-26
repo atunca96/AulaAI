@@ -1662,9 +1662,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not course:
                 return self._send_error("Course not found")
             
-            # Protection for Spanish classroom
-            if course["name"] == "Spanish 101" or "Spanish" in course["name"] or course["textbook"] == "Aula Internacional Plus 1":
-                return self._send_error("Default Spanish classroom cannot be deleted", 403)
+            # Protection for the default demo classroom only
+            if course["id"] == "spanish-101" or (course["name"] == "Spanish 101" and course["textbook"] == "Aula Internacional Plus 1"):
+                return self._send_error("The default demo classroom cannot be deleted", 403)
             
             # 1. Delete student responses (quizzes, assignments, and topic activities)
             db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
@@ -1684,6 +1684,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
             db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
             db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
+            db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
             
             # 5. Delete curriculum (questions, topics, chapters)
             # Questions are linked to topics
