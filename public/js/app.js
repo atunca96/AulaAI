@@ -2250,7 +2250,7 @@ function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlacehold
     cancelBtn.textContent = t(cancelKeyFinal);
 
     if (hideCancel) cancelBtn.style.display = 'none';
-    else cancelBtn.style.display = 'block';
+    else cancelBtn.style.display = '';
 
     if (isDanger) {
       okBtn.style.background = 'var(--danger)';
