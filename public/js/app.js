@@ -262,7 +262,33 @@ const i18n = {
     'confirm.erase_all_msg1': 'This will permanently remove all student accounts, results, and mastery data. The curriculum will stay. Are you sure?',
     'confirm.erase_all_msg2': 'LAST WARNING: Type "ERASE ALL DATA" to confirm absolute deletion.',
     'alert.session_ended': 'Session Ended',
-    'alert.account_removed': 'Your account has been removed or logged out.'
+    'alert.account_removed': 'Your account has been removed or logged out.',
+    'error': 'Error',
+    'success': 'Success',
+    'missing_info': 'Missing Info',
+    'gen.preparing': 'Preparing Classroom...',
+    'gen.building': 'Building Lessons...',
+    'gen.please_wait': 'Please Wait',
+    'assign.no_responses': 'No students have submitted this assignment yet.',
+    'assign.submitted': 'submitted',
+    'assign.class_avg': 'Class Avg',
+    'assign.correct': 'Correct',
+    'assign.student_answer': "Student's Answer",
+    'assign.correct_answer': 'Correct Answer',
+    'assign.view_details': 'View details',
+    'assign.top_score': 'Top Score',
+    'assign.detailed_answers': 'Detailed Answers',
+    'assign.left_blank': '[Left Blank]',
+    'assign.preview': 'Preview',
+    'assign.complete': 'Assignment Complete!',
+    'assign.recorded': 'Your score has been recorded.',
+    'assign.back': 'Back to Assignments',
+    'assign.retry': 'An error occurred. Please try again.',
+    'assign.type_answer': 'Type your answer...',
+    'question': 'Question',
+    'unit': 'Unit',
+    'submitting': 'Submitting...',
+    'go_back': 'Go Back'
   },
   tr: {
     langBtn: '🌐 EN',
@@ -280,6 +306,33 @@ const i18n = {
     'confirm.erase_all_msg2': 'SON UYARI: Kesin silme işlemini onaylamak için "ERASE ALL DATA" yazın.',
     'alert.session_ended': 'Oturum Kapatıldı',
     'alert.account_removed': 'Hesabınız silindi veya oturumunuz kapatıldı.',
+    'error': 'Hata',
+    'success': 'Başarılı',
+    'missing_info': 'Eksik Bilgi',
+    'gen.preparing': 'Hazırlanıyor...',
+    'gen.building': 'İçerik Oluşturuluyor...',
+    'gen.please_wait': 'Lütfen Bekleyin',
+    'assign.no_responses': 'Henüz hiçbir öğrenci bu ödevi teslim etmedi.',
+    'assign.submitted': 'teslim etti',
+    'assign.class_avg': 'Sınıf Ort.',
+    'assign.correct': 'Doğru',
+    'assign.student_answer': 'Öğrenci Cevabı',
+    'assign.correct_answer': 'Doğru Cevap',
+    'assign.view_details': 'Detayları gör',
+    'assign.top_score': 'En Yüksek',
+    'assign.detailed_answers': 'Detaylı Cevaplar',
+    'assign.left_blank': '[Boş Bırakıldı]',
+    'assign.preview': 'Önizleme',
+    'assign.complete': 'Ödev Tamamlandı!',
+    'assign.recorded': 'Puanın kaydedildi.',
+    'assign.back': 'Ödevlere Dön',
+    'assign.retry': 'Hata oluştu, tekrar deneyin.',
+    'assign.type_answer': 'Cevabınızı yazın...',
+    'question': 'Soru',
+    'unit': 'Ünite',
+    'submitting': 'Gönderiliyor...',
+    'go_back': 'Geri Dön'
+  },
     loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
@@ -581,12 +634,12 @@ async function showClassroomSelection() {
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
               <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">
-                ⏳ ${isPhase1 ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Preparing Classroom...') : (currentLang === 'tr' ? 'İçerik Oluşturuluyor...' : 'Building Lessons...')}
+                ⏳ ${isPhase1 ? t('gen.preparing') : t('gen.building')}
               </p>
             ` : ''}
         </div>
         <button class="btn ${isPhase1 ? 'btn-ghost' : 'btn-outline'} btn-full" ${isPhase1 ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-            ${isPhase1 ? (currentLang === 'tr' ? 'Lütfen Bekleyin' : 'Please Wait') : t('class.enter')}
+            ${isPhase1 ? t('gen.please_wait') : t('class.enter')}
         </button>
     </div>`;
   }).join('');
@@ -694,7 +747,7 @@ async function deleteClassroom(id, name) {
   if (res.success) {
     showClassroomSelection();
   } else {
-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error || 'Failed to delete classroom', true);
+    showAlert(t('error'), res.error || 'Failed to delete classroom', true);
   }
 }
 
@@ -728,7 +781,7 @@ async function handleCreateClassroom(e) {
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
 
-  if (!fileInput.files[0]) return showAlert(currentLang === 'tr' ? 'Dosya Gerekli' : 'File Required', 'Please select a PDF file', true);
+  if (!fileInput.files[0]) return showAlert(t('missing_info'), 'Please select a PDF file', true);
 
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
@@ -755,7 +808,7 @@ async function handleCreateClassroom(e) {
     btn.disabled = false;
     btn.style.opacity = '1';
     btn.style.cursor = 'pointer';
-    return showAlert(currentLang === 'tr' ? 'Hata' : 'Error', currentLang === 'tr' ? 'Sınıf oluşturulurken bir ağ hatası oluştu.' : 'A network error occurred during classroom creation.', true);
+    return showAlert(t('error'), currentLang === 'tr' ? 'Sınıf oluşturulurken bir ağ hatası oluştu.' : 'A network error occurred during classroom creation.', true);
   }
 
   // Always reset button state after the request completes
@@ -765,12 +818,12 @@ async function handleCreateClassroom(e) {
   btn.style.cursor = 'pointer';
 
   if (!data.success) {
-    return showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);
+    return showAlert(t('error'), data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);
   }
 
   // Success path logic (wrapped in a separate try-catch so UI refresh errors don't look like creation errors)
   try {
-    await showAlert(currentLang === 'tr' ? 'Başarılı' : 'Success', `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
+    await showAlert(t('success'), `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
     closeCreateClassroomModal();
 
     // Register for completion notification
@@ -1863,11 +1916,8 @@ async function loadAssignmentList() {
 }
 
 async function deleteAssignment(assignmentId, title) {
-  const isTr = currentLang === 'tr';
-  const msg = isTr
-    ? `"${title}" ödevini silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve öğrenci teslimleri de silinir.`
-    : `Are you sure you want to delete the assignment "${title}"? This cannot be undone and all student submissions will be removed.`;
-  if (!(await showConfirmModal(isTr ? 'Ödevi Sil' : 'Delete Assignment', msg, true))) return;
+  const msg = currentLang === 'tr' ? `"${title}" ödevini silmek istediğinize emin misiniz?` : `Are you sure you want to delete the assignment "${title}"?`;
+  if (!(await showConfirmModal(t('confirm.delete_assignment'), msg, true))) return;
   const res = await api('/assignment/delete', { method: 'POST', body: { assignment_id: assignmentId } });
   if (res && !res.error) loadAssignmentList();
 }
@@ -1888,13 +1938,13 @@ async function viewAssignment(assignmentId, title) {
     : 0;
 
   const L = {
-    noResponses: isTr ? 'Henüz hiçbir öğrenci bu ödevi teslim etmedi.' : 'No students have submitted this assignment yet.',
-    submitted: isTr ? 'teslim etti' : 'submitted',
-    classAvg: isTr ? 'Sınıf Ort.' : 'Class Avg',
-    correct: isTr ? 'Doğru' : 'Correct',
-    studentAnswer: isTr ? 'Öğrenci Cevabı' : "Student's Answer",
-    correctAnswer: isTr ? 'Doğru Cevap' : 'Correct Answer',
-    expand: isTr ? 'Detayları gör' : 'View details'
+    noResponses: t('assign.no_responses'),
+    submitted: t('assign.submitted'),
+    classAvg: t('assign.class_avg'),
+    correct: t('assign.correct'),
+    studentAnswer: t('assign.student_answer'),
+    correctAnswer: t('assign.correct_answer'),
+    expand: t('assign.view_details')
   };
 
   document.getElementById('student-detail-body').innerHTML = `
@@ -1912,11 +1962,11 @@ async function viewAssignment(assignmentId, title) {
         <div style="font-size:26px;font-weight:700">${results.length}</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.classAvg}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.class_avg')}</div>
         <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${isTr ? 'En Yüksek' : 'Top Score'}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.top_score')}</div>
         <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
       </div>
     </div>
@@ -2218,7 +2268,7 @@ async function publishDraft() {
       loadAssignmentList();
     }
   } else {
-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', res.error, true);
+    showAlert(t('error'), res.error, true);
   }
 }
 
@@ -2228,7 +2278,7 @@ async function takeAssignment(aid) {
 
   const data = await api(`/assignment/take?assignment_id=${aid}&student_id=${currentUser.id}`);
   if (data.error) {
-    showAlert(currentLang === 'tr' ? 'Hata' : 'Error', data.error, true);
+    showAlert(t('error'), data.error, true);
     loadAssignmentList();
     return;
   }
@@ -2263,10 +2313,10 @@ function showAssignmentQuestion(area) {
     </div>`;
   } else {
     answerHTML = `<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-      <input id="as-inp" class="fill-blank-input" placeholder="${isTr ? 'Cevabınızı yazın...' : 'Type your answer...'}"
+      <input id="as-inp" class="fill-blank-input" placeholder="${t('assign.type_answer')}"
         style="flex:1;font-size:15px" onkeydown="if(event.key==='Enter')assignmentAnswer(this.value)">
       <button class="btn btn-primary" onclick="assignmentAnswer(document.getElementById('as-inp').value)">
-        ${isTr ? 'Gönder' : 'Submit'} →
+        ${t('submit')} →
       </button>
     </div>
     ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${q.hint}</div>` : ''}`;
@@ -2275,10 +2325,10 @@ function showAssignmentQuestion(area) {
   area.innerHTML = `
     <div style="padding:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:13px;color:var(--text-muted)">${isTr ? 'Soru' : 'Question'} ${idx + 1} / ${total}</span>
+        <span style="font-size:13px;color:var(--text-muted)">${t('question')} ${idx + 1} / ${total}</span>
         <button class="btn btn-ghost btn-sm"
           onclick="confirmCancelAssignment()">
-          ${isTr ? 'İptal' : 'Cancel'}
+          ${t('cancel')}
         </button>
       </div>
       <div style="background:var(--border);border-radius:4px;height:6px;margin-bottom:24px">
