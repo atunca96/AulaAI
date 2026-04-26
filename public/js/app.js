@@ -1164,8 +1164,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // Apply saved theme and HUD size
   const savedTheme = localStorage.getItem('aula_theme') || 'dark';
   setTheme(savedTheme);
-  const savedHud = localStorage.getItem('aula_hud') || 'normal';
-  setHudSize(savedHud);
 
   const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
   if (savedUser) {
