@@ -116,6 +116,32 @@ function startLiveSync() {
 
         refreshCurrentView();
       }
+
+      // Continuous progress polling while building (independent of data version)
+      if (currentCourse && currentCourse.is_building) {
+        api(`/classroom/progress?course_id=${currentCourse.id}`).then(prog => {
+          if (prog) {
+            const isLecturer = currentUser.role === 'lecturer';
+            const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
+            const fillId = isLecturer ? 'lecturer-progress-fill' : 'student-progress-fill';
+            const textId = isLecturer ? 'lecturer-progress-text' : 'student-progress-text';
+            
+            const buildBanner = document.getElementById(bannerId);
+            const progressFill = document.getElementById(fillId);
+            const progressText = document.getElementById(textId);
+            
+            if (buildBanner) buildBanner.classList.toggle('hidden', !prog.is_building);
+            if (progressFill) progressFill.style.width = prog.percentage + '%';
+            if (progressText) progressText.textContent = prog.percentage + '%';
+            
+            // Update local state if it finished building
+            if (!prog.is_building && currentCourse.is_building) {
+              currentCourse.is_building = 0;
+              refreshCurrentView(); 
+            }
+          }
+        });
+      }
     } catch (e) { /* ignore network errors */ }
   }, 1000);
 }
@@ -148,13 +174,6 @@ function refreshCurrentView() {
         if (buildBanner) {
           if (currentCourse.is_building) {
             buildBanner.classList.remove('hidden');
-            // Poll for detailed progress
-            api(`/classroom/progress?course_id=${currentCourse.id}`).then(prog => {
-              if (prog) {
-                if (progressFill) progressFill.style.width = prog.percentage + '%';
-                if (progressText) progressText.textContent = prog.percentage + '%';
-              }
-            });
           } else {
             buildBanner.classList.add('hidden');
           }
@@ -1089,10 +1108,20 @@ async function completeLogin(user, isFresh = false) {
 async function showClassroomSelection() {
   localStorage.removeItem('aula_last_course');
   localStorage.removeItem('aula_last_tab');
+  currentCourse = null; // Clear state
   showScreen('classroom-selection-screen');
   const courses = await api('/courses?t=' + Date.now());
   _lastClassroomsData = courses;
   renderClassroomSelection(courses);
+  applyTranslations();
+}
+
+async function showStudentPortal() {
+  localStorage.removeItem('aula_last_course');
+  localStorage.removeItem('aula_last_tab');
+  currentCourse = null; // Clear state
+  showScreen('student-portal-screen');
+  await refreshStudentEnrollments();
   applyTranslations();
 }
 
