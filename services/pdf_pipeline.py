@@ -91,7 +91,6 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                     db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
                     db.commit()
             
-            from services.state import bump_version
             bump_version()
             
             # 3. Parse Structure
@@ -352,10 +351,17 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
     # Process the nested chapters into the worker's expected format
     worker_chapters = []
     for i, chap in enumerate(chapters):
+        topics_processed = []
+        for j, t in enumerate(chap.get("topics", [])):
+            if isinstance(t, dict):
+                topics_processed.append({"title": t.get("title", "Untitled Topic"), "type": t.get("type", "vocabulary")})
+            else:
+                topics_processed.append({"title": str(t), "type": "vocabulary" if j % 2 == 0 else "grammar"})
+                
         worker_chapters.append({
             "number": i + 1,
             "title": chap["title"],
-            "topics": [{"title": t, "type": "vocabulary" if j % 2 == 0 else "grammar"} for j, t in enumerate(chap["topics"])]
+            "topics": topics_processed
         })
     
     manual_toc_data = {"chapters": worker_chapters}

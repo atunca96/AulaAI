@@ -348,6 +348,8 @@ const i18n = {
     'ai.gen_curriculum': 'Generate Curriculum ✨',
     'ai.review_title': 'Review Curriculum',
     'ai.review_desc': 'AI suggested these topics. You can edit or remove them.',
+    'class.add_topic': 'Add Topic',
+    'class.topic_name_placeholder': 'New Topic Name',
     'class.build_btn': 'Build Classroom 🚀',
     'class.enter': 'Enter Classroom',
     'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
@@ -643,6 +645,8 @@ const i18n = {
     'ai.gen_curriculum': 'Müfredatı Oluştur ✨',
     'ai.review_title': 'Müfredatı İncele',
     'ai.review_desc': 'Yapay zeka bu konuları önerdi. Bunları düzenleyebilir veya kaldırabilirsiniz.',
+    'class.add_topic': 'Konu Ekle',
+    'class.topic_name_placeholder': 'Yeni Konu Adı',
     'class.build_btn': 'Sınıfı Oluştur 🚀',
     'class.enter': 'Sınıfa Gir',
     'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
@@ -1152,6 +1156,198 @@ async function deleteClassroom(id, name) {
     showClassroomSelection();
   } else {
     showAlert(t('error'), res.error || 'Failed to delete classroom', true);
+  }
+}
+
+let _currentAiStep = 1;
+let _selectedAiLanguage = null;
+let _selectedAiLevel = null;
+
+function openClassroomMethodModal() {
+  document.getElementById('classroom-method-modal').classList.remove('hidden');
+}
+
+function closeClassroomMethodModal() {
+  document.getElementById('classroom-method-modal').classList.add('hidden');
+}
+
+function startPdfCreationFlow() {
+  closeClassroomMethodModal();
+  openCreateClassroomModal();
+}
+
+function startAiArchitectFlow() {
+  closeClassroomMethodModal();
+  document.getElementById('ai-architect-modal').classList.remove('hidden');
+  renderAiLanguages();
+  _currentAiStep = 1;
+  showAiStep(1);
+}
+
+function closeAiArchitectModal() {
+  document.getElementById('ai-architect-modal').classList.add('hidden');
+}
+
+function showAiStep(step) {
+  document.querySelectorAll('[id^="ai-step-"]').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`ai-step-${step}`).classList.remove('hidden');
+  _currentAiStep = step;
+}
+
+function nextAiStep() {
+  if (_currentAiStep < 3) showAiStep(_currentAiStep + 1);
+}
+
+function prevAiStep() {
+  if (_currentAiStep > 1) showAiStep(_currentAiStep - 1);
+}
+
+function renderAiLanguages() {
+  const grid = document.getElementById('ai-language-grid');
+  if (!grid) return;
+  const langs = [
+    { id: 'Spanish', name: 'İspanyolca', icon: '🇪🇸' },
+    { id: 'English', name: 'İngilizce', icon: '🇬🇧' },
+    { id: 'German', name: 'Almanca', icon: '🇩🇪' },
+    { id: 'French', name: 'Fransızca', icon: '🇫🇷' },
+    { id: 'Italian', name: 'İtalyanca', icon: '🇮🇹' },
+    { id: 'Portuguese', name: 'Portekizce', icon: '🇵🇹' },
+    { id: 'Russian', name: 'Rusça', icon: '🇷🇺' },
+    { id: 'Chinese', name: 'Çince', icon: '🇨🇳' },
+    { id: 'Japanese', name: 'Japonca', icon: '🇯🇵' },
+    { id: 'Arabic', name: 'Arapça', icon: '🇸🇦' },
+    { id: 'Turkish', name: 'Türkçe', icon: '🇹🇷' },
+    { id: 'Dutch', name: 'Hollandaca', icon: '🇳🇱' },
+    { id: 'Swedish', name: 'İsveççe', icon: '🇸🇪' },
+    { id: 'Korean', name: 'Korece', icon: '🇰🇷' },
+    { id: 'Greek', name: 'Yunanca', icon: '🇬🇷' }
+  ];
+  grid.innerHTML = langs.map(l => `
+    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:16px; border:2px solid var(--border); border-radius:12px; height:auto; min-width:0;">
+      <span style="font-size:24px;">${l.icon}</span>
+      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${l.name}</span>
+    </button>
+  `).join('');
+}
+
+function selectAiLanguage(id, btn) {
+  _selectedAiLanguage = id;
+  document.querySelectorAll('.lang-btn').forEach(b => b.style.borderColor = 'var(--border)');
+  btn.style.borderColor = 'var(--accent)';
+}
+
+function selectAiLevel(level) {
+  _selectedAiLevel = level;
+  document.querySelectorAll('.level-btn').forEach(b => {
+    b.classList.remove('btn-primary');
+    b.classList.add('btn-ghost');
+  });
+  const activeBtn = Array.from(document.querySelectorAll('.level-btn')).find(b => b.textContent === level);
+  if (activeBtn) {
+    activeBtn.classList.remove('btn-ghost');
+    activeBtn.classList.add('btn-primary');
+  }
+}
+
+async function generateAiCurriculum() {
+  if (!_selectedAiLanguage || !_selectedAiLevel) return showAlert(t('error'), 'Please select language and level', true);
+  const courseName = document.getElementById('ai-course-name').value;
+  if (!courseName) return showAlert(t('error'), 'Please enter a course name', true);
+
+  const btn = document.getElementById('ai-gen-btn');
+  btn.disabled = true;
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '<div class="spinner-small" style="display:inline-block"></div> ' + t('loading');
+
+  try {
+    const data = await api('/draft/curriculum', { method: 'POST', body: { language: _selectedAiLanguage, level: _selectedAiLevel } });
+    if (data.syllabus) {
+      renderAiSyllabusEditor(data.syllabus);
+      nextAiStep();
+    } else {
+      showAlert(t('error'), 'Failed to generate syllabus', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'Generation failed', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldText;
+  }
+}
+
+function renderAiSyllabusEditor(syllabus) {
+  const container = document.getElementById('ai-curriculum-list');
+  if (!container) return;
+  container.innerHTML = syllabus.map((chapter, i) => `
+    <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h4 style="margin:0; color:var(--accent-light);">Unit ${i + 1}</h4>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+      </div>
+      <input type="text" class="text-input" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <div class="topics-list">
+        ${chapter.topics.map(topic => {
+          const title = typeof topic === 'string' ? topic : (topic.title || '');
+          return `
+            <div class="topic-item" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <span style="font-size:12px; color:var(--accent);">•</span>
+              <input type="text" class="text-input" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
+              <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
+            </div>
+          `;
+        }).join('')}
+        <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addTopicToSyllabus(btn) {
+  const div = document.createElement('div');
+  div.className = 'topic-item';
+  div.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
+  div.innerHTML = `
+    <span style="font-size:12px; color:var(--accent);">•</span>
+    <input type="text" class="text-input" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
+    <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
+  `;
+  btn.before(div);
+  div.querySelector('input').focus();
+}
+
+async function buildAiClassroom() {
+  const courseName = document.getElementById('ai-course-name').value;
+  const chapters = [];
+  document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
+    const title = chapterEl.querySelector('input').value;
+    const topics = [];
+    chapterEl.querySelectorAll('.topic-item input').forEach(topicInp => {
+      topics.push({ title: topicInp.value, type: 'vocabulary' });
+    });
+    chapters.push({ title, topics });
+  });
+
+  const btn = document.getElementById('ai-build-btn');
+  btn.disabled = true;
+  const oldContent = btn.innerHTML;
+  btn.innerHTML = '<div class="spinner-small" style="display:inline-block"></div> ' + t('loading');
+
+  try {
+    const res = await api('/classroom/create-from-scratch', {
+      method: 'POST',
+      body: { course_name: courseName, language: _selectedAiLanguage, level: _selectedAiLevel, chapters, lecturer_id: currentUser.id }
+    });
+    if (res.success) {
+      closeAiArchitectModal();
+      showClassroomSelection();
+    } else {
+      showAlert(t('error'), res.error || 'Failed to build classroom', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'Build failed', true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = oldContent;
   }
 }
 

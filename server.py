@@ -1760,7 +1760,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         
         from services.ai_engine import ai_generate_curriculum
         result = ai_generate_curriculum(language, level, course_name)
-        return self._send_json(result)
+        return self._send_json({"syllabus": result.get("chapters", [])})
 
     def _create_classroom_from_scratch(self):
         """Creates a classroom without a PDF."""
