@@ -738,6 +738,10 @@ body {
         overscroll-behavior: none !important;
     }
 
+    .chat-wrapper:not(.is-active) {
+        display: none !important;
+    }
+
     .chat-header {
         display: none;
         padding: 12px 16px;

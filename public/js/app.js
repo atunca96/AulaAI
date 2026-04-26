@@ -1189,7 +1189,7 @@ function logout() {
 // ── Visual Viewport Fix (Mobile Keyboard) ──
 function initViewportFix() {
   if (!window.visualViewport) return;
-  
+  const portalMap = new Map();
   let ticking = false;
   const handleViewportChange = () => {
     if (!ticking) {
@@ -1217,7 +1217,24 @@ function initViewportFix() {
   };
 
   window.visualViewport.addEventListener('resize', handleViewportChange);
-  // Removed scroll listener as it often causes jitters on mobile
+  
+  window.portalToBody = (el) => {
+    if (window.innerWidth > 768 || !el) return;
+    if (el.parentElement === document.body) return;
+    const placeholder = document.createElement('div');
+    placeholder.style.display = 'none';
+    el.parentElement.replaceChild(placeholder, el);
+    portalMap.set(el, placeholder);
+    document.body.appendChild(el);
+  };
+
+  window.returnFromPortal = (el) => {
+    const placeholder = portalMap.get(el);
+    if (placeholder && placeholder.parentElement) {
+      placeholder.parentElement.replaceChild(el, placeholder);
+      portalMap.delete(el);
+    }
+  };
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1334,7 +1351,12 @@ function goToHome() {
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
 
 function closeMobileChat() {
-  document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
+  document.querySelectorAll('.chat-wrapper').forEach(w => {
+    w.classList.remove('is-active');
+    if (window.innerWidth <= 768 && window.returnFromPortal) {
+      window.returnFromPortal(w);
+    }
+  });
   document.documentElement.classList.remove('chat-open');
   document.body.classList.remove('chat-open');
   document.body.style.overflow = '';
@@ -1354,6 +1376,9 @@ async function loadStudentChat() {
     setTimeout(() => {
       wrapper.classList.add('is-active');
       document.documentElement.classList.add('chat-open');
+      if (window.innerWidth <= 768 && window.portalToBody) {
+        window.portalToBody(wrapper);
+      }
       document.body.classList.add('chat-open');
     }, 50);
   }
