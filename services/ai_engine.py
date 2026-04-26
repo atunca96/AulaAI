@@ -96,23 +96,21 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     cache_messages = json.dumps(messages)
     cache_key = hashlib.md5(cache_messages.encode()).hexdigest()
     
-    if cache_key in _ai_memory_cache:
-        file_log(f"Cache hit for key {cache_key}")
-        return _ai_memory_cache[cache_key]
+    with _cache_lock:
+        if cache_key in _ai_memory_cache:
+            file_log(f"Cache hit for key {cache_key}")
+            return _ai_memory_cache[cache_key]
 
     messages.append({"role": "system", "content": f"Random Seed: {seed}"})
-    if cache_key in _ai_memory_cache:
-        file_log(f"Cache hit for key {cache_key}")
-        return _ai_memory_cache[cache_key]
 
     payload_dict = {
         "model": MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": 0.9 # Even higher temperature for maximum variety
+        "temperature": 0.7 
     }
-    if response_json:
-        payload_dict["response_format"] = {"type": "json_object"}
+    # OpenRouter's response_format is optional and can sometimes cause 400 errors 
+    # depending on the provider. We'll rely on the prompt for JSON structure.
 
     payload = json.dumps(payload_dict).encode("utf-8")
 
