@@ -93,6 +93,24 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # -- Activity Generation Columns Migration --
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN activity_status TEXT DEFAULT 'idle'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN activity_progress INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN activity_total INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN activity_result TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     c.executescript("""
         CREATE TABLE IF NOT EXISTS enrollments (
             id TEXT PRIMARY KEY,
