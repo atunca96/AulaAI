@@ -31,7 +31,8 @@ function toggleSidebar() {
     overlay.style.opacity = '0';
     overlay.style.pointerEvents = 'none';
     sidebar.style.pointerEvents = 'none';
-    document.body.style.overflow = ''; // Restore scroll
+    document.body.style.overflow = ''; 
+    document.body.style.touchAction = '';
   } else {
     // Update user info before showing
     if (currentUser) {
@@ -63,7 +64,8 @@ function toggleSidebar() {
     overlay.style.opacity = '1';
     overlay.style.pointerEvents = 'auto';
     sidebar.style.pointerEvents = 'auto';
-    document.body.style.overflow = 'hidden'; // Lock scroll
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none'; // Prevent background touch/scroll
   }
 }
 
