@@ -177,12 +177,12 @@
                     <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şifrenizle giriş yapın</p>
                     <form id="login-form" onsubmit="handleLogin(event); return false;">
                         <div class="form-group">
-                            <label for="login-email" data-i18n="Email">E-posta</label>
-                            <input type="email" id="login-email" placeholder="your@email.com" required>
+                            <label for="login-email" data-i18n="Email">Email</label>
+                            <input type="email" id="login-email" placeholder="your@email.com" data-i18n="Email" required>
                         </div>
                         <div class="form-group">
-                            <label for="login-password" data-i18n="Password">Şifre</label>
-                            <input type="password" id="login-password" placeholder="••••••••" required>
+                            <label for="login-password" data-i18n="Password">Password</label>
+                            <input type="password" id="login-password" placeholder="••••••••" data-i18n="Password" required>
                         </div>
                         <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:16px">
                             <input type="checkbox" id="login-remember" style="width:auto">
@@ -200,11 +200,11 @@
                     <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
                         <div class="form-group" style="margin-bottom:16px;">
                             <label data-i18n="student_number">Student Number</label>
-                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" autocomplete="username">
+                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="username">
                         </div>
                         <div class="form-group" style="margin-bottom:24px;">
                             <label data-i18n="full_name">Full Name</label>
-                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" autocomplete="name">
+                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" data-i18n="full_name_placeholder" autocomplete="name">
                         </div>
                         <div id="student-login-error" class="error-box hidden" style="margin-bottom:16px;"></div>
                         <button type="submit" class="btn btn-primary btn-full btn-lg" id="student-login-btn" data-i18n="signIn">Sign In</button>

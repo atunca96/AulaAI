@@ -28,12 +28,18 @@ def load_ai_cache():
         except:
             _ai_memory_cache = {}
 
+_cache_changed = False
+
 def save_ai_cache():
+    global _cache_changed
+    if not _cache_changed:
+        return
     try:
         os.makedirs(os.path.dirname(AI_CACHE_FILE), exist_ok=True)
         with _cache_lock:
             with open(AI_CACHE_FILE, "w", encoding="utf-8") as f:
                 json.dump(_ai_memory_cache, f)
+            _cache_changed = False
     except:
         pass
 
@@ -77,11 +83,24 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     if not OPENROUTER_API_KEY:
         return None
 
+    # Calculate cache key BEFORE adding random seed if variety is NOT strictly required
+    # But for activities, we want variety, so we'll keep the seed.
+    # To avoid cache bloat, we'll only cache if the seed is NOT there.
+    
     # Add a random seed to the prompt to force variety and avoid unintended cache hits
-    messages.append({"role": "system", "content": f"Random Seed: {py_random.randint(1000, 999999)}"})
+    # BUT only if we are NOT in a "strict" mode (though all calls currently are)
+    seed = py_random.randint(1000, 999999)
+    
+    # We'll hash the messages WITHOUT the seed for potential hit, 
+    # but we'll include the seed in the API call to force variety from the AI side.
+    cache_messages = json.dumps(messages)
+    cache_key = hashlib.md5(cache_messages.encode()).hexdigest()
+    
+    if cache_key in _ai_memory_cache:
+        file_log(f"Cache hit for key {cache_key}")
+        return _ai_memory_cache[cache_key]
 
-    # Caching logic - now includes the random seed in the hash
-    cache_key = hashlib.md5(json.dumps(messages).encode()).hexdigest()
+    messages.append({"role": "system", "content": f"Random Seed: {seed}"})
     if cache_key in _ai_memory_cache:
         file_log(f"Cache hit for key {cache_key}")
         return _ai_memory_cache[cache_key]
@@ -147,7 +166,10 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                     try:
                         parsed = json.loads(clean_content)
                         # Save to cache
-                        _ai_memory_cache[cache_key] = parsed
+                        with _cache_lock:
+                            _ai_memory_cache[cache_key] = parsed
+                            global _cache_changed
+                            _cache_changed = True
                         save_ai_cache()
                         return parsed
                     except json.JSONDecodeError as jde:

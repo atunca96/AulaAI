@@ -1020,20 +1020,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             topic_type = topic.get("type", "vocabulary")
 
             def update_prog(p):
-                with db_connection() as db:
-                    db.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
-                    db.commit()
+                # Retry loop for DB locks
+                for retry in range(5):
+                    try:
+                        with db_connection() as db:
+                            db.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
+                            db.commit()
+                        return
+                    except sqlite3.OperationalError as e:
+                        if "locked" in str(e).lower():
+                            time.sleep(0.5)
+                        else: raise
+                    except Exception as e:
+                        file_log(f"Prog update fail: {e}")
+                        return
             
             final_activities = []
             history = []
             
             # Start generation loop (Real Progress)
             for i in range(count):
-                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
-                if act:
-                    act["id"] = _uid()
-                    final_activities.append(act)
-                    history.append(act.get("prompt"))
+                file_log(f"Generating activity {i+1}/{count} for {topic['title']}")
+                try:
+                    act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
+                    if act:
+                        act["id"] = _uid()
+                        final_activities.append(act)
+                        history.append(act.get("prompt"))
+                except Exception as e:
+                    file_log(f"AI Call failed for index {i}: {e}")
                     
                 # Update REAL progress (e.g. 1 out of 6)
                 percentage = int(((i + 1) / count) * 100)
@@ -1253,10 +1268,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             if not course_id:
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-                course_id = course["id"]
+                if course: course_id = course["id"]
 
             topic_id = body.get("topic_id")
-
             if topic_id:
                 topic_ids = [topic_id]
             elif chapter_id and chapter_id != "all":
@@ -1270,16 +1284,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 """, (course_id,)).fetchall()
                 topic_ids = list(set(t["id"] for t in topics))
 
-            questions = generate_quiz(topic_ids, db, count=count)
+        from services.content_engine import generate_quiz
+        questions = generate_quiz(topic_ids, count=count)
 
-            quiz_id = _uid()
+        quiz_id = _uid()
+        with db_connection() as db:
             db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
                        (quiz_id, course_id, title, None if chapter_id == "all" else chapter_id))
 
             for i, q in enumerate(questions):
                 db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
                            (quiz_id, q["id"], i))
-
             db.commit()
         bump_version()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
@@ -1308,7 +1323,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 """, (course_id,)).fetchall()
                 
             topic_ids = [t["id"] for t in topics]
-            questions = generate_quiz(topic_ids, db, count=count)
+            
+        from services.content_engine import generate_quiz
+        questions = generate_quiz(topic_ids, count=count)
+        
+        with db_connection() as db:
             result = []
             for q in questions:
                 q_dict = dict(q)
@@ -1586,6 +1605,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         except (ValueError, TypeError):
             count = 10
 
+        assignment_id = _uid()
+        topic_id = body.get("topic_id")
+        topic_ids = []
+
         with db_connection() as db:
             if not course_id:
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
@@ -1594,11 +1617,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     return self._send_error("No courses found")
 
-            assignment_id = _uid()
+            # Create assignment entry first
             db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                        (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
-
-            topic_id = body.get("topic_id")
 
             if topic_id:
                 topic_ids = [topic_id]
@@ -1612,8 +1633,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     WHERE ch.course_id = ?
                 """, (course_id,)).fetchall()
                 topic_ids = [t["id"] for t in topics]
+            db.commit()
 
-            questions = generate_quiz(topic_ids, db, count=count)
+        from services.content_engine import generate_quiz
+        questions = generate_quiz(topic_ids, count=count)
+        
+        with db_connection() as db:
             for i, q in enumerate(questions):
                 db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
                            (assignment_id, q["id"], i))

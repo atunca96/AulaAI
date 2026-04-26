@@ -264,77 +264,79 @@ def _generate_grammar_activity(title, content, difficulty, count, language="Span
     return activities
 
 
-def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
+def generate_quiz(topic_ids, student_mastery=None, count=10):
     """
     Generate a quiz pulling questions from given topics.
     If student_mastery is provided, adjusts difficulty.
     """
-    c = db_conn.cursor()
+    from database import db_connection, get_db
+    import uuid
     questions = []
 
     if not topic_ids:
         return []
 
-    for topic_id in topic_ids:
-        # Pull all approved questions for the selected topics without per-topic limits
-        rows = c.execute(
-            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM()",
-            (topic_id,)
-        ).fetchall()
+    # 1. Initial Pull from DB
+    with db_connection() as db_conn:
+        c = db_conn.cursor()
+        for topic_id in topic_ids:
+            rows = c.execute(
+                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM()",
+                (topic_id,)
+            ).fetchall()
 
-        for row in rows:
-            q = dict(row)
-            # Ensure no duplicates in the pool
-            if q["id"] in [sq["id"] for sq in questions]: continue
-            
-            # Handle missing distractors for MCQ
-            if q["type"] == "mcq" and (not q["distractors"] or q["distractors"] == "[]"):
-                # Fallback: pull other answers from the same topic as distractors
-                others = [r["answer"] for r in rows if r["id"] != q["id"] and r["type"] == q["type"]]
-                if len(others) >= 3:
-                    random.shuffle(others)
-                    q["distractors"] = others[:3]
-                else:
-                    # Generic fallback if not enough other questions
-                    q["distractors"] = ["Option A", "Option B", "Option C"]
-            elif q["distractors"]:
-                try:
-                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                except:
-                    q["distractors"] = []
-            
-            questions.append(q)
+            for row in rows:
+                q = dict(row)
+                if q["id"] in [sq["id"] for sq in questions]: continue
+                
+                if q["type"] == "mcq" and (not q["distractors"] or q["distractors"] == "[]"):
+                    others = [r["answer"] for r in rows if r["id"] != q["id"] and r["type"] == q["type"]]
+                    if len(others) >= 3:
+                        random.shuffle(others)
+                        q["distractors"] = others[:3]
+                    else:
+                        q["distractors"] = ["Option A", "Option B", "Option C"]
+                elif q["distractors"]:
+                    try:
+                        raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                        q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
+                    except:
+                        q["distractors"] = []
+                
+                questions.append(q)
 
     random.shuffle(questions)
     
-    # If we don't have enough questions in the DB, generate more on the fly!
+    # 2. AI Generation if needed
     max_retries = 3
     retry_count = 0
     
     import concurrent.futures
     from services.state import bump_version
-    from services.ai_engine import ai_generate_questions
+    from services.ai_engine import ai_generate_questions, is_ai_available
 
     while len(questions) < count and is_ai_available() and retry_count < max_retries:
         retry_count += 1
         needed = count - len(questions)
         
-        # Pick target topics (prioritize ones with fewer questions or cycle)
-        # We'll generate in parallel for multiple topics if needed
         targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
         if not targets:
-            t_fallback = c.execute("SELECT id FROM topics LIMIT 1").fetchone()
-            if t_fallback: targets = [t_fallback["id"]]
+            with db_connection() as db_conn:
+                t_fallback = db_conn.execute("SELECT id FROM topics LIMIT 1").fetchone()
+                if t_fallback: targets = [t_fallback["id"]]
             
         if not targets: break
         
         def _gen_for_topic(tid, batch):
+            from database import get_db
+            thread_conn = None
             try:
-                t_data = c.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
-                if not t_data: return []
+                thread_conn = get_db()
+                tc = thread_conn.cursor()
+                t_data = tc.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+                if not t_data: return [], tid, ""
                 
-                l_row = c.execute("""
+                l_row = tc.execute("""
                     SELECT co.language FROM courses co
                     JOIN chapters ch ON co.id = ch.course_id
                     JOIN topics t ON ch.id = t.chapter_id
@@ -349,8 +351,12 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
             except Exception as e:
                 print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
                 return [], tid, ""
+            finally:
+                if thread_conn:
+                    thread_conn.close()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as executor:
+        # Call AI OUTSIDE any main thread DB connection
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(targets), 4)) as executor:
             batch_per_target = max(needed // len(targets) + 1, 5)
             futures = [executor.submit(_gen_for_topic, tid, batch_per_target) for tid in targets]
             
@@ -358,32 +364,33 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
                 new_qs, tid, t_title = f.result()
                 if new_qs:
                     added_this_retry = 0
-                    for q in new_qs:
-                        if not q.get("prompt") or not q.get("answer"): continue
-                        if len(questions) >= count + 5: break # Don't over-generate too much
-                        
-                        q_id = str(uuid.uuid4())
-                        distractors = q.get("distractors", [])
-                        if not isinstance(distractors, list): distractors = []
-                        
-                        # Save to DB
-                        c.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                   (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                    json.dumps(distractors), "A1.1"))
-                        
-                        questions.append({
-                            "id": q_id,
-                            "topic_id": tid,
-                            "type": q.get("type", "mcq"),
-                            "prompt": q.get("prompt", ""),
-                            "answer": q.get("answer", ""),
-                            "distractors": distractors,
-                            "difficulty": "A1.1"
-                        })
-                        added_this_retry += 1
+                    # Re-open connection for SAVING results
+                    with db_connection() as db_conn:
+                        for q in new_qs:
+                            if not q.get("prompt") or not q.get("answer"): continue
+                            if len(questions) >= count + 5: break 
+                            
+                            q_id = str(uuid.uuid4())
+                            distractors = q.get("distractors", [])
+                            if not isinstance(distractors, list): distractors = []
+                            
+                            db_conn.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                       (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
+                                        json.dumps(distractors), "A1.1"))
+                            
+                            questions.append({
+                                "id": q_id,
+                                "topic_id": tid,
+                                "type": q.get("type", "mcq"),
+                                "prompt": q.get("prompt", ""),
+                                "answer": q.get("answer", ""),
+                                "distractors": distractors,
+                                "difficulty": "A1.1"
+                            })
+                            added_this_retry += 1
+                        db_conn.commit()
                     
                     if added_this_retry > 0:
-                        db_conn.commit()
                         bump_version()
                         print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_title}'")
 
