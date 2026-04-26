@@ -665,7 +665,7 @@ const i18n = {
 };
 
 function t(key, data = {}) {
-  const lang = currentLang || 'en';
+  const lang = localStorage.getItem('aula_lang') || 'en';
   let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
   Object.keys(data).forEach(k => {
     str = str.replace(new RegExp(`{${k}}`, 'g'), data[k]);
@@ -738,6 +738,8 @@ function applyTranslations() {
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
+  
+  // Update state immediately
   applyTranslations();
   
   if (_lastReportData) renderReport(_lastReportData);
