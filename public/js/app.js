@@ -42,6 +42,12 @@ function toggleSidebar() {
         roleEl.textContent = t(roleKey).toUpperCase();
         roleEl.setAttribute('data-i18n', roleKey);
       }
+
+      // Show/Hide role-specific nav items in sidebar
+      const lNav = sidebar.querySelector('.lecturer-only');
+      const sNav = sidebar.querySelector('.student-only');
+      if (lNav) lNav.style.display = currentUser.role === 'lecturer' ? 'flex' : 'none';
+      if (sNav) sNav.style.display = currentUser.role === 'student' ? 'flex' : 'none';
     }
     
     // Update language text
