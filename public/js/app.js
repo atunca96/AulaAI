@@ -227,7 +227,7 @@ const i18n = {
   en: {
     langBtn: '🌐 TR',
     // Login screen
-    signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
+    signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back, {name}', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     loginTitle: 'Student Login',
     'Lecturer Login': 'Lecturer Login', 'Sign in with your email and password': 'Sign in with your email and password',
     'Student Login': 'Student Login', 'Log in with your student number': 'Log in with your student number',
@@ -505,7 +505,7 @@ const i18n = {
     'LOW_ENGAGEMENT': 'Düşük Katılım',
     'CRITICAL_RISK': 'Kritik Risk',
     'UNKNOWN': 'Bilinmiyor',
-    loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
+    loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin, {name}', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
     'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
@@ -784,7 +784,12 @@ function renderDraftListSync() {
 function renderLecturerSync() {
   if (!currentUser) return;
   document.getElementById('nav-username').textContent = currentUser.name;
-  document.getElementById('overview-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
+  
+  const greetingEl = document.getElementById('overview-greeting');
+  if (greetingEl) {
+    greetingEl.setAttribute('data-i18n', 'welcomeBack');
+    greetingEl.setAttribute('data-i18n-data', JSON.stringify({ name: currentUser.name.split(' ').pop() }));
+  }
   
   if (_lastOverviewData) renderOverview(_lastOverviewData);
   if (curriculum) renderCurriculum();
@@ -1683,14 +1688,21 @@ async function loadOverview() {
 function renderOverview(report) {
   const s = report.summary || {};
   document.getElementById('overview-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">${t('STUDENTS')}</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub">${s.active_students || 0} ${t('active this week')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('CLASS MASTERY')}</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub">${t('Average across all topics')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('AT RISK')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('TOP PERFORMERS')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
+    <div class="stat-card"><div class="stat-label" data-i18n="STUDENTS">STUDENTS</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub"><span data-i18n-data='{"count":${s.active_students || 0}}' data-i18n="active_this_week">${s.active_students || 0} active this week</span></div></div>
+    <div class="stat-card"><div class="stat-label" data-i18n="CLASS_MASTERY">CLASS MASTERY</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub" data-i18n="avg_across_topics">Average across all topics</div></div>
+    <div class="stat-card"><div class="stat-label" data-i18n="AT_RISK">AT RISK</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub" data-i18n="students_needing_attention">Students needing attention</div></div>
+    <div class="stat-card"><div class="stat-label" data-i18n="TOP_PERFORMERS">TOP PERFORMERS</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub" data-i18n="mastery_above_80">Mastery above 80%</div></div>`;
+  
   const atRisk = report.at_risk_students || [];
-  document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)" data-i18n="no_at_risk">${t('no_at_risk')}</p>`
-    : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${t(f)}</span>`).join('')}</div></div>`).join('');
-  const td = report.topic_difficulty || {};
+  const atRiskList = document.getElementById('at-risk-list');
+  if (atRisk.length === 0) {
+    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students 🎉</p>`;
+  } else {
+    atRiskList.innerHTML = atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% <span data-i18n="mastery">mastery</span></span>${s.flags.map(f => `<span class="risk-badge low" data-i18n="${f}">${t(f)}</span>`).join('')}</div></div>`).join('');
+  }
+  
+  applyTranslations(); // Unify everything!
+}
   document.getElementById('topic-difficulty-chart').innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
     `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
   ).join('');
