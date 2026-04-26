@@ -676,20 +676,25 @@ function t(key, data = {}) {
 function applyTranslations() {
   // Sync open modal FIRST
   const modal = document.getElementById('confirm-modal');
-  if (modal) {
+  if (modal && !modal.classList.contains('hidden')) {
     const titleKey = modal.getAttribute('data-title-key');
     const msgKey = modal.getAttribute('data-msg-key');
     const msgDataStr = modal.getAttribute('data-msg-data');
     let msgData = {};
     try { if (msgDataStr) msgData = JSON.parse(msgDataStr); } catch(e) {}
     
-    if (titleKey) document.getElementById('confirm-title').textContent = t(titleKey);
-    if (msgKey) document.getElementById('confirm-message').textContent = t(msgKey, msgData);
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl = document.getElementById('confirm-message');
+    const okEl = document.getElementById('confirm-ok-btn');
+    const cancelEl = document.getElementById('confirm-cancel-btn');
+
+    if (titleKey && titleEl) titleEl.textContent = t(titleKey);
+    if (msgKey && msgEl) msgEl.textContent = t(msgKey, msgData);
     
     const okK = modal.getAttribute('data-ok-key');
     const canK = modal.getAttribute('data-cancel-key');
-    if (okK) document.getElementById('confirm-ok-btn').textContent = t(okK);
-    if (canK) document.getElementById('confirm-cancel-btn').textContent = t(canK);
+    if (okK && okEl) okEl.textContent = t(okK);
+    if (canK && cancelEl) cancelEl.textContent = t(canK);
   }
 
   document.querySelectorAll('[data-i18n]').forEach(el => {
