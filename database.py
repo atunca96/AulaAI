@@ -122,6 +122,7 @@ def init_db():
             title TEXT NOT NULL,
             difficulty TEXT DEFAULT 'A1.1',
             content TEXT NOT NULL,
+            pdf_url TEXT,
             sort_order INTEGER DEFAULT 0
         );
 

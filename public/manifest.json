@@ -1,0 +1,17 @@
+{
+  "name": "AulaAI",
+  "short_name": "AulaAI",
+  "description": "AI-powered Language Learning System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e1a",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/img/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

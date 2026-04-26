@@ -1449,7 +1449,20 @@ function renderCurriculum() {
           <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
           <span class="chapter-toggle">▸</span>
         </div>
-        <div class="chapter-topics">${(ch.topics || []).map(t_obj => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t_obj.type}">${t_obj.type}</span><span class="topic-name">${esc(t_obj.title)}</span></div><div class="topic-meta"><span>${t_obj.difficulty}</span><span>${t_obj.question_count || 0} ${t('questions')}</span></div></div>`).join('')}</div>
+        <div class="chapter-topics">${(ch.topics || []).map(t_obj => `
+          <div class="topic-item">
+            <div class="topic-info">
+              <span class="topic-type-badge ${t_obj.type}">${t_obj.type}</span>
+              <span class="topic-name">${esc(t_obj.title)}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${t_obj.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${t_obj.pdf_url}', '_blank')">📖</button>` : ''}
+              <div class="topic-meta">
+                <span>${t_obj.difficulty}</span>
+                <span>${t_obj.question_count || 0} ${t('questions')}</span>
+              </div>
+            </div>
+          </div>`).join('')}</div>
       </div>`).join('');
   } catch (err) {
     console.error('Render Error:', err);
@@ -2111,7 +2124,10 @@ function renderStudentHome(data) {
 function loadStudentPractice() {
   document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
     `<div class="topic-practice-card" onclick="startPractice('${tp.id}','${esc(tp.title)}')">
-      <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start">
+        <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
+        ${tp.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${tp.pdf_url}', '_blank')">📖</button>` : ''}
+      </div>
       <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
       <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${tp.difficulty}</div>
     </div>`
