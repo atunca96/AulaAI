@@ -1072,30 +1072,42 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 update_prog(percentage)
             
             # Done!
-            with db_connection() as db:
-                # IMPORTANT: Unapprove old generated questions for this topic instead of deleting
-                db.execute("UPDATE questions SET approved = 0 WHERE topic_id = ?", (topic_id,))
-                
-                db.execute("""
-                    UPDATE courses 
-                    SET activity_status='done', activity_result=? 
-                    WHERE id=?
-                """, (json.dumps(final_activities), course_id))
-                db.commit()
-                
-                # Also save to questions table for future
-                for act in final_activities:
-                    q_id = _uid()
-                    a_type = act.get("type", "mcq")
-                    a_prompt = act.get("prompt", "")
-                    a_answer = act.get("answer", "")
-                    # Save ONLY distractors in the distractors column
-                    distractors = json.dumps(act.get("distractors", []))
+            print(f"[BG] [{course_id}] Saving {len(final_activities)} activities...")
+            try:
+                with db_connection() as db:
+                    # Mark existing questions as unapproved to avoid conflicts/overwrites
+                    db.execute("UPDATE questions SET approved = 0 WHERE topic_id = ?", (topic_id,))
+                    
                     db.execute("""
-                        INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-                    """, (q_id, topic_id, a_type, a_prompt, a_answer, distractors, "A1.1"))
-                db.commit()
+                        UPDATE courses 
+                        SET activity_status='done', activity_result=? 
+                        WHERE id=?
+                    """, (json.dumps(final_activities), course_id))
+                    
+                    # Also save to questions table for future retrieval
+                    for act in final_activities:
+                        q_id = _uid()
+                        a_type = act.get("type", "mcq")
+                        a_prompt = act.get("prompt", "")
+                        a_answer = act.get("answer", "")
+                        distractors = json.dumps(act.get("distractors", []))
+                        db.execute("""
+                            INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                        """, (q_id, topic_id, a_type, a_prompt, a_answer, distractors, "A1.1"))
+                    db.commit()
+                print(f"[BG] [{course_id}] Save SUCCESSFUL")
+            except Exception as e:
+                print(f"[ERROR] [{course_id}] Final save failed: {e}")
+                file_log(f"Final Save Error: {e}")
+                # We still set it to done if we have activities in memory, so the UI can show them
+                if final_activities:
+                     with db_connection() as db:
+                        db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
+                                   (json.dumps(final_activities), course_id))
+                        db.commit()
+                else:
+                    raise e
                 
         except Exception as e:
             file_log(f"BG Activity Error: {str(e)}")
