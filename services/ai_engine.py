@@ -358,30 +358,30 @@ Return ONLY valid JSON:
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     """Generate both content, study guide, and questions in a single LLM call."""
-    prompt = f"""You are an elite language textbook author and polyglot. 
-    Generate a HIGH-LEVEL, EFFECTIVE, and COMPREHENSIVE lesson for the topic '{topic_title}' ({topic_type}) to teach {language} to an English speaker.
+    prompt = f"""You are an elite, world-class language textbook author and master polyglot. 
+    Generate a HIGH-LEVEL, CAPTIVATING, and COMPREHENSIVE lesson for the topic '{topic_title}' ({topic_type}) to teach {language} to an English speaker.
     
     1. CONTENT (The Study Guide): 
-       - EXPLANATIONS: Grammar rules, usage notes, and common mistakes MUST be in ENGLISH.
+       - EXPLANATIONS: Grammar rules, usage notes, and common mistakes MUST be in ENGLISH. Use a friendly, encouraging, yet professional tone.
        - TARGET CONTENT: Vocabulary and examples must be in {language} (with English translations).
-       - 'words': 15-20 ESSENTIAL words/phrases with English translations.
-       - 'rules': 5-7 DEEP grammar rules in ENGLISH.
-       - 'examples': 8-10 VARIED examples in {language} (English translations).
-       - 'usage_notes': Detailed cultural tips in ENGLISH.
-       - 'common_mistakes': 3-5 specific learner errors explained in ENGLISH.
-       - 'cheat_sheet': 3-sentence "Golden Rules" summary in ENGLISH.
+       - 'words': 20-25 HIGH-FREQUENCY words/phrases with English translations. Include gender for nouns if applicable.
+       - 'rules': 5-7 CONCEPTUAL grammar rules in ENGLISH. Don't just list rules; explain the 'why' behind them.
+       - 'examples': 10-12 NATURAL, REAL-WORLD examples in {language} (with English translations in parentheses).
+       - 'usage_notes': Detailed cultural nuances, regional variations, or formal vs. informal tips in ENGLISH.
+       - 'common_mistakes': 4-6 specific learner errors (e.g., false cognates, literal translations) explained in ENGLISH.
+       - 'cheat_sheet': A punchy, 3-sentence "Mastery Summary" in ENGLISH.
     
     2. QUESTIONS: Generate exactly {question_count} professional, unambiguous interactive questions.
        
        STRICT PEDAGOGICAL RULES:
-       - PROMPT LANGUAGE: The 'prompt' field MUST be written in ENGLISH (e.g. "Which word means 'water'?"). 
+       - PROMPT LANGUAGE: The 'prompt' field MUST be written in ENGLISH (e.g. "How would you ask for the check?"). 
        - DO NOT TRANSLATE THE PROMPT into {language}.
        - OPTIONS: All answer choices (correct and distractors) MUST be 100% in {language}.
        - NO AMBIGUITY: There must be only ONE logical and grammatically correct answer.
-       - DISTRACTORS: For 'mcq', distractors must be plausible but CLEARLY WRONG.
+       - CREATIVE DISTRACTORS: For 'mcq', distractors must be plausible, related words that a learner might confuse. Avoid "joke" options.
        - NO REPEATING OPTIONS: The 'answer' MUST NOT be part of the 'distractors' list.
-       - FILL_BLANK CONTEXT: Provide a setup sentence in {language} first, then the question in English.
-         * GOOD: "Benim bir kedim var. (I have a cat.) Complete the sentence: Benim ____ tatli." -> Answer: "kedim"
+       - FILL_BLANK CONTEXT: Provide a natural {language} sentence as context, then the English instruction.
+         * GOOD: "En el restaurante. (At the restaurant.) Complete the sentence: La ____ por favor." -> Answer: "cuenta"
     
     Return ONLY valid JSON with this exact structure:
     {{
@@ -392,14 +392,14 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
       "questions": [ 
          {{ 
            "type": "mcq", 
-           "prompt": "Which word means 'city'?", 
-           "answer": "sehir", 
-           "distractors": ["okul", "ev", "kahve"] 
+           "prompt": "How do you say 'Where is the library?'", 
+           "answer": "¿Dónde está la biblioteca?", 
+           "distractors": ["¿Dónde está el baño?", "¿Qué hora es?", "¿Cómo te llamas?"] 
          }},
          {{ 
            "type": "fill_blank", 
-           "prompt": "I have a cat. Complete the sentence: Benim ____ (kedi) tatli.", 
-           "answer": "kedim" 
+           "prompt": "Complete the sentence: Yo ____ (beber) agua.", 
+           "answer": "bebo" 
          }}
       ]
     }}"""
@@ -637,24 +637,25 @@ def ai_generate_activity_batch(topic_title, topic_type, topic_content, language,
     seed = f"{time.time()}-{py_random.randint(1000, 9999)}"
     
     prompt = f"""You are a professional language teacher creating content for students.
-Generate a COHESIVE LEARNING JOURNEY of {count} unique activities for the topic: "{topic_title}".
+Generate a COHESIVE, CREATIVE LEARNING JOURNEY of {count} unique activities for the topic: "{topic_title}".
 
 Topic Content/Context (Study Guide):
 {json.dumps(topic_content)}
 
 STRICT PEDAGOGICAL REQUIREMENTS:
 1. INSTRUCTIONAL LANGUAGE: The 'prompt' (the instructions for the student) MUST be 100% in ENGLISH.
-2. TARGET LANGUAGE: All answer choices, Spanish text, and Spanish examples MUST be in {language}.
-3. STRICT CONTEXT ADHERENCE: You MUST only use vocabulary, grammar, and concepts present in the provided "Topic Content/Context". Do NOT hallucinate external trivia or unrelated pronunciation rules unless they are explicitly mentioned in the context.
-4. HIGH-QUALITY DISTRACTORS: For 'mcq', distractors must be plausible and related to the correct answer. (e.g., if asking about a specific letter, all options should contain that letter).
-5. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word.
-6. VARIETY: Each activity must focus on a different aspect of the topic context.
-7. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
-8. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
+2. TARGET LANGUAGE: All answer choices, {language} text, and {language} examples MUST be in {language}.
+3. STRICT CONTEXT ADHERENCE: You MUST only use vocabulary, grammar, and concepts present in the provided "Topic Content/Context". Do NOT hallucinate external trivia.
+4. PEDAGOGICAL DEPTH: Questions should test UNDERSTANDING, not just translation. (e.g., "Which response is most appropriate to 'How are you?'").
+5. HIGH-QUALITY DISTRACTORS: For 'mcq', distractors must be plausible and related to the correct answer. Avoid obviously unrelated words.
+6. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word.
+7. VARIETY: Each activity must focus on a different aspect of the topic context. Mix difficulty levels.
+8. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
+9. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
 
 REQUIRED JSON STRUCTURES:
-- 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "Spanish Correct Word", "options": ["Spanish Opt 1", "Spanish Opt 2", "Spanish Opt 3", "Spanish Opt 4"] }}
-- 'fill_blank': {{ "type": "fill_blank", "prompt": "English instruction with ____ (4 underscores)", "answer": "Spanish Missing Word" }}
+- 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "{language} Correct Word", "options": ["{language} Opt 1", "{language} Opt 2", "{language} Opt 3", "{language} Opt 4"] }}
+- 'fill_blank': {{ "type": "fill_blank", "prompt": "English instruction with ____ (4 underscores)", "answer": "{language} Missing Word" }}
 - 'dialogue_order': {{ "type": "dialogue_order", "prompt": "English instruction (e.g. 'Order this conversation')", "scrambled_lines": ["Line B", "Line A"], "speakers": {{ "Line A": "Persona 1", "Line B": "Persona 2" }}, "correct_order": ["Line A", "Line B"] }}
 
 RANDOM VARIETY SEED: {seed}

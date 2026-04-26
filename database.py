@@ -366,9 +366,9 @@ def _migrate_curriculum(c):
 
             for i, topic in enumerate(ch["topics"]):
                 topic_id = _uid()
-                c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?)",
+                c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?,?)",
                           (topic_id, chapter_id, topic["type"], topic["title"],
-                           topic["difficulty"], json.dumps(topic["content"]), i))
+                           topic["difficulty"], json.dumps(topic["content"]), None, i))
                 questions = _generate_seed_questions(topic)
                 for q in questions:
                     c.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
@@ -384,9 +384,9 @@ def _migrate_curriculum(c):
             for i, topic in enumerate(ch["topics"]):
                 if topic["title"] not in existing_topics:
                     topic_id = _uid()
-                    c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?)",
+                    c.execute("INSERT INTO topics VALUES (?,?,?,?,?,?,?,?)",
                               (topic_id, chapter_id, topic["type"], topic["title"],
-                               topic["difficulty"], json.dumps(topic["content"]), i))
+                               topic["difficulty"], json.dumps(topic["content"]), None, i))
                     questions = _generate_seed_questions(topic)
                     for q in questions:
                         c.execute("INSERT INTO questions VALUES (?,?,?,?,?,?,?,?,?,1,datetime('now'))",
@@ -432,9 +432,9 @@ def _seed_data(c):
         for i, topic in enumerate(ch["topics"]):
             # Use stable ID for topics
             topic_id = f"topic-101-{ch['number']}-{i+1}"
-            c.execute("INSERT OR IGNORE INTO topics VALUES (?,?,?,?,?,?,?)",
+            c.execute("INSERT OR IGNORE INTO topics VALUES (?,?,?,?,?,?,?,?)",
                       (topic_id, chapter_id, topic["type"], topic["title"],
-                       topic["difficulty"], json.dumps(topic["content"]), i))
+                       topic["difficulty"], json.dumps(topic["content"]), None, i))
 
             # Pre-generate questions for each topic
             questions = _generate_seed_questions(topic)

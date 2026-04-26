@@ -491,9 +491,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             init_db()
             
             # Re-insert the admin user so they can log back in
+            # NOTE: init_db already does a 'lecturer' update/insert, but we'll be explicit here to match user request.
             with db_connection() as db:
-                db.execute("INSERT INTO users (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)",
-                          (str(uuid.uuid4()), 'atunca96@gmail.com', 'ALper2002@', 'Admin', 'lecturer'))
+                db.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)",
+                          (str(uuid.uuid4()), 'Alper Tunca', 'atunca96@gmail.com', 'ALper2002@', 'lecturer', 'approved'))
                 db.commit()
 
             return self._send_json({"success": True, "message": "Database has been completely reset."})

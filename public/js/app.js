@@ -137,11 +137,26 @@ function refreshCurrentView() {
       const updated = courses.find(c => c.id === currentCourse.id);
       if (updated) {
         currentCourse = updated;
-        if (currentUser.role === 'lecturer') {
-          const buildBanner = document.getElementById('lecturer-building-banner');
-          if (buildBanner) {
-            if (currentCourse.is_building) buildBanner.classList.remove('hidden');
-            else buildBanner.classList.add('hidden');
+        const isLecturer = currentUser.role === 'lecturer';
+        const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
+        const fillId = isLecturer ? 'lecturer-progress-fill' : 'student-progress-fill';
+        const textId = isLecturer ? 'lecturer-progress-text' : 'student-progress-text';
+        const buildBanner = document.getElementById(bannerId);
+        const progressFill = document.getElementById(fillId);
+        const progressText = document.getElementById(textId);
+
+        if (buildBanner) {
+          if (currentCourse.is_building) {
+            buildBanner.classList.remove('hidden');
+            // Poll for detailed progress
+            api(`/classroom/progress?course_id=${currentCourse.id}`).then(prog => {
+              if (prog) {
+                if (progressFill) progressFill.style.width = prog.percentage + '%';
+                if (progressText) progressText.textContent = prog.percentage + '%';
+              }
+            });
+          } else {
+            buildBanner.classList.add('hidden');
           }
         }
       }
@@ -496,6 +511,12 @@ const i18n = {
     'draft.lang_warning': 'Note: Question content language is fixed upon generation and will not change with the UI toggle.',
     'alert.select_pdf': 'Please select a PDF file',
     'message.placeholder': 'Write your message here...',
+    'admin.hard_reset_title': 'Admin Hard Reset',
+    'admin.hard_reset_desc': 'This will wipe EVERYTHING. Users, courses, data - gone forever.',
+    'admin.hard_reset_btn': 'HARD RESET SYSTEM',
+    'alert.hard_reset_success_title': 'System Reset',
+    'alert.hard_reset_success_msg': 'The database has been completely wiped. You will be logged out now.',
+    'alert.hard_reset_failed': 'Hard reset failed: {error}',
   },
   tr: {
     langBtn: '🌐 EN',
@@ -755,6 +776,12 @@ const i18n = {
     'alert.select_pdf': 'Lütfen bir PDF dosyası seçin',
     // Student Portal
     'student.welcome': 'AulaAI\'ya Hoş Geldiniz',
+    'admin.hard_reset_title': 'Yönetici Tam Sıfırlama',
+    'admin.hard_reset_desc': 'Bu işlem HER ŞEYİ silecektir. Kullanıcılar, kurslar, veriler - sonsuza kadar yok olacak.',
+    'admin.hard_reset_btn': 'SİSTEMİ TAMAMEN SIFIRLA',
+    'alert.hard_reset_success_title': 'Sistem Sıfırlandı',
+    'alert.hard_reset_success_msg': 'Veritabanı tamamen temizlendi. Şimdi çıkış yapacaksınız.',
+    'alert.hard_reset_failed': 'Tam sıfırlama başarısız oldu: {error}',
     'student.select_class': 'Öğrenmeye devam etmek için bir sınıf seçin',
     'student.join_new': 'Yeni Sınıfa Katıl',
     'student.join_title': 'Sınıfa Katıl',
