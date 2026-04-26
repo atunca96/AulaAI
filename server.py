@@ -1657,56 +1657,60 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not course_id:
             return self._send_error("course_id required")
             
-        with db_connection() as db:
-            course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
-            if not course:
-                return self._send_error("Course not found")
-            
-            # Protection for the default demo classroom only
-            if course["id"] == "spanish-101" or (course["name"] == "Spanish 101" and course["textbook"] == "Aula Internacional Plus 1"):
-                return self._send_error("The default demo classroom cannot be deleted", 403)
-            
-            # 1. Delete student responses (quizzes, assignments, and topic activities)
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            
-            # 2. Delete mastery scores
-            db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            
-            # 3. Delete quiz and assignment structure
-            db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
-            
-            # 4. Delete other course-related entities
-            db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
-            db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
-            
-            # 5. Delete curriculum (questions, topics, chapters)
-            # Questions are linked to topics
-            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
-            
-            # 6. Delete PDF file if exists
-            textbook_path = course.get("textbook")
-            if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
-                full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
-                if os.path.exists(full_path):
-                    try:
-                        os.remove(full_path)
-                    except: pass
+        try:
+            with db_connection() as db:
+                course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+                if not course:
+                    return self._send_error("Course not found")
+                
+                # Protection for the default demo classroom only
+                if course["id"] == "spanish-101" or (course["name"] == "Spanish 101" and course["textbook"] == "Aula Internacional Plus 1"):
+                    return self._send_error("The default demo classroom cannot be deleted", 403)
+                
+                # 1. Delete student responses (quizzes, assignments, and topic activities)
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+                
+                # 2. Delete mastery scores
+                db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+                
+                # 3. Delete quiz and assignment structure
+                db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
+                
+                # 4. Delete other course-related entities
+                db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
+                
+                # 5. Delete curriculum (questions, topics, chapters)
+                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
+                
+                # 6. Delete PDF file if exists
+                textbook_path = course.get("textbook")
+                if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
+                    full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
+                    if os.path.exists(full_path):
+                        try: os.remove(full_path)
+                        except: pass
 
-            # 7. Finally delete the course
-            db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
-            db.commit()
-            
-        bump_version()
-        self._send_json({"success": True})
+                # 7. Finally delete the course
+                db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+                db.commit()
+                
+            bump_version()
+            self._send_json({"success": True})
+        except Exception as e:
+            import traceback
+            err_msg = traceback.format_exc()
+            file_log(f"Deletion Error: {err_msg}")
+            self._send_error(f"Internal server error: {str(e)}", 500)
 
 def _cleanup_stale_classrooms():
     """Find and delete classrooms stuck in 'building' state for too long or from previous session."""
