@@ -748,7 +748,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             # Fetch all enrollments
             enrollments = db.execute("""
-                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
+                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language
                 FROM enrollments e
                 JOIN courses c ON e.course_id = c.id
                 WHERE e.student_id = ?
