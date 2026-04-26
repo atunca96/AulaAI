@@ -246,6 +246,9 @@ const i18n = {
     searchStudent: 'Search students...',
     noNewChats: 'No new students to message.',
     startChat: 'Start Chat',
+    typeReply: 'Type a reply...',
+    sendBtn: 'Send',
+    Lecturer: 'Lecturer', Student: 'Student',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -518,6 +521,9 @@ const i18n = {
     searchStudent: 'Öğrenci ara...',
     noNewChats: 'Mesaj atılacak yeni öğrenci yok.',
     startChat: 'Mesaj Başlat',
+    typeReply: 'Mesajınızı yazın...',
+    sendBtn: 'Gönder',
+    Lecturer: 'Öğretmen', Student: 'Öğrenci',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
