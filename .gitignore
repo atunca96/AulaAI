@@ -1,11 +1,12 @@
 node_modules/
 __pycache__/
 *.pyc
-data/prototype.db
+data/
 .env
 *.db-journal
 *.db-wal
 *.log
+*.txt
 scratch/
 public/books/
 aula.db
