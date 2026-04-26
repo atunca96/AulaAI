@@ -1235,22 +1235,45 @@ function showScreen(id) {
 
 // Visual Viewport resize handler for mobile keyboards
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => {
+  const adjustChatHeight = () => {
     const chatWrappers = document.querySelectorAll('.chat-wrapper');
     const isMobile = window.innerWidth <= 768;
+    if (!isMobile) {
+      chatWrappers.forEach(cw => cw.style.height = '60vh');
+      return;
+    }
+    
+    const viewportHeight = window.visualViewport.height;
     chatWrappers.forEach(cw => {
-      if (isMobile) {
-        // Calculate new height: viewport height minus approximate header height
-        cw.style.height = `${window.visualViewport.height - 80}px`; 
-        // Force scroll to bottom when keyboard opens/closes
-        const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
-        if (msgList) msgList.scrollTop = msgList.scrollHeight;
-      } else {
-        cw.style.height = '60vh';
+      // Use the actual visual viewport height
+      cw.style.height = `${viewportHeight - 60}px`; 
+      const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
+      if (msgList && msgList.lastElementChild) {
+        setTimeout(() => {
+          msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 100);
       }
     });
-  });
+  };
+
+  window.visualViewport.addEventListener('resize', adjustChatHeight);
+  window.visualViewport.addEventListener('scroll', adjustChatHeight);
 }
+
+// Add focus listeners for chat inputs to ensure scroll
+document.addEventListener('focusin', (e) => {
+  if (e.target.id === 'inbox-reply-text' || e.target.id === 'message-text') {
+    setTimeout(() => {
+      const cw = e.target.closest('.chat-wrapper');
+      if (cw) {
+        const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
+        if (msgList && msgList.lastElementChild) {
+          msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }
+    }, 300);
+  }
+});
 
 function switchTab(btn, skipLoad = false) {
   // Find which screen we are in (Lecturer or Student)
@@ -1312,14 +1335,15 @@ async function loadStudentChat() {
     return;
   }
 
-  container.innerHTML = `<div class="chat-container">` + messages.map(m => {
+  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
     const isMe = m.sender === 'student';
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
-      <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
-        ${!isMe ? `<div class="chat-sender">${t('Lecturer')}</div>` : ''}
+      <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
+           style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
+        ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
         ${esc(m.content)}
-        <span class="chat-time">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     `;
   }).join('') + `</div>`;
@@ -1412,14 +1436,15 @@ async function openChat(studentId, studentName) {
   const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
 
-  container.innerHTML = `<div class="chat-container">` + messages.map(m => {
+  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
     const isMe = m.sender === 'lecturer';
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
-      <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
-        ${isMe ? `<div class="chat-sender" style="color:rgba(255,255,255,0.7)">${t('Lecturer')}</div>` : ''}
+      <div class="chat-bubble ${isMe ? 'sent' : 'received'}"
+           style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
+        ${isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
         ${esc(m.content)}
-        <span class="chat-time">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     `;
   }).join('') + `</div>`;
