@@ -17,11 +17,39 @@
     <script src="/js/app.js?v=20260426" defer></script>
 </head>
 <body>
-    <!-- Floating Actions -->
-    <div class="floating-actions" style="position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+    <!-- Floating Actions (PC Only) -->
+    <div class="floating-actions pc-only" style="position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
         <button class="btn btn-secondary btn-sm" onclick="openSettingsModal()" id="settings-btn" title="Settings" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer;">⚙️</button>
         <div class="lang-switcher" style="display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
             <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN</button>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <div id="mobile-sidebar" class="mobile-only" style="position:fixed; inset:0; z-index:10000; pointer-events:none;">
+        <div id="sidebar-overlay" onclick="toggleSidebar()" style="position:absolute; inset:0; background:rgba(0,0,0,0.5); opacity:0; transition:opacity 0.3s ease; pointer-events:none;"></div>
+        <div id="sidebar-content" style="position:absolute; top:0; left:-280px; bottom:0; width:280px; background:var(--bg-secondary); box-shadow:10px 0 30px rgba(0,0,0,0.5); transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); pointer-events:auto; display:flex; flex-direction:column;">
+            <div style="padding:32px 24px; background:var(--gradient-1); color:#fff; position:relative;">
+                <button onclick="toggleSidebar()" style="position:absolute; top:12px; right:12px; background:none; border:none; color:#fff; font-size:24px; cursor:pointer;">&times;</button>
+                <div id="sidebar-user-name" style="font-size:20px; font-weight:800; margin-bottom:4px;">Guest</div>
+                <div id="sidebar-user-role" style="font-size:12px; opacity:0.8; text-transform:uppercase; letter-spacing:1px;">Role</div>
+            </div>
+            <div style="flex:1; padding:24px; display:flex; flex-direction:column; gap:8px;">
+                <button class="btn btn-ghost" onclick="toggleSidebar(); openSettingsModal()" style="justify-content:flex-start; gap:12px; padding:12px 16px;">
+                    <span style="font-size:20px;">⚙️</span> <span data-i18n="settings">Settings</span>
+                </button>
+                <div style="margin-top:auto; padding-top:16px; border-top:1px solid var(--border);">
+                    <div style="margin-bottom:12px; font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:1px;" data-i18n="language">Language</div>
+                    <button class="btn btn-outline btn-full" onclick="toggleLanguage()" id="sidebar-lang-btn" style="justify-content:space-between; padding:12px 16px;">
+                        <span>🌐</span> <span id="sidebar-lang-text">English (EN)</span>
+                    </button>
+                </div>
+            </div>
+            <div style="padding:24px; border-top:1px solid var(--border);">
+                <button class="btn btn-ghost btn-full" onclick="toggleSidebar(); logout()" style="color:var(--danger); justify-content:flex-start; gap:12px;">
+                    <span style="font-size:20px;">🚪</span> <span data-i18n="signOut">Sign Out</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -242,6 +270,7 @@
     <!-- Lecturer Dashboard -->
     <div id="lecturer-dashboard" class="screen">
         <nav class="topnav">
+            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); font-size:24px; padding:8px; cursor:pointer; margin-right:8px;">☰</button>
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>
@@ -474,6 +503,7 @@
     <!-- Student Dashboard -->
     <div id="student-dashboard" class="screen">
         <nav class="topnav student-nav">
+            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); font-size:24px; padding:8px; cursor:pointer; margin-right:8px;">☰</button>
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>

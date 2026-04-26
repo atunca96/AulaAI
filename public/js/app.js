@@ -19,6 +19,39 @@ let _lastStudentHomeData = null;
 let _lastClassroomsData = null;
 let _lastStudentDetailData = null;
 
+function toggleSidebar() {
+  const sidebar = document.getElementById('mobile-sidebar');
+  const content = document.getElementById('sidebar-content');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (!sidebar || !content) return;
+
+  const isOpen = content.style.transform === 'translateX(280px)';
+  if (isOpen) {
+    content.style.transform = 'translateX(0)';
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    sidebar.style.pointerEvents = 'none';
+  } else {
+    // Update user info before showing
+    if (currentUser) {
+      const nameEl = document.getElementById('sidebar-user-name');
+      const roleEl = document.getElementById('sidebar-user-role');
+      if (nameEl) nameEl.textContent = currentUser.name || 'Guest';
+      if (roleEl) roleEl.textContent = (currentUser.role || 'Role').toUpperCase();
+    }
+    
+    // Update language text
+    const langText = currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
+    const sidebarLangText = document.getElementById('sidebar-lang-text');
+    if (sidebarLangText) sidebarLangText.textContent = langText;
+
+    content.style.transform = 'translateX(280px)';
+    overlay.style.opacity = '1';
+    overlay.style.pointerEvents = 'auto';
+    sidebar.style.pointerEvents = 'auto';
+  }
+}
+
 // ── Keep Render alive (ping every 10 min) ──
 setInterval(() => fetch('/api/courses').catch(() => { }), 10 * 60 * 1000);
 
