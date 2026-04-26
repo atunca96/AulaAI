@@ -1216,18 +1216,36 @@ function showScreen(id) {
 }
 
 function switchTab(btn, skipLoad = false) {
-  const nav = btn.closest('.topnav') || btn.closest('nav');
-  nav.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  const main = btn.closest('.screen').querySelector('main');
-  main.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  // Find which screen we are in (Lecturer or Student)
+  const screen = btn.closest('.screen') || (currentUser.role === 'lecturer' ? document.getElementById('lecturer-dashboard') : document.getElementById('student-dashboard'));
+  if (!screen) return;
 
-  localStorage.setItem('aula_last_tab', btn.dataset.tab);
+  const tabId = btn.dataset.tab;
+  if (!tabId) return;
+
+  // Update nav-tab active state (if top nav is visible)
+  const nav = screen.querySelector('.topnav');
+  if (nav) {
+    nav.querySelectorAll('.nav-tab').forEach(t => {
+      if (t.dataset.tab === tabId) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+  }
+
+  // Update tab-panel active state
+  const main = screen.querySelector('main');
+  if (main) {
+    main.querySelectorAll('.tab-panel').forEach(p => {
+      if (p.id === 'tab-' + tabId) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+  }
+
+  localStorage.setItem('aula_last_tab', tabId);
 
   if (!skipLoad) {
-    if (btn.dataset.tab === 'inbox') loadInbox();
-    if (btn.dataset.tab === 's-messages') loadStudentChat();
+    if (tabId === 'inbox') loadInbox();
+    if (tabId === 's-messages') loadStudentChat();
   }
 }
 
