@@ -268,6 +268,7 @@ const i18n = {
     'class.toc_range': '3. PDF Context Range (Optional)',
     'class.create_success': 'Classroom created successfully!',
     'class.share_msg': 'Share the Join Code with your students to start the lesson.',
+    'class.create_success_full': 'Classroom created successfully! \n\nJoin Code: {code}\n\nShare the Join Code with your students to start the lesson.',
     'answer': 'Answer',
     'responses': 'Responses',
     'gen.loading': 'Questions are being generated...',
@@ -527,6 +528,7 @@ const i18n = {
     'class.toc_range': '3. PDF İçindekiler Sayfa Aralığı (Opsiyonel)',
     'class.create_success': 'Sınıf başarıyla oluşturuldu!',
     'class.share_msg': 'Derse başlamak için Katılım Kodunu öğrencilerinizle paylaşın.',
+    'class.create_success_full': 'Sınıf başarıyla oluşturuldu! \n\nKatılım Kodu: {code}\n\nDerse başlamak için Katılım Kodunu öğrencilerinizle paylaşın.',
     'answer': 'Cevaplar',
     'responses': 'Sonuçlar',
     'gen.loading': 'Sorular oluşturuluyor...',
@@ -1024,7 +1026,7 @@ async function handleCreateClassroom(e) {
     return showAlert(t('error'), data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);
   }
 
-  await showAlert(t('success'), `${t('class.create_success')} \n\n${t('class.join_code')}: ${data.code}\n\n${t('class.share_msg')}`);
+  await showAlert('success', 'class.create_success_full', false, { code: data.code });
   closeCreateClassroomModal();
   
   if (typeof _buildingCourses !== 'undefined') {
@@ -1937,8 +1939,8 @@ function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlacehold
   });
 }
 
-async function showAlert(titleKey, messageKey, isDanger = false) {
-  return showConfirmModal(titleKey, messageKey, isDanger, null, true);
+async function showAlert(titleKey, messageKey, isDanger = false, messageData = {}) {
+  return showConfirmModal(titleKey, messageKey, isDanger, null, true, 'ok', null, messageData);
 }
 
 async function confirmCancelAssignment() {
