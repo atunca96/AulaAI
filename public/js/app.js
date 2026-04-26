@@ -665,12 +665,19 @@ const i18n = {
 };
 
 function t(key, data = {}) {
-  const lang = localStorage.getItem('aula_lang') || 'en';
-  let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
-  Object.keys(data).forEach(k => {
-    str = str.replace(new RegExp(`{${k}}`, 'g'), data[k]);
-  });
-  return str;
+  try {
+    const lang = localStorage.getItem('aula_lang') || 'en';
+    let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
+    if (typeof str !== 'string') str = String(str || key);
+    
+    Object.keys(data).forEach(k => {
+      str = str.replace(new RegExp(`{${k}}`, 'g'), String(data[k] || ''));
+    });
+    return str;
+  } catch (e) {
+    console.error('Translation error:', e);
+    return String(key);
+  }
 }
 
 function applyTranslations() {
@@ -698,25 +705,27 @@ function applyTranslations() {
   }
 
   document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    const dataStr = el.getAttribute('data-i18n-data');
-    let data = {};
-    try { if (dataStr) data = JSON.parse(dataStr); } catch(e) {}
-    
-    const translation = t(key, data);
-    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-      el.placeholder = translation;
-    } else {
-      el.textContent = translation;
-    }
+    try {
+      const key = el.getAttribute('data-i18n');
+      const dataStr = el.getAttribute('data-i18n-data');
+      let data = {};
+      try { if (dataStr) data = JSON.parse(dataStr); } catch(e) {}
+      
+      const translation = t(key, data);
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        el.placeholder = translation;
+      } else {
+        el.textContent = translation;
+      }
+    } catch(e) { console.error('Loop error:', e); }
   });
 
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+    try { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); } catch(e) {}
   });
 
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
-    el.title = t(el.getAttribute('data-i18n-title'));
+    try { el.title = t(el.getAttribute('data-i18n-title')); } catch(e) {}
   });
 
   const langBtn = document.getElementById('lang-btn');
