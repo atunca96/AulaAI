@@ -724,10 +724,11 @@ body {
     .chat-wrapper.is-active {
         display: flex !important;
         flex-direction: column !important;
-        height: calc(100vh - 120px); /* Fill available space below header */
+        min-height: 400px;
+        height: auto !important;
         background: var(--bg-card);
         border-radius: 12px;
-        overflow: hidden;
+        overflow: visible !important;
     }
 
     .chat-wrapper:not(.is-active) {
@@ -754,6 +755,9 @@ body {
         padding: 10px 12px env(safe-area-inset-bottom, 12px) !important;
         width: 100%;
         box-sizing: border-box;
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
     }
 
     .chat-wrapper.is-active .chat-header {
