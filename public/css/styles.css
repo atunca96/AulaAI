@@ -771,12 +771,15 @@ body {
         width: 100% !important;
     }
 
-    /* Crucial: Kill transforms on parents so fixed positioning works relative to screen */
+    /* Crucial: Kill transforms and elevate z-index on parents so fixed positioning works relative to screen */
     html.chat-open main, 
     html.chat-open section,
-    html.chat-open .container {
+    html.chat-open .container,
+    html.chat-open .lecturer-dashboard,
+    html.chat-open .student-dashboard {
         transform: none !important;
         animation: none !important;
+        z-index: 9999 !important;
     }
     
     .chat-wrapper.is-active #inbox-messages,
