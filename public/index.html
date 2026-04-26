@@ -247,16 +247,16 @@
                 <span class="nav-badge">Lecturer</span>
                 <span id="nav-course-name" style="margin-left:12px; font-size:14px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:12px;"></span>
                 <span id="nav-course-code" style="margin-left:8px; font-size:12px; font-family:monospace; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(99,102,241,0.3);"></span>
-                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:16px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px;">🏫 View Classrooms</button>
+                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:16px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px;" data-i18n="View Classrooms">🏫 View Classrooms</button>
             </div>
             <div class="nav-tabs">
-                <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon">📊</span><span class="tab-label">Overview</span></button>
-                <button class="nav-tab" data-tab="curriculum" onclick="switchTab(this)"><span class="tab-icon">📚</span><span class="tab-label">Curriculum</span></button>
-                <button class="nav-tab" data-tab="activities" onclick="switchTab(this)"><span class="tab-icon">⚡</span><span class="tab-label">Activities</span></button>
-                <button class="nav-tab" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Quizzes</span></button>
-                <button class="nav-tab" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label">Assignments</span></button>
-                <button class="nav-tab" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label">Students</span></button>
-                <button class="nav-tab" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label">Reports</span></button>
+                <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon">📊</span><span class="tab-label" data-i18n="Overview">Overview</span></button>
+                <button class="nav-tab" data-tab="curriculum" onclick="switchTab(this)"><span class="tab-icon">📚</span><span class="tab-label" data-i18n="Curriculum">Curriculum</span></button>
+                <button class="nav-tab" data-tab="activities" onclick="switchTab(this)"><span class="tab-icon">⚡</span><span class="tab-label" data-i18n="Activities">Activities</span></button>
+                <button class="nav-tab" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Quizzes">Quizzes</span></button>
+                <button class="nav-tab" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button class="nav-tab" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
+                <button class="nav-tab" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
                 <button class="nav-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">📥</span><span class="tab-label" data-i18n="inbox">Inbox</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
@@ -270,7 +270,7 @@
             <!-- Overview Tab -->
             <section id="tab-overview" class="tab-panel active">
                 <div class="page-header">
-                    <h1>Dashboard</h1>
+                    <h1 data-i18n="Dashboard">Dashboard</h1>
                     <p class="subtitle" id="overview-greeting"></p>
                 </div>
                 <div class="stats-grid" id="overview-stats"></div>
@@ -284,13 +284,13 @@
                 <div class="grid-2col">
                     <div class="card" id="at-risk-card">
                         <div class="card-header">
-                            <h3>⚠️ At-Risk Students</h3>
+                            <h3 data-i18n="⚠️ At-Risk Students">⚠️ At-Risk Students</h3>
                         </div>
                         <div class="card-body" id="at-risk-list"></div>
                     </div>
                     <div class="card" id="topic-difficulty-card">
                         <div class="card-header">
-                            <h3>📊 Topic Difficulty</h3>
+                            <h3 data-i18n="📊 Topic Difficulty">📊 Topic Difficulty</h3>
                         </div>
                         <div class="card-body" id="topic-difficulty-chart"></div>
                     </div>
@@ -298,10 +298,10 @@
                 <!-- Data Management -->
                 <div class="card" style="margin-top:24px;border:1px solid var(--danger)">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                        <h3>🗑️ Data Management</h3>
-                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="eraseAllData()">Erase All Data</button>
+                        <h3 data-i18n="Data Management">🗑️ Data Management</h3>
+                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="eraseAllData()" data-i18n="Erase All Data">Erase All Data</button>
                     </div>
-                    <div class="card-body" style="font-size:13px;color:var(--text-muted)">
+                    <div class="card-body" style="font-size:13px;color:var(--text-muted)" data-i18n="Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.">
                         Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.
                     </div>
                 </div>

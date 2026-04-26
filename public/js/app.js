@@ -261,6 +261,8 @@ const i18n = {
     'confirm.erase_all_title': 'ERASE ALL DATA',
     'confirm.erase_all_msg1': 'This will permanently remove all student accounts, results, and mastery data. The curriculum will stay. Are you sure?',
     'confirm.erase_all_msg2': 'LAST WARNING: Type "ERASE ALL DATA" to confirm absolute deletion.',
+    'View Classrooms': 'View Classrooms',
+    'View': 'View',
     'alert.session_ended': 'Session Ended',
     'alert.account_removed': 'Your account has been removed or logged out.',
     'error': 'Error',
@@ -286,9 +288,25 @@ const i18n = {
     'assign.retry': 'An error occurred. Please try again.',
     'assign.type_answer': 'Type your answer...',
     'question': 'Question',
+    'questions': 'questions',
     'unit': 'Unit',
     'submitting': 'Submitting...',
-    'go_back': 'Go Back'
+    'go_back': 'Go Back',
+    'Dashboard': 'Dashboard',
+    'Overview': 'Overview',
+    'Curriculum': 'Curriculum',
+    'Activities': 'Activities',
+    'Quizzes': 'Quizzes',
+    'Assignments': 'Assignments',
+    'Students': 'Students',
+    'Reports': 'Reports',
+    'signOut': 'Sign Out',
+    'class.name': 'Classroom Name',
+    'class.building_msg': 'Your content is still being built from the textbook — check back soon.',
+    'class.no_curriculum': 'No curriculum data available for this classroom.',
+    'LOW_MASTERY': 'Low Mastery',
+    'LOW_ENGAGEMENT': 'Low Engagement',
+    'CRITICAL_RISK': 'Critical Risk'
   },
   tr: {
     langBtn: '🌐 EN',
@@ -304,6 +322,8 @@ const i18n = {
     'confirm.erase_all_title': 'TÜM VERİLERİ SİL',
     'confirm.erase_all_msg1': 'Bu işlem tüm öğrenci hesaplarını, sonuçlarını ve başarı verilerini kalıcı olarak silecektir. Müfredat kalacaktır. Emin misiniz?',
     'confirm.erase_all_msg2': 'SON UYARI: Kesin silme işlemini onaylamak için "ERASE ALL DATA" yazın.',
+    'View Classrooms': 'Sınıfları Gör',
+    'View': 'Görüntüle',
     'alert.session_ended': 'Oturum Kapatıldı',
     'alert.account_removed': 'Hesabınız silindi veya oturumunuz kapatıldı.',
     'error': 'Hata',
@@ -329,9 +349,25 @@ const i18n = {
     'assign.retry': 'Hata oluştu, tekrar deneyin.',
     'assign.type_answer': 'Cevabınızı yazın...',
     'question': 'Soru',
+    'questions': 'soru',
     'unit': 'Ünite',
     'submitting': 'Gönderiliyor...',
     'go_back': 'Geri Dön',
+    'Dashboard': 'Kontrol Paneli',
+    'Overview': 'Genel Bakış',
+    'Curriculum': 'Müfredat',
+    'Activities': 'Etkinlikler',
+    'Quizzes': 'Sınavlar',
+    'Assignments': 'Ödevler',
+    'Students': 'Öğrenciler',
+    'Reports': 'Raporlar',
+    'signOut': 'Çıkış Yap',
+    'class.name': 'Sınıf Adı',
+    'class.building_msg': 'İçeriğiniz hala hazırlanıyor — kısa süre sonra tekrar kontrol edin.',
+    'class.no_curriculum': 'Bu sınıf için müfredat verisi bulunamadı.',
+    'LOW_MASTERY': 'Düşük Başarı',
+    'LOW_ENGAGEMENT': 'Düşük Katılım',
+    'CRITICAL_RISK': 'Kritik Risk',
     loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
@@ -1218,7 +1254,7 @@ async function loadOverview() {
     <div class="stat-card"><div class="stat-label">${t('Top Performers')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
   const atRisk = report.at_risk_students || [];
   document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)">${t('No at-risk students 🎉')}</p>`
-    : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${f.replace(/_/g, ' ')}</span>`).join('')}</div></div>`).join('');
+    : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${t(f)}</span>`).join('')}</div></div>`).join('');
   const td = report.topic_difficulty || {};
   document.getElementById('topic-difficulty-chart').innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
     `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
@@ -1231,7 +1267,7 @@ function loadCurriculum() {
     if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — Content Map`;
 
     if (!curriculum || !Array.isArray(curriculum)) {
-      document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">No curriculum data available for this classroom.</p>`;
+      document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">${t('class.no_curriculum')}</p>`;
       return;
     }
 
@@ -1241,7 +1277,7 @@ function loadCurriculum() {
           <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
           <span class="chapter-toggle">▸</span>
         </div>
-        <div class="chapter-topics">${(ch.topics || []).map(t => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t.type}">${t.type}</span><span class="topic-name">${esc(t.title)}</span></div><div class="topic-meta"><span>${t.difficulty}</span><span>${t.question_count || 0} questions</span></div></div>`).join('')}</div>
+        <div class="chapter-topics">${(ch.topics || []).map(t_obj => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${t_obj.type}">${t_obj.type}</span><span class="topic-name">${esc(t_obj.title)}</span></div><div class="topic-meta"><span>${t_obj.difficulty}</span><span>${t_obj.question_count || 0} ${t('questions')}</span></div></div>`).join('')}</div>
       </div>`).join('');
   } catch (err) {
     console.error('Render Error:', err);
