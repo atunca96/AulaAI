@@ -2315,7 +2315,6 @@ async function viewAssignment(assignmentId, title) {
   `;
   applyTranslations(document.getElementById('student-detail-body'));
 }
-}
 
 async function previewAssignment(aid, title) {
   const modal = document.getElementById('student-detail-modal');
