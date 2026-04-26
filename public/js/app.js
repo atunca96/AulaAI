@@ -1202,7 +1202,12 @@ function initViewportFix() {
       activeWrapper.style.height = `${viewport.height}px`;
       
       const inputArea = activeWrapper.querySelector('.chat-input-area');
-      if (inputArea) inputArea.style.paddingBottom = '12px';
+      if (inputArea) {
+        inputArea.style.paddingBottom = '0px'; // Sit flush on keyboard
+        inputArea.style.paddingTop = '8px';
+        inputArea.style.paddingLeft = '8px';
+        inputArea.style.paddingRight = '8px';
+      }
 
       const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
       if (msgList) {
@@ -1212,7 +1217,12 @@ function initViewportFix() {
       activeWrapper.style.bottom = '0';
       activeWrapper.style.height = '100dvh';
       const inputArea = activeWrapper.querySelector('.chat-input-area');
-      if (inputArea) inputArea.style.paddingBottom = '';
+      if (inputArea) {
+        inputArea.style.paddingBottom = ''; // Let CSS handle safe area
+        inputArea.style.paddingTop = '';
+        inputArea.style.paddingLeft = '';
+        inputArea.style.paddingRight = '';
+      }
     }
   };
 
