@@ -9,5 +9,11 @@ venv
 .idea
 .DS_Store
 node_modules
-dist
-build
+package.json
+package-lock.json
+aula.db
+*.log
+worker.log
+pipeline.log
+public/books/*_toc.txt
+README.md
