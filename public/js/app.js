@@ -1720,7 +1720,10 @@ async function viewQuiz(quizId, title) {
 
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">${title}</h2>
-    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${L.classAvg}: <strong style="color:var(--accent)">${classAvg}%</strong> · ${studentResults.length} ${L.submitted}</div>
+    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">
+      <span data-i18n="assign.class_avg">${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
+      ${studentResults.length} <span data-i18n="assign.submitted">${L.submitted}</span>
+    </div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
       <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📄 <span data-i18n="answer">${t('answer')}</span></button>
