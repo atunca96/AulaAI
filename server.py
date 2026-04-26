@@ -1019,7 +1019,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _bg_generate_activities(self, course_id, topic_id, count):
         try:
             from database import db_connection
-            from services.ai_engine import ai_generate_single_activity
+            from services.ai_engine import ai_generate_activity_batch
             
             with db_connection() as db:
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
@@ -1030,10 +1030,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Spanish"
             
-            print(f"[BG] Starting activity generation for {topic['title']} ({language})")
-            
-            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
-            topic_type = topic.get("type", "vocabulary")
+            print(f"[BG] Starting BATCH activity generation for {topic['title']} ({language})")
+            file_log(f"Starting BATCH generation for {topic['title']}")
 
             def update_prog(p):
                 # Retry loop for DB locks
@@ -1051,25 +1049,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         file_log(f"Prog update fail: {e}")
                         return
             
-            final_activities = []
-            history = []
+            update_prog(15) # Started
             
-            # Start generation loop (Real Progress)
-            for i in range(count):
-                print(f"[BG] [{course_id}] Generating activity {i+1}/{count}...")
-                file_log(f"Generating activity {i+1}/{count} for {topic['title']}")
-                try:
-                    act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
-                    if act:
-                        act["id"] = _uid()
-                        final_activities.append(act)
-                        history.append(act.get("prompt"))
-                except Exception as e:
-                    file_log(f"AI Call failed for index {i}: {e}")
-                    
-                # Update REAL progress (e.g. 1 out of 6)
-                percentage = int(((i + 1) / count) * 100)
-                update_prog(percentage)
+            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
+            topic_type = topic.get("type", "vocabulary")
+
+            # Single call for all activities
+            raw_activities = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count)
+            update_prog(85) # AI returned
+            
+            final_activities = []
+            for act in raw_activities:
+                if act:
+                    act["id"] = _uid()
+                    final_activities.append(act)
             
             # Done!
             print(f"[BG] [{course_id}] Saving {len(final_activities)} activities...")

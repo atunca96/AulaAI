@@ -63,7 +63,7 @@ if os.path.exists(".env"):
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Using Claude 3.5 Haiku for fast, high-quality, and logically sound generation
-MODEL = "anthropic/claude-3.5-haiku"
+MODEL = "google/gemini-3.1-flash-lite-preview"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 if not OPENROUTER_API_KEY:
     file_log("CRITICAL: OPENROUTER_API_KEY IS MISSING!")
@@ -636,3 +636,36 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     if result and "score" in result:
         return (result["score"], result.get("feedback", ""))
     return (0.0, "Could not grade automatically.")
+
+
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6):
+    """Generate a cohesive batch of activities using a single AI call."""
+    prompt = f"""You are a professional Spanish teacher. 
+Generate a COHESIVE LEARNING JOURNEY of {count} unique activities for the topic: "{topic_title}".
+
+Topic Content/Context:
+{json.dumps(topic_content)}
+
+Target Language: {language}
+Topic Category: {topic_type}
+
+REQUIREMENTS:
+1. VARIETY: Do NOT repeat the same concept or word across activities. 
+2. PROGRESSION: Start easy and gradually increase complexity.
+3. TYPES: Use a mix of 'mcq' (Multiple Choice), 'fill_blank', and 'dialogue_order'.
+4. STRUCTURE: 
+   - 'mcq': {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
+   - 'fill_blank': {{ "type": "fill_blank", "prompt": "...", "answer": "..." }}
+   - 'dialogue_order': {{ "type": "dialogue_order", "prompt": "Order the conversation", "lines": ["...", "..."], "answer": [0, 1, ...] }}
+
+Return ONLY a JSON object with this structure:
+{{
+  "activities": [
+     // {count} activity objects here
+  ]
+}}
+"""
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.8)
+    if result and "activities" in result:
+        return result["activities"]
+    return []
