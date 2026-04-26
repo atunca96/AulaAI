@@ -719,11 +719,11 @@ body {
     
     .chat-wrapper.is-active {
         position: fixed !important;
-        top: 0 !important;
+        top: 0;
         left: 0 !important;
         right: 0 !important;
-        bottom: 0 !important;
-        height: 100dvh !important;
+        bottom: 0;
+        height: 100dvh;
         z-index: 9999 !important;
         background: var(--bg-main) !important;
         display: flex !important;

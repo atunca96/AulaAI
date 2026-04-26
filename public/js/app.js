@@ -1186,7 +1186,41 @@ function logout() {
   showScreen('login-screen');
 }
 
+// ── Visual Viewport Fix (Mobile Keyboard) ──
+function initViewportFix() {
+  if (!window.visualViewport) return;
+  
+  const handleViewportChange = () => {
+    const activeWrapper = document.querySelector('.chat-wrapper.is-active');
+    if (!activeWrapper) return;
+    
+    const viewport = window.visualViewport;
+    const offset = window.innerHeight - viewport.height;
+    
+    if (offset > 50) { // Keyboard likely open
+      activeWrapper.style.bottom = `${offset}px`;
+      activeWrapper.style.height = `${viewport.height}px`;
+      
+      // Ensure messages are scrolled to bottom
+      const msgList = activeWrapper.querySelector('#inbox-messages') || activeWrapper.querySelector('#student-chat-history');
+      if (msgList) {
+        setTimeout(() => {
+           msgList.scrollTop = msgList.scrollHeight;
+        }, 50);
+      }
+    } else {
+      activeWrapper.style.bottom = '0';
+      activeWrapper.style.height = '100dvh';
+    }
+  };
+
+  window.visualViewport.addEventListener('resize', handleViewportChange);
+  window.visualViewport.addEventListener('scroll', handleViewportChange);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  initViewportFix();
+  
   // Force English on refresh per user request
   window.currentLang = 'en';
   applyTranslations();
@@ -1232,10 +1266,6 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
-// Remove previous Visual Viewport listeners (letting the meta tag and dvh handle it)
-
-// Add focus listeners for chat inputs to ensure scroll
 document.addEventListener('focusin', (e) => {
   if (e.target.id === 'inbox-reply-text' || e.target.id === 'message-text') {
     setTimeout(() => {
@@ -1251,6 +1281,12 @@ document.addEventListener('focusin', (e) => {
 });
 
 function switchTab(btn, skipLoad = false) {
+  // Clean up any open chat overlays/locks when switching tabs
+  document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
+  document.documentElement.classList.remove('chat-open');
+  document.body.classList.remove('chat-open');
+  document.body.style.overflow = '';
+
   // Find which screen we are in (Lecturer or Student)
   const screen = btn.closest('.screen') || (currentUser.role === 'lecturer' ? document.getElementById('lecturer-dashboard') : document.getElementById('student-dashboard'));
   if (!screen) return;
@@ -1303,32 +1339,41 @@ let currentChatStudentId = null;
 async function loadStudentChat() {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
-  if (wrapper && window.innerWidth <= 768) {
-    wrapper.classList.add('is-active');
-    document.documentElement.classList.add('chat-open');
-    document.body.classList.add('chat-open');
+  const isTabActive = document.getElementById('tab-s-messages')?.classList.contains('active');
+  
+  if (wrapper && window.innerWidth <= 768 && isTabActive) {
+    // Small delay on refresh to ensure layout is ready
+    setTimeout(() => {
+      wrapper.classList.add('is-active');
+      document.documentElement.classList.add('chat-open');
+      document.body.classList.add('chat-open');
+    }, 50);
   }
   
-  const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
   const container = document.getElementById('student-chat-history');
+  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
+
+  const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
 
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
+    if (container) container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
     return;
   }
 
-  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
-    const isMe = m.sender === 'student';
-    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
-    return `
-      <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
-           style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
-        ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
-        ${esc(m.content)}
-        <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-      </div>
-    `;
-  }).join('') + `</div>`;
+  if (container) {
+    container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
+      const isMe = m.sender === 'student';
+      const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
+      return `
+        <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
+             style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
+          ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
+          ${esc(m.content)}
+          <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      `;
+    }).join('') + `</div>`;
+  }
   container.scrollTop = container.scrollHeight;
 
   messages.filter(m => m.sender === 'lecturer' && !m.is_read).forEach(m => {
@@ -1418,11 +1463,17 @@ async function loadInbox() {
 async function openChat(studentId, studentName) {
   currentChatStudentId = studentId;
   const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
-  if (wrapper) {
-    wrapper.classList.add('is-active');
+  const isTabActive = document.getElementById('tab-inbox')?.classList.contains('active');
+
+  if (wrapper && isTabActive) {
     if (window.innerWidth <= 768) {
-      document.documentElement.classList.add('chat-open');
-      document.body.classList.add('chat-open');
+      setTimeout(() => {
+        wrapper.classList.add('is-active');
+        document.documentElement.classList.add('chat-open');
+        document.body.classList.add('chat-open');
+      }, 50);
+    } else {
+      wrapper.classList.add('is-active');
     }
   }
   
@@ -1430,21 +1481,25 @@ async function openChat(studentId, studentName) {
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
 
-  const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
+  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
-  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
-    const isMe = m.sender === 'lecturer';
-    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
-    return `
-      <div class="chat-bubble ${isMe ? 'sent' : 'received'}"
-           style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
-        ${isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
-        ${esc(m.content)}
-        <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-      </div>
-    `;
-  }).join('') + `</div>`;
+  const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
+
+  if (container) {
+    container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
+      const isMe = m.sender === 'lecturer';
+      const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
+      return `
+        <div class="chat-bubble ${isMe ? 'sent' : 'received'}"
+             style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
+          ${isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
+          ${esc(m.content)}
+          <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      `;
+    }).join('') + `</div>`;
+  }
 
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
