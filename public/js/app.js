@@ -18,6 +18,10 @@ let _lastStudentHomeData = null;
 let _lastClassroomsData = null;
 let _lastStudentDetailData = null;
 let _lastReportData = null;
+let currentStudentEnrollments = [];
+let currentStudentLessons = [];
+let currentStudentQuizzes = [];
+let currentStudentAssignments = [];
 
 function toggleSidebar() {
   const sidebar = document.getElementById('mobile-sidebar');
@@ -98,6 +102,15 @@ function startLiveSync() {
         if (statusCheck && statusCheck.error === 'User not found') {
           await showAlert(t('alert.session_ended'), t('alert.account_removed'), true);
           logout();
+          return;
+        }
+        // If enrollment was removed (teacher did a hard reset on the classroom)
+        if (statusCheck && statusCheck.error === 'enrollment_removed' && currentUser.role === 'student') {
+          await showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
+          localStorage.removeItem('aula_last_course');
+          localStorage.removeItem('aula_last_tab');
+          showScreen('student-portal-screen');
+          await refreshStudentEnrollments();
           return;
         }
 
@@ -239,7 +252,7 @@ const i18n = {
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
     messageTeacher: 'Messages',
     messageStudent: 'Message Student',
-    inbox: 'Messages', book: 'Book',
+    inbox: 'Messages', study: 'Study',
     newChat: 'New Chat',
     selectStudent: 'Select a Student',
     searchStudent: 'Search students...',
@@ -249,6 +262,7 @@ const i18n = {
     sendBtn: 'Send',
     Lecturer: 'Lecturer', Student: 'Student',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
+    select_study_topic: 'Select a topic to start studying',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
     keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter',
@@ -360,8 +374,28 @@ const i18n = {
     'class.start_pipeline': 'Start Pipeline',
     'class.toc_manual': '2. Manual Curriculum / TOC (Paste here)',
     'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
-    'class.toc_range_hint': 'If you leave this blank, the AI will use the Manual Curriculum above as the primary source.',
-    'class.toc_range': '3. PDF Context Range (Optional)',
+    'class.toc_range_hint': 'If left empty, AI will use the Manual Syllabus above as the primary source.',
+    // Student Portal
+    'student.welcome': 'Welcome to AulaAI',
+    'student.select_class': 'Select a classroom to continue learning',
+    'student.join_new': 'Join New Classroom',
+    'student.join_title': 'Join Classroom',
+    'student.enter_code': 'Enter the 5-digit code provided by your teacher',
+    'no_classrooms_found': 'No classrooms found',
+    'student.join_btn': 'Join Classroom',
+    'student.pin_required': 'Security PIN Required',
+    'student.pin_desc': 'Please enter your 4-digit PIN for this classroom.',
+    'student.pin_setup': 'First-time Setup',
+    'student.pin_setup_desc': 'Set a 4-digit PIN for this classroom to use for future logins.',
+    'student.waiting': 'Waiting for Approval',
+    'student.waiting_desc': 'You will be able to enter once your teacher approves your request. Please refresh or check back later.',
+    'student.invalid_pin': 'Invalid PIN. Please try again.',
+    'student.pin': 'PIN',
+    'student.leave': 'Leave',
+    'student.leave_title': 'Leave Classroom',
+    'student.leave_msg': 'Are you sure you want to leave "{name}"? All your progress, scores, and data for this classroom will be permanently deleted.',
+    'alert.classroom_reset': 'Classroom Reset',
+    'alert.classroom_reset_msg': 'Your teacher has reset this classroom. You have been returned to the classroom selection screen.',
     'class.create_success': 'Classroom created successfully!',
     'class.share_msg': 'Share the Join Code with your students to start the lesson.',
     'class.create_success_full': 'Classroom created successfully! \n\nJoin Code: {code}\n\nShare the Join Code with your students to start the lesson.',
@@ -434,9 +468,12 @@ const i18n = {
     'Students': 'Students',
     'Reports': 'Reports',
     'signOut': 'Sign Out',
+    'signIn': 'Sign In',
+    'no_classrooms_found': 'No classrooms found',
+    'approved': 'Approved',
+    'pending': 'Pending',
     'class.name': 'Classroom Name',
     'class.pdf_limit': 'Max size: 50MB. Large files may take longer to process.',
-    'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
     'class.building_msg': 'Your content is still being built from the textbook — check back soon.',
     'class.no_curriculum': 'No curriculum data available for this classroom.',
     'low_mastery': 'Low Mastery',
@@ -513,6 +550,9 @@ const i18n = {
     'Students': 'Öğrenciler',
     'Reports': 'Raporlar',
     'signOut': 'Çıkış Yap',
+    'no_classrooms_found': 'Sınıf bulunamadı',
+    'student.enter_code': 'Öğretmeniniz tarafından verilen 5 haneli kodu girin',
+    'signIn': 'Giriş Yap',
     'class.name': 'Sınıf Adı',
     'class.pdf_limit': 'Maks dosya boyutu: 50MB. Büyük dosyaların işlenmesi daha uzun sürebilir.',
     'class.toc_manual_hint': 'Kitabın içindekiler kısmını veya müfredatınızı buraya yapıştırın. Yapay zeka bunu yol haritası olarak kullanacaktır.',
@@ -536,7 +576,7 @@ const i18n = {
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
     messageTeacher: 'Öğretmene Mesaj',
     messageStudent: 'Öğrenciye Mesaj',
-    inbox: 'Mesajlar', book: 'Kitap',
+    inbox: 'Mesajlar', study: 'Çalışma',
     newChat: 'Yeni Mesaj',
     selectStudent: 'Öğrenci Seç',
     searchStudent: 'Öğrenci ara...',
@@ -603,7 +643,11 @@ const i18n = {
     Practice: 'Alıştırma', Home: 'Ana Sayfa',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     settings: 'Ayarlar', language: 'Dil',
-    signOut: 'Çıkış Yap',
+    'signOut': 'Çıkış Yap',
+    'signIn': 'Giriş Yap',
+    'no_classrooms_found': 'Sınıf bulunamadı',
+    'approved': 'Onaylandı',
+    'pending': 'Bekliyor',
     // Settings
     'settings.title': 'Ayarlar',
     'settings.appearance': 'Görünüm',
@@ -701,6 +745,27 @@ const i18n = {
     'draft.lang_warning': 'Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.',
     'message.placeholder': 'Mesajınızı buraya yazın...',
     'alert.select_pdf': 'Lütfen bir PDF dosyası seçin',
+    // Student Portal
+    'student.welcome': 'AulaAI\'ya Hoş Geldiniz',
+    'student.select_class': 'Öğrenmeye devam etmek için bir sınıf seçin',
+    'student.join_new': 'Yeni Sınıfa Katıl',
+    'student.join_title': 'Sınıfa Katıl',
+    'student.enter_code': 'Öğretmeniniz tarafından verilen 5 haneli kodu girin',
+    'student.join_btn': 'Sınıfa Katıl',
+    'student.pin_required': 'Güvenlik PIN\'i Gerekli',
+    'student.pin_desc': 'Bu sınıf için 4 haneli PIN kodunuzu girin.',
+    'student.pin_setup': 'İlk Kez Giriş',
+    'student.pin_setup_desc': 'Gelecekteki girişleriniz için bu sınıfa özel 4 haneli bir PIN kodu belirleyin.',
+    'student.waiting': 'Onay Bekleniyor',
+    'student.waiting_desc': 'Öğretmeniniz başvurunuzu incelediğinde sınıfa girebileceksiniz. Lütfen bu sayfayı yenileyin veya daha sonra tekrar deneyin.',
+    'student.invalid_pin': 'Geçersiz PIN. Lütfen tekrar deneyin.',
+    'student.pin': 'PIN',
+    'student.leave': 'Ayrıl',
+    'student.leave_title': 'Sınıftan Ayrıl',
+    'student.leave_msg': '"{name}" sınıfından ayrılmak istediğinize emin misiniz? Bu sınıftaki tüm ilerlemeniz, puanlarınız ve verileriniz kalıcı olarak silinecektir.',
+    'alert.classroom_reset': 'Sınıf Sıfırlandı',
+    'alert.classroom_reset_msg': 'Öğretmeniniz bu sınıfı sıfırladı. Sınıf seçim ekranına yönlendirildiniz.',
+    select_study_topic: 'Çalışmak için bir konu seçin'
   }
 };
 
@@ -967,21 +1032,13 @@ async function completeLogin(user, isFresh = false) {
       showClassroomSelection();
     }
   } else {
-    if (currentUser.course_id) {
-      await selectClassroom(currentUser.course_id, false);
-    } else {
-      const savedCourse = localStorage.getItem('aula_last_course');
-      if (savedCourse) {
+    // Global Student Portal
+    const savedCourse = localStorage.getItem('aula_last_course');
+    if (savedCourse) {
         await selectClassroom(savedCourse, false);
-      } else {
-        const courses = await api('/courses');
-        if (courses && courses.length) {
-          await selectClassroom(courses[0].id, false);
-        } else {
-          showScreen('student-dashboard');
-          initStudent();
-        }
-      }
+    } else {
+        showScreen('student-portal-screen');
+        await refreshStudentEnrollments();
     }
   }
   startLiveSync();
@@ -1126,10 +1183,29 @@ async function selectClassroom(id, isLecturer = true) {
 
   document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
 
+  const isAiGenerated = course && course.textbook === 'AI Generated';
+  document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
+  document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
+  
+  // Hide Book tab for lecturers in AI courses
+  const lectBookTab = document.getElementById('lecturer-book-tab');
+  if (lectBookTab) {
+    lectBookTab.style.display = (isAiGenerated && currentUser.role === 'lecturer') ? 'none' : '';
+  }
+
+  if (isAiGenerated && currentUser.role === 'student') {
+    renderStudyBook();
+  }
+
   if (currentUser.role === 'lecturer') {
     showScreen('lecturer-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
-    const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${targetTab}"]`);
+    
+    // If we are in an AI course and the last tab was 'book', redirect to overview since book is hidden
+    let finalTab = targetTab;
+    if (isAiGenerated && targetTab === 'book') finalTab = 'overview';
+    
+    const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
     if (tabBtn) switchTab(tabBtn);
     await initLecturer();
   } else {
@@ -1416,31 +1492,40 @@ async function handleCreateClassroom(e) {
 }
 
 async function handleStudentLogin(e) {
-  e.preventDefault();
-  const number = document.getElementById('student-number').value.trim();
+  if (e) e.preventDefault();
+  const btn = e ? e.target.querySelector('button[type="submit"]') : null;
+  const num = document.getElementById('student-number').value.trim();
   const name = document.getElementById('student-name-input').value.trim();
-  const code = document.getElementById('classroom-code').value.trim();
-  const errEl = document.getElementById('student-login-error');
-  errEl.classList.add('hidden');
+  const errBox = document.getElementById('student-login-error');
 
-  const data = await api('/student/login', { method: 'POST', body: { student_number: number, name, classroom_code: code } });
-  if (data.error) {
-    const isTr = currentLang === 'tr';
-    const errorMap = {
-      'Name is required': isTr ? 'Ad Soyad alanı zorunludur.' : 'Full name is required.',
-      'Name is required for first login': isTr ? 'İlk girişte ad soyad gereklidir.' : 'Full name is required for first login.',
-      'Student number and name do not match': isTr ? 'Öğrenci numarası ve isim eşleşmiyor. Lütfen kayıtlı bilgilerinizi giriniz.' : 'Student number and name do not match. Please enter your registered information.',
-      'Student number is required': isTr ? 'Öğrenci numarası gereklidir.' : 'Student number is required.',
-      'Classroom code is required': isTr ? 'Sınıf kodu gereklidir.' : 'Classroom code is required.',
-      'Invalid classroom code': isTr ? 'Geçersiz sınıf kodu.' : 'Invalid classroom code.'
-    };
-    errEl.textContent = errorMap[data.error] || data.error;
-    errEl.classList.remove('hidden');
-    return false;
+  if (!num || !name) {
+    errBox.textContent = t('missing_info');
+    errBox.classList.remove('hidden');
+    return;
   }
-  // On subsequent logins, name field not needed
-  await completeLogin(data.user, true);
-  return false;
+
+  if (btn) btn.disabled = true;
+  errBox.classList.add('hidden');
+
+  try {
+    const res = await api('/student/login', {
+      method: 'POST',
+      body: { student_number: num, name: name }
+    });
+
+    if (res.error) {
+      errBox.textContent = res.error;
+      errBox.classList.remove('hidden');
+      if (btn) btn.disabled = false;
+    } else {
+      await completeLogin(res.user, true);
+      if (btn) btn.disabled = false;
+    }
+  } catch (err) {
+    errBox.textContent = t('error');
+    errBox.classList.remove('hidden');
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function handleLogin(e) {
@@ -1457,15 +1542,11 @@ async function handleLogin(e) {
 }
 
 function logout() {
-  currentUser = null;
-  _lastVersion = -1;
-  stopLiveSync();
   localStorage.removeItem('aula_user');
   sessionStorage.removeItem('aula_user');
   localStorage.removeItem('aula_last_course');
   localStorage.removeItem('aula_last_tab');
-  if (window._waitingPoll) clearInterval(window._waitingPoll);
-  showScreen('login-screen');
+  window.location.href = '/'; // Hard redirect to clear everything
 }
 
 // ── Visual Viewport Fix (Mobile Keyboard) ──
@@ -1475,45 +1556,54 @@ function initViewportFix() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  initViewportFix();
+  try {
+    initViewportFix();
 
-  // Apply translations based on saved preference
-  applyTranslations();
+    // Apply translations based on saved preference
+    applyTranslations();
 
-  // Apply saved theme and HUD size
-  const savedTheme = localStorage.getItem('aula_theme') || 'dark';
-  setTheme(savedTheme);
+    // Apply saved theme and HUD size
+    const savedTheme = localStorage.getItem('aula_theme') || 'dark';
+    setTheme(savedTheme);
 
-  const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
-  if (savedUser) {
-    try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
-    catch (e) { showScreen('login-screen'); }
-  } else showScreen('login-screen');
+    const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
+    if (savedUser) {
+      try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
+      catch (e) { showScreen('login-screen'); }
+    } else showScreen('login-screen');
 
-  // Add language warnings to creation forms
-  const activityBtn = document.querySelector('button[onclick="launchActivity()"]');
-  if (activityBtn) {
-    const warn = document.createElement('div');
-    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-    warn.setAttribute('data-i18n', 'draft.lang_warning');
-    warn.textContent = t('draft.lang_warning');
-    activityBtn.parentNode.appendChild(warn);
-  }
-  const quizBtn = document.querySelector('button[onclick="createQuiz()"]');
-  if (quizBtn) {
-    const warn = document.createElement('div');
-    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-    warn.setAttribute('data-i18n', 'draft.lang_warning');
-    warn.textContent = t('draft.lang_warning');
-    quizBtn.parentNode.appendChild(warn);
-  }
-  const assignBtn = document.querySelector('button[onclick="createAssignment()"]');
-  if (assignBtn) {
-    const warn = document.createElement('div');
-    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-    warn.setAttribute('data-i18n', 'draft.lang_warning');
-    warn.textContent = t('draft.lang_warning');
-    assignBtn.parentNode.appendChild(warn);
+    // Add language warnings to creation forms
+    const activityBtn = document.querySelector('button[onclick="launchActivity()"]');
+    if (activityBtn) {
+      const warn = document.createElement('div');
+      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+      warn.setAttribute('data-i18n', 'draft.lang_warning');
+      warn.textContent = t('draft.lang_warning');
+      activityBtn.parentNode.appendChild(warn);
+    }
+    const quizBtn = document.querySelector('button[onclick="createQuiz()"]');
+    if (quizBtn) {
+      const warn = document.createElement('div');
+      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+      warn.setAttribute('data-i18n', 'draft.lang_warning');
+      warn.textContent = t('draft.lang_warning');
+      quizBtn.parentNode.appendChild(warn);
+    }
+    const assignBtn = document.querySelector('button[onclick="createAssignment()"]');
+    if (assignBtn) {
+      const warn = document.createElement('div');
+      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+      warn.setAttribute('data-i18n', 'draft.lang_warning');
+      warn.textContent = t('draft.lang_warning');
+      assignBtn.parentNode.appendChild(warn);
+    }
+  } catch (err) {
+    console.error('INIT ERROR:', err);
+    alert('Critical Initialization Error: ' + err.message);
+    // Force show login screen as fallback
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const login = document.getElementById('login-screen');
+    if (login) login.classList.add('active');
   }
 });
 
@@ -1557,13 +1647,16 @@ function switchTab(btn, skipLoad = false) {
   }
 
   // Update tab-panel active state
-  const main = screen.querySelector('main');
-  if (main) {
-    main.querySelectorAll('.tab-panel').forEach(p => {
-      if (p.id === 'tab-' + tabId) p.classList.add('active');
-      else p.classList.remove('active');
-    });
-  }
+  const panels = screen.querySelectorAll('.tab-panel');
+  panels.forEach(p => {
+    if (p.id === 'tab-' + tabId) {
+        p.classList.add('active');
+        p.style.display = 'block'; // Force visibility
+    } else {
+        p.classList.remove('active');
+        p.style.display = 'none';
+    }
+  });
 
   localStorage.setItem('aula_last_tab', tabId);
 
@@ -2077,7 +2170,8 @@ function startActivityPolling(targetId, title) {
         if (data.status === 'done' && data.results) {
           clearInterval(activityProgressInterval);
           _lastActivityData = { activities: data.results };
-          const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#${targetId}').classList.add('hidden')">${t('close')}</button></div>`;
+          const isStudent = currentUser.role === 'student';
+          const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
           document.getElementById(targetId).innerHTML = header + (data.results || []).map((a, i) => renderActivityCard(a, i, targetId)).join('');
         } else if (data.status === 'error') {
           clearInterval(activityProgressInterval);
@@ -2484,6 +2578,7 @@ async function loadStudentRoster() {
       <div class="student-meta-row">
         <span><span data-i18n="Mastery:">${t('Mastery:')}</span> ${pct}%</span>
         <span>${s.total_responses} <span data-i18n="responses">${t('responses')}</span></span>
+        <span style="color:var(--accent-light); font-weight:700;">PIN: ${s.pin || '---'}</span>
       </div>
     </div>`;
   }).join('');
@@ -2781,6 +2876,7 @@ async function initStudent() {
     loadStudentChat()
   ]);
   loadStudentPractice();
+  applyTranslations();
 }
 
 async function loadStudentStats() {
@@ -2813,13 +2909,13 @@ function renderStudentHome(data) {
 
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
-    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
   }
 }
 
 function loadStudentPractice() {
   document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
-    `<div class="topic-practice-card" onclick="startPractice('${tp.id}','${esc(tp.title)}')">
+    `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
         <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
         ${tp.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${tp.pdf_url}', '_blank')">📖</button>` : ''}
@@ -2830,27 +2926,59 @@ function loadStudentPractice() {
   ).join('')).join('');
 }
 
-async function startPractice(tid, title) {
-  const area = document.getElementById('practice-area');
-  area.classList.remove('hidden');
-  area.scrollIntoView({ behavior: 'smooth' });
+function startStudyFirst(topicId) {
+    // 1. Find the Study tab button and switch to it
+    const studyTabBtn = document.getElementById('nav-s-study-tab') || document.querySelector('button[data-tab="s-book"]');
+    if (studyTabBtn) {
+        switchTab(studyTabBtn);
+        // 2. Load the study content for this topic
+        setTimeout(() => showStudyTopic(topicId), 50);
+    }
+}
 
-  // Show Loading State
-  showGenerationLoading(area);
+async function startPractice(tid, title) {
+  const topicsGrid = document.getElementById('practice-topics');
+  const area = document.getElementById('practice-area');
+  
+  if (topicsGrid) topicsGrid.classList.add('hidden');
+  if (area) {
+    area.innerHTML = ''; // Clear previous
+    area.classList.remove('hidden');
+    area.style.display = 'block'; // Force visibility
+    showGenerationLoading(area);
+  }
 
   try {
     // 1. Kick off the background task
-    await api('/activity/start', {
+    const res = await api('/activity/start', {
       method: 'POST',
       body: { topic_id: tid, course_id: courseId, count: 6 }
     });
+    if (res.error) throw new Error(res.error);
+    
     // 2. Start polling
     startActivityPolling('practice-area', `${t('practice')}: ${title}`);
   } catch (err) {
-    area.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
-      ${t('assign.retry')}
-    </div>`;
+    console.error("Practice Start Error:", err);
+    if (area) {
+        area.innerHTML = `<div style="padding:40px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
+          <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+          <h3 style="margin-bottom:8px;">${t('assign.retry')}</h3>
+          <p style="color:var(--text-muted); margin-bottom:24px;">${err.message || 'Generation failed'}</p>
+          <button class="btn btn-primary" onclick="cancelPractice()">Back to Topics</button>
+        </div>`;
+    }
   }
+}
+
+function cancelPractice() {
+    const topicsGrid = document.getElementById('practice-topics');
+    const area = document.getElementById('practice-area');
+    if (topicsGrid) topicsGrid.classList.remove('hidden');
+    if (area) {
+        area.classList.add('hidden');
+        area.innerHTML = '';
+    }
 }
 
 async function loadStudentProgress() {
@@ -3420,6 +3548,366 @@ async function submitAssignment(area) {
         ${t('cancel')}
       </button>
     </div>`;
+  }
+}
+
+// ── Digital Study Book (AI Architect) ──
+function renderStudyBook() {
+  const tocId = currentUser.role === 'lecturer' ? 'ai-book-toc' : 's-ai-book-toc';
+  const toc = document.getElementById(tocId);
+  if (!toc) return;
+
+  if (!curriculum || curriculum.length === 0) {
+    toc.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:10px;">No curriculum loaded.</p>`;
+    return;
+  }
+
+  toc.innerHTML = curriculum.map((ch, i) => `
+    <div class="study-ch-group" style="margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">Unit ${ch.number || (i+1)}</div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        ${ch.topics.map(t => `
+          <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.3; height:auto; transition:0.2s ease;">
+            ${esc(t.title)}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function showStudyTopic(topicId, pageIdx = 0) {
+  const contentId = currentUser.role === 'lecturer' ? 'ai-book-content' : 's-ai-book-content';
+  const container = document.getElementById(contentId);
+  if (!container) return;
+
+  // Find topic in curriculum
+  let topic = null;
+  for (const ch of curriculum) {
+    topic = ch.topics.find(t => t.id === topicId);
+    if (topic) break;
+  }
+  if (!topic) return;
+
+  // Highlight active sidebar item
+  document.querySelectorAll('.study-topic-btn').forEach(b => {
+    const isActive = b.textContent.trim() === topic.title;
+    b.classList.toggle('active', isActive);
+    b.style.background = isActive ? 'var(--accent-glow)' : '';
+    b.style.color = isActive ? 'var(--accent-light)' : '';
+    b.style.fontWeight = isActive ? '700' : '400';
+  });
+
+  const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
+  
+  // Define pages
+  const pages = [];
+  
+  // Page 1: Vocabulary (The Cheat Sheet)
+  const vocabulary = content.words || content.vocabulary || {};
+  const vocabArray = Array.isArray(vocabulary) ? vocabulary : Object.entries(vocabulary).map(([term, translation]) => ({ term, translation }));
+  
+  if (vocabArray.length > 0) {
+    pages.push({
+      title: "Vocabulary Cheat Sheet",
+      icon: "📙",
+      render: () => `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+          ${vocabArray.map(v => `
+            <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
+              <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || v[0] || ''}</div>
+              <div style="color:var(--accent-light); font-weight:600;">${v.translation || v[1] || ''}</div>
+            </div>
+          `).join('')}
+        </div>
+      `
+    });
+  }
+
+  // Page 2: Grammar & Rules
+  const grammarText = (content.rules || []).join('\n\n') || content.grammar || "";
+  if (grammarText) {
+    pages.push({
+      title: "Grammar & Key Rules",
+      icon: "⚙️",
+      render: () => `
+        <div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${grammarText}</div>
+      `
+    });
+  }
+
+  // Page 3: Context & Examples
+  const examples = content.examples || content.dialogue || [];
+  if (examples.length > 0) {
+    pages.push({
+      title: "Practical Usage",
+      icon: "💬",
+      render: () => `
+        <div style="display:flex; flex-direction:column; gap:20px;">
+          ${examples.map(ex => {
+            const isObj = typeof ex === 'object';
+            const text = isObj ? (ex.text || ex.example || "") : ex;
+            const speaker = isObj ? (ex.speaker || "") : "";
+            return `
+            <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
+              ${speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${speaker}</div>` : ''}
+              <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${text}"</div>
+            </div>`;
+          }).join('')}
+        </div>
+      `
+    });
+  }
+
+  // Final Page: Ready to Practice
+  pages.push({
+    title: "Lesson Complete",
+    icon: "🏁",
+    render: () => `
+      <div style="text-align:center; padding:60px 20px;">
+        <div style="font-size:64px; margin-bottom:24px;">🎯</div>
+        <h2 style="font-size:28px; margin-bottom:12px;">You're Ready to Practice!</h2>
+        <p style="color:var(--text-muted); margin-bottom:40px; font-size:18px; max-width:500px; margin-left:auto; margin-right:auto;">
+          You've reviewed the vocabulary, grammar, and examples for <strong>${topic.title}</strong>. 
+          Now it's time to test your knowledge with some interactive activities.
+        </p>
+        <button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">🚀 Start Practice Session</button>
+      </div>
+    `
+  });
+
+  const page = pages[pageIdx] || pages[0];
+
+  container.innerHTML = `
+    <div style="max-width:850px; margin:0 auto; animation:fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:32px; border-bottom:1px solid var(--border); padding-bottom:24px;">
+        <div>
+          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${topic.title} • PAGE ${pageIdx + 1}/${pages.length}</div>
+          <h1 style="font-size:36px; font-weight:800; letter-spacing:-1px;">${page.icon} ${page.title}</h1>
+        </div>
+        <div style="display:flex; gap:12px;">
+          ${pageIdx > 0 ? `
+            <button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})" style="border-radius:12px; padding:10px 20px;">← Back</button>
+          ` : ''}
+          ${pageIdx < pages.length - 1 ? `
+            <button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})" style="border-radius:12px; padding:10px 24px; box-shadow:var(--accent-glow);">Next Page →</button>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="study-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:24px; padding:40px; min-height:500px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        ${page.render()}
+      </div>
+
+      <div style="margin-top:24px; display:flex; justify-content:center; gap:8px;">
+        ${pages.map((_, i) => `
+            <div style="width:${i === pageIdx ? '24px' : '8px'}; height:8px; border-radius:4px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:all 0.3s ease;"></div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function launchStudyActivity(topicId, topicTitle) {
+    const selector = currentUser.role === 'lecturer' ? 'button[data-tab="activities"]' : 'button[data-tab="s-practice"]';
+    const tabBtn = document.querySelector(selector);
+    if (tabBtn) {
+        switchTab(tabBtn);
+        // Start practice after a small delay to ensure DOM is ready
+        setTimeout(() => startPractice(topicId, topicTitle), 100);
+    } else {
+        // Fallback if button not found
+        startPractice(topicId, topicTitle);
+    }
+}
+
+// ── Student Portal Functions ──
+
+async function refreshStudentEnrollments() {
+    if (!currentUser) return;
+    const res = await api('/student/login', {
+        method: 'POST',
+        body: { student_number: currentUser.email.split('@')[0], name: currentUser.name }
+    });
+    if (!res.error) {
+        currentStudentEnrollments = res.enrollments || [];
+        renderStudentPortal();
+    }
+}
+
+function renderStudentPortal() {
+  const grid = document.getElementById('student-classrooms-grid');
+  if (!grid) return;
+
+  if (currentStudentEnrollments.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column:1/-1; text-align:center; padding:60px; background:var(--bg-card); border-radius:16px; border:1px dashed var(--border);">
+        <div style="font-size:48px; margin-bottom:16px;">🏫</div>
+        <h2 data-i18n="no_classrooms_found">${t('no_classrooms_found')}</h2>
+        <p style="color:var(--text-muted); margin-top:8px;">${t('student.enter_code')}</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = currentStudentEnrollments.map(enr => `
+    <div class="classroom-card" style="position:relative">
+      <div onclick="enterStudentClassroom('${enr.course_id}')" style="cursor:pointer">
+        <div class="classroom-card-header">
+          <div class="classroom-icon">🎓</div>
+          <div class="classroom-status ${enr.status}">${enr.status === 'approved' ? '✓ ' + t('approved') : '⏳ ' + t('pending')}</div>
+        </div>
+        <div class="classroom-card-body">
+          <h3 class="classroom-name">${esc(enr.course_name)}</h3>
+          <div class="classroom-meta">${enr.language || 'Language'} • ${enr.level || 'Level'}</div>
+        </div>
+        <div class="classroom-card-footer">
+          <div class="classroom-code">#${enr.course_code}</div>
+          <div class="classroom-arrow">→</div>
+        </div>
+      </div>
+      <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="position:absolute; top:12px; right:12px; background:rgba(255,59,48,0.1); color:var(--danger); border:1px solid var(--danger); font-size:12px; padding:4px 10px; border-radius:8px; z-index:2" data-i18n="student.leave">${t('student.leave')}</button>
+    </div>
+  `).join('');
+  applyTranslations(grid);
+}
+
+function openJoinClassroomModal() {
+    document.getElementById('join-classroom-modal').classList.remove('hidden');
+    document.getElementById('join-class-code').value = '';
+    document.getElementById('join-class-code').focus();
+}
+
+function closeJoinClassroomModal() {
+    document.getElementById('join-classroom-modal').classList.add('hidden');
+}
+
+async function handleJoinClassroom() {
+    const code = document.getElementById('join-class-code').value.trim();
+    if (code.length < 5) return;
+
+    const res = await api('/student/join', {
+        method: 'POST',
+        body: { student_id: currentUser.id, code: code }
+    });
+
+    if (res.error) {
+        showAlert(t('error'), res.error, true);
+    } else {
+        closeJoinClassroomModal();
+        await refreshStudentEnrollments();
+    }
+}
+
+async function enterStudentClassroom(courseId) {
+  const enr = currentStudentEnrollments.find(e => e.course_id === courseId);
+  if (!enr) return;
+
+  if (enr.status === 'pending') {
+    showScreen('waiting-room-screen');
+    startWaitingRoomPoll(courseId);
+    return;
+  }
+
+  if (!enr.pin) {
+    showPinModal('setup', courseId);
+  } else {
+    showPinModal('verify', courseId);
+  }
+}
+
+function showPinModal(mode, courseId) {
+  const modal = document.getElementById('pin-entry-modal');
+  const title = document.getElementById('pin-modal-title');
+  const desc = document.getElementById('pin-modal-desc');
+  const pinInput = document.getElementById('student-pin-input');
+  const submitBtn = document.getElementById('pin-submit-btn');
+  const errBox = document.getElementById('pin-error');
+
+  modal.classList.remove('hidden');
+  pinInput.value = '';
+  pinInput.focus();
+  errBox.classList.add('hidden');
+
+  if (mode === 'setup') {
+    title.textContent = t('student.pin_setup');
+    desc.textContent = t('student.pin_setup_desc');
+    submitBtn.textContent = t('submit');
+    submitBtn.onclick = () => handleSetPin(courseId, pinInput.value);
+  } else {
+    title.textContent = t('student.pin_required');
+    desc.textContent = t('student.pin_desc');
+    submitBtn.textContent = t('class.enter');
+    submitBtn.onclick = () => handleVerifyPin(courseId, pinInput.value);
+  }
+}
+
+function closePinModal() {
+    document.getElementById('pin-entry-modal').classList.add('hidden');
+}
+
+async function handleSetPin(courseId, pin) {
+    if (pin.length !== 4) return;
+    const res = await api('/student/set-pin', {
+        method: 'POST',
+        body: { student_id: currentUser.id, course_id: courseId, pin: pin }
+    });
+    if (res.error) {
+        document.getElementById('pin-error').textContent = res.error;
+        document.getElementById('pin-error').classList.remove('hidden');
+    } else {
+        closePinModal();
+        await selectClassroom(courseId, false);
+    }
+}
+
+async function handleVerifyPin(courseId, pin) {
+    if (pin.length !== 4) return;
+    const res = await api('/student/access', {
+        method: 'POST',
+        body: { student_id: currentUser.id, course_id: courseId, pin: pin }
+    });
+    if (res.error) {
+        document.getElementById('pin-error').textContent = t('student.invalid_pin');
+        document.getElementById('pin-error').classList.remove('hidden');
+    } else {
+        closePinModal();
+        await selectClassroom(courseId, false);
+    }
+}
+
+function startWaitingRoomPoll(courseId) {
+    if (window._waitingPoll) clearInterval(window._waitingPoll);
+    window._waitingPoll = setInterval(async () => {
+        const check = await api('/user/status?user_id=' + currentUser.id + '&course_id=' + courseId);
+        if (check && check.status === 'approved') {
+            clearInterval(window._waitingPoll);
+            currentUser.status = 'approved';
+            localStorage.setItem('aula_user', JSON.stringify(currentUser));
+            sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
+            window.location.reload(); 
+        }
+    }, 2000);
+}
+
+async function leaveClassroom(courseId, courseName) {
+  const confirmed = await showConfirmModal('student.leave_title', 'student.leave_msg', true, null, false, 'ok', 'cancel', { name: courseName });
+  if (!confirmed) return;
+
+  const res = await api('/student/leave', {
+    method: 'POST',
+    body: { student_id: currentUser.id, course_id: courseId }
+  });
+
+  if (res && res.success) {
+    // If the student was inside this classroom, go back to portal
+    if (typeof courseId !== 'undefined' && localStorage.getItem('aula_last_course') === courseId) {
+      localStorage.removeItem('aula_last_course');
+      localStorage.removeItem('aula_last_tab');
+    }
+    await refreshStudentEnrollments();
+  } else {
+    showAlert(t('error'), (res && res.error) || 'Failed to leave classroom.', true);
   }
 }
 

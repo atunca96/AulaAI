@@ -10,25 +10,30 @@ import urllib.error
 from datetime import datetime
 import time
 import hashlib
+import threading
 
 # Simple AI response cache to avoid redundant calls and speed up everything
 AI_CACHE_FILE = os.path.join("data", "ai_cache.json")
 _ai_memory_cache = {}
+# Global lock for thread-safe cache access
+_cache_lock = threading.Lock()
 
 def load_ai_cache():
     global _ai_memory_cache
     if os.path.exists(AI_CACHE_FILE):
         try:
             with open(AI_CACHE_FILE, "r", encoding="utf-8") as f:
-                _ai_memory_cache = json.load(f)
+                with _cache_lock:
+                    _ai_memory_cache = json.load(f)
         except:
             _ai_memory_cache = {}
 
 def save_ai_cache():
     try:
         os.makedirs(os.path.dirname(AI_CACHE_FILE), exist_ok=True)
-        with open(AI_CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(_ai_memory_cache, f)
+        with _cache_lock:
+            with open(AI_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(_ai_memory_cache, f)
     except:
         pass
 
@@ -51,7 +56,7 @@ if os.path.exists(".env"):
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-# Using Claude 3.5 Haiku for fast, high-quality, and up-to-date generation
+# Using Claude 3.5 Haiku for fast, high-quality, and logically sound generation
 MODEL = "anthropic/claude-3.5-haiku"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 if not OPENROUTER_API_KEY:
@@ -339,60 +344,53 @@ Return ONLY valid JSON:
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     """Generate both content, study guide, and questions in a single LLM call."""
-    lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
-    
-    if topic_type == "vocabulary":
-        detail = """
-        - 'words': A dictionary of 15-20 essential words/phrases with English translations.
-        - 'usage_notes': A few tips on how to use these words in real life.
-        - 'cheat_sheet': A 2-sentence summary of the most important takeaways.
-        """
-    else:
-        detail = """
-        - 'rules': 4-6 detailed grammar rules with clear explanations.
-        - 'examples': 6 illustrative examples with English translations.
-        - 'common_mistakes': 2-3 things students usually get wrong.
-        - 'cheat_sheet': A 2-sentence summary of the core grammar pattern.
-        """
-
-    prompt = f"""You are an elite language textbook author specializing in {language}. 
-    Generate a COMPREHENSIVE immersive lesson for the topic '{topic_title}' ({topic_type}).
-    
-    IMPORTANT: All rules, examples, usage notes, and questions MUST be written in {language}. 
-    Only use English for the word translations in the 'words' dictionary and 'examples' translations if helpful.
+    prompt = f"""You are an elite language textbook author and polyglot. 
+    Generate a HIGH-LEVEL, EFFECTIVE, and COMPREHENSIVE lesson for the topic '{topic_title}' ({topic_type}) to teach {language} to an English speaker.
     
     1. CONTENT (The Study Guide): 
-       {detail}
+       - EXPLANATIONS: Grammar rules, usage notes, and common mistakes MUST be in ENGLISH.
+       - TARGET CONTENT: Vocabulary and examples must be in {language} (with English translations).
+       - 'words': 15-20 ESSENTIAL words/phrases with English translations.
+       - 'rules': 5-7 DEEP grammar rules in ENGLISH.
+       - 'examples': 8-10 VARIED examples in {language} (English translations).
+       - 'usage_notes': Detailed cultural tips in ENGLISH.
+       - 'common_mistakes': 3-5 specific learner errors explained in ENGLISH.
+       - 'cheat_sheet': 3-sentence "Golden Rules" summary in ENGLISH.
     
     2. QUESTIONS: Generate exactly {question_count} professional, unambiguous interactive questions.
        
-       CRITICAL QUALITY RULES:
-       - IMMERSION: All prompts and answers MUST be 100% in {language}. No English in the questions.
-       - NO GUESSING: For 'fill_blank', you MUST provide a "context setup" sentence before the question so the answer is the ONLY logical choice.
-         * INCORRECT: "Benim ____ çok sevimli." (Guessing game)
-         * CORRECT: "Küçük bir kedim var. Benim kedim çok sevimli." (Logical follow-up)
-       - GRAMMAR HINTS: 
-         * For 'grammar/conjugation', provide the base word in parentheses. (e.g. "Dün okula ____. (gitmek)")
-         * For 'vocabulary', DO NOT provide the answer in parentheses. Instead, provide a short definition or synonym in {language} as a hint. (e.g. "Bu ____ çok büyük. [Oturduğumuz yer]")
-       - MCQ QUALITY: Distractors MUST be plausible but clearly wrong.
+       STRICT PEDAGOGICAL RULES:
+       - PROMPT LANGUAGE: The 'prompt' field MUST be written in ENGLISH (e.g. "Which word means 'water'?"). 
+       - DO NOT TRANSLATE THE PROMPT into {language}.
+       - OPTIONS: All answer choices (correct and distractors) MUST be 100% in {language}.
+       - NO AMBIGUITY: There must be only ONE logical and grammatically correct answer.
+       - DISTRACTORS: For 'mcq', distractors must be plausible but CLEARLY WRONG.
+       - NO REPEATING OPTIONS: The 'answer' MUST NOT be part of the 'distractors' list.
+       - FILL_BLANK CONTEXT: Provide a setup sentence in {language} first, then the question in English.
+         * GOOD: "Benim bir kedim var. (I have a cat.) Complete the sentence: Benim ____ tatli." -> Answer: "kedim"
     
     Return ONLY valid JSON with this exact structure:
     {{
       "content": {{
          "words": {{ "word_in_{language}": "english_translation" }},
-         "rules": ["... rules in {language} ..."],
-         "examples": ["... example in {language} (English translation) ..."],
-         "usage_notes": "... in {language} ...",
-         "common_mistakes": ["... in {language} ..."],
-         "cheat_sheet": "... in {language} ..."
+         "rules": ["..."], "examples": ["..."], "usage_notes": "...", "common_mistakes": ["..."], "cheat_sheet": "..."
       }},
       "questions": [ 
-         {{ "type": "mcq", "prompt": "... context-rich question in {language} ...", "answer": "... in {language} ...", "distractors": ["...", "...", "..."] }},
-         {{ "type": "fill_blank", "prompt": "... Context Sentence. Question sentence with ____ and (hint word). ...", "answer": "..." }},
-         ... 
+         {{ 
+           "type": "mcq", 
+           "prompt": "Which word means 'city'?", 
+           "answer": "sehir", 
+           "distractors": ["okul", "ev", "kahve"] 
+         }},
+         {{ 
+           "type": "fill_blank", 
+           "prompt": "I have a cat. Complete the sentence: Benim ____ (kedi) tatli.", 
+           "answer": "kedim" 
+         }}
       ]
     }}"""
     
+    # Use 3.5 Haiku as it is significantly smarter for logic/JSON
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 
@@ -411,39 +409,34 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}" if (rules or examples) else "Generate basic grammar rules for this level."
 
     lang_context = f"Target Language: {language}" if language and language != "Unknown" else "Target Language: Infer from the context"
-    prompt = f"""You are a professional language teacher creating HIGH-QUALITY immersive exercises for A1/A2 level students.
+    prompt = f"""You are a professional language teacher creating HIGH-QUALITY exercises for A1/A2 level students.
     Topic: {topic_title}
     Type: {topic_type}
-    {lang_context}
+    Target Language: {language}
     {context}
 
     STRICT PEDAGOGICAL RULES:
-    1. VARIETY: This is the MOST IMPORTANT rule. Every single question must be unique. Test different words, different grammar points, and use different sentence structures. NEVER repeat the same logic.
-    2. IMMERSION: Both the 'prompt' and the 'answer' MUST be written entirely in {language}.
-    3. FILL_BLANK MUST HAVE BLANKS: For 'fill_blank', you MUST include exactly one '____' (4 underscores) in the prompt where the answer goes.
-       * GOOD: "Ich ____ (heißen) Michael." -> Answer: "heiße"
-    4. NO OPEN-ENDED TASKS: Every question must have a single, concrete, short correct answer.
-    5. NO MATCHING: Only MCQ or Fill-in-the-blank.
-    6. UNAMBIGUOUS: There must be only one correct answer.
-    7. TRUE/FALSE AS MCQ: Use type 'mcq' with 2 options ('Richtig'/'Falsch', etc.).
+    1. PROMPT LANGUAGE: Write the 'prompt' (the question) in ENGLISH (e.g. "Which of these means 'water'?"). 
+    2. OPTION LANGUAGE: All answer choices (correct and distractors) MUST be in {language}.
+    3. NO AMBIGUITY: There must be only ONE logically and grammatically correct answer.
+    4. VARIETY: Test different words and grammar points. Do not repeat the same logic.
+    5. FILL_BLANK MUST HAVE BLANKS: For 'fill_blank', include '____' in the prompt where the answer goes.
+    6. NO OPEN-ENDED TASKS: Every question must have a single concrete answer.
 
-    Generate exactly 10 high-quality, unique questions. Mix:
-    - "mcq" (multiple choice with 1 to 3 distractors)
-    - "fill_blank" (fill in the blank)
-
+    Generate exactly 12 unique questions. Mix 'mcq' and 'fill_blank'.
     Return ONLY valid JSON:
     {{
       "questions": [
         {{
           "type": "mcq",
-          "prompt": "... context-rich prompt in {language} ...",
-          "answer": "...",
-          "distractors": ["...", "...", "..."]
+          "prompt": "Which word is the correct article for 'Haus'?",
+          "answer": "das",
+          "distractors": ["der", "die"]
         }},
         {{
           "type": "fill_blank",
-          "prompt": "... Context. Sentence with ____ (hint). ...",
-          "answer": "..."
+          "prompt": "I eat an apple. Ik ____ (eten) een appel.",
+          "answer": "eet"
         }}
       ]
     }}"""
@@ -472,18 +465,30 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             
         valid_questions.append(q)
         
-    # Deduplication Step: Ensure no two questions have the same prompt (normalized)
+    # Deduplication and Validation Step
     seen_prompts = set()
     unique_questions = []
     for q in valid_questions:
-        # Normalize prompt: lowercase and remove all non-alphanumeric characters
+        ans = str(q.get("answer", "")).strip()
+        if not ans: continue
+        
+        if q.get("type") == "mcq":
+            dist = q.get("distractors", [])
+            if not isinstance(dist, list): dist = [str(dist)]
+            # Filter out answer from distractors if AI slipped it in
+            dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
+            q["distractors"] = dist[:3]
+            # Create the combined options field for the UI
+            opts = [ans] + q["distractors"]
+            py_random.shuffle(opts)
+            q["options"] = opts
+
+        # Normalize prompt for deduplication
         raw_p = q.get("prompt", "")
         p_norm = re.sub(r'[^a-z0-9\u00C0-\u017F]', '', raw_p.lower())
         if p_norm and p_norm not in seen_prompts:
             seen_prompts.add(p_norm)
             unique_questions.append(q)
-        else:
-            file_log(f"Discarding duplicate question: {raw_p[:50]}...")
 
     # Shuffle for variety and slice to requested count
     py_random.shuffle(unique_questions)
@@ -495,49 +500,67 @@ def ai_generate_single_activity(topic_title, topic_type, topic_content, language
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
         word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
-        context = f"Vocabulary: {word_list}"
+        context = f"Vocabulary to focus on: {word_list}"
     else:
         rules = topic_content.get("rules", [])
         examples = topic_content.get("examples", [])
-        context = f"Rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
+        context = f"Grammar Rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
     history_str = ""
     if history:
-        history_str = f"\nALREADY GENERATED QUESTIONS (DO NOT REPEAT THESE):\n" + "\n".join([f"- {h}" for h in history])
+        history_str = f"\nDO NOT REPEAT THESE RECENT QUESTIONS:\n" + "\n".join([f"- {h}" for h in history])
 
-    lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
-    prompt = f"""You are a professional language teacher creating ONE unique practice exercise for A1/A2 students.
-Topic: {topic_title} ({topic_type})
-{lang_context}
-{context}
+    prompt = f"""You are a professional language teacher creating ONE unique practice exercise for an A1/A2 level student.
+Topic: {topic_title}
+Target Language: {language}
+Context: {context}
 {history_str}
 
-STRICT RULES:
-1. IMMERSION: ALL text (prompt, answer, options) MUST be written entirely in {language}.
-2. NO TRANSLATIONS: Do NOT ask for translations to English, Turkish, or any other language.
-3. STRICT MONOLINGUALISM: Use ONLY {language}. Do NOT include any English or Turkish words in the distractors or prompt.
-4. TYPE: Only "mcq" or "fill_blank".
-5. NO MATCHING: Never generate "Match" or "Pair" instructions.
-6. BLANKS: "fill_blank" MUST contain '____'.
-7. UNIQUE: The question MUST be different from the history above. Test a different word or concept.
+STRICT PEDAGOGICAL RULES:
+1. PROMPT LANGUAGE: Write the 'prompt' (the question) in ENGLISH to ensure clarity for beginners.
+2. OPTION LANGUAGE: The 'answer' and 'distractors' MUST be entirely in {language}.
+3. NO AMBIGUITY: Ensure there is only ONE logically and grammatically correct answer.
+4. QUALITY DISTRACTORS: Distractors must be plausible words in {language} but clearly incorrect for this specific question.
+5. NO REPETITION: Do not use the same word for both 'answer' and 'distractors'.
+6. FILL_BLANK: Must include '____' (4 underscores) in the prompt where the answer goes.
 
 Generate exactly ONE exercise (Exercise #{index}). Return ONLY JSON:
 {{
   "type": "mcq",
-  "prompt": "...",
-  "answer": "...",
-  "options": ["...", "...", "...", "..."]
+  "prompt": "Which of these words means 'apple'?",
+  "answer": "appel",
+  "distractors": ["auto", "boek", "huis"]
 }} OR
 {{
   "type": "fill_blank",
-  "prompt": "... ____ (hint) ...",
-  "answer": "..."
+  "prompt": "Complete the sentence: Ik ____ (eten) een appel.",
+  "answer": "eet"
 }}"""
+    
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
-    if result and result.get("type") == "mcq" and "options" in result:
-        import random
-        random.shuffle(result["options"])
-    return result if result and "type" in result else None
+    
+    if result and "type" in result:
+        # Normalize and validate
+        ans = str(result.get("answer", "")).strip()
+        if result["type"] == "mcq":
+            dist = result.get("distractors", [])
+            if not isinstance(dist, list): dist = [str(dist)]
+            
+            # Ensure answer is NOT in distractors
+            dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
+            
+            # Limit to 3 distractors
+            result["distractors"] = dist[:3]
+            
+            # For backward compatibility with the current UI/Server, 
+            # we also provide a shuffled "options" field containing everything
+            opts = [ans] + result["distractors"]
+            import random
+            random.shuffle(opts)
+            result["options"] = opts
+            
+        return result
+    return None
 
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):

@@ -12,9 +12,9 @@
     <link rel="apple-touch-icon" href="/img/icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260426">
+    <link rel="stylesheet" href="/css/styles.css?v=20260426_v2">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/app.js?v=20260426" defer></script>
+    <script src="/js/app.js?v=20260426_v2" defer></script>
 </head>
 <body>
     <!-- Floating Actions (PC Only) -->
@@ -88,7 +88,7 @@
                         <span class="sidebar-icon">📅</span> <span data-i18n="Assignments">Assignments</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" data-tab="s-book" onclick="toggleSidebar(); switchTab(this)">
-                        <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
+                        <span class="sidebar-icon">🎓</span> <span data-i18n="study">Study</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" data-tab="s-messages" onclick="toggleSidebar(); switchTab(this)">
                         <span class="sidebar-icon">💬</span> <span data-i18n="messageTeacher">Messages</span>
@@ -175,7 +175,7 @@
                 <div id="lecturer-login-panel">
                     <h2 style="margin-bottom:4px" data-i18n="Lecturer Login">Lecturer Login</h2>
                     <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şifrenizle giriş yapın</p>
-                    <form id="login-form" onsubmit="return handleLogin(event)">
+                    <form id="login-form" onsubmit="handleLogin(event); return false;">
                         <div class="form-group">
                             <label for="login-email" data-i18n="Email">E-posta</label>
                             <input type="email" id="login-email" placeholder="your@email.com" required>
@@ -197,27 +197,17 @@
                 <div id="student-login-panel" style="display:none">
                     <h2 style="margin-bottom:4px" data-i18n="Student Login">Student Login</h2>
                     <p class="login-hint" style="margin-bottom:20px" data-i18n="Log in with your student number">Öğrenci numaranızla giriş yapın</p>
-                    <form id="student-login-form" onsubmit="return handleStudentLogin(event)">
-                        <div class="form-group">
-                            <label for="student-number" data-i18n="Student Number">Öğrenci Numarası</label>
-                            <input type="text" id="student-number" data-i18n-placeholder="e.g. 2021123456" placeholder="Örn: 2021123456" required
-                                autocomplete="off" inputmode="numeric">
+                    <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
+                        <div class="form-group" style="margin-bottom:16px;">
+                            <label data-i18n="student_number">Student Number</label>
+                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" autocomplete="username">
                         </div>
-                        <div class="form-group">
-                            <label for="classroom-code" data-i18n="login.class_code">Classroom Code (5 digits)</label>
-                            <input type="text" id="classroom-code" data-i18n-placeholder="login.class_code_placeholder" placeholder="e.g. 12345" required autocomplete="off" inputmode="numeric" maxlength="5">
+                        <div class="form-group" style="margin-bottom:24px;">
+                            <label data-i18n="full_name">Full Name</label>
+                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" autocomplete="name">
                         </div>
-                        <div class="form-group" id="student-name-group">
-                            <label for="student-name-input"><span data-i18n="Full Name">Full Name</span> <span style="color:var(--text-muted);font-size:12px;font-weight:normal" data-i18n="(required)">(required)</span></label>
-                            <input type="text" id="student-name-input" data-i18n-placeholder="Your Full Name" placeholder="Your Full Name">
-                        </div>
-                        <div id="student-pin-group" class="form-group">
-                            <label for="student-pin">PIN (4-digits)</label>
-                            <input type="password" id="student-pin" placeholder="••••" maxlength="4" autocomplete="off" inputmode="numeric">
-                            <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">First-time? Leave blank. Approved? Enter your PIN.</p>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-full" id="student-login-btn" data-i18n="Sign In">Sign In</button>
-                        <div id="student-login-error" class="error-msg hidden"></div>
+                        <div id="student-login-error" class="error-box hidden" style="margin-bottom:16px;"></div>
+                        <button type="submit" class="btn btn-primary btn-full btn-lg" id="student-login-btn" data-i18n="signIn">Sign In</button>
                     </form>
                 </div>
             </div>
@@ -376,6 +366,59 @@
         </div>
     </div>
 
+    <!-- Student Portal Screen -->
+    <div id="student-portal-screen" class="screen">
+        <div class="classroom-selection-container" style="max-width:1000px; margin:0 auto; padding:60px 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:40px;">
+                <div>
+                    <h1 style="font-size:32px; font-weight:800;" data-i18n="student.welcome">Welcome to AulaAI</h1>
+                    <p style="color:var(--text-muted); margin-top:4px;" data-i18n="student.select_class">Select a classroom to continue learning</p>
+                </div>
+                <button class="btn btn-primary" onclick="openJoinClassroomModal()" style="padding:12px 24px; border-radius:12px; box-shadow:var(--accent-glow);">
+                    <span>➕</span> <span data-i18n="student.join_new">Join New Classroom</span>
+                </button>
+            </div>
+            <div id="student-classrooms-grid" class="classroom-grid">
+                <!-- Classrooms rendered here -->
+            </div>
+            <div style="margin-top:40px; padding-top:40px; border-top:1px solid var(--border); text-align:center;">
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Classroom Modal -->
+    <div id="join-classroom-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="modal-close" onclick="closeJoinClassroomModal()">&times;</button>
+            <div style="text-align:center; margin-bottom:24px;">
+                <div style="font-size:40px; margin-bottom:16px;">🏫</div>
+                <h2 data-i18n="student.join_title">Join Classroom</h2>
+                <p style="color:var(--text-muted); font-size:14px;" data-i18n="student.enter_code">Enter the 5-digit code provided by your teacher</p>
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+                <input type="text" id="join-class-code" class="text-input" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;">
+            </div>
+            <button class="btn btn-primary btn-full btn-lg" onclick="handleJoinClassroom()" data-i18n="student.join_btn">Join Classroom</button>
+        </div>
+    </div>
+
+    <!-- PIN Entry Modal -->
+    <div id="pin-entry-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:360px;">
+            <div style="text-align:center; margin-bottom:24px;">
+                <div style="font-size:40px; margin-bottom:16px;">🔐</div>
+                <h2 id="pin-modal-title" data-i18n="student.pin_required">Security PIN Required</h2>
+                <p id="pin-modal-desc" style="color:var(--text-muted); font-size:14px;" data-i18n="student.pin_desc">Please enter your 4-digit PIN for this classroom.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+                <input type="password" id="student-pin-input" class="text-input" maxlength="4" placeholder="••••" style="text-align:center; font-size:32px; letter-spacing:12px; font-weight:700;">
+            </div>
+            <div id="pin-error" class="error-box hidden" style="margin-bottom:16px;"></div>
+            <button id="pin-submit-btn" class="btn btn-primary btn-full btn-lg" data-i18n="submit">Verify & Enter</button>
+        </div>
+    </div>
+
     <!-- Lecturer Dashboard -->
     <div id="lecturer-dashboard" class="screen">
         <nav class="topnav">
@@ -384,10 +427,10 @@
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>
                 <span class="nav-badge" data-i18n="Lecturer" style="font-size:10px; padding:2px 6px;">Lecturer</span>
-                <span id="nav-course-name" style="margin-left:8px; font-size:13px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px;"></span>
+                <span id="nav-course-name" style="margin-left:8px; font-size:13px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80px;"></span>
                 <span id="nav-course-code" class="pc-only" style="margin-left:8px; font-size:12px; font-family:monospace; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(99,102,241,0.3);"></span>
-                <button class="btn btn-outline btn-sm pc-only" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:16px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px;" data-i18n="View Classrooms">🏫 View Classrooms</button>
             </div>
+            <button class="btn btn-outline btn-sm pc-only" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:12px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px; flex-shrink:0; background:rgba(255,255,255,0.02);" data-i18n="View Classrooms">🏫 View Classrooms</button>
             <div class="nav-tabs">
                 <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon">📊</span><span class="tab-label" data-i18n="Overview">Overview</span></button>
                 <button class="nav-tab" data-tab="curriculum" onclick="switchTab(this)"><span class="tab-icon">📚</span><span class="tab-label" data-i18n="Curriculum">Curriculum</span></button>
@@ -396,7 +439,7 @@
                 <button class="nav-tab pc-only" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
                 <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
                 <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
-                <button class="nav-tab pc-only" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
+                <button class="nav-tab pc-only" id="lecturer-book-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -608,6 +651,20 @@
                         <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
                     </div>
                 </div>
+
+                <!-- Digital Study Container -->
+                <div class="study-container hidden" id="ai-book-container" style="height:calc(100vh - 120px); display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
+                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
+                        <div id="ai-book-toc"></div>
+                    </div>
+                    <div id="ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
+                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
+                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
+                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                        </div>
+                    </div>
+                </div>
                 <div class="mobile-preview mobile-only">
                     <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
                         <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
@@ -641,8 +698,7 @@
                 <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="quizzes">Quizzes</span></button>
                 <button class="nav-tab pc-only" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
                 <button id="nav-s-progress" class="nav-tab pc-only" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
-                <button id="nav-s-study" class="nav-tab pc-only hidden" data-tab="s-study" onclick="switchTab(this)"><span class="tab-icon">🎓</span><span class="tab-label" data-i18n="study">Study</span></button>
-                <button id="nav-s-book" class="nav-tab pc-only" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
+                <button id="nav-s-study-tab" class="nav-tab pc-only" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">🎓</span><span class="tab-label" data-i18n="study">Study</span></button>
                 <button class="nav-tab pc-only" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -652,20 +708,7 @@
         </nav>
 
         <main class="dashboard-content">
-            <!-- Study Tab (For AI Architect courses) -->
-            <section id="tab-s-study" class="tab-panel">
-                <div class="page-header">
-                    <h1>🎓 <span data-i18n="study">Study</span></h1>
-                    <p class="subtitle" data-i18n="study_subtitle">AI-generated lesson guides</p>
-                </div>
-                <div id="study-topics-list" class="grid-2col" style="gap:20px;"></div>
-                <div id="study-content-viewer" class="hidden">
-                    <button class="btn btn-ghost" onclick="closeStudyViewer()" style="margin-bottom:20px;">← <span data-i18n="back">Back</span></button>
-                    <div class="card" style="padding:40px; min-height:600px; line-height:1.7;">
-                        <div id="study-material-content"></div>
-                    </div>
-                </div>
-            </section>
+
 
             <section id="tab-s-home" class="tab-panel active">
                 <div class="page-header">
@@ -747,11 +790,11 @@
                 </div>
             </section>
 
-            <!-- Book Tab -->
+            <!-- Study Tab -->
             <section id="tab-s-book" class="tab-panel">
                 <div class="page-header">
-                    <h1>📖 <span data-i18n="book">Book</span></h1>
-                    <p class="subtitle book-subtitle">Course Textbook</p>
+                    <h1>🎓 <span data-i18n="study">Study</span></h1>
+                    <p class="subtitle book-subtitle">Course Materials</p>
                 </div>
                 <div class="pdf-container pc-only" style="position:relative;">
                     <iframe src="about:blank" class="pdf-viewer" loading="lazy"></iframe>
@@ -759,6 +802,20 @@
                         <span style="font-size:64px; margin-bottom:20px;">📚</span>
                         <h2 data-i18n="class.no_curriculum">No curriculum data available</h2>
                         <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
+                    </div>
+                </div>
+
+                <!-- Digital Study Container (Student) -->
+                <div class="study-container hidden" id="s-ai-book-container" style="height:calc(100vh - 120px); display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">
+                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
+                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
+                        <div id="s-ai-book-toc"></div>
+                    </div>
+                    <div id="s-ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
+                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
+                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
+                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                        </div>
                     </div>
                 </div>
                 <div class="mobile-preview mobile-only">

@@ -242,7 +242,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         topic_count = 0
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = []
+            # Map each future to its metadata (topic_id, title)
+            future_to_topic = {}
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
@@ -251,14 +252,17 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                     t_id = topic.get("id")
                     
                     _log(f"Queueing: {t_title}")
-                    f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 16)
-                    futures.append((t_id, t_title, f_lesson))
+                    future = executor.submit(generate_full_lesson, t_title, t_type, language, 16)
+                    future_to_topic[future] = (t_id, t_title)
                     topic_count += 1
             
             completed = 0
-            for t_id, t_title, f_lesson in futures:
+            total_queued = len(future_to_topic)
+            
+            for future in concurrent.futures.as_completed(future_to_topic):
+                t_id, t_title = future_to_topic[future]
                 try:
-                    lesson = f_lesson.result() or {}
+                    lesson = future.result() or {}
                     content = lesson.get("content", {})
                     questions = lesson.get("questions", [])
                     
@@ -279,9 +283,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                         db.commit()
                     completed += 1
                     with db_connection() as db:
-                        db.execute("UPDATE courses SET progress = ? WHERE id = ?", (completed, course_id))
+                        db.execute("UPDATE courses SET progress = ?, total_steps = ? WHERE id = ?", (completed, total_queued, course_id))
                         db.commit()
-                    _log(f"Topic {completed}/{len(futures)} finalized: {t_title}")
+                    _log(f"Topic {completed}/{total_queued} finalized: {t_title}")
                     bump_version()
                 except Exception as e:
                     _log(f"ERROR finalizing topic '{t_title}': {e}")

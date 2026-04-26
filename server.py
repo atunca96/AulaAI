@@ -396,7 +396,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/login":
             return self._login()
         elif path == "/api/student/login":
-            return self._student_login()
+            return self._student_portal_login()
+        elif path == "/api/student/join":
+            return self._student_join_classroom()
+        elif path == "/api/student/set-pin":
+            return self._student_set_pin()
+        elif path == "/api/student/access":
+            return self._student_access_classroom()
+        elif path == "/api/student/leave":
+            return self._student_leave_classroom()
         elif path == "/api/register":
             return self._register()
         elif path == "/api/students/pending":
@@ -484,6 +492,51 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         bump_version()
         self._send_json({"success": True, "message": "Data has been erased."})
 
+    def _student_leave_classroom(self):
+        """Student voluntarily leaves a classroom. Removes all their data for that classroom."""
+        body = self._read_body()
+        student_id = body.get("student_id")
+        course_id = body.get("course_id")
+
+        if not student_id or not course_id:
+            return self._send_error("Missing student_id or course_id")
+
+        with db_connection() as db:
+            # Verify enrollment exists
+            enr = db.execute("SELECT 1 FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+            if not enr:
+                return self._send_error("Not enrolled in this classroom")
+
+            # Delete student's responses for questions in this course
+            db.execute("""
+                DELETE FROM responses WHERE student_id = ? AND question_id IN (
+                    SELECT q.id FROM questions q
+                    JOIN topics t ON q.topic_id = t.id
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                )
+            """, (student_id, course_id))
+
+            # Delete mastery scores for topics in this course
+            db.execute("""
+                DELETE FROM mastery_scores WHERE student_id = ? AND topic_id IN (
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                )
+            """, (student_id, course_id))
+
+            # Delete messages for this student in this course
+            db.execute("DELETE FROM messages WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+
+            # Delete enrollment
+            db.execute("DELETE FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+
+            db.commit()
+
+        bump_version()
+        self._send_json({"success": True, "message": "Left classroom successfully."})
+
     def _delete_student(self):
         body = self._read_body()
         student_id = body.get("student_id")
@@ -557,13 +610,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
         with db_connection() as db:
             if course_id:
-                # Generate a unique 4-digit PIN for this classroom
-                import random
-                pin = "".join([str(random.randint(0, 9)) for _ in range(4)])
-                
-                # Classroom-specific approval
-                db.execute("UPDATE enrollments SET status = 'approved', pin = ? WHERE student_id = ? AND course_id = ?", 
-                           (pin, student_id, course_id))
+                # Classroom-specific approval. 
+                # Pin is initially NULL so student is prompted to set it on first entry.
+                db.execute("UPDATE enrollments SET status = 'approved', pin = NULL WHERE student_id = ? AND course_id = ?", 
+                           (student_id, course_id))
             
             # Also sync the global status for compatibility
             db.execute("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'student'", (student_id,))
@@ -588,7 +638,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if course_id:
                 enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user_id, course_id)).fetchone()
                 if not enr:
-                    return self._send_error("User not found", 404)
+                    return self._send_json({"error": "enrollment_removed", "status": "removed"})
                 status = enr["status"]
             else:
                 status = user["status"]
@@ -668,90 +718,103 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                      "email": email, "role": "student", "status": "pending"}
         })
 
-    def _student_login(self):
-        """Student login by student number and classroom code."""
+    def _student_portal_login(self):
+        """Phase 1: Student enters portal with number/name."""
         body = self._read_body()
         student_number = body.get("student_number", "").strip()
         name = body.get("name", "").strip()
-        classroom_code = body.get("classroom_code", "").strip()
 
         if not student_number:
             return self._send_error("Student number is required")
         if not name:
             return self._send_error("Name is required")
-        if not classroom_code:
-            return self._send_error("Classroom code is required")
 
-        # Verify classroom code
+        # Use student number as the email key (internal)
+        email_key = f"{student_number}@student.aulaai"
+        
         with db_connection() as db:
-            course = db.execute("SELECT id FROM courses WHERE code = ?", (classroom_code,)).fetchone()
+            user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
+            if not user:
+                # Create global student account
+                user_id = _uid()
+                db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                           (user_id, name, email_key, "[STUDENT_PORTAL]", "student", "approved"))
+                db.commit()
+                user = {"id": user_id, "name": name, "email": email_key, "role": "student"}
+            else:
+                user = dict(user)
+                if user["name"].strip().lower() != name.strip().lower():
+                    return self._send_error("Student number and name do not match")
+            
+            # Fetch all enrollments
+            enrollments = db.execute("""
+                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
+                FROM enrollments e
+                JOIN courses c ON e.course_id = c.id
+                WHERE e.student_id = ?
+            """, (user["id"],)).fetchall()
+            
+            self._send_json({
+                "user": user,
+                "enrollments": [dict(e) for e in enrollments]
+            })
+
+    def _student_join_classroom(self):
+        body = self._read_body()
+        student_id = body.get("student_id")
+        code = body.get("code")
+        
+        with db_connection() as db:
+            course = db.execute("SELECT id FROM courses WHERE code = ?", (code,)).fetchone()
             if not course:
                 return self._send_error("Invalid classroom code")
+            
             course_id = course["id"]
-
-            # Use student number as the email key (internal)
-            email_key = f"{student_number}@student.aulaai"
-            user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
-
-            if user:
-                # Existing student — verify name matches
-                user = dict(user)
-                
-                # Check if this user has ANY enrollments in the entire system
-                has_any_enrollment = db.execute("SELECT 1 FROM enrollments WHERE student_id = ?", (user["id"],)).fetchone()
-                
-                if not has_any_enrollment:
-                    # Orphaned user from a previous reset/partial deletion
-                    # Allow them to re-register with a new name
-                    db.execute("UPDATE users SET name = ?, status = 'pending' WHERE id = ?", (name, user["id"]))
-                    db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
-                               (_uid(), user["id"], course_id, "pending"))
-                    db.commit()
-                    user["name"] = name
-                    current_status = "pending"
-                elif user["name"].strip().lower() != name.strip().lower():
-                    return self._send_error("Student number and name do not match")
-                else:
-                    # Check if already enrolled in THIS classroom
-                    enr = db.execute("SELECT status, pin FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
-                    if not enr:
-                        # New enrollment for this classroom is ALWAYS pending
-                        db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
-                                   (_uid(), user["id"], course_id, "pending"))
-                        db.commit()
-                        bump_version()
-                        current_status = "pending"
-                    else:
-                        current_status = enr["status"] or "pending"
-                        if current_status == "approved" and enr["pin"]:
-                            provided_pin = body.get("pin", "").strip()
-                            if provided_pin != enr["pin"]:
-                                return self._send_error("Invalid Student PIN. Please check with your lecturer.")
-
-                self._send_json({
-                    "success": True,
-                    "user": {"id": user["id"], "name": user["name"],
-                             "email": user["email"], "role": "student", "status": current_status,
-                             "course_id": course_id}
-                })
-            else:
-                # New student — auto-register and enroll in specific classroom
-                student_id = _uid()
-                # Global user record (status here is legacy/global, we mostly care about enrollment status now)
-                db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
-                           (student_id, name, email_key, student_number, "student", "pending"))
-                
-                # Specific enrollment for THIS classroom: Default to pending
+            existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+            
+            if not existing:
                 db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
                            (_uid(), student_id, course_id, "pending"))
-
                 db.commit()
                 bump_version()
-                self._send_json({
-                    "success": True,
-                    "user": {"id": student_id, "name": name, "email": email_key, "role": "student", "status": "pending",
-                             "course_id": course_id}
-                })
+                return self._send_json({"success": True, "status": "pending"})
+            else:
+                return self._send_json({"success": True, "status": existing["status"]})
+
+    def _student_set_pin(self):
+        body = self._read_body()
+        student_id = body.get("student_id")
+        course_id = body.get("course_id")
+        pin = body.get("pin")
+        
+        if not pin or len(pin) != 4:
+            return self._send_error("PIN must be 4 digits")
+            
+        with db_connection() as db:
+            db.execute("UPDATE enrollments SET pin = ? WHERE student_id = ? AND course_id = ? AND status = 'approved'", 
+                       (pin, student_id, course_id))
+            db.commit()
+            
+        self._send_json({"success": True})
+
+    def _student_access_classroom(self):
+        body = self._read_body()
+        student_id = body.get("student_id")
+        course_id = body.get("course_id")
+        pin = body.get("pin")
+        
+        with db_connection() as db:
+            enr = db.execute("SELECT pin, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+            if not enr:
+                return self._send_error("Not enrolled")
+            if enr["status"] != "approved":
+                return self._send_error("Not approved")
+            
+            if enr["pin"] != pin:
+                return self._send_error("Invalid PIN")
+                
+            self._send_json({"success": True})
+
 
     def _get_courses(self):
         _cleanup_stale_classrooms()
@@ -892,10 +955,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ).fetchall()
 
         result = []
+        import random
         for q in questions:
             q_dict = dict(q)
-            if q_dict["distractors"]:
-                q_dict["distractors"] = json.loads(q_dict["distractors"])
+            if q_dict.get("distractors"):
+                try:
+                    dist = json.loads(q_dict["distractors"])
+                    q_dict["distractors"] = dist
+                    # Build the options field for the UI
+                    opts = [q_dict["answer"]] + dist
+                    random.shuffle(opts)
+                    q_dict["options"] = opts
+                except Exception:
+                    q_dict["distractors"] = []
+                    q_dict["options"] = [q_dict["answer"]]
+            else:
+                q_dict["distractors"] = []
+                q_dict["options"] = [q_dict["answer"]]
             result.append(q_dict)
 
         self._send_json(result)
@@ -981,7 +1057,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     a_type = act.get("type", "mcq")
                     a_prompt = act.get("prompt", "")
                     a_answer = act.get("answer", "")
-                    distractors = json.dumps(act.get("options", [])) if "options" in act else "[]"
+                    # Save ONLY distractors in the distractors column
+                    distractors = json.dumps(act.get("distractors", []))
                     db.execute("""
                         INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
                         VALUES (?, ?, ?, ?, ?, ?, ?, 1)
@@ -1066,13 +1143,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             result = dict(quiz)
             result["questions"] = []
+            import random
             for q in questions:
                 q_dict = dict(q)
                 if q_dict.get("distractors"):
                     try:
-                        q_dict["distractors"] = json.loads(q_dict["distractors"])
+                        dist = json.loads(q_dict["distractors"])
+                        q_dict["distractors"] = dist
+                        # Build options for UI
+                        opts = [q_dict["answer"]] + dist
+                        random.shuffle(opts)
+                        q_dict["options"] = opts
                     except Exception:
                         q_dict["distractors"] = []
+                        q_dict["options"] = [q_dict["answer"]]
+                else:
+                    q_dict["distractors"] = []
+                    q_dict["options"] = [q_dict["answer"]]
                 result["questions"].append(q_dict)
 
         self._send_json(result)
