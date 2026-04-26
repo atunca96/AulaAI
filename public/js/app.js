@@ -998,6 +998,13 @@ async function completeLogin(user, isFresh = false) {
   else sessionStorage.setItem('aula_user', JSON.stringify(user));
   localStorage.setItem('aula_lang', currentLang);
 
+  // Show Admin Panel if applicable
+  const adminPanel = document.getElementById('admin-panel');
+  if (adminPanel) {
+    if (user.email === 'atunca96@gmail.com') adminPanel.classList.remove('hidden');
+    else adminPanel.classList.add('hidden');
+  }
+
   if (currentUser.status === 'pending') {
     try {
       const check = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
@@ -3771,10 +3778,12 @@ function renderStudentPortal() {
         </div>
         <div class="classroom-card-footer">
           <div class="classroom-code">#${enr.course_code}</div>
-          <div class="classroom-arrow">→</div>
+          <div style="display:flex; gap:8px; align-items:center">
+             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="background:rgba(255,59,48,0.05); color:var(--text-muted); border:1px solid var(--border); font-size:10px; padding:2px 8px; border-radius:6px; opacity:0.6" data-i18n="student.leave">${t('student.leave')}</button>
+             <div class="classroom-arrow">→</div>
+          </div>
         </div>
       </div>
-      <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="position:absolute; top:12px; right:12px; background:rgba(255,59,48,0.1); color:var(--danger); border:1px solid var(--danger); font-size:12px; padding:4px 10px; border-radius:8px; z-index:2" data-i18n="student.leave">${t('student.leave')}</button>
     </div>
   `).join('');
   applyTranslations(grid);
@@ -3916,6 +3925,35 @@ async function leaveClassroom(courseId, courseName) {
     await refreshStudentEnrollments();
   } else {
     showAlert(t('error'), (res && res.error) || 'Failed to leave classroom.', true);
+  }
+}
+
+async function adminHardReset() {
+  const email = currentUser ? currentUser.email : '';
+  if (!email) return;
+
+  const confirmed = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg2', true, 'HARD DELETE EVERYTHING');
+  if (confirmed !== 'HARD DELETE EVERYTHING') return;
+
+  const btn = document.querySelector('#admin-panel button');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await api('/admin/hard-reset', {
+      method: 'POST',
+      body: { email, confirm: 'HARD DELETE EVERYTHING' }
+    });
+
+    if (res.success) {
+      await showAlert('success', 'System has been completely wiped. You will be logged out now.');
+      logout();
+    } else {
+      showAlert(t('error'), res.error || 'Hard reset failed.', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'Network error during reset.', true);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 

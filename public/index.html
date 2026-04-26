@@ -253,6 +253,14 @@
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
                 <button class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger); font-size:12px; opacity:0.6" onclick="resetData(null)" data-i18n="erase_all_btn">Erase All Data</button>
             </div>
+
+            <!-- Admin Only Hard Reset -->
+            <div id="admin-panel" class="hidden" style="margin-top:60px; padding:32px; border:1px solid var(--danger); border-radius:16px; background:rgba(239,68,68,0.02); text-align:center;">
+                <div style="font-size:32px; margin-bottom:16px;">☢️</div>
+                <h3 style="color:var(--danger); margin-bottom:8px;">Admin Hard Reset</h3>
+                <p style="color:var(--text-muted); font-size:13px; margin-bottom:24px;">This will wipe EVERYTHING. Users, courses, data - gone forever.</p>
+                <button class="btn btn-danger" onclick="adminHardReset()" style="padding:12px 24px; font-weight:700; letter-spacing:1px;">HARD RESET SYSTEM</button>
+            </div>
         </div>
     </div>
 

@@ -443,8 +443,63 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._message_send()
         elif path == "/api/message/read":
             return self._message_read()
+        elif path == "/api/admin/hard-reset":
+            return self._admin_hard_reset()
         else:
             self._send_error("Not found", 404)
+
+    def _admin_hard_reset(self):
+        """Hard delete everything. Restricted to admin emails."""
+        # Simple body read to get email if needed, but we check the session/user normally
+        # For simplicity in this standalone server, we'll check the provided email in the body
+        body = self._read_body()
+        email = body.get("email")
+        confirm = body.get("confirm")
+
+        if email != 'atunca96@gmail.com':
+            return self._send_error("Unauthorized", 403)
+        if confirm != "HARD DELETE EVERYTHING":
+            return self._send_error("Confirmation failed")
+
+        try:
+            with db_connection() as db:
+                # Drop and recreate tables is the cleanest way to 'hard delete'
+                db.execute("DROP TABLE IF EXISTS messages")
+                db.execute("DROP TABLE IF EXISTS student_mastery")
+                db.execute("DROP TABLE IF EXISTS mastery_scores")
+                db.execute("DROP TABLE IF EXISTS response_history")
+                db.execute("DROP TABLE IF EXISTS responses")
+                db.execute("DROP TABLE IF EXISTS quiz_questions")
+                db.execute("DROP TABLE IF EXISTS quiz_results")
+                db.execute("DROP TABLE IF EXISTS quizzes")
+                db.execute("DROP TABLE IF EXISTS assignment_questions")
+                db.execute("DROP TABLE IF EXISTS assignment_submissions")
+                db.execute("DROP TABLE IF EXISTS assignments")
+                db.execute("DROP TABLE IF EXISTS questions")
+                db.execute("DROP TABLE IF EXISTS activities")
+                db.execute("DROP TABLE IF EXISTS topics")
+                db.execute("DROP TABLE IF EXISTS chapters")
+                db.execute("DROP TABLE IF EXISTS enrollments")
+                db.execute("DROP TABLE IF EXISTS course_enrollments")
+                db.execute("DROP TABLE IF EXISTS weekly_reports")
+                db.execute("DROP TABLE IF EXISTS sessions")
+                db.execute("DROP TABLE IF EXISTS courses")
+                db.execute("DROP TABLE IF EXISTS users")
+                db.commit()
+            
+            # Re-initialize the database schema
+            init_db()
+            
+            # Re-insert the admin user so they can log back in
+            with db_connection() as db:
+                db.execute("INSERT INTO users (id, email, password, name, role) VALUES (?, ?, ?, ?, ?)",
+                          (str(uuid.uuid4()), 'atunca96@gmail.com', 'ALper2002@', 'Admin', 'lecturer'))
+                db.commit()
+
+            return self._send_json({"success": True, "message": "Database has been completely reset."})
+        except Exception as e:
+            file_log(f"HARD RESET ERROR: {e}")
+            return self._send_error(f"Reset failed: {str(e)}", 500)
 
     def _reset_data(self):
         """Erase student data. Can be classroom-specific or global (except Spanish 101)."""
