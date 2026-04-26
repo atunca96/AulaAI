@@ -722,20 +722,12 @@ body {
     }
     
     .chat-wrapper.is-active {
-        position: fixed !important;
-        top: 0;
-        left: 0;
-        width: 100% !important;
-        height: 100dvh;
-        z-index: 9999 !important;
-        background: var(--bg-card) !important;
         display: flex !important;
         flex-direction: column !important;
-        padding: 0 !important;
-        padding-top: env(safe-area-inset-top) !important;
-        border-radius: 0 !important;
-        border: none !important;
-        overscroll-behavior: none !important;
+        height: calc(100vh - 120px); /* Fill available space below header */
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
     }
 
     .chat-wrapper:not(.is-active) {
@@ -775,15 +767,13 @@ body {
         width: 100% !important;
     }
 
-    /* Crucial: Kill transforms and elevate z-index on parents so fixed positioning works relative to screen */
+    /* Kill stacking context hacks - no longer needed */
     html.chat-open main, 
     html.chat-open section,
     html.chat-open .container,
     html.chat-open .lecturer-dashboard,
     html.chat-open .student-dashboard {
-        transform: none !important;
-        animation: none !important;
-        z-index: 9999 !important;
+        z-index: auto !important;
     }
     
     .chat-wrapper.is-active #inbox-messages,

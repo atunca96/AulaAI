@@ -1188,53 +1188,8 @@ function logout() {
 
 // ── Visual Viewport Fix (Mobile Keyboard) ──
 function initViewportFix() {
-  if (!window.visualViewport) return;
-  const portalMap = new Map();
-  let ticking = false;
-  const handleViewportChange = () => {
-    if (!ticking) {
-      window.requestAnimationFrame(() => {
-        const activeWrapper = document.querySelector('.chat-wrapper.is-active');
-        if (activeWrapper) {
-          const vv = window.visualViewport;
-          const isKeyboardOpen = vv.height < window.innerHeight * 0.85;
-
-          activeWrapper.style.top = `${vv.offsetTop}px`;
-          activeWrapper.style.height = `${vv.height}px`;
-          
-          // Use transform for smoother positioning if top/height lag
-          // activeWrapper.style.transform = `translateY(${vv.offsetTop}px)`;
-          
-          const inputArea = activeWrapper.querySelector('.chat-input-area');
-          if (inputArea) {
-            inputArea.style.paddingBottom = isKeyboardOpen ? '4px' : '';
-          }
-        }
-        ticking = false;
-      });
-      ticking = true;
-    }
-  };
-
-  window.visualViewport.addEventListener('resize', handleViewportChange);
-  
-  window.portalToBody = (el) => {
-    if (window.innerWidth > 768 || !el) return;
-    if (el.parentElement === document.body) return;
-    const placeholder = document.createElement('div');
-    placeholder.style.display = 'none';
-    el.parentElement.replaceChild(placeholder, el);
-    portalMap.set(el, placeholder);
-    document.body.appendChild(el);
-  };
-
-  window.returnFromPortal = (el) => {
-    const placeholder = portalMap.get(el);
-    if (placeholder && placeholder.parentElement) {
-      placeholder.parentElement.replaceChild(el, placeholder);
-      portalMap.delete(el);
-    }
-  };
+  // Simplified: No more viewport hacks needed for inline views.
+  // We let the browser handle the keyboard natively.
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1351,14 +1306,16 @@ function goToHome() {
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
 
 function closeMobileChat() {
-  document.querySelectorAll('.chat-wrapper').forEach(w => {
-    w.classList.remove('is-active');
-    if (window.innerWidth <= 768 && window.returnFromPortal) {
-      window.returnFromPortal(w);
-    }
-  });
+  document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
   document.documentElement.classList.remove('chat-open');
   document.body.classList.remove('chat-open');
+  
+  // Show the lists again
+  const inboxList = document.getElementById('inbox-list-container');
+  if (inboxList) inboxList.style.display = '';
+  const studentInboxList = document.querySelector('.student-messages-list');
+  if (studentInboxList) studentInboxList.style.display = '';
+  
   document.body.style.overflow = '';
   currentChatStudentId = null;
 }
@@ -1376,9 +1333,16 @@ async function loadStudentChat() {
     setTimeout(() => {
       wrapper.classList.add('is-active');
       document.documentElement.classList.add('chat-open');
-      if (window.innerWidth <= 768 && window.portalToBody) {
-        window.portalToBody(wrapper);
+      
+      // Hide the list to show chat inline
+      if (window.innerWidth <= 768) {
+        const inboxList = document.getElementById('inbox-list-container');
+        if (inboxList && wrapper.id === 'inbox-chat-wrapper') inboxList.style.display = 'none';
+        
+        const studentInboxList = document.querySelector('.student-messages-list');
+        if (studentInboxList && wrapper.id === 'student-chat-wrapper') studentInboxList.style.display = 'none';
       }
+      
       document.body.classList.add('chat-open');
     }, 50);
   }
