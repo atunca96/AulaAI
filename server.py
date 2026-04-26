@@ -1049,7 +1049,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         file_log(f"Prog update fail: {e}")
                         return
             
-            update_prog(15) # Started
+            # Starting...
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")

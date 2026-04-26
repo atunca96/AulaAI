@@ -639,7 +639,8 @@ Generate a COHESIVE LEARNING JOURNEY of {count} unique activities for the topic:
 Topic Content/Context:
 {json.dumps(topic_content)}
 
-Target Language: {language}
+Instructional Language: MUST be English (e.g., "Choose the correct...", "Fill in the blank...")
+Spanish Subject Matter: The answers and the Spanish words themselves must be in Spanish.
 Topic Category: {topic_type}
 
 REQUIREMENTS:
