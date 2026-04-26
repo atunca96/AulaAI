@@ -1554,7 +1554,7 @@ async function openNewChatModal() {
     list.innerHTML = '<div style="display:flex; justify-content:center; padding:20px;"><div class="spinner"></div></div>';
     
     try {
-        const students = await api(`/api/students?course_id=${currentCourse.id}`);
+        const students = await api(`/students?course_id=${currentCourse.id}`);
         _allStudentsCache = students || [];
         const messages = await api(`/messages?course_id=${currentCourse.id}`);
         _existingChatIds = new Set(messages.map(m => m.student_id));
