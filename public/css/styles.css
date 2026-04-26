@@ -1057,3 +1057,15 @@ body {
         animation: fadeIn 0.5s ease;
     }
 }
+
+.new-chat-item {
+    transition: all 0.2s ease;
+}
+.new-chat-item:hover {
+    border-color: var(--accent) !important;
+    transform: translateY(-2px);
+    background: rgba(99, 102, 241, 0.05) !important;
+}
+.new-chat-item:active {
+    transform: scale(0.98);
+}

@@ -238,9 +238,14 @@ const i18n = {
     'login.student_number': 'Student Number',
     Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
-    messageTeacher: 'Message Teacher',
+    messageTeacher: 'Messages',
     messageStudent: 'Message Student',
-    inbox: 'Inbox', book: 'Book',
+    inbox: 'Messages', book: 'Book',
+    newChat: 'New Chat',
+    selectStudent: 'Select a Student',
+    searchStudent: 'Search students...',
+    noNewChats: 'No new students to message.',
+    startChat: 'Start Chat',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -507,7 +512,12 @@ const i18n = {
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
     messageTeacher: 'Öğretmene Mesaj',
     messageStudent: 'Öğrenciye Mesaj',
-    inbox: 'Gelen Kutusu', book: 'Kitap', Messages: 'Mesajlar',
+    inbox: 'Mesajlar', book: 'Kitap',
+    newChat: 'Yeni Mesaj',
+    selectStudent: 'Öğrenci Seç',
+    searchStudent: 'Öğrenci ara...',
+    noNewChats: 'Mesaj atılacak yeni öğrenci yok.',
+    startChat: 'Mesaj Başlat',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
@@ -1401,7 +1411,7 @@ async function loadInbox() {
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
-  document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">${t('inbox')}</span>`;
+  document.getElementById('inbox-title').innerHTML = `💬 <span data-i18n="inbox">${t('inbox')}</span>`;
 
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
   const badge = document.getElementById('inbox-badge');
@@ -1524,6 +1534,61 @@ async function sendLecturerMessage() {
 
   const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
   await openChat(currentChatStudentId, name);
+}
+
+// ── New Chat Logic ──
+let _allStudentsCache = [];
+let _existingChatIds = new Set();
+
+async function openNewChatModal() {
+    if (!currentCourse) return;
+    const modal = document.getElementById('new-chat-modal');
+    modal.classList.remove('hidden');
+    const list = document.getElementById('new-chat-student-list');
+    list.innerHTML = '<div style="display:flex; justify-content:center; padding:20px;"><div class="spinner"></div></div>';
+    
+    try {
+        const students = await api(`/api/students?course_id=${currentCourse.id}`);
+        _allStudentsCache = students || [];
+        const messages = await api(`/messages?course_id=${currentCourse.id}`);
+        _existingChatIds = new Set(messages.map(m => m.student_id));
+        renderNewChatStudents();
+    } catch (e) {
+        list.innerHTML = '<p style="text-align:center; color:var(--danger);">Error loading students.</p>';
+    }
+}
+
+function renderNewChatStudents() {
+    const list = document.getElementById('new-chat-student-list');
+    const searchInput = document.getElementById('student-search-input');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    const filtered = _allStudentsCache.filter(s => {
+        const matchesSearch = s.name.toLowerCase().includes(search);
+        const hasNoChat = !_existingChatIds.has(s.id);
+        return matchesSearch && hasNoChat;
+    });
+    
+    if (filtered.length === 0) {
+        list.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:20px;" data-i18n="noNewChats">${t('noNewChats')}</p>`;
+        return;
+    }
+    
+    list.innerHTML = filtered.map(s => `
+        <div class="new-chat-item" style="display:flex; align-items:center; justify-content:space-between; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg-input); cursor:pointer; margin-bottom:8px; transition:var(--transition);" onclick="startNewChat('${s.id}', '${esc(s.name).replace(/'/g, "\\'")}')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-weight:600; color:var(--text-primary);">${esc(s.name)}</div>
+            <button class="btn btn-ghost btn-sm" style="color:var(--accent); font-size:12px;" data-i18n="startChat">${t('startChat')}</button>
+        </div>
+    `).join('');
+}
+
+function filterNewChatStudents() {
+    renderNewChatStudents();
+}
+
+function startNewChat(studentId, studentName) {
+    closeModal();
+    openChat(studentId, studentName);
 }
 
 // ── Theme Toggle ──

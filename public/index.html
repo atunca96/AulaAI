@@ -65,7 +65,7 @@
                         <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" data-tab="inbox" onclick="toggleSidebar(); switchTab(this)">
-                        <span class="sidebar-icon">📥</span> <span data-i18n="inbox">Inbox</span>
+                        <span class="sidebar-icon">💬</span> <span data-i18n="inbox">Messages</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" style="margin-top:12px; color:var(--accent-light); border:1px solid rgba(99,102,241,0.2); background:rgba(99,102,241,0.05);" onclick="toggleSidebar(); showClassroomSelection()">
                         <span class="sidebar-icon">🏫</span> <span data-i18n="View Classrooms">View Classrooms</span>
@@ -91,7 +91,7 @@
                         <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" data-tab="s-messages" onclick="toggleSidebar(); switchTab(this)">
-                        <span class="sidebar-icon">💬</span> <span data-i18n="Messages">Messages</span>
+                        <span class="sidebar-icon">💬</span> <span data-i18n="messageTeacher">Messages</span>
                     </button>
                 </div>
 
@@ -311,7 +311,7 @@
                 <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
                 <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
                 <button class="nav-tab pc-only" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
-                <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">📥</span><span class="tab-label" data-i18n="inbox">Inbox</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
+                <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
                 <button class="btn btn-ghost" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
@@ -478,17 +478,20 @@
                 <div id="report-content"></div>
             </section>
             
-            <!-- Inbox Tab -->
+            <!-- Messages Tab (formerly Inbox) -->
             <section id="tab-inbox" class="tab-panel">
-                <div class="page-header" style="margin-bottom:16px;">
-                    <h1 id="inbox-title">📥 <span data-i18n="inbox">Inbox</span></h1>
+                <div class="page-header" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+                    <h1 id="inbox-title">💬 <span data-i18n="inbox">Messages</span></h1>
+                    <button class="btn btn-primary" onclick="openNewChatModal()" style="display:flex; align-items:center; gap:8px;">
+                        <span>+</span> <span data-i18n="newChat">New Chat</span>
+                    </button>
                 </div>
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
                     <div class="chat-header">
                         <button class="btn btn-ghost" onclick="loadInbox()" style="padding: 8px;">←</button>
-                        <h2 id="mobile-inbox-title" style="margin:0; font-size:16px;">Inbox</h2>
+                        <h2 id="mobile-inbox-title" style="margin:0; font-size:16px;" data-i18n="inbox">Messages</h2>
                     </div>
-                    <div id="inbox-back-btn" class="hidden pc-only" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
+                    <div id="inbox-back-btn" class="hidden pc-only" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← <span data-i18n="inbox">Messages</span></div>
                     <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
                     <div id="inbox-reply-area" class="hidden chat-input-area" style="display:flex; gap:8px;">
                         <input type="text" id="inbox-reply-text" class="text-input" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
@@ -681,6 +684,20 @@
             <div style="display:flex; gap:12px; justify-content:center;">
                 <button class="btn btn-outline" id="confirm-cancel-btn" style="flex:1;" data-i18n="cancel">Cancel</button>
                 <button class="btn btn-primary" id="confirm-ok-btn" style="flex:1;" data-i18n="ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="new-chat-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <h2 style="margin-bottom:16px;" data-i18n="newChat">New Chat</h2>
+            <div class="form-group" style="margin-bottom:16px;">
+                <input type="text" id="student-search-input" class="text-input" data-i18n-placeholder="searchStudent" placeholder="Search students..." oninput="filterNewChatStudents()">
+            </div>
+            <div id="new-chat-student-list" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                <!-- Students rendered here -->
             </div>
         </div>
     </div>
