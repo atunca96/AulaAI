@@ -1235,29 +1235,29 @@ function showScreen(id) {
 
 // Visual Viewport resize handler for mobile keyboards
 if (window.visualViewport) {
+  let lastHeight = window.visualViewport.height;
   const adjustChatHeight = () => {
     const chatWrappers = document.querySelectorAll('.chat-wrapper');
     const isMobile = window.innerWidth <= 768;
-    if (!isMobile) {
-      chatWrappers.forEach(cw => cw.style.height = '60vh');
-      return;
-    }
+    if (!isMobile) return;
     
     const viewportHeight = window.visualViewport.height;
-    chatWrappers.forEach(cw => {
-      // Use the actual visual viewport height
-      cw.style.height = `${viewportHeight - 60}px`; 
-      const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
-      if (msgList && msgList.lastElementChild) {
-        setTimeout(() => {
-          msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }, 100);
-      }
-    });
+    // Only act if height actually changed (to avoid jitter on minor scroll offsets)
+    if (Math.abs(viewportHeight - lastHeight) > 20) {
+      chatWrappers.forEach(cw => {
+        cw.style.height = `${viewportHeight - 60}px`; 
+        const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
+        if (msgList && msgList.lastElementChild) {
+          setTimeout(() => {
+            msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          }, 100);
+        }
+      });
+      lastHeight = viewportHeight;
+    }
   };
 
   window.visualViewport.addEventListener('resize', adjustChatHeight);
-  window.visualViewport.addEventListener('scroll', adjustChatHeight);
 }
 
 // Add focus listeners for chat inputs to ensure scroll
