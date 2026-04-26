@@ -705,8 +705,6 @@ function toggleLanguage() {
 
   // Apply translations to all data-i18n elements (including sidebar)
   applyTranslations();
-}
-
   // Re-render activity preview if visible
   const preview = document.getElementById('activity-preview');
   if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
