@@ -654,9 +654,9 @@ REQUIREMENTS:
 2. PROGRESSION: Start easy and gradually increase complexity.
 3. TYPES: Use a mix of 'mcq' (Multiple Choice), 'fill_blank', and 'dialogue_order'.
 4. STRUCTURE: 
-   - 'mcq': {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
+   - 'mcq': {{ "type": "mcq", "prompt": "...", "answer": "...", "options": ["Option A", "Option B", "Option C", "Option D"] }}
    - 'fill_blank': {{ "type": "fill_blank", "prompt": "...", "answer": "..." }}
-   - 'dialogue_order': {{ "type": "dialogue_order", "prompt": "Order the conversation", "lines": ["...", "..."], "answer": [0, 1, ...] }}
+   - 'dialogue_order': {{ "type": "dialogue_order", "scrambled_lines": ["Line 2", "Line 1"], "speakers": {{ "Line 1": "Persona A", "Line 2": "Persona B" }}, "correct_order": ["Line 1", "Line 2"] }}
 
 Return ONLY a JSON object with this structure:
 {{

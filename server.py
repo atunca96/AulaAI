@@ -1060,9 +1060,34 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             final_activities = []
             for act in raw_activities:
-                if act:
-                    act["id"] = _uid()
-                    final_activities.append(act)
+                if not act: continue
+                
+                # Normalization Layer: Ensure frontend gets exactly what it expects
+                atype = act.get("type", "mcq")
+                
+                # 1. MCQ Normalization
+                if atype == 'mcq':
+                    if not act.get("options") and act.get("distractors"):
+                        # Combine answer + distractors if AI used the old format
+                        ans = act.get("answer", "")
+                        opts = [ans] + act.get("distractors", [])
+                        py_random.shuffle(opts)
+                        act["options"] = opts
+                
+                # 2. Dialogue Normalization
+                if atype == 'dialogue_order':
+                    if not act.get("scrambled_lines") and act.get("lines"):
+                        act["scrambled_lines"] = act.get("lines")
+                    if not act.get("correct_order") and act.get("answer"):
+                        # If AI sent indices, convert to actual lines
+                        if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
+                            lines = act.get("scrambled_lines", [])
+                            act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
+                        else:
+                            act["correct_order"] = act.get("answer")
+                
+                act["id"] = _uid()
+                final_activities.append(act)
             
             # Done!
             print(f"[BG] [{course_id}] Saving {len(final_activities)} activities...")
