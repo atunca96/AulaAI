@@ -733,7 +733,26 @@ body {
         display: flex !important;
         flex-direction: column !important;
         padding: 0 !important;
-        margin: 0 !important;
+        padding-top: env(safe-area-inset-top) !important;
+        padding-bottom: env(safe-area-inset-bottom) !important;
+        border-radius: 0 !important;
+        border: none !important;
+    }
+
+    .chat-header {
+        display: none;
+        padding: 12px 16px;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+        gap: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .chat-wrapper.is-active .chat-header {
+        display: flex;
     }
     
     html.chat-open, body.chat-open {

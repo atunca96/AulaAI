@@ -1467,6 +1467,9 @@ async function openChat(studentId, studentName) {
   const isTabActive = document.getElementById('tab-inbox')?.classList.contains('active');
 
   if (wrapper && isTabActive) {
+    const mobileTitle = document.getElementById('mobile-inbox-title');
+    if (mobileTitle) mobileTitle.textContent = studentName;
+
     if (window.innerWidth <= 768) {
       setTimeout(() => {
         wrapper.classList.add('is-active');

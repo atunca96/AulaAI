@@ -484,7 +484,11 @@
                     <h1 id="inbox-title">📥 <span data-i18n="inbox">Inbox</span></h1>
                 </div>
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
-                    <div id="inbox-back-btn" class="hidden" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
+                    <div class="chat-header">
+                        <button class="btn btn-ghost" onclick="loadInbox()" style="padding: 8px;">←</button>
+                        <h2 id="mobile-inbox-title" style="margin:0; font-size:16px;">Inbox</h2>
+                    </div>
+                    <div id="inbox-back-btn" class="hidden pc-only" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
                     <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
                     <div id="inbox-reply-area" class="hidden chat-input-area" style="display:flex; gap:8px;">
                         <input type="text" id="inbox-reply-text" class="text-input" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
@@ -606,13 +610,14 @@
             </section>
             
             <section id="tab-s-messages" class="tab-panel">
-                <div class="page-header" style="margin-bottom:16px; display:flex; align-items:center;">
-                    <button class="mobile-only btn btn-ghost" onclick="closeMobileChat()" style="padding: 8px; margin-right: 8px;">
-                        <span style="font-size: 20px;">←</span>
-                    </button>
+                <div class="page-header" style="margin-bottom:16px;">
                     <h1>💬 <span data-i18n="messageTeacher">Message Teacher</span></h1>
                 </div>
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
+                    <div class="chat-header">
+                        <button class="btn btn-ghost" onclick="closeMobileChat()" style="padding: 8px;">←</button>
+                        <h2 style="margin:0; font-size:16px;" data-i18n="messageTeacher">Message Teacher</h2>
+                    </div>
                     <div id="student-chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
                     <div class="chat-input-area" style="display:flex; gap:8px;">
                         <input type="text" id="message-text" class="text-input" data-i18n-placeholder="message.placeholder" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
