@@ -1449,8 +1449,11 @@ function masteryColor(s) { return s >= 0.75 ? 'var(--success)' : s >= 0.4 ? 'var
 function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' : 'danger'; }
 
 async function initLecturer() {
-  document.getElementById('nav-username').textContent = currentUser.name;
-  document.getElementById('overview-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
+  const navUser = document.getElementById('nav-username');
+  if (navUser) navUser.textContent = currentUser.name;
+  
+  const greeting = document.getElementById('overview-greeting');
+  if (greeting) greeting.textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
 
   // Check AI status
   try {
@@ -2169,8 +2172,11 @@ async function generateReport() {
 }
 
 async function initStudent() {
-  document.getElementById('student-nav-username').textContent = currentUser.name;
-  document.getElementById('student-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
+  const navUser = document.getElementById('student-nav-username');
+  if (navUser) navUser.textContent = currentUser.name;
+  
+  const greeting = document.getElementById('student-greeting');
+  if (greeting) greeting.textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
 
   await Promise.all([
     loadCurriculumAsync(),
