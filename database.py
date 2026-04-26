@@ -73,6 +73,10 @@ def init_db():
             language TEXT DEFAULT 'Spanish',
             code TEXT,
             is_building INTEGER DEFAULT 0,
+            activity_status TEXT DEFAULT 'idle',
+            activity_progress INTEGER DEFAULT 0,
+            activity_total INTEGER DEFAULT 0,
+            activity_result TEXT,
             lecturer_id TEXT REFERENCES users(id),
             created_at TEXT DEFAULT (datetime('now'))
         );
