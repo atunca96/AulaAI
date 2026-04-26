@@ -299,7 +299,8 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
                     q["distractors"] = ["Option A", "Option B", "Option C"]
             elif q["distractors"]:
                 try:
-                    q["distractors"] = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
                 except:
                     q["distractors"] = []
             

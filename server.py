@@ -1059,6 +1059,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         q_dict["distractors"] = json.loads(q_dict["distractors"])
                     except:
                         q_dict["distractors"] = []
+                
+                if isinstance(q_dict.get("distractors"), list):
+                    q_dict["distractors"] = [d for d in q_dict["distractors"] if isinstance(d, str) and d.strip()]
+                else:
+                    q_dict["distractors"] = []
+                    
                 result.append(q_dict)
                 
         self._send_json({"questions": result})

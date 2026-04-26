@@ -2888,6 +2888,15 @@ function renderDraftList() {
     <div style="max-height: 60vh; overflow-y: auto; padding-right:8px;">
   `;
 
+  if (!currentDraft.questions || currentDraft.questions.length === 0) {
+    html += `
+      <div style="text-align:center; padding:20px; color:var(--text-muted);">
+        <p>No questions could be automatically generated.</p>
+        <p>Please click "➕ Add Question" to create them manually.</p>
+      </div>
+    `;
+  }
+
   currentDraft.questions.forEach((q, i) => {
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
