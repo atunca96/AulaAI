@@ -9,6 +9,31 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 import time
+import hashlib
+
+# Simple AI response cache to avoid redundant calls and speed up everything
+AI_CACHE_FILE = os.path.join("data", "ai_cache.json")
+_ai_memory_cache = {}
+
+def load_ai_cache():
+    global _ai_memory_cache
+    if os.path.exists(AI_CACHE_FILE):
+        try:
+            with open(AI_CACHE_FILE, "r", encoding="utf-8") as f:
+                _ai_memory_cache = json.load(f)
+        except:
+            _ai_memory_cache = {}
+
+def save_ai_cache():
+    try:
+        os.makedirs(os.path.dirname(AI_CACHE_FILE), exist_ok=True)
+        with open(AI_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_ai_memory_cache, f)
+    except:
+        pass
+
+# Initial load
+load_ai_cache()
 
 def file_log(msg):
     with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -26,10 +51,14 @@ if os.path.exists(".env"):
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Using Claude 3.5 Haiku for fast, high-quality, and up-to-date generation
 MODEL = "anthropic/claude-3.5-haiku"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 if not OPENROUTER_API_KEY:
     file_log("CRITICAL: OPENROUTER_API_KEY IS MISSING!")
+
+import re
+import random as py_random
 
 
 def is_ai_available():
@@ -43,11 +72,20 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
     if not OPENROUTER_API_KEY:
         return None
 
+    # Add a random seed to the prompt to force variety and avoid unintended cache hits
+    messages.append({"role": "system", "content": f"Random Seed: {py_random.randint(1000, 999999)}"})
+
+    # Caching logic - now includes the random seed in the hash
+    cache_key = hashlib.md5(json.dumps(messages).encode()).hexdigest()
+    if cache_key in _ai_memory_cache:
+        file_log(f"Cache hit for key {cache_key}")
+        return _ai_memory_cache[cache_key]
+
     payload_dict = {
         "model": MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": temperature
+        "temperature": 0.9 # Even higher temperature for maximum variety
     }
     if response_json:
         payload_dict["response_format"] = {"type": "json_object"}
@@ -66,7 +104,7 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
         method="POST"
     )
 
-    MAX_RETRIES = 5
+    MAX_RETRIES = 2
     for attempt in range(MAX_RETRIES):
         try:
             print(f"[AI] Requesting {MODEL} (Attempt {attempt+1}/{MAX_RETRIES})...")
@@ -102,12 +140,18 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                                     clean_content = clean_content[4:].strip()
                                 break
                     try:
-                        return json.loads(clean_content)
+                        parsed = json.loads(clean_content)
+                        # Save to cache
+                        _ai_memory_cache[cache_key] = parsed
+                        save_ai_cache()
+                        return parsed
                     except json.JSONDecodeError as jde:
                         # Handle "Extra data" (valid JSON followed by trailing text)
                         if "Extra data" in str(jde):
                             try:
                                 obj, _ = json.JSONDecoder().raw_decode(clean_content)
+                                _ai_memory_cache[cache_key] = obj
+                                save_ai_cache()
                                 return obj
                             except: pass
 
@@ -119,12 +163,19 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                             last_valid = max(last_brace, last_bracket)
                             if last_valid > 0:
                                 try:
-                                    return json.loads(clean_content[:last_valid+1])
+                                    salvaged = json.loads(clean_content[:last_valid+1])
+                                    _ai_memory_cache[cache_key] = salvaged
+                                    save_ai_cache()
+                                    return salvaged
                                 except: pass
                         
                         print(f"[AI] JSON Decode Error: {jde}. Raw content: {content[:200]}...")
                         if clean_content.startswith("["): return []
                         raise Exception(f"Malformed JSON from AI: {jde}")
+                
+                # Save plain text to cache
+                _ai_memory_cache[cache_key] = content
+                save_ai_cache()
                 return content
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
@@ -144,6 +195,53 @@ def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
                 continue
             print(f"[AI] OpenRouter API error: {e}")
             raise e
+
+
+def ai_generate_curriculum(language, level, course_name):
+    """Generate a structured unit-based curriculum for a specific language and level."""
+    prompt = f"""You are a professional curriculum designer for language learning.
+    Create a comprehensive curriculum for a {language} course at the {level} level.
+    The course name is '{course_name}'.
+    
+    Structure the curriculum into 4-5 thematic units. Each unit should have a descriptive title and 3-4 specific topics.
+    
+    Return ONLY a JSON object with a 'chapters' field:
+    {{
+      "chapters": [
+         {{
+           "title": "Unit 1: Greetings & Basics",
+           "topics": ["Alphabet & Sounds", "Personal Pronouns", "Greetings"]
+         }},
+         ...
+      ]
+    }}"""
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2000)
+    
+    # Fallback curriculum if AI fails or returns malformed data
+    fallback = {
+      "chapters": [
+        {
+          "title": "Unit 1: First Steps",
+          "topics": ["Greetings", "Numbers 1-100", "Alphabet"]
+        },
+        {
+          "title": "Unit 2: Daily Life",
+          "topics": ["Family Members", "Colors & Clothing", "Telling Time"]
+        },
+        {
+          "title": "Unit 3: Eating & Shopping",
+          "topics": ["Food Vocabulary", "At the Restaurant", "Money & Prices"]
+        },
+        {
+          "title": "Unit 4: Moving Around",
+          "topics": ["Directions", "City Locations", "Weather"]
+        }
+      ]
+    }
+
+    if not result or not isinstance(result, dict) or "chapters" not in result:
+        return fallback
+    return result
 
 
 def detect_language(text):
@@ -240,34 +338,59 @@ Return ONLY valid JSON:
 
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
-    """Generate both content and questions in a single LLM call for maximum speed."""
+    """Generate both content, study guide, and questions in a single LLM call."""
     lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
     
-    structure = """
-      "content": { ... },
-      "questions": [
-        { "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] },
-        { "type": "fill_blank", "prompt": "...", "answer": "..." }
-      ]
-    """
-    
     if topic_type == "vocabulary":
-        detail = "Include 10-15 essential words/phrases with their English translations in the 'content.words' object."
+        detail = """
+        - 'words': A dictionary of 15-20 essential words/phrases with English translations.
+        - 'usage_notes': A few tips on how to use these words in real life.
+        - 'cheat_sheet': A 2-sentence summary of the most important takeaways.
+        """
     else:
-        detail = "Include 3-5 clear rules and 4 illustrative examples in 'content.rules' and 'content.examples'."
+        detail = """
+        - 'rules': 4-6 detailed grammar rules with clear explanations.
+        - 'examples': 6 illustrative examples with English translations.
+        - 'common_mistakes': 2-3 things students usually get wrong.
+        - 'cheat_sheet': A 2-sentence summary of the core grammar pattern.
+        """
 
-    prompt = f"""Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
+    prompt = f"""You are an elite language textbook author specializing in {language}. 
+    Generate a COMPREHENSIVE immersive lesson for the topic '{topic_title}' ({topic_type}).
     
-    1. CONTENT: {detail}
-    2. QUESTIONS: Generate exactly {question_count} interactive questions.
-       - Use 'mcq' for multiple choice (MUST include exactly 3 'distractors').
-       - Use 'fill_blank' for fill in the blank.
-       - Provide a mix of both types.
+    IMPORTANT: All rules, examples, usage notes, and questions MUST be written in {language}. 
+    Only use English for the word translations in the 'words' dictionary and 'examples' translations if helpful.
+    
+    1. CONTENT (The Study Guide): 
+       {detail}
+    
+    2. QUESTIONS: Generate exactly {question_count} professional, unambiguous interactive questions.
+       
+       CRITICAL QUALITY RULES:
+       - IMMERSION: All prompts and answers MUST be 100% in {language}. No English in the questions.
+       - NO GUESSING: For 'fill_blank', you MUST provide a "context setup" sentence before the question so the answer is the ONLY logical choice.
+         * INCORRECT: "Benim ____ çok sevimli." (Guessing game)
+         * CORRECT: "Küçük bir kedim var. Benim kedim çok sevimli." (Logical follow-up)
+       - GRAMMAR HINTS: 
+         * For 'grammar/conjugation', provide the base word in parentheses. (e.g. "Dün okula ____. (gitmek)")
+         * For 'vocabulary', DO NOT provide the answer in parentheses. Instead, provide a short definition or synonym in {language} as a hint. (e.g. "Bu ____ çok büyük. [Oturduğumuz yer]")
+       - MCQ QUALITY: Distractors MUST be plausible but clearly wrong.
     
     Return ONLY valid JSON with this exact structure:
     {{
-      "content": {{ ... }},
-      "questions": [ {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}, ... ]
+      "content": {{
+         "words": {{ "word_in_{language}": "english_translation" }},
+         "rules": ["... rules in {language} ..."],
+         "examples": ["... example in {language} (English translation) ..."],
+         "usage_notes": "... in {language} ...",
+         "common_mistakes": ["... in {language} ..."],
+         "cheat_sheet": "... in {language} ..."
+      }},
+      "questions": [ 
+         {{ "type": "mcq", "prompt": "... context-rich question in {language} ...", "answer": "... in {language} ...", "distractors": ["...", "...", "..."] }},
+         {{ "type": "fill_blank", "prompt": "... Context Sentence. Question sentence with ____ and (hint word). ...", "answer": "..." }},
+         ... 
+      ]
     }}"""
     
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
@@ -287,35 +410,88 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         examples = topic_content.get("examples", [])
         context = f"Grammar rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}" if (rules or examples) else "Generate basic grammar rules for this level."
 
-    lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
-    prompt = f"""You are a language teacher creating exercises for A1/A2 level students.
-Topic: {topic_title}
-Type: {topic_type}
-{lang_context}
-{context}
+    lang_context = f"Target Language: {language}" if language and language != "Unknown" else "Target Language: Infer from the context"
+    prompt = f"""You are a professional language teacher creating HIGH-QUALITY immersive exercises for A1/A2 level students.
+    Topic: {topic_title}
+    Type: {topic_type}
+    {lang_context}
+    {context}
 
-Generate exactly {count} questions. Mix:
-- "mcq" (multiple choice with 3 distractors)
-- "fill_blank" (fill in the blank)
+    STRICT PEDAGOGICAL RULES:
+    1. VARIETY: This is the MOST IMPORTANT rule. Every single question must be unique. Test different words, different grammar points, and use different sentence structures. NEVER repeat the same logic.
+    2. IMMERSION: Both the 'prompt' and the 'answer' MUST be written entirely in {language}.
+    3. FILL_BLANK MUST HAVE BLANKS: For 'fill_blank', you MUST include exactly one '____' (4 underscores) in the prompt where the answer goes.
+       * GOOD: "Ich ____ (heißen) Michael." -> Answer: "heiße"
+    4. NO OPEN-ENDED TASKS: Every question must have a single, concrete, short correct answer.
+    5. NO MATCHING: Only MCQ or Fill-in-the-blank.
+    6. UNAMBIGUOUS: There must be only one correct answer.
+    7. TRUE/FALSE AS MCQ: Use type 'mcq' with 2 options ('Richtig'/'Falsch', etc.).
 
-Return ONLY valid JSON:
-{{
-  "questions": [
+    Generate exactly 10 high-quality, unique questions. Mix:
+    - "mcq" (multiple choice with 1 to 3 distractors)
+    - "fill_blank" (fill in the blank)
+
+    Return ONLY valid JSON:
     {{
-      "type": "mcq",
-      "prompt": "question text in the target language or English depending on context",
-      "answer": "correct answer",
-      "distractors": ["wrong1", "wrong2", "wrong3"]
-    }}
-  ]
-}}"""
+      "questions": [
+        {{
+          "type": "mcq",
+          "prompt": "... context-rich prompt in {language} ...",
+          "answer": "...",
+          "distractors": ["...", "...", "..."]
+        }},
+        {{
+          "type": "fill_blank",
+          "prompt": "... Context. Sentence with ____ (hint). ...",
+          "answer": "..."
+        }}
+      ]
+    }}"""
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
-    return result.get("questions") if result else None
+    questions = result.get("questions") if result else None
+    
+    if not questions: return None
+    
+    # Validation step: Filter out broken questions
+    valid_questions = []
+    for q in questions:
+        q_type = q.get("type")
+        q_prompt = (q.get("prompt") or "").strip()
+        q_answer = (q.get("answer") or "").strip()
+        
+        if not q_prompt or not q_answer:
+            continue
+            
+        if q_type == "fill_blank" and "____" not in q_prompt:
+            continue
+            
+        # Filter out obvious "descriptive" or "matching" prompts that the AI slipped in
+        forbidden_keywords = ["describe", "beschreibe", "write", "schreibe", "match", "verbinde", "pair", "connect"]
+        if any(word in q_prompt.lower() for word in forbidden_keywords):
+            continue
+            
+        valid_questions.append(q)
+        
+    # Deduplication Step: Ensure no two questions have the same prompt (normalized)
+    seen_prompts = set()
+    unique_questions = []
+    for q in valid_questions:
+        # Normalize prompt: lowercase and remove all non-alphanumeric characters
+        raw_p = q.get("prompt", "")
+        p_norm = re.sub(r'[^a-z0-9\u00C0-\u017F]', '', raw_p.lower())
+        if p_norm and p_norm not in seen_prompts:
+            seen_prompts.add(p_norm)
+            unique_questions.append(q)
+        else:
+            file_log(f"Discarding duplicate question: {raw_p[:50]}...")
+
+    # Shuffle for variety and slice to requested count
+    py_random.shuffle(unique_questions)
+    return unique_questions[:count] if unique_questions else None
 
 
-def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
-    """Generate interactive activities in the specified language."""
-    # Similar to ai_generate_questions but for activities
+def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None):
+    """Generate exactly ONE interactive activity with awareness of previous questions to ensure variety."""
     if topic_type == "vocabulary":
         words = topic_content.get("words", {})
         word_list = ", ".join([f"{k} = {v}" for k, v in list(words.items())])
@@ -325,30 +501,55 @@ def ai_generate_activity(topic_title, topic_type, topic_content, language, count
         examples = topic_content.get("examples", [])
         context = f"Rules: {'; '.join(rules)}\nExamples: {'; '.join(examples)}"
 
+    history_str = ""
+    if history:
+        history_str = f"\nALREADY GENERATED QUESTIONS (DO NOT REPEAT THESE):\n" + "\n".join([f"- {h}" for h in history])
+
     lang_context = f"Language: {language}" if language and language != "Unknown" else "Language: Infer from the context"
-    prompt = f"""You are a language teacher creating practice exercises for A1/A2 students.
+    prompt = f"""You are a professional language teacher creating ONE unique practice exercise for A1/A2 students.
 Topic: {topic_title} ({topic_type})
 {lang_context}
 {context}
+{history_str}
 
-Generate {count} exercises. Each should be either:
-- "mcq": multiple choice (4 options)
-- "fill_blank": fill in the blank
+STRICT RULES:
+1. IMMERSION: ALL text (prompt, answer, options) MUST be written entirely in {language}.
+2. NO TRANSLATIONS: Do NOT ask for translations to English, Turkish, or any other language.
+3. STRICT MONOLINGUALISM: Use ONLY {language}. Do NOT include any English or Turkish words in the distractors or prompt.
+4. TYPE: Only "mcq" or "fill_blank".
+5. NO MATCHING: Never generate "Match" or "Pair" instructions.
+6. BLANKS: "fill_blank" MUST contain '____'.
+7. UNIQUE: The question MUST be different from the history above. Test a different word or concept.
 
-Return ONLY valid JSON:
+Generate exactly ONE exercise (Exercise #{index}). Return ONLY JSON:
 {{
-  "activities": [
-    {{
-      "type": "mcq",
-      "prompt": "...",
-      "answer": "...",
-      "options": ["...", "...", "...", "..."]
-    }}
-  ]
+  "type": "mcq",
+  "prompt": "...",
+  "answer": "...",
+  "options": ["...", "...", "...", "..."]
+}} OR
+{{
+  "type": "fill_blank",
+  "prompt": "... ____ (hint) ...",
+  "answer": "..."
 }}"""
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
-    return result.get("activities") if result else None
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
+    if result and result.get("type") == "mcq" and "options" in result:
+        import random
+        random.shuffle(result["options"])
+    return result if result and "type" in result else None
 
+
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
+    """Fallback generator that calls single activity generation with history tracking."""
+    results = []
+    history = []
+    for i in range(count):
+        act = ai_generate_single_activity(topic_title, topic_type, topic_content, language, i+1, history)
+        if act:
+            results.append(act)
+            history.append(act.get("prompt"))
+    return results
 
 def ai_generate_report_insights(cohort_data):
     """Generate detailed AI insights for reports in both English and Turkish."""

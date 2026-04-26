@@ -100,12 +100,17 @@ def init_db():
             course_id TEXT REFERENCES courses(id),
             status TEXT DEFAULT 'pending',
             enrolled_at TEXT DEFAULT (datetime('now')),
+            pin TEXT,
             UNIQUE(student_id, course_id)
         );
     """)
 
     try:
         c.execute("ALTER TABLE enrollments ADD COLUMN status TEXT DEFAULT 'pending'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        c.execute("ALTER TABLE enrollments ADD COLUMN pin TEXT")
     except sqlite3.OperationalError:
         pass
 

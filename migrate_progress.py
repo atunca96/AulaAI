@@ -1,17 +1,15 @@
-import sqlite3
-import os
-
-DB_PATH = os.path.join(os.getcwd(), 'data', 'prototype.db')
+from database import db_connection
 
 def migrate():
-    conn = sqlite3.connect(DB_PATH)
-    try:
-        conn.execute("ALTER TABLE courses ADD COLUMN seeding_progress INTEGER DEFAULT 0")
-        print("Success: Added seeding_progress to courses")
-    except Exception as e:
-        print(f"Info: {e}")
-    finally:
-        conn.close()
+    with db_connection() as db:
+        try:
+            db.execute("ALTER TABLE courses ADD COLUMN progress INTEGER DEFAULT 0")
+        except: pass
+        try:
+            db.execute("ALTER TABLE courses ADD COLUMN total_steps INTEGER DEFAULT 0")
+        except: pass
+        db.commit()
+    print("Migration complete.")
 
 if __name__ == "__main__":
     migrate()

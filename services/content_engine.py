@@ -131,13 +131,13 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Unkn
 
     # Fallback to mock templates (Note: Mock templates are hardcoded for common introductory topics)
     if topic_type == "vocabulary":
-        return _generate_vocab_activity(content, difficulty, count)
+        return _generate_vocab_activity(content, difficulty, count, language)
     elif topic_type == "grammar":
-        return _generate_grammar_activity(topic_data["title"], content, difficulty, count)
+        return _generate_grammar_activity(topic_data["title"], content, difficulty, count, language)
     return []
 
 
-def _generate_vocab_activity(content, difficulty, count):
+def _generate_vocab_activity(content, difficulty, count, language="Spanish"):
     """Generate vocabulary MCQ activities with smart distractors."""
     words = content.get("words", {})
     items = list(words.items())
@@ -210,7 +210,7 @@ def _generate_vocab_activity(content, difficulty, count):
     return activities[:count]
 
 
-def _generate_grammar_activity(title, content, difficulty, count):
+def _generate_grammar_activity(title, content, difficulty, count, language="Spanish"):
     """Generate grammar fill-in-the-blank activities."""
     title_lower = title.lower()
 
@@ -309,78 +309,85 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
     random.shuffle(questions)
     
     # If we don't have enough questions in the DB, generate more on the fly!
-    max_retries = 5
+    max_retries = 3
     retry_count = 0
     
+    import concurrent.futures
+    from services.state import bump_version
+    from services.ai_engine import ai_generate_questions
+
     while len(questions) < count and is_ai_available() and retry_count < max_retries:
         retry_count += 1
         needed = count - len(questions)
         
-        # Pick a target topic (prioritize ones with fewer questions or cycle)
-        target_topic_id = None
-        if topic_ids:
-            # Randomly pick from available topics to avoid bottlenecking on one failing topic
-            target_topic_id = random.choice(topic_ids)
-        else:
+        # Pick target topics (prioritize ones with fewer questions or cycle)
+        # We'll generate in parallel for multiple topics if needed
+        targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
+        if not targets:
             t_fallback = c.execute("SELECT id FROM topics LIMIT 1").fetchone()
-            if t_fallback: target_topic_id = t_fallback["id"]
+            if t_fallback: targets = [t_fallback["id"]]
             
-        if not target_topic_id: break
+        if not targets: break
         
-        t_data = c.execute("SELECT title, type, content FROM topics WHERE id = ?", (target_topic_id,)).fetchone()
-        if not t_data: continue
-            
-        from services.state import bump_version
-        from services.ai_engine import ai_generate_questions
-        try:
-            # Fetch language for better generation
-            l_row = c.execute("""
-                SELECT co.language FROM courses co
-                JOIN chapters ch ON co.id = ch.course_id
-                JOIN topics t ON ch.id = t.chapter_id
-                WHERE t.id = ?
-            """, (target_topic_id,)).fetchone()
-            language = l_row["language"] if l_row else "Unknown" 
-            
-            raw_content = t_data["content"]
-            parsed_content = json.loads(raw_content) if raw_content else {}
-            
-            # Request slightly more than needed to ensure we hit the target
-            batch_size = max(needed, 5)
-            new_qs = ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch_size)
-            
-            if new_qs:
-                added_this_retry = 0
-                for q in new_qs:
-                    # Basic validation of AI output
-                    if not q.get("prompt") or not q.get("answer"): continue
-                    
-                    q_id = str(uuid.uuid4())
-                    distractors = q.get("distractors", [])
-                    if not isinstance(distractors, list): distractors = []
-                    
-                    # Save to DB for future use
-                    c.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                               (q_id, target_topic_id, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                json.dumps(distractors), "A1.1"))
-                    
-                    questions.append({
-                        "id": q_id,
-                        "topic_id": target_topic_id,
-                        "type": q.get("type", "mcq"),
-                        "prompt": q.get("prompt", ""),
-                        "answer": q.get("answer", ""),
-                        "distractors": distractors,
-                        "difficulty": "A1.1"
-                    })
-                    added_this_retry += 1
+        def _gen_for_topic(tid, batch):
+            try:
+                t_data = c.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+                if not t_data: return []
                 
-                if added_this_retry > 0:
-                    db_conn.commit()
-                    bump_version()
-                    print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_data['title']}'")
-        except Exception as e:
-            print(f"[ERROR] AI Retry {retry_count} failed: {e}")
+                l_row = c.execute("""
+                    SELECT co.language FROM courses co
+                    JOIN chapters ch ON co.id = ch.course_id
+                    JOIN topics t ON ch.id = t.chapter_id
+                    WHERE t.id = ?
+                """, (tid,)).fetchone()
+                language = l_row["language"] if l_row else "Unknown" 
+                
+                raw_content = t_data["content"]
+                parsed_content = json.loads(raw_content) if raw_content else {}
+                
+                return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch), tid, t_data["title"]
+            except Exception as e:
+                print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
+                return [], tid, ""
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as executor:
+            batch_per_target = max(needed // len(targets) + 1, 5)
+            futures = [executor.submit(_gen_for_topic, tid, batch_per_target) for tid in targets]
+            
+            for f in concurrent.futures.as_completed(futures):
+                new_qs, tid, t_title = f.result()
+                if new_qs:
+                    added_this_retry = 0
+                    for q in new_qs:
+                        if not q.get("prompt") or not q.get("answer"): continue
+                        if len(questions) >= count + 5: break # Don't over-generate too much
+                        
+                        q_id = str(uuid.uuid4())
+                        distractors = q.get("distractors", [])
+                        if not isinstance(distractors, list): distractors = []
+                        
+                        # Save to DB
+                        c.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                   (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
+                                    json.dumps(distractors), "A1.1"))
+                        
+                        questions.append({
+                            "id": q_id,
+                            "topic_id": tid,
+                            "type": q.get("type", "mcq"),
+                            "prompt": q.get("prompt", ""),
+                            "answer": q.get("answer", ""),
+                            "distractors": distractors,
+                            "difficulty": "A1.1"
+                        })
+                        added_this_retry += 1
+                    
+                    if added_this_retry > 0:
+                        db_conn.commit()
+                        bump_version()
+                        print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_title}'")
+
+    return questions[:count]
 
     return questions[:count]
 

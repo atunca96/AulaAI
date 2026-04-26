@@ -94,6 +94,40 @@ body {
 .screen { display: none; min-height: 100vh; }
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Progress Bars ── */
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--gradient-1);
+  width: 0%;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: shine 2s infinite;
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.no-scroll { overflow: hidden !important; }
 
 /* ── Login ───────────────────────────────────────────── */
 .login-container {
@@ -221,24 +255,24 @@ body {
 .topnav {
   display: flex;
   align-items: center;
-  padding: 0 24px;
-  height: 64px;
+  padding: 0 16px;
+  height: 52px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
   backdrop-filter: blur(12px);
 }
-.nav-brand { display: flex; align-items: center; gap: 10px; margin-right: 24px; flex-shrink: 0; }
-.nav-logo { font-size: 24px; }
-.nav-logo-img { height: 32px; width: auto; object-fit: contain; }
-.nav-title { font-size: 18px; font-weight: 700; }
+.nav-brand { display: flex; align-items: center; gap: 8px; margin-right: 12px; flex-shrink: 0; }
+.nav-logo { font-size: 20px; }
+.nav-logo-img { height: 26px; width: auto; object-fit: contain; }
+.nav-title { font-size: 15px; font-weight: 700; }
 .nav-badge {
-  padding: 3px 10px;
+  padding: 2px 6px;
   background: var(--gradient-1);
   border-radius: 12px;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 600;
   white-space: nowrap;
   color: #fff;
@@ -246,22 +280,27 @@ body {
   letter-spacing: 0.5px;
 }
 .student-badge { background: linear-gradient(135deg, #22c55e, #16a34a); }
-.nav-tabs { display: flex; gap: 2px; flex: 1; min-width: 0; }
+.nav-tabs { display: flex; gap: 1px; flex: 1; min-width: 0; justify-content: center; }
 .nav-tab {
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: transparent;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
   cursor: pointer;
   transition: var(--transition);
 }
 .nav-tab:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
 .nav-tab.active { color: var(--accent-light); background: var(--accent-glow); }
-.nav-user { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); margin-left: 12px; flex-shrink: 0; }
+.nav-user { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); margin-left: 12px; flex-shrink: 0; }
+.topnav .btn { padding: 6px 12px; font-size: 12px; height: 32px; }
 
 /* ── Dashboard Content ───────────────────────────────── */
 .dashboard-content { max-width: 1280px; margin: 0 auto; padding: 32px 24px; }
@@ -561,9 +600,15 @@ body {
 /* ── Responsive ──────────────────────────────────────── */
 
 /* Tablet */
+@media (max-width: 1200px) {
+  .nav-title { display: none; }
+  .tab-label { display: none; }
+  .nav-tab { padding: 8px; }
+}
 @media (max-width: 1024px) {
   .grid-2col { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  #nav-course-name, #nav-course-code { display: none !important; }
 }
 
 /* Mobile */
@@ -1070,4 +1115,32 @@ body {
 }
 .new-chat-item:active {
     transform: scale(0.98);
+}
+
+.method-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent) !important;
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.15);
+    background: var(--bg-hover) !important;
+}
+
+.method-card h3 {
+    transition: var(--transition);
+}
+
+.method-card:hover h3 {
+    color: var(--accent-light);
+}
+
+.level-btn.active {
+    background: var(--accent) !important;
+    color: white !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+.lang-btn.active {
+    border-color: var(--accent) !important;
+    background: rgba(99, 102, 241, 0.1) !important;
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
 }

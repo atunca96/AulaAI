@@ -211,6 +211,11 @@
                             <label for="student-name-input"><span data-i18n="Full Name">Full Name</span> <span style="color:var(--text-muted);font-size:12px;font-weight:normal" data-i18n="(required)">(required)</span></label>
                             <input type="text" id="student-name-input" data-i18n-placeholder="Your Full Name" placeholder="Your Full Name">
                         </div>
+                        <div id="student-pin-group" class="form-group">
+                            <label for="student-pin">PIN (4-digits)</label>
+                            <input type="password" id="student-pin" placeholder="••••" maxlength="4" autocomplete="off" inputmode="numeric">
+                            <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">First-time? Leave blank. Approved? Enter your PIN.</p>
+                        </div>
                         <button type="submit" class="btn btn-primary btn-full" id="student-login-btn" data-i18n="Sign In">Sign In</button>
                         <div id="student-login-error" class="error-msg hidden"></div>
                     </form>
@@ -249,8 +254,8 @@
             </div>
             
             <div style="text-align:center;">
-                <button class="btn btn-primary" onclick="openCreateClassroomModal()" style="padding:16px 32px; font-size:16px; display:inline-flex; align-items:center; gap:10px;">
-                    <span style="font-size:20px;">➕</span> <span data-i18n="class.create">Create New Classroom from PDF</span>
+                <button class="btn btn-primary" onclick="openClassroomMethodModal()" style="padding:16px 32px; font-size:16px; display:inline-flex; align-items:center; gap:10px;">
+                    <span style="font-size:20px;">➕</span> <span data-i18n="class.create_generic">Create New Classroom</span>
                 </button>
             </div>
             
@@ -261,7 +266,88 @@
         </div>
     </div>
 
-    <!-- Create Classroom Modal -->
+    <!-- Classroom Method Selection Modal -->
+    <div id="classroom-method-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:550px; text-align:center;">
+            <button class="modal-close" onclick="closeClassroomMethodModal()">&times;</button>
+            <h2 style="margin-bottom:8px;"><span data-i18n="class.create_title">🛠️ Yeni Sınıf Yöntemi</span></h2>
+            <p style="color:var(--text-muted); margin-bottom:32px;" data-i18n="class.choose_method">Choose how you want to build your course</p>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                <!-- PDF Path -->
+                <div class="method-card" onclick="startPdfCreationFlow()" style="background:var(--bg-input); border:1px solid var(--border); padding:24px; border-radius:16px; cursor:pointer; transition:var(--transition); text-align:left;">
+                    <div style="font-size:32px; margin-bottom:16px;">📄</div>
+                    <h3 style="margin-bottom:8px;" data-i18n="class.magic_pdf">Magic PDF</h3>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.4;" data-i18n="class.magic_pdf_desc">Upload a textbook PDF and let AI build the course from it.</p>
+                </div>
+                
+                <!-- AI Architect Path -->
+                <div class="method-card" onclick="startAiArchitectFlow()" style="background:var(--bg-input); border:1px solid var(--border); padding:24px; border-radius:16px; cursor:pointer; transition:var(--transition); text-align:left; border-color:var(--accent);">
+                    <div style="font-size:32px; margin-bottom:16px;">✨</div>
+                    <h3 style="margin-bottom:8px; color:var(--accent-light);" data-i18n="class.ai_architect">AI Architect</h3>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.4;" data-i18n="class.ai_architect_desc">No PDF? Just tell AI the language and level, and it creates the course.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Architect Wizard Modal -->
+    <div id="ai-architect-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:600px;">
+            <button class="modal-close" onclick="closeAiArchitectModal()">&times;</button>
+            
+            <!-- Step 1: Language & Level -->
+            <div id="ai-step-1">
+                <h2 style="margin-bottom:8px;">✨ <span data-i18n="class.ai_architect">AI Architect</span></h2>
+                <p style="color:var(--text-muted); margin-bottom:24px;" data-i18n="ai.tell_teach">Tell AI what you want to teach</p>
+                
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:12px; font-weight:600;" data-i18n="ai.select_lang">1. Select Language</label>
+                    <div id="ai-language-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+                        <!-- Languages will be injected here -->
+                    </div>
+                </div>
+                
+                <div class="form-group" style="margin-top:24px;">
+                    <label style="display:block; margin-bottom:12px; font-weight:600;" data-i18n="ai.target_level">2. Target Level</label>
+                    <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:10px;">
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('A1')">A1</button>
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('A2')">A2</button>
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('B1')">B1</button>
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('B2')">B2</button>
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('C1')">C1</button>
+                        <button class="btn btn-ghost level-btn" onclick="selectAiLevel('C2')">C2</button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top:24px;">
+                    <label style="display:block; margin-bottom:8px; font-weight:600;" data-i18n="ai.course_name">3. Course Name</label>
+                    <input type="text" id="ai-course-name" data-i18n-placeholder="ai.name_placeholder" placeholder="e.g. Intensive Spanish Summer" style="width:100%; padding:12px; border-radius:10px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-main);">
+                </div>
+
+                <div style="margin-top:32px; text-align:right;">
+                    <button class="btn btn-primary" onclick="generateAiCurriculum()" id="ai-gen-btn" style="width:100%; padding:14px;" data-i18n="ai.gen_curriculum">Generate Curriculum ✨</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Curriculum Review -->
+            <div id="ai-step-2" class="hidden">
+                <h2 style="margin-bottom:8px;">📝 <span data-i18n="ai.review_title">Review Curriculum</span></h2>
+                <p style="color:var(--text-muted); margin-bottom:24px;" data-i18n="ai.review_desc">AI suggested these topics. You can edit or remove them.</p>
+                
+                <div id="ai-curriculum-list" style="max-height:400px; overflow-y:auto; margin-bottom:24px; padding:10px; background:rgba(0,0,0,0.2); border-radius:12px;">
+                    <!-- Topics will be injected here -->
+                </div>
+
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-ghost" onclick="prevAiStep()" style="flex:1;" data-i18n="go_back">Back</button>
+                    <button class="btn btn-primary" onclick="buildAiClassroom()" id="ai-build-btn" style="flex:2;" data-i18n="class.build_btn">Build Classroom 🚀</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Classroom Modal (PDF Flow) -->
     <div id="create-classroom-modal" class="modal hidden">
         <div class="modal-content" style="max-width:500px;">
             <button class="modal-close" onclick="closeCreateClassroomModal()">&times;</button>
@@ -329,9 +415,17 @@
                 <div class="stats-grid" id="overview-stats"></div>
                 
                 <!-- Building Banner -->
-                <div id="lecturer-building-banner" class="hidden" style="background:linear-gradient(90deg, #6366f1, #a855f7); color:white; padding:14px; border-radius:12px; margin-bottom:24px; font-weight:500; display:flex; align-items:center; gap:12px; box-shadow:var(--shadow-md);">
-                    <div class="spinner-small"></div>
-                    <span data-i18n="class.building_msg">Your content is still being built from the textbook — check back soon.</span>
+                <div id="lecturer-building-banner" class="hidden" style="background:var(--bg-card); border:1px solid var(--accent); color:var(--text-primary); padding:16px; border-radius:12px; margin-bottom:24px; font-weight:500; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow-lg);">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                        <div style="flex:1;">
+                            <span data-i18n="class.building_msg">Your content is being built...</span>
+                            <span id="lecturer-progress-text" style="float:right; font-size:14px; color:var(--accent); font-weight:700;">0%</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-container" style="margin:0;">
+                        <div id="lecturer-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
                 </div>
 
                 <div class="grid-2col">
@@ -385,7 +479,7 @@
                                     <option value="" data-i18n="Loading curriculum...">Loading curriculum...</option>
                                 </select>
                             </div>
-                            <button class="btn btn-primary" onclick="launchActivity()" data-i18n="Generate Activity">Generate Activity</button>
+                            <button id="generate-activity-btn" class="btn btn-primary" onclick="launchActivity()" data-i18n="Generate Activity">Generate Activity</button>
                         </div>
                     </div>
                 </div>
@@ -546,8 +640,9 @@
                 <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon">✍️</span><span class="tab-label" data-i18n="practice">Practice</span></button>
                 <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="quizzes">Quizzes</span></button>
                 <button class="nav-tab pc-only" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
-                <button class="nav-tab pc-only" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
-                <button class="nav-tab pc-only" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
+                <button id="nav-s-progress" class="nav-tab pc-only" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
+                <button id="nav-s-study" class="nav-tab pc-only hidden" data-tab="s-study" onclick="switchTab(this)"><span class="tab-icon">🎓</span><span class="tab-label" data-i18n="study">Study</span></button>
+                <button id="nav-s-book" class="nav-tab pc-only" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab pc-only" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -557,6 +652,21 @@
         </nav>
 
         <main class="dashboard-content">
+            <!-- Study Tab (For AI Architect courses) -->
+            <section id="tab-s-study" class="tab-panel">
+                <div class="page-header">
+                    <h1>🎓 <span data-i18n="study">Study</span></h1>
+                    <p class="subtitle" data-i18n="study_subtitle">AI-generated lesson guides</p>
+                </div>
+                <div id="study-topics-list" class="grid-2col" style="gap:20px;"></div>
+                <div id="study-content-viewer" class="hidden">
+                    <button class="btn btn-ghost" onclick="closeStudyViewer()" style="margin-bottom:20px;">← <span data-i18n="back">Back</span></button>
+                    <div class="card" style="padding:40px; min-height:600px; line-height:1.7;">
+                        <div id="study-material-content"></div>
+                    </div>
+                </div>
+            </section>
+
             <section id="tab-s-home" class="tab-panel active">
                 <div class="page-header">
                     <h1 id="student-greeting"></h1>
@@ -564,9 +674,17 @@
                 </div>
                 
                 <!-- Building Banner -->
-                <div id="student-building-banner" class="hidden" style="background:linear-gradient(90deg, #6366f1, #a855f7); color:white; padding:14px; border-radius:12px; margin-bottom:24px; font-weight:500; display:flex; align-items:center; gap:12px; box-shadow:var(--shadow-md);">
-                    <div class="spinner-small"></div>
-                    <span data-i18n="class.building_msg">Your content is still being built from the textbook — check back soon.</span>
+                <div id="student-building-banner" class="hidden" style="background:var(--bg-card); border:1px solid var(--accent); color:var(--text-primary); padding:16px; border-radius:12px; margin-bottom:24px; font-weight:500; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow-lg);">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                        <div style="flex:1;">
+                            <span data-i18n="class.building_msg">Your content is being built...</span>
+                            <span id="student-progress-text" style="float:right; font-size:14px; color:var(--accent); font-weight:700;">0%</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-container" style="margin:0;">
+                        <div id="student-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    </div>
                 </div>
 
                 <div class="stats-grid" id="student-stats"></div>
@@ -702,6 +820,16 @@
         </div>
     </div>
 
-    <script src="/js/app.js?v=7"></script>
+    <div id="building-screen" class="hidden" style="position:fixed; inset:0; background:rgba(10, 14, 26, 0.9); backdrop-filter:blur(20px); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px;">
+        <div class="loader-container" style="margin-bottom:32px; position:relative;">
+            <div class="loader-ring" style="width:100px; height:100px; border-radius:50%; border:4px solid rgba(255,255,255,0.05); border-top-color:var(--accent); animation:spin 1s linear infinite;"></div>
+            <div class="loader-glow" style="position:absolute; inset:0; background:var(--accent); filter:blur(40px); opacity:0.15; border-radius:50%;"></div>
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px;">🧠</div>
+        </div>
+        <h2 style="font-size:28px; font-weight:800; margin-bottom:12px; background:linear-gradient(135deg, #fff, rgba(255,255,255,0.7)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;" class="building-label" data-i18n="gen.building">Building your classroom...</h2>
+        <p style="color:var(--text-secondary); max-width:300px; font-size:16px;" data-i18n="gen.ai_architecting">Our AI is architecting your curriculum and generating study materials. Please wait a moment.</p>
+    </div>
+
+    <script src="/js/app.js?v=20260426"></script>
 </body>
 </html>

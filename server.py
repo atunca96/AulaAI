@@ -248,6 +248,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             quiz_id = params.get("quiz_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
             return self._get_quiz(quiz_id, student_id)
+        elif path == "/api/classroom/progress":
+            return self._get_classroom_progress()
         elif path == "/api/quizzes":
             course_id = params.get("course_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
@@ -259,6 +261,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/report":
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
+        elif path == "/api/activity/progress":
+            course_id = params.get("course_id", [None])[0]
+            return self._activity_progress(course_id)
         elif path == "/api/activity":
             topic_id = params.get("topic_id", [None])[0]
             return self._get_activity(topic_id)
@@ -296,6 +301,64 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         else:
             return self._serve_static(path)
 
+    def _classroom_rebuild(self):
+        """Lecturer manually triggers a rebuild of Phase 2 enrichment."""
+        body = self._read_body()
+        course_id = body.get("course_id")
+        if not course_id: return self._send_error("Missing course_id")
+
+        with db_connection() as db:
+            course = db.execute("SELECT is_building FROM courses WHERE id = ?", (course_id,)).fetchone()
+            if not course: return self._send_error("Course not found")
+            if course["is_building"]: return self._send_error("Course is already building")
+
+            # Delete all existing questions/activities for this course to start fresh
+            db.execute("""
+                DELETE FROM questions WHERE topic_id IN (
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                )
+            """, (course_id,))
+            
+            # Reset is_building flag to trigger worker
+            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = (SELECT COUNT(*) FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id=?)) WHERE id = ?", (course_id, course_id))
+            db.commit()
+
+        # Start the background worker
+        import subprocess
+        try:
+            # Use same creationflags/logic as create_classroom
+            creationflags = 0x00000008 # DETACHED_PROCESS for Windows
+            subprocess.Popen([sys.executable, "worker.py", course_id], 
+                            creationflags=creationflags, close_fds=True)
+            self._send_json({"status": "success", "message": "Rebuild started"})
+        except Exception as e:
+            self._send_error(f"Failed to start worker: {e}")
+
+    def _get_classroom_progress(self):
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        course_id = params.get("course_id", [None])[0]
+        if not course_id: return self._send_error("course_id required")
+
+        with db_connection() as db:
+            row = db.execute("SELECT is_building, progress, total_steps FROM courses WHERE id=?", (course_id,)).fetchone()
+            if not row: return self._send_error("Course not found")
+            
+            is_building = row["is_building"]
+            progress = row["progress"] or 0
+            total = row["total_steps"] or 1 # Avoid division by zero
+            
+            percentage = min(100, int((progress / total) * 100)) if is_building else 100
+            return self._send_json({
+                "course_id": course_id,
+                "is_building": bool(is_building),
+                "progress": progress,
+                "total": total,
+                "percentage": percentage
+            })
+
     def do_POST(self):
         start_time = time.time()
         try:
@@ -320,8 +383,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # Classroom management routes (check these first to be safe)
         if path == "/api/classroom/delete":
             return self._delete_classroom()
+        elif path == "/api/classroom/rebuild":
+            return self._classroom_rebuild()
         elif path == "/api/classroom/create-from-pdf":
             return self._create_classroom_from_pdf()
+        elif path == "/api/classroom/create-from-scratch":
+            return self._create_classroom_from_scratch()
+        elif path == "/api/draft/curriculum":
+            return self._draft_curriculum()
             
         # Other routes
         elif path == "/api/login":
@@ -336,6 +405,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._approve_student()
         elif path == "/api/quiz/create":
             return self._create_quiz()
+        elif path == "/api/activity/start":
+            return self._activity_start()
         elif path == "/api/quiz/submit":
             return self._submit_quiz()
         elif path == "/api/activity/respond":
@@ -486,8 +557,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
         with db_connection() as db:
             if course_id:
+                # Generate a unique 4-digit PIN for this classroom
+                import random
+                pin = "".join([str(random.randint(0, 9)) for _ in range(4)])
+                
                 # Classroom-specific approval
-                db.execute("UPDATE enrollments SET status = 'approved' WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+                db.execute("UPDATE enrollments SET status = 'approved', pin = ? WHERE student_id = ? AND course_id = ?", 
+                           (pin, student_id, course_id))
             
             # Also sync the global status for compatibility
             db.execute("UPDATE users SET status = 'approved' WHERE id = ? AND role = 'student'", (student_id,))
@@ -637,7 +713,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return self._send_error("Student number and name do not match")
                 else:
                     # Check if already enrolled in THIS classroom
-                    enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
+                    enr = db.execute("SELECT status, pin FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], course_id)).fetchone()
                     if not enr:
                         # New enrollment for this classroom is ALWAYS pending
                         db.execute("INSERT INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
@@ -647,6 +723,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         current_status = "pending"
                     else:
                         current_status = enr["status"] or "pending"
+                        if current_status == "approved" and enr["pin"]:
+                            provided_pin = body.get("pin", "").strip()
+                            if provided_pin != enr["pin"]:
+                                return self._send_error("Invalid Student PIN. Please check with your lecturer.")
 
                 self._send_json({
                     "success": True,
@@ -742,7 +822,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 course_id = course["id"] if course else None
 
             students = db.execute("""
-                SELECT u.id, u.name, u.email FROM users u
+                SELECT u.id, u.name, u.email, e.pin FROM users u
                 JOIN enrollments e ON u.id = e.student_id
                 WHERE e.course_id = ? AND e.status = 'approved'
                 ORDER BY u.name
@@ -820,34 +900,118 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self._send_json(result)
 
-    def _get_activity(self, topic_id):
-        if not topic_id:
-            return self._send_error("topic_id required")
+    def _activity_start(self):
+        try:
+            content_len = int(self.headers.get("Content-Length", 0))
+            post_data = json.loads(self.rfile.read(content_len).decode("utf-8"))
+            topic_id = post_data.get("topic_id")
+            course_id = post_data.get("course_id")
+            count = int(post_data.get("count", 6))
+            
+            if not topic_id or not course_id:
+                return self._send_error("Missing info")
+                
+            # Initialize progress
+            with db_connection() as db:
+                db.execute("""
+                    UPDATE courses 
+                    SET activity_status='generating', activity_progress=0, activity_total=100, activity_result=NULL
+                    WHERE id=?
+                """, (course_id,))
+                db.commit()
+                
+            # Start background thread
+            import threading
+            thread = threading.Thread(target=self._bg_generate_activities, args=(course_id, topic_id, count))
+            thread.start()
+            
+            self._send_json({"status": "success"})
+        except Exception as e:
+            self._send_error(str(e))
 
+    def _bg_generate_activities(self, course_id, topic_id, count):
+        try:
+            from database import db_connection
+            from services.ai_engine import ai_generate_single_activity
+            
+            with db_connection() as db:
+                row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+                topic = dict(row)
+                row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
+                language = row_c["language"] if row_c else "Spanish"
+            
+            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
+            topic_type = topic.get("type", "vocabulary")
+
+            def update_prog(p):
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
+                    db.commit()
+            
+            final_activities = []
+            history = []
+            
+            # Start generation loop (Real Progress)
+            for i in range(count):
+                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
+                if act:
+                    act["id"] = _uid()
+                    final_activities.append(act)
+                    history.append(act.get("prompt"))
+                    
+                # Update REAL progress (e.g. 1 out of 6)
+                percentage = int(((i + 1) / count) * 100)
+                update_prog(percentage)
+            
+            # Done!
+            with db_connection() as db:
+                # IMPORTANT: Unapprove old generated questions for this topic instead of deleting
+                db.execute("UPDATE questions SET approved = 0 WHERE topic_id = ?", (topic_id,))
+                
+                db.execute("""
+                    UPDATE courses 
+                    SET activity_status='done', activity_result=? 
+                    WHERE id=?
+                """, (json.dumps(final_activities), course_id))
+                db.commit()
+                
+                # Also save to questions table for future
+                for act in final_activities:
+                    q_id = _uid()
+                    a_type = act.get("type", "mcq")
+                    a_prompt = act.get("prompt", "")
+                    a_answer = act.get("answer", "")
+                    distractors = json.dumps(act.get("options", [])) if "options" in act else "[]"
+                    db.execute("""
+                        INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    """, (q_id, topic_id, a_type, a_prompt, a_answer, distractors, "A1.1"))
+                db.commit()
+                
+        except Exception as e:
+            file_log(f"BG Activity Error: {str(e)}")
+            import traceback
+            file_log(traceback.format_exc())
+            with db_connection() as db:
+                db.execute("UPDATE courses SET activity_status='error' WHERE id=?", (course_id,))
+                db.commit()
+
+    def _activity_progress(self, course_id):
         with db_connection() as db:
-            topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-
-        if not topic:
-            return self._send_error("Topic not found", 404)
-
-        with db_connection() as db:
-            row = db.execute("""
-                SELECT co.language FROM courses co
-                JOIN chapters ch ON co.id = ch.course_id
-                JOIN topics t ON ch.id = t.chapter_id
-                WHERE t.id = ?
-            """, (topic_id,)).fetchone()
-            language = row["language"] if row and row["language"] else "Unknown"
-
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            f_activities = executor.submit(generate_activity, dict(topic), count=6, language=language)
-            f_dialogue = executor.submit(generate_dialogue_activity, language=language)
-            activities = f_activities.result() or []
-            dialogue = f_dialogue.result()
-            if dialogue: activities.append(dialogue)
-
-        self._send_json({"topic": dict(topic), "activities": activities})
+            row = db.execute("SELECT activity_progress, activity_total, activity_status, activity_result FROM courses WHERE id=?", (course_id,)).fetchone()
+            if not row: return self._send_error("Course not found")
+            data = dict(row)
+            
+            # Calculate percentage
+            total = data["activity_total"] or 1
+            percent = int((data["activity_progress"] / total) * 100)
+            
+            res = {
+                "percentage": percent,
+                "status": data["activity_status"],
+                "results": json.loads(data["activity_result"]) if data["activity_result"] else None
+            }
+            self._send_json(res)
 
     def _get_quizzes(self, course_id, student_id=None):
         with db_connection() as db:
@@ -1586,6 +1750,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
         bump_version()
         self._send_json({"success": True})
+
+    def _draft_curriculum(self):
+        """AI drafts a curriculum for the architect."""
+        data = self._read_body()
+        language = data.get("language")
+        level = data.get("level")
+        course_name = data.get("course_name")
+        
+        from services.ai_engine import ai_generate_curriculum
+        result = ai_generate_curriculum(language, level, course_name)
+        return self._send_json(result)
+
+    def _create_classroom_from_scratch(self):
+        """Creates a classroom without a PDF."""
+        data = self._read_body()
+        language = data.get("language")
+        level = data.get("level")
+        course_name = data.get("course_name")
+        chapters = data.get("chapters") 
+        lecturer_id = data.get("lecturer_id")
+        
+        from services.pdf_pipeline import process_manual_to_classroom
+        result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name)
+        return self._send_json(result)
 
     def _read_multipart(self):
         """Simple multipart parser for PDF upload."""

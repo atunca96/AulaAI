@@ -14,9 +14,18 @@ from database import db_connection, _uid
 from services.state import bump_version
 from services.ai_engine import detect_language, generate_full_lesson, _call_ai
 
+def file_log(msg):
+    try:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [PIPELINE] {msg}\n")
+            f.flush()
+        # Also print to stdout for worker.py to capture if needed
+        print(f"[{timestamp}] [PIPELINE] {msg}", flush=True)
+    except: pass
+
 def _log(msg):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    print(f"[{timestamp}] [PIPELINE] {msg}", flush=True)
+    file_log(msg)
 
 def generate_classroom_code():
     return "".join([str(random.randint(0, 9)) for _ in range(5)])
@@ -32,84 +41,107 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
     try:
         _log(f"Phase 1: Starting for {course_id} ({course_name})")
         
-        # 1. Extract TOC Text (if range provided)
-        if toc_range and "-" in toc_range:
-            _log("Step 1: Extracting TOC text from PDF...")
-            try:
-                import fitz # PyMuPDF
-                doc = fitz.open(pdf_path)
-                start_p, end_p = map(int, toc_range.split("-"))
-                for p in range(start_p-1, min(end_p, len(doc))):
-                    toc_text += doc[p].get_text()
-                doc.close()
-                _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
-            except Exception as e:
-                _log(f"ERROR in TOC Extraction: {e}")
-
-        # 2. Detect Language
-        _log("Step 2: Detecting language...")
-        language = "Unknown"
-        text_for_lang = manual_toc if manual_toc else toc_text
-        if text_for_lang and text_for_lang.strip():
-            try:
-                language = detect_language(text_for_lang)
-            except:
-                language = "Unknown"
-        _log(f"Language detected: {language}")
+        # Initialize language from DB if already set (manual creation)
         with db_connection() as db:
-            db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
-            db.commit()
-        bump_version()
+            row = db.execute("SELECT language FROM courses WHERE id = ?", (course_id,)).fetchone()
+            if row and row[0] and row[0] != "Detecting...":
+                language = row[0]
+                _log(f"Using pre-set language: {language}")
+
+        chapters_data = []
+        is_pre_parsed = False
         
-        # 3. Parse Structure
-        _log("Step 3: Parsing curriculum structure...")
-        if manual_toc:
-            _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
-            _log("Using Manual Curriculum provided by teacher.")
-            prompt = f"""
-            Task: Convert this messy curriculum text into a structured JSON Roadmap for a {language} course.
-            Input can be: numbered lists, plain text, indented outlines, or comma-separated items.
+        # Check if manual_toc is already a structured JSON
+        if manual_toc and manual_toc.strip().startswith('{'):
+            try:
+                data = json.loads(manual_toc)
+                if "chapters" in data:
+                    _log("Pre-parsed JSON curriculum detected.")
+                    chapters_data = data["chapters"]
+                    is_pre_parsed = True
+            except: pass
+
+        if not is_pre_parsed:
+            # 1. Extract TOC Text (if range provided)
+            if pdf_path != "NONE" and toc_range and "-" in toc_range:
+                _log("Step 1: Extracting TOC text from PDF...")
+                try:
+                    import fitz # PyMuPDF
+                    doc = fitz.open(pdf_path)
+                    start_p, end_p = map(int, toc_range.split("-"))
+                    for p in range(start_p-1, min(end_p, len(doc))):
+                        toc_text += doc[p].get_text()
+                    doc.close()
+                    _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
+                except Exception as e:
+                    _log(f"ERROR in TOC Extraction: {e}")
+
+            # 2. Detect Language (if not NONE)
+            if pdf_path != "NONE":
+                _log("Step 2: Detecting language...")
+                language = "Unknown"
+                text_for_lang = manual_toc if manual_toc else toc_text
+                if text_for_lang and text_for_lang.strip():
+                    try:
+                        language = detect_language(text_for_lang)
+                    except:
+                        language = "Unknown"
+                _log(f"Language detected: {language}")
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+                    db.commit()
             
-            Rules:
-            1. Identify Chapters/Units: Look for lines starting with 'Chapter', 'Unit', 'Tema', 'Section', or Roman Numerals.
-            2. Identify Topics: Everything under a Chapter is a topic. If no chapters are found, treat the whole list as topics under one 'General Curriculum' chapter.
-            3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
+            from services.state import bump_version
+            bump_version()
             
-            Return ONLY a valid JSON object with this exact structure:
-            {{
-              "chapters": [
+            # 3. Parse Structure
+            _log("Step 3: Analyzing curriculum structure...")
+            if manual_toc:
+                _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
+                _log("Using Manual Curriculum provided by teacher.")
+                prompt = f"""
+                Task: Convert this messy curriculum text into a structured JSON Roadmap for a {language} course.
+                Input can be: numbered lists, plain text, indented outlines, or comma-separated items.
+                
+                Rules:
+                1. Identify Chapters/Units: Look for lines starting with 'Chapter', 'Unit', 'Tema', 'Section', or Roman Numerals.
+                2. Identify Topics: Everything under a Chapter is a topic. If no chapters are found, treat the whole list as topics under one 'General Curriculum' chapter.
+                3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
+                
+                Return ONLY a valid JSON object with this exact structure:
                 {{
-                  "title": "Chapter 1: ...",
-                  "topics": [
-                    {{ "title": "Topic Name", "type": "vocabulary" }}
+                  "chapters": [
+                    {{
+                      "title": "Chapter 1: ...",
+                      "topics": [
+                        {{ "title": "Topic Name", "type": "vocabulary" }}
+                      ]
+                    }}
                   ]
                 }}
-              ]
-            }}
+                
+                Manual Text to Parse:
+                {manual_toc}
+                """
+            else:
+                _log("Extracting curriculum from PDF TOC text.")
+                prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nText:\n{toc_text}"
             
-            Manual Text to Parse:
-            {manual_toc}
-            """
-        else:
-            _log("Extracting curriculum from PDF TOC text.")
-            prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nText:\n{toc_text}"
-        
-        resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
-        
-        chapters_data = []
-        try:
-            if isinstance(resp, dict):
-                chapters_data = resp.get("chapters", [])
-            elif isinstance(resp, str) and resp.strip():
-                clean_resp = resp.replace("```json", "").replace("```", "").strip()
-                start_idx = clean_resp.find('{')
-                end_idx = clean_resp.rfind('}')
-                if start_idx != -1 and end_idx != -1:
-                    clean_resp = clean_resp[start_idx:end_idx+1]
-                data = json.loads(clean_resp)
-                chapters_data = data.get("chapters", [])
-        except Exception as e:
-            _log(f"AI Parsing failed ({e}). Attempting manual fallback.")
+            resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+            
+            try:
+                if isinstance(resp, dict):
+                    chapters_data = resp.get("chapters", [])
+                elif isinstance(resp, str) and resp.strip():
+                    clean_resp = resp.replace("```json", "").replace("```", "").strip()
+                    start_idx = clean_resp.find('{')
+                    end_idx = clean_resp.rfind('}')
+                    if start_idx != -1 and end_idx != -1:
+                        clean_resp = clean_resp[start_idx:end_idx+1]
+                    data = json.loads(clean_resp)
+                    chapters_data = data.get("chapters", [])
+            except Exception as e:
+                _log(f"AI Parsing failed ({e}). Attempting manual fallback.")
             
         # Fallback Logic
         if not chapters_data and manual_toc:
@@ -220,7 +252,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                     t_id = topic.get("id")
                     
                     _log(f"Queueing: {t_title}")
-                    f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 8)
+                    f_lesson = executor.submit(generate_full_lesson, t_title, t_type, language, 16)
                     futures.append((t_id, t_title, f_lesson))
                     topic_count += 1
             
@@ -247,6 +279,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                                            (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
                         db.commit()
                     completed += 1
+                    with db_connection() as db:
+                        db.execute("UPDATE courses SET progress = ? WHERE id = ?", (completed, course_id))
+                        db.commit()
                     _log(f"Topic {completed}/{len(futures)} finalized: {t_title}")
                     bump_version()
                 except Exception as e:
@@ -264,12 +299,6 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
-
-def _log(msg):
-    try:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"[{timestamp}] [PIPELINE] {msg}", flush=True)
-    except: pass
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None):
     if not course_name or course_name.strip() == "":
@@ -290,15 +319,77 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
         with open(manual_toc_file, "w", encoding="utf-8") as f:
             f.write(manual_toc)
 
-    python_exe = sys.executable
-    cmd = [python_exe, "worker.py", pdf_path, toc_range or "0-0", lecturer_id, course_id, course_name]
-    if manual_toc_file:
-        cmd.append(manual_toc_file)
-        
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    _log(f"Spawning worker: {' '.join(cmd)}")
-    # Removed worker.log redirection to allow logs to show in Railway console
-    subprocess.Popen(cmd, env=env, close_fds=True)
+    
+    # Spawn worker to handle curriculum creation and enrichment
+    _log(f"Spawning worker for Classroom {course_id}")
+    log_file = open("pipeline.log", "a", encoding="utf-8")
+    try:
+        cmd = [sys.executable, "worker.py", pdf_path, toc_range or "0-0", str(lecturer_id), str(course_id), course_name]
+        if manual_toc_file:
+            cmd.append(manual_toc_file)
+            
+        if sys.platform == "win32":
+            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
+                                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+        else:
+            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
+            
+        log_file.close() # Child keeps its copy
+            
+        _log(f"Worker spawned successfully with PID {process.pid}")
+    except Exception as e:
+        _log(f"CRITICAL: Failed to spawn worker: {e}")
+    
+    return {"success": True, "course_id": course_id, "code": code, "name": course_name}
+
+
+def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name):
+    course_id = _uid()
+    code = generate_classroom_code()
+    
+    # Process the nested chapters into the worker's expected format
+    worker_chapters = []
+    for i, chap in enumerate(chapters):
+        worker_chapters.append({
+            "number": i + 1,
+            "title": chap["title"],
+            "topics": [{"title": t, "type": "vocabulary" if j % 2 == 0 else "grammar"} for j, t in enumerate(chap["topics"])]
+        })
+    
+    manual_toc_data = {"chapters": worker_chapters}
+    
+    with db_connection() as db:
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id))
+        db.commit()
+        
+    # Write the manual TOC to a file for the worker
+    # We use data/books directory for consistency with persistence
+    from database import BOOKS_DIR
+    os.makedirs(BOOKS_DIR, exist_ok=True)
+    manual_toc_file = os.path.join(BOOKS_DIR, f"toc_{course_id}.json")
+    with open(manual_toc_file, "w", encoding="utf-8") as f:
+        json.dump(manual_toc_data, f)
+        
+    # Spawn worker to handle curriculum creation and enrichment
+    _log(f"Spawning AI Architect worker: Course {course_id}")
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file]
+    
+    log_file = open("pipeline.log", "a", encoding="utf-8")
+    try:
+        if sys.platform == "win32":
+            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
+                                     creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+        else:
+            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
+        
+        log_file.close() # Child keeps its copy
+        _log(f"Worker process started with PID {process.pid}")
+    except Exception as e:
+        _log(f"CRITICAL: Failed to spawn AI Architect worker: {e}")
     
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}

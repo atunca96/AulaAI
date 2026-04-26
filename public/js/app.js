@@ -31,7 +31,7 @@ function toggleSidebar() {
     overlay.style.opacity = '0';
     overlay.style.pointerEvents = 'none';
     sidebar.style.pointerEvents = 'none';
-    document.body.style.overflow = ''; 
+    document.body.style.overflow = '';
     document.body.style.touchAction = '';
   } else {
     // Update user info before showing
@@ -59,7 +59,7 @@ function toggleSidebar() {
         if (sCourseCode) sCourseCode.textContent = '#' + currentCourse.code;
       }
     }
-    
+
     // Update language text
     const langText = currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
     const sidebarLangText = document.getElementById('sidebar-lang-text');
@@ -333,6 +333,22 @@ const i18n = {
     'class.selection': 'Classroom Selection',
     'class.subtitle': 'Select a classroom to manage or create a new one',
     'class.create': 'Create New Classroom from PDF',
+    'class.create_generic': 'Create New Classroom',
+    'class.create_title': '🛠️ Classroom Creation',
+    'class.choose_method': 'Choose how you want to build your course',
+    'class.magic_pdf': 'Magic PDF',
+    'class.magic_pdf_desc': 'Upload a textbook PDF and let AI build the course from it.',
+    'class.ai_architect': 'AI Architect',
+    'class.ai_architect_desc': 'No PDF? Just tell AI the language and level, and it creates the course.',
+    'ai.tell_teach': 'Tell AI what you want to teach',
+    'ai.select_lang': '1. Select Language',
+    'ai.target_level': '2. Target Level',
+    'ai.course_name': '3. Course Name',
+    'ai.name_placeholder': 'e.g. Intensive Spanish Summer',
+    'ai.gen_curriculum': 'Generate Curriculum ✨',
+    'ai.review_title': 'Review Curriculum',
+    'ai.review_desc': 'AI suggested these topics. You can edit or remove them.',
+    'class.build_btn': 'Build Classroom 🚀',
     'class.enter': 'Enter Classroom',
     'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
     'class.upload_pdf': 'Upload PDF Textbook',
@@ -435,6 +451,7 @@ const i18n = {
     'class.pdf_status_ok': 'Yes, it is searchable',
     'class.pdf_status_cancel': 'No, let me check',
     'draft.lang_warning': 'Note: Question content language is fixed upon generation and will not change with the UI toggle.',
+    'alert.select_pdf': 'Please select a PDF file',
     'message.placeholder': 'Write your message here...',
   },
   tr: {
@@ -611,6 +628,22 @@ const i18n = {
     'class.selection': 'Sınıf Seçimi',
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
     'class.create': 'PDF\'den Yeni Sınıf Oluştur',
+    'class.create_generic': 'Yeni Sınıf Oluştur',
+    'class.create_title': '🛠️ Yeni Sınıf Yöntemi',
+    'class.choose_method': 'Kursunuzu nasıl oluşturmak istediğinizi seçin',
+    'class.magic_pdf': 'Sihirli PDF',
+    'class.magic_pdf_desc': 'Bir PDF ders kitabı yükleyin ve yapay zekanın kursu oluşturmasına izin verin.',
+    'class.ai_architect': 'Yapay Zeka Mimarı',
+    'class.ai_architect_desc': 'PDF yok mu? Yapay zekaya dili ve seviyeyi söyleyin, o kursu oluştursun.',
+    'ai.tell_teach': 'Yapay zekaya ne öğretmek istediğinizi söyleyin',
+    'ai.select_lang': '1. Dil Seçin',
+    'ai.target_level': '2. Hedef Seviye',
+    'ai.course_name': '3. Kurs Adı',
+    'ai.name_placeholder': 'Örn: Yoğun İspanyolca Yaz Kursu',
+    'ai.gen_curriculum': 'Müfredatı Oluştur ✨',
+    'ai.review_title': 'Müfredatı İncele',
+    'ai.review_desc': 'Yapay zeka bu konuları önerdi. Bunları düzenleyebilir veya kaldırabilirsiniz.',
+    'class.build_btn': 'Sınıfı Oluştur 🚀',
     'class.enter': 'Sınıfa Gir',
     'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
     'class.upload_pdf': 'PDF Ders Kitabı Yükle',
@@ -663,6 +696,7 @@ const i18n = {
     'prac.dialogue': 'Diyalog',
     'draft.lang_warning': 'Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.',
     'message.placeholder': 'Mesajınızı buraya yazın...',
+    'alert.select_pdf': 'Lütfen bir PDF dosyası seçin',
   }
 };
 
@@ -671,7 +705,7 @@ function t(key, data = {}) {
     const lang = localStorage.getItem('aula_lang') || 'en';
     let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
     if (typeof str !== 'string') str = String(str || key);
-    
+
     Object.keys(data).forEach(k => {
       str = str.replace(new RegExp(`{${k}}`, 'g'), String(data[k] || ''));
     });
@@ -690,8 +724,8 @@ function applyTranslations() {
     const msgKey = modal.getAttribute('data-msg-key');
     const msgDataStr = modal.getAttribute('data-msg-data');
     let msgData = {};
-    try { if (msgDataStr) msgData = JSON.parse(msgDataStr); } catch(e) {}
-    
+    try { if (msgDataStr) msgData = JSON.parse(msgDataStr); } catch (e) { }
+
     const titleEl = document.getElementById('confirm-title');
     const msgEl = document.getElementById('confirm-message');
     const okEl = document.getElementById('confirm-ok-btn');
@@ -699,7 +733,7 @@ function applyTranslations() {
 
     if (titleKey && titleEl) titleEl.textContent = t(titleKey);
     if (msgKey && msgEl) msgEl.textContent = t(msgKey, msgData);
-    
+
     const okK = modal.getAttribute('data-ok-key');
     const canK = modal.getAttribute('data-cancel-key');
     if (okK && okEl) okEl.textContent = t(okK);
@@ -711,23 +745,23 @@ function applyTranslations() {
       const key = el.getAttribute('data-i18n');
       const dataStr = el.getAttribute('data-i18n-data');
       let data = {};
-      try { if (dataStr) data = JSON.parse(dataStr); } catch(e) {}
-      
+      try { if (dataStr) data = JSON.parse(dataStr); } catch (e) { }
+
       const translation = t(key, data);
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
         el.placeholder = translation;
       } else {
         el.textContent = translation;
       }
-    } catch(e) { console.error('Loop error:', e); }
+    } catch (e) { console.error('Loop error:', e); }
   });
 
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    try { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); } catch(e) {}
+    try { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); } catch (e) { }
   });
 
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
-    try { el.title = t(el.getAttribute('data-i18n-title')); } catch(e) {}
+    try { el.title = t(el.getAttribute('data-i18n-title')); } catch (e) { }
   });
 
   if (typeof currentUser !== 'undefined' && currentUser) {
@@ -749,7 +783,7 @@ function applyTranslations() {
   if (sidebarLangLabel) {
     sidebarLangLabel.textContent = currentLang === 'en' ? 'TR' : 'EN';
   }
-  
+
   // Re-render report if it's currently visible
   if (_lastReportData && document.getElementById('tab-reports').classList.contains('active')) {
     renderReport(_lastReportData);
@@ -759,10 +793,10 @@ function applyTranslations() {
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
-  
+
   // Update state immediately
   applyTranslations();
-  
+
   if (_lastReportData) renderReport(_lastReportData);
 
   // Re-render all dynamic content SYNCHRONOUSLY using cached data
@@ -779,7 +813,7 @@ function toggleLanguage() {
   // Re-render activity preview if visible
   const preview = document.getElementById('activity-preview');
   if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
-    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (_lastActivityData.topic?.title||'') + '</h2>' + (_lastActivityData.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (_lastActivityData.topic?.title || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
   }
 
   // Sync the Draft Review modal if open
@@ -796,13 +830,13 @@ function renderDraftListSync() {
 function renderLecturerSync() {
   if (!currentUser) return;
   document.getElementById('nav-username').textContent = currentUser.name;
-  
+
   const greetingEl = document.getElementById('overview-greeting');
   if (greetingEl) {
     greetingEl.setAttribute('data-i18n', 'welcomeBack');
     greetingEl.setAttribute('data-i18n-data', JSON.stringify({ name: currentUser.name.split(' ').pop() }));
   }
-  
+
   if (_lastOverviewData) renderOverview(_lastOverviewData);
   if (curriculum) renderCurriculum();
   populateSelects();
@@ -815,7 +849,7 @@ function renderStudentSync() {
   if (!currentUser) return;
   document.getElementById('student-nav-username').textContent = currentUser.name;
   document.getElementById('student-greeting').textContent = t('welcomeBack', { name: currentUser.name }) + '!';
-  
+
   if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
   if (_lastQuizListData) renderQuizList(_lastQuizListData);
   if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
@@ -990,8 +1024,8 @@ function renderClassroomSelection(courses) {
               <div class="flex-center" style="margin: 10px 0;">
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
-              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">
-                <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? '⏳ ' + t('gen.preparing') : '⏳ ' + t('gen.building')}</span>
+              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite; display:flex; align-items:center; justify-content:center; gap:6px;">
+                ⏳ <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? t('gen.preparing') : t('gen.building')}</span>
               </p>
             ` : ''}
         </div>
@@ -1045,7 +1079,7 @@ async function selectClassroom(id, isLecturer = true) {
   if (course) {
     const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
     const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
-    
+
     if (navName) navName.textContent = course.name;
     if (navCode) {
       navCode.textContent = '#' + (course.code || '00000');
@@ -1079,7 +1113,7 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.mobile-book-title').forEach(el => el.textContent = course ? course.name : 'Textbook');
   document.querySelectorAll('.mobile-book-title-thumb').forEach(el => el.textContent = course ? course.name : 'Textbook');
   document.querySelectorAll('.mobile-book-link').forEach(el => el.href = pdfViewerSrc || '#');
-  
+
   // PC empty state
   document.querySelectorAll('.pdf-empty-state').forEach(el => {
     if (pdfViewerSrc) el.classList.add('hidden');
@@ -1110,7 +1144,7 @@ async function deleteClassroom(id, name) {
   const isBuilding = course && course.is_building === 1;
   const msgKey = isBuilding ? 'class.delete_building_msg' : 'confirm.delete_classroom_msg';
   const msgData = isBuilding ? {} : { name };
-  
+
   if (!(await showConfirmModal('confirm.delete_classroom', msgKey, true, null, false, 'ok', 'cancel', msgData))) return;
 
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
@@ -1141,7 +1175,7 @@ async function handleCreateClassroom(e) {
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
 
-  if (!fileInput.files[0]) return showAlert(t('missing_info'), 'Please select a PDF file', true);
+  if (!fileInput.files[0]) return showAlert(t('missing_info'), t('alert.select_pdf'), true);
 
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
@@ -1166,7 +1200,7 @@ async function handleCreateClassroom(e) {
     if (currentUser.role === 'lecturer') stopLiveSync();
     return showAlert(t('error'), t('class.create_failed'), true);
   }
-  
+
   if (!data.success) {
     statusEl.classList.add('hidden');
     btn.disabled = false;
@@ -1177,7 +1211,7 @@ async function handleCreateClassroom(e) {
 
   await showAlert('success', 'class.create_success_full', false, { code: data.code });
   closeCreateClassroomModal();
-  
+
   if (typeof _buildingCourses !== 'undefined') {
     _buildingCourses.push(data.course_id);
   }
@@ -1246,7 +1280,7 @@ function initViewportFix() {
 
 window.addEventListener('DOMContentLoaded', () => {
   initViewportFix();
-  
+
   // Apply translations based on saved preference
   applyTranslations();
 
@@ -1360,13 +1394,13 @@ function closeMobileChat() {
   document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
   document.documentElement.classList.remove('chat-open');
   document.body.classList.remove('chat-open');
-  
+
   // Show the lists again
   const inboxList = document.getElementById('inbox-list-container');
   if (inboxList) inboxList.style.display = '';
   const studentInboxList = document.querySelector('.student-messages-list');
   if (studentInboxList) studentInboxList.style.display = '';
-  
+
   document.body.style.overflow = '';
   currentChatStudentId = null;
 }
@@ -1379,26 +1413,26 @@ async function loadStudentChat() {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
   const isTabActive = document.getElementById('tab-s-messages')?.classList.contains('active');
-  
+
   if (wrapper && window.innerWidth <= 768 && isTabActive) {
     // Small delay on refresh to ensure layout is ready
     setTimeout(() => {
       wrapper.classList.add('is-active');
       document.documentElement.classList.add('chat-open');
-      
+
       // Hide the list to show chat inline
       if (window.innerWidth <= 768) {
         const inboxList = document.getElementById('inbox-list-container');
         if (inboxList && wrapper.id === 'inbox-chat-wrapper') inboxList.style.display = 'none';
-        
+
         const studentInboxList = document.querySelector('.student-messages-list');
         if (studentInboxList && wrapper.id === 'student-chat-wrapper') studentInboxList.style.display = 'none';
       }
-      
+
       document.body.classList.add('chat-open');
     }, 50);
   }
-  
+
   const container = document.getElementById('student-chat-history');
   if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
@@ -1436,19 +1470,21 @@ async function sendMessage() {
   const text = document.getElementById('message-text').value.trim();
   if (!text || !currentCourse) return;
   document.getElementById('message-text').value = '';
-  await api('/message/send', { method: 'POST', body: { 
-    student_id: currentUser.id, 
-    course_id: currentCourse.id,
-    sender: 'student', 
-    content: text 
-  } });
+  await api('/message/send', {
+    method: 'POST', body: {
+      student_id: currentUser.id,
+      course_id: currentCourse.id,
+      sender: 'student',
+      content: text
+    }
+  });
   await loadStudentChat();
 }
 
 async function loadInbox() {
   if (!currentCourse) return;
   closeMobileChat();
-  
+
   // Fetch all messages for lecturer (global inbox)
   const messages = await api('/messages');
   const container = document.getElementById('inbox-messages');
@@ -1475,13 +1511,13 @@ async function loadInbox() {
     // Group by student + course to keep context clear
     const threadKey = `${m.student_id}_${m.course_id}`;
     if (!threads[threadKey]) {
-      threads[threadKey] = { 
+      threads[threadKey] = {
         student_id: m.student_id,
         course_id: m.course_id,
-        student_name: m.student_name, 
+        student_name: m.student_name,
         course_name: m.course_name,
-        latest: m, 
-        unread: 0 
+        latest: m,
+        unread: 0
       };
     } else {
       if (new Date(m.created_at) > new Date(threads[threadKey].latest.created_at)) {
@@ -1537,7 +1573,7 @@ async function openChat(studentId, studentName, cid) {
       wrapper.classList.add('is-active');
     }
   }
-  
+
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
@@ -1582,12 +1618,14 @@ async function sendLecturerMessage() {
   const text = document.getElementById('inbox-reply-text').value.trim();
   if (!text || !currentChatStudentId || !currentChatCourseId) return;
   document.getElementById('inbox-reply-text').value = '';
-  await api('/message/send', { method: 'POST', body: { 
-    student_id: currentChatStudentId, 
-    course_id: currentChatCourseId,
-    sender: 'lecturer', 
-    content: text 
-  } });
+  await api('/message/send', {
+    method: 'POST', body: {
+      student_id: currentChatStudentId,
+      course_id: currentChatCourseId,
+      sender: 'lecturer',
+      content: text
+    }
+  });
 
   const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
   await openChat(currentChatStudentId, name, currentChatCourseId);
@@ -1598,40 +1636,40 @@ let _allStudentsCache = [];
 let _existingChatIds = new Set();
 
 async function openNewChatModal() {
-    if (!currentCourse) return;
-    const modal = document.getElementById('new-chat-modal');
-    modal.classList.remove('hidden');
-    const list = document.getElementById('new-chat-student-list');
-    list.innerHTML = '<div style="display:flex; justify-content:center; padding:20px;"><div class="spinner"></div></div>';
-    
-    try {
-        const students = await api(`/students?course_id=${currentCourse.id}`);
-        _allStudentsCache = students || [];
-        const messages = await api(`/messages?course_id=${currentCourse.id}`);
-        _existingChatIds = new Set(messages.map(m => m.student_id));
-        renderNewChatStudents();
-    } catch (e) {
-        list.innerHTML = '<p style="text-align:center; color:var(--danger);">Error loading students.</p>';
-    }
+  if (!currentCourse) return;
+  const modal = document.getElementById('new-chat-modal');
+  modal.classList.remove('hidden');
+  const list = document.getElementById('new-chat-student-list');
+  list.innerHTML = '<div style="display:flex; justify-content:center; padding:20px;"><div class="spinner"></div></div>';
+
+  try {
+    const students = await api(`/students?course_id=${currentCourse.id}`);
+    _allStudentsCache = students || [];
+    const messages = await api(`/messages?course_id=${currentCourse.id}`);
+    _existingChatIds = new Set(messages.map(m => m.student_id));
+    renderNewChatStudents();
+  } catch (e) {
+    list.innerHTML = '<p style="text-align:center; color:var(--danger);">Error loading students.</p>';
+  }
 }
 
 function renderNewChatStudents() {
-    const list = document.getElementById('new-chat-student-list');
-    const searchInput = document.getElementById('student-search-input');
-    const search = searchInput ? searchInput.value.toLowerCase() : '';
-    
-    const filtered = _allStudentsCache.filter(s => {
-        const matchesSearch = s.name.toLowerCase().includes(search);
-        const hasNoChat = !_existingChatIds.has(s.id);
-        return matchesSearch && hasNoChat;
-    });
-    
-    if (filtered.length === 0) {
-        list.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:20px;" data-i18n="noNewChats">${t('noNewChats')}</p>`;
-        return;
-    }
-    
-    list.innerHTML = filtered.map(s => `
+  const list = document.getElementById('new-chat-student-list');
+  const searchInput = document.getElementById('student-search-input');
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
+
+  const filtered = _allStudentsCache.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(search);
+    const hasNoChat = !_existingChatIds.has(s.id);
+    return matchesSearch && hasNoChat;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:20px;" data-i18n="noNewChats">${t('noNewChats')}</p>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(s => `
         <div class="new-chat-item" style="display:flex; align-items:center; justify-content:space-between; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg-input); cursor:pointer; margin-bottom:8px; transition:var(--transition);" onclick="startNewChat('${s.id}', '${esc(s.name).replace(/'/g, "\\'")}')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
             <div style="font-weight:600; color:var(--text-primary);">${esc(s.name)}</div>
             <button class="btn btn-ghost btn-sm" style="color:var(--accent); font-size:12px;" data-i18n="startChat">${t('startChat')}</button>
@@ -1640,12 +1678,12 @@ function renderNewChatStudents() {
 }
 
 function filterNewChatStudents() {
-    renderNewChatStudents();
+  renderNewChatStudents();
 }
 
 function startNewChat(studentId, studentName) {
-    closeModal();
-    openChat(studentId, studentName);
+  closeModal();
+  openChat(studentId, studentName);
 }
 
 // ── Theme Toggle ──
@@ -1681,7 +1719,7 @@ function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' :
 async function initLecturer() {
   const navUser = document.getElementById('nav-username');
   if (navUser) navUser.textContent = currentUser.name;
-  
+
   const greeting = document.getElementById('overview-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name.split(' ').pop() });
 
@@ -1725,7 +1763,7 @@ function renderOverview(report) {
     <div class="stat-card"><div class="stat-label" data-i18n="CLASS_MASTERY">CLASS MASTERY</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub" data-i18n="avg_across_topics">Average across all topics</div></div>
     <div class="stat-card"><div class="stat-label" data-i18n="AT_RISK">AT RISK</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub" data-i18n="students_needing_attention">Students needing attention</div></div>
     <div class="stat-card"><div class="stat-label" data-i18n="TOP_PERFORMERS">TOP PERFORMERS</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub" data-i18n="mastery_above_80">Mastery above 80%</div></div>`;
-  
+
   const atRisk = report.at_risk_students || [];
   const atRiskList = document.getElementById('at-risk-list');
   if (atRisk.length === 0) {
@@ -1740,7 +1778,7 @@ function renderOverview(report) {
       `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
     ).join('');
   }
-  
+
   applyTranslations(); // Unify everything!
 }
 
@@ -1754,7 +1792,7 @@ function renderCurriculum() {
   try {
     const subtitleEl = document.getElementById('curriculum-subtitle');
     if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — ${t('Content Map')}`;
-    if (subtitleEl) subtitleEl.setAttribute('data-i18n-data', JSON.stringify({name: currentCourse?.name||''})); // Optional: for more complex templates
+    if (subtitleEl) subtitleEl.setAttribute('data-i18n-data', JSON.stringify({ name: currentCourse?.name || '' })); // Optional: for more complex templates
 
     if (!curriculum || !Array.isArray(curriculum)) {
       document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">${t('class.no_curriculum')}</p>`;
@@ -1799,14 +1837,18 @@ function populateSelects() {
   if (as) as.innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
 }
 
+let activityProgressInterval = null;
+
 function showGenerationLoading(el) {
+  if (activityProgressInterval) clearInterval(activityProgressInterval);
   el.innerHTML = `
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
       <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
       <h3 style="margin-bottom:12px;" data-i18n="gen.loading">${t('gen.loading')}</h3>
-      <div class="progress-container" style="background:rgba(255,255,255,0.05); height:8px; border-radius:4px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
-        <div class="progress-bar-shimmer"></div>
+      <div class="progress-container" style="background:rgba(255,255,255,0.05); height:10px; border-radius:5px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
+        <div id="activity-progress-fill" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
       </div>
+      <p style="color:var(--accent); font-size:14px; font-weight:700; margin-top:12px;" id="activity-progress-text">0%</p>
       <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
     <style>
@@ -1814,57 +1856,74 @@ function showGenerationLoading(el) {
         animation: bot-bounce 2s infinite ease-in-out;
         display: inline-block;
       }
-      .progress-bar-shimmer {
-        position: absolute;
-        top: 0;
-        left: -100%;
-        height: 100%;
-        width: 100%;
-        background: linear-gradient(90deg, 
-          transparent 0%, 
-          rgba(99, 102, 241, 0.8) 40%, 
-          rgba(168, 85, 247, 0.8) 50%, 
-          rgba(99, 102, 241, 0.8) 60%, 
-          transparent 100%
-        );
-        animation: shimmer-slide 1.5s infinite linear;
-        box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
-      }
       @keyframes bot-bounce {
         0%, 100% { transform: translateY(0) scale(1); }
         50% { transform: translateY(-12px) scale(1.1); }
-      }
-      @keyframes shimmer-slide {
-        0% { left: -100%; }
-        100% { left: 100%; }
       }
     </style>
   `;
 }
 
+function startActivityPolling(targetId, title) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  const fill = el.querySelector('#activity-progress-fill');
+  const text = el.querySelector('#activity-progress-text');
+
+  if (activityProgressInterval) clearInterval(activityProgressInterval);
+
+  activityProgressInterval = setInterval(async () => {
+    try {
+      const data = await api(`/activity/progress?course_id=${courseId}`);
+      if (data && !data.error) {
+        if (fill) fill.style.width = data.percentage + '%';
+        if (text) text.textContent = data.percentage + '%';
+        if (data.status === 'done' && data.results) {
+          clearInterval(activityProgressInterval);
+          _lastActivityData = { activities: data.results };
+          const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#${targetId}').classList.add('hidden')">${t('close')}</button></div>`;
+          document.getElementById(targetId).innerHTML = header + (data.results || []).map((a, i) => renderActivityCard(a, i, targetId)).join('');
+        } else if (data.status === 'error') {
+          clearInterval(activityProgressInterval);
+          document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">Error generating activities.</div>`;
+        }
+      }
+    } catch (e) { console.error("Poll Error:", e); }
+  }, 1000);
+}
+
 async function launchActivity() {
   const topicId = document.getElementById('activity-topic-select').value;
   if (!topicId) return showAlert(t('missing_info'), t('class.select_topic_msg') || (currentLang === 'tr' ? 'Lütfen bir konu seçin' : 'Please select a topic'), true);
-  
+
   const preview = document.getElementById('activity-preview');
   preview.classList.remove('hidden');
-  
+
   // Show Loading State
   showGenerationLoading(preview);
 
+  const btn = document.getElementById('generate-activity-btn');
+  if (btn) btn.disabled = true;
+
   try {
-    const data = await api('/activity?topic_id=' + topicId);
-    _lastActivityData = data;
-    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (data.topic?.title||'') + '</h2>' + (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+    // 1. Kick off the background task
+    await api('/activity/start', {
+      method: 'POST',
+      body: { topic_id: topicId, course_id: courseId, count: 6 }
+    });
+    // 2. Start polling AFTER the task is successfully initiated
+    startActivityPolling('activity-preview', '📋 ' + (t('Content Map') || 'Content Map'));
   } catch (err) {
     preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
       ${t('assign.retry')}
     </div>`;
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
 function renderActivityCard(a, idx, ctx) {
-  const p = translatePrompt(a.prompt);
+  const p = formatActivityData(a.prompt);
   if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
@@ -1876,6 +1935,24 @@ function renderActivityCard(a, idx, ctx) {
 }
 
 function esc(s) { return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+function formatActivityData(val) {
+  if (!val) return '';
+  let data = val;
+  // If it's a string that looks like JSON, try to parse it
+  if (typeof data === 'string' && (data.trim().startsWith('[') || data.trim().startsWith('{'))) {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      // Not valid JSON, keep as string
+    }
+  }
+  // If it's an array, join with backslashes for readability
+  if (Array.isArray(data)) {
+    return data.map(item => String(item)).join(' \\ ');
+  }
+  return String(data);
+}
 
 async function checkMCQ(btn, answer, cardId, qid) {
   const card = document.getElementById(cardId);
@@ -1917,7 +1994,7 @@ function moveDialogueLine(btn, direction) {
   const container = row.parentElement;
   const rows = Array.from(container.children);
   const idx = rows.indexOf(row);
-  
+
   // Add CSS transition class if not already there
   if (!row.style.transition) {
     rows.forEach(r => r.style.transition = 'transform 0.2s ease');
@@ -2040,7 +2117,7 @@ async function viewQuiz(quizId, title) {
 
   const studentResults = respData.student_results || [];
   const classAvg = respData.average_score ? Math.round(respData.average_score * 100) : 0;
-  
+
   const L = {
     noResponses: t('assign.no_responses'),
     submitted: t('assign.submitted'),
@@ -2239,10 +2316,10 @@ function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlacehold
 
     const titleEl = document.getElementById('confirm-title');
     const msgEl = document.getElementById('confirm-message');
-    
+
     titleEl.setAttribute('data-i18n', titleKey);
     titleEl.textContent = t(titleKey);
-    
+
     msgEl.setAttribute('data-i18n', messageKey);
     msgEl.setAttribute('data-i18n-data', JSON.stringify(messageData));
     msgEl.textContent = t(messageKey, messageData);
@@ -2266,7 +2343,7 @@ function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlacehold
 
     okBtn.setAttribute('data-i18n', okKeyFinal);
     okBtn.textContent = t(okKeyFinal);
-    
+
     cancelBtn.setAttribute('data-i18n', cancelKeyFinal);
     cancelBtn.textContent = t(cancelKeyFinal);
 
@@ -2321,11 +2398,11 @@ async function resetData(targetCourseId = null) {
   // Wait! If called from selection screen with (null), we WANT targetCourseId to stay null.
   // If called from Overview with (), targetCourseId is null by default.
   // So we need to distinguish between "Global" and "Current Classroom".
-  
+
   // Revised logic:
   // resetData() -> Current Classroom (if courseId exists)
   // resetData(null) -> Global Reset
-  
+
   let finalCourseId = targetCourseId;
   if (arguments.length === 0 && typeof courseId !== 'undefined') {
     finalCourseId = courseId;
@@ -2337,14 +2414,14 @@ async function resetData(targetCourseId = null) {
   const typed = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg2', true, 'ERASE ALL DATA');
   if (typed !== 'ERASE ALL DATA') return;
 
-  const res = await api('/data/reset', { 
-    method: 'POST', 
-    body: { 
+  const res = await api('/data/reset', {
+    method: 'POST',
+    body: {
       confirm: 'ERASE ALL DATA',
       course_id: finalCourseId
-    } 
+    }
   });
-  
+
   if (res.success) {
     location.reload();
   } else {
@@ -2356,7 +2433,7 @@ async function showStudentDetail(sid, name, studentId = '') {
   const data = await api('/student/progress?student_id=' + sid);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
-  
+
   const idHtml = studentId ? `<span style="font-size:16px; color:var(--text-muted); margin-left:12px; font-weight:normal">#${studentId}</span>` : '';
 
   document.getElementById('student-detail-body').innerHTML = `
@@ -2370,9 +2447,9 @@ async function showStudentDetail(sid, name, studentId = '') {
 
     <h3 style="margin-bottom:16px" data-i18n="Mastery:">${t('Mastery:')}</h3>
     ${(data.masteries || []).map(m => {
-      const pct = Math.round(m.score * 100);
-      return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
-    }).join('')}
+    const pct = Math.round(m.score * 100);
+    return `<div class="progress-item"><div class="progress-label"><span>${m.title}</span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
+  }).join('')}
 
     <h3 style="margin:24px 0 16px" data-i18n="Activities">${t('Activities')}</h3>
     ${(data.recent_responses || []).slice(0, 10).map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:${r.score >= 0.8 ? 'var(--success)' : 'var(--danger)'};font-weight:600">${Math.round(r.score * 100)}%</span> — ${r.prompt?.substring(0, 60) || 'Question'}</div>`).join('')}
@@ -2383,9 +2460,9 @@ async function showStudentDetail(sid, name, studentId = '') {
 async function generateReport() {
   const content = document.getElementById('report-content');
   if (!content) return;
-  
+
   showGenerationLoading(content);
-  
+
   try {
     const r = await api('/report/generate', { method: 'POST', body: { course_id: courseId } });
     _lastReportData = r;
@@ -2417,10 +2494,10 @@ function renderReport(report) {
       };
     }
   }
-  
+
   if (!data) {
-     content.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">${t('report.no_data')}</div>`;
-     return;
+    content.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">${t('report.no_data')}</div>`;
+    return;
   }
 
   const s = report.summary || {};
@@ -2429,7 +2506,7 @@ function renderReport(report) {
   content.innerHTML = `
     <div class="report-card animate-slide-up" style="background:var(--bg-card); border-radius:24px; border:1px solid var(--border); overflow:hidden; box-shadow:var(--shadow-xl); max-width:800px; margin:0 auto;">
       <div style="background:var(--gradient-1); padding:40px; text-align:center; color:white; position:relative; overflow:hidden;">
-        <h2 style="margin:0; font-size:28px; font-weight:800; letter-spacing:-0.5px;">${t('Weekly Report')}</h2>
+        <h2 style="margin:0; font-size:28px; font-weight:800; letter-spacing:-0.5px;">${t('report.title')}</h2>
         <p style="margin:8px 0 0; opacity:0.8; font-size:14px;">${new Date(report.generated_at).toLocaleDateString(lang === 'tr' ? 'tr-TR' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
       </div>
       
@@ -2441,11 +2518,11 @@ function renderReport(report) {
             <div style="font-size:24px; font-weight:800; color:var(--accent-light);">${s.total_students || 0}</div>
           </div>
           <div style="background:var(--bg-input); padding:16px; border-radius:16px; border:1px solid var(--border); text-align:center;">
-            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:800; margin-bottom:4px;">${t('CLASS MASTERY')}</div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:800; margin-bottom:4px;">${t('CLASS_MASTERY')}</div>
             <div style="font-size:24px; font-weight:800; color:var(--success);">${avgPct}%</div>
           </div>
           <div style="background:rgba(239,68,68,0.05); padding:16px; border-radius:16px; border:1px solid rgba(239,68,68,0.2); text-align:center;">
-            <div style="font-size:11px; text-transform:uppercase; color:var(--danger); font-weight:800; margin-bottom:4px;">${t('AT RISK')}</div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--danger); font-weight:800; margin-bottom:4px;">${t('AT_RISK')}</div>
             <div style="font-size:24px; font-weight:800; color:var(--danger);">${s.at_risk_count || 0}</div>
           </div>
         </div>
@@ -2495,7 +2572,7 @@ function renderReport(report) {
 async function initStudent() {
   const navUser = document.getElementById('student-nav-username');
   if (navUser) navUser.textContent = currentUser.name;
-  
+
   const greeting = document.getElementById('student-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
 
@@ -2561,14 +2638,23 @@ async function startPractice(tid, title) {
   const area = document.getElementById('practice-area');
   area.classList.remove('hidden');
   area.scrollIntoView({ behavior: 'smooth' });
-  
+
   // Show Loading State
   showGenerationLoading(area);
-  
-  const data = await api('/activity?topic_id=' + tid);
-  
-  area.innerHTML = `<div class="page-header" style="margin-top:24px"><h2>${t('practice')}: ${title}</h2><button class="btn btn-outline btn-sm" onclick="this.closest('#practice-area').classList.add('hidden')">${t('close')}</button></div>` +
-    (data.activities || []).map((a, i) => renderActivityCard(a, i, 'prac')).join('');
+
+  try {
+    // 1. Kick off the background task
+    await api('/activity/start', {
+      method: 'POST',
+      body: { topic_id: tid, course_id: courseId, count: 6 }
+    });
+    // 2. Start polling
+    startActivityPolling('practice-area', `${t('practice')}: ${title}`);
+  } catch (err) {
+    area.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
+      ${t('assign.retry')}
+    </div>`;
+  }
 }
 
 async function loadStudentProgress() {
@@ -2919,13 +3005,18 @@ function renderDraftList() {
   }
 
   currentDraft.questions.forEach((q, i) => {
+    let typeLabel = q.type === 'mcq' ? t('draft.mcq') : (q.type === 'dialogue_order' || q.type === 'dialogue' ? 'Dialogue' : t('draft.fill_blank'));
+
+    let formattedPrompt = formatActivityData(q.prompt);
+    let formattedAnswer = formatActivityData(q.answer);
+
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
         <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
         <div class="card-body">
-          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. <span data-i18n="${q.type === 'mcq' ? 'draft.mcq' : 'draft.fill_blank'}">${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</span></div>
-          <div style="font-weight:600; margin-bottom:8px;">${esc(q.prompt)}</div>
-          <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(q.answer)}</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${typeLabel}</div>
+          <div style="font-weight:600; margin-bottom:8px;">${esc(formattedPrompt)}</div>
+          <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(formattedAnswer)}</div>
           ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? `<div style="color:var(--danger); font-size:13px;">✗ ${q.distractors.join(', ')}</div>` : ''}
         </div>
       </div>
@@ -3080,7 +3171,7 @@ function showAssignmentQuestion(area) {
       <div class="activity-type-label" style="margin-bottom:10px">
         ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
       </div>
-      <div class="activity-prompt" style="font-size:16px;line-height:1.6">${translatePrompt(q.prompt)}</div>
+      <div class="activity-prompt" style="font-size:16px;line-height:1.6">${formatActivityData(q.prompt)}</div>
       ${answerHTML}
     </div>`;
 
@@ -3136,30 +3227,6 @@ async function submitAssignment(area) {
   }
 }
 
-async function createQuiz() {
-  const btn = event.target;
-  const originalText = btn.textContent;
-  btn.textContent = '...';
-  btn.disabled = true;
 
-  const title = document.getElementById('quiz-title').value || 'Quiz';
-  const chapterId = document.getElementById('quiz-chapter-select').value || null;
-  const count = parseInt(document.getElementById('quiz-count').value) || 10;
 
-  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
-
-  btn.textContent = originalText;
-  btn.disabled = false;
-
-  if (res && res.questions) {
-    currentDraft = {
-      type: 'quiz',
-      title: title,
-      course_id: courseId,
-      chapter_id: chapterId,
-      questions: res.questions
-    };
-    openDraftModal();
-  }
-}
 
