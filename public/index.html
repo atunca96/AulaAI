@@ -34,27 +34,54 @@
                 <div id="sidebar-user-name" style="font-size:18px; font-weight:800; margin-bottom:2px; text-shadow:0 2px 4px rgba(0,0,0,0.2);">Guest</div>
                 <div id="sidebar-user-role" style="font-size:11px; opacity:0.9; text-transform:uppercase; letter-spacing:1.5px; font-weight:600;">Role</div>
             </div>
-            <div id="sidebar-nav" style="flex:1; padding:20px 16px; display:flex; flex-direction:column; gap:6px; overflow-y:auto;">
+            <div id="sidebar-nav" style="flex:1; padding:20px 16px; display:flex; flex-direction:column; gap:6px; overflow-y:auto; -webkit-overflow-scrolling:touch;">
                 <div class="lecturer-only mobile-only" style="display:flex; flex-direction:column; gap:4px;">
-                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'assignments\']'))">
-                        <span class="sidebar-icon">📝</span> <span data-i18n="assignments">Assignments</span>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'overview\']'))">
+                        <span class="sidebar-icon">📊</span> <span data-i18n="Overview">Overview</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'curriculum\']'))">
+                        <span class="sidebar-icon">📚</span> <span data-i18n="Curriculum">Curriculum</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'activities\']'))">
+                        <span class="sidebar-icon">⚡</span> <span data-i18n="Activities">Activities</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'quizzes-mgmt\']'))">
+                        <span class="sidebar-icon">📝</span> <span data-i18n="Quizzes">Quizzes</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'assignments-mgmt\']'))">
+                        <span class="sidebar-icon">📅</span> <span data-i18n="Assignments">Assignments</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'students-tab\']'))">
+                        <span class="sidebar-icon">👥</span> <span data-i18n="Students">Students</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'reports\']'))">
-                        <span class="sidebar-icon">📊</span> <span data-i18n="reports">Reports</span>
+                        <span class="sidebar-icon">📑</span> <span data-i18n="Reports">Reports</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'book\']'))">
-                        <span class="sidebar-icon">📚</span> <span data-i18n="book">Book</span>
+                        <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'inbox\']'))">
                         <span class="sidebar-icon">📥</span> <span data-i18n="inbox">Inbox</span>
                     </button>
                 </div>
                 <div class="student-only mobile-only" style="display:flex; flex-direction:column; gap:4px;">
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-home\']'))">
+                        <span class="sidebar-icon">🏠</span> <span data-i18n="home">Home</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-practice\']'))">
+                        <span class="sidebar-icon">⚡</span> <span data-i18n="practice">Practice</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-quizzes\']'))">
+                        <span class="sidebar-icon">📝</span> <span data-i18n="quizzes">Quizzes</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-mastery\']'))">
+                        <span class="sidebar-icon">📈</span> <span data-i18n="myProgress">My Progress</span>
+                    </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-assignments\']'))">
-                        <span class="sidebar-icon">📝</span> <span data-i18n="assignments">Assignments</span>
+                        <span class="sidebar-icon">📅</span> <span data-i18n="Assignments">Assignments</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-book\']'))">
-                        <span class="sidebar-icon">📚</span> <span data-i18n="book">Book</span>
+                        <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
                     </button>
                     <button class="btn btn-ghost sidebar-item" onclick="toggleSidebar(); switchTab(document.querySelector('[data-tab=\'s-messages\']'))">
                         <span class="sidebar-icon">💬</span> <span data-i18n="messages">Messages</span>

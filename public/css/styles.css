@@ -647,29 +647,9 @@ body {
     justify-content: center;
   }
 
-  /* Tabs → Fixed Bottom Navigation Bar */
+  /* Tabs → Hidden on mobile (moved to sidebar) */
   .nav-tabs {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: auto;
-    min-height: 60px;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: rgba(10, 14, 26, 0.97);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    z-index: 1000;
-    display: flex;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-    gap: 0;
-    box-shadow: 0 -2px 20px rgba(0,0,0,0.5);
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+    display: none !important;
   }
   .nav-tabs::-webkit-scrollbar { display: none; }
 
