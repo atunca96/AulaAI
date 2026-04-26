@@ -63,7 +63,7 @@ if os.path.exists(".env"):
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Using Claude 3.5 Haiku for fast, high-quality, and logically sound generation
-MODEL = "google/gemini-3.1-flash-lite-preview"
+MODEL = "anthropic/claude-3.5-haiku"
 file_log(f"AI ENGINE LOADED - PROVIDER: OpenRouter - MODEL: {MODEL}")
 if not OPENROUTER_API_KEY:
     file_log("CRITICAL: OPENROUTER_API_KEY IS MISSING!")
