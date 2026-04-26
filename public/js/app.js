@@ -66,26 +66,30 @@ function refreshCurrentView() {
       const updated = courses.find(c => c.id === currentCourse.id);
       if (updated) {
         currentCourse = updated;
-        const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
-        if (buildBanner) {
-          if (currentCourse.is_building) buildBanner.classList.remove('hidden');
-          else buildBanner.classList.add('hidden');
+        if (currentUser.role === 'lecturer') {
+          const buildBanner = document.getElementById('lecturer-building-banner');
+          if (buildBanner) {
+            if (currentCourse.is_building) buildBanner.classList.remove('hidden');
+            else buildBanner.classList.add('hidden');
+          }
         }
       }
     }
 
-    _buildingCourses.forEach(id => {
-      if (!currentlyBuilding.includes(id)) {
-        const course = courses.find(c => c.id === id);
-        if (course) {
-          showAlert(t('Tebrikler!'), `"${course.name}" ${t('is ready!')}`);
-          // Force a list refresh to show the "Enter" button
-          if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
-            showClassroomSelection();
+    if (currentUser.role === 'lecturer') {
+      _buildingCourses.forEach(id => {
+        if (!currentlyBuilding.includes(id)) {
+          const course = courses.find(c => c.id === id);
+          if (course) {
+            showAlert(t('Tebrikler!'), `"${course.name}" ${t('is ready!')}`);
+            // Force a list refresh to show the "Enter" button
+            if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
+              showClassroomSelection();
+            }
           }
         }
-      }
-    });
+      });
+    }
     _buildingCourses = currentlyBuilding;
   });
 
@@ -298,6 +302,8 @@ const i18n = {
     'error': 'Error',
     'success': 'Success',
     'missing_info': 'Missing Info',
+    'Tebrikler!': 'Congratulations!',
+    'is ready!': 'is ready!',
     'gen.preparing': 'Preparing Classroom...',
     'gen.building': 'Building Lessons...',
     'gen.please_wait': 'Please Wait',
@@ -547,6 +553,8 @@ const i18n = {
     'class.pdf_status_title': '📄 PDF Durumu Onayı',
     'class.pdf_status_msg': 'Yükleyeceğeniz PDF dosyası taranmış bir resim (flat scan) mi yoksa seçilebilir metin içeren dijital bir dosya mı? Taranmış resimler hatalı sonuçlara neden olabilir. Dosyanızın metin araması yapılabilir/seçilebilir olduğundan emin misiniz?',
     'class.pdf_status_ok': 'Evet, metin seçilebiliyor',
+    'Tebrikler!': 'Tebrikler!',
+    'is ready!': 'hazır!',
     'Detecting...': 'Algılanıyor...',
     'class.pdf_status_cancel': 'Hayır, kontrol edeceğim',
     'no_messages': 'Mesaj yok.',
@@ -995,6 +1003,7 @@ async function handleCreateClassroom(e) {
   btn.style.opacity = '0.5';
   btn.style.cursor = 'default';
 
+  let data;
   try {
     const res = await fetch('/api/classroom/create-from-pdf', {
       method: 'POST',
@@ -1003,73 +1012,26 @@ async function handleCreateClassroom(e) {
     data = await res.json();
   } catch (err) {
     console.error('Creation Error:', err);
-    stopLiveSync();
+    if (currentUser.role === 'lecturer') stopLiveSync();
     return showAlert(t('error'), t('class.create_failed'), true);
   }
   
-  await showAlert(t('success'), `${t('class.create_success')} \n\n${t('class.join_code')}: ${data.code}\n\n${t('class.share_msg')}`);
-  statusEl.classList.remove('hidden');
-  btn.disabled = false;
-  btn.style.opacity = '1';
-  btn.style.cursor = 'pointer';
-
   if (!data.success) {
+    statusEl.classList.add('hidden');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
     return showAlert(t('error'), data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);
   }
 
-  // Success path logic (wrapped in a separate try-catch so UI refresh errors don't look like creation errors)
-  try {
-    await showAlert(t('success'), `${currentLang === 'tr' ? 'Sınıf başarıyla oluşturuldu!' : 'Classroom created successfully!'} \n\n${currentLang === 'tr' ? 'Sınıf Kodu' : 'Classroom Code'}: ${data.code}\n\n${currentLang === 'tr' ? 'Bu kodu öğrencilerinizle paylaşın.' : 'Share this code with your students.'}`);
-    closeCreateClassroomModal();
-
-    // Register for completion notification
-    if (typeof _buildingCourses !== 'undefined') {
-      _buildingCourses.push(data.course_id);
-    }
-
-    await showClassroomSelection();
-
-    // If it's still missing from global list (race condition), manually inject it
-    if (!Array.isArray(window.allCourses)) { window.allCourses = []; }
-    if (!window.allCourses.find(c => c.id === data.course_id)) {
-      const ghost = { id: data.course_id, name: data.name, code: data.code, semester: 'Fall 2026', is_building: 1, language: 'Detecting...' };
-      window.allCourses.unshift(ghost);
-      // Refresh local UI using global state
-      const container = document.getElementById('classroom-list');
-      if (container) {
-        container.innerHTML = window.allCourses.map(c => {
-          const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
-          const isBuilding = c.is_building === 1;
-          return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isBuilding ? '0.65' : '1'}; transition: opacity 0.3s ease;">
-              ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
-              <div class="card-body">
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                      <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${t(c.language) || t('class.unknown')}</span>
-                      ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
-                  </div>
-                  <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
-                  <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">${esc(c.semester)}</p>
-                  
-                  ${isBuilding ? `
-                    <div class="flex-center" style="margin: 20px 0;">
-                      <div class="spinner-small" style="border-top-color:var(--accent);"></div>
-                    </div>
-                    <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${t('gen.building')}</p>
-                    <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')">
-                      ✕ ${t('cancel')}
-                    </button>
-                  ` : ''}
-              </div>
-              <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-                  ${isBuilding ? t('gen.please_wait') : t('class.enter')}
-              </button>
-          </div>`;
-        }).join('');
-      }
-    }
-  } catch (err) {
-    console.warn('[CLASSROOM] Post-creation UI refresh failed, but classroom was created:', err);
+  await showAlert(t('success'), `${t('class.create_success')} \n\n${t('class.join_code')}: ${data.code}\n\n${t('class.share_msg')}`);
+  closeCreateClassroomModal();
+  
+  if (typeof _buildingCourses !== 'undefined') {
+    _buildingCourses.push(data.course_id);
   }
+
+  await showClassroomSelection();
 }
 
 async function handleStudentLogin(e) {
