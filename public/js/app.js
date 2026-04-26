@@ -3,11 +3,21 @@ let currentUser = null;
 let courseId = null;
 let curriculum = [];
 let currentCourse = null;
-let currentLang = 'en';
+let currentLang = localStorage.getItem('aula_lang') || 'en';
+window.currentLang = currentLang;
 let aiStatus = null;
 let _lastVersion = -1;
 let _syncInterval = null;
 let _buildingCourses = [];
+let _lastActivityData = null;
+let _lastOverviewData = null;
+let _lastCurriculumData = null;
+let _lastQuizListData = null;
+let _lastAssignmentListData = null;
+let _lastStudentRosterData = null;
+let _lastStudentHomeData = null;
+let _lastClassroomsData = null;
+let _lastStudentDetailData = null;
 
 // ── Keep Render alive (ping every 10 min) ──
 setInterval(() => fetch('/api/courses').catch(() => { }), 10 * 60 * 1000);
@@ -156,6 +166,8 @@ const i18n = {
     'Student Login': 'Student Login', 'Log in with your student number': 'Log in with your student number',
     'Student Number': 'Student Number', '(required)': '(required)',
     'Your Full Name': 'Your Full Name', 'e.g. 2021123456': 'e.g. 2021123456',
+    'login.class_code': 'Classroom Code (5 digits)', 'login.class_code_placeholder': 'e.g. 12345',
+    'login.student_number': 'Student Number',
     Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
     messageTeacher: 'Message Teacher', inbox: 'Inbox', book: 'Book',
@@ -190,7 +202,7 @@ const i18n = {
     'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
     '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title',
     Chapter: 'Chapter', 'All chapters': 'All chapters', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
-    completed: 'Completed',
+    completed: 'Completed', 'Created': 'Created',
     // Assignments
     'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students',
     '➕ Create New Assignment': '➕ Create New Assignment', 'Assignment Title': 'Assignment Title',
@@ -199,8 +211,8 @@ const i18n = {
     'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress',
     Kick: 'Kick', 'Mastery:': 'Mastery:', responses: 'responses',
     // Reports
-    'Weekly Report': 'Weekly Report', 'AI-generated class performance analysis': 'AI-generated class performance analysis',
-    '🔄 Generate Report': '🔄 Generate Report',
+    'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': '🔄 Report',
+    'Content Map': 'Content Map', 'You': 'You',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — Content Map',
     // Waiting Room
@@ -251,13 +263,16 @@ const i18n = {
     'AllChapters': 'All chapters',
     'ok': 'OK',
     'cancel': 'Cancel',
+    'no_messages': 'No messages.',
+    'prac.dialogue': 'Dialogue',
     'confirm.delete_classroom': 'Delete Classroom',
+    'confirm.delete_classroom_msg': 'Are you sure you want to delete the classroom "{name}"?',
     'confirm.delete_quiz': 'Delete Quiz',
+    'confirm.delete_quiz_msg': 'Are you sure you want to delete the quiz "{title}"?',
     'confirm.delete_assignment': 'Delete Assignment',
-    'confirm.start_assignment_title': 'Start Assignment',
-    'confirm.start_assignment_msg': 'Are you sure? Once you start, you cannot go back or cancel without submitting.',
+    'confirm.delete_assignment_msg': 'Are you sure you want to delete the assignment "{title}"?',
     'confirm.kick_student_title': 'Kick Student',
-    'confirm.kick_student_msg': 'Are you sure you want to kick this student from the class? This cannot be undone.',
+    'confirm.kick_student_msg': 'Are you sure you want to kick {name} from the class?',
     'confirm.erase_all_title': 'ERASE ALL DATA',
     'confirm.erase_all_msg1': 'This will permanently remove all student accounts, results, and mastery data. The curriculum will stay. Are you sure?',
     'confirm.erase_all_msg2': 'LAST WARNING: Type "ERASE ALL DATA" to confirm absolute deletion.',
@@ -304,21 +319,35 @@ const i18n = {
     'class.name': 'Classroom Name',
     'class.building_msg': 'Your content is still being built from the textbook — check back soon.',
     'class.no_curriculum': 'No curriculum data available for this classroom.',
+    'low_mastery': 'Low Mastery',
+    'low_engagement': 'Low Engagement',
+    'critical_risk': 'Critical Risk',
     'LOW_MASTERY': 'Low Mastery',
     'LOW_ENGAGEMENT': 'Low Engagement',
-    'CRITICAL_RISK': 'Critical Risk'
+    'CRITICAL_RISK': 'Critical Risk',
+    'UNKNOWN': 'Unknown',
+    'class.join_code': 'Join Code',
+    'class.unknown': 'Unknown',
+    'class.pdf_status_title': '📄 PDF Status Confirmation',
+    'class.pdf_status_msg': 'Is the PDF you are about to upload a digital file with selectable text, or a flat scan (scanned image)? Flat scans can lead to distorted outcomes. Are you sure your file has selectable/searchable text?',
+    'class.pdf_status_ok': 'Yes, it is searchable',
+    'class.pdf_status_cancel': 'No, let me check',
+    'draft.lang_warning': 'Note: Question content language is fixed upon generation and will not change with the UI toggle.'
   },
   tr: {
     langBtn: '🌐 EN',
     ok: 'Tamam',
     cancel: 'İptal',
     'confirm.delete_classroom': 'Sınıfı Sil',
+    'confirm.delete_classroom_msg': '"{name}" sınıfını silmek istediğinize emin misiniz?',
     'confirm.delete_quiz': 'Sınavı Sil',
+    'confirm.delete_quiz_msg': '"{title}" sınavını silmek istediğinize emin misiniz?',
     'confirm.delete_assignment': 'Ödevi Sil',
+    'confirm.delete_assignment_msg': '"{title}" ödevini silmek istediğinize emin misiniz?',
     'confirm.start_assignment_title': 'Ödeve Başla',
     'confirm.start_assignment_msg': 'Emin misiniz? Ödeve başladıktan sonra geri dönemezsiniz, yarıda bırakmak yarım teslim yapmanıza sebep olabilir.',
     'confirm.kick_student_title': 'Öğrenciyi At',
-    'confirm.kick_student_msg': 'Bu öğrenciyi sınıftan atmak istediğinize emin misiniz? Bu işlem geri alınamaz.',
+    'confirm.kick_student_msg': '{name} adlı öğrenciyi sınıftan atmak istediğinize emin misiniz?',
     'confirm.erase_all_title': 'TÜM VERİLERİ SİL',
     'confirm.erase_all_msg1': 'Bu işlem tüm öğrenci hesaplarını, sonuçlarını ve başarı verilerini kalıcı olarak silecektir. Müfredat kalacaktır. Emin misiniz?',
     'confirm.erase_all_msg2': 'SON UYARI: Kesin silme işlemini onaylamak için "ERASE ALL DATA" yazın.',
@@ -365,14 +394,20 @@ const i18n = {
     'class.name': 'Sınıf Adı',
     'class.building_msg': 'İçeriğiniz hala hazırlanıyor — kısa süre sonra tekrar kontrol edin.',
     'class.no_curriculum': 'Bu sınıf için müfredat verisi bulunamadı.',
+    'low_mastery': 'Düşük Başarı',
+    'low_engagement': 'Düşük Katılım',
+    'critical_risk': 'Kritik Risk',
     'LOW_MASTERY': 'Düşük Başarı',
     'LOW_ENGAGEMENT': 'Düşük Katılım',
     'CRITICAL_RISK': 'Kritik Risk',
+    'UNKNOWN': 'Bilinmiyor',
     loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
     'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
     'Your Full Name': 'Adınız Soyadınız', 'e.g. 2021123456': 'Örn: 2021123456',
+    'login.class_code': 'Sınıf Kodu (5 hane)', 'login.class_code_placeholder': 'Örn: 12345',
+    'login.student_number': 'Öğrenci Numarası',
     Email: 'E-posta', Password: 'Şifre', 'Full Name': 'Ad Soyad',
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
     messageTeacher: 'Öğretmene Mesaj', inbox: 'Gelen Kutusu', book: 'Kitap',
@@ -407,7 +442,7 @@ const i18n = {
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
     '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
     Chapter: 'Ünite', 'All chapters': 'Tüm üniteler', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
-    completed: 'Tamamlandı',
+    completed: 'Tamamlandı', 'Created': 'Oluşturulma',
     // Assignments
     'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
     '➕ Create New Assignment': '➕ Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
@@ -416,8 +451,9 @@ const i18n = {
     'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle',
     Kick: 'At', 'Mastery:': 'Başarı:', responses: 'yanıt',
     // Reports
-    'Weekly Report': 'Haftalık Rapor', 'AI-generated class performance analysis': 'Yapay zeka destekli sınıf performans analizi',
-    '🔄 Generate Report': '🔄 Rapor Oluştur',
+    'report.title': 'Haftalık Rapor', 'report.subtitle': 'Yapay zeka destekli sınıf performans analizi',
+    'report.generate': '🔄 Rapor Oluştur',
+    'Content Map': 'İçerik Haritası', 'You': 'Siz', 'Curriculum': 'Müfredat',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — İçerik Haritası',
     // Waiting Room
@@ -455,7 +491,7 @@ const i18n = {
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
     'class.create': 'PDF\'den Yeni Sınıf Oluştur',
     'class.enter': 'Sınıfa Gir',
-'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
+    'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
     'class.upload_pdf': 'PDF Ders Kitabı Yükle',
     'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 2-5)',
     'class.toc_placeholder': '2-5',
@@ -467,44 +503,147 @@ const i18n = {
     'SelectTopic': 'Bir konu seçin...',
     'AllChapters': 'Tüm üniteler',
     'ok': 'Tamam',
-    'cancel': 'İptal'
+    'cancel': 'İptal',
+    'no_classrooms_found': 'Sınıf bulunamadı. İlkini oluşturun!',
+    'class.delete_building_msg': 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?',
+    'You': 'Siz',
+    'class.select_topic_msg': 'Lütfen bir konu seçin',
+    'draft.required_msg': 'Soru metni ve cevap zorunludur.',
+    'draft.no_questions_msg': 'Yayınlamak için en az 1 soru gereklidir.',
+    'message.placeholder': 'Mesajınızı buraya yazın...',
+    'Read Textbook': 'Kitabı Oku',
+    'class.join_code': 'Sınıf Kodu',
+    'class.unknown': 'Bilinmiyor',
+    'class.pdf_status_title': '📄 PDF Durumu Onayı',
+    'class.pdf_status_msg': 'Yükleyeceğeniz PDF dosyası taranmış bir resim (flat scan) mi yoksa seçilebilir metin içeren dijital bir dosya mı? Taranmış resimler hatalı sonuçlara neden olabilir. Dosyanızın metin araması yapılabilir/seçilebilir olduğundan emin misiniz?',
+    'class.pdf_status_ok': 'Evet, metin seçilebiliyor',
+    'class.pdf_status_cancel': 'Hayır, kontrol edeceğim',
+    'no_messages': 'Mesaj yok.',
+    'No assignments yet.': 'Henüz ödev yok.',
+    'No quizzes yet.': 'Henüz sınav yok.',
+    'prac.dialogue': 'Diyalog',
+    'draft.lang_warning': 'Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.'
   }
 };
 
-function t(key) { return (i18n[currentLang] && i18n[currentLang][key]) || key; }
+function t(key, data = {}) {
+  const lang = window.currentLang || 'en';
+  let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
+  Object.keys(data).forEach(k => {
+    str = str.replace(new RegExp(`{${k}}`, 'g'), data[k]);
+  });
+  return str;
+}
 
 function applyTranslations() {
+  // Sync open modal FIRST
+  const modal = document.getElementById('confirm-modal');
+  if (modal) {
+    const titleKey = modal.getAttribute('data-title-key');
+    const msgKey = modal.getAttribute('data-msg-key');
+    const msgDataStr = modal.getAttribute('data-msg-data');
+    let msgData = {};
+    try { if (msgDataStr) msgData = JSON.parse(msgDataStr); } catch(e) {}
+    
+    if (titleKey) document.getElementById('confirm-title').textContent = t(titleKey);
+    if (msgKey) document.getElementById('confirm-message').textContent = t(msgKey, msgData);
+    
+    const okK = modal.getAttribute('data-ok-key');
+    const canK = modal.getAttribute('data-cancel-key');
+    if (okK) document.getElementById('confirm-ok-btn').textContent = t(okK);
+    if (canK) document.getElementById('confirm-cancel-btn').textContent = t(canK);
+  }
+
   document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.dataset.i18n;
-    if (i18n[currentLang][key]) {
-      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-        el.placeholder = i18n[currentLang][key];
-      } else {
-        el.textContent = i18n[currentLang][key];
-      }
+    const key = el.getAttribute('data-i18n');
+    const dataStr = el.getAttribute('data-i18n-data');
+    let data = {};
+    try { if (dataStr) data = JSON.parse(dataStr); } catch(e) {}
+    
+    const translation = t(key, data);
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      el.placeholder = translation;
+    } else {
+      el.textContent = translation;
     }
   });
+
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    const key = el.dataset.i18nPlaceholder;
-    if (i18n[currentLang][key]) {
-      el.placeholder = i18n[currentLang][key];
-    }
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
   });
-  // Update the toggle button
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.getAttribute('data-i18n-title'));
+  });
+
   const langBtn = document.getElementById('lang-btn');
-  if (langBtn) langBtn.textContent = t('langBtn');
+  if (langBtn) {
+    langBtn.setAttribute('data-i18n', 'langBtn');
+    langBtn.textContent = t('langBtn');
+  }
 }
 
 function toggleLanguage() {
-  currentLang = currentLang === 'en' ? 'tr' : 'en';
-  // Note: We don't save to localStorage because user wants EN on refresh
+  window.currentLang = window.currentLang === 'en' ? 'tr' : 'en';
+  localStorage.setItem('aula_lang', window.currentLang);
   applyTranslations();
 
-  // Re-render all dynamic content in the correct language
+  // Re-render all dynamic content SYNCHRONOUSLY using cached data
   if (currentUser) {
-    if (currentUser.role === 'lecturer') initLecturer();
-    else initStudent();
+    if (currentUser.role === 'lecturer') {
+      if (currentCourse) {
+        renderLecturerSync();
+      } else {
+        if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
+      }
+    } else {
+      if (currentCourse) {
+        renderStudentSync();
+      } else {
+        if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
+      }
+    }
   }
+
+  // Re-render activity preview if visible
+  const preview = document.getElementById('activity-preview');
+  if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
+    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (_lastActivityData.topic?.title||'') + '</h2>' + (_lastActivityData.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+  }
+
+  // Sync the Draft Review modal if open
+  renderDraftListSync();
+}
+
+function renderDraftListSync() {
+  const modal = document.getElementById('draft-modal');
+  if (modal && !modal.classList.contains('hidden') && window.currentDraft) {
+    renderDraftList();
+  }
+}
+
+function renderLecturerSync() {
+  if (!currentUser) return;
+  document.getElementById('nav-username').textContent = currentUser.name;
+  document.getElementById('overview-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
+  
+  if (_lastOverviewData) renderOverview(_lastOverviewData);
+  if (curriculum) renderCurriculum();
+  populateSelects();
+  if (_lastQuizListData) renderQuizList(_lastQuizListData);
+  if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+  if (_lastStudentRosterData) renderStudentRoster(_lastStudentRosterData);
+}
+
+function renderStudentSync() {
+  if (!currentUser) return;
+  document.getElementById('student-nav-username').textContent = currentUser.name;
+  document.getElementById('student-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
+  
+  if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
+  if (_lastQuizListData) renderQuizList(_lastQuizListData);
+  if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+  if (_lastStudentHomeData) renderStudentProgress(_lastStudentHomeData);
 }
 
 
@@ -561,6 +700,7 @@ function fillDemo(role) {
 
 async function completeLogin(user, isFresh = false) {
   currentUser = user;
+  if (user.course_id) courseId = user.course_id;
   if (isFresh) {
     localStorage.removeItem('aula_last_tab');
     localStorage.removeItem('aula_last_course');
@@ -634,14 +774,18 @@ async function completeLogin(user, isFresh = false) {
 async function showClassroomSelection() {
   localStorage.removeItem('aula_last_course');
   localStorage.removeItem('aula_last_tab');
-  
-  const courses = await api('/courses?t=' + Date.now());
-  window.allCourses = courses; // Store globally for other functions
-  const container = document.getElementById('classroom-list');
   showScreen('classroom-selection-screen');
+  const courses = await api('/courses?t=' + Date.now());
+  _lastClassroomsData = courses;
+  renderClassroomSelection(courses);
+  applyTranslations();
+}
 
+function renderClassroomSelection(courses) {
+  const container = document.getElementById('classroom-list');
+  if (!container) return;
   if (!courses || courses.length === 0) {
-    container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">No classrooms found. Create your first one!</p>`;
+    container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">${t('no_classrooms_found')}</p>`;
     return;
   }
 
@@ -654,13 +798,13 @@ async function showClassroomSelection() {
         ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
+                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" data-i18n="${c.language || 'class.unknown'}">${t(c.language) || t('class.unknown')}</span>
                 ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
             <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:8px 12px; margin-bottom:16px; border:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Join Code</span>
+                <span style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;" data-i18n="class.join_code">${t('class.join_code')}</span>
                 <span style="font-family:monospace; font-size:16px; color:var(--accent); font-weight:700; letter-spacing:2px;">${c.code}</span>
             </div>
             
@@ -669,12 +813,12 @@ async function showClassroomSelection() {
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
               <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">
-                ⏳ ${isPhase1 ? t('gen.preparing') : t('gen.building')}
+                <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? '⏳ ' + t('gen.preparing') : '⏳ ' + t('gen.building')}</span>
               </p>
             ` : ''}
         </div>
         <button class="btn ${isPhase1 ? 'btn-ghost' : 'btn-outline'} btn-full" ${isPhase1 ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-            ${isPhase1 ? t('gen.please_wait') : t('class.enter')}
+            <span data-i18n="${isPhase1 ? 'gen.please_wait' : 'class.enter'}">${isPhase1 ? t('gen.please_wait') : t('class.enter')}</span>
         </button>
     </div>`;
   }).join('');
@@ -685,8 +829,7 @@ async function showClassroomSelection() {
     style.innerHTML = `@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(100%); } }`;
     document.head.appendChild(style);
   }
-
-  _buildingCourses = currentlyBuilding;
+  applyTranslations();
 }
 
 async function selectClassroom(id, isLecturer = true) {
@@ -772,11 +915,10 @@ async function selectClassroom(id, isLecturer = true) {
 async function deleteClassroom(id, name) {
   const course = (window.allCourses) ? window.allCourses.find(c => c.id === id) : null;
   const isBuilding = course && course.is_building === 1;
-  const msg = isBuilding
-    ? (currentLang === 'tr' ? 'Oluşturma işlemini durdurmak ve bu sınıfı silmek istediğinize emin misiniz?' : 'Are you sure you want to stop generation and delete this classroom?')
-    : (currentLang === 'tr' ? `"${name}" sınıfını silmek istediğinize emin misiniz?` : `Are you sure you want to delete the classroom "${name}"?`);
-
-  if (!(await showConfirmModal(t('confirm.delete_classroom'), msg, true))) return;
+  const msgKey = isBuilding ? 'class.delete_building_msg' : 'confirm.delete_classroom_msg';
+  const msgData = isBuilding ? {} : { name };
+  
+  if (!(await showConfirmModal('confirm.delete_classroom', msgKey, true, null, false, 'ok', 'cancel', msgData))) return;
 
   const res = await api('/classroom/delete', { method: 'POST', body: { course_id: id } });
   if (res.success) {
@@ -787,16 +929,7 @@ async function deleteClassroom(id, name) {
 }
 
 async function openCreateClassroomModal() {
-  const isTr = currentLang === 'tr';
-  const title = isTr ? '📄 PDF Durumu Onayı' : '📄 PDF Status Confirmation';
-  const msg = isTr 
-    ? 'Yükleyeceğeniz PDF dosyası taranmış bir resim (flat scan) mi yoksa seçilebilir metin içeren dijital bir dosya mı? Taranmış resimler hatalı sonuçlara neden olabilir. Dosyanızın metin araması yapılabilir/seçilebilir olduğundan emin misiniz?'
-    : 'Is the PDF you are about to upload a digital file with selectable text, or a flat scan (scanned image)? Flat scans can lead to distorted outcomes. Are you sure your file has selectable/searchable text?';
-
-  const okText = isTr ? 'Evet, metin seçilebiliyor' : 'Yes, it is searchable';
-  const cancelText = isTr ? 'Hayır, kontrol edeceğim' : 'No, let me check';
-
-  if (await showConfirmModal(title, msg, false, null, false, okText, cancelText)) {
+  if (await showConfirmModal('class.pdf_status_title', 'class.pdf_status_msg', false, null, false, 'class.pdf_status_ok', 'class.pdf_status_cancel')) {
     document.getElementById('create-classroom-modal').classList.remove('hidden');
   }
   document.getElementById('creation-status').classList.add('hidden');
@@ -830,7 +963,6 @@ async function handleCreateClassroom(e) {
   btn.style.opacity = '0.5';
   btn.style.cursor = 'default';
 
-  let data;
   try {
     const res = await fetch('/api/classroom/create-from-pdf', {
       method: 'POST',
@@ -838,16 +970,13 @@ async function handleCreateClassroom(e) {
     });
     data = await res.json();
   } catch (err) {
-    console.error('[CLASSROOM] Creation network error:', err);
-    statusEl.classList.add('hidden');
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-    return showAlert(t('error'), currentLang === 'tr' ? 'Sınıf oluşturulurken bir ağ hatası oluştu.' : 'A network error occurred during classroom creation.', true);
+    console.error('Creation Error:', err);
+    stopLiveSync();
+    return showAlert(t('error'), t('class.create_failed'), true);
   }
-
-  // Always reset button state after the request completes
-  statusEl.classList.add('hidden');
+  
+  await showAlert(t('success'), `${t('class.create_success')} \n\n${t('class.join_code')}: ${data.code}\n\n${t('class.share_msg')}`);
+  statusEl.classList.remove('hidden');
   btn.disabled = false;
   btn.style.opacity = '1';
   btn.style.cursor = 'pointer';
@@ -883,7 +1012,7 @@ async function handleCreateClassroom(e) {
               ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
               <div class="card-body">
                   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                      <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${c.language || 'Spanish'}</span>
+                      <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;">${t(c.language) || t('class.unknown')}</span>
                       ${(!isSpanish && !isBuilding) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
                   </div>
                   <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
@@ -893,14 +1022,14 @@ async function handleCreateClassroom(e) {
                     <div class="flex-center" style="margin: 20px 0;">
                       <div class="spinner-small" style="border-top-color:var(--accent);"></div>
                     </div>
-                    <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${currentLang === 'tr' ? 'İçerik oluşturuluyor...' : 'Building content...'}</p>
+                    <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite;">⏳ ${t('gen.building')}</p>
                     <button class="btn btn-sm" style="width:100%; color:var(--danger); border:1px solid var(--danger); background:transparent; margin-bottom:8px;" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')">
-                      ✕ ${currentLang === 'tr' ? 'İptal Et' : 'Cancel Generation'}
+                      ✕ ${t('cancel')}
                     </button>
                   ` : ''}
               </div>
               <button class="btn ${isBuilding ? 'btn-ghost' : 'btn-outline'} btn-full" ${isBuilding ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-                  ${isBuilding ? (currentLang === 'tr' ? 'Hazırlanıyor...' : 'Processing...') : (currentLang === 'tr' ? 'Sınıfı Seç' : 'Select Classroom')}
+                  ${isBuilding ? t('gen.please_wait') : t('class.enter')}
               </button>
           </div>`;
         }).join('');
@@ -965,7 +1094,7 @@ function logout() {
 
 window.addEventListener('DOMContentLoaded', () => {
   // Force English on refresh per user request
-  currentLang = 'en';
+  window.currentLang = 'en';
   applyTranslations();
 
   // Apply saved theme and HUD size
@@ -979,6 +1108,32 @@ window.addEventListener('DOMContentLoaded', () => {
     try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
     catch (e) { showScreen('login-screen'); }
   } else showScreen('login-screen');
+
+  // Add language warnings to creation forms
+  const activityBtn = document.querySelector('button[onclick="launchActivity()"]');
+  if (activityBtn) {
+    const warn = document.createElement('div');
+    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+    warn.setAttribute('data-i18n', 'draft.lang_warning');
+    warn.textContent = t('draft.lang_warning');
+    activityBtn.parentNode.appendChild(warn);
+  }
+  const quizBtn = document.querySelector('button[onclick="createQuiz()"]');
+  if (quizBtn) {
+    const warn = document.createElement('div');
+    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+    warn.setAttribute('data-i18n', 'draft.lang_warning');
+    warn.textContent = t('draft.lang_warning');
+    quizBtn.parentNode.appendChild(warn);
+  }
+  const assignBtn = document.querySelector('button[onclick="createAssignment()"]');
+  if (assignBtn) {
+    const warn = document.createElement('div');
+    warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
+    warn.setAttribute('data-i18n', 'draft.lang_warning');
+    warn.textContent = t('draft.lang_warning');
+    assignBtn.parentNode.appendChild(warn);
+  }
 });
 
 function showScreen(id) {
@@ -1024,7 +1179,7 @@ async function loadStudentChat() {
   const container = document.getElementById('student-chat-history');
 
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang === 'tr' ? 'Henüz mesaj yok.' : 'No messages yet.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
     return;
   }
 
@@ -1081,7 +1236,7 @@ async function loadInbox() {
   }
 
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;">${currentLang === 'tr' ? 'Mesaj yok.' : 'No messages.'}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
     return;
   }
 
@@ -1106,7 +1261,7 @@ async function loadInbox() {
       <div style="flex:1; min-width:0; margin-right:12px;">
         <strong style="font-size:15px; color:var(--text-primary);">${esc(data.student_name)}</strong>
         <div style="font-size:13px; color:var(--text-muted); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-          ${data.latest.sender === 'lecturer' ? 'You: ' : ''}${esc(data.latest.content)}
+          ${data.latest.sender === 'lecturer' ? '<span data-i18n="You">' + t('You') + '</span>: ' : ''}${esc(data.latest.content)}
         </div>
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
@@ -1236,22 +1391,29 @@ async function initLecturer() {
     }
   } catch (e) { aiStatus = { ai_enabled: false }; }
 
-  await loadOverview();
-  loadCurriculum();
+  await Promise.all([
+    loadOverview(),
+    loadCurriculumAsync(),
+    loadQuizList(),
+    loadAssignmentList(),
+    loadStudentRoster()
+  ]);
   populateSelects();
-  loadQuizList();
-  loadAssignmentList();
-  loadStudentRoster();
 }
 
 async function loadOverview() {
   const report = await api('/report?course_id=' + courseId);
+  _lastOverviewData = report;
+  renderOverview(report);
+}
+
+function renderOverview(report) {
   const s = report.summary || {};
   document.getElementById('overview-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">${t('Students')}</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub">${s.active_students || 0} ${t('active this week')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('Class Mastery')}</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub">${t('Average across all topics')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('At Risk')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('Top Performers')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
+    <div class="stat-card"><div class="stat-label">${t('STUDENTS')}</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub">${s.active_students || 0} ${t('active this week')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('CLASS MASTERY')}</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub">${t('Average across all topics')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('AT RISK')}</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub">${t('Students needing attention')}</div></div>
+    <div class="stat-card"><div class="stat-label">${t('TOP PERFORMERS')}</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub">${t('Mastery above 80%')}</div></div>`;
   const atRisk = report.at_risk_students || [];
   document.getElementById('at-risk-list').innerHTML = atRisk.length === 0 ? `<p style="color:var(--text-muted)">${t('No at-risk students 🎉')}</p>`
     : atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% ${t('mastery')}</span>${s.flags.map(f => `<span class="risk-badge low">${t(f)}</span>`).join('')}</div></div>`).join('');
@@ -1261,10 +1423,17 @@ async function loadOverview() {
   ).join('');
 }
 
-function loadCurriculum() {
+async function loadCurriculumAsync() {
+  const currData = await api('/curriculum?course_id=' + courseId);
+  curriculum = Array.isArray(currData) ? currData : [];
+  renderCurriculum();
+}
+
+function renderCurriculum() {
   try {
     const subtitleEl = document.getElementById('curriculum-subtitle');
-    if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — Content Map`;
+    if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — ${t('Content Map')}`;
+    if (subtitleEl) subtitleEl.setAttribute('data-i18n-data', JSON.stringify({name: currentCourse?.name||''})); // Optional: for more complex templates
 
     if (!curriculum || !Array.isArray(curriculum)) {
       document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">${t('class.no_curriculum')}</p>`;
@@ -1298,13 +1467,13 @@ function populateSelects() {
 
 function showGenerationLoading(el) {
   el.innerHTML = `
-    <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg);">
+    <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
       <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
-      <h3 style="margin-bottom:12px;">${t('gen.loading')}</h3>
+      <h3 style="margin-bottom:12px;" data-i18n="gen.loading">${t('gen.loading')}</h3>
       <div class="progress-container" style="background:rgba(255,255,255,0.05); height:8px; border-radius:4px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
         <div class="progress-bar-shimmer"></div>
       </div>
-      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">${t('gen.time')}</p>
+      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
     <style>
       .bot-animation {
@@ -1341,7 +1510,7 @@ function showGenerationLoading(el) {
 
 async function launchActivity() {
   const topicId = document.getElementById('activity-topic-select').value;
-  if (!topicId) return showAlert(currentLang === 'tr' ? 'Seçim Gerekli' : 'Selection Required', 'Please select a topic', true);
+  if (!topicId) return showAlert(t('missing_info'), t('class.select_topic_msg') || (currentLang === 'tr' ? 'Lütfen bir konu seçin' : 'Please select a topic'), true);
   
   const preview = document.getElementById('activity-preview');
   preview.classList.remove('hidden');
@@ -1351,22 +1520,23 @@ async function launchActivity() {
 
   try {
     const data = await api('/activity?topic_id=' + topicId);
+    _lastActivityData = data;
     preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (data.topic?.title||'') + '</h2>' + (data.activities||[]).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
   } catch (err) {
     preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
-      ${currentLang === 'tr' ? 'Bir hata oluştu.' : 'An error occurred during generation.'}
+      ${t('assign.retry')}
     </div>`;
   }
 }
 
 function renderActivityCard(a, idx, ctx) {
   const p = translatePrompt(a.prompt);
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Multiple Choice')}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${translateOption('Fill in the Blank')}</div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" placeholder="Your answer..." style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${t('draft.mcq').toUpperCase()}</div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">${t('draft.fill_blank').toUpperCase()}</div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">🗣️ ${a.title || 'Dialogue'}</div><div class="activity-prompt">${currentLang === 'tr' ? 'Diyaloğu doğru sıraya koyun:' : 'Arrange the dialogue in the correct order:'}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ ${t('check')}</button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">🗣️ ${t('prac.dialogue').toUpperCase()}</div><div class="activity-prompt">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ ${t('check')}</button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
 }
@@ -1431,7 +1601,7 @@ function checkDialogue(cardId, correctOrderJson) {
   const fb = document.getElementById('fb-' + cardId);
   fb.classList.remove('hidden');
   fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  fb.textContent = isCorrect ? t('correctMsg') : (currentLang === 'tr' ? 'Doğru sıra farklı. Tekrar deneyin!' : 'Not quite right. Try again!');
+  fb.textContent = isCorrect ? t('correctMsg') : t('prac.not_quite_right');
   if (!isCorrect) {
     setTimeout(() => { card.classList.remove('incorrect'); fb.classList.add('hidden'); }, 2000);
   }
@@ -1468,6 +1638,11 @@ async function createQuiz() {
 
 async function loadQuizList() {
   const quizzes = await api(`/quizzes?course_id=${courseId}&student_id=${currentUser.id}`);
+  _lastQuizListData = quizzes;
+  renderQuizList(quizzes);
+}
+
+function renderQuizList(quizzes) {
   const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
   container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px">${t('noQuizzes')}</p>`
@@ -1480,7 +1655,7 @@ async function loadQuizList() {
                 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${t('View')}</button>
+                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${t('viewBtn')}</button>
                 <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${t('view')}</button>
                 <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${t('close')}</button>
               </div>
@@ -1494,8 +1669,7 @@ async function loadQuizList() {
 }
 
 async function deleteQuiz(quizId, title) {
-  const msg = currentLang === 'tr' ? `"${title}" sınavını silmek istediğinize emin misiniz?` : `Are you sure you want to delete the quiz "${title}"?`;
-  if (!(await showConfirmModal(t('confirm.delete_quiz'), msg, true))) return;
+  if (!(await showConfirmModal('confirm.delete_quiz', 'confirm.delete_quiz_msg', true, null, false, 'ok', 'cancel', { title }))) return;
   const res = await api('/quiz/delete', { method: 'POST', body: { quiz_id: quizId } });
   if (res && !res.error) loadQuizList();
 }
@@ -1511,10 +1685,20 @@ async function viewQuiz(quizId, title) {
   ]);
 
   const studentResults = respData.student_results || [];
+  const classAvg = respData.average_score ? Math.round(respData.average_score * 100) : 0;
+  
+  const L = {
+    noResponses: t('assign.no_responses'),
+    submitted: t('assign.submitted'),
+    classAvg: t('assign.class_avg'),
+    correct: t('assign.correct'),
+    studentAnswer: t('assign.student_answer'),
+    correctAns: t('assign.correct_ans')
+  };
 
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">${title}</h2>
-    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${quizData.questions.length} ${t('questions')} · ${studentResults.length} ${t('responses')}</div>
+    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">${L.classAvg}: <strong style="color:var(--accent)">${classAvg}%</strong> · ${studentResults.length} ${L.submitted}</div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
       <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📋 ${t('answer')}</button>
@@ -1524,7 +1708,7 @@ async function viewQuiz(quizId, title) {
     <div id="qv-questions">
       ${quizData.questions.map((q, i) => `
         <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
-          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${q.prompt}</div>
+          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${translatePrompt(q.prompt)}</div>
           <div style="font-size:13px">${t('answer')}: <strong style="color:var(--success)">${q.answer}</strong></div>
         </div>
       `).join('')}
@@ -1532,7 +1716,7 @@ async function viewQuiz(quizId, title) {
 
     <div id="qv-responses" style="display:none">
       ${studentResults.length === 0
-      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${t('noQuizzes')}</p>`
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
       : studentResults.map(sr => {
         const avgPct = Math.round(sr.average_score * 100);
         const correctCount = sr.answers.filter(a => a.is_correct).length;
@@ -1541,7 +1725,7 @@ async function viewQuiz(quizId, title) {
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
                     <strong style="font-size:15px">${sr.student_name}</strong>
-                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${t('correct')}</span>
+                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} ${L.correct}</span>
                   </div>
                   <div style="display:flex; align-items:center; gap:10px">
                     <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
@@ -1555,10 +1739,10 @@ async function viewQuiz(quizId, title) {
                       <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
                         <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? '✓' : '✗'}</span>
                         <div style="flex:1">
-                          <div style="margin-bottom:4px; font-weight:500">${a.prompt}</div>
+                          <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span>${t('yourScore')}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span>${t('correctAns')}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            <span>${L.studentAnswer}: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
+                            ${!isRight ? `<span>${L.correctAns}: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
                       </div>`;
@@ -1579,12 +1763,12 @@ function switchQuizViewTab(btn, panelId) {
 }
 
 async function takeQuiz(quizId) {
-  const confirmed = await showConfirmModal(t('confirm.start_assignment_title'), t('confirm.start_assignment_msg'));
+  const confirmed = await showConfirmModal('confirm.start_quiz_title', 'confirm.start_quiz_msg');
   if (!confirmed) return;
 
   const data = await api(`/quiz/take?quiz_id=${quizId}&student_id=${currentUser.id}`);
   if (data.error) {
-    showAlert(t('confirm.delete_classroom'), data.error, true);
+    showAlert(t('error'), data.error, true);
     loadQuizList();
     return;
   }
@@ -1638,7 +1822,7 @@ async function loadStudentRoster() {
               <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px">${s.email}</div>
             </div>
             <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${t('confirm.start_assignment_title').split(' ')[0]}</button>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ ${t('ok')}</button>
               <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ ${t('cancel')}</button>
             </div>
           </div>
@@ -1660,16 +1844,16 @@ async function loadStudentRoster() {
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 ${t('messageTeacher')}</button>
-          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">${t('Kick')}</button>
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageTeacher">${t('messageTeacher')}</span></button>
+          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')"><span data-i18n="Kick">${t('Kick')}</span></button>
         </div>
       </div>
       <div class="student-mastery-bar">
         <div class="student-mastery-fill" style="width:${pct}%; background:${masteryColor(s.avg_mastery)}"></div>
       </div>
       <div class="student-meta-row">
-        <span>${t('Mastery:')} ${pct}%</span>
-        <span>${s.total_responses} ${t('responses')}</span>
+        <span><span data-i18n="Mastery:">${t('Mastery:')}</span> ${pct}%</span>
+        <span>${s.total_responses} <span data-i18n="responses">${t('responses')}</span></span>
       </div>
     </div>`;
   }).join('');
@@ -1686,11 +1870,24 @@ window.approveStudent = async (id) => {
   loadStudentRoster();
 };
 
-function showConfirmModal(title, message, isDanger = false, inputPlaceholder = null, hideCancel = false, okLabel = null, cancelLabel = null) {
+function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlaceholder = null, hideCancel = false, okKey = null, cancelKey = null, messageData = {}) {
   return new Promise(resolve => {
     const modal = document.getElementById('confirm-modal');
-    document.getElementById('confirm-title').textContent = title;
-    document.getElementById('confirm-message').textContent = message;
+    modal.setAttribute('data-title-key', titleKey);
+    modal.setAttribute('data-msg-key', messageKey);
+    modal.setAttribute('data-msg-data', JSON.stringify(messageData));
+    modal.setAttribute('data-ok-key', okKey || 'ok');
+    modal.setAttribute('data-cancel-key', cancelKey || 'cancel');
+
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl = document.getElementById('confirm-message');
+    
+    titleEl.setAttribute('data-i18n', titleKey);
+    titleEl.textContent = t(titleKey);
+    
+    msgEl.setAttribute('data-i18n', messageKey);
+    msgEl.setAttribute('data-i18n-data', JSON.stringify(messageData));
+    msgEl.textContent = t(messageKey, messageData);
 
     const inputContainer = document.getElementById('confirm-input-container');
     const inputEl = document.getElementById('confirm-input');
@@ -1706,8 +1903,14 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
     const okBtn = document.getElementById('confirm-ok-btn');
     const cancelBtn = document.getElementById('confirm-cancel-btn');
 
-    okBtn.textContent = okLabel || t('ok');
-    cancelBtn.textContent = cancelLabel || t('cancel');
+    const okKeyFinal = okKey || 'ok';
+    const cancelKeyFinal = cancelKey || 'cancel';
+
+    okBtn.setAttribute('data-i18n', okKeyFinal);
+    okBtn.textContent = t(okKeyFinal);
+    
+    cancelBtn.setAttribute('data-i18n', cancelKeyFinal);
+    cancelBtn.textContent = t(cancelKeyFinal);
 
     if (hideCancel) cancelBtn.style.display = 'none';
     else cancelBtn.style.display = 'block';
@@ -1737,18 +1940,18 @@ function showConfirmModal(title, message, isDanger = false, inputPlaceholder = n
   });
 }
 
-async function showAlert(title, message, isDanger = false) {
-  return showConfirmModal(title, message, isDanger, null, true);
+async function showAlert(titleKey, messageKey, isDanger = false) {
+  return showConfirmModal(titleKey, messageKey, isDanger, null, true);
 }
 
 async function confirmCancelAssignment() {
-  if (await showConfirmModal(t('cancel'), t('confirm.start_assignment_msg'), true)) {
+  if (await showConfirmModal('cancel', 'confirm.start_assignment_msg', true)) {
     document.getElementById('assignment-taking-area').classList.add('hidden');
   }
 }
 
 async function deleteStudent(sid, name) {
-  const confirmed = await showConfirmModal(t('confirm.kick_student_title'), t('confirm.kick_student_msg'), true);
+  const confirmed = await showConfirmModal('confirm.kick_student_title', 'confirm.kick_student_msg', true, null, false, 'ok', 'cancel', { name });
   if (confirmed) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
     if (!res.error) loadStudentRoster();
@@ -1756,22 +1959,18 @@ async function deleteStudent(sid, name) {
 }
 
 async function resetAllData() {
-  const title = t('confirm.erase_all_title');
-  const msg1 = t('confirm.erase_all_msg1');
-  const msg2 = t('confirm.erase_all_msg2');
-
-  const confirmed1 = await showConfirmModal(title, msg1, true);
+  const confirmed1 = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg1', true);
   if (!confirmed1) return;
 
-  const typed = await showConfirmModal(title, msg2, true, 'ERASE ALL DATA');
+  const typed = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg2', true, 'ERASE ALL DATA');
   if (typed !== 'ERASE ALL DATA') return;
 
   const res = await api('/data/reset', { method: 'POST', body: { confirm: 'ERASE ALL DATA' } });
   if (res.success) {
-    await showAlert(t('ok'), t('confirm.erase_all_msg1')); // Simplified status
+    await showAlert('ok', 'confirm.erase_all_msg1'); // Simplified status
     location.reload();
   } else {
-    showAlert(t('cancel'), res.error || 'Error', true);
+    showAlert('cancel', res.error || 'Error', true);
   }
 }
 
@@ -1834,12 +2033,16 @@ async function generateReport() {
 
 async function initStudent() {
   document.getElementById('student-nav-username').textContent = currentUser.name;
-  document.getElementById('student-greeting').textContent = '¡Hola, ' + currentUser.name + '!';
-  await loadStudentHome();
+  document.getElementById('student-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
+
+  await Promise.all([
+    loadCurriculumAsync(),
+    loadStudentHome(),
+    loadQuizList(),
+    loadAssignmentList(),
+    loadStudentProgress()
+  ]);
   loadStudentPractice();
-  loadQuizList();
-  loadAssignmentList();
-  loadStudentProgress();
 }
 
 async function loadStudentStats() {
@@ -1851,18 +2054,29 @@ async function loadStudentStats() {
 
 async function loadStudentHome() {
   const progress = await api('/student/progress?student_id=' + currentUser.id);
-  const masteries = progress.masteries || [];
+  _lastStudentHomeData = progress;
+  renderStudentHome(progress);
+}
+
+function renderStudentHome(data) {
+  const masteries = data.masteries || [];
   const avg = masteries.length ? masteries.reduce((a, m) => a + m.score, 0) / masteries.length : 0;
   const strong = masteries.filter(m => m.score >= 0.75).length;
   const weak = masteries.filter(m => m.score < 0.4).length;
 
-  document.getElementById('student-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
-    <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
-    <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
+  const statsEl = document.getElementById('student-stats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
+      <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
+      <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
+      <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
+  }
 
-  document.getElementById('student-current-chapter').innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+  const chapterEl = document.getElementById('student-current-chapter');
+  if (chapterEl) {
+    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+  }
 }
 
 function loadStudentPractice() {
@@ -1870,7 +2084,7 @@ function loadStudentPractice() {
     `<div class="topic-practice-card" onclick="startPractice('${tp.id}','${esc(tp.title)}')">
       <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
       <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
-      <div style="font-size:13px;color:var(--text-muted)">Unit ${ch.number} · ${tp.difficulty}</div>
+      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${tp.difficulty}</div>
     </div>`
   ).join('')).join('');
 }
@@ -1891,7 +2105,14 @@ async function startPractice(tid, title) {
 
 async function loadStudentProgress() {
   const data = await api('/student/progress?student_id=' + currentUser.id);
-  document.getElementById('progress-chart').innerHTML = (data.masteries || []).map(m => {
+  _lastStudentHomeData = data;
+  renderStudentProgress(data);
+}
+
+function renderStudentProgress(data) {
+  const chart = document.getElementById('progress-chart');
+  if (!chart) return;
+  chart.innerHTML = (data.masteries || []).map(m => {
     const pct = Math.round(m.score * 100);
     return `<div class="progress-item"><div class="progress-label"><span>${m.title} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${m.type}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
   }).join('') || `<p style="color:var(--text-muted)">${t('No quizzes yet.')}</p>`;
@@ -1902,13 +2123,18 @@ async function loadAssignmentList() {
     ? `/assignments?course_id=${courseId}`
     : `/assignments?course_id=${courseId}&student_id=${currentUser.id}`;
   const assignments = await api(url);
+  _lastAssignmentListData = assignments;
+  renderAssignmentList(assignments);
+}
+
+function renderAssignmentList(assignments) {
   const container = currentUser.role === 'lecturer'
     ? document.getElementById('assignment-list')
     : document.getElementById('student-assignment-list');
   if (!container) return;
 
   if (!assignments || assignments.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center">${t('No quizzes yet.')}</p>`;
+    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="No assignments yet.">${t('No assignments yet.')}</p>`;
     return;
   }
 
@@ -1924,7 +2150,7 @@ async function loadAssignmentList() {
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
             <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')">
-              👁️ ${t('View')}
+              👁️ ${t('viewBtn')}
             </button>
             <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')">
               📊 ${t('view')}
@@ -1939,11 +2165,15 @@ async function loadAssignmentList() {
     container.innerHTML = assignments.map(a => {
       const done = a.is_completed;
       return `
-        <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
+        <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'};opacity:${done ? '0.6' : '1'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
           <div class="card-body flex-between">
             <div>
               <strong style="font-size:15px">${esc(a.title)}</strong>
               <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
+                ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()} ${done ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}
+              </div>
+            </div>
+            <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? t('completed') : t('takeQuizBtn')}</span>
           </div>
         </div>`;
     }).join('');
@@ -1951,8 +2181,7 @@ async function loadAssignmentList() {
 }
 
 async function deleteAssignment(assignmentId, title) {
-  const msg = currentLang === 'tr' ? `"${title}" ödevini silmek istediğinize emin misiniz?` : `Are you sure you want to delete the assignment "${title}"?`;
-  if (!(await showConfirmModal(t('confirm.delete_assignment'), msg, true))) return;
+  if (!(await showConfirmModal('confirm.delete_assignment', 'confirm.delete_assignment_msg', true, null, false, 'ok', 'cancel', { title }))) return;
   const res = await api('/assignment/delete', { method: 'POST', body: { assignment_id: assignmentId } });
   if (res && !res.error) loadAssignmentList();
 }
@@ -1985,7 +2214,7 @@ async function viewAssignment(assignmentId, title) {
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">📋 ${title}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${data.total_questions} ${isTr ? 'soru' : 'questions'} &nbsp;·&nbsp;
+      ${data.total_questions} ${t('questions')} &nbsp;·&nbsp;
       ${results.length} ${L.submitted}
     </div>
 
@@ -1993,7 +2222,7 @@ async function viewAssignment(assignmentId, title) {
     <!-- Summary bar -->
     <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${isTr ? 'Teslim Eden' : 'Submitted'}</div>
+        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.submitted')}</div>
         <div style="font-size:26px;font-weight:700">${results.length}</div>
       </div>
       <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
@@ -2029,7 +2258,7 @@ async function viewAssignment(assignmentId, title) {
         <!-- Expandable detail -->
         <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
           <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
-            ${esc(sr.student_name)} — ${isTr ? 'Detaylı Cevaplar' : 'Detailed Answers'}
+            ${esc(sr.student_name)} — ${t('assign.detailed_answers')}
           </div>
           ${sr.answers.map((a, qi) => `
             <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
@@ -2060,9 +2289,9 @@ async function previewAssignment(aid, title) {
   const qs = data.questions || [];
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">👁️ ${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
+    <h2 style="margin-bottom:4px">👁️ ${title} - ${t('Preview')}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${qs.length} ${isTr ? 'soru' : 'questions'}
+      ${qs.length} ${t('questions')}
     </div>
     <div style="display:flex;flex-direction:column;gap:12px">
       ${qs.map((q, i) => `
@@ -2173,37 +2402,38 @@ function renderDraftList() {
   const container = document.getElementById('draft-body');
 
   let html = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h2 style="margin:0">${t('draft.review')} - ${esc(currentDraft.title)}</h2>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <h2 style="margin:0"><span data-i18n="draft.review">${t('draft.review')}</span> - ${esc(currentDraft.title)}</h2>
       <div>
-        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">➕ ${t('draft.add_question')}</button>
-        <button class="btn btn-primary btn-sm" onclick="publishDraft()">✅ ${t('draft.publish')}</button>
+        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">➕ <span data-i18n="draft.add_question">${t('draft.add_question')}</span></button>
+        <button class="btn btn-primary btn-sm" onclick="publishDraft()">✅ <span data-i18n="draft.publish">${t('draft.publish')}</span></button>
       </div>
     </div>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px;" data-i18n="draft.lang_warning">${t('draft.lang_warning')}</div>
     <div id="custom-question-form" class="card hidden" style="margin-bottom:16px; border:2px solid var(--primary);">
       <div class="card-body">
         <div class="form-group">
-          <label>${t('draft.type')}</label>
+          <label data-i18n="draft.type">${t('draft.type')}</label>
           <select id="cq-type" class="select-input">
-            <option value="mcq">${t('draft.mcq')}</option>
-            <option value="fill_blank">${t('draft.fill_blank')}</option>
+            <option value="mcq" data-i18n="draft.mcq">${t('draft.mcq')}</option>
+            <option value="fill_blank" data-i18n="draft.fill_blank">${t('draft.fill_blank')}</option>
           </select>
         </div>
         <div class="form-group">
-          <label>${t('draft.prompt')}</label>
+          <label data-i18n="draft.prompt">${t('draft.prompt')}</label>
           <input type="text" id="cq-prompt" class="text-input" placeholder="Ej: La capital de España es ___">
         </div>
         <div class="form-group">
-          <label>${t('draft.answer')}</label>
+          <label data-i18n="draft.answer">${t('draft.answer')}</label>
           <input type="text" id="cq-answer" class="text-input" placeholder="Madrid">
         </div>
         <div class="form-group" id="cq-distractors-group">
-          <label>${t('draft.distractors')}</label>
+          <label data-i18n="draft.distractors">${t('draft.distractors')}</label>
           <input type="text" id="cq-distractors" class="text-input" placeholder="Barcelona, Sevilla, Valencia">
         </div>
         <div style="display:flex; gap:8px; margin-top:12px;">
-          <button class="btn btn-primary btn-sm" onclick="saveCustomQuestion()">${t('draft.save')}</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('custom-question-form').classList.add('hidden')">${t('draft.cancel')}</button>
+          <button class="btn btn-primary btn-sm" onclick="saveCustomQuestion()" data-i18n="draft.save">${t('draft.save')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('custom-question-form').classList.add('hidden')" data-i18n="draft.cancel">${t('draft.cancel')}</button>
         </div>
       </div>
     </div>
@@ -2213,9 +2443,9 @@ function renderDraftList() {
   currentDraft.questions.forEach((q, i) => {
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
-        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ ${t('draft.remove')}</button>
+        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
         <div class="card-body">
-          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. <span data-i18n="${q.type === 'mcq' ? 'draft.mcq' : 'draft.fill_blank'}">${q.type === 'mcq' ? t('draft.mcq') : t('draft.fill_blank')}</span></div>
           <div style="font-weight:600; margin-bottom:8px;">${esc(q.prompt)}</div>
           <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(q.answer)}</div>
           ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? `<div style="color:var(--danger); font-size:13px;">✗ ${q.distractors.join(', ')}</div>` : ''}
@@ -2252,7 +2482,7 @@ function saveCustomQuestion() {
   const dist = document.getElementById('cq-distractors').value;
 
   if (!prompt || !answer) {
-    showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'Prompt and Answer are required.', true);
+    showAlert(t('missing_info'), t('draft.required_msg') || 'Prompt and Answer are required.', true);
     return;
   }
 
@@ -2276,7 +2506,7 @@ function removeDraftQuestion(index) {
 
 async function publishDraft() {
   if (!currentDraft || currentDraft.questions.length === 0) {
-    showAlert(currentLang === 'tr' ? 'Eksik Bilgi' : 'Missing Info', 'You need at least 1 question to publish.', true);
+    showAlert(t('missing_info'), t('draft.no_questions_msg') || 'You need at least 1 question to publish.', true);
     return;
   }
 
@@ -2308,7 +2538,7 @@ async function publishDraft() {
 }
 
 async function takeAssignment(aid) {
-  const confirmed = await showConfirmModal(t('confirm.start_assignment_title'), t('confirm.start_assignment_msg'));
+  const confirmed = await showConfirmModal('confirm.start_assignment_title', 'confirm.start_assignment_msg');
   if (!confirmed) return;
 
   const data = await api(`/assignment/take?assignment_id=${aid}&student_id=${currentUser.id}`);
@@ -2397,7 +2627,7 @@ async function submitAssignment(area) {
   const answers = JSON.parse(area.dataset.answers);
 
   area.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">
-    ${isTr ? 'Gönderiliyor...' : 'Submitting...'}
+    ${t('loading')}...
   </div>`;
 
   try {
@@ -2409,20 +2639,20 @@ async function submitAssignment(area) {
     area.innerHTML = `
       <div style="padding:40px;text-align:center">
         <div style="font-size:48px;margin-bottom:16px">${pct >= 70 ? '🎉' : '📚'}</div>
-        <h2 style="margin-bottom:8px">${isTr ? 'Ödev Tamamlandı!' : 'Assignment Complete!'}</h2>
+        <h2 style="margin-bottom:8px">${t('assign.complete')}</h2>
         <div style="font-size:36px;font-weight:700;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'};margin:16px 0">${pct}%</div>
-        <p style="color:var(--text-muted);margin-bottom:24px">${isTr ? 'Puanın kaydedildi.' : 'Your score has been recorded.'}</p>
+        <p style="color:var(--text-muted);margin-bottom:24px">${t('assign.recorded')}</p>
         <button class="btn btn-primary"
           onclick="document.getElementById('assignment-taking-area').classList.add('hidden');loadAssignmentList()">
-          ${isTr ? 'Ödevlere Dön' : 'Back to Assignments'}
+          ${t('assign.back')}
         </button>
       </div>`;
   } catch (e) {
     area.innerHTML = `<div style="padding:20px;color:var(--danger);text-align:center">
-      ${isTr ? 'Hata oluştu, tekrar deneyin.' : 'An error occurred. Please try again.'}
+      ${t('assign.retry')}
       <br><button class="btn btn-outline" style="margin-top:12px"
         onclick="document.getElementById('assignment-taking-area').classList.add('hidden')">
-        ${isTr ? 'Geri Dön' : 'Go Back'}
+        ${t('cancel')}
       </button>
     </div>`;
   }

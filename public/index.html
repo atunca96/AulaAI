@@ -108,10 +108,10 @@
             <div class="login-form-section">
                 <!-- Tab switcher -->
                 <div style="display:flex;gap:10px;margin-bottom:24px;border-bottom:1px solid var(--border)">
-                    <button id="tab-lecturer" class="nav-tab active" style="flex:1" onclick="switchLoginTab('lecturer')">
+                    <button id="tab-lecturer" class="nav-tab active" style="flex:1" onclick="switchLoginTab('lecturer')" data-i18n="👩‍🏫 Lecturer">
                         👩‍🏫 Öğretmen
                     </button>
-                    <button id="tab-student" class="nav-tab" style="flex:1" onclick="switchLoginTab('student')">
+                    <button id="tab-student" class="nav-tab" style="flex:1" onclick="switchLoginTab('student')" data-i18n="🎓 Student">
                         🎓 Öğrenci
                     </button>
                 </div>
@@ -119,21 +119,21 @@
                 <!-- Lecturer Login -->
                 <div id="lecturer-login-panel">
                     <h2 style="margin-bottom:4px" data-i18n="Lecturer Login">Lecturer Login</h2>
-                    <p class="login-hint" style="margin-bottom:20px">E-posta ve şifrenizle giriş yapın</p>
+                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şifrenizle giriş yapın</p>
                     <form id="login-form" onsubmit="return handleLogin(event)">
                         <div class="form-group">
-                            <label for="login-email">E-posta</label>
+                            <label for="login-email" data-i18n="Email">E-posta</label>
                             <input type="email" id="login-email" placeholder="your@email.com" required>
                         </div>
                         <div class="form-group">
-                            <label for="login-password">Şifre</label>
+                            <label for="login-password" data-i18n="Password">Şifre</label>
                             <input type="password" id="login-password" placeholder="••••••••" required>
                         </div>
                         <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;margin-bottom:16px">
                             <input type="checkbox" id="login-remember" style="width:auto">
-                            <label for="login-remember" style="margin-bottom:0;font-weight:normal;cursor:pointer">Beni Hatırla</label>
+                            <label for="login-remember" style="margin-bottom:0;font-weight:normal;cursor:pointer" data-i18n="Remember Me">Beni Hatırla</label>
                         </div>
-                        <button type="submit" class="btn btn-primary btn-full" id="login-btn">Giriş Yap</button>
+                        <button type="submit" class="btn btn-primary btn-full" id="login-btn" data-i18n="Sign In">Giriş Yap</button>
                         <div id="login-error" class="error-msg hidden"></div>
                     </form>
                 </div>
@@ -141,16 +141,16 @@
                 <!-- Student Login -->
                 <div id="student-login-panel" style="display:none">
                     <h2 style="margin-bottom:4px" data-i18n="Student Login">Student Login</h2>
-                    <p class="login-hint" style="margin-bottom:20px">Öğrenci numaranızla giriş yapın</p>
+                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Log in with your student number">Öğrenci numaranızla giriş yapın</p>
                     <form id="student-login-form" onsubmit="return handleStudentLogin(event)">
                         <div class="form-group">
-                            <label for="student-number">Öğrenci Numarası</label>
-                            <input type="text" id="student-number" placeholder="Örn: 2021123456" required
+                            <label for="student-number" data-i18n="Student Number">Öğrenci Numarası</label>
+                            <input type="text" id="student-number" data-i18n-placeholder="e.g. 2021123456" placeholder="Örn: 2021123456" required
                                 autocomplete="off" inputmode="numeric">
                         </div>
                         <div class="form-group">
                             <label for="classroom-code" data-i18n="login.class_code">Classroom Code (5 digits)</label>
-                            <input type="text" id="classroom-code" placeholder="e.g. 12345" required autocomplete="off" inputmode="numeric" maxlength="5">
+                            <input type="text" id="classroom-code" data-i18n-placeholder="login.class_code_placeholder" placeholder="e.g. 12345" required autocomplete="off" inputmode="numeric" maxlength="5">
                         </div>
                         <div class="form-group" id="student-name-group">
                             <label for="student-name-input"><span data-i18n="Full Name">Full Name</span> <span style="color:var(--text-muted);font-size:12px;font-weight:normal" data-i18n="(required)">(required)</span></label>
@@ -176,7 +176,7 @@
             </p>
             <div style="margin-top:40px; display:flex; flex-direction:column; gap:20px; align-items:center;">
                 <div class="spinner" style="width:40px; height:40px; border-width:4px;"></div>
-                <button class="btn btn-ghost" onclick="logout()" style="color:var(--text-muted); font-weight:500; padding:12px 24px; border:1px solid var(--border);">Sign Out</button>
+                <button class="btn btn-ghost" onclick="logout()" style="color:var(--text-muted); font-weight:500; padding:12px 24px; border:1px solid var(--border);" data-i18n="signOut">Sign Out</button>
             </div>
         </div>
     </div>
@@ -200,7 +200,7 @@
             </div>
             
             <div style="text-align:center; margin-top:32px;">
-                <button class="btn btn-ghost" onclick="logout()">Sign Out</button>
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </div>
     </div>
@@ -220,9 +220,9 @@
                     <input type="file" id="pdf-upload" accept="application/pdf" required style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
                 </div>
                 <div class="form-group">
-                    <label>2. Manual Curriculum / TOC (Paste here)</label>
+                    <label data-i18n="Manual Curriculum / TOC (Paste here)">2. Manual Curriculum / TOC (Paste here)</label>
                     <textarea id="manual-toc-input" class="text-input" style="height:120px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Chapter 1: Greetings&#10;- Hello and Goodbye&#10;Chapter 2: Numbers..."></textarea>
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Paste the book's contents or your syllabus. The AI will use this as a roadmap.</small>
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;" data-i18n="Paste the book's contents or your syllabus. The AI will use this as a roadmap.">Paste the book's contents or your syllabus. The AI will use this as a roadmap.</small>
                 </div>
                 <div class="form-group">
                     <label data-i18n="class.toc_range">3. PDF Context Range (Optional)</label>
@@ -262,7 +262,7 @@
             </div>
             <div class="nav-user">
                 <span id="nav-username"></span>
-                <button class="btn btn-ghost" onclick="logout()">Sign Out</button>
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>
 
@@ -310,7 +310,7 @@
             <!-- Curriculum Tab -->
             <section id="tab-curriculum" class="tab-panel">
                 <div class="page-header">
-                    <h1 data-i18n="curriculum">Curriculum</h1>
+                    <h1 data-i18n="Curriculum">Curriculum</h1>
                     <p class="subtitle" id="curriculum-subtitle"></p>
                 </div>
                 <div id="curriculum-tree"></div>
@@ -319,20 +319,20 @@
             <!-- Activities Tab -->
             <section id="tab-activities" class="tab-panel">
                 <div class="page-header">
-                    <h1>In-Class Activities</h1>
-                    <p class="subtitle">Generate and launch live activities</p>
+                    <h1 data-i18n="In-Class Activities">In-Class Activities</h1>
+                    <p class="subtitle" data-i18n="Generate and launch live activities">Generate and launch live activities</p>
                 </div>
                 <div class="activity-launcher">
                     <div class="card">
-                        <div class="card-header"><h3>🚀 Launch Activity</h3></div>
+                        <div class="card-header"><h3 data-i18n="🚀 Launch Activity">🚀 Launch Activity</h3></div>
                         <div class="card-body">
                             <div class="form-group">
-                                <label>Select Chapter & Topic</label>
+                                <label data-i18n="Select Chapter & Topic">Select Chapter & Topic</label>
                                 <select id="activity-topic-select" class="select-input">
-                                    <option value="">Loading curriculum...</option>
+                                    <option value="" data-i18n="Loading curriculum...">Loading curriculum...</option>
                                 </select>
                             </div>
-                            <button class="btn btn-primary" onclick="launchActivity()">Generate Activity</button>
+                            <button class="btn btn-primary" onclick="launchActivity()" data-i18n="Generate Activity">Generate Activity</button>
                         </div>
                     </div>
                 </div>
@@ -342,29 +342,29 @@
             <!-- Quizzes Tab -->
             <section id="tab-quizzes-mgmt" class="tab-panel">
                 <div class="page-header">
-                    <h1>Quiz Management</h1>
-                    <p class="subtitle">Create and manage quizzes</p>
+                    <h1 data-i18n="Quiz Management">Quiz Management</h1>
+                    <p class="subtitle" data-i18n="Create and manage quizzes">Create and manage quizzes</p>
                 </div>
                 <div class="card">
-                    <div class="card-header"><h3>➕ Create New Quiz</h3></div>
+                    <div class="card-header"><h3 data-i18n="➕ Create New Quiz">➕ Create New Quiz</h3></div>
                     <div class="card-body">
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Quiz Title</label>
-                                <input type="text" id="quiz-title" class="text-input" placeholder="Chapter 3 Quiz">
+                                <label data-i18n="Quiz Title">Quiz Title</label>
+                                <input type="text" id="quiz-title" class="text-input" data-i18n-placeholder="Quiz Title" placeholder="Chapter 3 Quiz">
                             </div>
                             <div class="form-group">
-                                <label>Chapter</label>
+                                <label data-i18n="Chapter">Chapter</label>
                                 <select id="quiz-chapter-select" class="text-input">
-                                    <option value="">All chapters</option>
+                                    <option value="" data-i18n="All chapters">All chapters</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Questions</label>
+                                <label data-i18n="Questions">Questions</label>
                                 <input type="number" id="quiz-count" class="text-input" value="10" min="5" max="50">
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="createQuiz()">Create Quiz</button>
+                        <button class="btn btn-primary" onclick="createQuiz()" data-i18n="Create Quiz">Create Quiz</button>
                     </div>
                 </div>
                 <div id="quiz-list" class="card-list"></div>
@@ -377,25 +377,25 @@
                     <p class="subtitle">Assign homework to your students</p>
                 </div>
                 <div class="card">
-                    <div class="card-header"><h3>➕ Create New Assignment</h3></div>
+                    <div class="card-header"><h3 data-i18n="➕ Create New Assignment">➕ Create New Assignment</h3></div>
                     <div class="card-body">
                         <div class="form-row">
                             <div class="form-group">
-                                <label>Assignment Title</label>
-                                <input type="text" id="assignment-title" class="text-input" placeholder="Week 1 Homework">
+                                <label data-i18n="Assignment Title">Assignment Title</label>
+                                <input type="text" id="assignment-title" class="text-input" data-i18n-placeholder="Assignment Title" placeholder="Week 1 Homework">
                             </div>
                             <div class="form-group">
-                                <label>Chapter</label>
+                                <label data-i18n="Chapter">Chapter</label>
                                 <select id="assignment-chapter-select" class="text-input">
-                                    <option value="">All chapters</option>
+                                    <option value="" data-i18n="All chapters">All chapters</option>
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Questions</label>
+                                <label data-i18n="Questions">Questions</label>
                                 <input type="number" id="assignment-count" class="text-input" value="15" min="5" max="50">
                             </div>
                         </div>
-                        <button class="btn btn-primary" onclick="createAssignment()">Create Assignment</button>
+                        <button class="btn btn-primary" onclick="createAssignment()" data-i18n="Create Assignment">Create Assignment</button>
                     </div>
                 </div>
                 <div id="assignment-list" class="card-list"></div>
@@ -404,8 +404,8 @@
             <!-- Students Tab -->
             <section id="tab-students-tab" class="tab-panel">
                 <div class="page-header">
-                    <h1>Student Roster</h1>
-                    <p class="subtitle">Monitor individual student progress</p>
+                    <h1 data-i18n="Student Roster">Student Roster</h1>
+                    <p class="subtitle" data-i18n="Monitor individual student progress">Monitor individual student progress</p>
                 </div>
                 <div id="pending-roster"></div>
                 <div id="student-roster" class="roster-grid"></div>
@@ -415,11 +415,11 @@
             <section id="tab-reports" class="tab-panel">
                 <div class="page-header">
                     <div>
-                        <h1>Weekly Report</h1>
-                        <p class="subtitle">AI-generated class performance analysis</p>
+                        <h1 data-i18n="report.title">Weekly Report</h1>
+                        <p class="subtitle" data-i18n="report.subtitle">AI-generated class performance analysis</p>
                     </div>
-                    <button class="btn btn-primary" onclick="generateReport()">
-                        🔄 Generate Report
+                    <button class="btn btn-primary" onclick="generateReport()" data-i18n="report.generate">
+                        🔄 Report
                     </button>
                 </div>
                 <div id="report-content"></div>
@@ -470,17 +470,17 @@
                 <span class="nav-badge student-badge">Student</span>
             </div>
             <div class="nav-tabs">
-                <button class="nav-tab active" data-tab="s-home" onclick="switchTab(this)"><span class="tab-icon">🏠</span><span class="tab-label">Home</span></button>
-                <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon">✍️</span><span class="tab-label">Practice</span></button>
-                <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Quizzes</span></button>
-                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label">Assignments</span></button>
-                <button class="nav-tab" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label">My Stats</span></button>
+                <button class="nav-tab active" data-tab="s-home" onclick="switchTab(this)"><span class="tab-icon">🏠</span><span class="tab-label" data-i18n="home">Home</span></button>
+                <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon">✍️</span><span class="tab-label" data-i18n="practice">Practice</span></button>
+                <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="quizzes">Quizzes</span></button>
+                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button class="nav-tab" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
                 <button class="nav-tab" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
                 <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
                 <span id="student-nav-username"></span>
-                <button class="btn btn-ghost" onclick="logout()">Sign Out</button>
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>
 
@@ -488,7 +488,7 @@
             <section id="tab-s-home" class="tab-panel active">
                 <div class="page-header">
                     <h1 id="student-greeting"></h1>
-                    <p class="subtitle">Keep up the great work!</p>
+                    <p class="subtitle" data-i18n="keepUp">Keep up the great work!</p>
                 </div>
                 
                 <!-- Building Banner -->
@@ -499,15 +499,15 @@
 
                 <div class="stats-grid" id="student-stats"></div>
                 <div class="card">
-                    <div class="card-header"><h3>📖 Current Chapter</h3></div>
+                    <div class="card-header"><h3 data-i18n="currentChapter">📖 Current Chapter</h3></div>
                     <div class="card-body" id="student-current-chapter"></div>
                 </div>
             </section>
 
             <section id="tab-s-practice" class="tab-panel">
                 <div class="page-header">
-                    <h1>Practice</h1>
-                    <p class="subtitle">Select a topic to practice</p>
+                    <h1 data-i18n="practice">Practice</h1>
+                    <p class="subtitle" data-i18n="selectPractice">Select a topic to practice</p>
                 </div>
                 <div id="practice-topics" class="topic-grid"></div>
                 <div id="practice-area" class="hidden"></div>
@@ -515,8 +515,8 @@
 
             <section id="tab-s-quizzes" class="tab-panel">
                 <div class="page-header">
-                    <h1>Quizzes</h1>
-                    <p class="subtitle">Available quizzes</p>
+                    <h1 data-i18n="quizzes">Quizzes</h1>
+                    <p class="subtitle" data-i18n="availableQuizzes">Available quizzes</p>
                 </div>
                 <div id="student-quiz-list"></div>
                 <div id="quiz-taking-area" class="hidden"></div>
@@ -524,8 +524,8 @@
 
             <section id="tab-s-assignments" class="tab-panel">
                 <div class="page-header">
-                    <h1>Assignments</h1>
-                    <p class="subtitle">Your homework tasks</p>
+                    <h1 data-i18n="Assignments">Assignments</h1>
+                    <p class="subtitle" data-i18n="Your homework tasks">Your homework tasks</p>
                 </div>
                 <div id="student-assignment-list" class="card-list"></div>
                 <div id="assignment-taking-area" class="hidden"></div>
@@ -533,8 +533,8 @@
 
             <section id="tab-s-progress" class="tab-panel">
                 <div class="page-header">
-                    <h1>My Stats</h1>
-                    <p class="subtitle">Track your mastery across topics</p>
+                    <h1 data-i18n="My Stats">My Stats</h1>
+                    <p class="subtitle" data-i18n="trackMastery">Track your mastery across topics</p>
                 </div>
                 <div id="progress-chart"></div>
             </section>
@@ -546,8 +546,8 @@
                 <div style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
                     <div id="student-chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
                     <div style="display:flex; gap:8px;">
-                        <input type="text" id="message-text" class="text-input" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
-                        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                        <input type="text" id="message-text" class="text-input" data-i18n-placeholder="message.placeholder" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
+                        <button class="btn btn-primary" onclick="sendMessage()" data-i18n="submit">Send</button>
                     </div>
                 </div>
             </section>
@@ -566,7 +566,7 @@
                         <img src="/img/book-cover.jpg" alt="Aula Internacional Plus 1" style="width:100%; max-width:280px; border-radius:12px; box-shadow:var(--shadow-lg); margin-bottom:20px;">
                         <h3 style="margin-bottom:8px;">Aula Internacional Plus 1</h3>
                         <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Spanish Textbook (PDF)</p>
-                        <a href="/books/textbook.pdf" target="_blank" class="btn btn-primary" style="width:100%; padding:16px;">📖 Read Textbook</a>
+                        <a href="/books/textbook.pdf" target="_blank" class="btn btn-primary" style="width:100%; padding:16px;" data-i18n="Read Textbook">📖 Read Textbook</a>
                     </div>
                 </div>
             </section>
