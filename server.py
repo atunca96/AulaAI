@@ -494,14 +494,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Re-initialize the database schema
             init_db()
             
-            # Re-insert the admin user so they can log back in
-            # NOTE: init_db already does a 'lecturer' update/insert, but we'll be explicit here to match user request.
+            # Re-insert the admin user with the STABLE ID used in seed data ('lecturer-demo-id')
+            # This ensures they remain the owner of the default '11111' class.
             with db_connection() as db:
+                admin_id = "lecturer-demo-id"
                 db.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)",
-                          (str(uuid.uuid4()), 'Alper Tunca', 'atunca96@gmail.com', 'ALper2002@', 'lecturer', 'approved'))
+                          (admin_id, 'Alper Tunca', 'atunca96@gmail.com', 'ALper2002@', 'lecturer', 'approved'))
+                
+                # Ensure the default Spanish 101 class (11111) is assigned to this admin
+                db.execute("UPDATE courses SET lecturer_id = ? WHERE id = '11111'", (admin_id,))
                 db.commit()
 
-            return self._send_json({"success": True, "message": "Database has been completely reset."})
+            return self._send_json({"success": True, "message": "Database reset. Admin account and Class 11111 preserved."})
         except Exception as e:
             file_log(f"HARD RESET ERROR: {e}")
             return self._send_error(f"Reset failed: {str(e)}", 500)
