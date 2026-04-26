@@ -1691,7 +1691,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
             
-            # 6. Finally delete the course
+            # 6. Delete PDF file if exists
+            textbook_path = course.get("textbook")
+            if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
+                full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
+                if os.path.exists(full_path):
+                    try:
+                        os.remove(full_path)
+                    except: pass
+
+            # 7. Finally delete the course
             db.execute("DELETE FROM courses WHERE id = ?", (course_id,))
             db.commit()
             
@@ -1728,6 +1737,14 @@ def _cleanup_stale_classrooms():
                 db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
                 db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
                 db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
+                # Delete PDF file if exists
+                textbook_path = db.execute("SELECT textbook FROM courses WHERE id = ?", (cid,)).fetchone()[0]
+                if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
+                    full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
+                    if os.path.exists(full_path):
+                        try: os.remove(full_path)
+                        except: pass
+
                 db.execute("DELETE FROM courses WHERE id = ?", (cid,))
             
             db.commit()
@@ -1753,6 +1770,14 @@ def _cleanup_orphaned_building_flags():
             db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
             db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
+            # Delete PDF file if exists
+            textbook_path = db.execute("SELECT textbook FROM courses WHERE id = ?", (cid,)).fetchone()[0]
+            if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
+                full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
+                if os.path.exists(full_path):
+                    try: os.remove(full_path)
+                    except: pass
+
             db.execute("DELETE FROM courses WHERE id = ?", (cid,))
         db.commit()
 
