@@ -129,25 +129,38 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _serve_static(self, path):
         """Serve static files from the public directory."""
-        if path == "/" or path == "":
-            path = "/index.html"
-
-        filepath = os.path.join(STATIC_DIR, path.lstrip("/"))
-        filepath = os.path.normpath(filepath)
-
-        # Security: ensure path is within STATIC_DIR
-        if not filepath.startswith(os.path.normpath(STATIC_DIR)):
-            self.send_error(403)
-            return
-
-        if not os.path.isfile(filepath):
-            # Only fallback to index.html for paths that don't look like static assets (no extension or .html)
-            ext = os.path.splitext(path)[1]
-            if ext in ["", ".html"]:
-                filepath = os.path.join(STATIC_DIR, "index.html")
-            else:
-                self.send_error(404)
+        if path.startswith("/books/"):
+            data_books_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "data", "books"))
+            filepath = os.path.normpath(os.path.join(data_books_dir, path.replace("/books/", "", 1)))
+            if not filepath.startswith(data_books_dir):
+                self.send_error(403)
                 return
+            if not os.path.isfile(filepath):
+                # Fallback to public/books for default textbook
+                filepath = os.path.normpath(os.path.join(STATIC_DIR, path.lstrip("/")))
+                if not os.path.isfile(filepath):
+                    self.send_error(404)
+                    return
+        else:
+            if path == "/" or path == "":
+                path = "/index.html"
+    
+            filepath = os.path.join(STATIC_DIR, path.lstrip("/"))
+            filepath = os.path.normpath(filepath)
+    
+            # Security: ensure path is within STATIC_DIR
+            if not filepath.startswith(os.path.normpath(STATIC_DIR)):
+                self.send_error(403)
+                return
+    
+            if not os.path.isfile(filepath):
+                # Only fallback to index.html for paths that don't look like static assets
+                ext = os.path.splitext(path)[1]
+                if ext in ["", ".html"]:
+                    filepath = os.path.join(STATIC_DIR, "index.html")
+                else:
+                    self.send_error(404)
+                    return
 
         ext = os.path.splitext(filepath)[1]
         content_type = MIME_TYPES.get(ext, "application/octet-stream")
@@ -1621,9 +1634,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             pdf_data = files["pdf"]["content"]
             pdf_filename = files["pdf"]["filename"]
             
-            # Save file persistently in public/books/
+            # Save file persistently in data/books/
             safe_filename = f"course_{_uid()}.pdf"
-            dest_dir = os.path.join(os.path.dirname(__file__), "public", "books")
+            dest_dir = os.path.join(os.path.dirname(__file__), "data", "books")
             os.makedirs(dest_dir, exist_ok=True)
             pdf_path = os.path.join(dest_dir, safe_filename)
             

@@ -277,7 +277,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     
     course_id = _uid()
     code = generate_classroom_code()
-    textbook_url = "/" + pdf_path.split("public" + os.sep)[-1].replace(os.sep, "/")
+    textbook_url = "/books/" + os.path.basename(pdf_path)
     
     with db_connection() as db:
         db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?)",
