@@ -67,6 +67,9 @@
                     <button class="btn btn-ghost sidebar-item" data-tab="inbox" onclick="toggleSidebar(); switchTab(this)">
                         <span class="sidebar-icon">📥</span> <span data-i18n="inbox">Inbox</span>
                     </button>
+                    <button class="btn btn-ghost sidebar-item" style="margin-top:12px; color:var(--accent-light); border:1px solid rgba(99,102,241,0.2); background:rgba(99,102,241,0.05);" onclick="toggleSidebar(); showClassroomSelection()">
+                        <span class="sidebar-icon">🏫</span> <span data-i18n="View Classrooms">View Classrooms</span>
+                    </button>
                 </div>
                 <div class="student-only mobile-only" style="display:flex; flex-direction:column; gap:4px;">
                     <button class="btn btn-ghost sidebar-item" data-tab="s-home" onclick="toggleSidebar(); switchTab(this)">
