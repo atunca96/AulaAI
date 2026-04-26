@@ -170,7 +170,9 @@ const i18n = {
     'login.student_number': 'Student Number',
     Email: 'Email', Password: 'Password', 'Full Name': 'Full Name',
     'Sign In': 'Sign In', 'Remember Me': 'Remember Me',
-    messageTeacher: 'Message Teacher', inbox: 'Inbox', book: 'Book',
+    messageTeacher: 'Message Teacher',
+    messageStudent: 'Message Student',
+    inbox: 'Inbox', book: 'Book',
     '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -421,7 +423,9 @@ const i18n = {
     'login.student_number': 'Öğrenci Numarası',
     Email: 'E-posta', Password: 'Şifre', 'Full Name': 'Ad Soyad',
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
-    messageTeacher: 'Öğretmene Mesaj', inbox: 'Gelen Kutusu', book: 'Kitap',
+    messageTeacher: 'Öğretmene Mesaj',
+    messageStudent: 'Öğrenciye Mesaj',
+    inbox: 'Gelen Kutusu', book: 'Kitap',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
@@ -1869,7 +1873,7 @@ async function loadStudentRoster() {
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageTeacher">${t('messageTeacher')}</span></button>
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
           <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')"><span data-i18n="Kick">${t('Kick')}</span></button>
         </div>
       </div>
@@ -2030,7 +2034,7 @@ async function showStudentDetail(sid, name, studentId = '') {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageTeacher">${t('messageTeacher')}</span></button>
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
         <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 <span data-i18n="Kick">${t('Kick')}</span></button>
       </div>
     </div>
