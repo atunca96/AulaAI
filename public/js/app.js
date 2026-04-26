@@ -773,17 +773,18 @@ async function completeLogin(user, isFresh = false) {
 
     if (currentUser.status === 'pending') {
       showScreen('waiting-room-screen');
-      const waitingPoll = setInterval(async () => {
+      if (window._waitingPoll) clearInterval(window._waitingPoll);
+      window._waitingPoll = setInterval(async () => {
         try {
           const check = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
           if (check && check.status === 'approved') {
-            clearInterval(waitingPoll);
+            clearInterval(window._waitingPoll);
             currentUser.status = 'approved';
             localStorage.setItem('aula_user', JSON.stringify(currentUser));
             sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
             window.location.reload();
           } else if (check && check.error === 'User not found') {
-            clearInterval(waitingPoll);
+            clearInterval(window._waitingPoll);
             await showAlert(t('alert.session_ended'), t('alert.account_removed'), true);
             logout();
           }
@@ -940,7 +941,7 @@ async function selectClassroom(id, isLecturer = true) {
   if (course && (course.id === 'spanish-101' || course.name === 'Spanish' || course.name === 'Spanish 101')) {
     bookPath = '/books/textbook.pdf';
   }
-  const pdfViewerSrc = (bookPath && bookPath !== '/books/' && bookPath !== '/books/undefined') ? bookPath : '';
+  const pdfViewerSrc = (bookPath && bookPath.trim() !== '' && bookPath !== '/books/' && bookPath !== '/books/undefined' && bookPath !== '/') ? bookPath : '';
   document.querySelectorAll('.pdf-viewer').forEach(el => { el.src = pdfViewerSrc || 'about:blank'; });
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
@@ -1092,6 +1093,7 @@ function logout() {
   sessionStorage.removeItem('aula_user');
   localStorage.removeItem('aula_last_course');
   localStorage.removeItem('aula_last_tab');
+  if (window._waitingPoll) clearInterval(window._waitingPoll);
   showScreen('login-screen');
 }
 

@@ -141,8 +141,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if not os.path.isfile(filepath):
-            # SPA fallback: serve index.html for unknown paths
-            filepath = os.path.join(STATIC_DIR, "index.html")
+            # Only fallback to index.html for paths that don't look like static assets (no extension or .html)
+            ext = os.path.splitext(path)[1]
+            if ext in ["", ".html"]:
+                filepath = os.path.join(STATIC_DIR, "index.html")
+            else:
+                self.send_error(404)
+                return
 
         ext = os.path.splitext(filepath)[1]
         content_type = MIME_TYPES.get(ext, "application/octet-stream")
