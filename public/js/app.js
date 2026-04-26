@@ -808,10 +808,11 @@ function translatePrompt(text) {
   if (currentLang !== 'tr') return text;
   let t = text;
   t = t.replace(/What does '(.*)' mean\?/, "'$1' ne anlama gelir?");
-  let match = t.match(/How do you say '(.*)' in Spanish\?/);
+  let match = t.match(/How do you say '(.*)' in (.*)\?/);
   if (match) {
     const wordTR = vocabTR[match[1]] || match[1];
-    t = `İspanyolca'da '${wordTR}' nasıl denir?`;
+    const langTR = vocabTR[match[2]] || match[2];
+    t = `${langTR}'da '${wordTR}' nasıl denir?`;
   }
   return vocabTR[t] || t;
 }
@@ -2829,11 +2830,11 @@ function renderDraftList() {
         </div>
         <div class="form-group">
           <label data-i18n="draft.prompt">${t('draft.prompt')}</label>
-          <input type="text" id="cq-prompt" class="text-input" placeholder="Ej: La capital de España es ___">
+          <input type="text" id="cq-prompt" class="text-input" placeholder="e.g. The capital of Germany is ___">
         </div>
         <div class="form-group">
           <label data-i18n="draft.answer">${t('draft.answer')}</label>
-          <input type="text" id="cq-answer" class="text-input" placeholder="Madrid">
+          <input type="text" id="cq-answer" class="text-input" placeholder="e.g. Berlin">
         </div>
         <div class="form-group" id="cq-distractors-group">
           <label data-i18n="draft.distractors">${t('draft.distractors')}</label>

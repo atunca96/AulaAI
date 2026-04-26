@@ -129,7 +129,7 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Unkn
         except Exception as e:
             print(f"[AI] Fallback to mock: {e}")
 
-    # Fallback to mock templates (Note: Mock templates are hardcoded Spanish)
+    # Fallback to mock templates (Note: Mock templates are hardcoded for common introductory topics)
     if topic_type == "vocabulary":
         return _generate_vocab_activity(content, difficulty, count)
     elif topic_type == "grammar":
@@ -177,7 +177,7 @@ def _generate_vocab_activity(content, difficulty, count):
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"What does '{spanish}' mean?",
+                "prompt": f"What does '{spanish}' mean?" if language == "Unknown" else f"What does the {language} word '{spanish}' mean?",
                 "options": options,
                 "answer": english,
                 "difficulty": difficulty,
@@ -201,7 +201,7 @@ def _generate_vocab_activity(content, difficulty, count):
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"How do you say '{english}' in Spanish?",
+                "prompt": f"How do you say '{english}' in {language if language != 'Unknown' else 'Spanish'}?",
                 "options": options_es,
                 "answer": spanish,
                 "difficulty": difficulty,
@@ -296,7 +296,7 @@ def generate_quiz(topic_ids, db_conn, student_mastery=None, count=10):
                     q["distractors"] = others[:3]
                 else:
                     # Generic fallback if not enough other questions
-                    q["distractors"] = ["Option A", "Option B", "Option C"] if currentLang == 'en' else ["Seçenek A", "Seçenek B", "Seçenek C"]
+                    q["distractors"] = ["Option A", "Option B", "Option C"]
             elif q["distractors"]:
                 try:
                     q["distractors"] = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
@@ -416,7 +416,7 @@ Return ONLY valid JSON:
         except Exception as e:
             print(f"[AI] Dialogue generation error: {e}")
 
-    # Fallback to Spanish templates
+    # Fallback to templates (Note: These are hardcoded Spanish examples)
     dialogue = random.choice(DIALOGUE_TEMPLATES)
     lines = dialogue["lines"][:]
     correct_order = [l["text"] for l in lines]
@@ -447,7 +447,7 @@ def grade_response(question_type, student_answer, correct_answer):
 
     # Quick exact match
     if student_clean == correct_clean:
-        return 1.0, "¡Correcto! ✓"
+        return 1.0, "Correct! ✓"
 
     # For fill_blank, try AI grading (more lenient with accents/typos)
     if question_type == "fill_blank" and is_ai_available():
@@ -470,7 +470,7 @@ def grade_response(question_type, student_answer, correct_answer):
 
     elif question_type == "translation":
         if student_clean == correct_clean:
-            return 1.0, "¡Perfecto!"
+            return 1.0, "Perfect!"
         distance = _levenshtein(student_clean, correct_clean)
         ratio = 1 - (distance / max(len(correct_clean), 1))
         score = max(0, min(1, ratio))
