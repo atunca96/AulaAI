@@ -236,7 +236,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_students(course_id)
         elif path == "/api/student/progress":
             student_id = params.get("student_id", [None])[0]
-            return self._get_student_progress(student_id)
+            course_id = params.get("course_id", [None])[0]
+            return self._get_student_progress(student_id, course_id)
         elif path == "/api/questions":
             topic_id = params.get("topic_id", [None])[0]
             return self._get_questions(topic_id)
@@ -260,7 +261,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_activity(topic_id)
         elif path == "/api/student/stats":
             student_id = params.get("student_id", [None])[0]
-            return self._get_student_stats(student_id)
+            course_id = params.get("course_id", [None])[0]
+            return self._get_student_stats(student_id, course_id)
         elif path == "/api/quiz/responses":
             quiz_id = params.get("quiz_id", [None])[0]
             return self._get_quiz_responses(quiz_id)
@@ -766,29 +768,31 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self._send_json(result)
 
-    def _get_student_progress(self, student_id):
+    def _get_student_progress(self, student_id, course_id):
         if not student_id:
             return self._send_error("student_id required")
 
         with db_connection() as db:
-            # Get mastery per topic
+            # Get mastery per topic, filtered by course
             masteries = db.execute("""
                 SELECT t.title, t.type, ms.score, ch.title as chapter_title, ch.number
                 FROM mastery_scores ms
                 JOIN topics t ON ms.topic_id = t.id
                 JOIN chapters ch ON t.chapter_id = ch.id
-                WHERE ms.student_id = ?
+                WHERE ms.student_id = ? AND ch.course_id = ?
                 ORDER BY ch.number, t.sort_order
-            """, (student_id,)).fetchall()
+            """, (student_id, course_id)).fetchall()
 
-            # Recent responses
+            # Recent responses filtered by course
             responses = db.execute("""
                 SELECT r.score, r.submitted_at, q.prompt, q.type as question_type
                 FROM responses r
                 JOIN questions q ON r.question_id = q.id
-                WHERE r.student_id = ?
+                JOIN topics t ON q.topic_id = t.id
+                JOIN chapters ch ON t.chapter_id = ch.id
+                WHERE r.student_id = ? AND ch.course_id = ?
                 ORDER BY r.submitted_at DESC LIMIT 20
-            """, (student_id,)).fetchall()
+            """, (student_id, course_id)).fetchall()
 
         self._send_json({
             "masteries": [dict(m) for m in masteries],
@@ -1210,13 +1214,29 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         bump_version()
         self._send_json({"score": score, "feedback": feedback})
 
-    def _get_student_stats(self, student_id):
+    def _get_student_stats(self, student_id, course_id):
         if not student_id: return self._send_error("ID required")
         with db_connection() as db:
             stats = {
-                "quizzes": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'quiz'", (student_id,)).fetchone()[0],
-                "practice": db.execute("SELECT COUNT(*) FROM responses WHERE student_id = ? AND context_type = 'practice'", (student_id,)).fetchone()[0],
-                "assignments": db.execute("SELECT COUNT(DISTINCT context_id) FROM responses WHERE student_id = ? AND context_type = 'assignment'", (student_id,)).fetchone()[0],
+                "quizzes": db.execute("""
+                    SELECT COUNT(DISTINCT r.context_id) 
+                    FROM responses r
+                    JOIN quizzes qz ON r.context_id = qz.id
+                    WHERE r.student_id = ? AND r.context_type = 'quiz' AND qz.course_id = ?
+                """, (student_id, course_id)).fetchone()[0],
+                "practice": db.execute("""
+                    SELECT COUNT(*) 
+                    FROM responses r
+                    JOIN topics t ON r.context_id = t.id
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE r.student_id = ? AND r.context_type = 'practice' AND ch.course_id = ?
+                """, (student_id, course_id)).fetchone()[0],
+                "assignments": db.execute("""
+                    SELECT COUNT(DISTINCT r.context_id) 
+                    FROM responses r
+                    JOIN assignments a ON r.context_id = a.id
+                    WHERE r.student_id = ? AND r.context_type = 'assignment' AND a.course_id = ?
+                """, (student_id, course_id)).fetchone()[0],
             }
         self._send_json(stats)
 

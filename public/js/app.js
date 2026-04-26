@@ -1042,10 +1042,15 @@ async function selectClassroom(id, isLecturer = true) {
   }
 
   courseId = id;
-  if (course && document.getElementById('nav-course-name')) {
-    document.getElementById('nav-course-name').textContent = course.name;
-    const codeEl = document.getElementById('nav-course-code');
-    if (codeEl) codeEl.textContent = '#' + course.code;
+  if (course) {
+    const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
+    const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
+    
+    if (navName) navName.textContent = course.name;
+    if (navCode) {
+      navCode.textContent = '#' + (course.code || '00000');
+      navCode.classList.remove('hidden');
+    }
   }
 
   // Show building banner if needed
@@ -2490,14 +2495,14 @@ async function initStudent() {
 }
 
 async function loadStudentStats() {
-  const stats = await api('/student/stats?student_id=' + currentUser.id);
+  const stats = await api(`/student/stats?student_id=${currentUser.id}&course_id=${courseId}`);
   const container = document.getElementById('student-stats');
   if (!container) return;
   container.innerHTML = `<div class="stat-card"><div class="stat-label">${t('Quizzes')}</div><div class="stat-value accent">${stats.quizzes || 0}</div></div><div class="stat-card"><div class="stat-label">${t('practice')}</div><div class="stat-value success">${stats.practice || 0}</div></div><div class="stat-card"><div class="stat-label">${t('Assignments')}</div><div class="stat-value warning">${stats.assignments || 0}</div></div>`;
 }
 
 async function loadStudentHome() {
-  const progress = await api('/student/progress?student_id=' + currentUser.id);
+  const progress = await api(`/student/progress?student_id=${currentUser.id}&course_id=${courseId}`);
   _lastStudentHomeData = progress;
   renderStudentHome(progress);
 }
@@ -2551,7 +2556,7 @@ async function startPractice(tid, title) {
 }
 
 async function loadStudentProgress() {
-  const data = await api('/student/progress?student_id=' + currentUser.id);
+  const data = await api(`/student/progress?student_id=${currentUser.id}&course_id=${courseId}`);
   _lastStudentHomeData = data;
   renderStudentProgress(data);
 }
