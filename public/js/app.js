@@ -733,6 +733,7 @@ function applyTranslations() {
 
 function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
+  window.currentLang = currentLang;
   localStorage.setItem('aula_lang', currentLang);
   applyTranslations();
   
