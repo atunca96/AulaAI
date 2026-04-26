@@ -717,11 +717,37 @@ body {
         border-bottom: 1px solid var(--border);
     }
     
-    .chat-wrapper {
-        height: calc(100vh - 140px);
-        border-radius: 0 !important;
+    .chat-wrapper.is-active {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        height: 100dvh !important;
+        z-index: 2500 !important;
+        background: var(--bg-main) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 0 !important;
+        margin: 0 !important;
         border: none !important;
+        border-radius: 0 !important;
+    }
+    
+    .chat-wrapper.is-active #inbox-messages,
+    .chat-wrapper.is-active #student-chat-history {
+        flex: 1 !important;
+        overflow-y: auto !important;
         padding: 16px !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .chat-wrapper.is-active .chat-input-area {
+        background: var(--bg-card);
+        padding: 12px 16px 24px; /* Extra bottom padding for home bar */
+        border-top: 1px solid var(--border);
+        display: flex !important;
+        gap: 8px;
     }
     
     .chat-bubble {

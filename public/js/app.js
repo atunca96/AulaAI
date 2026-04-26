@@ -1233,32 +1233,7 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-// Visual Viewport resize handler for mobile keyboards
-if (window.visualViewport) {
-  let lastHeight = window.visualViewport.height;
-  const adjustChatHeight = () => {
-    const chatWrappers = document.querySelectorAll('.chat-wrapper');
-    const isMobile = window.innerWidth <= 768;
-    if (!isMobile) return;
-    
-    const viewportHeight = window.visualViewport.height;
-    // Only act if height actually changed (to avoid jitter on minor scroll offsets)
-    if (Math.abs(viewportHeight - lastHeight) > 20) {
-      chatWrappers.forEach(cw => {
-        cw.style.height = `${viewportHeight - 60}px`; 
-        const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
-        if (msgList && msgList.lastElementChild) {
-          setTimeout(() => {
-            msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }, 100);
-        }
-      });
-      lastHeight = viewportHeight;
-    }
-  };
-
-  window.visualViewport.addEventListener('resize', adjustChatHeight);
-}
+// Remove previous Visual Viewport listeners (letting the meta tag and dvh handle it)
 
 // Add focus listeners for chat inputs to ensure scroll
 document.addEventListener('focusin', (e) => {
@@ -1271,7 +1246,7 @@ document.addEventListener('focusin', (e) => {
           msgList.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
       }
-    }, 300);
+    }, 200);
   }
 });
 
@@ -1327,6 +1302,9 @@ let currentChatStudentId = null;
 
 async function loadStudentChat() {
   if (!currentCourse) return;
+  const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
+  if (wrapper && window.innerWidth <= 768) wrapper.classList.add('is-active');
+  
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
   const container = document.getElementById('student-chat-history');
 
@@ -1371,6 +1349,11 @@ async function sendMessage() {
 
 async function loadInbox() {
   if (!currentCourse) return;
+  const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
+  if (wrapper) wrapper.classList.add('is-active'); // This is wrong, it should be REMOVE
+  // Wait, I'll fix this in the next replacement
+  if (wrapper) wrapper.classList.remove('is-active');
+  
   const messages = await api(`/messages?course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
@@ -1429,6 +1412,9 @@ async function loadInbox() {
 
 async function openChat(studentId, studentName) {
   currentChatStudentId = studentId;
+  const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
+  if (wrapper) wrapper.classList.add('is-active');
+  
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;

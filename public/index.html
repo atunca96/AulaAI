@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0e1a">
@@ -486,7 +486,7 @@
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
                     <div id="inbox-back-btn" class="hidden" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← Back to Inbox</div>
                     <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
-                    <div id="inbox-reply-area" class="hidden" style="display:flex; gap:8px;">
+                    <div id="inbox-reply-area" class="hidden chat-input-area" style="display:flex; gap:8px;">
                         <input type="text" id="inbox-reply-text" class="text-input" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
                         <button class="btn btn-primary" onclick="sendLecturerMessage()">Send</button>
                     </div>
@@ -611,7 +611,7 @@
                 </div>
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
                     <div id="student-chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
-                    <div style="display:flex; gap:8px;">
+                    <div class="chat-input-area" style="display:flex; gap:8px;">
                         <input type="text" id="message-text" class="text-input" data-i18n-placeholder="message.placeholder" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
                         <button class="btn btn-primary" onclick="sendMessage()" data-i18n="submit">Send</button>
                     </div>
