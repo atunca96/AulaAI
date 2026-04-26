@@ -264,7 +264,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language="Span
     return activities
 
 
-def generate_quiz(topic_ids, student_mastery=None, count=10):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None):
     """
     Generate a quiz pulling questions from given topics.
     If student_mastery is provided, adjusts difficulty.
@@ -305,6 +305,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10):
                 
                 questions.append(q)
 
+    if progress_callback: progress_callback(20)
     random.shuffle(questions)
     
     # 2. AI Generation if needed
@@ -393,9 +394,13 @@ def generate_quiz(topic_ids, student_mastery=None, count=10):
                     if added_this_retry > 0:
                         bump_version()
                         print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_title}'")
+                
+                if progress_callback:
+                    # Scale remaining 80% based on how many questions we have vs count
+                    current_prog = 20 + int((len(questions) / count) * 80)
+                    progress_callback(min(current_prog, 99))
 
-    return questions[:count]
-
+    if progress_callback: progress_callback(100)
     return questions[:count]
 
 

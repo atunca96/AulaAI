@@ -77,6 +77,9 @@ def init_db():
             activity_progress INTEGER DEFAULT 0,
             activity_total INTEGER DEFAULT 0,
             activity_result TEXT,
+            draft_status TEXT DEFAULT 'idle',
+            draft_progress INTEGER DEFAULT 0,
+            draft_result TEXT,
             lecturer_id TEXT REFERENCES users(id),
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -112,8 +115,18 @@ def init_db():
         pass
     try:
         c.execute("ALTER TABLE courses ADD COLUMN activity_result TEXT")
-    except sqlite3.OperationalError:
-        pass
+    except sqlite3.OperationalError: pass
+
+    # -- Draft Generation Columns Migration --
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN draft_status TEXT DEFAULT 'idle'")
+    except sqlite3.OperationalError: pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN draft_progress INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN draft_result TEXT")
+    except sqlite3.OperationalError: pass
 
     c.executescript("""
         CREATE TABLE IF NOT EXISTS enrollments (

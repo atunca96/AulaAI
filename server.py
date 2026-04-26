@@ -14,6 +14,7 @@ import threading
 import time
 import logging
 import subprocess
+import random as py_random
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
@@ -264,6 +265,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/activity/progress":
             course_id = params.get("course_id", [None])[0]
             return self._activity_progress(course_id)
+        elif path == "/api/draft/progress":
+            course_id = params.get("course_id", [None])[0]
+            return self._draft_progress(course_id)
         elif path == "/api/activity":
             topic_id = params.get("topic_id", [None])[0]
             return self._get_activity(topic_id)
@@ -1106,13 +1110,29 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         return
             
             # Starting...
+            update_prog(5)
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # Single call for all activities
-            raw_activities = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count)
-            update_prog(85) # AI returned
+            from services.ai_engine import ai_generate_single_activity
+            
+            raw_activities = []
+            history = []
+            
+            for i in range(count):
+                # Generate one by one for TRUE real-time progress
+                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history)
+                if act:
+                    raw_activities.append(act)
+                    history.append(act.get("prompt"))
+                
+                # Update progress: (i+1) / count * 100
+                # We scale it so it goes from 5 to 95
+                prog = 5 + int(((i + 1) / count) * 90)
+                update_prog(prog)
+
+            update_prog(100) # Finished AI work
             
             final_activities = []
             for act in raw_activities:
@@ -1233,6 +1253,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "status": status,
                 "percentage": percent,
                 "results": json.loads(data["activity_result"]) if data["activity_result"] else None
+            })
+
+    def _draft_progress(self, course_id):
+        if not course_id:
+            return self._send_json({"status": "error", "percentage": 0, "message": "Missing course_id"})
+
+        with db_connection() as db:
+            row = db.execute("SELECT draft_status, draft_progress, draft_result FROM courses WHERE id=?", (course_id,)).fetchone()
+            if not row:
+                return self._send_json({"status": "error", "percentage": 0, "message": "Course not found"})
+            
+            data = dict(row)
+            status = data.get("draft_status", "idle")
+            progress = data.get("draft_progress", 0)
+            
+            self._send_json({
+                "status": status,
+                "percentage": progress,
+                "questions": json.loads(data["draft_result"]) if data["draft_result"] else None
             })
 
     def _get_quizzes(self, course_id, student_id=None):
@@ -1454,27 +1493,59 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
             topic_ids = [t["id"] for t in topics]
             
-        from services.content_engine import generate_quiz
-        questions = generate_quiz(topic_ids, count=count)
-        
-        with db_connection() as db:
+        # Start background thread for generation
+            import threading
+            with db_connection() as db:
+                db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
+                db.commit()
+                
+            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count))
+            thread.daemon = True
+            thread.start()
+            
+            self._send_json({"status": "success"})
+
+    def _bg_generate_draft(self, course_id, topic_ids, count):
+        try:
+            from services.content_engine import generate_quiz
+            
+            def update_draft_prog(p):
+                for retry in range(5):
+                    try:
+                        with db_connection() as db:
+                            db.execute("UPDATE courses SET draft_progress=? WHERE id=?", (p, course_id))
+                            db.commit()
+                        return
+                    except Exception: time.sleep(0.5)
+
+            update_draft_prog(10)
+            
+            try:
+                questions = generate_quiz(topic_ids, count=count, progress_callback=update_draft_prog)
+            finally:
+                pass
+
             result = []
             for q in questions:
                 q_dict = dict(q)
                 if isinstance(q_dict.get("distractors"), str):
-                    try:
-                        q_dict["distractors"] = json.loads(q_dict["distractors"])
-                    except:
-                        q_dict["distractors"] = []
+                    try: q_dict["distractors"] = json.loads(q_dict["distractors"])
+                    except: q_dict["distractors"] = []
                 
                 if isinstance(q_dict.get("distractors"), list):
                     q_dict["distractors"] = [d for d in q_dict["distractors"] if isinstance(d, str) and d.strip()]
-                else:
-                    q_dict["distractors"] = []
-                    
+                else: q_dict["distractors"] = []
                 result.append(q_dict)
+
+            with db_connection() as db:
+                db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", (json.dumps(result), course_id))
+                db.commit()
                 
-        self._send_json({"questions": result})
+        except Exception as e:
+            file_log(f"BG Draft Error: {e}")
+            with db_connection() as db:
+                db.execute("UPDATE courses SET draft_status='error' WHERE id=?", (course_id,))
+                db.commit()
 
     def _draft_publish(self):
         body = self._read_body()

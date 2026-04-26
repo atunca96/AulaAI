@@ -2253,6 +2253,51 @@ function startActivityPolling(targetId, title) {
   }, 1000);
 }
 
+let draftProgressInterval = null;
+
+function startDraftPolling(type, btn, originalText, callback) {
+  const container = document.getElementById(`${type}-gen-progress`);
+  const fill = document.getElementById(`${type}-gen-fill`);
+  const pctText = document.getElementById(`${type}-gen-pct`);
+
+  if (container) container.classList.remove('hidden');
+  if (fill) fill.style.width = '0%';
+  if (pctText) pctText.textContent = '0%';
+
+  if (draftProgressInterval) clearInterval(draftProgressInterval);
+
+  draftProgressInterval = setInterval(async () => {
+    try {
+      const data = await api(`/draft/progress?course_id=${courseId}`);
+
+      if (data.status === 'generating') {
+        const pct = data.percentage || 0;
+        if (fill) fill.style.width = pct + '%';
+        if (pctText) pctText.textContent = pct + '%';
+      } else if (data.status === 'done') {
+        clearInterval(draftProgressInterval);
+        if (fill) fill.style.width = '100%';
+        if (pctText) pctText.textContent = '100%';
+        
+        setTimeout(() => {
+          if (container) container.classList.add('hidden');
+          btn.textContent = originalText;
+          btn.disabled = false;
+          if (data.questions) callback(data.questions);
+        }, 500);
+      } else if (data.status === 'error') {
+        clearInterval(draftProgressInterval);
+        if (container) container.classList.add('hidden');
+        btn.textContent = originalText;
+        btn.disabled = false;
+        showAlert(t('error'), 'Generation failed', true);
+      }
+    } catch (err) {
+      console.error("Draft Polling Error:", err);
+    }
+  }, 1000);
+}
+
 async function launchActivity() {
   const topicId = document.getElementById('activity-topic-select').value;
   if (!topicId) return showAlert(t('missing_info'), t('class.select_topic_msg') || (currentLang === 'tr' ? 'Lütfen bir konu seçin' : 'Please select a topic'), true);
@@ -2411,20 +2456,24 @@ async function createQuiz() {
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
   const count = parseInt(document.getElementById('quiz-count').value) || 10;
 
-  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+  try {
+    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+    if (res.error) throw new Error(res.error);
 
-  btn.textContent = originalText;
-  btn.disabled = false;
-
-  if (res && res.questions) {
-    currentDraft = {
-      type: 'quiz',
-      title: title,
-      course_id: courseId,
-      chapter_id: chapterId,
-      questions: res.questions
-    };
-    openDraftModal();
+    startDraftPolling('quiz', btn, originalText, (questions) => {
+      currentDraft = {
+        type: 'quiz',
+        title: title,
+        course_id: courseId,
+        chapter_id: chapterId,
+        questions: questions
+      };
+      openDraftModal();
+    });
+  } catch (err) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    showAlert(t('error'), err.message, true);
   }
 }
 
@@ -3319,21 +3368,25 @@ async function createAssignment() {
   const chapterId = document.getElementById('assignment-chapter-select').value || null;
   const count = parseInt(document.getElementById('assignment-count').value) || 10;
 
-  const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+  try {
+    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+    if (res.error) throw new Error(res.error);
 
-  btn.textContent = originalText;
-  btn.disabled = false;
-
-  if (res && res.questions) {
-    currentDraft = {
-      type: 'assignment',
-      title: title,
-      course_id: courseId,
-      chapter_id: chapterId,
-      due_at: null,
-      questions: res.questions
-    };
-    openDraftModal();
+    startDraftPolling('assignment', btn, originalText, (questions) => {
+      currentDraft = {
+        type: 'assignment',
+        title: title,
+        course_id: courseId,
+        chapter_id: chapterId,
+        due_at: null,
+        questions: questions
+      };
+      openDraftModal();
+    });
+  } catch (err) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    showAlert(t('error'), err.message, true);
   }
 }
 

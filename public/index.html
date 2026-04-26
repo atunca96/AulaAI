@@ -563,6 +563,15 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createQuiz()" data-i18n="Create Quiz">Create Quiz</button>
+                        <div id="quiz-gen-progress" class="hidden" style="margin-top:16px;">
+                            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                                <span data-i18n="gen.generating">Generating questions...</span>
+                                <span id="quiz-gen-pct">0%</span>
+                            </div>
+                            <div class="progress-bar-container" style="margin:0; height:8px;">
+                                <div id="quiz-gen-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="quiz-list" class="card-list"></div>
@@ -594,6 +603,15 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createAssignment()" data-i18n="Create Assignment">Create Assignment</button>
+                        <div id="assignment-gen-progress" class="hidden" style="margin-top:16px;">
+                            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                                <span data-i18n="gen.generating">Generating questions...</span>
+                                <span id="assignment-gen-pct">0%</span>
+                            </div>
+                            <div class="progress-bar-container" style="margin:0; height:8px;">
+                                <div id="assignment-gen-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="assignment-list" class="card-list"></div>
