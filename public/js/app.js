@@ -37,13 +37,20 @@ function toggleSidebar() {
       const nameEl = document.getElementById('sidebar-user-name');
       const roleEl = document.getElementById('sidebar-user-role');
       if (nameEl) nameEl.textContent = currentUser.name || 'Guest';
-      if (roleEl) roleEl.textContent = (currentUser.role || 'Role').toUpperCase();
+      if (roleEl) {
+        const roleKey = currentUser.role === 'lecturer' ? 'Lecturer' : 'Student';
+        roleEl.textContent = t(roleKey).toUpperCase();
+        roleEl.setAttribute('data-i18n', roleKey);
+      }
     }
     
     // Update language text
-    const langText = currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
+    const langText = window.currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
     const sidebarLangText = document.getElementById('sidebar-lang-text');
     if (sidebarLangText) sidebarLangText.textContent = langText;
+
+    // Apply translations to sidebar elements
+    applyTranslations();
 
     content.style.transform = 'translateX(280px)';
     overlay.style.opacity = '1';
@@ -226,6 +233,8 @@ const i18n = {
     takeQuizBtn: 'Take Quiz', viewBtn: 'View',
     // Lecturer nav & tabs
     Lecturer: 'Lecturer', Student: 'Student',
+    settings: 'Settings', language: 'Language',
+    signOut: 'Sign Out',
     Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', Assignments: 'Assignments', Quizzes: 'Quizzes', 'My Stats': 'My Stats',
     // Overview stats
     STUDENTS: 'STUDENTS', 'CLASS MASTERY': 'CLASS MASTERY', 'AT RISK': 'AT RISK', 'TOP PERFORMERS': 'TOP PERFORMERS',
@@ -531,6 +540,9 @@ const i18n = {
     // Student home
     '📖 Current Chapter': '📖 Mevcut Ünite',
     Practice: 'Alıştırma', Home: 'Ana Sayfa',
+    Lecturer: 'Öğretmen', Student: 'Öğrenci',
+    settings: 'Ayarlar', language: 'Dil',
+    signOut: 'Çıkış Yap',
     // Settings
     'settings.title': 'Ayarlar',
     'settings.appearance': 'Görünüm',
@@ -675,19 +687,25 @@ function toggleLanguage() {
   // Re-render all dynamic content SYNCHRONOUSLY using cached data
   if (currentUser) {
     if (currentUser.role === 'lecturer') {
-      if (currentCourse) {
-        renderLecturerSync();
-      } else {
-        if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
-      }
+      if (currentCourse) renderLecturerSync();
+      else if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
     } else {
-      if (currentCourse) {
-        renderStudentSync();
-      } else {
-        if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
-      }
+      if (currentCourse) renderStudentSync();
+      else if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
     }
   }
+
+  // Update Sidebar & Floating Buttons text immediately
+  const langText = window.currentLang === 'tr' ? 'Turkish (TR)' : 'English (EN)';
+  const sidebarLangText = document.getElementById('sidebar-lang-text');
+  if (sidebarLangText) sidebarLangText.textContent = langText;
+  
+  const langBtn = document.getElementById('lang-btn');
+  if (langBtn) langBtn.textContent = window.currentLang === 'en' ? '🌐 TR' : '🌐 EN';
+
+  // Apply translations to all data-i18n elements (including sidebar)
+  applyTranslations();
+}
 
   // Re-render activity preview if visible
   const preview = document.getElementById('activity-preview');

@@ -274,21 +274,21 @@
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>
-                <span class="nav-badge">Lecturer</span>
-                <span id="nav-course-name" style="margin-left:12px; font-size:14px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:12px;"></span>
-                <span id="nav-course-code" style="margin-left:8px; font-size:12px; font-family:monospace; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(99,102,241,0.3);"></span>
-                <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:16px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px;" data-i18n="View Classrooms">🏫 View Classrooms</button>
+                <span class="nav-badge" data-i18n="Lecturer" style="font-size:10px; padding:2px 6px;">Lecturer</span>
+                <span id="nav-course-name" style="margin-left:8px; font-size:13px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px;"></span>
+                <span id="nav-course-code" class="pc-only" style="margin-left:8px; font-size:12px; font-family:monospace; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(99,102,241,0.3);"></span>
+                <button class="btn btn-outline btn-sm pc-only" onclick="event.stopPropagation(); showClassroomSelection()" style="margin-left:16px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px;" data-i18n="View Classrooms">🏫 View Classrooms</button>
             </div>
             <div class="nav-tabs">
                 <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon">📊</span><span class="tab-label" data-i18n="Overview">Overview</span></button>
                 <button class="nav-tab" data-tab="curriculum" onclick="switchTab(this)"><span class="tab-icon">📚</span><span class="tab-label" data-i18n="Curriculum">Curriculum</span></button>
                 <button class="nav-tab" data-tab="activities" onclick="switchTab(this)"><span class="tab-icon">⚡</span><span class="tab-label" data-i18n="Activities">Activities</span></button>
-                <button class="nav-tab" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Quizzes">Quizzes</span></button>
-                <button class="nav-tab" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
-                <button class="nav-tab" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
-                <button class="nav-tab" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
-                <button class="nav-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
-                <button class="nav-tab" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">📥</span><span class="tab-label" data-i18n="inbox">Inbox</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
+                <button class="nav-tab pc-only" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Quizzes">Quizzes</span></button>
+                <button class="nav-tab pc-only" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
+                <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
+                <button class="nav-tab pc-only" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
+                <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">📥</span><span class="tab-label" data-i18n="inbox">Inbox</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
                 <span id="nav-username"></span>
@@ -492,7 +492,7 @@
                             <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
                         </div>
                         <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
-                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;" data-i18n="class.pdf_status_ok">Digital PDF Document</p>
+                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
                         <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">📖 Read Textbook</a>
                     </div>
                 </div>
@@ -507,16 +507,18 @@
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/marmara-logo.png" alt="MU" class="nav-logo-img">
                 <span class="nav-title">AulaAI</span>
-                <span class="nav-badge student-badge">Student</span>
+                <span class="nav-badge" data-i18n="Student" style="font-size:10px; padding:2px 6px;">Student</span>
+                <span id="student-nav-course-name" class="mobile-only" style="margin-left:8px; font-size:13px; color:var(--text-muted); border-left:1px solid var(--border); padding-left:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px;"></span>
+                <span id="student-nav-course-code" class="pc-only" style="margin-left:8px; font-size:12px; font-family:monospace; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 6px; border-radius:4px; border:1px solid rgba(99,102,241,0.3);"></span>
             </div>
             <div class="nav-tabs">
                 <button class="nav-tab active" data-tab="s-home" onclick="switchTab(this)"><span class="tab-icon">🏠</span><span class="tab-label" data-i18n="home">Home</span></button>
                 <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon">✍️</span><span class="tab-label" data-i18n="practice">Practice</span></button>
                 <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="quizzes">Quizzes</span></button>
-                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
-                <button class="nav-tab" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
-                <button class="nav-tab" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
-                <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
+                <button class="nav-tab pc-only" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button class="nav-tab pc-only" data-tab="s-progress" onclick="switchTab(this)"><span class="tab-icon">📈</span><span class="tab-label" data-i18n="My Stats">My Stats</span></button>
+                <button class="nav-tab pc-only" data-tab="s-book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="book">Book</span></button>
+                <button class="nav-tab pc-only" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
                 <span id="student-nav-username"></span>
@@ -615,7 +617,7 @@
                             <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
                         </div>
                         <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
-                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;" data-i18n="class.pdf_status_ok">Digital PDF Document</p>
+                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
                         <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">📖 Read Textbook</a>
                     </div>
                 </div>
