@@ -537,6 +537,7 @@ STRICT PEDAGOGICAL RULES:
 4. QUALITY DISTRACTORS: Distractors must be plausible words in {language} but clearly incorrect for this specific question.
 5. NO REPETITION: Do not use the same word for both 'answer' and 'distractors'.
 6. FILL_BLANK: Must include '____' (4 underscores) in the prompt where the answer goes.
+7. NO AUDIO CUES: Do NOT use words like 'Listen', 'Hear', or 'Audio' in the prompt. This is a TEXT-ONLY system.
 
 Generate exactly ONE exercise (Exercise #{index}). Return ONLY JSON:
 {{
@@ -650,8 +651,9 @@ STRICT PEDAGOGICAL REQUIREMENTS:
 5. HIGH-QUALITY DISTRACTORS: For 'mcq', distractors must be plausible and related to the correct answer. Avoid obviously unrelated words.
 6. NO SPANGLISH COMPLETIONS: Do NOT ask the student to complete an English sentence with a {language} word.
 7. VARIETY: Each activity must focus on a different aspect of the topic context. Mix difficulty levels.
-8. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
-9. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
+8. NO AUDIO CUES: Do NOT use words like 'Listen', 'Hear', or 'Audio' in the 'prompt'. This is a TEXT-ONLY system.
+9. NO AMBIGUITY: Every question must have exactly one correct and logical answer.
+10. TYPES: Mix 'mcq', 'fill_blank', and 'dialogue_order'.
 
 REQUIRED JSON STRUCTURES:
 - 'mcq': {{ "type": "mcq", "prompt": "English instruction", "answer": "{language} Correct Word", "options": ["{language} Opt 1", "{language} Opt 2", "{language} Opt 3", "{language} Opt 4"] }}
