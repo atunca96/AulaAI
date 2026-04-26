@@ -1282,9 +1282,7 @@ document.addEventListener('focusin', (e) => {
 
 function switchTab(btn, skipLoad = false) {
   // Clean up any open chat overlays/locks when switching tabs
-  document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
-  document.documentElement.classList.remove('chat-open');
-  document.body.classList.remove('chat-open');
+  closeMobileChat();
   document.body.style.overflow = '';
 
   // Find which screen we are in (Lecturer or Student)
@@ -1332,6 +1330,14 @@ function goToHome() {
 }
 
 function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+
+function closeMobileChat() {
+  document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
+  document.documentElement.classList.remove('chat-open');
+  document.body.classList.remove('chat-open');
+  document.body.style.overflow = '';
+  currentChatStudentId = null;
+}
 
 // ── Messages ──
 let currentChatStudentId = null;
@@ -1398,18 +1404,13 @@ async function sendMessage() {
 
 async function loadInbox() {
   if (!currentCourse) return;
-  const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
-  if (wrapper) wrapper.classList.remove('is-active');
-  document.documentElement.classList.remove('chat-open');
-  document.body.classList.remove('chat-open');
-  document.body.style.overflow = '';
+  closeMobileChat();
   
   const messages = await api(`/messages?course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
   document.getElementById('inbox-title').innerHTML = `📥 <span data-i18n="inbox">${t('inbox')}</span>`;
-  currentChatStudentId = null;
 
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
   const badge = document.getElementById('inbox-badge');

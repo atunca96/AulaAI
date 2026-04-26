@@ -28,6 +28,8 @@
   --radius-sm: 8px;
   --shadow: 0 4px 24px rgba(0,0,0,0.3);
   --shadow-lg: 0 8px 40px rgba(0,0,0,0.4);
+  --bg-main: #0a0e1a;
+  --text-main: #f1f5f9;
   --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
 }
 
@@ -49,6 +51,8 @@
   --warning: #d97706;
   --danger: #dc2626;
   --info: #2563eb;
+  --bg-main: #f8fafc;
+  --text-main: #0f172a;
   --gradient-1: linear-gradient(135deg, #4f46e5, #7c3aed);
 }
 
@@ -725,7 +729,7 @@ body {
         bottom: 0;
         height: 100dvh;
         z-index: 9999 !important;
-        background: var(--bg-main) !important;
+        background: var(--bg-primary) !important;
         display: flex !important;
         flex-direction: column !important;
         padding: 0 !important;
