@@ -50,6 +50,14 @@ function toggleSidebar() {
       const sNav = sidebar.querySelector('.student-only');
       if (lNav) lNav.style.display = currentUser.role === 'lecturer' ? 'flex' : 'none';
       if (sNav) sNav.style.display = currentUser.role === 'student' ? 'flex' : 'none';
+
+      // Update course info
+      if (currentCourse) {
+        const sCourseName = document.getElementById('sidebar-course-name');
+        const sCourseCode = document.getElementById('sidebar-course-code');
+        if (sCourseName) sCourseName.textContent = currentCourse.name;
+        if (sCourseCode) sCourseCode.textContent = '#' + currentCourse.code;
+      }
     }
     
     // Update language text

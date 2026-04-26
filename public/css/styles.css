@@ -646,6 +646,9 @@ body {
     display: flex;
     justify-content: center;
   }
+  #nav-course-name {
+    display: none !important;
+  }
 
   /* Tabs → Hidden on mobile (moved to sidebar) */
   .nav-tabs {
