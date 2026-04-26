@@ -1293,19 +1293,18 @@ async function loadStudentChat() {
     return;
   }
 
-  container.innerHTML = messages.map(m => {
+  container.innerHTML = `<div class="chat-container">` + messages.map(m => {
     const isMe = m.sender === 'student';
-    // Ensure timestamp is treated as UTC
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
-      <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
-        <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-          ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
+      <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
+        ${!isMe ? `<div class="chat-sender">${t('Lecturer')}</div>` : ''}
+        ${esc(m.content)}
+        <span class="chat-time">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     `;
-  }).join('');
+  }).join('') + `</div>`;
+  container.scrollTop = container.scrollHeight;
 
   messages.filter(m => m.sender === 'lecturer' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
@@ -1367,16 +1366,19 @@ async function loadInbox() {
   const threadList = Object.entries(threads).sort((a, b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
 
   container.innerHTML = threadList.map(([sId, data]) => `
-    <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition);" onclick="openChat('${sId}', '${esc(data.student_name).replace(/'/g, "\\'")}')">
+    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${sId}', '${esc(data.student_name).replace(/'/g, "\\'")}')">
       <div style="flex:1; min-width:0; margin-right:12px;">
-        <strong style="font-size:15px; color:var(--text-primary);">${esc(data.student_name)}</strong>
-        <div style="font-size:13px; color:var(--text-muted); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-          ${data.latest.sender === 'lecturer' ? '<span data-i18n="You">' + t('You') + '</span>: ' : ''}${esc(data.latest.content)}
+        <div style="display:flex; align-items:center; gap:8px;">
+           <div style="width:10px; height:10px; border-radius:50%; background:${data.unread > 0 ? 'var(--accent)' : 'transparent'};"></div>
+           <strong style="font-size:16px; color:var(--text-primary); font-weight:700;">${esc(data.student_name)}</strong>
+        </div>
+        <div style="font-size:13px; color:var(--text-muted); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:18px;">
+          ${data.latest.sender === 'lecturer' ? '<span style="color:var(--accent-light); font-weight:600;">' + t('You') + ':</span> ' : ''}${esc(data.latest.content)}
         </div>
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-        <span style="font-size:11px; color:var(--text-muted);">${new Date(data.latest.created_at).toLocaleDateString()}</span>
-        ${data.unread > 0 ? `<span style="background:var(--accent); color:#fff; border-radius:12px; padding:2px 8px; font-size:11px; font-weight:bold;">${data.unread}</span>` : ''}
+        <span style="font-size:11px; color:var(--text-muted);">${new Date(data.latest.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+        ${data.unread > 0 ? `<span style="background:var(--accent); color:#fff; border-radius:10px; padding:2px 8px; font-size:11px; font-weight:800;">${data.unread}</span>` : ''}
       </div>
     </div>
   `).join('');
@@ -1391,18 +1393,16 @@ async function openChat(studentId, studentName) {
   const messages = await api(`/messages?student_id=${studentId}&course_id=${currentCourse.id}`);
   const container = document.getElementById('inbox-messages');
 
-  container.innerHTML = messages.map(m => {
+  container.innerHTML = `<div class="chat-container">` + messages.map(m => {
     const isMe = m.sender === 'lecturer';
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
-      <div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
-        <div style="max-width:80%; background:${isMe ? 'var(--accent)' : 'var(--bg-secondary)'}; color:${isMe ? '#fff' : 'var(--text-primary)'}; border-radius:12px; padding:10px 14px; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.2);">
-          ${esc(m.content)}
-          <div style="font-size:10px; text-align:right; margin-top:4px; opacity:0.7;">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
+      <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
+        ${esc(m.content)}
+        <span class="chat-time">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
     `;
-  }).join('');
+  }).join('') + `</div>`;
 
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
