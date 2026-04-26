@@ -345,30 +345,50 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_error("Not found", 404)
 
     def _reset_data(self):
-        """Erase all student data while preserving curriculum and lecturer account."""
+        """Erase student data. Can be classroom-specific or global (except Spanish 101)."""
         body = self._read_body()
         confirm = body.get("confirm")
+        course_id = body.get("course_id")
+
         if confirm != "ERASE ALL DATA":
             return self._send_error("Confirmation text does not match")
 
         with db_connection() as db:
-            db.execute("DELETE FROM responses")
-            db.execute("DELETE FROM mastery_scores")
-            db.execute("DELETE FROM quiz_questions")
-            db.execute("DELETE FROM quizzes")
-            db.execute("DELETE FROM assignment_questions")
-            db.execute("DELETE FROM assignments")
-            db.execute("DELETE FROM sessions")
-            db.execute("DELETE FROM enrollments")
-            db.execute("DELETE FROM messages")
-            # Thoroughly delete student users by both role and email pattern
-            db.execute("DELETE FROM users WHERE role = 'student' OR email LIKE '%@student.aulaai'")
-            db.execute("DELETE FROM weekly_reports")
+            if course_id:
+                # CLASSROOM SPECIFIC RESET
+                db.execute("DELETE FROM responses WHERE question_id IN (SELECT id FROM questions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)))", (course_id,))
+                db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?))", (course_id,))
+                db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (course_id,))
+                db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM sessions")
+            else:
+                # GLOBAL RESET (KEEP SPANISH 101)
+                SPANISH_ID = '11111'
+                db.execute("DELETE FROM responses")
+                db.execute("DELETE FROM mastery_scores")
+                db.execute("DELETE FROM weekly_reports")
+                db.execute("DELETE FROM messages")
+                db.execute("DELETE FROM sessions")
+                db.execute("DELETE FROM enrollments")
+                db.execute("DELETE FROM quiz_questions")
+                db.execute("DELETE FROM quizzes")
+                db.execute("DELETE FROM assignment_questions")
+                db.execute("DELETE FROM assignments")
+                db.execute("DELETE FROM users WHERE role = 'student' OR email LIKE '%@student.aulaai'")
+                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id != ?)", (SPANISH_ID,))
+                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id != ?)", (SPANISH_ID,))
+                db.execute("DELETE FROM chapters WHERE course_id != ?", (SPANISH_ID,))
+                db.execute("DELETE FROM courses WHERE id != ?", (SPANISH_ID,))
+
             db.commit()
 
         bump_version()
-        print("[RESET] All student data erased by lecturer.")
-        self._send_json({"success": True, "message": "All student data has been erased."})
+        self._send_json({"success": True, "message": "Data has been erased."})
 
     def _delete_student(self):
         body = self._read_body()

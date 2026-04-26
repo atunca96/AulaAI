@@ -1960,16 +1960,36 @@ async function deleteStudent(sid, name) {
   }
 }
 
-async function resetAllData() {
+async function resetData(targetCourseId = null) {
+  // If targetCourseId is not explicitly null (Global), use current courseId if available
+  // Wait! If called from selection screen with (null), we WANT targetCourseId to stay null.
+  // If called from Overview with (), targetCourseId is null by default.
+  // So we need to distinguish between "Global" and "Current Classroom".
+  
+  // Revised logic:
+  // resetData() -> Current Classroom (if courseId exists)
+  // resetData(null) -> Global Reset
+  
+  let finalCourseId = targetCourseId;
+  if (arguments.length === 0 && typeof courseId !== 'undefined') {
+    finalCourseId = courseId;
+  }
+
   const confirmed1 = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg1', true);
   if (!confirmed1) return;
 
   const typed = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg2', true, 'ERASE ALL DATA');
   if (typed !== 'ERASE ALL DATA') return;
 
-  const res = await api('/data/reset', { method: 'POST', body: { confirm: 'ERASE ALL DATA' } });
+  const res = await api('/data/reset', { 
+    method: 'POST', 
+    body: { 
+      confirm: 'ERASE ALL DATA',
+      course_id: finalCourseId
+    } 
+  });
+  
   if (res.success) {
-    await showAlert('ok', 'confirm.erase_all_msg1'); // Simplified status
     location.reload();
   } else {
     showAlert('cancel', res.error || 'Error', true);

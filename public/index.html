@@ -199,8 +199,9 @@
                 </button>
             </div>
             
-            <div style="text-align:center; margin-top:32px;">
+            <div style="text-align:center; margin-top:32px; display:flex; justify-content:center; gap:16px;">
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+                <button class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger); font-size:12px; opacity:0.6" onclick="resetData(null)" data-i18n="Erase All Data">Erase All Data</button>
             </div>
         </div>
     </div>
@@ -299,7 +300,7 @@
                 <div class="card" style="margin-top:24px;border:1px solid var(--danger)">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <h3 data-i18n="Data Management">🗑️ Data Management</h3>
-                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="eraseAllData()" data-i18n="Erase All Data">Erase All Data</button>
+                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="resetData()" data-i18n="Erase All Data">Erase All Data</button>
                     </div>
                     <div class="card-body" style="font-size:13px;color:var(--text-muted)" data-i18n="Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.">
                         Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.
@@ -508,6 +509,7 @@
                 <div class="page-header">
                     <h1 data-i18n="practice">Practice</h1>
                     <p class="subtitle" data-i18n="selectPractice">Select a topic to practice</p>
+                    <p style="color:var(--text-muted); font-size:12px; margin-top:8px; font-weight:500; opacity:0.8" data-i18n="draft.lang_warning">Note: Question content language is fixed upon generation and will not change with the UI toggle.</p>
                 </div>
                 <div id="practice-topics" class="topic-grid"></div>
                 <div id="practice-area" class="hidden"></div>
