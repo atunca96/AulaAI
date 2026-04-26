@@ -938,14 +938,24 @@ async function selectClassroom(id, isLecturer = true) {
 
   // Update Book Tab
   let bookPath = course ? course.textbook : '';
-  if (course && (course.id === 'spanish-101' || course.name === 'Spanish' || course.name === 'Spanish 101')) {
-    bookPath = '/books/textbook.pdf';
-  }
   const pdfViewerSrc = (bookPath && bookPath.trim() !== '' && bookPath !== '/books/' && bookPath !== '/books/undefined' && bookPath !== '/') ? bookPath : '';
   document.querySelectorAll('.pdf-viewer').forEach(el => { el.src = pdfViewerSrc || 'about:blank'; });
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
   });
+
+  // Mobile dynamic preview
+  document.querySelectorAll('.mobile-book-title').forEach(el => el.textContent = course ? course.name : 'Textbook');
+  document.querySelectorAll('.mobile-book-title-thumb').forEach(el => el.textContent = course ? course.name : 'Textbook');
+  document.querySelectorAll('.mobile-book-link').forEach(el => el.href = pdfViewerSrc || '#');
+  
+  // PC empty state
+  document.querySelectorAll('.pdf-empty-state').forEach(el => {
+    if (pdfViewerSrc) el.classList.add('hidden');
+    else el.classList.remove('hidden');
+  });
+
+  document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
 
   if (currentUser.role === 'lecturer') {
     showScreen('lecturer-dashboard');
