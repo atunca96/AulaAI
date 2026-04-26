@@ -1693,7 +1693,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
                 
                 # 6. Delete PDF file if exists
-                textbook_path = course.get("textbook")
+                textbook_path = course["textbook"]
                 if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
                     full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
                     if os.path.exists(full_path):
