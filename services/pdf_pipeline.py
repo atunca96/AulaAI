@@ -298,7 +298,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     _log(f"Spawning worker: {' '.join(cmd)}")
-    with open("worker.log", "a", encoding="utf-8") as log_file:
-        subprocess.Popen(cmd, env=env, stdout=log_file, stderr=log_file, close_fds=True)
+    # Removed worker.log redirection to allow logs to show in Railway console
+    subprocess.Popen(cmd, env=env, close_fds=True)
     
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
