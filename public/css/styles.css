@@ -717,7 +717,7 @@ body {
     }
     
     .chat-wrapper {
-        height: calc(100vh - 140px) !important;
+        height: calc(100vh - 140px);
         border-radius: 0 !important;
         border: none !important;
         padding: 16px !important;

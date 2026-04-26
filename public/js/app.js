@@ -1233,6 +1233,25 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
+// Visual Viewport resize handler for mobile keyboards
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    const chatWrappers = document.querySelectorAll('.chat-wrapper');
+    const isMobile = window.innerWidth <= 768;
+    chatWrappers.forEach(cw => {
+      if (isMobile) {
+        // Calculate new height: viewport height minus approximate header height
+        cw.style.height = `${window.visualViewport.height - 80}px`; 
+        // Force scroll to bottom when keyboard opens/closes
+        const msgList = cw.querySelector('#inbox-messages') || cw.querySelector('#student-chat-history');
+        if (msgList) msgList.scrollTop = msgList.scrollHeight;
+      } else {
+        cw.style.height = '60vh';
+      }
+    });
+  });
+}
+
 function switchTab(btn, skipLoad = false) {
   // Find which screen we are in (Lecturer or Student)
   const screen = btn.closest('.screen') || (currentUser.role === 'lecturer' ? document.getElementById('lecturer-dashboard') : document.getElementById('student-dashboard'));
