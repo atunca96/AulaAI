@@ -77,40 +77,33 @@ def is_ai_available():
     return bool(OPENROUTER_API_KEY)
 
 
-def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True):
+def _call_ai(messages, max_tokens=2000, temperature=0.7, response_json=True, bypass_cache=False):
     """Call the OpenRouter API using urllib."""
     file_log(f"Calling _call_ai with model {MODEL}, response_json={response_json}")
     if not OPENROUTER_API_KEY:
         return None
 
-    # Calculate cache key BEFORE adding random seed if variety is NOT strictly required
-    # But for activities, we want variety, so we'll keep the seed.
-    # To avoid cache bloat, we'll only cache if the seed is NOT there.
-    
     # Add a random seed to the prompt to force variety and avoid unintended cache hits
-    # BUT only if we are NOT in a "strict" mode (though all calls currently are)
     seed = py_random.randint(1000, 999999)
     
-    # We'll hash the messages WITHOUT the seed for potential hit, 
-    # but we'll include the seed in the API call to force variety from the AI side.
-    cache_messages = json.dumps(messages)
+    # Include seed in the messages BEFORE hashing to ensure unique cache keys for activities
+    all_messages = messages + [{"role": "system", "content": f"Random Seed: {seed}"}]
+    
+    cache_messages = json.dumps(all_messages)
     cache_key = hashlib.md5(cache_messages.encode()).hexdigest()
     
-    with _cache_lock:
-        if cache_key in _ai_memory_cache:
-            file_log(f"Cache hit for key {cache_key}")
-            return _ai_memory_cache[cache_key]
-
-    messages.append({"role": "system", "content": f"Random Seed: {seed}"})
+    if not bypass_cache:
+        with _cache_lock:
+            if cache_key in _ai_memory_cache:
+                file_log(f"Cache hit for key {cache_key}")
+                return _ai_memory_cache[cache_key]
 
     payload_dict = {
         "model": MODEL,
-        "messages": messages,
+        "messages": all_messages,
         "max_tokens": max_tokens,
-        "temperature": 0.7 
+        "temperature": temperature 
     }
-    # OpenRouter's response_format is optional and can sometimes cause 400 errors 
-    # depending on the provider. We'll rely on the prompt for JSON structure.
 
     payload = json.dumps(payload_dict).encode("utf-8")
     print(f"[AI] Payload: {json.dumps(payload_dict)[:200]}...")
@@ -665,7 +658,7 @@ Return ONLY a JSON object with this structure:
   ]
 }}
 """
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.8)
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.8, bypass_cache=True)
     if result and "activities" in result:
         return result["activities"]
     return []
