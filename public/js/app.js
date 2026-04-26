@@ -1700,12 +1700,15 @@ function renderOverview(report) {
   } else {
     atRiskList.innerHTML = atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% <span data-i18n="mastery">mastery</span></span>${s.flags.map(f => `<span class="risk-badge low" data-i18n="${f}">${t(f)}</span>`).join('')}</div></div>`).join('');
   }
+  const td = report.topic_difficulty || {};
+  const chartEl = document.getElementById('topic-difficulty-chart');
+  if (chartEl) {
+    chartEl.innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
+      `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
+    ).join('');
+  }
   
   applyTranslations(); // Unify everything!
-}
-  document.getElementById('topic-difficulty-chart').innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
-    `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
-  ).join('');
 }
 
 async function loadCurriculumAsync() {
