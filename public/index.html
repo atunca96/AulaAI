@@ -19,7 +19,6 @@
 <body>
     <!-- Floating Actions (PC Only) -->
     <div class="floating-actions pc-only" style="position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-        <button class="btn btn-secondary btn-sm" onclick="openSettingsModal()" id="settings-btn" title="Settings" style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5); border-radius:12px; padding:10px 12px; font-size:18px; display:flex; justify-content:center; align-items:center; cursor:pointer;">⚙️</button>
         <div class="lang-switcher" style="display:flex; align-items:center; justify-content:center; background:var(--bg-secondary); padding:8px; border-radius:12px; border:1px solid var(--border); box-shadow:0 4px 12px rgba(0,0,0,0.5);">
             <button class="btn btn-primary btn-sm" onclick="toggleLanguage()" id="lang-btn" style="min-width:100px;">🌐 EN</button>
         </div>
@@ -35,9 +34,6 @@
                 <div id="sidebar-user-role" style="font-size:12px; opacity:0.8; text-transform:uppercase; letter-spacing:1px;">Role</div>
             </div>
             <div style="flex:1; padding:24px; display:flex; flex-direction:column; gap:8px;">
-                <button class="btn btn-ghost" onclick="toggleSidebar(); openSettingsModal()" style="justify-content:flex-start; gap:12px; padding:12px 16px;">
-                    <span style="font-size:20px;">⚙️</span> <span data-i18n="settings">Settings</span>
-                </button>
                 <div style="margin-top:auto; padding-top:16px; border-top:1px solid var(--border);">
                     <div style="margin-bottom:12px; font-size:12px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:1px;" data-i18n="language">Language</div>
                     <button class="btn btn-outline btn-full" onclick="toggleLanguage()" id="sidebar-lang-btn" style="justify-content:space-between; padding:12px 16px;">
@@ -54,41 +50,7 @@
     </div>
 
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:400px;">
-            <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
-            <h2 style="margin-bottom:24px; display:flex; align-items:center; gap:8px;">⚙️ <span data-i18n="settings.title">Settings</span></h2>
-            
-            <div class="form-group" style="margin-bottom:24px;">
-                <label style="display:block; margin-bottom:12px;"><span data-i18n="settings.appearance">Appearance</span></label>
-                <div style="display:flex; gap:12px;">
-                    <button class="btn btn-outline" id="theme-dark-btn" style="flex:1; justify-content:center; flex-direction:column; gap:8px; padding:16px;" onclick="setTheme('dark')">
-                        <span style="font-size:24px;">🌙</span>
-                        <span data-i18n="settings.dark">Dark</span>
-                    </button>
-                    <button class="btn btn-outline" id="theme-light-btn" style="flex:1; justify-content:center; flex-direction:column; gap:8px; padding:16px;" onclick="setTheme('light')">
-                        <span style="font-size:24px;">☀️</span>
-                        <span data-i18n="settings.light">Light</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label style="display:block; margin-bottom:12px;"><span data-i18n="settings.hud_size">HUD Size</span></label>
-                <div style="display:flex; gap:12px;">
-                    <button class="btn btn-outline" id="hud-normal-btn" style="flex:1; justify-content:center;" onclick="setHudSize('normal')">
-                        <span data-i18n="settings.normal">Normal</span>
-                    </button>
-                    <button class="btn btn-outline" id="hud-large-btn" style="flex:1; justify-content:center; font-size:16px;" onclick="setHudSize('large')">
-                        <span data-i18n="settings.large">Large</span>
-                    </button>
-                </div>
-            </div>
-            
-            <button class="btn btn-primary btn-full mt-24" onclick="closeSettingsModal()" data-i18n="settings.done">Done</button>
-        </div>
-    </div>
+    <!-- Settings Modal Removed -->
 
     <!-- Loading Screen -->
     <style>
@@ -292,6 +254,7 @@
             </div>
             <div class="nav-user">
                 <span id="nav-username"></span>
+                <button class="btn btn-ghost" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>
@@ -522,6 +485,7 @@
             </div>
             <div class="nav-user">
                 <span id="student-nav-username"></span>
+                <button class="btn btn-ghost" onclick="toggleTheme()" id="student-theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>

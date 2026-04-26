@@ -1390,48 +1390,32 @@ async function sendLecturerMessage() {
   await openChat(currentChatStudentId, name);
 }
 
-// ── Settings ──
-function openSettingsModal() {
-  document.getElementById('settings-modal').classList.remove('hidden');
-}
-
-function closeSettingsModal() {
-  document.getElementById('settings-modal').classList.add('hidden');
+// ── Theme Toggle ──
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const newTheme = isLight ? 'dark' : 'light';
+  setTheme(newTheme);
 }
 
 function setTheme(theme) {
+  const btns = [document.getElementById('theme-toggle-btn'), document.getElementById('student-theme-toggle-btn')];
   if (theme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
-    document.getElementById('theme-light-btn')?.classList.add('active', 'btn-primary');
-    document.getElementById('theme-light-btn')?.classList.remove('btn-outline');
-    document.getElementById('theme-dark-btn')?.classList.remove('active', 'btn-primary');
-    document.getElementById('theme-dark-btn')?.classList.add('btn-outline');
+    btns.forEach(btn => { if (btn) btn.textContent = '☀️'; });
   } else {
     document.documentElement.removeAttribute('data-theme');
-    document.getElementById('theme-dark-btn')?.classList.add('active', 'btn-primary');
-    document.getElementById('theme-dark-btn')?.classList.remove('btn-outline');
-    document.getElementById('theme-light-btn')?.classList.remove('active', 'btn-primary');
-    document.getElementById('theme-light-btn')?.classList.add('btn-outline');
+    btns.forEach(btn => { if (btn) btn.textContent = '🌙'; });
   }
   localStorage.setItem('aula_theme', theme);
 }
 
-function setHudSize(size) {
-  if (size === 'large') {
-    document.body.style.zoom = '1.1';
-    document.getElementById('hud-large-btn')?.classList.add('active', 'btn-primary');
-    document.getElementById('hud-large-btn')?.classList.remove('btn-outline');
-    document.getElementById('hud-normal-btn')?.classList.remove('active', 'btn-primary');
-    document.getElementById('hud-normal-btn')?.classList.add('btn-outline');
-  } else {
-    document.body.style.zoom = '1.0';
-    document.getElementById('hud-normal-btn')?.classList.add('active', 'btn-primary');
-    document.getElementById('hud-normal-btn')?.classList.remove('btn-outline');
-    document.getElementById('hud-large-btn')?.classList.remove('active', 'btn-primary');
-    document.getElementById('hud-large-btn')?.classList.add('btn-outline');
-  }
-  localStorage.setItem('aula_hud', size);
-}
+// Initial theme check
+document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('aula_theme');
+  if (savedTheme) setTheme(savedTheme);
+});
+
+// HUD Size logic removed
 
 function masteryColor(s) { return s >= 0.75 ? 'var(--success)' : s >= 0.4 ? 'var(--warning)' : 'var(--danger)'; }
 function masteryClass(s) { return s >= 0.75 ? 'success' : s >= 0.4 ? 'warning' : 'danger'; }
