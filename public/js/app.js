@@ -248,6 +248,8 @@ const i18n = {
     STUDENTS: 'STUDENTS', 'CLASS MASTERY': 'CLASS MASTERY', 'AT RISK': 'AT RISK', 'TOP PERFORMERS': 'TOP PERFORMERS',
     'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
     '⚠️ At-Risk Students': '⚠️ At-Risk Students', '📊 Topic Difficulty': '📊 Topic Difficulty',
+    'prac.dialogue_order': 'Reorder the dialogue correctly:',
+    'prac.dialogue': 'Dialogue',
     'active this week': 'active this week', 'Average across all topics': 'Average across all topics',
     'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%',
     'No at-risk students 🎉': 'No at-risk students 🎉', mastery: 'mastery',
@@ -621,6 +623,8 @@ const i18n = {
     'is ready!': 'hazır!',
     'Detecting...': 'Algılanıyor...',
     'class.pdf_status_cancel': 'Hayır, kontrol edeceğim',
+    'prac.dialogue_order': 'Diyaloğu doğru sıraya dizin:',
+    'prac.dialogue': 'Diyalog',
     'no_messages': 'Mesaj yok.',
     'No assignments yet.': 'Henüz ödev yok.',
     'No quizzes yet.': 'Henüz sınav yok.',
@@ -1650,10 +1654,30 @@ function moveDialogueLine(btn, direction) {
   const container = row.parentElement;
   const rows = Array.from(container.children);
   const idx = rows.indexOf(row);
+  
+  // Add CSS transition class if not already there
+  if (!row.style.transition) {
+    rows.forEach(r => r.style.transition = 'transform 0.2s ease');
+  }
+
   if (direction === -1 && idx > 0) {
-    container.insertBefore(row, rows[idx - 1]);
+    const prev = rows[idx - 1];
+    row.style.transform = 'translateY(-40px)';
+    prev.style.transform = 'translateY(40px)';
+    setTimeout(() => {
+      row.style.transform = '';
+      prev.style.transform = '';
+      container.insertBefore(row, prev);
+    }, 200);
   } else if (direction === 1 && idx < rows.length - 1) {
-    container.insertBefore(rows[idx + 1], row);
+    const next = rows[idx + 1];
+    row.style.transform = 'translateY(40px)';
+    next.style.transform = 'translateY(-40px)';
+    setTimeout(() => {
+      row.style.transform = '';
+      next.style.transform = '';
+      container.insertBefore(next, row);
+    }, 200);
   }
 }
 
