@@ -227,7 +227,7 @@ const i18n = {
   en: {
     langBtn: '🌐 TR',
     // Login screen
-    signInTab: 'Sign In', registerTab: 'Register', welcomeBack: 'Welcome back, {name}', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
+    signInTab: 'Sign In', registerTab: 'Register', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     loginTitle: 'Student Login',
     'Lecturer Login': 'Lecturer Login', 'Sign in with your email and password': 'Sign in with your email and password',
     'Student Login': 'Student Login', 'Log in with your student number': 'Log in with your student number',
@@ -264,14 +264,15 @@ const i18n = {
     signOut: 'Sign Out',
     Overview: 'Overview', Curriculum: 'Curriculum', Activities: 'Activities', Students: 'Students', Reports: 'Reports', Dashboard: 'Dashboard', Assignments: 'Assignments', Quizzes: 'Quizzes', 'My Stats': 'My Stats',
     // Overview stats
-    STUDENTS: 'STUDENTS', 'CLASS MASTERY': 'CLASS MASTERY', 'AT RISK': 'AT RISK', 'TOP PERFORMERS': 'TOP PERFORMERS',
+    STUDENTS: 'STUDENTS', 'CLASS_MASTERY': 'CLASS MASTERY', 'AT_RISK': 'AT RISK', 'TOP_PERFORMERS': 'TOP PERFORMERS',
     'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
     at_risk_students: '⚠️ At-Risk Students', topic_difficulty: '📊 Topic Difficulty',
     'prac.dialogue_order': 'Reorder the dialogue correctly:',
     'prac.dialogue': 'Dialogue',
-    'active this week': 'active this week', 'Average across all topics': 'Average across all topics',
-    'Students needing attention': 'Students needing attention', 'Mastery above 80%': 'Mastery above 80%',
+    'active_this_week': '{count} active this week', 'avg_across_topics': 'Average across all topics',
+    'students_needing_attention': 'Students needing attention', 'mastery_above_80': 'Mastery above 80%',
     no_at_risk: 'No at-risk students 🎉', mastery: 'mastery',
+    'welcomeBack': 'Welcome back, {name}',
     'Welcome back,': 'Welcome back,',
     // Data Management
     data_mgmt: '🗑️ Data Management',
@@ -505,7 +506,7 @@ const i18n = {
     'LOW_ENGAGEMENT': 'Düşük Katılım',
     'CRITICAL_RISK': 'Kritik Risk',
     'UNKNOWN': 'Bilinmiyor',
-    loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', welcomeBack: 'Tekrar Hoş Geldin, {name}', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
+    loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
     'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
@@ -539,12 +540,13 @@ const i18n = {
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     Overview: 'Genel Bakış', Curriculum: 'Müfredat', Activities: 'Etkinlikler', Students: 'Öğrenciler', Reports: 'Raporlar', Dashboard: 'Kontrol Paneli', Assignments: 'Ödevler', Quizzes: 'Sınavlar', 'My Stats': 'İstatistiklerim',
     // Overview stats
-    STUDENTS: 'ÖĞRENCİLER', 'CLASS MASTERY': 'SINIF BAŞARISI', 'AT RISK': 'RİSKLİ', 'TOP PERFORMERS': 'EN İYİLER',
+    STUDENTS: 'ÖĞRENCİLER', 'CLASS_MASTERY': 'SINIF BAŞARISI', 'AT_RISK': 'RİSKLİ', 'TOP_PERFORMERS': 'EN İYİLER',
     'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler',
     at_risk_students: '⚠️ Riskli Öğrenciler', topic_difficulty: '📊 Konu Zorluğu',
-    'active this week': 'bu hafta aktif', 'Average across all topics': 'Tüm konularda ortalama',
-    'Students needing attention': 'Dikkat gerektiren öğrenciler', 'Mastery above 80%': '%80 üzeri başarı',
+    'active_this_week': '{count} bu hafta aktif', 'avg_across_topics': 'Tüm konularda ortalama',
+    'students_needing_attention': 'Dikkat gerektiren öğrenciler', 'mastery_above_80': '%80 üzeri başarı',
     no_at_risk: 'Riskli öğrenci yok 🎉', mastery: 'başarı',
+    'welcomeBack': 'Tekrar Hoş Geldin, {name}',
     'Welcome back,': 'Tekrar Hoş Geldin,',
     // Data Management
     data_mgmt: 'Veri Yönetimi',
@@ -802,7 +804,7 @@ function renderLecturerSync() {
 function renderStudentSync() {
   if (!currentUser) return;
   document.getElementById('student-nav-username').textContent = currentUser.name;
-  document.getElementById('student-greeting').textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
+  document.getElementById('student-greeting').textContent = t('welcomeBack', { name: currentUser.name }) + '!';
   
   if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
   if (_lastQuizListData) renderQuizList(_lastQuizListData);
@@ -1650,7 +1652,7 @@ async function initLecturer() {
   if (navUser) navUser.textContent = currentUser.name;
   
   const greeting = document.getElementById('overview-greeting');
-  if (greeting) greeting.textContent = t('welcomeBack') + ', ' + currentUser.name.split(' ').pop();
+  if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name.split(' ').pop() });
 
   // Check AI status
   try {
