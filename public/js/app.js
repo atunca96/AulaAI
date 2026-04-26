@@ -1417,6 +1417,7 @@ async function openChat(studentId, studentName) {
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
       <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
+        ${isMe ? `<div class="chat-sender" style="color:rgba(255,255,255,0.7)">${t('Lecturer')}</div>` : ''}
         ${esc(m.content)}
         <span class="chat-time">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </div>
