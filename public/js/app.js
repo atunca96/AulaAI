@@ -507,7 +507,7 @@ const i18n = {
     'Sign In': 'Giriş Yap', 'Remember Me': 'Beni Hatırla', 'Sign Out': 'Çıkış Yap',
     messageTeacher: 'Öğretmene Mesaj',
     messageStudent: 'Öğrenciye Mesaj',
-    inbox: 'Gelen Kutusu', book: 'Kitap',
+    inbox: 'Gelen Kutusu', book: 'Kitap', Messages: 'Mesajlar',
     '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
