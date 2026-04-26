@@ -12,7 +12,10 @@ import random
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
-DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "prototype.db"))
+DEFAULT_DATA_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "data"))
+DB_PATH = os.environ.get("DB_PATH", os.path.join(DEFAULT_DATA_DIR, "prototype.db"))
+DATA_DIR = os.path.dirname(DB_PATH)
+BOOKS_DIR = os.path.join(DATA_DIR, "books")
 
 
 def get_db():

@@ -27,7 +27,7 @@ def file_log(msg):
 # Add project root to path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from database import get_db, init_db, db_connection
+from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights
@@ -52,7 +52,10 @@ def watch_files():
                     last_mtime[path] = mtime
         time.sleep(2)
 
-threading.Thread(target=watch_files, daemon=True).start()
+# Only start auto-reload in local dev (no PORT or RAILWAY env)
+if not os.environ.get("PORT") and not os.environ.get("RAILWAY_ENVIRONMENT"):
+    threading.Thread(target=watch_files, daemon=True).start()
+
 
 # Version tracking moved to services.state
 
@@ -130,7 +133,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _serve_static(self, path):
         """Serve static files from the public directory."""
         if path.startswith("/books/"):
-            data_books_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "data", "books"))
+            data_books_dir = os.path.normpath(BOOKS_DIR)
             filepath = os.path.normpath(os.path.join(data_books_dir, path.replace("/books/", "", 1)))
             if not filepath.startswith(data_books_dir):
                 self.send_error(403)
@@ -1666,9 +1669,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             # Save file persistently in data/books/
             safe_filename = f"course_{_uid()}.pdf"
-            dest_dir = os.path.join(os.path.dirname(__file__), "data", "books")
-            os.makedirs(dest_dir, exist_ok=True)
-            pdf_path = os.path.join(dest_dir, safe_filename)
+            os.makedirs(BOOKS_DIR, exist_ok=True)
+            pdf_path = os.path.join(BOOKS_DIR, safe_filename)
             
             file_log(f"[DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
 
@@ -1862,7 +1864,8 @@ def main():
         print(f"\n[FATAL ERROR] Server failed to start: {e}")
         import traceback
         traceback.print_exc()
-        input("\nPress Enter to exit...")
+        # input("\nPress Enter to exit...")
+
 
 if __name__ == "__main__":
     main()
