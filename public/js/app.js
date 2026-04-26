@@ -2476,7 +2476,7 @@ async function initStudent() {
   if (navUser) navUser.textContent = currentUser.name;
   
   const greeting = document.getElementById('student-greeting');
-  if (greeting) greeting.textContent = t('welcomeBack') + ', ' + currentUser.name + '!';
+  if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
 
   await Promise.all([
     loadCurriculumAsync(),
