@@ -213,7 +213,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
     """
 
-    prompt = f"""You are a master {language} architect. Generate {request_count} high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
+    # Request 15 to ensure survival of at least request_count after strict filtering
+    prompt = f"""You are a master {language} architect. Generate 15 high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
     
     SOURCE MATERIAL:
     {content_str}
@@ -225,7 +226,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - PROMPT: Write the question in {instruction_lang}.
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
-    - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options.
+    - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
     - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect. There must be NO ambiguity. If the question tests a grammatical rule, the distractors must explicitly break that rule or be contextually impossible.
     - LANGUAGE AGNOSTICISM: Ensure the logic holds regardless of the target language's structure (Logographic, Agglutinative, or Inflected).
     
@@ -241,7 +242,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     for attempt in range(2):
         # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.9)
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.9)
         print(f"[AI] Response received. Success: {result is not None}")
         raw_list = result.get("data") if result else []
         
@@ -292,51 +293,21 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
-                    # GHOST CHECK: Detect and Fix leaks (Auto-Edit Mistake)
+                    # GHOST CHECK: Strict Zero-Tolerance Rejection
                     is_ghost = False
                     if ans_vibe == 'native':
+                        # For native scripts, if ANY character from the answer is in the prompt, reject
                         if any(char in prompt_clean for char in ans_clean if char.strip()):
                             is_ghost = True
                     else:
+                        # For Latin, check for whole word match
                         pattern = r'\b' + re.escape(ans_clean.lower()) + r'\b'
-                        if re.search(pattern, prompt_clean.lower()):
+                        if re.search(pattern, prompt_clean.lower()) or ans_clean.lower() in prompt_clean.lower():
                             is_ghost = True
                     
                     if is_ghost:
-                        # ALGORITHM: Intelligent Masking instead of Rejection
-                        print(f"[FIX] Answer Leak Detected: '{ans_clean}' in '{prompt_clean}'")
-                        
-                        # 1. Contextual Masking (Sound/Letter/Word)
-                        fixed = False
-                        for prefix in ["sound", "letter", "word", "character", "term", "vowel", "consonant"]:
-                            p_regex = re.compile(rf'{prefix}\s+[\'\"“]?{re.escape(ans_clean)}[\'\"”]?', re.IGNORECASE)
-                            if p_regex.search(prompt_raw):
-                                prompt_raw = p_regex.sub(f"the target {prefix}", prompt_raw)
-                                fixed = True
-                                break
-                        
-                        # 2. Brute Force Masking (Fallback)
-                        if not fixed:
-                            # Avoid over-masking common words in instructions (like 'is', 'the' in target language)
-                            if len(ans_clean) > 1:
-                                pattern = re.compile(re.escape(ans_clean), re.IGNORECASE)
-                                prompt_raw = pattern.sub("____", prompt_raw)
-                                fixed = True
-                            else:
-                                # For single characters (Phonetics), if we can't find a prefix, we MUST reject or it's unsolvable
-                                if not is_phonetic_topic:
-                                    pattern = re.compile(re.escape(ans_clean), re.IGNORECASE)
-                                    prompt_raw = pattern.sub("____", prompt_raw)
-                                    fixed = True
-                        
-                        # If still ghosted and it's NOT a phonetic topic (where we allow it as fallback), reject
-                        if not fixed and not is_phonetic_topic:
-                            print(f"[REJECT] Unfixable Ghost leak: {ans_clean}")
-                            continue
-                        
-                        # Update prompt_clean for the next steps
-                        prompt_clean = deep_clean(prompt_raw)
-                        print(f"[FIXED] New Prompt: '{prompt_raw}'")
+                        print(f"[REJECT] Ghost Leak: '{ans_clean}' in '{prompt_clean}'")
+                        continue
                     
                     # 5. THE TEACHER'S FILTER (Strict Pedagogical Validation)
                     
@@ -347,7 +318,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         continue
 
                     # B. DISTRACTOR QUANTITY: Must have exactly 3 high-quality distractors
-                    if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 3:
+                    if item.get("type", "mcq") and len(valid_distractors) < 3:
                         print(f"[REJECT] Insufficient distractors: {len(valid_distractors)} (need 3)")
                         continue
                     
