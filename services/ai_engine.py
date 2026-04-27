@@ -188,6 +188,19 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150)
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
+def ai_generate_curriculum(language, level, prompt_extra=""):
+    system = "You are a curriculum architect. Create a structured syllabus in JSON."
+    user = f"Create a {level} level {language} course syllabus. {prompt_extra}\nReturn JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"
+    
+    result = _call_ai([
+        {"role": "system", "content": system},
+        {"role": "user", "content": user}
+    ], model=MODEL_QUALITY, max_tokens=2000)
+    
+    if result and "chapters" in result:
+        return result["chapters"]
+    return []
+
 def ai_generate_report_insights(cohort_data):
     prompt = f"Analyze: {json.dumps(cohort_data)}"
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
