@@ -111,20 +111,30 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         valid_distractors.append(d_clean)
                         all_choices.add(d_clean.lower())
             
-            # 4. Final Quality Filter
-            # MCQs need at least 2 valid distractors
-            if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
-                continue
-
-            # Check for global duplicates
-            if ans_clean.lower() in seen_answers:
-                continue
+            # 4. Final Zero-Tolerance Validation
+            # Ensure answer isn't empty, isn't just underscores, and isn't contained in the prompt
+            if ans_clean and prompt_clean and len(ans_clean) > 0:
+                # Reject if prompt or answer are just punctuation/underscores
+                if not re.search(r'\w', ans_clean) or not re.search(r'\w', prompt_clean):
+                    continue
                 
-            # Success!
-            item["answer"] = ans_clean
-            item["distractors"] = valid_distractors[:3]
-            seen_answers.add(ans_clean.lower())
-            final_questions.append(item)
+                # Reject if answer is a "ghost" inside the prompt (The Flipped Question Bug)
+                if agnostic_strip(ans_clean) in agnostic_strip(prompt_clean):
+                    continue
+                
+                # MCQs need at least 2 valid distractors
+                if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
+                    continue
+
+                # Check for global duplicates
+                if ans_clean.lower() in seen_answers:
+                    continue
+                
+                item["prompt"] = prompt_clean
+                item["answer"] = ans_clean
+                item["distractors"] = valid_distractors[:3]
+                seen_answers.add(ans_clean.lower())
+                final_questions.append(item)
             
             if len(final_questions) >= c: break
         except: continue
