@@ -285,8 +285,8 @@ def format_activity_by_template(data, level, language):
         target = data.get("word") or data.get("answer") or data.get("target") or "???"
         translation = data.get("translation") or data.get("meaning") or data.get("english") or "???"
         
-        # If we have a prompt already, use it (sometimes AI generates full prompt)
-        final_prompt = data.get("prompt")
+        # If we have a prompt or question already, use it
+        final_prompt = data.get("prompt") or data.get("question")
         if not final_prompt:
             final_prompt = f"{mcq_instr} '{translation}'?"
             
@@ -356,11 +356,17 @@ def ai_generate_single_activity(topic_title, topic_type, topic_content, language
     if not data: return None
     print(f"[AI] Raw Single Activity for {topic_title}: {json.dumps(data)}")
     
-    # Handle both wrapped {"data": {...}} and direct {...} formats
-    if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
-        data = data["data"]
-    elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
-        data = data["data"][0]
+    # Handle various wrapping formats (data, activities, questions)
+    if isinstance(data, dict):
+        for key in ["activities", "questions", "data"]:
+            if key in data:
+                val = data[key]
+                if isinstance(val, list) and len(val) > 0:
+                    data = val[0]
+                    break
+                elif isinstance(val, dict):
+                    data = val
+                    break
     
     assembled = format_activity_by_template(data, level, language)
     if assembled and assembled.get("type") == "mcq":
