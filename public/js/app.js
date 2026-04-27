@@ -2168,7 +2168,18 @@ function renderCurriculum() {
       return;
     }
 
-    document.getElementById('curriculum-tree').innerHTML = curriculum.map((ch, i) => `
+    const isBuilding = currentCourse && currentCourse.is_building;
+    const treeEl = document.getElementById('curriculum-tree');
+    const rebuildBtn = document.getElementById('rebuild-curriculum-btn');
+
+    if (rebuildBtn) {
+      rebuildBtn.disabled = isBuilding;
+      rebuildBtn.style.opacity = isBuilding ? '0.5' : '1';
+      const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
+      if (btnText) btnText.textContent = isBuilding ? t('Building...') : t('Build All Lessons');
+    }
+
+    treeEl.innerHTML = curriculum.map((ch, i) => `
       <div class="chapter-block">
         <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
           <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
@@ -2191,6 +2202,27 @@ function renderCurriculum() {
       </div>`).join('');
   } catch (err) {
     console.error('Render Error:', err);
+  }
+}
+
+async function rebuildClassroom() {
+  if (!currentCourse) return;
+  const ok = await showConfirm(
+    t('alert.rebuild_title') || "Build Lessons?", 
+    t('alert.rebuild_msg') || "This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?"
+  );
+  if (!ok) return;
+
+  try {
+    const res = await api('/classroom/rebuild', { course_id: currentCourse.id });
+    if (res.status === 'success') {
+      currentCourse.is_building = 1;
+      renderCurriculum();
+    } else {
+      showAlert("Error", res.error || "Failed to start build");
+    }
+  } catch (err) {
+    showAlert("Error", "Network error starting build");
   }
 }
 
