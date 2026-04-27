@@ -151,9 +151,13 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     1. CONTENT: {detail}
     2. QUESTIONS: Generate exactly {question_count} interactive questions.
     
-    Return ONLY valid JSON:
+    Return ONLY valid JSON with this exact structure:
     {{
-      {structure}
+      "content": {{ ... }},
+      "questions": [
+        {{ "type": "mcq", "word": "target_word", "translation": "translation", "distractors": ["opt1", "opt2", "opt3"] }},
+        {{ "type": "fill_blank", "sentence": "sentence with ____", "word": "answer", "translation": "hint" }}
+      ]
     }}"""
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
@@ -208,10 +212,14 @@ def format_activity_by_template(data, level, language):
 
     if atype == "fill_blank" and "sentence" in data:
         sentence = data["sentence"]
-        word = data.get("word", data.get("answer", ""))
-        translation = data.get("translation", "")
+        word = data.get("word") or data.get("answer") or data.get("target") or "???"
+        translation = data.get("translation") or data.get("meaning") or data.get("english") or ""
         if "____" not in sentence:
-            sentence = sentence.replace(word, "____") if word in sentence else sentence + " ____"
+            # Try to hide the word if it's there
+            if word != "???" and word in sentence:
+                sentence = sentence.replace(word, "____")
+            else:
+                sentence = sentence + " ____"
         hint = f" ({translation})" if translation else ""
         return {
             "type": "fill_blank",
@@ -257,11 +265,17 @@ def format_activity_by_template(data, level, language):
         }
 
     if atype == "mcq":
-        target = data.get("word", data.get("answer", ""))
-        translation = data.get("translation", "")
+        target = data.get("word") or data.get("answer") or data.get("target") or "???"
+        translation = data.get("translation") or data.get("meaning") or data.get("english") or "???"
+        
+        # If we have a prompt already, use it (sometimes AI generates full prompt)
+        final_prompt = data.get("prompt")
+        if not final_prompt:
+            final_prompt = f"{mcq_instr} '{translation}'?"
+            
         return {
             "type": "mcq",
-            "prompt": f"{mcq_instr} '{translation}'?",
+            "prompt": final_prompt,
             "answer": target,
             "distractors": data.get("distractors", []),
             "metadata": {"template": "mcq_translation"}
@@ -272,7 +286,17 @@ def format_activity_by_template(data, level, language):
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Generate quiz/practice questions using the Template Factory approach."""
     level_norm = (level or 'A1').upper()
-    prompt = f"Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the types (mcq, fill_blank) and logic (word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON ONLY."
+    prompt = f"""Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    
+    Return a JSON object with a "data" key containing an array of objects.
+    Each object MUST follow one of these logic schemas:
+    - {{"type": "mcq", "word": "SpanishWord", "translation": "EnglishTranslation", "distractors": ["W1", "W2", "W3"]}}
+    - {{"type": "fill_blank", "sentence": "La ____ es...", "word": "correct", "translation": "hint"}}
+    - {{"type": "mcq", "scenario": "Context...", "answer": "CorrectResp", "distractors": ["W1", "W2"]}}
+    - {{"type": "mcq", "definition": "Description...", "word": "Target", "distractors": ["W1", "W2"]}}
+    - {{"type": "mcq", "opposite": "Word", "answer": "Antonym", "distractors": ["W1", "W2"]}}
+    
+    Return JSON ONLY."""
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     raw_list = result.get("data") if result else None
@@ -299,7 +323,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None, level='A1'):
     """Generate one interactive activity using the Template Factory."""
     level_norm = (level or 'A1').upper()
-    prompt = f"Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}. Vary the logic (word/translation, sentence/word, scenario/answer, definition/answer, opposite/answer, category/answer). Return JSON ONLY."
+    prompt = f"""Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    
+    Use one of these schemas:
+    - {{"type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "..."]}}
+    - {{"type": "fill_blank", "sentence": "...", "word": "...", "translation": "..."}}
+    - {{"type": "mcq", "scenario": "...", "answer": "...", "distractors": ["...", "..."]}}
+    
+    Return JSON ONLY."""
     
     data = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
     if not data: return None
