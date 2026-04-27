@@ -218,7 +218,10 @@ def ai_grade_open_response(question, student_answer, correct_answer):
 
 def ai_generate_curriculum(language, level, prompt_extra=""):
     system = "You are a curriculum architect. Create a structured syllabus in JSON."
-    user = f"Create a {level} level {language} course syllabus. {prompt_extra}\nReturn JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"
+    alphabet_rule = "CRITICAL REQUIREMENT: The very first topic of Chapter 1 MUST be exactly 'The Alphabet'. " if level == 'A1' else ""
+    user = f"Create a {level} level {language} course syllabus. {prompt_extra}\n" \
+           f"{alphabet_rule}" \
+           f"Return JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"
     
     result = _call_ai([
         {"role": "system", "content": system},
