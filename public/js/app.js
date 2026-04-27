@@ -1292,10 +1292,22 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
   document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
   
-  // Hide Book tab for lecturers in AI courses
+  // Hide/Relabel tabs based on course type
   const lectBookTab = document.getElementById('lecturer-book-tab');
-  if (lectBookTab) {
-    lectBookTab.style.display = pdfViewerSrc ? '' : 'none';
+  const sStudyTabBtn = document.getElementById('nav-s-study-tab');
+  const sBookTabBtn = document.getElementById('nav-s-book-tab');
+  
+  if (currentUser.role === 'lecturer' && lectBookTab) {
+    // Lecturers always have the tab, but we hide it if there's no PDF AND it's not AI generated
+    lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
+    // Update label to "Study" if AI generated
+    const label = lectBookTab.querySelector('.tab-label');
+    if (label) label.textContent = isAiGenerated ? (t('study') || 'Study') : (t('book') || 'Book');
+  }
+
+  if (currentUser.role === 'student') {
+    if (sStudyTabBtn) sStudyTabBtn.style.display = isAiGenerated ? '' : 'none';
+    if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : '';
   }
 
   if (currentUser.role === 'student') {
