@@ -337,11 +337,12 @@ def format_activity_by_template(data, level, language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
-    request_count = int(count) + 2
+    request_count = max(15, int(count) + 4)
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Generate EXACTLY {request_count} high-quality interactive questions for {level_norm} students learning {language}.
+    TASK: Generate {request_count} high-quality interactive questions for {level_norm} students learning {language}.
+    IMPORTANT: For each MCQ, you MUST provide 'word' (the target language word) and 'translation' (the english meaning).
     
     You MUST provide a mix of these 3 types:
     1. MCQ MODE A (Target word identification): 
@@ -414,23 +415,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 clean_prompt = re.sub(r'\(.*?\)', '', str(assembled["prompt"])).strip()
                 prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in clean_prompt if c.strip())
                 
-                # SCRIPT RULE: If the prompt is SUPPOSED to be target language (Mode B or Fill Blank)
+                # Check for Latin in the target parts
                 if prompt_has_target:
+                    # If prompt is target-language, it MUST NOT have Latin
                     prompt_core = clean_prompt.replace("Complete the sentence", "").replace("Type the full word to complete", "").strip()
-                    if re.search('[a-zA-Z]', prompt_core):
-                        print(f"[QC] Discarded Romaji/Latin in target prompt: {prompt_core}")
-                        continue
-                
-                # Also check the answer script (The answer is ALWAYS target or native)
-                # If prompt is target, answer must be native (Latin)
-                # If prompt is native, answer must be target (Non-Latin)
-                ans_has_latin = bool(re.search('[a-zA-Z]', str(assembled["answer"])))
-                if prompt_has_target and not ans_has_latin:
-                    print(f"[QC] Discarded non-latin answer for Mode B/Fill: {assembled['answer']}")
-                    continue
-                if not prompt_has_target and ans_has_latin:
-                    print(f"[QC] Discarded latin answer for Mode A: {assembled['answer']}")
-                    continue
+                    if re.search('[a-zA-Z]', prompt_core): continue
+                else:
+                    # If prompt is English, the options/answer MUST NOT have Latin
+                    if re.search('[a-zA-Z]', str(assembled["answer"])): continue
+
+            # 4. Uniqueness Filter
 
             # 4. Uniqueness Filter
             prompt_hash = str(assembled.get("prompt", "")).strip().lower()
