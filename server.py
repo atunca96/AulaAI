@@ -1175,15 +1175,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _bg_generate_activities(self, course_id, topic_id, count):
         try:
-            from database import db_connection
-            from services.ai_engine import ai_generate_activity_batch
-            
-            def update_prog(p):
+            def update_prog(p, status='generating'):
                 # Retry loop for DB locks
                 for retry in range(5):
                     try:
                         with db_connection() as db_c:
-                            db_c.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
+                            db_c.execute("""
+                                UPDATE courses 
+                                SET activity_progress=?, activity_status=? 
+                                WHERE id=?
+                            """, (p, status, course_id))
                             db_c.commit()
                         return
                     except Exception:
@@ -1197,7 +1198,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Check for capacity limit
                 if len(existing_questions) >= 30:
                     print(f"[BG] Topic {topic_id} is at max capacity (30). Ready to launch.")
-                    update_prog(100)
+                    update_prog(100, status='done')
                     return
 
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
