@@ -200,7 +200,43 @@ def init_db():
 
         # Run seeding if empty
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+            print("[DB] Seeding initial data...")
             _seed_data(c)
+        
+        conn.commit()
+
+    # ── MIGRATIONS (For existing persistent volumes) ────────
+    _run_migrations()
+
+def _run_migrations():
+    """Manually add missing columns to existing tables if they were created with old schema."""
+    with sqlite3.connect(DB_PATH) as conn:
+        c = conn.cursor()
+        
+        migrations = [
+            ("courses", "progress", "INTEGER DEFAULT 0"),
+            ("courses", "activity_status", "TEXT DEFAULT 'idle'"),
+            ("courses", "activity_progress", "INTEGER DEFAULT 0"),
+            ("courses", "language", "TEXT DEFAULT 'Turkish'"),
+            ("courses", "level", "TEXT DEFAULT 'A1'"),
+            ("quizzes", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("assignments", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("enrollments", "enrolled_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("chapters", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("topics", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("users", "status", "TEXT DEFAULT 'approved'")
+        ]
+        
+        for table, column, definition in migrations:
+            try:
+                # Check if column exists
+                cursor = c.execute(f"PRAGMA table_info({table})")
+                columns = [row[1] for row in cursor.fetchall()]
+                if column not in columns:
+                    print(f"[MIGRATION] Adding column {column} to {table}...")
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            except Exception as e:
+                print(f"[MIGRATION ERROR] Failed to migrate {table}.{column}: {e}")
         
         conn.commit()
 
