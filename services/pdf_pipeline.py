@@ -275,6 +275,10 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                         if t_id:
                             content_json = json.dumps(content, ensure_ascii=False)
                             db.execute("UPDATE topics SET content = ? WHERE id = ?", (content_json, t_id))
+                            
+                            # Clean up old questions first to prevent redundancy
+                            db.execute("DELETE FROM questions WHERE topic_id = ?", (t_id,))
+                            
                             for q in questions:
                                 p_val = q.get("prompt", "")
                                 p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)

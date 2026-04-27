@@ -134,17 +134,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). Topic: {topic_title}.
     
+    CRITICAL POLICY: IMPLEMENT THE 3/2 RULE
+    - For every set of questions, maintain a ratio where 60% are Multiple Choice (type: 'mcq') and 40% are Fill-in-the-blank (type: 'fill_blank').
+    - Example: If generating 5 questions, 3 MUST be mcq and 2 MUST be fill_blank.
+    - VARIETY IS MANDATORY: Do NOT repeat words, themes, or sentence structures. Every question must feel unique.
+    
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
     2. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence.
-    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the prompt.
-       - BAD: "My name is ____" (Guessing a name)
-       - GOOD: "His name is Mario. My name is ____" (Context provided)
-    4. QUESTION FORMATS:
-       - Vocabulary: "What is the {language} word for '[English]'?" (Only for beginners)
-       - Contextual: Create a gap-fill or translation task suitable for {level}.
-    5. CONTENT: All choices (answer + distractors) MUST be in the SAME language/script.
-    6. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
+    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the context.
+    4. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
     JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
