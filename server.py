@@ -1575,6 +1575,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             update_draft_prog(10)
             
+            # EXORCISM: Clear out old unfiltered questions for these topics before starting
+            with db_connection() as db:
+                for tid in topic_ids:
+                    db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
+                db.commit()
+            
             try:
                 questions = generate_quiz(topic_ids, count=count, progress_callback=update_draft_prog)
             finally:

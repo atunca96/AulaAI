@@ -83,9 +83,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 prompt_raw = str(item.get("prompt", "")).strip()
                 prompt_clean = deep_clean(prompt_raw)
                 
-                # SAFE AGNOSTIC STRIP: Only remove common punctuation
+                # SAFE AGNOSTIC STRIP: Remove EVERYTHING except words/characters
                 def agnostic_strip(text):
-                    return re.sub(r'[\'\"\?\!\.\,\:\;\-\_]', '', str(text)).lower().strip()
+                    return re.sub(r'[^\w]', '', str(text)).lower().strip()
     
                 prompt_stripped = agnostic_strip(prompt_clean)
                 ans_stripped = agnostic_strip(ans_clean)
