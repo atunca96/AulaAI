@@ -2339,14 +2339,110 @@ async function launchActivity() {
 
 function renderActivityCard(a, idx, ctx) {
   const p = formatActivityData(a.prompt);
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  const isLecturer = currentUser && currentUser.role === 'lecturer';
+  const editBtns = isLecturer ? `
+    <div style="position:absolute; top:12px; right:12px; display:flex; gap:6px; z-index:10;">
+        <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion('${esc(a.id)}', '${ctx}-${idx}', '${esc(a.type)}')" style="background:rgba(255,255,255,0.1); padding:4px;">✏️</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteActivityQuestion('${esc(a.id)}', '${ctx}-${idx}')" style="background:rgba(255,59,48,0.1); color:var(--danger); padding:4px;">🗑️</button>
+    </div>
+  ` : '';
+
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}"><div class="activity-type-label">🗣️ <span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ <span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label">🗣️ <span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ <span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
+}
+
+async function editActivityQuestion(qid, cardId, type) {
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    
+    // Find the original data from _lastActivityData
+    const qData = (_lastActivityData?.activities || []).find(q => q.id === qid);
+    if (!qData) return;
+
+    // Switch to edit mode by replacing card innerHTML
+    const originalContent = card.innerHTML;
+    card.dataset.original = originalContent;
+
+    card.innerHTML = `
+        <div style="padding:10px;">
+            <label style="display:block; font-size:11px; color:var(--accent); font-weight:700; text-transform:uppercase; margin-bottom:4px;">Edit Question</label>
+            <input type="text" id="edit-prompt-${qid}" class="text-input" value="${esc(qData.prompt)}" style="margin-bottom:12px; background:rgba(0,0,0,0.2);" placeholder="Prompt">
+            <input type="text" id="edit-answer-${qid}" class="text-input" value="${esc(qData.answer)}" style="margin-bottom:12px; background:rgba(0,0,0,0.2);" placeholder="Answer">
+            ${type === 'mcq' ? `<input type="text" id="edit-distractors-${qid}" class="text-input" value="${esc((qData.distractors || []).join(', '))}" style="margin-bottom:12px; background:rgba(0,0,0,0.2);" placeholder="Distractors (comma separated)">` : ''}
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-primary btn-sm" onclick="saveEditedQuestion('${qid}', '${cardId}', '${type}')">Save</button>
+                <button class="btn btn-outline btn-sm" onclick="cancelEditQuestion('${cardId}')">Cancel</button>
+            </div>
+        </div>
+    `;
+}
+
+function cancelEditQuestion(cardId) {
+    const card = document.getElementById(cardId);
+    if (card && card.dataset.original) {
+        card.innerHTML = card.dataset.original;
+        delete card.dataset.original;
+    }
+}
+
+async function saveEditedQuestion(qid, cardId, type) {
+    const prompt = document.getElementById(`edit-prompt-${qid}`).value.trim();
+    const answer = document.getElementById(`edit-answer-${qid}`).value.trim();
+    let distractors = [];
+    if (type === 'mcq') {
+        distractors = document.getElementById(`edit-distractors-${qid}`).value.split(',').map(s => s.trim()).filter(s => s);
+    }
+
+    if (!prompt || !answer) return showAlert('error', 'Prompt and Answer are required', true);
+
+    const res = await api('/question/update', {
+        method: 'POST',
+        body: { id: qid, prompt, answer, distractors }
+    });
+
+    if (res.success) {
+        // Update local data so re-render works
+        const qIdx = _lastActivityData.activities.findIndex(q => q.id === qid);
+        if (qIdx !== -1) {
+            _lastActivityData.activities[qIdx].prompt = prompt;
+            _lastActivityData.activities[qIdx].answer = answer;
+            if (type === 'mcq') {
+                _lastActivityData.activities[qIdx].distractors = distractors;
+                _lastActivityData.activities[qIdx].options = [answer, ...distractors].sort(() => Math.random() - 0.5);
+            }
+            const updatedCardHtml = renderActivityCard(_lastActivityData.activities[qIdx], qIdx, cardId.split('-')[0]);
+            document.getElementById(cardId).outerHTML = updatedCardHtml;
+        }
+    } else {
+        showAlert('error', 'Failed to save question', true);
+    }
+}
+
+async function deleteActivityQuestion(qid, cardId) {
+    if (!confirm('Are you sure you want to delete this question?')) return;
+
+    const res = await api('/question/delete', {
+        method: 'POST',
+        body: { id: qid }
+    });
+
+    if (res.success) {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.9)';
+            card.style.transition = 'all 0.3s ease';
+            setTimeout(() => card.remove(), 300);
+        }
+    } else {
+        showAlert('error', 'Failed to delete question', true);
+    }
 }
 
 function esc(s) { return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }

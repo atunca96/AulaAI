@@ -68,10 +68,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     for item in raw_list:
         try:
-            # 1. Aggressive Universal Cleaning
+            # 1. Aggressive Universal Cleaning (including Unicode brackets)
             def deep_clean(text):
-                # Remove (...) [...] and {...} and strip
-                t = re.sub(r'[\(\[\{].*?[\)\]\}]', '', str(text))
+                # Remove (...), [...], {...}, （...）, 「...」 and strip
+                t = re.sub(r'[\(\[\{（「].*?[\)\]\}）」]', '', str(text))
                 return t.strip()
 
             ans_clean = deep_clean(item.get("answer", ""))

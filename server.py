@@ -447,6 +447,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._message_send()
         elif path == "/api/message/read":
             return self._message_read()
+        elif path == "/api/question/update":
+            return self._question_update()
+        elif path == "/api/question/delete":
+            return self._question_delete()
         elif path == "/api/admin/hard-reset":
             return self._admin_hard_reset()
         else:
@@ -1037,6 +1041,34 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self._send_json(result)
 
+    def _question_update(self):
+        body = self._read_body()
+        qid = body.get("id")
+        prompt = body.get("prompt")
+        answer = body.get("answer")
+        distractors = body.get("distractors", [])
+        
+        with db_connection() as db:
+            db.execute("""
+                UPDATE questions 
+                SET prompt = ?, answer = ?, distractors = ?
+                WHERE id = ?
+            """, (prompt, answer, json.dumps(distractors), qid))
+            db.commit()
+        
+        bump_version()
+        return self._send_json({"success": True})
+
+    def _question_delete(self):
+        body = self._read_body()
+        qid = body.get("id")
+        with db_connection() as db:
+            db.execute("DELETE FROM questions WHERE id = ?", (qid,))
+            db.commit()
+        
+        bump_version()
+        return self._send_json({"success": True})
+
     def _activity_start(self):
         file_log("DEBUG: _activity_start endpoint reached")
         try:
@@ -1083,6 +1115,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             from services.ai_engine import ai_generate_activity_batch
             
             with db_connection() as db:
+                # EXORCISM: Delete all old questions for this topic to ensure we only see the new, filtered ones.
+                db.execute("DELETE FROM questions WHERE topic_id = ?", (topic_id,))
+                db.commit()
+                
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 if not row:
                     print(f"[ERROR] Topic {topic_id} not found in DB")
@@ -1199,6 +1235,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             act["correct_order"] = act.get("scrambled_lines")
                 
                 act["id"] = _uid()
+                # Ensure distractors and answer are clean string types for the DB
+                if 'distractors' in act and isinstance(act['distractors'], list):
+                    act['distractors'] = [str(d) for d in act['distractors']]
+                
                 final_activities.append(act)
             
             # Done!
