@@ -272,7 +272,7 @@ function refreshCurrentView() {
 
 const i18n = {
   en: {
-    langBtn: '🌐 TR',
+    langBtn: 'Language: EN',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     loginTitle: 'Student Login',
@@ -540,7 +540,7 @@ const i18n = {
     'alert.hard_reset_failed': 'Hard reset failed: {error}',
   },
   tr: {
-    langBtn: '🌐 EN',
+    langBtn: 'Dil: TR',
     ok: 'Tamam',
     cancel: 'İptal',
     'confirm.delete_classroom': 'Sınıfı Sil',
@@ -2503,7 +2503,7 @@ function renderQuizList(quizzes) {
               <div style="display:flex;gap:8px;align-items:center">
                 <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${t('viewBtn')}</button>
                 <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${t('view')}</button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${t('close')}</button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${t('confirm.delete_quiz')}</button>
               </div>
             </div>
           </div>`;
@@ -3159,7 +3159,7 @@ function renderAssignmentList(assignments) {
               📊 ${t('view')}
             </button>
             <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">
-              🗑️ ${t('close')}
+              🗑️ ${t('confirm.delete_assignment')}
             </button>
           </div>
         </div>

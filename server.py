@@ -1122,9 +1122,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             def progress_ticker():
                 p = 5
                 while not stop_ticker.is_set() and p < 90:
-                    time.sleep(1.2)
-                    # Slowly increment to simulate activity
-                    p += py_random.randint(3, 7)
+                    time.sleep(0.6) # Faster ticks for better feedback
+                    # Increment more aggressively to reach ~80% in 5-8 seconds
+                    p += py_random.randint(5, 12)
                     if p > 90: p = 90
                     update_prog(p)
             
