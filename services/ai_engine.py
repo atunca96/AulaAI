@@ -257,6 +257,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - NO NEGATIVE QUESTIONS: Avoid questions like "Which of these is NOT...". Always prefer positive identification questions.
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
+    - TARGET LANGUAGE MANDATE: The 'answer' and all 'distractors' MUST be written in {language}. NEVER use English for options.
     - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
     - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect but SEMANTICALLY RELATED.
     - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining: 1. Why the answer is correct. 2. How the distractors are semantically related but contextually/factually wrong.
