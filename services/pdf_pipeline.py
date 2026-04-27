@@ -296,7 +296,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                                 d_list = q.get("distractors", [])
                                 if not isinstance(d_list, list): d_list = [d_list] if d_list else []
                                 
-                                db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, is_active) VALUES (?,?,?,?,?,?,?,1)",
                                            (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
                         db.commit()
                     completed += 1
