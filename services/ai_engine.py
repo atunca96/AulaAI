@@ -157,8 +157,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     # DNA-Aware Pedagogical Instructions
     dna_instructions = ""
     diversity_quota = "Vary the question profile."
+    
+    # Contextual Quota Relaxation (Alphabet/Phonetics usually can't do sentence fills)
+    is_phonetic_topic = any(x in topic_title.lower() for x in ["alphabet", "pinyin", "phonetic", "initial", "final", "script"])
+    
     if dna == "logographic":
-        diversity_quota = "MIX: 2x 'Character to Sound', 2x 'Sound to Character', 2x 'Contextual Sentence Fill'."
+        if is_phonetic_topic:
+            diversity_quota = "MIX: 3x 'Character to Sound', 3x 'Sound to Character'."
+        else:
+            diversity_quota = "MIX: 2x 'Character to Sound', 2x 'Sound to Character', 2x 'Contextual Sentence Fill'."
+        
         dna_instructions = f"""
     PEDAGOGICAL DNA: LOGOGRAPHIC (Chinese Focus)
     1. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
@@ -167,7 +175,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     4. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
     """
     elif dna == "syllabic":
-        diversity_quota = "MIX: 2x 'Sound to Script', 2x 'Script to Sound', 2x 'Vocabulary Meaning'."
+        if is_phonetic_topic:
+            diversity_quota = "MIX: 3x 'Sound to Script', 3x 'Script to Sound'."
+        else:
+            diversity_quota = "MIX: 2x 'Sound to Script', 2x 'Script to Sound', 2x 'Vocabulary Meaning'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: SYLLABIC/SCRIPT (Russian, Japanese, etc.)
     1. DECODING FOCUS: Focus on mapping the unique script (Cyrillic, Kana) to its sound.
@@ -228,15 +239,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 prompt_raw = str(item.get("prompt", "")).strip()
                 prompt_clean = deep_clean(prompt_raw)
                 
-                # SAFE AGNOSTIC STRIP: Remove EVERYTHING except words/characters
-                def agnostic_strip(text):
-                    return re.sub(r'[^\w]', '', str(text)).lower().strip()
-    
-                prompt_stripped = agnostic_strip(prompt_clean)
-                ans_stripped = agnostic_strip(ans_clean)
-                
                 # 2. Logic Check: Empty or Inside Prompt
-                if not ans_clean or not ans_stripped or len(prompt_raw) < 5:
+                if not ans_clean or len(prompt_raw) < 5:
                     continue
     
                 # 3. Script Consistency Rule (Agnostic)
@@ -252,7 +256,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 
                 for d in distractors:
                     d_clean = deep_clean(d)
-                    # Rule: Choice must exist, share the vibe, and NOT be in the prompt
                     if d_clean and d_clean.lower() not in all_choices:
                         if get_vibe(d_clean) == ans_vibe:
                             valid_distractors.append(d_clean)
@@ -261,18 +264,13 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
                     # GHOST CHECK: Reject if answer is inside the prompt
-                    # Native Script (Hanzi/Kana): Any overlapping character is a leak
                     if ans_vibe == 'native':
                         if any(char in prompt_clean for char in ans_clean if char.strip()):
                             continue
-                    # Latin Script (Pinyin/English): Only reject if it's a WHOLE WORD leak
                     else:
-                        # Use word boundaries to avoid 'ma' matching 'mother'
-                        pattern = r'\b' + re.escape(ans_stripped) + r'\b'
-                        if re.search(pattern, prompt_stripped):
-                            continue
-                        # Also check the raw clean prompt for the exact sound
-                        if re.search(r'\b' + re.escape(ans_clean.lower()) + r'\b', prompt_clean.lower()):
+                        # Use word boundaries on the CLEAN prompt
+                        pattern = r'\b' + re.escape(ans_clean.lower()) + r'\b'
+                        if re.search(pattern, prompt_clean.lower()):
                             continue
                     
                     # MCQs need at least 2 valid distractors
