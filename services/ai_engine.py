@@ -65,24 +65,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""
     prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
     
-    You must return ONLY a JSON object with this exact structure:
+    CRITICAL REQUIREMENT for Alphabets/Syllabaries:
+    If this topic covers an alphabet (e.g. Latin A-Z, Cyrillic) or a syllabary (e.g. Hiragana/Katakana), you MUST include EVERY SINGLE CHARACTER. 
+    Skipping even one character is a pedagogical failure. Use as many 'vocabulary' type pages as necessary (e.g. 3-4 pages) to list the ENTIRE set with translations/pronunciation.
+    
+    Return ONLY a JSON object:
     {{
       "pages": [
-        {{ 
-          "type": "vocabulary", 
-          "title": "...", 
-          "items": [ {{ "term": "...", "translation": "..." }} ] 
-        }},
-        {{ 
-          "type": "grammar", 
-          "title": "...", 
-          "text": "..." 
-        }},
-        {{ 
-          "type": "examples", 
-          "title": "...", 
-          "list": [ {{ "speaker": "A", "text": "..." }} ] 
-        }}
+        {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
+        {{ "type": "grammar", "title": "...", "text": "..." }},
+        {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
       ],
       "questions": [
         {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
@@ -92,11 +84,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     Rules:
     1. Instructions must be in English.
     2. Content must be level-appropriate ({level}).
-    3. FLEXIBLE PAGE COUNT: You are allowed to generate between 3 to 6 pages depending on the complexity of the topic.
-    4. COMPLETE FOUNDATIONS: If the topic covers an alphabet or syllabary, you MUST provide the FULL set of characters (e.g., A-Z for Latin, 46 for Hiragana). Skipping even a single letter makes it impossible for students to learn correctly. If the set is large, split it logically across 2 or 3 'vocabulary' type pages.
-    5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
-    6. Ensure the tone is professional yet engaging for a student.
-    7. Generate at least 6 high-quality questions for the topic.
+    3. You can generate between 3 to 6 pages. For alphabets, prioritize completeness over page count.
+    4. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
+    5. Generate at least 6 high-quality questions.
     """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
     return result if result else {}
