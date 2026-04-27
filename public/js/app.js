@@ -2276,9 +2276,10 @@ function renderCurriculum() {
 
 async function rebuildClassroom() {
   if (!currentCourse) return;
-  const ok = await showConfirm(
-    t('alert.rebuild_title') || "Build Lessons?", 
-    t('alert.rebuild_msg') || "This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?"
+  const ok = await showConfirmModal(
+    'Build Lessons?', 
+    "This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?",
+    false, null, false, "Yes, Build Everything", "Cancel"
   );
   if (!ok) return;
 
