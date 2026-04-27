@@ -286,63 +286,50 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
     """
     from database import db_connection, get_db
     import uuid
-    questions = []
-
-    if not topic_ids:
-        return []
-
-    # 1. Initial Pull from DB (STRICTLY MCQ)
-    chapter_groups = {} # chapter_id -> [questions]
+    
+    # 1. Discovery & Initial Pull
+    topic_to_chapter = {}
+    chapter_groups = {} # chapter_id -> [questions from DB]
+    all_chapter_ids = set()
+    
     with db_connection() as db_conn:
         c = db_conn.cursor()
-        for topic_id in topic_ids:
-            # Discover chapter for this topic
-            row_ch = c.execute("SELECT chapter_id FROM topics WHERE id = ?", (topic_id,)).fetchone()
-            ch_id = row_ch["chapter_id"] if row_ch else "unknown"
-            if ch_id not in chapter_groups: chapter_groups[ch_id] = []
+        for tid in topic_ids:
+            row_ch = c.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
+            cid = row_ch["chapter_id"] if row_ch else "unknown"
+            topic_to_chapter[tid] = cid
+            all_chapter_ids.add(cid)
+            if cid not in chapter_groups: chapter_groups[cid] = []
             
             rows = c.execute(
                 "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
-                (topic_id,)
+                (tid,)
             ).fetchall()
             
             for row in rows:
                 q = dict(row)
-                # Verify distractors
                 try:
                     raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
                     q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                except:
-                    q["distractors"] = []
-                
+                except: q["distractors"] = []
                 if not q["distractors"]: continue
-                q["chapter_id"] = ch_id # Tag for balanced selection
-                chapter_groups[ch_id].append(q)
+                q["chapter_id"] = cid
+                chapter_groups[cid].append(q)
 
     # 2. Balanced Assembly
     questions = []
-    # A. Guaranteed Seed: Take 1 from each chapter group first
-    chapter_ids_list = list(chapter_groups.keys())
-    random.shuffle(chapter_ids_list)
+    # Phase A: Seed one from every chapter that has questions in DB
+    shuffled_chapters = list(all_chapter_ids)
+    random.shuffle(shuffled_chapters)
     
-    for ch_id in chapter_ids_list:
-        group = chapter_groups[ch_id]
+    for cid in shuffled_chapters:
+        group = chapter_groups.get(cid, [])
         if group:
             random.shuffle(group)
-            questions.append(group.pop()) # Seed one from this chapter
+            questions.append(group.pop())
             if len(questions) >= count: break
-            
-    # B. Fill Rest: Flatten remaining and shuffle
-    if len(questions) < count:
-        remaining_pool = []
-        for group in chapter_groups.values():
-            remaining_pool.extend(group)
-        random.shuffle(remaining_pool)
-        questions.extend(remaining_pool)
 
-    if progress_callback: progress_callback(20)
-    
-    # 2. AI Generation if needed
+    # 3. AI Generation for missing chapters or filling gaps
     max_retries = 3
     retry_count = 0
     
@@ -354,25 +341,22 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         retry_count += 1
         needed = count - len(questions)
         
-        # Prioritize topics from chapters NOT yet represented in 'questions'
+        # Identify chapters STILL missing representation
         present_chapters = set(q.get("chapter_id") for q in questions)
-        missing_topic_ids = []
-        with db_connection() as db_conn:
-            # We need to know which topic_id belongs to which chapter_id
-            for tid in topic_ids:
-                row_ch = db_conn.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
-                if row_ch and row_ch["chapter_id"] not in present_chapters:
-                    missing_topic_ids.append(tid)
+        missing_chapters = all_chapter_ids - present_chapters
         
-        if missing_topic_ids:
-            targets = random.sample(missing_topic_ids, min(len(missing_topic_ids), 3))
+        targets = []
+        if missing_chapters:
+            # Pick 1 topic from each missing chapter up to 5 parallel targets
+            for mcid in list(missing_chapters)[:5]:
+                t_in_c = [tid for tid, cid in topic_to_chapter.items() if cid == mcid]
+                if t_in_c: targets.append(random.choice(t_in_c))
         else:
-            targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
+            # Just fill the gap
+            targets = random.sample(topic_ids, min(len(topic_ids), 3))
             
-        if not targets:
-            if topic_ids: targets = [random.choice(topic_ids)]
-            else: break
-            
+        if not targets: break
+
         def _gen_for_topic(tid, batch):
             from database import db_connection
             try:
@@ -388,28 +372,27 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                         WHERE t.id = ?
                     """, (tid,)).fetchone()
                     language = l_row["language"] if l_row else "Unknown" 
-                    
-                    raw_content = t_data["content"]
-                    parsed_content = json.loads(raw_content) if raw_content else {}
+                    parsed_content = json.loads(t_data["content"]) if t_data["content"] else {}
                     
                     return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch, level=t_data["difficulty"]), tid, t_data["title"]
             except Exception as e:
                 print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
                 return [], tid, ""
 
-        # Call AI OUTSIDE any main thread DB connection
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(targets), 4)) as executor:
-            batch_per_target = max(needed // len(targets) + 1, 5)
-            futures = [executor.submit(_gen_for_topic, tid, batch_per_target) for tid in targets]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as executor:
+            batch_size = max(needed // len(targets) + 1, 5)
+            futures = [executor.submit(_gen_for_topic, tid, batch_size) for tid in targets]
             
             for f in concurrent.futures.as_completed(futures):
                 new_qs, tid, t_title = f.result()
                 if new_qs:
-                    added_this_retry = 0
-                    # Re-open connection for SAVING results
+                    cid = topic_to_chapter.get(tid, "unknown")
+                    added_this_batch = 0
                     with db_connection() as db_conn:
                         for q in new_qs:
                             if not q.get("prompt") or not q.get("answer"): continue
+                            # If we are filling missing chapters, we might take only 1-2 per topic to keep balance
+                            if added_this_batch >= 5: break
                             if len(questions) >= count + 5: break 
                             
                             q_id = str(uuid.uuid4())
@@ -420,27 +403,16 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
                                         json.dumps(distractors), "A1.1"))
                             
-                            q_to_add = {
-                                "id": q_id,
-                                "topic_id": tid,
-                                "type": q.get("type", "mcq"),
-                                "prompt": q.get("prompt", ""),
-                                "answer": q.get("answer", ""),
-                                "distractors": distractors,
-                                "difficulty": "A1.1"
-                            }
-                            # Tag with chapter_id for subsequent loops
-                            with db_connection() as db_ch:
-                                row_ch = db_ch.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
-                                if row_ch: q_to_add["chapter_id"] = row_ch["chapter_id"]
-
-                            questions.append(q_to_add)
-                            added_this_retry += 1
+                            questions.append({
+                                "id": q_id, "topic_id": tid, "chapter_id": cid,
+                                "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
+                                "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
+                            })
+                            added_this_batch += 1
                         db_conn.commit()
-                    
-                    if added_this_retry > 0:
+                    if added_this_batch > 0:
                         bump_version()
-                        print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_title}'")
+                        print(f"[AI] Forced balance gen: {added_this_batch} questions for chapter {cid} (topic {t_title})")
                 
                 if progress_callback:
                     current_prog = 20 + int((len(questions) / count) * 80)
