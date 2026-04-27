@@ -338,9 +338,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     py_random.shuffle(final_questions)
     return final_questions[:count]
 
-def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Definitive Unified Generator: Always use the batch Quiz engine for Activities."""
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count)
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
 
 def ai_generate_report_insights(cohort_data):
     """Generate detailed AI insights for reports."""
@@ -355,6 +355,6 @@ def ai_grade_open_response(question, student_answer, correct_answer):
         return (result["score"], result.get("feedback", ""))
     return (0.0, "Could not grade automatically.")
 
-def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6):
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Batch generator (legacy, refactored to use single gen for live bars)."""
-    return ai_generate_activity(topic_title, topic_type, topic_content, language, count)
+    return ai_generate_activity(topic_title, topic_type, topic_content, language, count, level)

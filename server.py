@@ -1116,22 +1116,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            from services.ai_engine import ai_generate_single_activity
-            
-            raw_activities = []
-            history = []
-            
-            for i in range(count):
-                # Generate one by one for TRUE real-time progress
-                act = ai_generate_single_activity(topic["title"], topic_type, content, language, index=i+1, history=history, level=topic.get("difficulty", "A1"))
-                if act:
-                    raw_activities.append(act)
-                    history.append(act.get("prompt"))
-                
-                # Update progress: (i+1) / count * 100
-                # We scale it so it goes from 5 to 95
-                prog = 5 + int(((i + 1) / count) * 90)
-                update_prog(prog)
+            # Call the unified batch engine
+            raw_activities = ai_generate_activity_batch(
+                topic["title"], 
+                topic_type, 
+                content, 
+                language, 
+                count=count, 
+                level=topic.get("difficulty", "A1")
+            ) or []
+            update_prog(90)
 
             update_prog(100) # Finished AI work
             
