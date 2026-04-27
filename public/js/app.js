@@ -3929,7 +3929,8 @@ function renderStudyBook() {
 }
 
 function showStudyTopic(topicId, pageIdx = 0) {
-  const contentId = currentUser.role === 'lecturer' ? 'ai-book-content' : 's-ai-book-content';
+  const isStudent = currentUser.role === 'student';
+  const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
   const container = document.getElementById(contentId);
   if (!container) return;
 

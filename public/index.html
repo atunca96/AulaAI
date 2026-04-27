@@ -827,20 +827,30 @@
             </section>
 
             <!-- Digital Study Tab (Student AI Lessons) -->
-            <section id="tab-s-study-tab" class="tab-panel hidden">
-                <div class="page-header">
-                    <h1>📝 <span data-i18n="study">Study Lessons</span></h1>
-                    <p class="subtitle" data-i18n="select_study_topic">Select a topic to start studying</p>
+            <section id="tab-s-study-tab" class="tab-panel" style="min-height: 500px; background: var(--bg-secondary);">
+                <div class="page-header" style="margin-bottom: 24px;">
+                    <h1 style="color: var(--text-primary);">📝 <span data-i18n="study">Study Lessons</span></h1>
+                    <p class="subtitle" style="color: var(--text-secondary);" data-i18n="select_study_topic">Select a topic to start studying</p>
                 </div>
-                <div class="study-container" id="s-ai-book-container" style="height:calc(100vh - 200px); display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">
-                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
+                
+                <div class="study-container" id="s-ai-book-container" style="display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border); min-height: 600px;">
+                    <!-- Sidebar -->
+                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.2);">
+                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--accent-light);" data-i18n="Units">Units</h3>
                         <div id="s-ai-book-toc"></div>
                     </div>
-                    <div id="s-ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
-                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
-                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
-                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                    
+                    <!-- Content -->
+                    <div id="s-ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary); position:relative;">
+                        <div id="study-topic-loading" class="hidden" style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:10; display:flex; align-items:center; justify-content:center;">
+                            <div class="spinner"></div>
+                        </div>
+                        <div id="s-ai-book-content-area">
+                            <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
+                                <div style="font-size:48px; margin-bottom:20px;">📖</div>
+                                <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                                <p style="margin-top:10px;">Use the sidebar on the left to navigate through units.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
