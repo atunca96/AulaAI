@@ -35,24 +35,19 @@ def get_task_lock(course_id):
             _task_locks[course_id] = threading.Lock()
         return _task_locks[course_id]
 
+@contextlib.contextmanager
 def db_connection():
-    """Get a raw connection with a long timeout for concurrent AI tasks."""
+    """Context manager that automatically closes the connection."""
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
-    return conn
-
-@contextlib.contextmanager
-def db_session():
-    """Proper context manager that ensures connections are closed."""
-    conn = db_connection()
     try:
         yield conn
     finally:
         conn.close()
 
 def get_db():
-    """Backward compatibility alias for db_session."""
-    return db_session()
+    """Backward compatibility alias."""
+    return db_connection()
 
 def init_db():
     """Initialize the universal AulaAI database schema."""
