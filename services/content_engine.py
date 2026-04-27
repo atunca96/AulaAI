@@ -303,20 +303,20 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         
         print(f"[DEBUG] generate_quiz: topic_ids count={len(topic_ids)}, unique chapters identified={len(all_chapter_ids)}: {all_chapter_ids}")
             
-            rows = c.execute(
-                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
-                (tid,)
-            ).fetchall()
-            
-            for row in rows:
-                q = dict(row)
-                try:
-                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                except: q["distractors"] = []
-                if not q["distractors"]: continue
-                q["chapter_id"] = cid
-                chapter_groups[cid].append(q)
+        rows = c.execute(
+            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
+            (tid,)
+        ).fetchall()
+        
+        for row in rows:
+            q = dict(row)
+            try:
+                raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
+            except: q["distractors"] = []
+            if not q["distractors"]: continue
+            q["chapter_id"] = cid
+            chapter_groups[cid].append(q)
 
     # 2. Balanced Assembly
     questions = []
