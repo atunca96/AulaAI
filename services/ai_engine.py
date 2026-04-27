@@ -338,51 +338,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     py_random.shuffle(final_questions)
     return final_questions[:count]
 
-def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None, level='A1'):
-    """Generate one interactive activity using the Template Factory."""
-    level_norm = (level or 'A1').upper()
-    prompt = f"""{PEDAGOGY_INSTRUCTION}
-    
-    Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
-    
-    Use one of these schemas:
-    - {{"type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "..."]}}
-    - {{"type": "fill_blank", "sentence": "...", "word": "...", "translation": "..."}}
-    - {{"type": "mcq", "scenario": "...", "answer": "...", "distractors": ["...", "..."]}}
-    
-    Return JSON ONLY."""
-    
-    data = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
-    if not data: return None
-    print(f"[AI] Raw Single Activity for {topic_title}: {json.dumps(data)}")
-    
-    # Handle various wrapping formats (data, activities, questions)
-    if isinstance(data, dict):
-        for key in ["activities", "questions", "data"]:
-            if key in data:
-                val = data[key]
-                if isinstance(val, list) and len(val) > 0:
-                    data = val[0]
-                    break
-                elif isinstance(val, dict):
-                    data = val
-                    break
-    
-    assembled = format_activity_by_template(data, level, language)
-    if assembled and assembled.get("type") == "mcq":
-        ans = str(assembled["answer"]).strip()
-        dist = assembled.get("distractors", [])
-        if not isinstance(dist, list): dist = [str(dist)]
-        dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
-        import random
-        opts = [ans] + dist[:3]
-        random.shuffle(opts)
-        assembled["options"] = opts
-        
-    return assembled
-
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
-    """Unified: Uses the same robust logic as Quiz generation for In-Class Activities."""
+    """Definitive Unified Generator: Always use the batch Quiz engine for Activities."""
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count)
 
 def ai_generate_report_insights(cohort_data):
