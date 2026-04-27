@@ -105,6 +105,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         """Custom log format."""
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
+    def _get_user_id(self):
+        """Extract user_id from query parameters."""
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        return params.get("user_id", [None])[0]
+
+    def _get_user_role(self):
+        """Extract role from query parameters."""
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        return params.get("role", [None])[0]
+
     def _send_json(self, data, status=200):
         # Auto-cache eligible GET requests
         if status == 200 and self.command == 'GET' and '/api/' in self.path:
