@@ -214,8 +214,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
     """
 
-    # Request 15 to ensure survival of at least request_count after strict filtering
-    prompt = f"""You are a master {language} architect. Generate 15 high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
+    # Request 25 to ensure survival after strict filtering
+    prompt = f"""You are a master {language} architect. Generate 25 high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
+    
+    CRITICAL QUALITY RULE: Never, ever include the 'answer' word or phrase inside the 'prompt' text. This is a pedagogical failure.
     
     SOURCE MATERIAL:
     {content_str}
@@ -245,7 +247,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     for attempt in range(2):
         # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3500, temperature=0.7)
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000, temperature=0.7)
         print(f"[AI] Response received. Success: {result is not None}")
         raw_list = result.get("data") if result else []
         
