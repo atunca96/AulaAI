@@ -31,8 +31,8 @@ except ImportError:
     client = None
 
 # MODEL CONSTANTS
-MODEL_SPEED = "meta-llama/llama-3.1-8b-instruct" 
-MODEL_QUALITY = "meta-llama/llama-3.1-8b-instruct"
+MODEL_SPEED = "mistralai/mistral-large" 
+MODEL_QUALITY = "mistralai/mistral-large"
 
 # Direct Anthropic mapping
 ANT_MODEL_MAP = {
