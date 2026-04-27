@@ -81,9 +81,10 @@ def generate_full_lesson(topic, topic_type, language, count=6):
     1. Instructions must be in English.
     2. Content must be level-appropriate (A1/A2).
     3. BE RICH AND DETAILED: Generate 12-18 vocabulary words/phrases. 
-    4. Provide clear, pedagogical grammar rules.
-    5. Provide at least 2 distinct example dialogues with 3-4 lines each.
-    6. Ensure the tone is professional yet engaging for a student.
+    4. EXCEPTION: If the topic covers an alphabet, syllabary (e.g., Hiragana), or a fundamental set, you MUST provide the COMPLETE set (e.g., all 46 basic Hiragana), regardless of the 18-item limit.
+    5. Provide clear, pedagogical grammar rules.
+    6. Provide at least 2 distinct example dialogues with 3-4 lines each.
+    7. Ensure the tone is professional yet engaging for a student.
     """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
     return result if result else {}
