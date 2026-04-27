@@ -157,6 +157,7 @@ PEDAGOGY_INSTRUCTION = """
    - MODE B (Meaning Identification): Target prompt -> Native options. (All 4 options MUST be in English or Turkish).
    - NEVER MIX Target and Native languages in the same option list.
    - OPTIONS MUST BE CLEAN: Do not add translations, Romaji, or English explanations in the option list. Just the word itself.
+   - SCRIPT RULE: NEVER USE ROMAJI for Japanese/Chinese/Arabic. Use only their native scripts (Hiragana/Kanji/etc).
    - For beginners (A1-A2), keep instructions in ENGLISH.
 
 2. AVOID SELF-REFERENCE:
@@ -336,8 +337,8 @@ def format_activity_by_template(data, level, language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
-    request_count = max(20, int(count) * 2)
-    if request_count > 30: request_count = 30 # Instant speed for 8B
+    request_count = max(12, int(count) + 4)
+    if request_count > 15: request_count = 15 # Ultra-speed for 8B
     
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
@@ -398,8 +399,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 if len(opts) < 4: continue
                 if any(o == "" or o == "???" for o in opts): continue
 
-                # 3. Language Script Guard (For Non-Latin Languages)
-                is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
                 if not is_target_latin:
                     has_latin = any(re.search('[a-zA-Z]', str(o)) for o in opts)
                     
@@ -407,19 +406,31 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in clean_prompt if c.strip())
                     
                     if prompt_has_target and not has_latin: 
-                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options: {opts}")
                         continue 
                     if not prompt_has_target and has_latin: 
-                        print(f"[QC] Discarded Mode A (Target) with latin options: {opts}")
                         continue
 
-            # 3. Uniqueness Filter
+            # 3. Global Script Guard (For Japanese/Chinese/Arabic)
+            is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
+            if not is_target_latin:
+                clean_prompt = re.sub(r'\(.*?\)', '', str(assembled["prompt"])).strip()
+                # Remove fixed instruction strings before checking for Romaji
+                prompt_core = clean_prompt.replace("Complete the sentence", "").replace("Type the full word to complete", "").strip()
+                if re.search('[a-zA-Z]', prompt_core):
+                    print(f"[QC] Discarded Romaji/Latin in prompt core: {prompt_core}")
+                    continue
+                # Also check the answer for Romaji
+                if re.search('[a-zA-Z]', str(assembled["answer"])):
+                    print(f"[QC] Discarded Romaji/Latin in answer: {assembled['answer']}")
+                    continue
+
+            # 4. Uniqueness Filter
             prompt_hash = str(assembled.get("prompt", "")).strip().lower()
             if prompt_hash in seen_prompts:
                 continue
             seen_prompts.add(prompt_hash)
 
-            # 4. Answer Uniqueness Filter (Concept De-duplication)
+            # 5. Answer Uniqueness Filter (Concept De-duplication)
             ans_hash = str(assembled.get("answer", "")).strip().lower()
             if ans_hash in seen_answers:
                 print(f"[QC] Discarded duplicate answer: {ans_hash}")
