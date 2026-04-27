@@ -316,7 +316,7 @@ def _run_migrations():
 def _seed_data(c):
     """Seed the database with a clean, universal demo lecturer and course."""
     lecturer_id = "lecturer-demo-id"
-    c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
+    c.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
               (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
     
     course_id = "11111"
