@@ -341,26 +341,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Generate {request_count} high-quality interactive questions for {level_norm} students learning {language}.
-    IMPORTANT: For each MCQ, you MUST provide 'word' (the target language word) and 'translation' (the english meaning).
+    TASK: Generate exactly {request_count} high-quality interactive questions for {level_norm} students learning {language}.
+    You MUST provide a balanced mix: exactly 2 of Type 1, exactly 2 of Type 2, and the rest as Type 3.
     
-    You MUST provide a mix of these 3 types:
-    1. MCQ MODE A (Target word identification): 
-       - Prompt: "Which {language} word means 'Apple'?"
-       - Answer: "{language} word for Apple"
-       - Distractors: [3 other {language} words]
-    2. MCQ MODE B (Meaning identification):
-       - Prompt: "What does the {language} word '{language}Word' mean?"
-       - Answer: "Native (English/Turkish) meaning"
-       - Distractors: [3 other Native meanings]
-    3. FILL BLANK:
-       - Sentence: "{language} sentence with ____"
-       - Answer: "Correct {language} word"
-       - Translation: "English/Turkish hint"
-
-    IMPORTANT: ALL 4 options in an MCQ must be in the SAME language. Never mix {language} and English/Turkish in the options.
+    TYPES:
+    1. MCQ MODE A: Native prompt ("Which {language} word means X?") -> Target options.
+    2. MCQ MODE B: Target prompt ("What does the {language} word Y mean?") -> Native options.
+    3. FILL BLANK: {language} sentence with ____.
+    
     Return a JSON object with a "data" key containing an array of objects.
-    Each object must have "type" ('mcq' or 'fill_blank') and the appropriate keys from the logic above.
+    Each object must have "type" ('mcq' or 'fill_blank') and the appropriate keys.
     
     Return JSON ONLY.
 """
