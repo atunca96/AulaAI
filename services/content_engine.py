@@ -96,7 +96,7 @@ DIALOGUE_TEMPLATES = [
 ]
 
 
-def generate_activity(topic_data, difficulty="standard", count=5, language="Unknown"):
+def generate_activity(topic_data, difficulty="standard", count=5, language="English"):
     """
     Generate an activity set for a given topic.
     Uses AI when available, falls back to mock templates.
@@ -137,7 +137,8 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Unkn
     return []
 
 
-def _generate_vocab_activity(content, difficulty, count, language="Spanish"):
+def _generate_vocab_activity(content, difficulty, count, language):
+    """Generate vocabulary MCQ activities with smart distractors."""
     """Generate vocabulary MCQ activities with smart distractors."""
     words = content.get("words", {})
     items = list(words.items())
@@ -177,7 +178,7 @@ def _generate_vocab_activity(content, difficulty, count, language="Spanish"):
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"What does '{spanish}' mean?" if language == "Unknown" else f"What does the {language} word '{spanish}' mean?",
+                "prompt": f"What does '{spanish}' mean?" if language == "English" else f"What does the {language} word '{spanish}' mean?",
                 "options": options,
                 "answer": english,
                 "difficulty": difficulty,
@@ -201,7 +202,7 @@ def _generate_vocab_activity(content, difficulty, count, language="Spanish"):
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"How do you say '{english}' in {language if language != 'Unknown' else 'Spanish'}?",
+                "prompt": f"How do you say '{english}' in {language}?",
                 "options": options_es,
                 "answer": spanish,
                 "difficulty": difficulty,
@@ -210,7 +211,8 @@ def _generate_vocab_activity(content, difficulty, count, language="Spanish"):
     return activities[:count]
 
 
-def _generate_grammar_activity(title, content, difficulty, count, language="Spanish"):
+def _generate_grammar_activity(title, content, difficulty, count, language):
+    """Generate grammar fill-in-the-blank activities."""
     """Generate grammar fill-in-the-blank activities."""
     title_lower = title.lower()
 
@@ -229,7 +231,8 @@ def _generate_grammar_activity(title, content, difficulty, count, language="Span
     elif "comparativ" in title_lower or "demostrativ" in title_lower:
         template_key = "comparatives"
 
-    if template_key and template_key in FILL_BLANK_TEMPLATES:
+    # Only use Spanish templates if the language is Spanish
+    if language == "Spanish" and template_key and template_key in FILL_BLANK_TEMPLATES:
         templates = FILL_BLANK_TEMPLATES[template_key]
         random.shuffle(templates)
         activities = []
