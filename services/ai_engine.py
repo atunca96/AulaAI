@@ -334,7 +334,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Generate 12 interactive questions for {level_norm} students learning {language}.
+    TASK: Generate TWENTY (20) high-quality interactive questions for {level_norm} students learning {language}.
     
     You MUST provide a mix of these 3 types:
     1. MCQ MODE A (Target word identification): 
@@ -367,18 +367,36 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     for item in raw_list:
         assembled = format_activity_by_template(item, level, language)
         if assembled:
+            # 1. Basic Structure
             if assembled["type"] == "mcq":
                 ans = str(assembled["answer"]).strip()
                 dist = assembled.get("distractors", [])
                 if not isinstance(dist, list): dist = [str(dist)]
                 dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
+                
                 import random
                 opts = [ans] + dist[:3]
                 random.shuffle(opts)
                 assembled["options"] = opts
+                
+                # 2. Strict Quality Filters
                 if len(opts) < 4: continue
+                
+                # Language Consistency Check
+                is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
+                if not is_target_latin:
+                    # If target is non-latin (Japanese, Arabic, etc), check for mixed scripts
+                    has_latin = any(re.search('[a-zA-Z]', str(o)) for o in opts)
+                    prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in assembled["prompt"] if c.strip())
+                    
+                    # If prompt is target-language, options MUST be native (English/Turkish) -> Latin
+                    if prompt_has_target and not has_latin: continue 
+                    # If prompt is native (English), options MUST be target-language -> No Latin
+                    if not prompt_has_target and has_latin: continue
+
             final_questions.append(assembled)
             
+    print(f"[AI Filter] Reduced {len(raw_list)} raw items to {len(final_questions)} valid ones.")
     py_random.shuffle(final_questions)
     return final_questions[:count]
 
