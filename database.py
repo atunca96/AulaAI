@@ -178,6 +178,7 @@ def init_db():
         )''')
 
         c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
+            id TEXT PRIMARY KEY,
             student_id TEXT,
             course_id TEXT,
             status TEXT DEFAULT 'pending',
@@ -228,6 +229,7 @@ def _run_migrations():
             ("courses", "level", "TEXT DEFAULT 'A1'"),
             ("quizzes", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("assignments", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("enrollments", "id", "TEXT"),
             ("enrollments", "enrolled_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("chapters", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("topics", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
