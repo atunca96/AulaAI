@@ -129,6 +129,14 @@ def detect_language(text):
     except:
         return "Spanish"
 
+PEDAGOGY_INSTRUCTION = """
+for a1-a2, generate english questions to help the students geet a grasp of the fundamentals. generate questions related to the topic of choice.
+after a2, with b1 and further, you can slowly start creating questions with the language of the classroom. increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.
+always build constructive questions in order to help the student understand the topic further.
+do not overthink while building the distractions for the multichoice questions; just think of similar options with the right answer, and make them the same language.
+some fill in the blank questions are too hard for a1-a2. just build missing letter fill-in-the-blank questions for a1-a2, and after, you can start with the harder ones.
+"""
+
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     """Generate both content and questions in a single LLM call for maximum speed."""
     lang_instruction = f"in {language}" if language and language != "Unknown" else "in the native language of the topic title"
@@ -146,7 +154,9 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
         """
         detail = "Include 3-5 clear rules and 4 illustrative examples."
 
-    prompt = f"""Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
+    prompt = f"""{PEDAGOGY_INSTRUCTION}
+    
+    Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
     
     1. CONTENT: {detail}
     2. QUESTIONS: Generate exactly {question_count} interactive questions.
@@ -161,6 +171,7 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     }}"""
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    # ... (rest of logic) ...
     if not result: return None
     
     # Process the questions through the template factory
@@ -286,7 +297,9 @@ def format_activity_by_template(data, level, language):
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     """Generate quiz/practice questions using the Template Factory approach."""
     level_norm = (level or 'A1').upper()
-    prompt = f"""Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    prompt = f"""{PEDAGOGY_INSTRUCTION}
+    
+    Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
     
     Return a JSON object with a "data" key containing an array of objects.
     Each object MUST follow one of these logic schemas:
@@ -323,7 +336,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 def ai_generate_single_activity(topic_title, topic_type, topic_content, language, index=1, history=None, level='A1'):
     """Generate one interactive activity using the Template Factory."""
     level_norm = (level or 'A1').upper()
-    prompt = f"""Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    prompt = f"""{PEDAGOGY_INSTRUCTION}
+    
+    Create one raw data object for a {level_norm} activity. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
     
     Use one of these schemas:
     - {{"type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "..."]}}
