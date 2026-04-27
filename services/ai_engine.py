@@ -113,9 +113,10 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     Rules:
     {explanation_rule}
     2. Content must be level-appropriate ({level}).
-    3. You can generate between 3 to 6 pages. 
-    4. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
-    5. Generate at least 6 high-quality questions.
+    3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar. For example, in Chinese, do NOT use '我是...' for age; use the appropriate native structure.
+    4. You can generate between 3 to 6 pages. 
+    5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
+    6. Generate at least 6 high-quality questions.
     """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
     return result if result else {}
