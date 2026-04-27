@@ -1034,7 +1034,15 @@ function translateOption(text) {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch('/api' + path, {
+  let url = '/api' + path;
+  
+  // Auto-append user identity for role-aware endpoints (e.g., getting enrollment status)
+  if (window.currentUser && window.currentUser.id) {
+    const separator = url.includes('?') ? '&' : '?';
+    url += `${separator}user_id=${window.currentUser.id}&role=${window.currentUser.role || ''}`;
+  }
+
+  const res = await fetch(url, {
     method: opts.method || 'GET',
     headers: opts.body ? { 'Content-Type': 'application/json' } : {},
     body: opts.body ? JSON.stringify(opts.body) : undefined
