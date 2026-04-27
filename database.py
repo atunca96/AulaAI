@@ -192,7 +192,9 @@ def init_db():
         conn.commit()
 
 def db_connection():
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def _seed_data(c):
     """Seed the database with a clean, universal demo lecturer and course."""
