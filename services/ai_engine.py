@@ -248,6 +248,9 @@ def format_activity_by_template(data, level, language):
         sentence = data["sentence"]
         word = data.get("word") or data.get("answer") or data.get("target") or "???"
         translation = data.get("translation") or data.get("meaning") or data.get("english") or ""
+        if not translation: # MANDATORY: Must have a hint for fill_blank
+            return None
+        
         if "____" not in sentence:
             # Try to hide the word if it's there
             if word != "???" and word in sentence:
@@ -364,6 +367,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     if not raw_list: return None
     
     final_questions = []
+    seen_prompts = set()
     for item in raw_list:
         assembled = format_activity_by_template(item, level, language)
         if assembled:
@@ -393,6 +397,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     if prompt_has_target and not has_latin: continue 
                     # If prompt is native (English), options MUST be target-language -> No Latin
                     if not prompt_has_target and has_latin: continue
+
+            # 3. Uniqueness Filter
+            prompt_hash = str(assembled.get("prompt", "")).strip().lower()
+            if prompt_hash in seen_prompts:
+                continue
+            seen_prompts.add(prompt_hash)
 
             final_questions.append(assembled)
             
