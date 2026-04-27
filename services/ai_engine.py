@@ -228,10 +228,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         diversity_quota = "MIX: 3x 'Sentence Meaning', 3x 'Suffix/Grammar'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish, Finnish, etc.)
-    1. SEMANTIC CONSISTENCY: For vocabulary, distractors MUST be from the same semantic category as the answer. If the answer is an activity (verb), distractors MUST be other activities. If the answer is a noun (e.g. month), distractors MUST be related nouns (e.g. days, seasons). NEVER use random nouns as distractors for a verb-based question.
-    2. SUFFIX STACKING: For grammar, focus on suffix combinations (e.g., ev-de-ki).
-    3. LOGICAL CONSISTENCY: Ensure category questions are factually accurate.
-    4. GRAMMAR NEGATIVE SPACE: Only for GRAMMAR topics, distractors should be ungrammatical strings. For VOCABULARY, they must be valid but incorrect words.
+    1. SEMANTIC CONSISTENCY: Distractors MUST be from the same semantic category but conceptually DIFFERENT words. If the answer is a verb (e.g. 'yüzmek'), distractors MUST be other verbs (e.g. 'koşmak', 'okumak'). 
+    2. NO ROOT-CLONING: NEVER use morphological variations of the same root as distractors (e.g. if answer is 'yüzmek', do NOT use 'yüzücü' or 'yüzme' as distractors). This is a 'lazy' distraction and pedagogically weak.
+    3. SUFFIX STACKING: For grammar-specific topics, focus on suffix combinations (e.g., ev-de-ki).
+    4. LOGICAL CONSISTENCY: Ensure category questions are factually accurate.
+    5. GRAMMAR NEGATIVE SPACE: Only for GRAMMAR topics, distractors should be ungrammatical strings. For VOCABULARY, they must be valid but incorrect words.
     """
     else:
         diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
