@@ -1,28 +1,27 @@
-# UNIVERSAL DATABASE SCHEMA - VERSION 2.1 (FORCE REDEPLOY)
 import sqlite3
 import json
 import random
 import os
 import uuid
-import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-# Path Configuration
-DATA_DIR = os.path.join(os.getcwd(), "data")
-BOOKS_DIR = os.path.join(os.getcwd(), "public", "books")
+# ── PATHING (Absolute for Persistence) ───────────────────
+# We use absolute paths to ensure the Railway volume remains mounted correctly.
+IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None
+if IS_RAILWAY:
+    DATA_DIR = "/app/data"
+else:
+    DATA_DIR = os.path.join(os.getcwd(), "data")
+
+BOOKS_DIR = os.path.join(DATA_DIR, "books")
 DB_PATH = os.path.join(DATA_DIR, "aula.db")
 
-# Ensure directories exist
+# Ensure directories exist immediately
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(BOOKS_DIR, exist_ok=True)
 
-def _uid(): return str(uuid.uuid4())
-
-def get_db():
-    """Context manager for database connections (Backward compat)."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _uid():
+    return str(uuid.uuid4())
 
 def db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -58,6 +57,7 @@ def init_db():
             is_building INTEGER DEFAULT 0,
             progress INTEGER DEFAULT 0,
             total_steps INTEGER DEFAULT 0,
+            draft_progress INTEGER DEFAULT 0,
             activity_status TEXT DEFAULT 'idle',
             activity_progress INTEGER DEFAULT 0,
             activity_total INTEGER DEFAULT 0,
@@ -117,16 +117,18 @@ def init_db():
             FOREIGN KEY(topic_id) REFERENCES topics(id)
         )''')
 
+        # REFACTORED: The Response Engine
         c.execute('''CREATE TABLE IF NOT EXISTS responses (
             id TEXT PRIMARY KEY,
             student_id TEXT,
             question_id TEXT,
-            answer TEXT,
-            correct_answer TEXT,
-            is_correct INTEGER,
             context_type TEXT,
             context_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            answer TEXT,
+            score REAL,
+            graded_by TEXT,
+            feedback TEXT,
+            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(student_id) REFERENCES users(id)
         )''')
 
@@ -177,6 +179,7 @@ def init_db():
             PRIMARY KEY(assignment_id, question_id)
         )''')
 
+        # REFACTORED: Enrollment Management
         c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
             id TEXT PRIMARY KEY,
             student_id TEXT,
@@ -198,119 +201,91 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS weekly_reports (
             id TEXT PRIMARY KEY,
             course_id TEXT,
+            week_number INTEGER,
             report_data TEXT,
-            week_start TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(course_id) REFERENCES courses(id)
         )''')
 
+        conn.commit()
+
+    # ── MIGRATIONS (Self-Healing existing data) ────────
+    _run_migrations()
+
+    with db_connection() as db:
+        c = db.cursor()
         # Run seeding if empty
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             print("[DB] Seeding initial data...")
             _seed_data(c)
-        
-        conn.commit()
-
-    # ── MIGRATIONS (For existing persistent volumes) ────────
-    _run_migrations()
+            db.commit()
 
 def _run_migrations():
-    """Manually add missing columns to existing tables if they were created with old schema."""
+    """Sequentially apply missing columns for production stability."""
     with sqlite3.connect(DB_PATH) as conn:
         c = conn.cursor()
         
         migrations = [
             ("courses", "progress", "INTEGER DEFAULT 0"),
             ("courses", "total_steps", "INTEGER DEFAULT 0"),
+            ("courses", "draft_progress", "INTEGER DEFAULT 0"),
             ("courses", "activity_status", "TEXT DEFAULT 'idle'"),
             ("courses", "activity_progress", "INTEGER DEFAULT 0"),
             ("courses", "activity_total", "INTEGER DEFAULT 0"),
             ("courses", "activity_result", "TEXT"),
             ("courses", "language", "TEXT DEFAULT 'Turkish'"),
             ("courses", "level", "TEXT DEFAULT 'A1'"),
-            ("quizzes", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-            ("assignments", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("enrollments", "id", "TEXT"),
+            ("enrollments", "pin", "TEXT"),
             ("enrollments", "enrolled_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-            ("chapters", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-            ("topics", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("responses", "score", "REAL"),
+            ("responses", "feedback", "TEXT"),
+            ("responses", "graded_by", "TEXT"),
+            ("responses", "submitted_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+            ("questions", "is_active", "INTEGER DEFAULT 1"),
             ("users", "status", "TEXT DEFAULT 'approved'")
         ]
         
         for table, column, definition in migrations:
             try:
-                # Check if column exists
-                cursor = c.execute(f"PRAGMA table_info({table})")
-                columns = [row[1] for row in cursor.fetchall()]
-                if column not in columns:
-                    print(f"[MIGRATION] Adding column {column} to {table}...")
+                # Use pragma to check if exists to avoid error spam
+                c.execute(f"PRAGMA table_info({table})")
+                cols = [r[1] for r in c.fetchall()]
+                if column not in cols:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-            except Exception as e:
-                print(f"[MIGRATION ERROR] Failed to migrate {table}.{column}: {e}")
+                    print(f"[MIGRATION] Added {column} to {table}")
+            except sqlite3.OperationalError:
+                pass 
         
+        # SPECIAL: Populate IDs for legacy enrollments to prevent Approve crashes
+        c.execute("UPDATE enrollments SET id = LOWER(HEX(RANDOMBLOB(16))) WHERE id IS NULL")
+        
+        # SPECIAL: Bridge approved -> is_active for questions bank
+        try:
+            c.execute("UPDATE questions SET is_active = approved WHERE is_active IS NULL")
+        except sqlite3.OperationalError:
+            pass
+
         conn.commit()
 
 def _seed_data(c):
     """Seed the database with a clean, universal demo lecturer and course."""
-
-    # ── Lecturer ────────────────────────────────────────────
     lecturer_id = "lecturer-demo-id"
     c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
               (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
     
-    existing = c.execute("SELECT id FROM users WHERE email=?", ("atunca96@gmail.com",)).fetchone()
-    if existing:
-        lecturer_id = existing[0]
-
-    # ── Course ──────────────────────────────────────────────
     course_id = "11111"
     c.execute("INSERT OR IGNORE INTO courses (id, name, semester, textbook, lecturer_id, code, language, level) VALUES (?,?,?,?,?,?,?,?)",
               (course_id, "Demo Classroom", "Spring 2026", "AI Generated", lecturer_id, "11111", "Turkish", "A1"))
 
-    # ── Demo Curriculum ────────────────
-    curriculum = _get_demo_curriculum()
-
-    for ch in curriculum:
-        chapter_id = f"ch-demo-{ch['number']}"
-        c.execute("INSERT OR IGNORE INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
-                  (chapter_id, course_id, ch["number"], ch["title"]))
-
-        for i, topic in enumerate(ch["topics"]):
-            topic_id = f"topic-demo-{ch['number']}-{i+1}"
-            c.execute("INSERT OR IGNORE INTO topics (id, chapter_id, type, title, difficulty, content, pdf_url, sort_order) VALUES (?,?,?,?,?,?,?,?)",
-                      (topic_id, chapter_id, topic["type"], topic["title"],
-                       topic["difficulty"], json.dumps(topic["content"]), None, i))
-
 def _get_demo_curriculum():
-    """Generic demo curriculum structure."""
     return [
         {
             "number": 1,
             "title": "Welcome to Language Learning",
-            "topics": [
-                {
-                    "type": "vocabulary",
-                    "title": "Greetings & Basics",
-                    "difficulty": "A1",
-                    "content": {
-                        "words": {
-                            "Merhaba": "Hello",
-                            "Nasılsın?": "How are you?",
-                            "Teşekkür ederim": "Thank you",
-                            "Güle güle": "Goodbye"
-                        }
-                    }
-                }
-            ]
+            "topics": [{"type": "vocabulary", "title": "Greetings & Basics", "difficulty": "A1", "content": {"words": {"Merhaba": "Hello"}}}]
         }
     ]
-
-def _generate_seed_questions(topic):
-    """Generic placeholder for seed questions."""
-    return []
-
-def _categorize_words(words):
-    """Placeholder for categorization logic."""
-    return {}
 
 if __name__ == "__main__":
     init_db()

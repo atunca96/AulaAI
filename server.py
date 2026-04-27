@@ -1076,7 +1076,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         with db_connection() as db:
             questions = db.execute(
-                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1", (topic_id,)
+                "SELECT * FROM questions WHERE topic_id = ? AND is_active = 1", (topic_id,)
             ).fetchall()
 
         result = []
@@ -1185,13 +1185,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         time.sleep(0.5)
 
-            print(f"[BG] Topic {topic_id}: Wiping entire question database to make room for fresh strict generation.")
-            with db_connection() as db:
-                db.execute("DELETE FROM responses")
-                db.execute("DELETE FROM quiz_questions")
-                db.execute("DELETE FROM assignment_questions")
-                db.execute("DELETE FROM questions")
-                db.commit()
+            # Nuclear Wipe removed to prevent data loss.
 
             with db_connection() as db:
                 # 1. Fresh fetch (should be empty now)
@@ -1464,8 +1458,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 # Lock it by inserting 0 score for all questions
                 for q in questions:
-                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, submitted_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))",
-                               (_uid(), student_id, q["id"], "quiz", quiz_id, "[STARTED]", 0.0, "auto"))
+                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, feedback) VALUES (?,?,?,?,?,?,?,?,?)",
+                               (_uid(), student_id, q["id"], "quiz", quiz_id, "[STARTED]", 0.0, "auto", "Quiz started"))
                 db.commit()
 
             result = dict(quiz)
@@ -1734,7 +1728,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     distractors = q.get("distractors", [])
                     if isinstance(distractors, str):
                         distractors = [d.strip() for d in distractors.split(",") if d.strip()]
-                    db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, metadata, approved, created_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                    db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, metadata, is_active) VALUES (?,?,?,?,?,?,?,?,?)",
                                (qid, topic_id, q.get("type", "mcq"), q.get("prompt"), q.get("answer"),
                                 json.dumps(distractors), "custom", "{}", 1))
                 
@@ -1772,7 +1766,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     db.execute("UPDATE responses SET answer = ?, score = ?, feedback = ?, submitted_at = datetime('now') WHERE id = ?",
                                (student_answer, score, feedback, existing_resp["id"]))
                 else:
-                    db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, feedback) VALUES (?,?,?,?,?,?,?,?,?)",
                                (_uid(), student_id, qid, "quiz", quiz_id,
                                 student_answer, score, "auto", feedback))
 
@@ -1784,10 +1778,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                 current_score = existing["score"] if (existing and existing["score"] is not None) else score
                 new_score = (current_score * 0.7 + score * 0.3)
-                db.execute("""
-                    INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at)
-                    VALUES (?, ?, ?, ?, datetime('now'))
-                """, (_uid(), student_id, topic_id, round(new_score, 3)))
+                db.execute("INSERT OR REPLACE INTO mastery_scores (student_id, topic_id, score) VALUES (?,?,?)",
+                           (student_id, topic_id, round(new_score, 3)))
 
                 results.append({
                     "question_id": qid,
@@ -1819,7 +1811,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         if student_id and question_id:
             with db_connection() as db:
-                db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, feedback) VALUES (?,?,?,?,?,?,?,?,?)",
                            (_uid(), student_id, question_id, "practice", _uid(),
                             answer, score, "auto", feedback))
                 q = db.execute("SELECT topic_id FROM questions WHERE id = ?", (question_id,)).fetchone()
@@ -1830,8 +1822,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         (student_id, tid)
                     ).fetchone()
                     new_score = score if not existing else (existing["score"] * 0.7 + score * 0.3)
-                    db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
-                               (_uid(), student_id, tid, round(new_score, 3)))
+                    db.execute("INSERT OR REPLACE INTO mastery_scores (student_id, topic_id, score) VALUES (?,?,?)",
+                               (student_id, tid, round(new_score, 3)))
                 db.commit()
 
         bump_version()
@@ -2128,14 +2120,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     db.execute("UPDATE responses SET answer = ?, score = ?, feedback = ?, submitted_at = datetime('now') WHERE id = ?",
                                (student_answer, score, feedback, existing_resp["id"]))
                 else:
-                    db.execute("INSERT INTO responses VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                    db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, feedback) VALUES (?,?,?,?,?,?,?,?,?)",
                                (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
                 tid = question["topic_id"]
                 existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
                 current_score = existing["score"] if (existing and existing["score"] is not None) else score
                 new_score = (current_score * 0.7 + score * 0.3)
-                db.execute("INSERT OR REPLACE INTO mastery_scores (id, student_id, topic_id, score, updated_at) VALUES (?,?,?,?,datetime('now'))",
-                           (_uid(), student_id, tid, round(new_score, 3)))
+                db.execute("INSERT OR REPLACE INTO mastery_scores (student_id, topic_id, score) VALUES (?,?,?)",
+                           (student_id, tid, round(new_score, 3)))
             db.commit()
 
         bump_version()
