@@ -94,6 +94,70 @@ ALPHABETS = {
             {"term": "T", "translation": "teh"}, {"term": "U", "translation": "oo"}, {"term": "V", "translation": "veh"}, {"term": "W", "translation": "oobleh-veh"}, {"term": "X", "translation": "eh-kees"},
             {"term": "Y", "translation": "ee-gryeh-gah"}, {"term": "Z", "translation": "seh-tah"}
         ]
+    },
+    "French": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "A", "translation": "ah"}, {"term": "B", "translation": "beh"}, {"term": "C", "translation": "seh"}, {"term": "D", "translation": "deh"}, {"term": "E", "translation": "uh"}, 
+            {"term": "F", "translation": "eff"}, {"term": "G", "translation": "zheh"}, {"term": "H", "translation": "ash"}, {"term": "I", "translation": "ee"}, {"term": "J", "translation": "zhee"},
+            {"term": "K", "translation": "kah"}, {"term": "L", "translation": "ell"}, {"term": "M", "translation": "emm"}, {"term": "N", "translation": "enn"}, {"term": "O", "translation": "oh"},
+            {"term": "P", "translation": "peh"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "air"}, {"term": "S", "translation": "ess"}, {"term": "T", "translation": "teh"},
+            {"term": "U", "translation": "u (rounded lips)"}, {"term": "V", "translation": "veh"}, {"term": "W", "translation": "doobleh-veh"}, {"term": "X", "translation": "eeks"},
+            {"term": "Y", "translation": "ee-greck"}, {"term": "Z", "translation": "zed"}
+        ]
+    },
+    "German": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "A", "translation": "ah"}, {"term": "B", "translation": "beh"}, {"term": "C", "translation": "tseh"}, {"term": "D", "translation": "deh"}, {"term": "E", "translation": "eh"}, 
+            {"term": "F", "translation": "eff"}, {"term": "G", "translation": "geh"}, {"term": "H", "translation": "hah"}, {"term": "I", "translation": "ee"}, {"term": "J", "translation": "yot"},
+            {"term": "K", "translation": "kah"}, {"term": "L", "translation": "ell"}, {"term": "M", "translation": "emm"}, {"term": "N", "translation": "enn"}, {"term": "O", "translation": "oh"},
+            {"term": "P", "translation": "peh"}, {"term": "Q", "translation": "koo"}, {"term": "R", "translation": "err"}, {"term": "S", "translation": "ess"}, {"term": "T", "translation": "teh"},
+            {"term": "U", "translation": "oo"}, {"term": "V", "translation": "fow"}, {"term": "W", "translation": "veh"}, {"term": "X", "translation": "iks"}, {"term": "Y", "translation": "ypsilon"}, {"term": "Z", "translation": "tset"},
+            {"term": "Ä", "translation": "ae"}, {"term": "Ö", "translation": "oe"}, {"term": "Ü", "translation": "ue"}, {"term": "ß", "translation": "ess-tset"}
+        ]
+    },
+    "Turkish": {
+        "type": "Alfabe",
+        "items": [
+            {"term": "A", "translation": "ah"}, {"term": "B", "translation": "beh"}, {"term": "C", "translation": "djeh"}, {"term": "Ç", "translation": "cheh"}, {"term": "D", "translation": "deh"},
+            {"term": "E", "translation": "eh"}, {"term": "F", "translation": "feh"}, {"term": "G", "translation": "geh"}, {"term": "Ğ", "translation": "yumuşak geh (silent)"}, {"term": "H", "translation": "heh"},
+            {"term": "I", "translation": "uh"}, {"term": "İ", "translation": "ee"}, {"term": "J", "translation": "zheh"}, {"term": "K", "translation": "keh"}, {"term": "L", "translation": "leh"},
+            {"term": "M", "translation": "meh"}, {"term": "N", "translation": "neh"}, {"term": "O", "translation": "oh"}, {"term": "Ö", "translation": "ur (rounded)"}, {"term": "P", "translation": "peh"},
+            {"term": "R", "translation": "reh"}, {"term": "S", "translation": "seh"}, {"term": "Ş", "translation": "sheh"}, {"term": "T", "translation": "teh"}, {"term": "U", "translation": "oo"},
+            {"term": "Ü", "translation": "ew (rounded)"}, {"term": "V", "translation": "veh"}, {"term": "Y", "translation": "yeh"}, {"term": "Z", "translation": "zeh"}
+        ]
+    },
+    "Italian": {
+        "type": "Alfabeto",
+        "items": [
+            {"term": "A", "translation": "ah"}, {"term": "B", "translation": "bee"}, {"term": "C", "translation": "chee"}, {"term": "D", "translation": "dee"}, {"term": "E", "translation": "eh"},
+            {"term": "F", "translation": "effe"}, {"term": "G", "translation": "dzhee"}, {"term": "H", "translation": "akka"}, {"term": "I", "translation": "ee"}, {"term": "L", "translation": "elle"},
+            {"term": "M", "translation": "emme"}, {"term": "N", "translation": "enne"}, {"term": "O", "translation": "oh"}, {"term": "P", "translation": "pee"}, {"term": "Q", "translation": "koo"},
+            {"term": "R", "translation": "erre"}, {"term": "S", "translation": "esse"}, {"term": "T", "translation": "tee"}, {"term": "U", "translation": "oo"}, {"term": "V", "translation": "voo"}, {"term": "Z", "translation": "dzeta"}
+        ]
+    },
+    "Portuguese": {
+        "type": "Alfabeto",
+        "items": [
+            {"term": "A", "translation": "ah"}, {"term": "B", "translation": "beh"}, {"term": "C", "translation": "seh"}, {"term": "D", "translation": "deh"}, {"term": "E", "translation": "eh"},
+            {"term": "F", "translation": "eh-feh"}, {"term": "G", "translation": "zheh"}, {"term": "H", "translation": "ah-gah"}, {"term": "I", "translation": "ee"}, {"term": "J", "translation": "zho-tah"},
+            {"term": "K", "translation": "kah"}, {"term": "L", "translation": "eh-leh"}, {"term": "M", "translation": "eh-meh"}, {"term": "N", "translation": "eh-neh"}, {"term": "O", "translation": "oh"},
+            {"term": "P", "translation": "peh"}, {"term": "Q", "translation": "keh"}, {"term": "R", "translation": "eh-heh"}, {"term": "S", "translation": "eh-seh"}, {"term": "T", "translation": "teh"},
+            {"term": "U", "translation": "oo"}, {"term": "V", "translation": "veh"}, {"term": "W", "translation": "dah-bli-oo"}, {"term": "X", "translation": "shis"}, {"term": "Y", "translation": "ip-si-lon"}, {"term": "Z", "translation": "zeh"}
+        ]
+    },
+    "Russian": {
+        "type": "Cyrillic Alphabet",
+        "items": [
+            {"term": "А", "translation": "ah"}, {"term": "Б", "translation": "beh"}, {"term": "В", "translation": "veh"}, {"term": "Г", "translation": "geh"}, {"term": "Д", "translation": "deh"},
+            {"term": "Е", "translation": "yeh"}, {"term": "Ё", "translation": "yo"}, {"term": "Ж", "translation": "zheh"}, {"term": "З", "translation": "zeh"}, {"term": "И", "translation": "ee"},
+            {"term": "Й", "translation": "ee-kratkoye"}, {"term": "К", "translation": "kah"}, {"term": "Л", "translation": "ell"}, {"term": "М", "translation": "emm"}, {"term": "Н", "translation": "enn"},
+            {"term": "О", "translation": "oh"}, {"term": "П", "translation": "peh"}, {"term": "Р", "translation": "err"}, {"term": "С", "translation": "ess"}, {"term": "Т", "translation": "teh"},
+            {"term": "У", "translation": "oo"}, {"term": "Ф", "translation": "eff"}, {"term": "Х", "translation": "hah"}, {"term": "Ц", "translation": "tseh"}, {"term": "Ч", "translation": "cheh"},
+            {"term": "Ш", "translation": "shah"}, {"term": "Щ", "translation": "sh-chah"}, {"term": "Ъ", "translation": "tvyordiy znak (hard sign)"}, {"term": "Ы", "translation": "ih"}, {"term": "Ь", "translation": "myagkiy znak (soft sign)"},
+            {"term": "Э", "translation": "eh"}, {"term": "Ю", "translation": "yoo"}, {"term": "Я", "translation": "yah"}
+        ]
     }
 }
 
