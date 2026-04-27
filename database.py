@@ -60,6 +60,8 @@ def init_db():
             total_steps INTEGER DEFAULT 0,
             activity_status TEXT DEFAULT 'idle',
             activity_progress INTEGER DEFAULT 0,
+            activity_total INTEGER DEFAULT 0,
+            activity_result TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(lecturer_id) REFERENCES users(id)
         )''')
@@ -220,6 +222,8 @@ def _run_migrations():
             ("courses", "total_steps", "INTEGER DEFAULT 0"),
             ("courses", "activity_status", "TEXT DEFAULT 'idle'"),
             ("courses", "activity_progress", "INTEGER DEFAULT 0"),
+            ("courses", "activity_total", "INTEGER DEFAULT 0"),
+            ("courses", "activity_result", "TEXT"),
             ("courses", "language", "TEXT DEFAULT 'Turkish'"),
             ("courses", "level", "TEXT DEFAULT 'A1'"),
             ("quizzes", "created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
