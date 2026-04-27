@@ -1733,8 +1733,14 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function showScreen(id) {
+  // Stop waiting room polling if we leave that screen
+  if (id !== 'waiting-room-screen' && window._waitingPoll) {
+    clearInterval(window._waitingPoll);
+    window._waitingPoll = null;
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const target = document.getElementById(id);
+  if (target) target.classList.add('active');
 }
 document.addEventListener('focusin', (e) => {
   if (e.target.id === 'inbox-reply-text' || e.target.id === 'message-text') {
@@ -4151,6 +4157,11 @@ function showPinModal(mode, courseId) {
   pinInput.value = '';
   pinInput.focus();
   errBox.classList.add('hidden');
+
+  // Support Enter key for PIN submission
+  pinInput.onkeydown = (e) => {
+    if (e.key === 'Enter') submitBtn.click();
+  };
 
   if (mode === 'setup') {
     title.textContent = t('student.pin_setup');
