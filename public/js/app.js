@@ -4168,6 +4168,8 @@ async function handleVerifyPin(courseId, pin) {
         document.getElementById('pin-error').classList.remove('hidden');
     } else {
         closePinModal();
+        stopLiveSync();
+        currentUser.role = 'student';
         await selectClassroom(courseId, false);
     }
 }
