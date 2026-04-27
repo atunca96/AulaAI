@@ -338,20 +338,24 @@ def format_activity_by_template(data, level, language):
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
     request_count = max(15, int(count) + 4)
-    level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Generate exactly {request_count} high-quality interactive questions for {level_norm} students learning {language}.
-    You MUST provide a balanced mix: exactly 2 of Type 1, exactly 2 of Type 2, and the rest as Type 3.
+    TASK: Generate exactly {request_count} high-quality interactive questions.
+    STRICT VARIETY RULE:
+    - Items 1-2: MCQ MODE A (English Question -> Japanese Options)
+    - Items 3-4: MCQ MODE B (Japanese Question -> English Options)
+    - Items 5-6+: FILL IN THE GAP (Japanese sentence with ____)
     
-    TYPES:
-    1. MCQ MODE A: Native prompt ("Which {language} word means X?") -> Target options.
-    2. MCQ MODE B: Target prompt ("What does the {language} word Y mean?") -> Native options.
-    3. FILL BLANK: {language} sentence with ____.
+    JSON STRUCTURE EXAMPLE:
+    {{
+      "data": [
+        {{ "type": "mcq", "prompt": "Which Japanese word means 'Apple'?", "answer": "りんご", "distractors": ["みず", "ほん", "いえ"] }},
+        {{ "type": "mcq", "prompt": "What does 'ほん' mean?", "answer": "Book", "distractors": ["Water", "House", "Apple"] }},
+        {{ "type": "fill_blank", "sentence": "これは____です。", "answer": "ほん", "translation": "book" }}
+      ]
+    }}
     
-    Return a JSON object with a "data" key containing an array of objects.
-    Each object must have "type" ('mcq' or 'fill_blank') and the appropriate keys.
-    
+    Return EXACTLY {request_count} items following this alternating pattern.
     Return JSON ONLY.
 """
     
