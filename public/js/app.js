@@ -577,7 +577,7 @@ const i18n = {
     'pending': 'Pending',
     'class.name': 'Classroom Name',
     'class.pdf_limit': 'Max size: 50MB. Large files may take longer to process.',
-    'class.building_msg': 'Your content is currently being generated from the textbook. Please check back shortly.',
+    'class.building_msg': 'Your content is still being built from the textbook — check back soon.',
     'class.no_curriculum': 'No curriculum data available for this classroom.',
     'low_mastery': 'Low Mastery',
     'low_engagement': 'Low Engagement',
