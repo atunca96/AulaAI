@@ -1462,7 +1462,7 @@ async function selectClassroom(id, isLecturer = true) {
     
     const sMainTitle = document.getElementById('s-study-tab-main-title');
     if (sMainTitle) {
-      sMainTitle.textContent = isAiGenerated ? t('Material') : t('study');
+      sMainTitle.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('study') || 'Study Lessons');
     }
   }
 
@@ -4144,13 +4144,23 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const container = document.getElementById(contentId);
   if (!container) return;
 
-  // Clear previous content to prevent ghosting
+  // Clear previous content and headers to prevent ghosting
   container.innerHTML = `
     <div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
       <div class="spinner"></div>
       <div style="color:var(--text-muted); font-size:14px;">${t('loading')}...</div>
     </div>
   `;
+  
+  const topicTitle = document.getElementById(isStudent ? 's-ai-book-topic-title' : 'ai-book-topic-title');
+  const pageTitle = document.getElementById(isStudent ? 's-ai-book-page-title' : 'ai-book-page-title');
+  const pagTop = document.getElementById(isStudent ? 's-ai-book-pagination-top' : 'ai-book-pagination-top');
+  const pagBot = document.getElementById(isStudent ? 's-ai-book-pagination-bottom' : 'ai-book-pagination-bottom');
+  
+  if (topicTitle) topicTitle.textContent = '...';
+  if (pageTitle) pageTitle.textContent = t('loading') + '...';
+  if (pagTop) pagTop.innerHTML = '';
+  if (pagBot) pagBot.innerHTML = '';
 
   // Save for refresh
   localStorage.setItem('aula_last_topic', topicId);
