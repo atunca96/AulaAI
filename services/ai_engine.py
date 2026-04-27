@@ -226,6 +226,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
         raw_list = result.get("data") if result else []
         
+        print(f"[AI] Raw items received: {len(raw_list)}")
+        
         final_questions = []
         seen_answers = set()
         
@@ -247,7 +249,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
                 # 3. Script Consistency Rule (RESTORED: No mixing vibes)
                 def get_vibe(t):
-                    return "latin" if re.search('[a-zA-Z]', str(t)) else "native"
+                    # Broad Latin check including accented characters (ā, ó, ü, etc.)
+                    return "latin" if re.search('[a-zA-Z\u00C0-\u017F]', str(t)) else "native"
                 
                 ans_vibe = get_vibe(ans_clean)
                 distractors = item.get("distractors", [])
