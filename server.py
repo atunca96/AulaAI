@@ -2410,12 +2410,15 @@ def _cleanup_stale_classrooms():
         print(f"[ERROR] Maintenance cleanup failed: {e}")
 
 def _cleanup_orphaned_building_flags():
-    """Reset building flags for tasks that were interrupted by a server restart."""
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building flags...")
+    """Reset building and activity flags for tasks that were interrupted by a server restart."""
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building and activity flags...")
     with db_connection() as db:
-        # Any build task older than 1 hour is considered orphaned
+        # 1. Reset Classroom Building flags (interrupted builds)
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
         db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE is_building = 1 AND created_at < ?", (cutoff,))
+        
+        # 2. Reset Activity Generation flags (Always reset on startup since threads are gone)
+        db.execute("UPDATE courses SET activity_status = 'idle', activity_progress = 0 WHERE activity_status = 'generating'")
         db.commit()
 
 class RobustServer(http.server.ThreadingHTTPServer):
