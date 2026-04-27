@@ -843,6 +843,13 @@
                         </div>
                     </div>
                 </div>
+                <!-- Fallback for PDF-only courses -->
+                <div id="s-ai-book-fallback" class="hidden" style="text-align:center; padding:100px 20px; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
+                    <div style="font-size:64px; margin-bottom:24px;">📚</div>
+                    <h2 data-i18n="class.pdf_only_msg">Traditional Classroom</h2>
+                    <p style="color:var(--text-secondary); margin-top:16px; font-size:18px;">This course uses a PDF textbook. Please use the <b>Textbook</b> tab to study.</p>
+                    <button class="btn btn-primary" style="margin-top:32px; padding:12px 32px;" onclick="document.querySelector('[data-tab=s-book]').click()" data-i18n="Read Textbook">Go to Textbook</button>
+                </div>
             </section>
 
             <!-- Student Textbook Tab (PDF) -->

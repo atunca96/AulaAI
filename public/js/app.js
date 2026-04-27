@@ -3834,6 +3834,19 @@ async function submitAssignment(area) {
 
 // ── Digital Study Book (AI Architect) ──
 function renderStudyBook() {
+  const container = document.getElementById('s-ai-book-container');
+  const fallback = document.getElementById('s-ai-book-fallback');
+  
+  if (currentUser.role === 'student') {
+    if (!isAiGenerated) {
+      if (container) container.classList.add('hidden');
+      if (fallback) fallback.classList.remove('hidden');
+      return;
+    } else {
+      if (container) container.classList.remove('hidden');
+      if (fallback) fallback.classList.add('hidden');
+    }
+  }
   const tocId = currentUser.role === 'lecturer' ? 'ai-book-toc' : 's-ai-book-toc';
   const toc = document.getElementById(tocId);
   if (!toc) return;
