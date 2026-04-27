@@ -1449,11 +1449,21 @@ async function selectClassroom(id, isLecturer = true) {
     lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
     const label = lectBookTab.querySelector('.tab-label');
     if (label) label.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('book') || 'Book');
+    
+    const mainTitle = document.getElementById('book-tab-main-title');
+    if (mainTitle) {
+      mainTitle.innerHTML = isAiGenerated ? `📘 <span>${t('Material')}</span>` : `📖 <span>${t('book')}</span>`;
+    }
   }
 
   if (currentUser.role === 'student') {
     if (sStudyTabBtn) sStudyTabBtn.style.display = isAiGenerated ? '' : 'none';
     if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : (pdfViewerSrc ? '' : 'none');
+    
+    const sMainTitle = document.getElementById('s-study-tab-main-title');
+    if (sMainTitle) {
+      sMainTitle.textContent = isAiGenerated ? t('Material') : t('study');
+    }
   }
 
   if (currentUser.role === 'student') {
@@ -4134,6 +4144,14 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
   const container = document.getElementById(contentId);
   if (!container) return;
+
+  // Clear previous content to prevent ghosting
+  container.innerHTML = `
+    <div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
+      <div class="spinner"></div>
+      <div style="color:var(--text-muted); font-size:14px;">${t('loading')}...</div>
+    </div>
+  `;
 
   // Save for refresh
   localStorage.setItem('aula_last_topic', topicId);
