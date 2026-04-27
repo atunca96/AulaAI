@@ -30,7 +30,17 @@ try:
 except ImportError:
     client = None
 
-def _call_openrouter(messages, max_tokens=1000, temperature=0.7):
+# MODEL CONSTANTS
+MODEL_SPEED = "anthropic/claude-3.5-haiku"
+MODEL_QUALITY = "anthropic/claude-3.5-sonnet"
+
+# Direct Anthropic mapping
+ANT_MODEL_MAP = {
+    MODEL_SPEED: "claude-3-5-haiku-20241022",
+    MODEL_QUALITY: "claude-3-5-sonnet-20241022"
+}
+
+def _call_openrouter(messages, model=MODEL_SPEED, max_tokens=1000, temperature=0.7):
     """Call OpenRouter API (supports Haiku) as a fallback/alternative."""
     import http.client
     import json
@@ -52,7 +62,7 @@ def _call_openrouter(messages, max_tokens=1000, temperature=0.7):
         # but OpenRouter usually takes it as the first message or in a 'system' field depending on the provider.
         # We'll use the 'system' field which is standard for Claude.
         payload = {
-            "model": "anthropic/claude-3.5-haiku",
+            "model": model,
             "messages": messages,
             "system": PEDAGOGY_INSTRUCTION,
             "max_tokens": max_tokens,
@@ -79,11 +89,11 @@ def _call_openrouter(messages, max_tokens=1000, temperature=0.7):
         print(f"[OpenRouter Exception] {e}")
         return None
 
-def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
+def _call_ai(messages, model=MODEL_SPEED, max_tokens=1000, temperature=0.7, bypass_cache=False):
     """Call AI (OpenRouter or Anthropic) and return parsed JSON."""
     # 1. Try OpenRouter first if key exists
     if os.environ.get("OPENROUTER_API_KEY"):
-        res = _call_openrouter(messages, max_tokens, temperature)
+        res = _call_openrouter(messages, model, max_tokens, temperature)
         if res: return res
         
     # 2. Fallback to direct Anthropic if configured
@@ -92,13 +102,14 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
         return None
     
     try:
-        model = "claude-3-5-haiku-20241022"
+        # Map OpenRouter model names to direct Anthropic names if needed
+        ant_model = ANT_MODEL_MAP.get(model, "claude-3-5-haiku-20241022")
         clean_msgs = []
         for m in messages:
             clean_msgs.append({"role": m["role"], "content": str(m["content"])})
             
         response = client.messages.create(
-            model=model,
+            model=ant_model,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=clean_msgs,
@@ -136,7 +147,7 @@ def detect_language(text):
 def ai_generate_curriculum(language, level, course_name):
     """AI drafts a detailed curriculum based on topic, level, and language."""
     prompt = f"Create a comprehensive, full-semester language learning curriculum for a course called '{course_name}' at {level} level in {language}. Return a JSON object with a 'chapters' key containing an array of EXACTLY 10 chapters to ensure a complete learning path. Each chapter must have 'number', 'title', and 'topics' (an array of 3-5 distinct objects with 'title', 'type' (vocabulary/grammar/culture), 'difficulty', 'sort_order'). Respond ONLY with valid JSON."
-    return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_QUALITY, max_tokens=4000)
 
 PEDAGOGY_INSTRUCTION = """
 # CORE PEDAGOGICAL RULES (FACTORY RESET)
@@ -201,7 +212,7 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
       ]
     }}"""
     
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    result = _call_ai([{"role": "user", "content": prompt}], model=MODEL_QUALITY, max_tokens=4000)
     # ... (rest of logic) ...
     if not result: return None
     
@@ -331,7 +342,7 @@ def format_activity_by_template(data, level, language):
 
     return data
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1'):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
@@ -359,7 +370,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     Return JSON ONLY.
 """
     
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    target_model = MODEL_QUALITY if use_quality else MODEL_SPEED
+    result = _call_ai([{"role": "user", "content": prompt}], model=target_model, max_tokens=4000)
     print(f"[AI] Raw data for {topic_title}: {json.dumps(result)[:200]}...")
     raw_list = result.get("data") if result else None
     if not raw_list: return None
@@ -384,8 +396,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     return final_questions[:count]
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
-    """Definitive Unified Generator: Always use the batch Quiz engine for Activities."""
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
+    """Definitive Unified Generator: Activities use the fast model."""
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, use_quality=False)
 
 def ai_generate_report_insights(cohort_data):
     """Generate detailed AI insights for reports."""
