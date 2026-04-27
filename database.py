@@ -28,25 +28,45 @@ else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
 
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
-DB_PATH = os.path.join(DATA_DIR, "aula.db")
+# Universal discovery: Look for ANY existing database to prevent data loss
+potential_paths = [
+    "/app/data/aula.db",
+    "/app/database.sqlite",
+    "/app/data/prototype.db",
+    "/app/aula.db",
+    os.path.join(os.getcwd(), "aula.db"),
+    os.path.join(os.getcwd(), "data", "aula.db")
+]
 
-# Strict check: Wait for volume mount on Railway
 IS_GHOST_DB = False
 if IS_RAILWAY:
-    # We give Railway up to 10 seconds to attach the volume
-    for attempt in range(10):
-        if os.path.exists(DB_PATH):
-            print(f"[DB] Volume found after {attempt}s. Starting normally.")
-            IS_GHOST_DB = False
+    print("[DB] Railway environment detected. Searching for existing data...")
+    found_path = None
+    for path in potential_paths:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            print(f"[DB] FOUND EXISTING DATA at {path} ({os.path.getsize(path)} bytes)")
+            found_path = path
             break
-        else:
-            print(f"[DB] Waiting for volume mount (Attempt {attempt+1}/10)...")
-            time.sleep(1)
+    
+    if found_path:
+        DB_PATH = found_path
+        IS_GHOST_DB = False
     else:
-        # If still not found after 10s, it's either a fresh install or a major mount failure
-        if not os.path.exists(DB_PATH):
-            print("[WARNING] No database found after 10s. Proceeding in 'Fresh Install' mode.")
+        # Retry loop for volume mount lag
+        for attempt in range(15):
+            # Check the default volume path again
+            if os.path.exists("/app/data/aula.db"):
+                print(f"[DB] Volume attached! Using /app/data/aula.db")
+                DB_PATH = "/app/data/aula.db"
+                IS_GHOST_DB = False
+                break
+            time.sleep(1)
+        else:
+            print("[WARNING] No database found after exhaustive search. Using default path.")
+            DB_PATH = "/app/data/aula.db"
             IS_GHOST_DB = True
+else:
+    DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
 
 # Thread-safe locks for background tasks
 _task_locks = {}
