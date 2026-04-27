@@ -3,7 +3,12 @@ import json
 import random
 import os
 import uuid
+import threading
+import contextlib
 from datetime import datetime, timezone
+
+def _uid():
+    return str(uuid.uuid4())
 
 # ── PATHING (Absolute for Persistence) ───────────────────
 # We use absolute paths to ensure the Railway volume remains mounted correctly.
@@ -20,17 +25,34 @@ DB_PATH = os.path.join(DATA_DIR, "aula.db")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(BOOKS_DIR, exist_ok=True)
 
-def _uid():
-    return str(uuid.uuid4())
+# Thread-safe locks for background tasks
+_task_locks = {}
+_task_locks_lock = threading.Lock()
+
+def get_task_lock(course_id):
+    with _task_locks_lock:
+        if course_id not in _task_locks:
+            _task_locks[course_id] = threading.Lock()
+        return _task_locks[course_id]
 
 def db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    """Get a raw connection with a long timeout for concurrent AI tasks."""
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
+@contextlib.contextmanager
+def db_session():
+    """Proper context manager that ensures connections are closed."""
+    conn = db_connection()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
 def get_db():
-    """Context manager for database connections (Backward compat)."""
-    return db_connection()
+    """Backward compatibility alias for db_session."""
+    return db_session()
 
 def init_db():
     """Initialize the universal AulaAI database schema."""
