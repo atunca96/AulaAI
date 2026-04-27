@@ -63,11 +63,20 @@ def detect_language(text):
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""
-    prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
     
+    # Only apply the "Complete set" requirement if the topic is actually about an alphabet
+    is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "syllabary", "hiragana", "katakana", "cyrillic", "pinyin"])
+    
+    alphabet_rule = ""
+    if is_alphabet_topic:
+        alphabet_rule = """
     CRITICAL REQUIREMENT for Alphabets/Syllabaries:
-    If this topic covers an alphabet (e.g. Latin A-Z, Cyrillic) or a syllabary (e.g. Hiragana/Katakana), you MUST include EVERY SINGLE CHARACTER. 
-    Skipping even one character is a pedagogical failure. Use as many 'vocabulary' type pages as necessary (e.g. 3-4 pages) to list the ENTIRE set with translations/pronunciation.
+    Since this topic is about the alphabet/syllabary, you MUST include EVERY SINGLE CHARACTER (e.g. A-Z, all 46 Hiragana). 
+    Skipping even one is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
+    """
+
+    prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
+    {alphabet_rule}
     
     Return ONLY a JSON object:
     {{
@@ -84,7 +93,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     Rules:
     1. Instructions must be in English.
     2. Content must be level-appropriate ({level}).
-    3. You can generate between 3 to 6 pages. For alphabets, prioritize completeness over page count.
+    3. You can generate between 3 to 6 pages. 
     4. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
     5. Generate at least 6 high-quality questions.
     """
