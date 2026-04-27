@@ -3896,20 +3896,22 @@ function renderStudyBook() {
       if (fallback) fallback.classList.add('hidden');
     }
   }
+
   const tocId = currentUser.role === 'lecturer' ? 'ai-book-toc' : 's-ai-book-toc';
   const toc = document.getElementById(tocId);
   if (!toc) return;
 
   if (!curriculum || curriculum.length === 0) {
-    toc.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:10px;">No curriculum loaded.</p>`;
+    toc.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:10px;">${t('class.no_curriculum') || 'No curriculum loaded.'}</p>`;
     return;
   }
 
+  // Clear existing content and render
   toc.innerHTML = curriculum.map((ch, i) => `
     <div class="study-ch-group" style="margin-bottom:16px;">
       <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">Unit ${ch.number || (i+1)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
-        ${ch.topics.map(t => `
+        ${(ch.topics || []).map(t => `
           <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.3; height:auto; transition:0.2s ease;">
             ${esc(t.title)}
           </button>
