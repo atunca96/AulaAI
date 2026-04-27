@@ -427,6 +427,26 @@ const i18n = {
     'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
     'class.toc_range_hint': 'If left empty, AI will use the Manual Syllabus above as the primary source.',
     // Student Portal
+    'ai.select_lang': '1. Select Language',
+    'ai.target_level': '2. Target Level',
+    'ai.course_name': '3. Course Name',
+    'ai.name_placeholder': 'e.g. Intensive Spanish Summer',
+    'ai.gen_curriculum': 'Generate Curriculum ✨',
+    'loading': 'loading',
+    'lang.Spanish': 'Spanish',
+    'lang.German': 'German',
+    'lang.French': 'French',
+    'lang.Italian': 'Italian',
+    'lang.Portuguese': 'Portuguese',
+    'lang.Russian': 'Russian',
+    'lang.Chinese': 'Chinese',
+    'lang.Japanese': 'Japanese',
+    'lang.Arabic': 'Arabic',
+    'lang.Turkish': 'Turkish',
+    'lang.Dutch': 'Dutch',
+    'lang.Swedish': 'Swedish',
+    'lang.Korean': 'Korean',
+    'lang.Greek': 'Greek',
     'student.welcome': 'Welcome to AulaAI',
     'student.select_class': 'Select a classroom to continue learning',
     'student.join_new': 'Join New Classroom',
@@ -583,6 +603,26 @@ const i18n = {
     'alert.hard_reset_failed': 'Hard reset failed: {error}',
   },
   tr: {
+    'ai.select_lang': '1. Dil Seçin',
+    'ai.target_level': '2. Hedef Seviye',
+    'ai.course_name': '3. Kurs Adı',
+    'ai.name_placeholder': 'ör. Yoğun İspanyolca Yaz Kursu',
+    'ai.gen_curriculum': 'Müfredat Oluştur ✨',
+    'loading': 'yükleniyor',
+    'lang.Spanish': 'İspanyolca',
+    'lang.German': 'Almanca',
+    'lang.French': 'Fransızca',
+    'lang.Italian': 'İtalyanca',
+    'lang.Portuguese': 'Portekizce',
+    'lang.Russian': 'Rusça',
+    'lang.Chinese': 'Çince',
+    'lang.Japanese': 'Japonca',
+    'lang.Arabic': 'Arapça',
+    'lang.Turkish': 'Türkçe',
+    'lang.Dutch': 'Felemenkçe',
+    'lang.Swedish': 'İsveççe',
+    'lang.Korean': 'Korece',
+    'lang.Greek': 'Yunanca',
     langBtn: 'Dil: TR',
     ok: 'Tamam',
     cancel: 'İptal',
@@ -951,6 +991,11 @@ function applyTranslations() {
       try { if (dataStr) data = JSON.parse(dataStr); } catch (e) { }
 
       const translation = t(key, data);
+      
+      // Safety: Don't overwrite buttons that are currently showing a "loading" spinner
+      if (el.tagName === 'BUTTON' && el.querySelector('.spinner-small')) return;
+      if (el.disabled && el.innerHTML.includes('spinner')) return;
+
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
         el.placeholder = translation;
       } else {
@@ -987,9 +1032,13 @@ function applyTranslations() {
     sidebarLangLabel.textContent = currentLang === 'en' ? 'TR' : 'EN';
   }
 
-  // Re-render report if it's currently visible
   if (_lastReportData && document.getElementById('tab-reports').classList.contains('active')) {
     renderReport(_lastReportData);
+  }
+
+  // Refresh dynamic components that don't use simple data-i18n
+  if (document.getElementById('ai-architect-modal') && !document.getElementById('ai-architect-modal').classList.contains('hidden')) {
+      renderAiLanguages();
   }
 }
 
@@ -1495,26 +1544,26 @@ function renderAiLanguages() {
   const grid = document.getElementById('ai-language-grid');
   if (!grid) return;
   const langs = [
-    { id: 'Spanish', name: 'İspanyolca', icon: '🇪🇸' },
-    { id: 'English', name: 'İngilizce', icon: '🇬🇧' },
-    { id: 'German', name: 'Almanca', icon: '🇩🇪' },
-    { id: 'French', name: 'Fransızca', icon: '🇫🇷' },
-    { id: 'Italian', name: 'İtalyanca', icon: '🇮🇹' },
-    { id: 'Portuguese', name: 'Portekizce', icon: '🇵🇹' },
-    { id: 'Russian', name: 'Rusça', icon: '🇷🇺' },
-    { id: 'Chinese', name: 'Çince', icon: '🇨🇳' },
-    { id: 'Japanese', name: 'Japonca', icon: '🇯🇵' },
-    { id: 'Arabic', name: 'Arapça', icon: '🇸🇦' },
-    { id: 'Turkish', name: 'Türkçe', icon: '🇹🇷' },
-    { id: 'Dutch', name: 'Felemenkçe', icon: '🇳🇱' },
-    { id: 'Swedish', name: 'İsveççe', icon: '🇸🇪' },
-    { id: 'Korean', name: 'Korece', icon: '🇰🇷' },
-    { id: 'Greek', name: 'Yunanca', icon: '🇬🇷' }
+    { id: 'Spanish', icon: '🇪🇸' },
+    { id: 'English', icon: '🇬🇧' },
+    { id: 'German', icon: '🇩🇪' },
+    { id: 'French', icon: '🇫🇷' },
+    { id: 'Italian', icon: '🇮🇹' },
+    { id: 'Portuguese', icon: '🇵🇹' },
+    { id: 'Russian', icon: '🇷🇺' },
+    { id: 'Chinese', icon: '🇨🇳' },
+    { id: 'Japanese', icon: '🇯🇵' },
+    { id: 'Arabic', icon: '🇸🇦' },
+    { id: 'Turkish', icon: '🇹🇷' },
+    { id: 'Dutch', icon: '🇳🇱' },
+    { id: 'Swedish', icon: '🇸🇪' },
+    { id: 'Korean', icon: '🇰🇷' },
+    { id: 'Greek', icon: '🇬🇷' }
   ];
   grid.innerHTML = langs.map(l => `
-    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:16px; border:2px solid var(--border); border-radius:12px; height:auto; min-width:0;">
+    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:16px; border:2px solid ${_selectedAiLanguage === l.id ? 'var(--accent)' : 'var(--border)'}; border-radius:12px; height:auto; min-width:0;">
       <span style="font-size:24px;">${l.icon}</span>
-      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${l.name}</span>
+      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${t('lang.' + l.id)}</span>
     </button>
   `).join('');
 }
