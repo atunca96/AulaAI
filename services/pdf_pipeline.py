@@ -249,9 +249,15 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
             """Wrapper to ensure questions are generated FROM the textbook content."""
             from services.ai_engine import generate_full_lesson, ai_generate_questions
             
-            # 1. Generate Textbook Content
-            lesson = generate_full_lesson(t_title, t_type, language, 6, level)
-            pages = lesson.get("pages", [])
+            # 1. Generate Textbook Content (with retry)
+            pages = []
+            for attempt in range(3):
+                lesson = generate_full_lesson(t_title, t_type, language, 6, level)
+                pages = lesson.get("pages", [])
+                if pages: break
+                _log(f"Empty lesson for {t_title}, retry {attempt+1}/3")
+                time.sleep(1)
+            
             content = {"pages": pages}
             
             # 2. Generate Questions based ON that content
