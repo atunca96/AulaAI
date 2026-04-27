@@ -31,8 +31,8 @@ except ImportError:
     client = None
 
 # MODEL CONSTANTS
-MODEL_SPEED = "anthropic/claude-3.5-sonnet" # Switched to Sonnet for all tasks
-MODEL_QUALITY = "anthropic/claude-3.5-sonnet"
+MODEL_SPEED = "anthropic/claude-3.5-sonnet:beta" 
+MODEL_QUALITY = "anthropic/claude-3.5-sonnet:beta"
 
 # Direct Anthropic mapping
 ANT_MODEL_MAP = {
