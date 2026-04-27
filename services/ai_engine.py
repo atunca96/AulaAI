@@ -106,6 +106,14 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     elif is_alphabet_topic:
         alphabet_rule = f"\nThis topic is about the {language} alphabet. Please provide a comprehensive overview of the letters and their basic sounds.\n"
     
+    level_guidance = ""
+    if level == 'B1':
+        level_guidance = f"IMPORTANT: This is a B1 (Intermediate) lesson. Avoid simple A1-level sentences. Use complex structures, {language} nuances, and professional/narrative vocabulary. Explanations should be more in-depth."
+    elif level == 'B2':
+        level_guidance = f"IMPORTANT: This is a B2 (Upper-Intermediate) lesson. Focus on advanced grammar, formal/academic register, and idiomatic expressions. Challenge the student with professional-level content."
+    elif level in ['C1', 'C2']:
+        level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures."
+
     explanation_rule = ""
     if level in ['A1', 'A2']:
         explanation_rule = f"1. EXPLANATION LANGUAGE: All grammar explanations, instructions, and descriptions MUST be in English. Only the actual {language} examples and vocabulary terms should be in {language}."
@@ -114,6 +122,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
 
     prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
     {alphabet_rule}
+    {level_guidance}
     
     Return ONLY a JSON object:
     {{
@@ -437,8 +446,8 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     system = "You are a curriculum architect. Create a structured syllabus in JSON."
     alphabet_rule = "CRITICAL REQUIREMENT: The very first topic of Unit 1 MUST be exactly 'The Alphabet'. " if level == 'A1' else ""
     level_exclusion = ""
-    if level in ['B1', 'B2']:
-        level_exclusion = f"EXCLUSION: DO NOT include absolute beginner topics like 'Greetings', 'Colors', 'Numbers 1-10', or 'The Alphabet'. These students are {level} level and need intermediate topics like 'Hypothetical Situations', 'Workplace Communication', or 'Complex Narrative Tenses'."
+    if level in ['B1', 'B2', 'C1', 'C2']:
+        level_exclusion = f"EXCLUSION: DO NOT include absolute beginner topics like 'Greetings', 'Colors', 'Numbers 1-10', or 'The Alphabet'. These students are {level} level and need advanced topics appropriate for their proficiency (e.g., 'Abstract Concepts', 'Nuanced Debate', 'Complex Professional Scenarios')."
 
     user = f"Create a comprehensive {level} level {language} course syllabus with at least 4 or 5 Units (Chapters). {prompt_extra}\n" \
            f"{alphabet_rule}\n" \
