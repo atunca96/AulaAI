@@ -444,13 +444,34 @@ const i18n = {
     'class.create_success': 'Classroom created successfully!',
     'class.share_msg': 'Share the Join Code with your students to start the lesson.',
     'class.create_success_full': 'Classroom created successfully! \n\nJoin Code: {code}\n\nShare the Join Code with your students to start the lesson.',
+    'class.building_msg_student': 'The lecturer is rebuilding the classroom structure...',
     'answer': 'Answer',
     'responses': 'Responses',
     'gen.loading': 'Questions are being generated...',
     'gen.time': 'This may take 5-10 seconds.',
     'Unit': 'Unit',
+    'Material': 'Material',
+    'study': 'Material',
+    'book': 'Book',
+    'study.units': 'Units',
+    'study.vocabulary': 'Vocabulary Cheat Sheet',
+    'study.grammar': 'Grammar & Key Rules',
+    'study.usage': 'Practical Usage',
+    'study.complete': 'Lesson Complete',
+    'study.preview': 'Lesson Preview',
+    'study.back': 'Back',
+    'study.next': 'Next Page',
+    'study.ready': "You're Ready to Practice!",
+    'study.preview_end': 'End of Lesson Material',
+    'study.preview_msg': 'This is how the lesson appears to your students.',
+    'study.ready_msg': "Now it's time to test your knowledge.",
+    'study.start_practice': '🚀 Start Practice Session',
     'SelectTopic': 'Select a topic...',
     'AllChapters': 'All chapters',
+    'confirm.rebuild_title': 'Build Lessons?',
+    'confirm.rebuild_msg': 'This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?',
+    'confirm.rebuild_ok': 'Yes, Build Everything',
+    'confirm.rebuild_cancel': 'Cancel',
     'ok': 'OK',
     'cancel': 'Cancel',
     'no_messages': 'No messages.',
@@ -578,6 +599,7 @@ const i18n = {
     'gen.preparing': 'Hazırlanıyor...',
     'gen.building': 'İçerik Oluşturuluyor...',
     'gen.please_wait': 'Lütfen Bekleyin',
+    'class.building_msg_student': 'Öğretmen sınıf yapısını yeniden oluşturuyor...',
     'Build All Lessons': 'Dersleri Oluştur',
     'Building...': 'Hazırlanıyor...',
     'Go Back to Classrooms': 'Sınıflara Geri Dön',
@@ -598,6 +620,26 @@ const i18n = {
     'assign.recorded': 'Puanın kaydedildi.',
     'assign.back': 'Ödevlere Dön',
     'assign.retry': 'Hata oluştu, tekrar deneyin.',
+    'Material': 'Materyal',
+    'study': 'Materyal',
+    'book': 'Kitap',
+    'study.units': 'Üniteler',
+    'study.vocabulary': 'Kelime Rehberi',
+    'study.grammar': 'Dilbilgisi ve Kurallar',
+    'study.usage': 'Pratik Kullanım',
+    'study.complete': 'Ders Tamamlandı',
+    'study.preview': 'Ders Önizleme',
+    'study.back': 'Geri',
+    'study.next': 'Sonraki Sayfa',
+    'study.ready': 'Alıştırma Yapmaya Hazırsın!',
+    'study.preview_end': 'Ders Materyali Sonu',
+    'study.preview_msg': 'Bu dersin öğrencileriniz için nasıl göründüğüdür.',
+    'study.ready_msg': 'Şimdi bilgini test etme zamanı.',
+    'study.start_practice': '🚀 Alıştırma Seansını Başlat',
+    'confirm.rebuild_title': 'Dersleri Oluştur?',
+    'confirm.rebuild_msg': 'Bu işlem müfredattaki her konu için yapay zeka kullanarak ders içerikleri ve alıştırma soruları oluşturacaktır. Bu işlem 2-3 dakika sürebilir. Devam edilsin mi?',
+    'confirm.rebuild_ok': 'Evet, Her Şeyi Oluştur',
+    'confirm.rebuild_cancel': 'İptal',
     'assign.type_answer': 'Cevabınızı yazın...',
     'question': 'Soru',
     'questions': 'soru',
@@ -1335,7 +1377,7 @@ async function selectClassroom(id, isLecturer = true) {
   if (currentUser.role === 'lecturer' && lectBookTab) {
     lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
     const label = lectBookTab.querySelector('.tab-label');
-    if (label) label.textContent = isAiGenerated ? "Material" : (t('book') || 'Book');
+    if (label) label.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('book') || 'Book');
   }
 
   if (currentUser.role === 'student') {
@@ -2290,9 +2332,9 @@ function renderCurriculum() {
 async function rebuildClassroom() {
   if (!currentCourse) return;
   const ok = await showConfirmModal(
-    'Build Lessons?', 
-    "This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?",
-    false, null, false, "Yes, Build Everything", "Cancel"
+    'confirm.rebuild_title', 
+    "confirm.rebuild_msg",
+    false, null, false, "confirm.rebuild_ok", "confirm.rebuild_cancel"
   );
   if (!ok) return;
 
@@ -3949,7 +3991,7 @@ function renderStudyBook() {
   // Clear existing content and render
   toc.innerHTML = curriculum.map((ch, i) => `
     <div class="study-ch-group" style="margin-bottom:16px;">
-      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">Unit ${ch.number || (i+1)}</div>
+      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">${t('Unit')} ${ch.number || (i+1)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
         ${(ch.topics || []).map(t => `
           <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.3; height:auto; transition:0.2s ease;">
@@ -3995,7 +4037,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   
   if (vocabArray.length > 0) {
     pages.push({
-      title: "Vocabulary Cheat Sheet",
+      title: t('study.vocabulary'),
       icon: "📙",
       render: () => `
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
@@ -4014,7 +4056,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const grammarText = (content.rules || []).join('\n\n') || content.grammar || "";
   if (grammarText) {
     pages.push({
-      title: "Grammar & Key Rules",
+      title: t('study.grammar'),
       icon: "⚙️",
       render: () => `
         <div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${grammarText}</div>
@@ -4026,7 +4068,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const examples = content.examples || content.dialogue || [];
   if (examples.length > 0) {
     pages.push({
-      title: "Practical Usage",
+      title: t('study.usage'),
       icon: "💬",
       render: () => `
         <div style="display:flex; flex-direction:column; gap:20px;">
@@ -4047,16 +4089,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   // Final Page: Ready to Practice
   pages.push({
-    title: isStudent ? "Lesson Complete" : "Lesson Preview",
+    title: isStudent ? t('study.complete') : t('study.preview'),
     icon: "🏁",
     render: () => `
       <div style="text-align:center; padding:60px 20px;">
         <div style="font-size:64px; margin-bottom:24px;">🎯</div>
-        <h2 style="font-size:28px; margin-bottom:12px;">${isStudent ? "You're Ready to Practice!" : "End of Lesson Material"}</h2>
+        <h2 style="font-size:28px; margin-bottom:12px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
         <p style="color:var(--text-muted); margin-bottom:40px; font-size:18px; max-width:500px; margin-left:auto; margin-right:auto;">
-          ${isStudent ? `You've reviewed the vocabulary, grammar, and examples for <strong>${topic.title}</strong>. Now it's time to test your knowledge.` : `This is how the lesson appears to your students.`}
+          ${isStudent ? t('study.ready_msg') : t('study.preview_msg')}
         </p>
-        ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">🚀 Start Practice Session</button>` : ''}
+        ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">${t('study.start_practice')}</button>` : ''}
       </div>
     `
   });
@@ -4072,10 +4114,10 @@ function showStudyTopic(topicId, pageIdx = 0) {
         </div>
         <div style="display:flex; gap:12px;">
           ${pageIdx > 0 ? `
-            <button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})" style="border-radius:12px; padding:10px 20px;">← Back</button>
+            <button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})" style="border-radius:12px; padding:10px 20px;">← ${t('study.back')}</button>
           ` : ''}
           ${pageIdx < pages.length - 1 ? `
-            <button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})" style="border-radius:12px; padding:10px 24px; box-shadow:var(--accent-glow);">Next Page →</button>
+            <button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})" style="border-radius:12px; padding:10px 24px; box-shadow:var(--accent-glow);">${t('study.next')} →</button>
           ` : ''}
         </div>
       </div>
