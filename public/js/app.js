@@ -3212,14 +3212,16 @@ function startStudyFirst(topicId) {
 }
 
 async function startPractice(tid, title) {
-  const topicsGrid = document.getElementById('practice-topics');
-  const area = document.getElementById('practice-area');
+  const isLecturer = currentUser.role === 'lecturer';
+  const targetId = isLecturer ? 'activity-preview' : 'practice-area';
+  const topicsGrid = isLecturer ? null : document.getElementById('practice-topics');
+  const area = document.getElementById(targetId);
   
   if (topicsGrid) topicsGrid.classList.add('hidden');
   if (area) {
-    area.innerHTML = ''; // Clear previous
+    area.innerHTML = ''; 
     area.classList.remove('hidden');
-    area.style.display = 'block'; // Force visibility
+    area.style.display = 'block'; 
     showGenerationLoading(area);
   }
 
@@ -3232,7 +3234,7 @@ async function startPractice(tid, title) {
     if (res.error) throw new Error(res.error);
     
     // 2. Start polling
-    startActivityPolling('practice-area', `${t('practice')}: ${title}`);
+    startActivityPolling(targetId, `${t('practice')}: ${title}`);
   } catch (err) {
     console.error("Practice Start Error:", err);
     if (area) {
