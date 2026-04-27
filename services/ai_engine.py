@@ -221,7 +221,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     """
     
     for attempt in range(2):
-        result = _call_ai([{"role": "user", "content": prompt}])
+        # Increased tokens for batch generation to avoid truncation
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
         raw_list = result.get("data") if result else []
         
         final_questions = []
@@ -229,21 +230,19 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         
         for item in raw_list:
             try:
-                # 1. Aggressive Universal Cleaning (including Unicode brackets)
+                # 1. Agnostic Cleaning
                 def deep_clean(text):
-                    # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
-                    t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
-                    return t.strip()
+                    return str(text).strip()
     
                 ans_clean = deep_clean(item.get("answer", ""))
                 prompt_raw = str(item.get("prompt", "")).strip()
                 prompt_clean = deep_clean(prompt_raw)
                 
                 # 2. Logic Check: Empty or Inside Prompt
-                if not ans_clean or len(prompt_raw) < 5:
+                if not ans_clean or len(prompt_raw) < 3:
                     continue
     
-                # 3. Script Consistency Rule (Agnostic)
+                # 3. Script Vibe Analysis
                 def get_vibe(t):
                     return "latin" if re.search('[a-zA-Z]', str(t)) else "native"
                 
@@ -254,12 +253,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 all_choices = {ans_clean.lower()}
                 valid_distractors = []
                 
+                # LOOSENED: Allow mixed scripts in distractors for better pedagogy
                 for d in distractors:
                     d_clean = deep_clean(d)
                     if d_clean and d_clean.lower() not in all_choices:
-                        if get_vibe(d_clean) == ans_vibe:
-                            valid_distractors.append(d_clean)
-                            all_choices.add(d_clean.lower())
+                        valid_distractors.append(d_clean)
+                        all_choices.add(d_clean.lower())
                 
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
@@ -269,6 +268,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                             continue
                     else:
                         # Use word boundaries on the CLEAN prompt
+                        # Case-insensitive whole word check
                         pattern = r'\b' + re.escape(ans_clean.lower()) + r'\b'
                         if re.search(pattern, prompt_clean.lower()):
                             continue
