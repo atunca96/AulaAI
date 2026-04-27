@@ -432,7 +432,7 @@ const i18n = {
     'ai.course_name': '3. Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
     'ai.gen_curriculum': 'Generate Curriculum ✨',
-    'loading': 'loading',
+    'loading': 'Loading...',
     'lang.Spanish': 'Spanish',
     'lang.German': 'German',
     'lang.French': 'French',
@@ -4078,7 +4078,7 @@ async function submitAssignment(area) {
   const answers = JSON.parse(area.dataset.answers);
 
   area.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">
-    ${t('loading')}...
+    ${t('loading')}
   </div>`;
 
   try {
@@ -4160,7 +4160,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   container.innerHTML = `
     <div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
       <div class="spinner"></div>
-      <div style="color:var(--text-muted); font-size:14px;">${t('loading')}...</div>
+      <div style="color:var(--text-muted); font-size:14px;">${t('loading')}</div>
     </div>
   `;
   
@@ -4170,7 +4170,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const pagBot = document.getElementById(isStudent ? 's-ai-book-pagination-bottom' : 'ai-book-pagination-bottom');
   
   if (topicTitle) topicTitle.textContent = '...';
-  if (pageTitle) pageTitle.textContent = t('loading') + '...';
+  if (pageTitle) pageTitle.textContent = t('loading');
   if (pagTop) pagTop.innerHTML = '';
   if (pagBot) pagBot.innerHTML = '';
 
