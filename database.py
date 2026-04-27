@@ -47,6 +47,9 @@ def init_db():
             language TEXT DEFAULT 'Turkish',
             level TEXT DEFAULT 'A1',
             is_building INTEGER DEFAULT 0,
+            progress INTEGER DEFAULT 0,
+            activity_status TEXT DEFAULT 'idle',
+            activity_progress INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(lecturer_id) REFERENCES users(id)
         )''')
