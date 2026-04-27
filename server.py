@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
-from services.ai_engine import is_ai_available, ai_generate_report_insights
+from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch
 from services.pdf_pipeline import process_pdf_to_classroom
 from services.state import bump_version, get_version
 
