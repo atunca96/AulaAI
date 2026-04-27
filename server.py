@@ -345,10 +345,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # Start the background worker
         import subprocess
         try:
-            # Use same creationflags/logic as create_classroom
-            creationflags = 0x00000008 # DETACHED_PROCESS for Windows
-            subprocess.Popen([sys.executable, "worker.py", course_id], 
-                            creationflags=creationflags, close_fds=True)
+            cmd = [sys.executable, "worker.py", course_id]
+            log_file = open("pipeline.log", "a", encoding="utf-8")
+            
+            if sys.platform == "win32":
+                subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, 
+                               creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
+            
+            log_file.close()
             self._send_json({"status": "success", "message": "Rebuild started"})
         except Exception as e:
             self._send_error(f"Failed to start worker: {e}")
