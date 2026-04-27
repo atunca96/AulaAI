@@ -4,6 +4,7 @@ import random
 import os
 import uuid
 import re
+from datetime import datetime, timezone, timedelta
 
 # Path Configuration
 DATA_DIR = os.path.join(os.getcwd(), "data")
@@ -18,7 +19,14 @@ def _uid(): return str(uuid.uuid4())
 
 def get_db():
     """Context manager for database connections (Backward compat)."""
-    return sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def init_db():
     """Initialize the universal AulaAI database schema."""
@@ -32,7 +40,7 @@ def init_db():
             email TEXT UNIQUE,
             password TEXT,
             role TEXT,
-            status TEXT DEFAULT 'pending',
+            status TEXT DEFAULT 'approved',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
@@ -60,6 +68,7 @@ def init_db():
             course_id TEXT,
             number INTEGER,
             title TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(course_id) REFERENCES courses(id)
         )''')
 
@@ -72,6 +81,7 @@ def init_db():
             content TEXT,
             pdf_url TEXT,
             sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(chapter_id) REFERENCES chapters(id)
         )''')
 
@@ -134,6 +144,7 @@ def init_db():
             title TEXT,
             due_date TIMESTAMP,
             is_published INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(course_id) REFERENCES courses(id)
         )''')
 
@@ -151,6 +162,7 @@ def init_db():
             description TEXT,
             due_date TIMESTAMP,
             is_published INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(course_id) REFERENCES courses(id)
         )''')
 
@@ -166,6 +178,7 @@ def init_db():
             course_id TEXT,
             status TEXT DEFAULT 'pending',
             pin TEXT,
+            enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY(student_id, course_id)
         )''')
@@ -190,11 +203,6 @@ def init_db():
             _seed_data(c)
         
         conn.commit()
-
-def db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def _seed_data(c):
     """Seed the database with a clean, universal demo lecturer and course."""
