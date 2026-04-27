@@ -335,8 +335,8 @@ def format_activity_by_template(data, level, language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
-    request_count = max(20, int(count) * 2)
-    if request_count > 45: request_count = 45 # Stability limit
+    request_count = max(20, int(count) + 5)
+    if request_count > 30: request_count = 30 # Token/Time safety for Llama
     
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
@@ -394,14 +394,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 # Language Consistency Check
                 is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
                 if not is_target_latin:
-                    # If target is non-latin (Japanese, Arabic, etc), check for mixed scripts
                     has_latin = any(re.search('[a-zA-Z]', str(o)) for o in opts)
                     prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in assembled["prompt"] if c.strip())
                     
-                    # If prompt is target-language, options MUST be native (English/Turkish) -> Latin
-                    if prompt_has_target and not has_latin: continue 
-                    # If prompt is native (English), options MUST be target-language -> No Latin
-                    if not prompt_has_target and has_latin: continue
+                    if prompt_has_target and not has_latin: 
+                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options")
+                        continue 
+                    if not prompt_has_target and has_latin: 
+                        print(f"[QC] Discarded Mode A (Target) with latin options")
+                        continue
 
             # 3. Uniqueness Filter
             prompt_hash = str(assembled.get("prompt", "")).strip().lower()
@@ -412,6 +413,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             # 4. Answer Uniqueness Filter (Concept De-duplication)
             ans_hash = str(assembled.get("answer", "")).strip().lower()
             if ans_hash in seen_answers:
+                print(f"[QC] Discarded duplicate answer: {ans_hash}")
                 continue
             seen_answers.add(ans_hash)
 
