@@ -292,9 +292,15 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         return []
 
     # 1. Initial Pull from DB (STRICTLY MCQ)
+    chapter_groups = {} # chapter_id -> [questions]
     with db_connection() as db_conn:
         c = db_conn.cursor()
         for topic_id in topic_ids:
+            # Discover chapter for this topic
+            row_ch = c.execute("SELECT chapter_id FROM topics WHERE id = ?", (topic_id,)).fetchone()
+            ch_id = row_ch["chapter_id"] if row_ch else "unknown"
+            if ch_id not in chapter_groups: chapter_groups[ch_id] = []
+            
             rows = c.execute(
                 "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
                 (topic_id,)
@@ -302,22 +308,39 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             
             for row in rows:
                 q = dict(row)
-                if q["id"] in [sq["id"] for sq in questions]: continue
-                
                 # Verify distractors
-                if not q.get("distractors") or q["distractors"] == "[]":
-                    continue # Skip if no distractors for MCQ
-                
                 try:
                     raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
                     q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
                 except:
                     q["distractors"] = []
                 
-                questions.append(q)
+                if not q["distractors"]: continue
+                q["chapter_id"] = ch_id # Tag for balanced selection
+                chapter_groups[ch_id].append(q)
+
+    # 2. Balanced Assembly
+    questions = []
+    # A. Guaranteed Seed: Take 1 from each chapter group first
+    chapter_ids_list = list(chapter_groups.keys())
+    random.shuffle(chapter_ids_list)
+    
+    for ch_id in chapter_ids_list:
+        group = chapter_groups[ch_id]
+        if group:
+            random.shuffle(group)
+            questions.append(group.pop()) # Seed one from this chapter
+            if len(questions) >= count: break
+            
+    # B. Fill Rest: Flatten remaining and shuffle
+    if len(questions) < count:
+        remaining_pool = []
+        for group in chapter_groups.values():
+            remaining_pool.extend(group)
+        random.shuffle(remaining_pool)
+        questions.extend(remaining_pool)
 
     if progress_callback: progress_callback(20)
-    random.shuffle(questions)
     
     # 2. AI Generation if needed
     max_retries = 3
@@ -331,7 +354,21 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         retry_count += 1
         needed = count - len(questions)
         
-        targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
+        # Prioritize topics from chapters NOT yet represented in 'questions'
+        present_chapters = set(q.get("chapter_id") for q in questions)
+        missing_topic_ids = []
+        with db_connection() as db_conn:
+            # We need to know which topic_id belongs to which chapter_id
+            for tid in topic_ids:
+                row_ch = db_conn.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
+                if row_ch and row_ch["chapter_id"] not in present_chapters:
+                    missing_topic_ids.append(tid)
+        
+        if missing_topic_ids:
+            targets = random.sample(missing_topic_ids, min(len(missing_topic_ids), 3))
+        else:
+            targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
+            
         if not targets:
             if topic_ids: targets = [random.choice(topic_ids)]
             else: break
@@ -383,7 +420,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
                                         json.dumps(distractors), "A1.1"))
                             
-                            questions.append({
+                            q_to_add = {
                                 "id": q_id,
                                 "topic_id": tid,
                                 "type": q.get("type", "mcq"),
@@ -391,7 +428,13 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                                 "answer": q.get("answer", ""),
                                 "distractors": distractors,
                                 "difficulty": "A1.1"
-                            })
+                            }
+                            # Tag with chapter_id for subsequent loops
+                            with db_connection() as db_ch:
+                                row_ch = db_ch.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
+                                if row_ch: q_to_add["chapter_id"] = row_ch["chapter_id"]
+
+                            questions.append(q_to_add)
                             added_this_retry += 1
                         db_conn.commit()
                     
