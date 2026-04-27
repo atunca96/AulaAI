@@ -2284,7 +2284,10 @@ async function rebuildClassroom() {
   if (!ok) return;
 
   try {
-    const res = await api('/classroom/rebuild', { course_id: currentCourse.id });
+    const res = await api('/classroom/rebuild', { 
+      method: 'POST',
+      body: { course_id: currentCourse.id }
+    });
     if (res.status === 'success') {
       currentCourse.is_building = 1;
       renderCurriculum();
