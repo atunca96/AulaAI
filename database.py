@@ -56,6 +56,7 @@ def init_db():
             level TEXT DEFAULT 'A1',
             is_building INTEGER DEFAULT 0,
             progress INTEGER DEFAULT 0,
+            total_steps INTEGER DEFAULT 0,
             activity_status TEXT DEFAULT 'idle',
             activity_progress INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -215,6 +216,7 @@ def _run_migrations():
         
         migrations = [
             ("courses", "progress", "INTEGER DEFAULT 0"),
+            ("courses", "total_steps", "INTEGER DEFAULT 0"),
             ("courses", "activity_status", "TEXT DEFAULT 'idle'"),
             ("courses", "activity_progress", "INTEGER DEFAULT 0"),
             ("courses", "language", "TEXT DEFAULT 'Turkish'"),
