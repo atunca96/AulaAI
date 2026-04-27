@@ -1,3 +1,4 @@
+# UNIVERSAL DATABASE SCHEMA - VERSION 2.1 (FORCE REDEPLOY)
 import sqlite3
 import json
 import random
