@@ -37,12 +37,12 @@ ALPHABETS = {
             {
                 "title": "Pinyin Finals (Vowels)",
                 "items": [
-                    {"term": "a", "translation": "sounds like 'ah'"},
-                    {"term": "o", "translation": "sounds like 'oh'"},
-                    {"term": "e", "translation": "sounds like 'uh'"},
-                    {"term": "i", "translation": "sounds like 'ee'"},
-                    {"term": "u", "translation": "sounds like 'oo'"},
-                    {"term": "ü", "translation": "sounds like 'yu' (rounded lips)"}
+                    {"term": "啊", "translation": "a - sounds like 'ah'"},
+                    {"term": "哦", "translation": "o - sounds like 'oh'"},
+                    {"term": "饿", "translation": "e - sounds like 'uh'"},
+                    {"term": "衣", "translation": "i - sounds like 'ee'"},
+                    {"term": "五", "translation": "u - sounds like 'oo'"},
+                    {"term": "鱼", "translation": "ü - sounds like 'yu' (rounded lips)"}
                 ]
             }
         ]
