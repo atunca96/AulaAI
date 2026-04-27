@@ -6,27 +6,20 @@ import urllib.error
 import time
 from typing import List, Dict, Any, Optional
 
-# Simple AI Engine Reset (No extra dependencies)
+# Simple AI Engine with Python Filtering
 MODEL_SPEED = "anthropic/claude-3-haiku" 
 MODEL_QUALITY = "anthropic/claude-3-haiku"
 
 def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
-    """Simple OpenRouter caller using built-in urllib."""
+    """OpenRouter caller with markdown cleaning."""
     api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        return None
+    if not api_key: return None
 
     url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = json.dumps({
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "response_format": { "type": "json_object" }
+        "model": model, "messages": messages, "max_tokens": max_tokens, 
+        "temperature": temperature, "response_format": { "type": "json_object" }
     }).encode("utf-8")
 
     try:
@@ -36,7 +29,6 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
             res_json = json.loads(res_body)
             if "choices" in res_json:
                 content = res_json["choices"][0]["message"]["content"]
-                # CLEANER: Remove markdown backticks if present
                 clean_content = re.sub(r'^```json\n?|\n?```$', '', content.strip(), flags=re.MULTILINE)
                 return json.loads(clean_content)
     except Exception as e:
@@ -44,51 +36,75 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     return None
 
 def detect_language(text):
-    """Simple language detection."""
-    prompt = f"Detect the language of this text. Return a JSON object: {{'language': 'LanguageName'}}. Text: {text[:500]}"
+    prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:500]}"
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
     return result.get("language", "English") if result else "English"
 
 def generate_full_lesson(topic, language):
-    """Simple full lesson generator."""
-    prompt = f"Generate a comprehensive lesson about {topic} for students learning {language}. Provide detailed explanations and examples. Return a JSON object with a 'content' key."
+    prompt = f"Detailed lesson for {topic} in {language}. JSON: {{'content': '...'}}"
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
-    return result.get("content") if result else "Lesson content could not be generated."
+    return result.get("content", "Error") if result else "Error"
 
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
-    """Simple, direct question generator. No batching, no filtering."""
-    prompt = f"""Generate {count} learning questions for {language} (Level: {level}). Topic: {topic_title}.
-    Return a JSON object with a "data" key containing an array of objects.
-    Each object should have:
-    - type: "mcq" or "fill_blank"
-    - prompt: The question text
-    - answer: The correct answer
-    - distractors: [3 wrong answers for mcq]
-    - translation: English hint
+    """3/2 Rule + Python Filtering."""
+    c = int(count)
+    request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
+    prompt = f"""Generate {request_count} learning questions for {language} ({level}). Topic: {topic_title}.
+    JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
     """
     
     result = _call_ai([{"role": "user", "content": prompt}])
-    return result.get("data") if result else []
+    raw_list = result.get("data") if result else []
+    
+    final_questions = []
+    seen_answers = set()
+    
+    is_non_latin = any(x in language.lower() for x in ["japanese", "chinese", "arabic", "korean", "russian", "greek"])
+
+    for item in raw_list:
+        try:
+            # 1. Clean Parenthesis
+            ans = re.sub(r'\(.*?\)', '', str(item.get("answer", ""))).strip()
+            prompt_text = item.get("prompt", "")
+            
+            # 2. Logic Check: Answer shouldn't be the same as the prompt core
+            if ans.lower() in prompt_text.lower() and len(ans) > 2:
+                continue
+                
+            # 3. Script Guard: If Japanese/etc, answer shouldn't have Latin (A-Z)
+            if is_non_latin and re.search('[a-zA-Z]', ans):
+                continue
+            
+            # 4. Duplicate Check
+            if ans.lower() in seen_answers:
+                continue
+                
+            # Success!
+            item["answer"] = ans
+            seen_answers.add(ans.lower())
+            final_questions.append(item)
+            
+            if len(final_questions) >= c: break
+        except: continue
+        
+    return final_questions
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1'):
-    """Alias for the batch generator used by the server's background task."""
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
 
 def ai_grade_open_response(question, student_answer, correct_answer):
-    prompt = f"Grade Question: {question}, Correct: {correct_answer}, Student: {student_answer}. Return JSON: {{'score': 0..1, 'feedback': '...'}}"
+    prompt = f"Grade: Q:{question}, C:{correct_answer}, S:{student_answer}. JSON: {{'score': 0..1, 'feedback': '...'}}"
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150)
-    if result:
-        return (result.get("score", 0.0), result.get("feedback", ""))
-    return (0.0, "")
+    return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
 def ai_generate_report_insights(cohort_data):
-    prompt = f"Analyze this class data and give 2 short insights: {json.dumps(cohort_data)}"
+    prompt = f"Analyze: {json.dumps(cohort_data)}"
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
