@@ -353,10 +353,24 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
 
 
-def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name):
-    course_id = _uid()
-    code = generate_classroom_code()
-    
+def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None):
+    if existing_course_id:
+        course_id = existing_course_id
+        # Preserve existing code, but update everything else
+        with db_connection() as db:
+            course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
+            code = course[0] if course else generate_classroom_code()
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ? WHERE id = ?",
+                       (course_name, language, level, f"{level} Level", course_id))
+            db.commit()
+    else:
+        course_id = _uid()
+        code = generate_classroom_code()
+        with db_connection() as db:
+            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level) VALUES (?,?,?,?,?,?,?,?,?)",
+                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level))
+            db.commit()
+
     # Process the nested chapters into the worker's expected format
     worker_chapters = []
     for i, chap in enumerate(chapters):
@@ -374,11 +388,6 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         })
     
     manual_toc_data = {"chapters": worker_chapters}
-    
-    with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level) VALUES (?,?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level))
-        db.commit()
         
     # Write the manual TOC to a file for the worker
     # We use data/books directory for consistency with persistence

@@ -1522,8 +1522,10 @@ async function deleteClassroom(id, name) {
 let _currentAiStep = 1;
 let _selectedAiLanguage = null;
 let _selectedAiLevel = null;
+let _rearchitectingCourseId = null;
 
 function openClassroomMethodModal() {
+  _rearchitectingCourseId = null;
   document.getElementById('classroom-method-modal').classList.remove('hidden');
 }
 
@@ -1695,7 +1697,14 @@ async function buildAiClassroom() {
   try {
     const res = await api('/classroom/create-from-scratch', {
       method: 'POST',
-      body: { course_name: courseName, language: _selectedAiLanguage, level: _selectedAiLevel, chapters, lecturer_id: currentUser.id }
+      body: { 
+        course_name: courseName, 
+        language: _selectedAiLanguage, 
+        level: _selectedAiLevel, 
+        chapters, 
+        lecturer_id: currentUser.id,
+        course_id: _rearchitectingCourseId
+      }
     });
     if (res.success) {
       closeAiArchitectModal();
@@ -2455,9 +2464,9 @@ async function reArchitectCurriculum() {
       method: 'POST',
       body: { course_id: currentCourse.id }
     });
-    if (res.status === 'success') {
+    if (res.status === 'success' || res.success) {
       curriculum = [];
-      // Re-open the AI Architect Modal
+      _rearchitectingCourseId = currentCourse.id;
       startAiArchitectFlow();
       // Optional: fill in the classroom name
       const nameInp = document.getElementById('ai-architect-name');

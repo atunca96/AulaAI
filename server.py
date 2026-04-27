@@ -2210,8 +2210,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         chapters = data.get("chapters") 
         lecturer_id = data.get("lecturer_id")
         
+        course_id = data.get("course_id")
+        
         from services.pdf_pipeline import process_manual_to_classroom
-        result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name)
+        result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id)
         return self._send_json(result)
 
     def _read_multipart(self):

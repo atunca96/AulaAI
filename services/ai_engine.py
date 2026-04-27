@@ -93,7 +93,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     1. Instructions must be in English.
     2. Content must be level-appropriate ({level}).
     3. FLEXIBLE PAGE COUNT: You are allowed to generate between 3 to 6 pages depending on the complexity of the topic.
-    4. COMPLETE ALPHABETS: If the topic covers an alphabet or syllabary, you MUST provide the COMPLETE set. If the set is too large for one page (e.g. 46 Hiragana), split it across 2 or 3 'vocabulary' type pages.
+    4. COMPLETE FOUNDATIONS: If the topic covers an alphabet or syllabary, you MUST provide the FULL set of characters (e.g., A-Z for Latin, 46 for Hiragana). Skipping even a single letter makes it impossible for students to learn correctly. If the set is large, split it logically across 2 or 3 'vocabulary' type pages.
     5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
     6. Ensure the tone is professional yet engaging for a student.
     7. Generate at least 6 high-quality questions for the topic.
