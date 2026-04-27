@@ -53,93 +53,102 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
-    prompt = f"""Generate {request_count} learning questions for {language} ({level}). Topic: {topic_title}.
+    prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). Topic: {topic_title}.
+    
+    CRITICAL RULES for {language}:
+    1. NEVER include the correct answer word inside the 'prompt' text. (No 'What does [X] mean?' if [X] is the answer).
+    2. MCQ Consistency: All choices (answer + distractors) MUST be in the SAME script (either all {language} or all English). Never mix them.
+    3. Be creative: Use fill-in-the-blank for grammar and MCQ for vocabulary.
+    
     JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
     """
     
-    result = _call_ai([{"role": "user", "content": prompt}])
-    raw_list = result.get("data") if result else []
-    
-    final_questions = []
-    seen_answers = set()
-    
-    is_non_latin = any(x in language.lower() for x in ["japanese", "chinese", "arabic", "korean", "russian", "greek"])
-
-    for item in raw_list:
-        try:
-            # 1. Aggressive Universal Cleaning (including Unicode brackets)
-            def deep_clean(text):
-                # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
-                t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
-                return t.strip()
-
-            ans_clean = deep_clean(item.get("answer", ""))
-            prompt_raw = str(item.get("prompt", "")).strip()
-            
-            # SAFE AGNOSTIC STRIP: Only remove common punctuation, keep all letters/symbols
-            def agnostic_strip(text):
-                # We only want to remove quotes and common separators, not native characters
-                return re.sub(r'[\'\"\?\!\.\,\:\;\-\_]', '', str(text)).lower().strip()
-
-            prompt_stripped = agnostic_strip(prompt_raw)
-            ans_stripped = agnostic_strip(ans_clean)
-            
-            # 2. Logic Check: Empty or Inside Prompt
-            if not ans_clean or not ans_stripped or len(prompt_raw) < 5:
-                continue
-            if ans_stripped in prompt_stripped:
-                continue
-
-            # 3. Script Consistency Rule (Agnostic)
-            def get_vibe(t):
-                return "latin" if re.search('[a-zA-Z]', str(t)) else "native"
-            
-            ans_vibe = get_vibe(ans_clean)
-            distractors = item.get("distractors", [])
-            if not isinstance(distractors, list): distractors = []
-            
-            all_choices = {ans_clean.lower()}
-            valid_distractors = []
-            
-            for d in distractors:
-                d_clean = deep_clean(d)
-                d_stripped = agnostic_strip(d_clean)
-                # Rule: Choice must exist, be unique, share the vibe, and NOT be in the prompt
-                if d_clean and d_stripped and d_clean.lower() not in all_choices:
-                    if d_stripped not in prompt_stripped and get_vibe(d_clean) == ans_vibe:
-                        valid_distractors.append(d_clean)
-                        all_choices.add(d_clean.lower())
-            
-            # 4. Final Zero-Tolerance Validation
-            # Ensure answer isn't empty, isn't just underscores, and isn't contained in the prompt
-            if ans_clean and prompt_clean and len(ans_clean) > 0:
-                # Reject if prompt or answer are just punctuation/underscores
-                if not re.search(r'\w', ans_clean) or not re.search(r'\w', prompt_clean):
-                    continue
-                
-                # Reject if answer is a "ghost" inside the prompt (The Flipped Question Bug)
-                if agnostic_strip(ans_clean) in agnostic_strip(prompt_clean):
-                    continue
-                
-                # MCQs need at least 2 valid distractors
-                if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
-                    continue
-
-                # Check for global duplicates
-                if ans_clean.lower() in seen_answers:
-                    continue
-                
-                item["prompt"] = prompt_clean
-                item["answer"] = ans_clean
-                item["distractors"] = valid_distractors[:3]
-                seen_answers.add(ans_clean.lower())
-                final_questions.append(item)
-            
-            if len(final_questions) >= c: break
-        except: continue
+    for attempt in range(2):
+        result = _call_ai([{"role": "user", "content": prompt}])
+        raw_list = result.get("data") if result else []
         
-    return final_questions
+        final_questions = []
+        seen_answers = set()
+        
+        for item in raw_list:
+            try:
+                # 1. Aggressive Universal Cleaning (including Unicode brackets)
+                def deep_clean(text):
+                    # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
+                    t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
+                    return t.strip()
+    
+                ans_clean = deep_clean(item.get("answer", ""))
+                prompt_raw = str(item.get("prompt", "")).strip()
+                prompt_clean = deep_clean(prompt_raw)
+                
+                # SAFE AGNOSTIC STRIP: Only remove common punctuation
+                def agnostic_strip(text):
+                    return re.sub(r'[\'\"\?\!\.\,\:\;\-\_]', '', str(text)).lower().strip()
+    
+                prompt_stripped = agnostic_strip(prompt_clean)
+                ans_stripped = agnostic_strip(ans_clean)
+                
+                # 2. Logic Check: Empty or Inside Prompt
+                if not ans_clean or not ans_stripped or len(prompt_raw) < 5:
+                    continue
+    
+                # 3. Script Consistency Rule (Agnostic)
+                def get_vibe(t):
+                    return "latin" if re.search('[a-zA-Z]', str(t)) else "native"
+                
+                ans_vibe = get_vibe(ans_clean)
+                distractors = item.get("distractors", [])
+                if not isinstance(distractors, list): distractors = []
+                
+                all_choices = {ans_clean.lower()}
+                valid_distractors = []
+                
+                for d in distractors:
+                    d_clean = deep_clean(d)
+                    d_stripped = agnostic_strip(d_clean)
+                    # Rule: Choice must exist, share the vibe, and NOT be in the prompt
+                    if d_clean and d_stripped and d_clean.lower() not in all_choices:
+                        if d_stripped not in prompt_stripped and get_vibe(d_clean) == ans_vibe:
+                            valid_distractors.append(d_clean)
+                            all_choices.add(d_clean.lower())
+                
+                # 4. Final Zero-Tolerance Validation
+                if ans_clean and prompt_clean:
+                    # Reject if answer is a "ghost" inside the prompt (The Flipped Question Bug)
+                    # For non-latin, be extra strict: no overlapping characters
+                    if ans_vibe == 'native':
+                        if any(char in prompt_clean for char in ans_clean if char.strip()):
+                            continue
+                    else:
+                        if ans_stripped in prompt_stripped:
+                            continue
+                    
+                    # MCQs need at least 2 valid distractors
+                    if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
+                        continue
+    
+                    # Check for global duplicates
+                    if ans_clean.lower() in seen_answers:
+                        continue
+                    
+                    item["prompt"] = prompt_clean
+                    item["answer"] = ans_clean
+                    item["distractors"] = valid_distractors[:3]
+                    seen_answers.add(ans_clean.lower())
+                    final_questions.append(item)
+                
+                if len(final_questions) >= c: break
+            except: continue
+        
+        if len(final_questions) > 0:
+            return final_questions
+        
+        # If we got 0, try once more with a sterner warning
+        prompt += "\n\nRETRY WARNING: Your previous attempt was rejected for Ghost answers (answer word in prompt) or Script mixing. DO NOT repeat those mistakes."
+        
+    return []
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
