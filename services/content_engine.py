@@ -139,7 +139,7 @@ def _generate_vocab_activity(content, difficulty, count, language):
     """Generate vocabulary MCQ activities with smart distractors."""
     """Generate vocabulary MCQ activities with smart distractors."""
     words = content.get("words", {})
-    items = list(words.items())
+    items = list(words.items()) # List of (target_word, source_word)
     random.shuffle(items)
 
     # Import semantic categorizer for smart distractors
@@ -147,20 +147,20 @@ def _generate_vocab_activity(content, difficulty, count, language):
     categories = _categorize_words(words)
 
     activities = []
-    for spanish, english in items[:count]:
+    for target_word, source_word in items[:count]:
         is_reverse = random.choice([True, False])
 
         # Find this word's category
         word_cat = None
         for cat, members in categories.items():
-            if english in [m[1] for m in members]:
+            if source_word in [m[1] for m in members]:
                 word_cat = cat
                 break
 
         if not is_reverse:
-            # English distractors
-            same_cat = [e for (s, e) in categories.get(word_cat, []) if e != english] if word_cat else []
-            all_pool = [e for e in words.values() if e != english]
+            # Source distractors
+            same_cat = [e for (s, e) in categories.get(word_cat, []) if e != source_word] if word_cat else []
+            all_pool = [e for e in words.values() if e != source_word]
             if len(same_cat) >= 3:
                 random.shuffle(same_cat)
                 distractors = same_cat[:3]
@@ -170,39 +170,39 @@ def _generate_vocab_activity(content, difficulty, count, language):
                 random.shuffle(remaining)
                 distractors += remaining[:3 - len(distractors)]
 
-            options = distractors + [english]
+            options = distractors + [source_word]
             random.shuffle(options)
 
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"What does '{spanish}' mean?" if language == "English" else f"What does the {language} word '{spanish}' mean?",
+                "prompt": f"What does '{target_word}' mean?" if language == "English" else f"What does the {language} word '{target_word}' mean?",
                 "options": options,
-                "answer": english,
+                "answer": source_word,
                 "difficulty": difficulty,
             })
         else:
-            # Spanish distractors
-            same_cat_es = [s for (s, e) in categories.get(word_cat, []) if s != spanish] if word_cat else []
-            all_pool_es = [s for s in words.keys() if s != spanish]
-            if len(same_cat_es) >= 3:
-                random.shuffle(same_cat_es)
-                distractors_es = same_cat_es[:3]
+            # Target distractors
+            same_cat_t = [s for (s, e) in categories.get(word_cat, []) if s != target_word] if word_cat else []
+            all_pool_t = [s for s in words.keys() if s != target_word]
+            if len(same_cat_t) >= 3:
+                random.shuffle(same_cat_t)
+                distractors_t = same_cat_t[:3]
             else:
-                distractors_es = same_cat_es[:]
-                remaining_es = [s for s in all_pool_es if s not in distractors_es]
-                random.shuffle(remaining_es)
-                distractors_es += remaining_es[:3 - len(distractors_es)]
+                distractors_t = same_cat_t[:]
+                remaining_t = [s for s in all_pool_t if s not in distractors_t]
+                random.shuffle(remaining_t)
+                distractors_t += remaining_t[:3 - len(distractors_t)]
 
-            options_es = distractors_es + [spanish]
-            random.shuffle(options_es)
+            options_t = distractors_t + [target_word]
+            random.shuffle(options_t)
 
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"How do you say '{english}' in {language}?",
-                "options": options_es,
-                "answer": spanish,
+                "prompt": f"How do you say '{source_word}' in {language}?",
+                "options": options_t,
+                "answer": target_word,
                 "difficulty": difficulty,
             })
 

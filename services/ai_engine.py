@@ -120,8 +120,19 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
+def get_language_profile(language):
+    """Classifies languages into Pedagogical DNA profiles to drive agnostic generation."""
+    logographic = ["Chinese"]
+    syllabic = ["Japanese", "Russian", "Arabic", "Greek", "Korean"]
+    agglutinative = ["Turkish", "Hungarian", "Finnish"]
+    
+    if language in logographic: return "logographic"
+    if language in syllabic: return "syllabic"
+    if language in agglutinative: return "agglutinative"
+    return "inflected_latin" # Default for Spanish, French, German, etc.
+
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
-    """3/2 Buffer Policy: Generates questions STRICTLY based on the provided textbook content with HIGH DIVERSITY."""
+    """Agnostic Engine: Generates questions based on the language's specific Pedagogical DNA."""
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
@@ -129,30 +140,44 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang = "English" if is_beginner else language
     
+    # Language DNA Analysis
+    dna = get_language_profile(language)
+    
     # Sanitize content for prompt
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
     # Handle non-redundancy
     forbidden_clause = ""
-    if existing_questions and len(existing_questions) > 0:
-        qs_list = "\n".join([f"- {q['prompt']}" for q in existing_questions])
-        forbidden_clause = f"\nDO NOT REPEAT or closely mimic these existing questions:\n{qs_list}\n"
-
-    # Pedagogical Guardrails (Language Specific)
-    pedagogical_rules = ""
-    if language == "Chinese":
-        pedagogical_rules = """
-    CHINESE-SPECIFIC RULES:
-    1. PINYIN vs HANZI: If you ask for 'Pinyin', the answer MUST be the Latin phonetic string (e.g., 'pó'). If you ask for 'Character', the answer MUST be the Hanzi (e.g., '婆'). NEVER swap them.
-    2. NO LATIN PHONETICS: NEVER use 'sounds like [English Word]' in options. Use only the sound itself or the character.
+    # DNA-Aware Pedagogical Instructions
+    dna_instructions = ""
+    if dna == "logographic":
+        dna_instructions = f"""
+    PEDAGOGICAL DNA: LOGOGRAPHIC (Chinese Focus)
+    1. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
+    2. SCRIPT PURITY: If asking for 'Pinyin', answer MUST be Latin phonetic with tones (e.g., 'mā'). If asking for 'Character', answer MUST be Hanzi (e.g., '妈').
+    3. NO ENGLISH CRUTCH: Favor mapping Sound ↔ Character over Translation.
+    4. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
     """
-    elif language == "Japanese":
-        pedagogical_rules = """
-    JAPANESE-SPECIFIC RULES:
-    1. KANA vs ROMAJI: Avoid Romaji in answers unless specifically teaching it. Use Hiragana/Katakana as the primary script.
+    elif dna == "syllabic":
+        dna_instructions = f"""
+    PEDAGOGICAL DNA: SYLLABIC/SCRIPT (Russian, Japanese, etc.)
+    1. DECODING FOCUS: Focus on mapping the unique script (Cyrillic, Kana) to its sound.
+    2. ROMAJI/TRANSCRIPTION: Use only as a secondary tool. The primary target is the native script.
+    """
+    elif dna == "agglutinative":
+        dna_instructions = f"""
+    PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish Focus)
+    1. SUFFIX STACKING: Focus on how words change with suffixes (e.g., ev-de-ki).
+    2. HARMONY: Test Vowel Harmony rules.
+    """
+    else:
+        dna_instructions = f"""
+    PEDAGOGICAL DNA: INFLECTED LATIN (Spanish, French, etc.)
+    1. MORPHOLOGY: Focus on Gender, Number, and Verb Conjugation.
+    2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
     """
 
-    prompt = f"""You are a master {language} teacher. Generate {request_count} diverse Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
+    prompt = f"""You are a master {language} architect. Generate {request_count} diverse Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
     
     SOURCE MATERIAL:
     {content_str}
@@ -160,17 +185,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     CORE CONSTRAINTS:
     - TYPE: 100% Multiple Choice (type: 'mcq').
-    - SOURCE: Use ONLY the vocabulary and grammar from the textbook. Do not hallucinate outside words.
     - PROMPT: Write the question in {instruction_lang}.
-    - NO MIXING: NEVER mix {language} and English in the same sentence (No Frankenstein sentences).
+    - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
-    {pedagogical_rules}
+    - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options.
     
-    QUESTION PROFILES (MIX THESE):
-    1. SCRIPT CHECK: "Which character matches the sound '[Sound]'?"
-    2. MEANING: "What does '[Word]' mean?"
-    3. REVERSE: "How do you write '[Meaning]' in {language}?"
-    4. USAGE: A sentence with a blank (e.g., '这是我的___。') where the answer is in {language}.
+    {dna_instructions}
+    
+    DIVERSITY MANDATE: Vary the question profile. Use Script Checks, Usage Blanks, Meaning, and Logic.
     
     JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
