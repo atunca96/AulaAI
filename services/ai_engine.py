@@ -65,7 +65,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""
     
     # Only apply the "Complete set" requirement if the topic is actually about an alphabet
-    is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "syllabary", "hiragana", "katakana", "cyrillic", "pinyin"])
+    # We include variations for Spanish, French, German, Italian, Portuguese, Turkish, etc.
+    alphabet_keywords = [
+        "alphabet", "syllabary", "hiragana", "katakana", "cyrillic", "pinyin", 
+        "alfabeto", "abecedario", "alfabe", "abcto", "letters", "buchstaben"
+    ]
+    is_alphabet_topic = any(x in topic.lower() for x in alphabet_keywords)
     
     alphabet_rule = ""
     if is_alphabet_topic:
