@@ -1190,9 +1190,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         time.sleep(0.5)
 
-            print(f"[BG] Topic {topic_id}: Wiping existing bank to make room for fresh strict generation.")
+            print(f"[BG] Topic {topic_id}: Wiping entire question database to make room for fresh strict generation.")
             with db_connection() as db:
-                db.execute("DELETE FROM questions WHERE topic_id = ?", (topic_id,))
+                db.execute("DELETE FROM responses")
+                db.execute("DELETE FROM quiz_questions")
+                db.execute("DELETE FROM assignment_questions")
+                db.execute("DELETE FROM questions")
                 db.commit()
 
             with db_connection() as db:
