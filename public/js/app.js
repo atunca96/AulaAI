@@ -4204,9 +4204,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
             return `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
                 ${(p.items || []).map(v => `
-                  <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
-                    <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || ''}</div>
-                    <div style="color:var(--accent-light); font-weight:600;">${v.translation || ''}</div>
+                  <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+                    <div style="font-size:22px; font-weight:800; color:var(--text-primary); line-height:1.2;">${v.term || ''}</div>
+                    <div style="color:var(--accent-light); font-weight:500; font-size:14px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || ''}</div>
                   </div>
                 `).join('')}
               </div>`;
@@ -4240,9 +4240,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
         render: () => `
           <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
             ${vocabArray.map(v => `
-              <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
-                <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || v[0] || ''}</div>
-                <div style="color:var(--accent-light); font-weight:600;">${v.translation || v[1] || ''}</div>
+              <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+                <div style="font-size:22px; font-weight:800; color:var(--text-primary); line-height:1.2;">${v.term || v[0] || ''}</div>
+                <div style="color:var(--accent-light); font-weight:500; font-size:14px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v[1] || ''}</div>
               </div>
             `).join('')}
           </div>`
