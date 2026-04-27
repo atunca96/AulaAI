@@ -149,7 +149,10 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             for line in manual_toc.split('\n'):
                 t = line.strip().strip('-').strip('*').strip()
                 if len(t) > 3:
-                    topics.append({"title": t, "type": "vocabulary"})
+                    # Simple heuristic for grammar
+                    grammar_keys = ["verb", "conjugation", "grammar", "rule", "tense", "pronoun", "article", "preposition", "syntax", "order", "structure", "word order"]
+                    t_type = "grammar" if any(k in t.lower() for k in grammar_keys) else "vocabulary"
+                    topics.append({"title": t, "type": t_type})
             if topics:
                 chapters_data = [{"title": "Imported Curriculum", "topics": topics}]
         

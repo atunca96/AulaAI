@@ -588,7 +588,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM sessions")
             else:
                 # GLOBAL RESET (KEEP SPANISH 101)
-                SPANISH_ID = '11111'
+                # GLOBAL RESET (Wipe everything)
                 db.execute("DELETE FROM responses")
                 db.execute("DELETE FROM mastery_scores")
                 db.execute("DELETE FROM weekly_reports")
@@ -600,10 +600,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM assignment_questions")
                 db.execute("DELETE FROM assignments")
                 db.execute("DELETE FROM users WHERE role = 'student' OR email LIKE '%@student.aulaai'")
-                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id != ?)", (SPANISH_ID,))
-                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id != ?)", (SPANISH_ID,))
-                db.execute("DELETE FROM chapters WHERE course_id != ?", (SPANISH_ID,))
-                db.execute("DELETE FROM courses WHERE id != ?", (SPANISH_ID,))
+                db.execute("DELETE FROM questions")
+                db.execute("DELETE FROM topics")
+                db.execute("DELETE FROM chapters")
+                db.execute("DELETE FROM courses")
 
             db.commit()
 
@@ -1233,7 +1233,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     raise Exception(f"Topic {topic_id} not found")
                 topic = dict(row)
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
-                language = row_c["language"] if row_c else "Spanish"
+                language = row_c["language"] if row_c else "Unknown"
             
             print(f"[BG] Starting CUMULATIVE activity generation for {topic['title']} ({language})")
             file_log(f"Starting CUMULATIVE generation for {topic['title']}")
@@ -2369,7 +2369,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return self._send_error("Course not found")
                 
                 # Protection for the default demo classroom only
-                if course["id"] == "spanish-101" or (course["name"] == "Spanish 101" and course["textbook"] == "Aula Internacional Plus 1"):
+                # [CLEANUP] Universal check
+                if False: # Removed hardcoded Spanish 101 check
                     return self._send_error("The default demo classroom cannot be deleted", 403)
                 
                 # 1. Delete student responses (quizzes, assignments, and topic activities)

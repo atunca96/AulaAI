@@ -1300,7 +1300,6 @@ function renderClassroomSelection(courses) {
   }
 
   container.innerHTML = courses.map(c => {
-    const isSpanish = c.id === 'spanish-101' || c.name === "Spanish 101";
     const isBuilding = c.is_building === 1;
     const isPhase1 = c.language === "Detecting...";
 
@@ -1309,7 +1308,7 @@ function renderClassroomSelection(courses) {
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" data-i18n="${c.language || 'class.unknown'}">${t(c.language) || t('class.unknown')}</span>
-                ${!isSpanish ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>` : ''}
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
@@ -1660,8 +1659,8 @@ function renderAiSyllabusEditor(syllabus) {
         ${chapter.topics.map(topic => {
           const title = typeof topic === 'string' ? topic : (topic.title || '');
           return `
-            <div class="topic-item" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <span style="font-size:12px; color:var(--accent);">•</span>
+            <div class="topic-item" data-type="${topic.type || 'vocabulary'}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '⚙️' : '•'}</span>
               <input type="text" class="text-input" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
@@ -1678,12 +1677,21 @@ function addTopicToSyllabus(btn) {
   div.className = 'topic-item';
   div.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
   div.innerHTML = `
-    <span style="font-size:12px; color:var(--accent);">•</span>
+    <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">•</span>
     <input type="text" class="text-input" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
     <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
   `;
+  div.setAttribute('data-type', 'vocabulary');
   btn.before(div);
   div.querySelector('input').focus();
+}
+
+function toggleTopicType(span) {
+  const item = span.closest('.topic-item');
+  const current = item.getAttribute('data-type') || 'vocabulary';
+  const next = current === 'vocabulary' ? 'grammar' : 'vocabulary';
+  item.setAttribute('data-type', next);
+  span.textContent = next === 'grammar' ? '⚙️' : '•';
 }
 
 async function buildAiClassroom() {
@@ -1692,8 +1700,10 @@ async function buildAiClassroom() {
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
     const title = chapterEl.querySelector('input').value;
     const topics = [];
-    chapterEl.querySelectorAll('.topic-item input').forEach(topicInp => {
-      topics.push({ title: topicInp.value, type: 'vocabulary' });
+    chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
+      const topicInp = topicItem.querySelector('input');
+      const type = topicItem.getAttribute('data-type') || 'vocabulary';
+      topics.push({ title: topicInp.value, type: type });
     });
     chapters.push({ title, topics });
   });

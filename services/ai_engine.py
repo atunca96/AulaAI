@@ -159,6 +159,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     dna_instructions = ""
     diversity_quota = "Vary the question profile."
     
+    # Topic-Type Bias
+    type_bias = ""
+    if topic_type == "grammar":
+        diversity_quota = "MIX: 3x 'Grammar Rule Application', 2x 'Sentence Construction', 1x 'Exception Identification'."
+        type_bias = "\nFOCUS: This is a GRAMMAR topic. Prioritize testing rules, syntax, and conjugation over simple vocabulary meaning.\n"
+    elif topic_type == "vocabulary":
+        diversity_quota = "MIX: 3x 'Meaning/Translation', 2x 'Contextual Usage', 1x 'Categorization'."
+        type_bias = "\nFOCUS: This is a VOCABULARY topic. Focus on semantic meaning and usage in simple sentences.\n"
+    
     # Contextual Quota Relaxation (Alphabet/Phonetics usually can't do sentence fills)
     is_phonetic_topic = any(x in topic_title.lower() for x in ["alphabet", "pinyin", "phonetic", "initial", "final", "script"])
     
@@ -207,6 +216,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     SOURCE MATERIAL:
     {content_str}
     {forbidden_clause}
+    {type_bias}
     
     CORE CONSTRAINTS:
     - TYPE: 100% Multiple Choice (type: 'mcq').

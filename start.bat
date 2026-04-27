@@ -1,8 +1,8 @@
 @echo off
-title AulaAI - Spanish Learning System
+title AulaAI - Universal Language Platform
 echo.
 echo ============================================================
-echo   AulaAI - Spanish Learning System
+echo   AulaAI - Universal Language Platform
 echo   Starting server...
 echo ============================================================
 echo.

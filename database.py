@@ -70,7 +70,7 @@ def init_db():
             name TEXT NOT NULL,
             semester TEXT NOT NULL,
             textbook TEXT,
-            language TEXT DEFAULT 'Spanish',
+            language TEXT DEFAULT 'Unknown',
             code TEXT,
             is_building INTEGER DEFAULT 0,
             activity_status TEXT DEFAULT 'idle',
@@ -89,7 +89,7 @@ def init_db():
 
     # ── Safe Migration: Add language column to existing courses table ──
     try:
-        c.execute("ALTER TABLE courses ADD COLUMN language TEXT DEFAULT 'Spanish'")
+        c.execute("ALTER TABLE courses ADD COLUMN language TEXT DEFAULT 'Unknown'")
     except sqlite3.OperationalError:
         pass # Column already exists
 
@@ -312,37 +312,8 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # ── Consolidate Duplicate Spanish Courses ────────────────
-    # Find all courses named "Spanish 101"
-    spanish_courses = c.execute("SELECT id FROM courses WHERE name='Spanish 101'").fetchall()
-    if len(spanish_courses) > 1:
-        print(f"[DB] Found {len(spanish_courses)} Spanish 101 courses. Consolidating...")
-        primary_id = "11111"
-        
-        # Purge existing curriculum for the primary ID to ensure we move to stable IDs cleanly
-        c.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (primary_id,))
-        c.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (primary_id,))
-        c.execute("DELETE FROM chapters WHERE course_id = ?", (primary_id,))
-
-        for row in spanish_courses:
-            cid = row[0]
-            if cid != primary_id:
-                # Migrate enrollments to primary ID
-                c.execute("UPDATE enrollments SET course_id=? WHERE course_id=?", (primary_id, cid))
-                
-                # Delete all dependent data for the duplicate course to avoid FK violations
-                c.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id=?) OR context_id IN (SELECT id FROM assignments WHERE course_id=?)", (cid, cid))
-                c.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id=?)", (cid,))
-                c.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id=?)", (cid,))
-                c.execute("DELETE FROM quizzes WHERE course_id=?", (cid,))
-                c.execute("DELETE FROM assignments WHERE course_id=?", (cid,))
-                c.execute("DELETE FROM sessions WHERE course_id=?", (cid,))
-                c.execute("DELETE FROM weekly_reports WHERE course_id=?", (cid,))
-                c.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
-                c.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
-                c.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
-                c.execute("DELETE FROM courses WHERE id = ?", (cid,))
-        print("[DB] Consolidation complete.")
+    # [CLEANUP] Removed legacy Spanish 101 consolidation logic to support universal classrooms.
+    pass
 
     # ── Seed data only if empty or default course curriculum missing ──
     has_users = c.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
@@ -370,10 +341,12 @@ def _uid():
 
 def _migrate_curriculum(c):
     """Ensure all 9 chapters and their topics exist. Adds missing ones."""
-    course = c.execute("SELECT id FROM courses LIMIT 1").fetchone()
+    # ONLY migrate the default Spanish 101 course (11111) to avoid polluting other language courses
+    primary_id = "11111"
+    course = c.execute("SELECT id FROM courses WHERE id = ?", (primary_id,)).fetchone()
     if not course:
         return
-    course_id = course[0]
+    course_id = primary_id
 
     curriculum = _get_aula_curriculum()
     existing_chapters = {row[0]: row[1] for row in c.execute("SELECT number, id FROM chapters WHERE course_id = ?", (course_id,)).fetchall()}

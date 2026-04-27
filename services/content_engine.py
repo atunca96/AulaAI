@@ -16,47 +16,49 @@ def _uid():
 # ── Activity Templates ──────────────────────────────────────────
 
 FILL_BLANK_TEMPLATES = {
-    "ser_estar": [
-        {"prompt": "Madrid ___ la capital de España.", "answer": "es", "hint": "identity → ser"},
-        {"prompt": "Yo ___ estudiante de español.", "answer": "soy", "hint": "identity → ser"},
-        {"prompt": "Mi hermana ___ muy contenta hoy.", "answer": "está", "hint": "temporary state → estar"},
-        {"prompt": "Nosotros ___ en la clase.", "answer": "estamos", "hint": "location → estar"},
-        {"prompt": "Ellos ___ de México.", "answer": "son", "hint": "origin → ser"},
-        {"prompt": "Tú ___ cansado después de estudiar.", "answer": "estás", "hint": "temporary state → estar"},
-        {"prompt": "La profesora ___ muy simpática.", "answer": "es", "hint": "permanent trait → ser"},
-        {"prompt": "El libro ___ en la mesa.", "answer": "está", "hint": "location → estar"},
-    ],
-    "present_regular": [
-        {"prompt": "Yo ___ (hablar) español todos los días.", "answer": "hablo", "hint": "-ar: -o, -as, -a, -amos, -áis, -an"},
-        {"prompt": "Tú ___ (comer) en la cafetería.", "answer": "comes", "hint": "-er: -o, -es, -e, -emos, -éis, -en"},
-        {"prompt": "Ella ___ (vivir) en Barcelona.", "answer": "vive", "hint": "-ir: -o, -es, -e, -imos, -ís, -en"},
-        {"prompt": "Nosotros ___ (estudiar) mucho.", "answer": "estudiamos", "hint": "-ar nosotros: -amos"},
-        {"prompt": "Ellos ___ (escribir) en el cuaderno.", "answer": "escriben", "hint": "-ir ellos: -en"},
-        {"prompt": "Yo ___ (aprender) palabras nuevas.", "answer": "aprendo", "hint": "-er yo: -o"},
-    ],
-    "reflexive": [
-        {"prompt": "Yo ___ (levantarse) a las siete.", "answer": "me levanto", "hint": "reflexive: me + verb"},
-        {"prompt": "Ella ___ (ducharse) por la mañana.", "answer": "se ducha", "hint": "reflexive: se + verb"},
-        {"prompt": "Nosotros ___ (acostarse) a las once.", "answer": "nos acostamos", "hint": "reflexive: nos + verb"},
-        {"prompt": "Tú ___ (vestirse) rápidamente.", "answer": "te vistes", "hint": "reflexive: te + verb (e→i)"},
-    ],
-    "possessives": [
-        {"prompt": "___ hermano se llama Carlos. (yo)", "answer": "Mi", "hint": "mi/mis for yo"},
-        {"prompt": "___ padres son muy amables. (tú)", "answer": "Tus", "hint": "tu/tus for tú"},
-        {"prompt": "___ casa es grande. (él)", "answer": "Su", "hint": "su/sus for él/ella"},
-        {"prompt": "___ profesora es española. (nosotros)", "answer": "Nuestra", "hint": "nuestro/a/os/as for nosotros"},
-    ],
-    "articles": [
-        {"prompt": "___ libro es interesante. (definido, m.sg.)", "answer": "El", "hint": "el (m.sg), la (f.sg)"},
-        {"prompt": "Necesito ___ cuaderno. (indefinido, m.sg.)", "answer": "un", "hint": "un (m.sg), una (f.sg)"},
-        {"prompt": "___ estudiantes estudian mucho. (definido, m.pl.)", "answer": "Los", "hint": "los (m.pl), las (f.pl)"},
-        {"prompt": "Hay ___ palabras nuevas. (indefinido, f.pl.)", "answer": "unas", "hint": "unos (m.pl), unas (f.pl)"},
-    ],
-    "comparatives": [
-        {"prompt": "Esta camiseta es ___ bonita que esa. (more)", "answer": "más", "hint": "más... que = more... than"},
-        {"prompt": "Estos zapatos son ___ caros que esos. (less)", "answer": "menos", "hint": "menos... que = less... than"},
-        {"prompt": "Mi hermano es ___ alto como mi padre. (as)", "answer": "tan", "hint": "tan... como = as... as"},
-    ],
+    "Spanish": {
+        "ser_estar": [
+            {"prompt": "Madrid ___ la capital de España.", "answer": "es", "hint": "identity → ser"},
+            {"prompt": "Yo ___ estudiante de español.", "answer": "soy", "hint": "identity → ser"},
+            {"prompt": "Mi hermana ___ muy contenta hoy.", "answer": "está", "hint": "temporary state → estar"},
+            {"prompt": "Nosotros ___ en la clase.", "answer": "estamos", "hint": "location → estar"},
+            {"prompt": "Ellos ___ de México.", "answer": "son", "hint": "origin → ser"},
+            {"prompt": "Tú ___ cansado después de estudiar.", "answer": "estás", "hint": "temporary state → estar"},
+            {"prompt": "La profesora ___ muy simpática.", "answer": "es", "hint": "permanent trait → ser"},
+            {"prompt": "El libro ___ en la mesa.", "answer": "está", "hint": "location → estar"},
+        ],
+        "present_regular": [
+            {"prompt": "Yo ___ (hablar) español todos los días.", "answer": "hablo", "hint": "-ar: -o, -as, -a, -amos, -áis, -an"},
+            {"prompt": "Tú ___ (comer) en la cafetería.", "answer": "comes", "hint": "-er: -o, -es, -e, -emos, -áis, -en"},
+            {"prompt": "Ella ___ (vivir) en Barcelona.", "answer": "vive", "hint": "-ir: -o, -es, -e, -imos, -ís, -en"},
+            {"prompt": "Nosotros ___ (estudiar) mucho.", "answer": "estudiamos", "hint": "-ar nosotros: -amos"},
+            {"prompt": "Ellos ___ (escribir) en el cuaderno.", "answer": "escriben", "hint": "-ir ellos: -en"},
+            {"prompt": "Yo ___ (aprender) palabras nuevas.", "answer": "aprendo", "hint": "-er yo: -o"},
+        ],
+        "reflexive": [
+            {"prompt": "Yo ___ (levantarse) a las siete.", "answer": "me levanto", "hint": "reflexive: me + verb"},
+            {"prompt": "Ella ___ (ducharse) por la mañana.", "answer": "se ducha", "hint": "reflexive: se + verb"},
+            {"prompt": "Nosotros ___ (acostarse) a las once.", "answer": "nos acostamos", "hint": "reflexive: nos + verb"},
+            {"prompt": "Tú ___ (vestirse) rápidamente.", "answer": "te vistes", "hint": "reflexive: te + verb (e→i)"},
+        ],
+        "possessives": [
+            {"prompt": "___ hermano se llama Carlos. (yo)", "answer": "Mi", "hint": "mi/mis for yo"},
+            {"prompt": "___ padres son muy amables. (tú)", "answer": "Tus", "hint": "tu/tus for tú"},
+            {"prompt": "___ casa es grande. (él)", "answer": "Su", "hint": "su/sus for él/ella"},
+            {"prompt": "___ profesora es española. (nosotros)", "answer": "Nuestra", "hint": "nuestro/a/os/as for nosotros"},
+        ],
+        "articles": [
+            {"prompt": "___ libro es interesante. (definido, m.sg.)", "answer": "El", "hint": "el (m.sg), la (f.sg)"},
+            {"prompt": "Necesito ___ cuaderno. (indefinido, m.sg.)", "answer": "un", "hint": "un (m.sg), una (f.sg)"},
+            {"prompt": "___ estudiantes estudian mucho. (definido, m.pl.)", "answer": "Los", "hint": "los (m.pl), las (f.pl)"},
+            {"prompt": "Hay ___ palabras nuevas. (indefinido, f.pl.)", "answer": "unas", "hint": "unos (m.pl), unas (f.pl)"},
+        ],
+        "comparatives": [
+            {"prompt": "Esta camiseta es ___ bonita que esa. (more)", "answer": "más", "hint": "más... que = more... than"},
+            {"prompt": "Estos zapatos son ___ caros que esos. (less)", "answer": "menos", "hint": "menos... que = less... than"},
+            {"prompt": "Mi hermano es ___ alto como mi padre. (as)", "answer": "tan", "hint": "tan... como = as... as"},
+        ],
+    }
 }
 
 DIALOGUE_TEMPLATES = [
@@ -132,13 +134,15 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Engl
     # Fallback to mock templates (Only for vocabulary, as grammar mock is fill-blank)
     if topic_type == "vocabulary":
         return _generate_vocab_activity(content, difficulty, count, language)
+    elif topic_type == "grammar":
+        return _generate_grammar_activity(topic_data["title"], content, difficulty, count, language)
     return []
 
 
 def _generate_vocab_activity(content, difficulty, count, language):
     """Generate vocabulary MCQ activities with smart distractors."""
-    """Generate vocabulary MCQ activities with smart distractors."""
     words = content.get("words", {})
+    if not words: return []
     items = list(words.items()) # List of (target_word, source_word)
     random.shuffle(items)
 
@@ -211,7 +215,6 @@ def _generate_vocab_activity(content, difficulty, count, language):
 
 def _generate_grammar_activity(title, content, difficulty, count, language):
     """Generate grammar fill-in-the-blank activities."""
-    """Generate grammar fill-in-the-blank activities."""
     title_lower = title.lower()
 
     # Match to template bank
@@ -224,14 +227,14 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
         template_key = "reflexive"
     elif "posesiv" in title_lower:
         template_key = "possessives"
-    elif "artículo" in title_lower:
+    elif "art\u00edculo" in title_lower:
         template_key = "articles"
     elif "comparativ" in title_lower or "demostrativ" in title_lower:
         template_key = "comparatives"
 
-    # Only use Spanish templates if the language is Spanish
-    if language == "Spanish" and template_key and template_key in FILL_BLANK_TEMPLATES:
-        templates = FILL_BLANK_TEMPLATES[template_key]
+    # Only use templates if the language is supported
+    if language in FILL_BLANK_TEMPLATES and template_key and template_key in FILL_BLANK_TEMPLATES[language]:
+        templates = FILL_BLANK_TEMPLATES[language][template_key]
         random.shuffle(templates)
         activities = []
         for t in templates[:count]:
@@ -245,21 +248,32 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
             })
         return activities
 
-    # Fallback: generate from examples
+    # Fallback: generate from examples in content
     examples = content.get("examples", [])
     activities = []
     for ex in examples[:count]:
-        words = ex.rstrip(".").split()
-        if len(words) >= 3:
-            blank_idx = 1
-            answer = words[blank_idx]
-            words[blank_idx] = "___"
+        if isinstance(ex, dict):
+            p = ex.get("prompt", ex.get("text", ""))
+            a = ex.get("answer", "")
+            h = ex.get("hint", "")
+        else:
+            # Heuristic: try to find a word to blank out
+            words = ex.rstrip(".").split()
+            if len(words) >= 3:
+                blank_idx = random.randint(1, len(words)-2)
+                a = words[blank_idx]
+                words[blank_idx] = "___"
+                p = " ".join(words)
+                h = ""
+            else: continue
+            
+        if p and a:
             activities.append({
                 "id": _uid(),
                 "type": "fill_blank",
-                "prompt": " ".join(words),
-                "answer": answer,
-                "hint": "",
+                "prompt": p,
+                "answer": a,
+                "hint": h,
                 "difficulty": difficulty,
             })
     return activities
@@ -319,12 +333,9 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         
         targets = random.sample(topic_ids, min(len(topic_ids), 3)) if topic_ids else []
         if not targets:
-            with db_connection() as db_conn:
-                t_fallback = db_conn.execute("SELECT id FROM topics LIMIT 1").fetchone()
-                if t_fallback: targets = [t_fallback["id"]]
+            if topic_ids: targets = [random.choice(topic_ids)]
+            else: break
             
-        if not targets: break
-        
         def _gen_for_topic(tid, batch):
             from database import get_db
             thread_conn = None
@@ -393,7 +404,6 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                         print(f"[AI] Successfully generated {added_this_retry} questions for topic '{t_title}'")
                 
                 if progress_callback:
-                    # Scale remaining 80% based on how many questions we have vs count
                     current_prog = 20 + int((len(questions) / count) * 80)
                     progress_callback(min(current_prog, 99))
 
@@ -433,80 +443,55 @@ Return ONLY valid JSON:
         except Exception as e:
             print(f"[AI] Dialogue generation error: {e}")
 
-    # Fallback to templates (Note: These are hardcoded Spanish examples)
-    dialogue = random.choice(DIALOGUE_TEMPLATES)
-    lines = dialogue["lines"][:]
-    correct_order = [l["text"] for l in lines]
-    random.shuffle(lines)
+    # Fallback to templates (Only if language is Spanish)
+    if language == "Spanish":
+        dialogue = random.choice(DIALOGUE_TEMPLATES)
+        lines = dialogue["lines"][:]
+        correct_order = [l["text"] for l in lines]
+        random.shuffle(lines)
 
-    return {
-        "id": _uid(),
-        "type": "dialogue_order",
-        "title": dialogue["title"],
-        "scrambled_lines": [l["text"] for l in lines],
-        "correct_order": correct_order,
-        "speakers": {l["text"]: l["speaker"] for l in dialogue["lines"]},
-    }
+        return {
+            "id": _uid(),
+            "type": "dialogue_order",
+            "title": dialogue["title"],
+            "scrambled_lines": [l["text"] for l in lines],
+            "correct_order": correct_order,
+            "speakers": {l["text"]: l["speaker"] for l in dialogue["lines"]},
+        }
+    
+    return None
 
 
 def grade_response(question_type, student_answer, correct_answer):
-    """
-    Grade a student response. Uses AI for fill_blank when available.
-    Returns score (0-1) and feedback.
-    """
-    if student_answer is None:
-        student_answer = ""
-    if correct_answer is None:
-        correct_answer = ""
+    """Grade a student response."""
+    if student_answer is None: student_answer = ""
+    if correct_answer is None: correct_answer = ""
         
     student_clean = str(student_answer).strip().lower()
     correct_clean = str(correct_answer).strip().lower()
 
-    # Quick exact match
     if student_clean == correct_clean:
-        return 1.0, "Correct! ✓"
+        return 1.0, "Correct! \u2713"
 
-    # For fill_blank, try AI grading (more lenient with accents/typos)
     if question_type == "fill_blank" and is_ai_available():
         try:
             ai_result = ai_grade_open_response("Fill in the blank", student_answer, correct_answer)
-            if ai_result:
-                return ai_result[0], ai_result[1]
-        except Exception:
-            pass  # Fall through to rule-based grading
+            if ai_result: return ai_result[0], ai_result[1]
+        except Exception: pass
 
-    if question_type in ("mcq", "fill_blank"):
-        # Partial credit for accent errors
-        distance = _levenshtein(student_clean, correct_clean)
-        if distance <= 1 and len(correct_clean) > 3:
-            return 0.8, f"Almost! The correct answer is '{correct_answer}'. Check the accents."
-        elif distance <= 2 and len(correct_clean) > 5:
-            return 0.5, f"Close, but the correct answer is '{correct_answer}'."
-        else:
-            return 0.0, f"Incorrect. The correct answer is '{correct_answer}'."
-
-    elif question_type == "translation":
-        if student_clean == correct_clean:
-            return 1.0, "Perfect!"
-        distance = _levenshtein(student_clean, correct_clean)
-        ratio = 1 - (distance / max(len(correct_clean), 1))
-        score = max(0, min(1, ratio))
-        if score >= 0.8:
-            return score, f"Very good! Minor differences from: '{correct_answer}'"
-        elif score >= 0.5:
-            return score, f"Partial credit. Expected: '{correct_answer}'"
-        else:
-            return score, f"Needs work. Expected: '{correct_answer}'"
-
-    return 0.0, "Unable to grade."
+    distance = _levenshtein(student_clean, correct_clean)
+    if distance <= 1 and len(correct_clean) > 3:
+        return 0.8, f"Almost! The correct answer is '{correct_answer}'."
+    elif distance <= 2 and len(correct_clean) > 5:
+        return 0.5, f"Close, but the correct answer is '{correct_answer}'."
+    else:
+        return 0.0, f"Incorrect. The correct answer is '{correct_answer}'."
 
 
 def _levenshtein(s1, s2):
-    """Compute Levenshtein distance between two strings."""
-    if len(s1) < len(s2):
-        return _levenshtein(s2, s1)
-    if len(s2) == 0:
-        return len(s1)
+    """Compute Levenshtein distance."""
+    if len(s1) < len(s2): return _levenshtein(s2, s1)
+    if len(s2) == 0: return len(s1)
     prev_row = range(len(s2) + 1)
     for i, c1 in enumerate(s1):
         curr_row = [i + 1]
