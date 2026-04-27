@@ -1179,10 +1179,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             from services.ai_engine import ai_generate_activity_batch
             
             with db_connection() as db:
-                # EXORCISM: Delete all old questions for this topic to ensure we only see the new, filtered ones.
-                db.execute("DELETE FROM questions WHERE topic_id = ?", (topic_id,))
-                db.commit()
+                # 1. Fetch existing questions to avoid duplicates
+                existing_rows = db.execute("SELECT prompt FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
+                existing_questions = [{"prompt": r["prompt"]} for r in existing_rows]
                 
+                # Check for capacity limit
+                if len(existing_questions) >= 30:
+                    print(f"[BG] Topic {topic_id} reached capacity (30). Skipping generation.")
+                    update_prog(100)
+                    return
+
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 if not row:
                     print(f"[ERROR] Topic {topic_id} not found in DB")
@@ -1191,8 +1197,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Spanish"
             
-            print(f"[BG] Starting BATCH activity generation for {topic['title']} ({language})")
-            file_log(f"Starting BATCH generation for {topic['title']}")
+            print(f"[BG] Starting CUMULATIVE activity generation for {topic['title']} ({language})")
+            file_log(f"Starting CUMULATIVE generation for {topic['title']}")
 
             def update_prog(p):
                 # Retry loop for DB locks
@@ -1232,14 +1238,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ticker_thread.start()
             
             try:
-                # Call the unified batch engine
+                # Call the unified batch engine with knowledge of existing questions
                 raw_activities = ai_generate_activity_batch(
                     topic["title"], 
                     topic_type, 
                     content, 
                     language, 
                     count=count, 
-                    level=topic.get("difficulty", "A1")
+                    level=topic.get("difficulty", "A1"),
+                    existing_questions=existing_questions
                 ) or []
             finally:
                 stop_ticker.set()

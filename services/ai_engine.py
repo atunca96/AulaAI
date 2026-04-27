@@ -120,8 +120,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
-    """3/2 Buffer Policy: Generates questions STRICTLY based on the provided textbook content."""
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
+    """3/2 Buffer Policy: Generates questions STRICTLY based on the provided textbook content with HIGH DIVERSITY."""
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
@@ -132,24 +132,38 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     # Sanitize content for prompt
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
-    prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). 
+    # Handle non-redundancy
+    forbidden_clause = ""
+    if existing_questions and len(existing_questions) > 0:
+        qs_list = "\n".join([f"- {q['prompt']}" for q in existing_questions])
+        forbidden_clause = f"\nDO NOT REPEAT or closely mimic these existing questions:\n{qs_list}\n"
+
+    prompt = f"""Generate {request_count} high-quality Multiple Choice Questions for {language} ({level}). 
     
     SOURCE MATERIAL (The Textbook):
     {content_str}
+    {forbidden_clause}
     
     CRITICAL POLICY: 100% MULTIPLE CHOICE ONLY
     - EVERY SINGLE QUESTION must be Multiple Choice (type: 'mcq').
-    - NO Fill-in-the-blank questions are allowed.
-    - VARIETY IS MANDATORY: Do NOT repeat words, themes, or sentence structures.
+    - NO Fill-in-the-blank questions.
+    
+    DIVERSITY MANDATE: You MUST vary the 'Question Profile'. Do not use the same logic for every question.
+    Use a mix of:
+    1. DEFINITION: "What does '[Target Word]' mean?"
+    2. REVERSE: "How do you say '[English Word]' in {language}?"
+    3. USAGE: Provide a sentence in {language} and ask which word from the textbook fits best.
+    4. SCRIPT/PHONETIC: "Which of these is the correct script/pronunciation for [Word]?"
+    5. COMPREHENSION: Based on the examples in the textbook, ask a logic question.
     
     STRICT SOURCE RULE:
     1. All questions MUST be based ONLY on the vocabulary, grammar, and examples provided in the SOURCE MATERIAL above.
-    2. Do NOT introduce new words or concepts not found in the source text.
+    2. Do NOT introduce new words.
     
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
     2. NO FRANKENSTEIN SENTENCES: NEVER mix {language} and English in a single sentence. 
-    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the context.
+    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names or places not in the context.
     4. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
     JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
@@ -242,11 +256,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         
     return []
 
-def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1'):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions)
 
-def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions)
 
 def ai_grade_open_response(question, student_answer, correct_answer):
     prompt = f"Grade: Q:{question}, C:{correct_answer}, S:{student_answer}. JSON: {{'score': 0..1, 'feedback': '...'}}"
