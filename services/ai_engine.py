@@ -41,6 +41,18 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
         print(f"AI Error: {str(e)}")
     return None
 
+def detect_language(text):
+    """Simple language detection."""
+    prompt = f"Detect the language of this text. Return a JSON object: {{'language': 'LanguageName'}}. Text: {text[:500]}"
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
+    return result.get("language", "English") if result else "English"
+
+def generate_full_lesson(topic, language):
+    """Simple full lesson generator."""
+    prompt = f"Generate a comprehensive lesson about {topic} for students learning {language}. Provide detailed explanations and examples. Return a JSON object with a 'content' key."
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
+    return result.get("content") if result else "Lesson content could not be generated."
+
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
