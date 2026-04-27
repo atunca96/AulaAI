@@ -104,42 +104,48 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
         {{ "type": "grammar", "title": "...", "text": "..." }},
         {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
-      ],
-      "questions": [
-        {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
       ]
     }}
     
     Rules:
     {explanation_rule}
     2. Content must be level-appropriate ({level}).
-    3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar. For example, in Chinese, do NOT use '我是...' for age; use the appropriate native structure.
+    3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar.
     4. You can generate between 3 to 6 pages. 
     5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
-    6. Generate at least 6 high-quality questions.
     """
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
     return result if result else {}
 
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
-    """3/2 Buffer Policy: Request (count + offset) * 1.5 to pick the best results."""
+    """3/2 Buffer Policy: Generates questions STRICTLY based on the provided textbook content."""
     c = int(count)
-    # The 3/2 Policy: If odd, add 1 then multiply by 1.5. If even, multiply by 1.5.
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
     # Level-Gated Immersion Rule
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang = "English" if is_beginner else language
     
-    prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). Topic: {topic_title}.
+    # Sanitize content for prompt
+    content_str = json.dumps(topic_content, ensure_ascii=False)
+    
+    prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). 
+    
+    SOURCE MATERIAL (The Textbook):
+    {content_str}
     
     CRITICAL POLICY: IMPLEMENT THE 3/2 RULE
     - For every set of questions, maintain a ratio where 60% are Multiple Choice (type: 'mcq') and 40% are Fill-in-the-blank (type: 'fill_blank').
     - Example: If generating 5 questions, 3 MUST be mcq and 2 MUST be fill_blank.
-    - VARIETY IS MANDATORY: Do NOT repeat words, themes, or sentence structures. Every question must feel unique.
+    - VARIETY IS MANDATORY: Do NOT repeat words, themes, or sentence structures.
+    
+    STRICT SOURCE RULE:
+    1. All questions MUST be based ONLY on the vocabulary, grammar, and examples provided in the SOURCE MATERIAL above.
+    2. Do NOT introduce new words or concepts not found in the source text.
+    3. You can use the examples in the source material to create comprehension questions.
     
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.

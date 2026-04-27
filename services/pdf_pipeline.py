@@ -242,34 +242,40 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            # Map each future to its metadata (topic_id, title)
+        def process_topic_task(t_id, t_title, t_type, language, level):
+            """Wrapper to ensure questions are generated FROM the textbook content."""
+            from services.ai_engine import generate_full_lesson, ai_generate_questions
+            
+            # 1. Generate Textbook Content
+            lesson = generate_full_lesson(t_title, t_type, language, 6, level)
+            pages = lesson.get("pages", [])
+            content = {"pages": pages}
+            
+            # 2. Generate Questions based ON that content
+            questions = ai_generate_questions(t_title, t_type, content, language, 6, level)
+            
+            return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            # Map each future to its metadata
             future_to_topic = {}
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
-                    t_title = topic.get("title")
-                    t_type = topic.get("type")
-                    t_id = topic.get("id")
-                    
-                    _log(f"Queueing: {t_title}")
-                    future = executor.submit(generate_full_lesson, t_title, t_type, language, 16, level)
-                    future_to_topic[future] = (t_id, t_title)
+                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level)
+                    future_to_topic[future] = topic.get("title")
                     topic_count += 1
             
             completed = 0
             total_queued = len(future_to_topic)
             
             for future in concurrent.futures.as_completed(future_to_topic):
-                t_id, t_title = future_to_topic[future]
+                t_title = future_to_topic[future]
                 try:
-                    lesson = future.result() or {}
-                    # Support both new "pages" structure and old "content" structure
-                    if "pages" in lesson:
-                        content = {"pages": lesson.get("pages", [])}
-                    else:
-                        content = lesson.get("content", {})
-                    questions = lesson.get("questions", [])
+                    result = future.result()
+                    t_id = result["t_id"]
+                    content = result["content"]
+                    questions = result["questions"]
                     
                     with db_connection() as db:
                         if t_id:
