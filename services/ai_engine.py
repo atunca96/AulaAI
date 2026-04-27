@@ -68,37 +68,42 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     for item in raw_list:
         try:
-            # 1. Basic Cleaning
+            # 1. Universal Cleaning
+            # Strip parenthetical hints like "(apple)" from both answers and distractors
             ans = str(item.get("answer", "")).strip()
-            # Remove parenthesis hints
             ans_clean = re.sub(r'\(.*?\)', '', ans).strip()
+            
             prompt_text = str(item.get("prompt", "")).strip()
+            distractors = item.get("distractors", [])
+            if not isinstance(distractors, list): distractors = []
             
-            # 2. Logic Check: Answer MUST NOT be in the prompt
-            # If the answer (e.g. "の") is inside the prompt, the AI flipped the question.
-            if ans_clean.lower() in prompt_text.lower():
+            # 2. The "Ghost" Rule (Agnostic Logic)
+            # The answer and distractors MUST NOT appear in the prompt text.
+            # This catches "flipped" questions in any language (Spanish, Japanese, etc).
+            if ans_clean.lower() in prompt_text.lower() and len(ans_clean) > 0:
                 continue
-                
-            # 3. Translation Direction Check
-            # If prompt says "What does ... mean?", the answer should be English (Latin), 
-            # NOT the native script (Japanese/Arabic/etc).
-            if "mean" in prompt_text.lower() or "translate" in prompt_text.lower():
-                # If it's a non-latin language topic, but the answer has NO latin letters, 
-                # it means the AI gave the native word as the answer. FAIL.
-                if is_non_latin and not re.search('[a-zA-Z]', ans_clean):
-                    continue
-
-            # 4. Script Guard (Legacy): Non-latin answers shouldn't have Latin mixed in 
-            # (unless it's a translation activity, handled above)
-            # if is_non_latin and not ("mean" in prompt_text.lower()) and re.search('[a-zA-Z]', ans_clean):
-            #    continue
             
-            # 5. Duplicate Check
+            # Ensure distractors don't contain the prompt word either
+            if any(str(d).lower() in prompt_text.lower() for d in distractors if len(str(d)) > 1):
+                continue
+
+            # 3. Unique Choice Rule
+            # Choices must be unique and non-empty
+            all_choices = {ans_clean.lower()}
+            valid_distractors = []
+            for d in distractors:
+                d_clean = re.sub(r'\(.*?\)', '', str(d)).strip()
+                if d_clean and d_clean.lower() not in all_choices:
+                    valid_distractors.append(d_clean)
+                    all_choices.add(d_clean.lower())
+            
+            # 4. Duplicate Check (Global)
             if ans_clean.lower() in seen_answers:
                 continue
                 
             # Success!
             item["answer"] = ans_clean
+            item["distractors"] = valid_distractors[:3]
             seen_answers.add(ans_clean.lower())
             final_questions.append(item)
             
