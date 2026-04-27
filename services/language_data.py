@@ -1,5 +1,6 @@
 # Standard Reference Data for Alphabets and Phonemes
 # Used to "teach" the AI exactly what to include for foundational lessons.
+import json
 
 ALPHABETS = {
     "Chinese": {
