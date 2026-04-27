@@ -2437,11 +2437,6 @@ def _cleanup_orphaned_building_flags():
         
         # 2. Reset Activity Generation flags (Always reset on startup since threads are gone)
         db.execute("UPDATE courses SET activity_status = 'idle', activity_progress = 0 WHERE activity_status = 'generating'")
-        
-        # 3. TEMPORARY: Wipe polluted question bank once
-        print("[MAINTENANCE] Wiping polluted activity bank...")
-        db.execute("DELETE FROM questions")
-        
         db.commit()
 
 class RobustServer(http.server.ThreadingHTTPServer):
