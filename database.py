@@ -257,10 +257,17 @@ def init_db():
 
     with db_connection() as db:
         c = db.cursor()
-        # Run seeding ONLY if not a ghost DB on Railway
-        if not IS_GHOST_DB and c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-            print("[DB] Seeding initial data...")
-            _seed_data(c)
+        
+        # ALWAYS ensure the primary lecturer has the correct password on start
+        lecturer_id = "lecturer-demo-id"
+        c.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
+                  (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
+        db.commit()
+
+        # Run demo course seeding ONLY if the DB is actually empty
+        if not IS_GHOST_DB and c.execute("SELECT COUNT(*) FROM courses").fetchone()[0] == 0:
+            print("[DB] Seeding demo course...")
+            _seed_course_only(c)
             db.commit()
 
 def _run_migrations():
@@ -313,12 +320,9 @@ def _run_migrations():
 
         conn.commit()
 
-def _seed_data(c):
-    """Seed the database with a clean, universal demo lecturer and course."""
+def _seed_course_only(c):
+    """Seed the database with a clean, universal demo course."""
     lecturer_id = "lecturer-demo-id"
-    c.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
-              (lecturer_id, "Alper Tunca", "atunca96@gmail.com", "ALper2002@", "lecturer"))
-    
     course_id = "11111"
     c.execute("INSERT OR IGNORE INTO courses (id, name, semester, textbook, lecturer_id, code, language, level) VALUES (?,?,?,?,?,?,?,?)",
               (course_id, "Demo Classroom", "Spring 2026", "AI Generated", lecturer_id, "11111", "Turkish", "A1"))
