@@ -1343,6 +1343,12 @@ function renderClassroomSelection(courses) {
 }
 
 async function selectClassroom(id, isLecturer = true) {
+  // Clear last topic if switching courses
+  if (localStorage.getItem('aula_last_course') !== id) {
+    localStorage.removeItem('aula_last_topic');
+    localStorage.removeItem('aula_last_page');
+  }
+
   // 1. Immediate UI Cleanup to prevent ghosting/flicker
   const activityPreview = document.getElementById('activity-preview');
   if (activityPreview) { activityPreview.classList.add('hidden'); activityPreview.innerHTML = ''; }
@@ -1458,11 +1464,21 @@ async function selectClassroom(id, isLecturer = true) {
     showScreen('lecturer-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
     let finalTab = targetTab;
-    if (isAiGenerated && targetTab === 'book') finalTab = 'overview';
+    
+    // If it's a PDF-only course, but they were on the 'Material' (AI) tab, move them to 'book' (PDF)
+    if (!isAiGenerated && targetTab === 'book') finalTab = 'book';
+    // If it's AI-generated, allow the 'book' tab (which is our Material tab)
     
     const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
     if (tabBtn) switchTab(tabBtn);
     await initLecturer();
+    
+    if (finalTab === 'book' && isAiGenerated) {
+      renderStudyBook();
+      const lastTopic = localStorage.getItem('aula_last_topic');
+      const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+      if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
+    }
   } else {
     showScreen('student-dashboard');
     let targetTab = localStorage.getItem('aula_last_tab') || 's-home';
@@ -1476,6 +1492,12 @@ async function selectClassroom(id, isLecturer = true) {
         if (homeBtn) switchTab(homeBtn, true);
     }
     await initStudent();
+
+    if (targetTab === 's-study-tab' && isAiGenerated) {
+      const lastTopic = localStorage.getItem('aula_last_topic');
+      const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+      if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
+    }
   }
 
   localStorage.setItem('aula_last_course', id);
@@ -4103,6 +4125,10 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
   const container = document.getElementById(contentId);
   if (!container) return;
+
+  // Save for refresh
+  localStorage.setItem('aula_last_topic', topicId);
+  localStorage.setItem('aula_last_page', pageIdx);
 
   // Find topic in curriculum
   let topic = null;

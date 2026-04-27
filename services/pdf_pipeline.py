@@ -264,7 +264,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                 t_id, t_title = future_to_topic[future]
                 try:
                     lesson = future.result() or {}
-                    content = lesson.get("content", {})
+                    # Support both new "pages" structure and old "content" structure
+                    if "pages" in lesson:
+                        content = {"pages": lesson.get("pages", [])}
+                    else:
+                        content = lesson.get("content", {})
                     questions = lesson.get("questions", [])
                     
                     with db_connection() as db:
