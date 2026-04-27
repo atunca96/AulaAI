@@ -1264,14 +1264,14 @@ async function selectClassroom(id, isLecturer = true) {
         }
 
         const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
-    const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
+        const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
 
-    if (navName) navName.textContent = course.name;
-    if (navCode) {
-      navCode.textContent = '#' + (course.code || '00000');
-      navCode.classList.remove('hidden');
+        if (navName) navName.textContent = course.name;
+        if (navCode) {
+            navCode.textContent = '#' + (course.code || '00000');
+            navCode.classList.remove('hidden');
+        }
     }
-  }
 
   // Show building banner if needed
   const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
@@ -1284,13 +1284,21 @@ async function selectClassroom(id, isLecturer = true) {
   }
 
   currentCourse = course;
-  const currData = await api('/curriculum?course_id=' + courseId);
-  curriculum = Array.isArray(currData) ? currData : [];
+  try {
+    const currData = await api('/curriculum?course_id=' + courseId);
+    curriculum = Array.isArray(currData) ? currData : [];
+  } catch (e) {
+    console.error("Failed to load curriculum:", e);
+    curriculum = [];
+  }
 
   // Update Book Tab
   let bookPath = course ? course.textbook : '';
+  const isAiGenerated = course && (course.textbook === 'AI Generated' || (course.textbook || '').includes('AI Generated'));
+  
   // Robust path check: if it starts with /books/ and has a filename, it's valid
-  const pdfViewerSrc = (bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
+  const pdfViewerSrc = (!isAiGenerated && bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
+  
   document.querySelectorAll('.pdf-viewer').forEach(el => { 
       if (el.src !== pdfViewerSrc) el.src = pdfViewerSrc || 'about:blank'; 
   });
@@ -1311,7 +1319,6 @@ async function selectClassroom(id, isLecturer = true) {
 
   document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
 
-  const isAiGenerated = course && course.textbook === 'AI Generated';
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
   document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
   
@@ -1321,16 +1328,14 @@ async function selectClassroom(id, isLecturer = true) {
   const sBookTabBtn = document.getElementById('nav-s-book-tab');
   
   if (currentUser.role === 'lecturer' && lectBookTab) {
-    // Lecturers always have the tab, but we hide it if there's no PDF AND it's not AI generated
     lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
-    // Update label to "Study" if AI generated
     const label = lectBookTab.querySelector('.tab-label');
     if (label) label.textContent = isAiGenerated ? (t('study') || 'Study') : (t('book') || 'Book');
   }
 
   if (currentUser.role === 'student') {
     if (sStudyTabBtn) sStudyTabBtn.style.display = isAiGenerated ? '' : 'none';
-    if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : '';
+    if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : (pdfViewerSrc ? '' : 'none');
   }
 
   if (currentUser.role === 'student') {
@@ -1340,8 +1345,6 @@ async function selectClassroom(id, isLecturer = true) {
   if (currentUser.role === 'lecturer') {
     showScreen('lecturer-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
-    
-    // If we are in an AI course and the last tab was 'book', redirect to overview since book is hidden
     let finalTab = targetTab;
     if (isAiGenerated && targetTab === 'book') finalTab = 'overview';
     
@@ -1350,9 +1353,19 @@ async function selectClassroom(id, isLecturer = true) {
     await initLecturer();
   } else {
     showScreen('student-dashboard');
-    const targetTab = localStorage.getItem('aula_last_tab') || 's-home';
+    let targetTab = localStorage.getItem('aula_last_tab') || 's-home';
+    // If we are in a PDF course but the last tab was 's-study-tab', redirect to home
+    if (!isAiGenerated && targetTab === 's-study-tab') targetTab = 's-home';
+    // If we are in an AI course but the last tab was 's-book', redirect to s-study-tab
+    if (isAiGenerated && targetTab === 's-book') targetTab = 's-study-tab';
+
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
     if (tabBtn) switchTab(tabBtn);
+    else {
+        // Fallback if the button is hidden/missing
+        const homeBtn = document.querySelector(`#student-dashboard [data-tab="s-home"]`);
+        if (homeBtn) switchTab(homeBtn);
+    }
     await initStudent();
   }
 
@@ -3190,14 +3203,18 @@ async function initStudent() {
   const greeting = document.getElementById('student-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
 
-  await Promise.all([
-    loadCurriculumAsync(),
-    loadStudentHome(),
-    loadQuizList(),
-    loadAssignmentList(),
-    loadStudentProgress(),
-    loadStudentChat()
-  ]);
+  try {
+    await Promise.all([
+        loadCurriculumAsync(),
+        loadStudentHome(),
+        loadQuizList(),
+        loadAssignmentList(),
+        loadStudentProgress(),
+        loadStudentChat()
+    ]);
+  } catch (e) {
+    console.error("Error initializing student dashboard:", e);
+  }
   loadStudentPractice();
   applyTranslations();
 }
