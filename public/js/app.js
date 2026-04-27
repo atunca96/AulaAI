@@ -873,6 +873,8 @@ const i18n = {
     'class.create_success_full': 'Sınıf başarıyla oluşturuldu! \n\nKatılım Kodu: {code}\n\nDerse başlamak için Katılım Kodunu öğrencilerinizle paylaşın.',
     'answer': 'Cevaplar',
     'responses': 'Sonuçlar',
+    'gen.loading': 'Sorular oluşturuluyor...',
+    'gen.time': 'Bu işlem 5-10 saniye sürebilir.',
     'gen.preparing': 'Sınıf Hazırlanıyor...',
     'gen.building': 'Dersler Oluşturuluyor...',
     'gen.generating': 'Sorular oluşturuluyor...',
