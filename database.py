@@ -18,9 +18,12 @@ if IS_RAILWAY:
     # On Railway, we REQUIRE the /app/data mount. 
     # If it's missing, we are in a 'Ghost' state and should not seed.
     DATA_DIR = "/app/data"
-    if not os.path.exists(DATA_DIR):
-        print("[CRITICAL] Railway volume /app/data not found! Waiting for mount...")
-        os.makedirs(DATA_DIR, exist_ok=True)
+    # Debug directory contents to verify mount
+    try:
+        print(f"[DEBUG] Root contents: {os.listdir('/app')}")
+        if os.path.exists('/app/data'):
+            print(f"[DEBUG] Data contents: {os.listdir('/app/data')}")
+    except: pass
 else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
 
