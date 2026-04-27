@@ -80,15 +80,17 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
         reference_data = get_reference_prompt(language)
     
     alphabet_rule = ""
-    if is_alphabet_topic:
+    if is_alphabet_topic and reference_data:
         alphabet_rule = f"""
     CRITICAL REQUIREMENT for Alphabets/Syllabaries:
-    Since this topic is about the alphabet/syllabary in {language}, you MUST include EVERY SINGLE CHARACTER/PHONEME. 
+    Since this topic is about the alphabet/syllabary in {language}, you MUST include EVERY SINGLE CHARACTER/PHONEME using the ground truth provided below. 
     {reference_data}
     - For CHINESE: Use the Pinyin initials and finals from the reference data.
     - For JAPANESE: Use the Hiragana/Katakana from the reference data.
     Skipping characters from the reference data is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
     """
+    elif is_alphabet_topic:
+        alphabet_rule = f"\nThis topic is about the {language} alphabet. Please provide a comprehensive overview of the letters and their basic sounds.\n"
     
     explanation_rule = ""
     if level in ['A1', 'A2']:
