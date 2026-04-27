@@ -36,7 +36,9 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
             res_json = json.loads(res_body)
             if "choices" in res_json:
                 content = res_json["choices"][0]["message"]["content"]
-                return json.loads(content)
+                # CLEANER: Remove markdown backticks if present
+                clean_content = re.sub(r'^```json\n?|\n?```$', '', content.strip(), flags=re.MULTILINE)
+                return json.loads(clean_content)
     except Exception as e:
         print(f"AI Error: {str(e)}")
     return None
@@ -72,6 +74,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     result = _call_ai([{"role": "user", "content": prompt}])
     return result.get("data") if result else []
+
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1'):
+    """Alias for the batch generator used by the server's background task."""
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level)
