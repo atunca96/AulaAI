@@ -135,17 +135,29 @@ def ai_generate_curriculum(language, level, course_name):
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 PEDAGOGY_INSTRUCTION = """
-You are teaching students who speak Turkish and English. The target languages are: English, Chinese, Spanish, French, Arabic, Russian, Portuguese, German, Japanese, Turkish, Korean, Italian, Dutch, Swedish, and Greek.
+# CORE PEDAGOGICAL RULES (FACTORY RESET)
+You are a language teacher for students who speak TURKISH and ENGLISH. 
+Supported Target Languages: English, Chinese, Spanish, French, Arabic, Russian, Portuguese, German, Japanese, Turkish, Korean, Italian, Dutch, Swedish, Greek.
 
-for a1-a2, generate english questions to help the students get a grasp of the fundamentals. generate questions related to the topic of choice.
-after a2, with b1 and further, you can slowly start creating questions with the language of the classroom (the target language). increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.
-always build constructive questions in order to help the student understand the topic further.
+1. LANGUAGE BOUNDARIES (CRITICAL):
+   - NATIVE LANGUAGE: Use Turkish or English for instructions and hints.
+   - TARGET LANGUAGE: Use the language being learned (e.g., Japanese) for the actual practice.
+   - NEVER MIX languages in the multiple-choice options.
 
-CRITICAL DISTRACTOR RULE:
-1. Distractors MUST be in the same language as the correct answer.
-2. If the answer is in a target language (e.g., Japanese, Spanish), all distractors MUST be in that SAME target language.
-3. NEVER use English words as distractors for a target language question.
-4. (Example: If the question is "Which Japanese word means 'Hello'?", the answer is "こんにちは" and the distractors MUST be other Japanese words like "さようなら", not English words like "Goodbye").
+2. MULTIPLE CHOICE RULES:
+   - MODE A (Target Practice): The question asks for a word in the Target Language. ALL 4 options (answer + distractors) MUST be in the Target Language.
+   - MODE B (Meaning Practice): The question asks for the meaning of a Target word. ALL 4 options (answer + distractors) MUST be in the Native Language (English or Turkish).
+   - FAILURE to keep all options in the same language is a pedagogical error.
+
+3. FILL IN THE BLANK RULES:
+   - The sentence MUST be in the Target Language.
+   - The missing word MUST be in the Target Language.
+   - Provide a Native Language (English/Turkish) hint in parentheses.
+   - Ensure the sentence is complete and grammatically correct.
+
+4. LEVEL ADAPTATION:
+   - A1-A2: Use English for instructions. Use simple vocabulary. For Japanese/Chinese, use Kanji/Hanzi with Hiragana/Pinyin if possible.
+   - B1+: Start using the Target Language for instructions. Increase complexity.
 """
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
@@ -310,15 +322,28 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    TASK: Generate 12 interactive questions for {level_norm} students learning {language}.
     
-    IMPORTANT: You must return a JSON object with a "data" key containing an array.
-    Each object in the array MUST use these exact keys depending on logic:
-    - MCQ Translation: {{"type": "mcq", "word": "TargetLanguageWord", "translation": "NativeLanguageMeaning", "distractors": ["Dist1", "Dist2", "Dist3"]}}
-    - Fill Blank: {{"type": "fill_blank", "sentence": "A sentence in the target language with a ____.", "word": "answer", "translation": "hint"}}
-    - Scenario: {{"type": "mcq", "scenario": "A description of a situation", "answer": "AppropriateResponse", "distractors": ["Wrong1", "Wrong2"]}}
+    You MUST provide a mix of these 3 types:
+    1. MCQ MODE A (Target word identification): 
+       - Prompt: "Which {language} word means 'Apple'?"
+       - Answer: "{language} word for Apple"
+       - Distractors: [3 other {language} words]
+    2. MCQ MODE B (Meaning identification):
+       - Prompt: "What does the {language} word '{language}Word' mean?"
+       - Answer: "Native (English/Turkish) meaning"
+       - Distractors: [3 other Native meanings]
+    3. FILL BLANK:
+       - Sentence: "{language} sentence with ____"
+       - Answer: "Correct {language} word"
+       - Translation: "English/Turkish hint"
+
+    IMPORTANT: ALL 4 options in an MCQ must be in the SAME language. Never mix {language} and English/Turkish in the options.
+    Return a JSON object with a "data" key containing an array of objects.
+    Each object must have "type" ('mcq' or 'fill_blank') and the appropriate keys from the logic above.
     
-    Return JSON ONLY."""
+    Return JSON ONLY.
+"""
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
     print(f"[AI] Raw data for {topic_title}: {json.dumps(result)[:200]}...")
