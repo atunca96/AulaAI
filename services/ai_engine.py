@@ -68,25 +68,38 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     for item in raw_list:
         try:
-            # 1. Clean Parenthesis
-            ans = re.sub(r'\(.*?\)', '', str(item.get("answer", ""))).strip()
-            prompt_text = item.get("prompt", "")
+            # 1. Basic Cleaning
+            ans = str(item.get("answer", "")).strip()
+            # Remove parenthesis hints
+            ans_clean = re.sub(r'\(.*?\)', '', ans).strip()
+            prompt_text = str(item.get("prompt", "")).strip()
             
-            # 2. Logic Check: Answer shouldn't be the same as the prompt core
-            if ans.lower() in prompt_text.lower() and len(ans) > 2:
+            # 2. Logic Check: Answer MUST NOT be in the prompt
+            # If the answer (e.g. "の") is inside the prompt, the AI flipped the question.
+            if ans_clean.lower() in prompt_text.lower():
                 continue
                 
-            # 3. Script Guard: If Japanese/etc, answer shouldn't have Latin (A-Z)
-            if is_non_latin and re.search('[a-zA-Z]', ans):
-                continue
+            # 3. Translation Direction Check
+            # If prompt says "What does ... mean?", the answer should be English (Latin), 
+            # NOT the native script (Japanese/Arabic/etc).
+            if "mean" in prompt_text.lower() or "translate" in prompt_text.lower():
+                # If it's a non-latin language topic, but the answer has NO latin letters, 
+                # it means the AI gave the native word as the answer. FAIL.
+                if is_non_latin and not re.search('[a-zA-Z]', ans_clean):
+                    continue
+
+            # 4. Script Guard (Legacy): Non-latin answers shouldn't have Latin mixed in 
+            # (unless it's a translation activity, handled above)
+            # if is_non_latin and not ("mean" in prompt_text.lower()) and re.search('[a-zA-Z]', ans_clean):
+            #    continue
             
-            # 4. Duplicate Check
-            if ans.lower() in seen_answers:
+            # 5. Duplicate Check
+            if ans_clean.lower() in seen_answers:
                 continue
                 
             # Success!
-            item["answer"] = ans
-            seen_answers.add(ans.lower())
+            item["answer"] = ans_clean
+            seen_answers.add(ans_clean.lower())
             final_questions.append(item)
             
             if len(final_questions) >= c: break
