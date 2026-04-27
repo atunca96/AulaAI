@@ -1244,8 +1244,11 @@ async function selectClassroom(id, isLecturer = true) {
 
   // Update Book Tab
   let bookPath = course ? course.textbook : '';
-  const pdfViewerSrc = (bookPath && bookPath.trim() !== '' && bookPath !== '/books/' && bookPath !== '/books/undefined' && bookPath !== '/') ? bookPath : '';
-  document.querySelectorAll('.pdf-viewer').forEach(el => { el.src = pdfViewerSrc || 'about:blank'; });
+  // Robust path check: if it starts with /books/ and has a filename, it's valid
+  const pdfViewerSrc = (bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
+  document.querySelectorAll('.pdf-viewer').forEach(el => { 
+      if (el.src !== pdfViewerSrc) el.src = pdfViewerSrc || 'about:blank'; 
+  });
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
   });
@@ -4025,7 +4028,7 @@ function renderStudentPortal() {
         <div class="classroom-card-footer">
           <div class="classroom-code">#${enr.course_code}</div>
           <div style="display:flex; gap:8px; align-items:center">
-             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="background:rgba(255,59,48,0.05); color:var(--text-muted); border:1px solid var(--border); font-size:10px; padding:2px 8px; border-radius:6px; opacity:0.6" data-i18n="student.leave">${t('student.leave')}</button>
+             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="background:#ff3b30; color:white; border:none; font-size:11px; padding:4px 12px; border-radius:6px; opacity:1; font-weight:700; box-shadow: 0 2px 8px rgba(255,59,48,0.3);" data-i18n="student.leave">${t('student.leave')}</button>
              <div class="classroom-arrow">→</div>
           </div>
         </div>
