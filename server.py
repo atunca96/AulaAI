@@ -1258,8 +1258,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     for act in final_activities:
                         q_id = _uid()
                         a_type = act.get("type", "mcq")
-                        a_prompt = act.get("prompt", "")
-                        a_answer = act.get("answer", "")
+                        a_prompt = json.dumps(act.get("prompt", ""), ensure_ascii=False) if isinstance(act.get("prompt"), (list, dict)) else str(act.get("prompt", ""))
+                        a_answer = json.dumps(act.get("answer", ""), ensure_ascii=False) if isinstance(act.get("answer"), (list, dict)) else str(act.get("answer", ""))
                         distractors = json.dumps(act.get("distractors", []))
                         db.execute("""
                             INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
