@@ -1178,6 +1178,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             from database import db_connection
             from services.ai_engine import ai_generate_activity_batch
             
+            def update_prog(p):
+                # Retry loop for DB locks
+                for retry in range(5):
+                    try:
+                        with db_connection() as db_c:
+                            db_c.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
+                            db_c.commit()
+                        return
+                    except Exception:
+                        time.sleep(0.5)
+
             with db_connection() as db:
                 # 1. Fetch existing questions to avoid duplicates
                 existing_rows = db.execute("SELECT prompt FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
@@ -1185,7 +1196,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 # Check for capacity limit
                 if len(existing_questions) >= 30:
-                    print(f"[BG] Topic {topic_id} reached capacity (30). Skipping generation.")
+                    print(f"[BG] Topic {topic_id} is at max capacity (30). Ready to launch.")
                     update_prog(100)
                     return
 
@@ -1200,22 +1211,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             print(f"[BG] Starting CUMULATIVE activity generation for {topic['title']} ({language})")
             file_log(f"Starting CUMULATIVE generation for {topic['title']}")
 
-            def update_prog(p):
-                # Retry loop for DB locks
-                for retry in range(5):
-                    try:
-                        with db_connection() as db:
-                            db.execute("UPDATE courses SET activity_progress=? WHERE id=?", (p, course_id))
-                            db.commit()
-                        return
-                    except sqlite3.OperationalError as e:
-                        if "locked" in str(e).lower():
-                            time.sleep(0.5)
-                        else: raise
-                    except Exception as e:
-                        file_log(f"Prog update fail: {e}")
-                        return
-            
             # Starting...
             update_prog(5)
             
