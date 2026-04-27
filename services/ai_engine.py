@@ -129,6 +129,11 @@ def detect_language(text):
     except:
         return "Spanish"
 
+def ai_generate_curriculum(language, level, course_name):
+    """AI drafts a detailed curriculum based on topic, level, and language."""
+    prompt = f"Create a comprehensive language learning curriculum for a course called '{course_name}' at {level} level in {language}. Return a JSON object with a 'chapters' key containing an array of objects. Each chapter must have 'number', 'title', and 'topics' (array of objects with 'title', 'type' (vocabulary/grammar/culture), 'difficulty', 'sort_order'). Respond ONLY with JSON."
+    return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+
 PEDAGOGY_INSTRUCTION = """
 for a1-a2, generate english questions to help the students geet a grasp of the fundamentals. generate questions related to the topic of choice.
 after a2, with b1 and further, you can slowly start creating questions with the language of the classroom. increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.

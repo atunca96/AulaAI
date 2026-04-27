@@ -2074,6 +2074,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         
         from services.ai_engine import ai_generate_curriculum
         result = ai_generate_curriculum(language, level, course_name)
+        if not result: return self._send_error("Failed to generate syllabus", 500)
         return self._send_json({"syllabus": result.get("chapters", [])})
 
     def _create_classroom_from_scratch(self):
