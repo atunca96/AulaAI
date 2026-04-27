@@ -336,8 +336,8 @@ def format_activity_by_template(data, level, language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
-    request_count = max(20, int(count) + 5)
-    if request_count > 30: request_count = 30 # Token/Time safety for Llama
+    request_count = max(12, int(count) + 4)
+    if request_count > 20: request_count = 20 # Speed cap
     
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
