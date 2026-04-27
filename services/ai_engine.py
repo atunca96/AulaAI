@@ -131,7 +131,7 @@ def detect_language(text):
 
 def ai_generate_curriculum(language, level, course_name):
     """AI drafts a detailed curriculum based on topic, level, and language."""
-    prompt = f"Create a comprehensive language learning curriculum for a course called '{course_name}' at {level} level in {language}. Return a JSON object with a 'chapters' key containing an array of objects. Each chapter must have 'number', 'title', and 'topics' (array of objects with 'title', 'type' (vocabulary/grammar/culture), 'difficulty', 'sort_order'). Respond ONLY with JSON."
+    prompt = f"Create a comprehensive, full-semester language learning curriculum for a course called '{course_name}' at {level} level in {language}. Return a JSON object with a 'chapters' key containing an array of EXACTLY 10 chapters to ensure a complete learning path. Each chapter must have 'number', 'title', and 'topics' (an array of 3-5 distinct objects with 'title', 'type' (vocabulary/grammar/culture), 'difficulty', 'sort_order'). Respond ONLY with valid JSON."
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 PEDAGOGY_INSTRUCTION = """
