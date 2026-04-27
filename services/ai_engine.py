@@ -268,18 +268,23 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
-                    # GHOST CHECK: Reject if answer is inside the prompt
+                    # GHOST CHECK: Reject if answer is inside the prompt (Relaxed for phonetics)
+                    is_ghost = False
                     if ans_vibe == 'native':
                         if any(char in prompt_clean for char in ans_clean if char.strip()):
-                            continue
+                            is_ghost = True
                     else:
-                        # Use word boundaries on the CLEAN prompt
                         pattern = r'\b' + re.escape(ans_clean.lower()) + r'\b'
                         if re.search(pattern, prompt_clean.lower()):
-                            continue
+                            is_ghost = True
+                    
+                    if is_ghost and not is_phonetic_topic:
+                        print(f"[REJECT] Ghost check failed: '{ans_clean}' in '{prompt_clean}'")
+                        continue
                     
                     # MCQs need at least 2 valid distractors
                     if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
+                        print(f"[REJECT] Not enough distractors: {len(valid_distractors)}")
                         continue
     
                     # Check for global duplicates
@@ -304,10 +309,26 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     return []
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions)
+    return ai_generate_questions(
+        topic_title=topic_title, 
+        topic_type=topic_type, 
+        topic_content=topic_content, 
+        language=language, 
+        count=count, 
+        level=level, 
+        existing_questions=existing_questions
+    )
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions)
+    return ai_generate_questions(
+        topic_title=topic_title, 
+        topic_type=topic_type, 
+        topic_content=topic_content, 
+        language=language, 
+        count=count, 
+        level=level, 
+        existing_questions=existing_questions
+    )
 
 def ai_grade_open_response(question, student_answer, correct_answer):
     prompt = f"Grade: Q:{question}, C:{correct_answer}, S:{student_answer}. JSON: {{'score': 0..1, 'feedback': '...'}}"
