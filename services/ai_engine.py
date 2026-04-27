@@ -156,6 +156,7 @@ PEDAGOGY_INSTRUCTION = """
    - MODE A (Word Identification): Native prompt -> Target options. (All 4 options MUST be in Target Language).
    - MODE B (Meaning Identification): Target prompt -> Native options. (All 4 options MUST be in English or Turkish).
    - NEVER MIX Target and Native languages in the same option list.
+   - OPTIONS MUST BE CLEAN: Do not add translations, Romaji, or English explanations in the option list. Just the word itself.
    - For beginners (A1-A2), keep instructions in ENGLISH.
 
 2. AVOID SELF-REFERENCE:
@@ -305,8 +306,8 @@ def format_activity_by_template(data, level, language):
         }
 
     if atype == "mcq":
-        target = data.get("word") or data.get("answer") or data.get("target") or "???"
-        translation = data.get("translation") or data.get("meaning") or data.get("english") or "???"
+        target = data.get("word") or data.get("answer") or data.get("target") or data.get("correct") or "???"
+        translation = data.get("translation") or data.get("meaning") or data.get("english") or data.get("definition") or "???"
         
         # If we have a prompt or question already, use it
         final_prompt = data.get("prompt") or data.get("question")
@@ -394,14 +395,18 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 # Language Consistency Check
                 is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
                 if not is_target_latin:
-                    has_latin = any(re.search('[a-zA-Z]', str(o)) for o in opts)
-                    prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in assembled["prompt"] if c.strip())
+                    # Strip any parenthetical help Llama might have added before checking script
+                    clean_opts = [re.sub(r'\(.*?\)', '', str(o)).strip() for o in opts]
+                    has_latin = any(re.search('[a-zA-Z]', str(o)) for o in clean_opts)
+                    
+                    clean_prompt = re.sub(r'\(.*?\)', '', str(assembled["prompt"])).strip()
+                    prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in clean_prompt if c.strip())
                     
                     if prompt_has_target and not has_latin: 
-                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options")
+                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options: {clean_opts}")
                         continue 
                     if not prompt_has_target and has_latin: 
-                        print(f"[QC] Discarded Mode A (Target) with latin options")
+                        print(f"[QC] Discarded Mode A (Target) with latin options: {clean_opts}")
                         continue
 
             # 3. Uniqueness Filter
