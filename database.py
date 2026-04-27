@@ -5,9 +5,20 @@ import os
 import uuid
 import re
 
-DB_PATH = "aula.db"
+# Path Configuration
+DATA_DIR = os.path.join(os.getcwd(), "data")
+BOOKS_DIR = os.path.join(os.getcwd(), "public", "books")
+DB_PATH = os.path.join(DATA_DIR, "aula.db")
+
+# Ensure directories exist
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(BOOKS_DIR, exist_ok=True)
 
 def _uid(): return str(uuid.uuid4())
+
+def get_db():
+    """Context manager for database connections (Backward compat)."""
+    return sqlite3.connect(DB_PATH)
 
 def init_db():
     """Initialize the universal AulaAI database schema."""
