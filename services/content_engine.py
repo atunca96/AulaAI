@@ -129,11 +129,9 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Engl
         except Exception as e:
             print(f"[AI] Fallback to mock: {e}")
 
-    # Fallback to mock templates (Note: Mock templates are hardcoded for common introductory topics)
+    # Fallback to mock templates (Only for vocabulary, as grammar mock is fill-blank)
     if topic_type == "vocabulary":
         return _generate_vocab_activity(content, difficulty, count, language)
-    elif topic_type == "grammar":
-        return _generate_grammar_activity(topic_data["title"], content, difficulty, count, language)
     return []
 
 
@@ -279,32 +277,28 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
     if not topic_ids:
         return []
 
-    # 1. Initial Pull from DB
+    # 1. Initial Pull from DB (STRICTLY MCQ)
     with db_connection() as db_conn:
         c = db_conn.cursor()
         for topic_id in topic_ids:
             rows = c.execute(
-                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 ORDER BY RANDOM()",
+                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
                 (topic_id,)
             ).fetchall()
-
+            
             for row in rows:
                 q = dict(row)
                 if q["id"] in [sq["id"] for sq in questions]: continue
                 
-                if q["type"] == "mcq" and (not q["distractors"] or q["distractors"] == "[]"):
-                    others = [r["answer"] for r in rows if r["id"] != q["id"] and r["type"] == q["type"]]
-                    if len(others) >= 3:
-                        random.shuffle(others)
-                        q["distractors"] = others[:3]
-                    else:
-                        q["distractors"] = ["Option A", "Option B", "Option C"]
-                elif q["distractors"]:
-                    try:
-                        raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                        q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                    except:
-                        q["distractors"] = []
+                # Verify distractors
+                if not q.get("distractors") or q["distractors"] == "[]":
+                    continue # Skip if no distractors for MCQ
+                
+                try:
+                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
+                except:
+                    q["distractors"] = []
                 
                 questions.append(q)
 

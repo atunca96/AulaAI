@@ -137,9 +137,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     SOURCE MATERIAL (The Textbook):
     {content_str}
     
-    CRITICAL POLICY: IMPLEMENT THE 3/2 RULE
-    - For every set of questions, maintain a ratio where 60% are Multiple Choice (type: 'mcq') and 40% are Fill-in-the-blank (type: 'fill_blank').
-    - Example: If generating 5 questions, 3 MUST be mcq and 2 MUST be fill_blank.
+    CRITICAL POLICY: 100% MULTIPLE CHOICE ONLY
+    - EVERY SINGLE QUESTION must be Multiple Choice (type: 'mcq').
+    - NO Fill-in-the-blank questions are allowed.
     - VARIETY IS MANDATORY: Do NOT repeat words, themes, or sentence structures.
     
     STRICT SOURCE RULE:
@@ -149,12 +149,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
     2. NO FRANKENSTEIN SENTENCES: NEVER mix {language} and English in a single sentence. 
-       - BAD: "This is your 弟弟"
-       - GOOD: "Translate to {language}: 'This is your younger brother'" or "这是你的____。"
     3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the context.
     4. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
-    JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
+    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
     """
     
