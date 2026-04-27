@@ -1256,7 +1256,6 @@ async function selectClassroom(id, isLecturer = true) {
 
     courseId = id;
     if (course) {
-        // If student is not approved, send to waiting room
         if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
             showScreen('waiting-room-screen');
             startWaitingRoomPoll(courseId);
@@ -1273,7 +1272,6 @@ async function selectClassroom(id, isLecturer = true) {
         }
     }
 
-  // Show building banner if needed
   const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
   if (buildBanner) {
     if (course && course.is_building) {
@@ -1292,11 +1290,9 @@ async function selectClassroom(id, isLecturer = true) {
     curriculum = [];
   }
 
-  // Update Book Tab
   let bookPath = course ? course.textbook : '';
-  const isAiGenerated = course && (course.textbook === 'AI Generated' || (course.textbook || '').includes('AI Generated'));
+  const isAiGenerated = course && (course.textbook === 'AI Generated' || (course.textbook || '').toUpperCase().includes('AI GENERATED'));
   
-  // Robust path check: if it starts with /books/ and has a filename, it's valid
   const pdfViewerSrc = (!isAiGenerated && bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
   
   document.querySelectorAll('.pdf-viewer').forEach(el => { 
@@ -1306,12 +1302,10 @@ async function selectClassroom(id, isLecturer = true) {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
   });
 
-  // Mobile dynamic preview
   document.querySelectorAll('.mobile-book-title').forEach(el => el.textContent = course ? course.name : 'Textbook');
   document.querySelectorAll('.mobile-book-title-thumb').forEach(el => el.textContent = course ? course.name : 'Textbook');
   document.querySelectorAll('.mobile-book-link').forEach(el => el.href = pdfViewerSrc || '#');
 
-  // PC empty state
   document.querySelectorAll('.pdf-empty-state').forEach(el => {
     if (pdfViewerSrc) el.classList.add('hidden');
     else el.classList.remove('hidden');
@@ -1322,7 +1316,6 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
   document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
   
-  // Hide/Relabel tabs based on course type
   const lectBookTab = document.getElementById('lecturer-book-tab');
   const sStudyTabBtn = document.getElementById('nav-s-study-tab');
   const sBookTabBtn = document.getElementById('nav-s-book-tab');
@@ -1354,17 +1347,14 @@ async function selectClassroom(id, isLecturer = true) {
   } else {
     showScreen('student-dashboard');
     let targetTab = localStorage.getItem('aula_last_tab') || 's-home';
-    // If we are in a PDF course but the last tab was 's-study-tab', redirect to home
     if (!isAiGenerated && targetTab === 's-study-tab') targetTab = 's-home';
-    // If we are in an AI course but the last tab was 's-book', redirect to s-study-tab
     if (isAiGenerated && targetTab === 's-book') targetTab = 's-study-tab';
 
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
-    if (tabBtn) switchTab(tabBtn);
+    if (tabBtn) switchTab(tabBtn, true); // skipLoad=true since we call initStudent after
     else {
-        // Fallback if the button is hidden/missing
         const homeBtn = document.querySelector(`#student-dashboard [data-tab="s-home"]`);
-        if (homeBtn) switchTab(homeBtn);
+        if (homeBtn) switchTab(homeBtn, true);
     }
     await initStudent();
   }
