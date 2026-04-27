@@ -104,12 +104,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
-    2. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence (e.g., NO "I ___ [Japanese word] to school").
-    3. QUESTION FORMATS:
+    2. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence.
+    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the prompt.
+       - BAD: "My name is ____" (Guessing a name)
+       - GOOD: "His name is Mario. My name is ____" (Context provided)
+    4. QUESTION FORMATS:
        - Vocabulary: "What is the {language} word for '[English]'?" (Only for beginners)
        - Contextual: Create a gap-fill or translation task suitable for {level}.
-    4. CONTENT: All choices (answer + distractors) MUST be in the SAME language/script.
-    5. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
+    5. CONTENT: All choices (answer + distractors) MUST be in the SAME language/script.
+    6. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
     JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.

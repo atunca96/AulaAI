@@ -1052,6 +1052,18 @@ async function api(path, opts = {}) {
     headers: opts.body ? { 'Content-Type': 'application/json' } : {},
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
+  
+  if (res.status === 404 && currentUser && currentUser.role === 'student' && currentCourse) {
+      // If we are in a course and get a 404, it might be deleted
+      const data = await res.json();
+      if (data.error === "Course not found" || data.error === "Not found") {
+          await showAlert("Classroom Deleted", "This classroom has been deleted by the lecturer. You are being redirected to your portal.");
+          window.location.reload(); // Re-fetch portal state
+          return { error: "Classroom Deleted" };
+      }
+      return data;
+  }
+
   return res.json();
 }
 
@@ -1323,7 +1335,7 @@ async function selectClassroom(id, isLecturer = true) {
   if (currentUser.role === 'lecturer' && lectBookTab) {
     lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
     const label = lectBookTab.querySelector('.tab-label');
-    if (label) label.textContent = isAiGenerated ? (t('study') || 'Study') : (t('book') || 'Book');
+    if (label) label.textContent = isAiGenerated ? "Material" : (t('book') || 'Book');
   }
 
   if (currentUser.role === 'student') {
@@ -1800,7 +1812,8 @@ function switchTab(btn, skipLoad = false) {
   panels.forEach(p => {
     if (p.id === 'tab-' + tabId) {
         p.classList.add('active');
-        p.style.display = 'block'; // Force visibility
+        p.style.display = 'block';
+        if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();
     } else {
         p.classList.remove('active');
         p.style.display = 'none';
@@ -3196,6 +3209,22 @@ async function initStudent() {
 
   const greeting = document.getElementById('student-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
+  
+  // Background poller to check if classroom still exists (Safety/Immediate Notification)
+  if (window._studentPoll) clearInterval(window._studentPoll);
+  window._studentPoll = setInterval(async () => {
+    if (currentCourse && currentUser && currentUser.role === 'student') {
+        const check = await api('/courses');
+        if (check && Array.isArray(check)) {
+            const stillExists = check.some(c => c.id === currentCourse.id);
+            if (!stillExists) {
+                clearInterval(window._studentPoll);
+                await showAlert("Classroom Deleted", "The lecturer has deleted this classroom. Redirecting to your portal...");
+                window.location.reload();
+            }
+        }
+    }
+  }, 15000);
 
   try {
     await Promise.all([
@@ -4018,17 +4047,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   // Final Page: Ready to Practice
   pages.push({
-    title: "Lesson Complete",
+    title: isStudent ? "Lesson Complete" : "Lesson Preview",
     icon: "🏁",
     render: () => `
       <div style="text-align:center; padding:60px 20px;">
         <div style="font-size:64px; margin-bottom:24px;">🎯</div>
-        <h2 style="font-size:28px; margin-bottom:12px;">You're Ready to Practice!</h2>
+        <h2 style="font-size:28px; margin-bottom:12px;">${isStudent ? "You're Ready to Practice!" : "End of Lesson Material"}</h2>
         <p style="color:var(--text-muted); margin-bottom:40px; font-size:18px; max-width:500px; margin-left:auto; margin-right:auto;">
-          You've reviewed the vocabulary, grammar, and examples for <strong>${topic.title}</strong>. 
-          Now it's time to test your knowledge with some interactive activities.
+          ${isStudent ? `You've reviewed the vocabulary, grammar, and examples for <strong>${topic.title}</strong>. Now it's time to test your knowledge.` : `This is how the lesson appears to your students.`}
         </p>
-        <button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">🚀 Start Practice Session</button>
+        ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">🚀 Start Practice Session</button>` : ''}
       </div>
     `
   });
