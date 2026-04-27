@@ -5,6 +5,7 @@ import os
 import uuid
 import threading
 import contextlib
+import time
 from datetime import datetime, timezone
 
 def _uid():
@@ -26,11 +27,23 @@ else:
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
 DB_PATH = os.path.join(DATA_DIR, "aula.db")
 
-# Strict check: Did we accidentally create a new DB in ephemeral storage?
+# Strict check: Wait for volume mount on Railway
 IS_GHOST_DB = False
-if IS_RAILWAY and not os.path.exists(DB_PATH):
-    print("[WARNING] No database found on volume. This might be a fresh mount.")
-    IS_GHOST_DB = True
+if IS_RAILWAY:
+    # We give Railway up to 10 seconds to attach the volume
+    for attempt in range(10):
+        if os.path.exists(DB_PATH):
+            print(f"[DB] Volume found after {attempt}s. Starting normally.")
+            IS_GHOST_DB = False
+            break
+        else:
+            print(f"[DB] Waiting for volume mount (Attempt {attempt+1}/10)...")
+            time.sleep(1)
+    else:
+        # If still not found after 10s, it's either a fresh install or a major mount failure
+        if not os.path.exists(DB_PATH):
+            print("[WARNING] No database found after 10s. Proceeding in 'Fresh Install' mode.")
+            IS_GHOST_DB = True
 
 # Thread-safe locks for background tasks
 _task_locks = {}
