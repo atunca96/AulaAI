@@ -1194,12 +1194,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # 1. Fetch existing questions
                 rows = db.execute("SELECT id, type, prompt, answer, distractors FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
                 existing_questions = []
+                import random
                 for r in rows:
                     q = dict(r)
                     try:
                         q["distractors"] = json.loads(q["distractors"])
                     except:
                         q["distractors"] = []
+                    
+                    # VITAL: Re-assemble the options for the frontend
+                    all_opts = [q["answer"]] + q["distractors"]
+                    random.shuffle(all_opts)
+                    q["options"] = all_opts
+                    
                     existing_questions.append(q)
                 
                 # Check for capacity limit
