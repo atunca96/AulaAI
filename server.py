@@ -2349,77 +2349,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(f"Internal server error: {str(e)}", 500)
 
 def _cleanup_stale_classrooms():
-    """Find and delete classrooms stuck in 'building' state for too long or from previous session."""
+    """Find and reset classrooms stuck in 'building' state for too long."""
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Cleaning up stale classroom tasks...")
     try:
         with db_connection() as db:
-            # 1. Any classroom with is_building=1 created more than 30 minutes ago
-            # 2. On startup, we can just clear ALL is_building=1 if we assume no threads are running yet
+            # Any classroom with is_building=1 created more than 30 minutes ago
             stale_threshold = (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
-            
             stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (stale_threshold,)).fetchall()
             
             for course in stale:
                 cid = course["id"]
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Deleting stalled classroom: {course['name']} ({cid})")
-                
-                # Use the same thorough deletion logic
-                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (cid,))
-                db.execute("DELETE FROM responses WHERE context_id IN (SELECT id FROM assignments WHERE course_id = ?)", (cid,))
-                db.execute("DELETE FROM responses WHERE context_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
-                db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
-                db.execute("DELETE FROM quiz_questions WHERE quiz_id IN (SELECT id FROM quizzes WHERE course_id = ?)", (cid,))
-                db.execute("DELETE FROM quizzes WHERE course_id = ?", (cid,))
-                db.execute("DELETE FROM assignment_questions WHERE assignment_id IN (SELECT id FROM assignments WHERE course_id = ?)", (cid,))
-                db.execute("DELETE FROM assignments WHERE course_id = ?", (cid,))
-                db.execute("DELETE FROM sessions WHERE course_id = ?", (cid,))
-                db.execute("DELETE FROM enrollments WHERE course_id = ?", (cid,))
-                db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (cid,))
-                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
-                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
-                db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
-                # Delete PDF file if exists
-                textbook_path = db.execute("SELECT textbook FROM courses WHERE id = ?", (cid,)).fetchone()[0]
-                if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
-                    full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
-                    if os.path.exists(full_path):
-                        try: os.remove(full_path)
-                        except: pass
-
-                db.execute("DELETE FROM courses WHERE id = ?", (cid,))
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Resetting stalled classroom state: {course['name']} ({cid})")
+                db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE id = ?", (cid,))
             
             db.commit()
     except Exception as e:
         print(f"[ERROR] Maintenance cleanup failed: {e}")
 
-def main():
-    init_db()
-    
-    # Startup check: Clear ANY classrooms still marked as building (since threads were killed)
 def _cleanup_orphaned_building_flags():
     """Reset building flags for tasks that were interrupted by a server restart."""
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building flags...")
     with db_connection() as db:
-        # We delete them because they are in an inconsistent state without their Phase 2 thread
-        # Only delete orphaned building records if they are older than 1 hour (to avoid deleting active ones during a quick restart)
+        # Any build task older than 1 hour is considered orphaned
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
-        orphaned = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (cutoff,)).fetchall()
-        for course in orphaned:
-            cid = course["id"]
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Cleaning up orphaned classroom: {course['name']}")
-            # Standard cleanup (following dependency order)
-            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (cid,))
-            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (cid,))
-            db.execute("DELETE FROM chapters WHERE course_id = ?", (cid,))
-            # Delete PDF file if exists
-            textbook_path = db.execute("SELECT textbook FROM courses WHERE id = ?", (cid,)).fetchone()[0]
-            if textbook_path and textbook_path.startswith("/books/") and not "Aula Internacional" in textbook_path:
-                full_path = os.path.join(STATIC_DIR, textbook_path.lstrip("/"))
-                if os.path.exists(full_path):
-                    try: os.remove(full_path)
-                    except: pass
-
-            db.execute("DELETE FROM courses WHERE id = ?", (cid,))
+        db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE is_building = 1 AND created_at < ?", (cutoff,))
         db.commit()
 
 class RobustServer(http.server.ThreadingHTTPServer):
