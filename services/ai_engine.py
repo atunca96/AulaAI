@@ -252,22 +252,27 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 
                 for d in distractors:
                     d_clean = deep_clean(d)
-                    d_stripped = agnostic_strip(d_clean)
                     # Rule: Choice must exist, share the vibe, and NOT be in the prompt
-                    if d_clean and d_stripped and d_clean.lower() not in all_choices:
-                        if d_stripped not in prompt_stripped and get_vibe(d_clean) == ans_vibe:
+                    if d_clean and d_clean.lower() not in all_choices:
+                        if get_vibe(d_clean) == ans_vibe:
                             valid_distractors.append(d_clean)
                             all_choices.add(d_clean.lower())
                 
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
-                    # Reject if answer is a "ghost" inside the prompt (The Flipped Question Bug)
-                    # For non-latin, be extra strict: no overlapping characters
+                    # GHOST CHECK: Reject if answer is inside the prompt
+                    # Native Script (Hanzi/Kana): Any overlapping character is a leak
                     if ans_vibe == 'native':
                         if any(char in prompt_clean for char in ans_clean if char.strip()):
                             continue
+                    # Latin Script (Pinyin/English): Only reject if it's a WHOLE WORD leak
                     else:
-                        if ans_stripped in prompt_stripped:
+                        # Use word boundaries to avoid 'ma' matching 'mother'
+                        pattern = r'\b' + re.escape(ans_stripped) + r'\b'
+                        if re.search(pattern, prompt_stripped):
+                            continue
+                        # Also check the raw clean prompt for the exact sound
+                        if re.search(r'\b' + re.escape(ans_clean.lower()) + r'\b', prompt_clean.lower()):
                             continue
                     
                     # MCQs need at least 2 valid distractors
