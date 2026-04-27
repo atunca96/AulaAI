@@ -262,12 +262,12 @@ def _seed_data(c):
 
     for ch in curriculum:
         chapter_id = f"ch-demo-{ch['number']}"
-        c.execute("INSERT OR IGNORE INTO chapters VALUES (?,?,?,?)",
+        c.execute("INSERT OR IGNORE INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
                   (chapter_id, course_id, ch["number"], ch["title"]))
 
         for i, topic in enumerate(ch["topics"]):
             topic_id = f"topic-demo-{ch['number']}-{i+1}"
-            c.execute("INSERT OR IGNORE INTO topics VALUES (?,?,?,?,?,?,?,?)",
+            c.execute("INSERT OR IGNORE INTO topics (id, chapter_id, type, title, difficulty, content, pdf_url, sort_order) VALUES (?,?,?,?,?,?,?,?)",
                       (topic_id, chapter_id, topic["type"], topic["title"],
                        topic["difficulty"], json.dumps(topic["content"]), None, i))
 
