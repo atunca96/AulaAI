@@ -14,16 +14,23 @@ def _uid():
 # We use absolute paths to ensure the Railway volume remains mounted correctly.
 IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None
 if IS_RAILWAY:
+    # On Railway, we REQUIRE the /app/data mount. 
+    # If it's missing, we are in a 'Ghost' state and should not seed.
     DATA_DIR = "/app/data"
+    if not os.path.exists(DATA_DIR):
+        print("[CRITICAL] Railway volume /app/data not found! Waiting for mount...")
+        os.makedirs(DATA_DIR, exist_ok=True)
 else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
 
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
 DB_PATH = os.path.join(DATA_DIR, "aula.db")
 
-# Ensure directories exist immediately
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(BOOKS_DIR, exist_ok=True)
+# Strict check: Did we accidentally create a new DB in ephemeral storage?
+IS_GHOST_DB = False
+if IS_RAILWAY and not os.path.exists(DB_PATH):
+    print("[WARNING] No database found on volume. This might be a fresh mount.")
+    IS_GHOST_DB = True
 
 # Thread-safe locks for background tasks
 _task_locks = {}
@@ -237,8 +244,8 @@ def init_db():
 
     with db_connection() as db:
         c = db.cursor()
-        # Run seeding if empty
-        if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+        # Run seeding ONLY if not a ghost DB on Railway
+        if not IS_GHOST_DB and c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             print("[DB] Seeding initial data...")
             _seed_data(c)
             db.commit()
