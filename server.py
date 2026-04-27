@@ -905,6 +905,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json(result)
 
     def _get_curriculum(self, course_id):
+        """Fetch the full curriculum (chapters and topics) for a course."""
         with db_connection() as db:
             # If no course_id provided, or if the provided ID doesn't exist, fallback to first course
             exists = False
@@ -915,6 +916,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 course_id = course["id"] if course else None
             
+            if not course_id: return self._send_json([])
+
             chapters = db.execute(
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
@@ -925,21 +928,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 topics = db.execute(
                     "SELECT * FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)
                 ).fetchall()
-                ch_dict["topics"] = []
+                # Include question counts
+                processed_topics = []
                 for t in topics:
                     t_dict = dict(t)
-                    try:
-                        t_dict["content"] = json.loads(t_dict["content"])
-                    except Exception as e:
-                        t_dict["content"] = {}
-                    
-                    qcount = db.execute(
-                        "SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)
-                    ).fetchone()["cnt"]
-                    t_dict["question_count"] = qcount
-                    ch_dict["topics"].append(t_dict)
+                    count_row = db.execute("SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)).fetchone()
+                    t_dict["question_count"] = count_row["cnt"] if count_row else 0
+                    processed_topics.append(t_dict)
+                ch_dict["topics"] = processed_topics
                 result.append(ch_dict)
-
         self._send_json(result)
 
     def _get_students(self, course_id):

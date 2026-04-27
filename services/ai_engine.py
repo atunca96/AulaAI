@@ -11,17 +11,80 @@ import random as py_random
 import logging
 from datetime import datetime
 
+# Try to load .env if it exists
+if os.path.exists(".env"):
+    try:
+        with open(".env", "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line and not line.strip().startswith("#"):
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v
+    except Exception as e:
+        print(f"[WARN] Failed to load .env: {e}")
+
 # API helper imports
 try:
     import anthropic
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+    ant_key = os.environ.get("ANTHROPIC_API_KEY")
+    client = anthropic.Anthropic(api_key=ant_key) if ant_key else None
 except ImportError:
     client = None
 
+def _call_openrouter(messages, max_tokens=1000, temperature=0.7):
+    """Call OpenRouter API (supports Haiku) as a fallback/alternative."""
+    import http.client
+    import json
+    
+    or_key = os.environ.get("OPENROUTER_API_KEY")
+    if not or_key: return None
+    
+    try:
+        conn = http.client.HTTPSConnection("openrouter.ai")
+        headers = {
+            "Authorization": f"Bearer {or_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:3000",
+            "X-Title": "AulaAI"
+        }
+        
+        # Use Claude 3.5 Haiku via OpenRouter for high quality/speed
+        payload = {
+            "model": "anthropic/claude-3.5-haiku",
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+        
+        conn.request("POST", "/api/v1/chat/completions", json.dumps(payload), headers)
+        res = conn.getresponse()
+        data = res.read().decode("utf-8")
+        
+        resp_json = json.loads(data)
+        if "choices" in resp_json:
+            text = resp_json["choices"][0]["message"]["content"]
+            # Clean up potential markdown formatting
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0]
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0]
+            return json.loads(text.strip())
+        else:
+            print(f"[OpenRouter Error] {data}")
+            return None
+    except Exception as e:
+        print(f"[OpenRouter Exception] {e}")
+        return None
+
 def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
-    """Call Anthropic API and return parsed JSON."""
+    """Call AI (OpenRouter or Anthropic) and return parsed JSON."""
+    # 1. Try OpenRouter first if key exists
+    if os.environ.get("OPENROUTER_API_KEY"):
+        res = _call_openrouter(messages, max_tokens, temperature)
+        if res: return res
+        
+    # 2. Fallback to direct Anthropic if configured
     if not client:
-        print("[AI] Anthropic client not initialized (missing API key?)")
+        print("[AI] No AI provider available (check ANTHROPIC_API_KEY or OPENROUTER_API_KEY)")
         return None
     
     try:
@@ -50,7 +113,7 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
         return None
 
 def is_ai_available():
-    return client is not None
+    return (client is not None) or (os.environ.get("OPENROUTER_API_KEY") is not None)
 
 def detect_language(text):
     """Detect the language of the provided text."""
