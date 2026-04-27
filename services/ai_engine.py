@@ -6,7 +6,7 @@ import urllib.error
 import time
 from typing import List, Dict, Any, Optional
 
-# Simple AI Engine with Python Filtering
+# Simple AI Engine with Python Filtering (V1.5-STABILIZED)
 MODEL_SPEED = "anthropic/claude-3-haiku" 
 MODEL_QUALITY = "anthropic/claude-3-haiku"
 
