@@ -4126,60 +4126,98 @@ function showStudyTopic(topicId, pageIdx = 0) {
   // Define pages
   const pages = [];
   
-  // Page 1: Vocabulary (The Cheat Sheet)
-  const vocabulary = content.words || content.vocabulary || {};
-  const vocabArray = Array.isArray(vocabulary) ? vocabulary : Object.entries(vocabulary).map(([term, translation]) => ({ term, translation }));
-  
-  if (vocabArray.length > 0) {
-    pages.push({
-      title: t('study.vocabulary'),
-      icon: "📙",
-      render: () => `
-        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-          ${vocabArray.map(v => `
-            <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
-              <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || v[0] || ''}</div>
-              <div style="color:var(--accent-light); font-weight:600;">${v.translation || v[1] || ''}</div>
-            </div>
-          `).join('')}
-        </div>
-      `
-    });
-  }
-
-  // Page 2: Grammar & Rules
-  const grammarText = (content.rules || []).join('\n\n') || content.grammar || "";
-  if (grammarText) {
-    pages.push({
-      title: t('study.grammar'),
-      icon: "⚙️",
-      render: () => `
-        <div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${grammarText}</div>
-      `
-    });
-  }
-
-  // Page 3: Context & Examples
-  const examples = content.examples || content.dialogue || [];
-  if (examples.length > 0) {
-    pages.push({
-      title: t('study.usage'),
-      icon: "💬",
-      render: () => `
-        <div style="display:flex; flex-direction:column; gap:20px;">
-          ${examples.map(ex => {
-            const isObj = typeof ex === 'object';
-            const text = isObj ? (ex.text || ex.example || "") : ex;
-            const speaker = isObj ? (ex.speaker || "") : "";
+  if (content.pages && Array.isArray(content.pages)) {
+    // NEW STRUCTURE: AI decides page count and types
+    content.pages.forEach(p => {
+      let icon = "📄";
+      if (p.type === 'vocabulary') icon = "📙";
+      if (p.type === 'grammar') icon = "⚙️";
+      if (p.type === 'examples') icon = "💬";
+      
+      pages.push({
+        title: p.title || t('Material'),
+        icon: icon,
+        render: () => {
+          if (p.type === 'vocabulary') {
             return `
-            <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
-              ${speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${speaker}</div>` : ''}
-              <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${text}"</div>
-            </div>`;
-          }).join('')}
-        </div>
-      `
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+                ${(p.items || []).map(v => `
+                  <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
+                    <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || ''}</div>
+                    <div style="color:var(--accent-light); font-weight:600;">${v.translation || ''}</div>
+                  </div>
+                `).join('')}
+              </div>`;
+          }
+          if (p.type === 'grammar') {
+            return `<div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${p.text || ''}</div>`;
+          }
+          if (p.type === 'examples') {
+            return `
+              <div style="display:flex; flex-direction:column; gap:20px;">
+                ${(p.list || []).map(ex => `
+                  <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
+                    ${ex.speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker}</div>` : ''}
+                    <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${ex.text || ''}"</div>
+                  </div>`).join('')}
+              </div>`;
+          }
+          return '';
+        }
+      });
     });
+  } else {
+    // OLD STRUCTURE: Backward compat
+    // Page 1: Vocabulary
+    const vocabulary = content.words || content.vocabulary || {};
+    const vocabArray = Array.isArray(vocabulary) ? vocabulary : Object.entries(vocabulary).map(([term, translation]) => ({ term, translation }));
+    if (vocabArray.length > 0) {
+      pages.push({
+        title: t('study.vocabulary'),
+        icon: "📙",
+        render: () => `
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+            ${vocabArray.map(v => `
+              <div style="background:rgba(255,255,255,0.03); padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; border:1px solid var(--border);">
+                <div style="font-size:18px; font-weight:700; color:var(--text-primary);">${v.term || v[0] || ''}</div>
+                <div style="color:var(--accent-light); font-weight:600;">${v.translation || v[1] || ''}</div>
+              </div>
+            `).join('')}
+          </div>`
+      });
+    }
+
+    // Page 2: Grammar
+    const grammarText = (content.rules || []).join('\n\n') || content.grammar || "";
+    if (grammarText) {
+      pages.push({
+        title: t('study.grammar'),
+        icon: "⚙️",
+        render: () => `<div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${grammarText}</div>`
+      });
+    }
+
+    // Page 3: Usage
+    const examples = content.examples || content.dialogue || [];
+    if (examples.length > 0) {
+      pages.push({
+        title: t('study.usage'),
+        icon: "💬",
+        render: () => `
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            ${examples.map(ex => {
+              const isObj = typeof ex === 'object';
+              const text = isObj ? (ex.text || ex.example || "") : ex;
+              const speaker = isObj ? (ex.speaker || "") : "";
+              return `
+              <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
+                ${speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${speaker}</div>` : ''}
+                <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${text}"</div>
+              </div>`;
+            }).join('')}
+          </div>`
+      });
+    }
   }
 
   // Final Page: Ready to Practice

@@ -207,8 +207,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         # Get language and structure from DB
         with db_connection() as db:
             db.row_factory = lambda cursor, row: row # Standard tuple fallback
-            course = db.execute("SELECT language FROM courses WHERE id = ?", (course_id,)).fetchone()
-            language = course[0] if course else "Unknown" # fallback if Row doesn't work
+            course = db.execute("SELECT language, level FROM courses WHERE id = ?", (course_id,)).fetchone()
+            language = course[0] if course else "Unknown"
+            level = course[1] if course and len(course) > 1 else "A1"
             
             chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
             chapters_data = []
@@ -252,7 +253,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                     t_id = topic.get("id")
                     
                     _log(f"Queueing: {t_title}")
-                    future = executor.submit(generate_full_lesson, t_title, t_type, language, 16)
+                    future = executor.submit(generate_full_lesson, t_title, t_type, language, 16, level)
                     future_to_topic[future] = (t_id, t_title)
                     topic_count += 1
             
@@ -371,8 +372,8 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
     manual_toc_data = {"chapters": worker_chapters}
     
     with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id))
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level) VALUES (?,?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level))
         db.commit()
         
     # Write the manual TOC to a file for the worker

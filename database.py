@@ -137,6 +137,9 @@ def init_db():
     try:
         c.execute("ALTER TABLE courses ADD COLUMN total_steps INTEGER DEFAULT 0")
     except sqlite3.OperationalError: pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN level TEXT DEFAULT 'A1'")
+    except sqlite3.OperationalError: pass
 
     c.executescript("""
         CREATE TABLE IF NOT EXISTS enrollments (

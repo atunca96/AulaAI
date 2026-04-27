@@ -61,17 +61,29 @@ def detect_language(text):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
     return result.get("language", "English") if result else "English"
 
-def generate_full_lesson(topic, topic_type, language, count=6):
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""
     prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
     
     You must return ONLY a JSON object with this exact structure:
     {{
-      "content": {{
-        "words": [ {{ "term": "...", "translation": "..." }} ],
-        "rules": [ "Grammar rule 1", "Grammar rule 2" ],
-        "examples": [ {{ "speaker": "A", "text": "..." }}, {{ "speaker": "B", "text": "..." }} ]
-      }},
+      "pages": [
+        {{ 
+          "type": "vocabulary", 
+          "title": "...", 
+          "items": [ {{ "term": "...", "translation": "..." }} ] 
+        }},
+        {{ 
+          "type": "grammar", 
+          "title": "...", 
+          "text": "..." 
+        }},
+        {{ 
+          "type": "examples", 
+          "title": "...", 
+          "list": [ {{ "speaker": "A", "text": "..." }} ] 
+        }}
+      ],
       "questions": [
         {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
       ]
@@ -79,12 +91,12 @@ def generate_full_lesson(topic, topic_type, language, count=6):
     
     Rules:
     1. Instructions must be in English.
-    2. Content must be level-appropriate (A1/A2).
-    3. BE RICH AND DETAILED: Generate 12-18 vocabulary words/phrases. 
-    4. EXCEPTION: If the topic covers an alphabet, syllabary (e.g., Hiragana), or a fundamental set, you MUST provide the COMPLETE set (e.g., all 46 basic Hiragana), regardless of the 18-item limit.
-    5. Provide clear, pedagogical grammar rules.
-    6. Provide at least 2 distinct example dialogues with 3-4 lines each.
-    7. Ensure the tone is professional yet engaging for a student.
+    2. Content must be level-appropriate ({level}).
+    3. FLEXIBLE PAGE COUNT: You are allowed to generate between 3 to 6 pages depending on the complexity of the topic.
+    4. COMPLETE ALPHABETS: If the topic covers an alphabet or syllabary, you MUST provide the COMPLETE set. If the set is too large for one page (e.g. 46 Hiragana), split it across 2 or 3 'vocabulary' type pages.
+    5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
+    6. Ensure the tone is professional yet engaging for a student.
+    7. Generate at least 6 high-quality questions for the topic.
     """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
     return result if result else {}
