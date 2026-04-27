@@ -1,8 +1,0 @@
-﻿
-public\index.html:421:                    <button class="btn btn-primary" onclick="generateReport()" data-i18n="🔄 Gene
-rate Report">
-public\index.html:422:                        🔄 Generate Report
-public\js\app.js:215:    '🔄 Generate Report': '🔄 Report',
-public\js\app.js:455:    '🔄 Generate Report': '🔄 Rapor Oluştur',
-
-

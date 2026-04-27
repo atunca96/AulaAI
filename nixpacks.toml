@@ -3,6 +3,7 @@ nixPkgs = ["python311"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
+cacheDirectories = ["/root/.cache/pip"]
 
 [start]
 cmd = "python server.py"
