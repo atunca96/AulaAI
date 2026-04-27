@@ -124,8 +124,9 @@ def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
-    """3/2 Rule + Python Filtering."""
+    """3/2 Buffer Policy: Request (count + offset) * 1.5 to pick the best results."""
     c = int(count)
+    # The 3/2 Policy: If odd, add 1 then multiply by 1.5. If even, multiply by 1.5.
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
     # Level-Gated Immersion Rule
