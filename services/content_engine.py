@@ -300,6 +300,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_to_chapter[tid] = cid
             all_chapter_ids.add(cid)
             if cid not in chapter_groups: chapter_groups[cid] = []
+        
+        print(f"[DEBUG] generate_quiz: topic_ids count={len(topic_ids)}, unique chapters identified={len(all_chapter_ids)}: {all_chapter_ids}")
             
             rows = c.execute(
                 "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
@@ -380,7 +382,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                 return [], tid, ""
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as executor:
-            batch_size = max(needed // len(targets) + 1, 5)
+            # If we have missing chapters, we take only 1-2 questions per target to ensure we see them all
+            is_balancing = len(missing_chapters) > 0
+            batch_size = 2 if is_balancing else max(needed // len(targets) + 1, 5)
+            
             futures = [executor.submit(_gen_for_topic, tid, batch_size) for tid in targets]
             
             for f in concurrent.futures.as_completed(futures):
@@ -391,8 +396,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     with db_connection() as db_conn:
                         for q in new_qs:
                             if not q.get("prompt") or not q.get("answer"): continue
-                            # If we are filling missing chapters, we might take only 1-2 per topic to keep balance
-                            if added_this_batch >= 5: break
+                            # If we are balancing, we take only 1-2 per topic initially to leave room for others
+                            if is_balancing and added_this_batch >= 2: break
                             if len(questions) >= count + 5: break 
                             
                             q_id = str(uuid.uuid4())
