@@ -187,7 +187,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     4. NO ENGLISH CRUTCH: Favor mapping Sound ↔ Character over Translation.
     5. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
     """
-    elif dna == "syllabic":
+    if dna == "syllabic":
         if is_phonetic_topic:
             diversity_quota = "MIX: 3x 'Sound to Script', 3x 'Script to Sound'."
         else:
@@ -195,15 +195,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         dna_instructions = f"""
     PEDAGOGICAL DNA: SYLLABIC/SCRIPT (Russian, Japanese, etc.)
     1. DECODING FOCUS: Focus on mapping the unique script (Cyrillic, Kana) to its sound.
-    2. ROMAJI/TRANSCRIPTION: Use only as a secondary tool. The primary target is the native script.
+    2. NATIVE TARGET: The primary target is the native script. Avoid over-reliance on transcriptions.
     """
     elif dna == "agglutinative":
-        diversity_quota = "MIX: 3x 'Suffix Stacking', 3x 'Sentence Meaning'."
+        diversity_quota = "MIX: 3x 'Sentence Meaning', 3x 'Suffix/Grammar'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish, Finnish, etc.)
-    1. SUFFIX STACKING: Focus on how words change with suffixes (e.g., ev-de-ki).
-    2. HARMONY & PLACEMENT: Test Vowel Harmony and suffix ordering.
-    3. NEGATIVE SPACE: Distractors MUST be ungrammatical strings (broken harmony, illegal suffix combinations, or incorrect placement) so there is NO ambiguity.
+    1. CONTEXTUAL VOCABULARY: For vocabulary, use distractors that are grammatical but contextually wrong (e.g., if asking for a fruit, distractors should be vegetables or colors).
+    2. SUFFIX STACKING: For grammar, focus on suffix combinations (e.g., ev-de-ki).
+    3. LOGICAL CONSISTENCY: Ensure category questions are factually accurate. (e.g., if asking for a month, do not mark a day as a distractor and a month as the answer).
+    4. GRAMMAR NEGATIVE SPACE: Only for GRAMMAR topics, distractors should be ungrammatical strings. For VOCABULARY, they must be valid but incorrect words.
     """
     else:
         diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
@@ -224,25 +225,26 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     CORE CONSTRAINTS:
     - TYPE: 100% Multiple Choice (type: 'mcq').
     - PROMPT: Write the question in {instruction_lang}.
+    - NO NEGATIVE QUESTIONS: Avoid questions like "Which of these is NOT...". Always prefer positive identification questions.
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
     - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
-    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect. There must be NO ambiguity. If the question tests a grammatical rule, the distractors must explicitly break that rule or be contextually impossible.
-    - LANGUAGE AGNOSTICISM: Ensure the logic holds regardless of the target language's structure (Logographic, Agglutinative, or Inflected).
+    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect. There must be NO ambiguity.
+    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining why the answer is correct and why the distractors are wrong. This is for internal verification.
     
     {dna_instructions}
     
     DIVERSITY QUOTA: {diversity_quota}
     
-    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
+    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."], "rationale": "..." }}]}}
     Return JSON ONLY.
     """
     prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
-    prompt += "\nQUALITY MANDATE: Distractors MUST be 100% incorrect and mutually exclusive. Do not include answers that could be interpreted as partially correct. Each distractor must be a unique, single string in a list of exactly 3."
+    prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct. If the question is 'Which is a month?', the answer must be a month. If the question is 'Which is not a month?', the answer must NOT be a month."
     
     for attempt in range(2):
         # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000, temperature=0.9)
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3500, temperature=0.7)
         print(f"[AI] Response received. Success: {result is not None}")
         raw_list = result.get("data") if result else []
         
@@ -253,6 +255,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         
         for item in raw_list:
             try:
+                # 0. Log Rationale for debugging
+                rat = item.get("rationale", "No rationale provided")
+                
                 # 1. Aggressive Universal Cleaning (RESTORED: Strips all brackets/hints)
                 def deep_clean(text):
                     # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
