@@ -338,11 +338,38 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         prompt_clean = deep_clean(prompt_raw)
                         print(f"[FIXED] New Prompt: '{prompt_raw}'")
                     
-                    # MCQs need at least 2 valid distractors
-                    if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
-                        print(f"[REJECT] Not enough distractors: {len(valid_distractors)}")
+                    # 5. THE TEACHER'S FILTER (Strict Pedagogical Validation)
+                    
+                    # A. CRUTCH CHECK: Reject English phonetic crutches
+                    crutch_keywords = ["pronounced like", "sounds like", "similar to", "in English", "the 'u' in", "the 'a' in", "the 'i' in"]
+                    if any(ck in prompt_raw.lower() for ck in crutch_keywords):
+                        print(f"[REJECT] English Crutch detected: '{prompt_raw}'")
                         continue
-    
+
+                    # B. DISTRACTOR QUANTITY: Must have exactly 3 high-quality distractors
+                    if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 3:
+                        print(f"[REJECT] Insufficient distractors: {len(valid_distractors)} (need 3)")
+                        continue
+                    
+                    # C. LAZY DISTRACTOR CHECK: Reject if distractors are too similar to answer
+                    if not is_phonetic_topic and len(ans_clean) > 3:
+                        lazy_count = 0
+                        for d in valid_distractors:
+                            if len(d) == len(ans_clean):
+                                diffs = sum(1 for a, b in zip(ans_clean, d) if a != b)
+                                if diffs <= 1: lazy_count += 1
+                        
+                        if lazy_count >= 2:
+                            print(f"[REJECT] Lazy distractors detected (too similar)")
+                            continue
+
+                    # D. SCRIPT PURITY: Ensure no English words leak into the answers for native topics
+                    if ans_vibe == 'native':
+                        english_leak = ["the", "is", "of", "and", "with"]
+                        if any(word in " ".join(valid_distractors).lower().split() for word in english_leak):
+                             print(f"[REJECT] English leak in native distractors")
+                             continue
+                    
                     # Check for global duplicates
                     if ans_clean.lower() in seen_answers:
                         continue
