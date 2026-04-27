@@ -515,9 +515,14 @@
                         <h1 data-i18n="Curriculum">Curriculum</h1>
                         <p class="subtitle" id="curriculum-subtitle"></p>
                     </div>
-                    <button class="btn btn-primary" id="rebuild-curriculum-btn" onclick="rebuildClassroom()" style="background:var(--accent); border:none; padding:12px 24px; border-radius:12px; display:flex; align-items:center; gap:8px; box-shadow:var(--accent-glow);">
-                        <span>🛠️</span> <span data-i18n="Build Lessons">Build All Lessons</span>
-                    </button>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <button class="btn btn-outline" id="re-architect-btn" onclick="reArchitectCurriculum()" style="padding:10px 16px; border-radius:12px; display:flex; align-items:center; gap:8px; border-color:var(--accent); color:var(--accent);">
+                            <span>🏗️</span> <span data-i18n="Re-Architect">Re-Architect</span>
+                        </button>
+                        <button class="btn btn-primary" id="rebuild-curriculum-btn" onclick="rebuildClassroom()" style="background:var(--accent); border:none; padding:10px 20px; border-radius:12px; display:flex; align-items:center; gap:8px; box-shadow:var(--accent-glow);">
+                            <span>🛠️</span> <span data-i18n="Build Lessons">Build All Lessons</span>
+                        </button>
+                    </div>
                 </div>
                 <div id="curriculum-tree"></div>
             </section>

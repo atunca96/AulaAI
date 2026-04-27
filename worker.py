@@ -35,12 +35,18 @@ def main():
                 course_name = row["name"] if row else "Unknown Course"
                 pdf_path = row["pdf_path"] if row else None
             
-            # Phase 2 Only - use the correct function name!
-            enrich_classroom_phase2(course_id, pdf_path)
-            
-            with db_connection() as db:
-                db.execute("UPDATE courses SET is_building=0 WHERE id=?", (course_id,))
-                db.commit()
+            try:
+                # Phase 2 Only - use the correct function name!
+                enrich_classroom_phase2(course_id, pdf_path)
+            except Exception as e:
+                with open("pipeline.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] ERROR during REGENERATE: {str(e)}\n")
+                    f.write(traceback.format_exc())
+                raise e
+            finally:
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET is_building=0 WHERE id=?", (course_id,))
+                    db.commit()
 
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Finished REGENERATE mode for Course {course_id}\n")

@@ -318,6 +318,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         else:
             return self._serve_static(path)
 
+    def _wipe_curriculum(self):
+        """Delete all chapters and topics for a classroom to start fresh."""
+        body = self._read_body()
+        course_id = body.get("course_id")
+        if not course_id: return self._send_error("Missing course_id")
+
+        with db_connection() as db:
+            # 1. Delete questions
+            db.execute("""
+                DELETE FROM questions WHERE topic_id IN (
+                    SELECT t.id FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                )
+            """, (course_id,))
+            
+            # 2. Delete topics
+            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
+            
+            # 3. Delete chapters
+            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
+            
+            # 4. Reset building status
+            db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE id = ?", (course_id,))
+            db.commit()
+
+        bump_version()
+        self._send_json({"status": "success", "message": "Curriculum wiped"})
+
     def _classroom_rebuild(self):
         """Lecturer manually triggers a rebuild of Phase 2 enrichment."""
         body = self._read_body()
@@ -408,6 +437,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._delete_classroom()
         elif path == "/api/classroom/rebuild":
             return self._classroom_rebuild()
+        elif path == "/api/classroom/wipe-curriculum":
+            return self._wipe_curriculum()
         elif path == "/api/classroom/create-from-pdf":
             return self._create_classroom_from_pdf()
         elif path == "/api/classroom/create-from-scratch":
@@ -723,6 +754,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("User not found", 404)
 
             if course_id:
+                # Check if course exists first
+                course = db.execute("SELECT id FROM courses WHERE id = ?", (course_id,)).fetchone()
+                if not course:
+                    return self._send_json({"error": "course_deleted", "status": "removed"})
+                    
                 enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (user_id, course_id)).fetchone()
                 if not enr:
                     return self._send_json({"error": "enrollment_removed", "status": "removed"})

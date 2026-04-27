@@ -204,8 +204,14 @@ function refreshCurrentView() {
   });
 
   if (document.getElementById('waiting-room-screen').classList.contains('active')) {
-    api('/user/status?user_id=' + currentUser.id + '&course_id=' + (currentUser.course_id || currentCourse?.id)).then(status => {
+    api('/user/status?user_id=' + currentUser.id + '&course_id=' + (currentUser.course_id || currentCourse?.id)).then(async status => {
       if (status && status.status === 'approved') {
+        window.location.reload();
+      } else if (status && (status.error === 'enrollment_removed' || status.error === 'course_deleted')) {
+        if (window._waitingPoll) clearInterval(window._waitingPoll);
+        await showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
+        localStorage.removeItem('aula_last_course');
+        localStorage.removeItem('aula_last_tab');
         window.location.reload();
       }
     });
@@ -472,6 +478,10 @@ const i18n = {
     'confirm.rebuild_msg': 'This will use AI to write all textbook pages and generate practice questions for every topic in this curriculum. This takes 2-3 minutes. Continue?',
     'confirm.rebuild_ok': 'Yes, Build Everything',
     'confirm.rebuild_cancel': 'Cancel',
+    'confirm.rearchitect_title': 'Re-Architect Curriculum?',
+    'confirm.rearchitect_msg': 'This will PERMANENTLY DELETE all current chapters, topics, and lesson materials. You will be taken back to the AI Architect to generate a new curriculum structure. Continue?',
+    'confirm.rearchitect_ok': 'Yes, Wipe & Restart',
+    'Re-Architect': 'Re-Architect',
     'ok': 'OK',
     'cancel': 'Cancel',
     'no_messages': 'No messages.',
@@ -640,6 +650,10 @@ const i18n = {
     'confirm.rebuild_msg': 'Bu işlem müfredattaki her konu için yapay zeka kullanarak ders içerikleri ve alıştırma soruları oluşturacaktır. Bu işlem 2-3 dakika sürebilir. Devam edilsin mi?',
     'confirm.rebuild_ok': 'Evet, Her Şeyi Oluştur',
     'confirm.rebuild_cancel': 'İptal',
+    'confirm.rearchitect_title': 'Müfredatı Yeniden Tasarla?',
+    'confirm.rearchitect_msg': 'Bu işlem mevcut tüm üniteleri, konuları ve ders materyallerini KALICI OLARAK SİLECEKTİR. Yeni bir müfredat yapısı oluşturmak için Yapay Zeka Mimarı sayfasına yönlendirileceksiniz. Devam edilsin mi?',
+    'confirm.rearchitect_ok': 'Evet, Sil ve Yeniden Başlat',
+    'Re-Architect': 'Yeniden Tasarla',
     'assign.type_answer': 'Cevabınızı yazın...',
     'question': 'Soru',
     'questions': 'soru',
@@ -1099,6 +1113,7 @@ async function api(path, opts = {}) {
       // If we are in a course and get a 404, it might be deleted
       const data = await res.json();
       if (data.error === "Course not found" || data.error === "Not found") {
+          localStorage.removeItem('aula_last_course');
           await showAlert("Classroom Deleted", "This classroom has been deleted by the lecturer. You are being redirected to your portal.");
           window.location.reload(); // Re-fetch portal state
           return { error: "Classroom Deleted" };
@@ -1174,8 +1189,9 @@ async function completeLogin(user, isFresh = false) {
             localStorage.setItem('aula_user', JSON.stringify(currentUser));
             sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
             window.location.reload();
-          } else if (check && check.error === 'User not found') {
+          } else if (check && (check.error === 'User not found' || check.error === 'course_deleted')) {
             clearInterval(window._waitingPoll);
+            localStorage.removeItem('aula_last_course');
             await showAlert(t('alert.session_ended'), t('alert.account_removed'), true);
             logout();
           }
@@ -2351,6 +2367,36 @@ async function rebuildClassroom() {
     }
   } catch (err) {
     showAlert("Error", "Network error starting build");
+  }
+}
+
+async function reArchitectCurriculum() {
+  if (!currentCourse) return;
+  const ok = await showConfirmModal(
+    'confirm.rearchitect_title', 
+    'confirm.rearchitect_msg',
+    true, null, false, 'confirm.rearchitect_ok', 'confirm.rebuild_cancel'
+  );
+  if (!ok) return;
+
+  try {
+    const res = await api('/classroom/wipe-curriculum', {
+      method: 'POST',
+      body: { course_id: currentCourse.id }
+    });
+    if (res.status === 'success') {
+      curriculum = [];
+      // Re-open the AI Architect Modal
+      startAiArchitectFlow();
+      // Optional: fill in the classroom name
+      const nameInp = document.getElementById('ai-architect-name');
+      if (nameInp) nameInp.value = currentCourse.name;
+      renderCurriculum();
+    } else {
+      showAlert("Error", res.error || "Failed to wipe curriculum");
+    }
+  } catch (err) {
+    showAlert("Error", "Network error wiping curriculum");
   }
 }
 
