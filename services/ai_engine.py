@@ -189,9 +189,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     elif dna == "agglutinative":
         diversity_quota = "MIX: 3x 'Suffix Stacking', 3x 'Sentence Meaning'."
         dna_instructions = f"""
-    PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish Focus)
+    PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish, Finnish, etc.)
     1. SUFFIX STACKING: Focus on how words change with suffixes (e.g., ev-de-ki).
-    2. HARMONY: Test Vowel Harmony rules.
+    2. HARMONY & PLACEMENT: Test Vowel Harmony and suffix ordering.
+    3. NEGATIVE SPACE: Distractors MUST be ungrammatical strings (broken harmony, illegal suffix combinations, or incorrect placement) so there is NO ambiguity.
     """
     else:
         diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
@@ -213,6 +214,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
     - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options.
+    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect. There must be NO ambiguity. If the question tests a grammatical rule, the distractors must explicitly break that rule or be contextually impossible.
+    - LANGUAGE AGNOSTICISM: Ensure the logic holds regardless of the target language's structure (Logographic, Agglutinative, or Inflected).
     
     {dna_instructions}
     
@@ -221,10 +224,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
     """
+    prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
+    prompt += "\nQUALITY MANDATE: Distractors MUST be 100% incorrect and mutually exclusive. Do not include answers that could be interpreted as partially correct. Each distractor must be a unique, single string in a list of exactly 3."
     
     for attempt in range(2):
-        # Increased tokens for batch generation to avoid truncation
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
+        # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.9)
         print(f"[AI] Response received. Success: {result is not None}")
         raw_list = result.get("data") if result else []
         
@@ -255,8 +260,13 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     return "latin" if re.search('[a-zA-Z\u00C0-\u017F]', str(t)) else "native"
                 
                 ans_vibe = get_vibe(ans_clean)
-                distractors = item.get("distractors", [])
-                if not isinstance(distractors, list): distractors = []
+                raw_dist = item.get("distractors", [])
+                if isinstance(raw_dist, str):
+                    distractors = [d.strip() for d in raw_dist.split(",") if d.strip()]
+                elif isinstance(raw_dist, list):
+                    distractors = [str(d).strip() for d in raw_dist]
+                else:
+                    distractors = []
                 
                 all_choices = {ans_clean.lower()}
                 valid_distractors = []
