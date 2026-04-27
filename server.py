@@ -1191,14 +1191,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         time.sleep(0.5)
 
             with db_connection() as db:
-                # 1. Fetch existing questions to avoid duplicates
-                existing_rows = db.execute("SELECT prompt FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
-                existing_questions = [{"prompt": r["prompt"]} for r in existing_rows]
+                # 1. Fetch existing questions
+                rows = db.execute("SELECT id, type, prompt, answer, distractors FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
+                existing_questions = []
+                for r in rows:
+                    q = dict(r)
+                    try:
+                        q["distractors"] = json.loads(q["distractors"])
+                    except:
+                        q["distractors"] = []
+                    existing_questions.append(q)
                 
                 # Check for capacity limit
                 if len(existing_questions) >= 30:
-                    print(f"[BG] Topic {topic_id} is at max capacity (30). Ready to launch.")
+                    print(f"[BG] Topic {topic_id} is at max capacity (30). Returning existing pool.")
+                    # Satisfy frontend by providing the existing results
                     update_prog(100, status='done')
+                    with db_connection() as db_c:
+                        db_c.execute("UPDATE courses SET activity_result=? WHERE id=?", (json.dumps(existing_questions), course_id))
+                        db_c.commit()
                     return
 
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
