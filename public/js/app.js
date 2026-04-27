@@ -1288,10 +1288,10 @@ async function selectClassroom(id, isLecturer = true) {
   // Hide Book tab for lecturers in AI courses
   const lectBookTab = document.getElementById('lecturer-book-tab');
   if (lectBookTab) {
-    lectBookTab.style.display = (isAiGenerated && currentUser.role === 'lecturer') ? 'none' : '';
+    lectBookTab.style.display = pdfViewerSrc ? '' : 'none';
   }
 
-  if (isAiGenerated && currentUser.role === 'student') {
+  if (currentUser.role === 'student') {
     renderStudyBook();
   }
 
