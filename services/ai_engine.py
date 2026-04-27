@@ -99,7 +99,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     }}
     
     Rules:
-    1. Instructions must be in English.
+    1. EXPLANATION LANGUAGE: All grammar explanations, instructions, and descriptions MUST be in English. Only the actual {language} examples and vocabulary terms should be in {language}.
     2. Content must be level-appropriate ({level}).
     3. You can generate between 3 to 6 pages. 
     4. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
