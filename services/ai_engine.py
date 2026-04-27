@@ -334,10 +334,13 @@ def format_activity_by_template(data, level, language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True):
     """Generate quiz/practice questions using the Template Factory approach."""
+    request_count = max(20, int(count) * 2)
+    if request_count > 45: request_count = 45 # Stability limit
+    
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    TASK: Generate TWENTY (20) high-quality interactive questions for {level_norm} students learning {language}.
+    TASK: Generate {request_count} high-quality interactive questions for {level_norm} students learning {language}.
     
     You MUST provide a mix of these 3 types:
     1. MCQ MODE A (Target word identification): 
