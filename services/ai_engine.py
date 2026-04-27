@@ -53,16 +53,20 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
+    # Level-Gated Immersion Rule
+    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    instruction_lang = "English" if is_beginner else language
+    
     prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). Topic: {topic_title}.
     
     CRITICAL RULES for {language}:
-    1. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence (e.g., NO "I ___ [Japanese word] to school").
-    2. QUESTION FORMATS:
-       - Vocabulary: "What is the {language} word for '[English]'?"
-       - Translation: "Translate '[English sentence]' into {language}:" -> Answer is the full {language} sentence or a missing word in a {language} sentence.
-    3. PROMPT LANGUAGE: The instruction part of the 'prompt' MUST be in English.
+    1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
+    2. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence (e.g., NO "I ___ [Japanese word] to school").
+    3. QUESTION FORMATS:
+       - Vocabulary: "What is the {language} word for '[English]'?" (Only for beginners)
+       - Contextual: Create a gap-fill or translation task suitable for {level}.
     4. CONTENT: All choices (answer + distractors) MUST be in the SAME language/script.
-    5. NO GHOSTS: NEVER include the correct answer word inside the English prompt.
+    5. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
     JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
