@@ -828,9 +828,12 @@
 
             <!-- Digital Study Tab (Student AI Lessons) -->
             <section id="tab-s-study-tab" class="tab-panel" style="min-height: 500px; background: var(--bg-secondary);">
-                <div class="page-header" style="margin-bottom: 24px;">
-                    <h1 style="color: var(--text-primary);">📝 <span data-i18n="study">Study Lessons</span></h1>
-                    <p class="subtitle" style="color: var(--text-secondary);" data-i18n="select_study_topic">Select a topic to start studying</p>
+                <div class="page-header" style="margin-bottom: 24px; display:flex; flex-direction:column; gap:4px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-size:32px;">📝</span>
+                        <h1 style="color: var(--text-primary); margin:0;">Study Lessons</h1>
+                    </div>
+                    <p class="subtitle" style="color: var(--text-secondary); margin:0; opacity:0.8;" data-i18n="select_study_topic">Select a topic from the sidebar to begin your lesson</p>
                 </div>
                 
                 <div class="study-container" id="s-ai-book-container" style="display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border); min-height: 600px;">
