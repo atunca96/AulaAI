@@ -28,6 +28,10 @@ def db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_db():
+    """Context manager for database connections (Backward compat)."""
+    return db_connection()
+
 def init_db():
     """Initialize the universal AulaAI database schema."""
     with sqlite3.connect(DB_PATH) as conn:
