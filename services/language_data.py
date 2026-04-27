@@ -29,7 +29,7 @@ ALPHABETS = {
                     {"term": "人", "translation": "r - sounds like 'r' in measure (Person)"},
                     {"term": "子", "translation": "z - sounds like 'ds' in kids (Child)"},
                     {"term": "才", "translation": "c - sounds like 'ts' in cats (Talent)"},
-                    {"term": "s (三)", "translation": "s - sounds like 's' in sun (Three)"},
+                    {"term": "三", "translation": "s - sounds like 's' in sun (Three)"},
                     {"term": "一", "translation": "y - sounds like 'y' in yes (One)"},
                     {"term": "五", "translation": "w - sounds like 'w' in way (Five)"}
                 ]
@@ -53,34 +53,30 @@ ALPHABETS = {
             {
                 "title": "Hiragana: Vowels & K-Group",
                 "items": [
-                    {"term": "あ (a)", "translation": "sounds like 'ah'"},
-                    {"term": "い (i)", "translation": "sounds like 'ee'"},
-                    {"term": "う (u)", "translation": "sounds like 'oo'"},
-                    {"term": "え (e)", "translation": "sounds like 'eh'"},
-                    {"term": "お (o)", "translation": "sounds like 'oh'"},
-                    {"term": "か (ka)", "translation": "ka"},
-                    {"term": "き (ki)", "translation": "ki"},
-                    {"term": "く (ku)", "translation": "ku"},
-                    {"term": "け (ke)", "translation": "ke"},
-                    {"term": "こ (ko)", "translation": "ko"}
+                    {"term": "あ", "translation": "a - sounds like 'ah'"},
+                    {"term": "い", "translation": "i - sounds like 'ee'"},
+                    {"term": "う", "translation": "u - sounds like 'oo'"},
+                    {"term": "え", "translation": "e - sounds like 'eh'"},
+                    {"term": "お", "translation": "o - sounds like 'oh'"},
+                    {"term": "か", "translation": "ka"}, {"term": "き", "translation": "ki"}, {"term": "く", "translation": "ku"}, {"term": "け", "translation": "ke"}, {"term": "こ", "translation": "ko"}
                 ]
             },
             {
                 "title": "Hiragana: S, T, N Groups",
                 "items": [
-                    {"term": "さ (sa)", "translation": "sa"}, {"term": "し (shi)", "translation": "shi"}, {"term": "す (su)", "translation": "su"}, {"term": "せ (se)", "translation": "se"}, {"term": "そ (so)", "translation": "so"},
-                    {"term": "た (ta)", "translation": "ta"}, {"term": "ち (chi)", "translation": "chi"}, {"term": "つ (tsu)", "translation": "tsu"}, {"term": "て (te)", "translation": "te"}, {"term": "と (to)", "translation": "to"},
-                    {"term": "な (na)", "translation": "na"}, {"term": "に (ni)", "translation": "ni"}, {"term": "ぬ (nu)", "translation": "nu"}, {"term": "ね (ne)", "translation": "ne"}, {"term": "の (no)", "translation": "no"}
+                    {"term": "さ", "translation": "sa"}, {"term": "し", "translation": "shi"}, {"term": "す", "translation": "su"}, {"term": "せ", "translation": "se"}, {"term": "そ", "translation": "so"},
+                    {"term": "た", "translation": "ta"}, {"term": "ち", "translation": "chi"}, {"term": "つ", "translation": "tsu"}, {"term": "て", "translation": "te"}, {"term": "と", "translation": "to"},
+                    {"term": "な", "translation": "na"}, {"term": "に", "translation": "ni"}, {"term": "ぬ", "translation": "nu"}, {"term": "ね", "translation": "ne"}, {"term": "の", "translation": "no"}
                 ]
             },
             {
                 "title": "Hiragana: H, M, Y, R, W Groups",
                 "items": [
-                    {"term": "は (ha)", "translation": "ha"}, {"term": "ひ (hi)", "translation": "hi"}, {"term": "ふ (fu)", "translation": "fu"}, {"term": "へ (he)", "translation": "he"}, {"term": "ほ (ho)", "translation": "ho"},
-                    {"term": "ま (ma)", "translation": "ma"}, {"term": "み (mi)", "translation": "mi"}, {"term": "む (mu)", "translation": "mu"}, {"term": "め (me)", "translation": "me"}, {"term": "も (mo)", "translation": "mo"},
-                    {"term": "や (ya)", "translation": "ya"}, {"term": "ゆ (yu)", "translation": "yu"}, {"term": "よ (yo)", "translation": "yo"},
-                    {"term": "ら (ra)", "translation": "ra"}, {"term": "り (ri)", "translation": "ri"}, {"term": "る (ru)", "translation": "ru"}, {"term": "れ (re)", "translation": "re"}, {"term": "ろ (ro)", "translation": "ro"},
-                    {"term": "わ (wa)", "translation": "wa"}, {"term": "を (wo)", "translation": "wo"}, {"term": "ん (n)", "translation": "n"}
+                    {"term": "は", "translation": "ha"}, {"term": "ひ", "translation": "hi"}, {"term": "ふ", "translation": "fu"}, {"term": "へ", "translation": "he"}, {"term": "ほ", "translation": "ho"},
+                    {"term": "ま", "translation": "ma"}, {"term": "み", "translation": "mi"}, {"term": "む", "translation": "mu"}, {"term": "め", "translation": "me"}, {"term": "も", "translation": "mo"},
+                    {"term": "や", "translation": "ya"}, {"term": "ゆ", "translation": "yu"}, {"term": "よ", "translation": "yo"},
+                    {"term": "ら", "translation": "ra"}, {"term": "り", "translation": "ri"}, {"term": "る", "translation": "ru"}, {"term": "れ", "translation": "re"}, {"term": "ろ", "translation": "ro"},
+                    {"term": "わ", "translation": "wa"}, {"term": "を", "translation": "wo"}, {"term": "ん", "translation": "n"}
                 ]
             }
         ]
