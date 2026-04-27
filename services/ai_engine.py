@@ -145,11 +145,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     STRICT SOURCE RULE:
     1. All questions MUST be based ONLY on the vocabulary, grammar, and examples provided in the SOURCE MATERIAL above.
     2. Do NOT introduce new words or concepts not found in the source text.
-    3. You can use the examples in the source material to create comprehension questions.
     
     CRITICAL RULES for {language}:
     1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
-    2. NO MIXED SENTENCES: NEVER mix {language} and English in a single sentence.
+    2. NO FRANKENSTEIN SENTENCES: NEVER mix {language} and English in a single sentence. 
+       - BAD: "This is your 弟弟"
+       - GOOD: "Translate to {language}: 'This is your younger brother'" or "这是你的____。"
     3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names, places, or nouns that aren't provided in the context.
     4. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
     
