@@ -3884,6 +3884,7 @@ async function submitAssignment(area) {
 function renderStudyBook() {
   const container = document.getElementById('s-ai-book-container');
   const fallback = document.getElementById('s-ai-book-fallback');
+  const isAiGenerated = currentCourse && currentCourse.textbook === 'AI Generated';
   
   if (currentUser.role === 'student') {
     if (!isAiGenerated) {
