@@ -1532,10 +1532,9 @@ async function deleteClassroom(id, name) {
 let _currentAiStep = 1;
 let _selectedAiLanguage = null;
 let _selectedAiLevel = null;
-let _rearchitectingCourseId = null;
 
 function openClassroomMethodModal() {
-  _rearchitectingCourseId = null;
+  localStorage.removeItem('aula_rearchitecting_id');
   document.getElementById('classroom-method-modal').classList.remove('hidden');
 }
 
@@ -1713,7 +1712,7 @@ async function buildAiClassroom() {
         level: _selectedAiLevel, 
         chapters, 
         lecturer_id: currentUser.id,
-        course_id: _rearchitectingCourseId
+        course_id: localStorage.getItem('aula_rearchitecting_id')
       }
     });
     if (res.success) {
@@ -2476,7 +2475,7 @@ async function reArchitectCurriculum() {
     });
     if (res.status === 'success' || res.success) {
       curriculum = [];
-      _rearchitectingCourseId = currentCourse.id;
+      localStorage.setItem('aula_rearchitecting_id', currentCourse.id);
       startAiArchitectFlow();
       // Optional: fill in the classroom name
       const nameInp = document.getElementById('ai-architect-name');

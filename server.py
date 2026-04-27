@@ -2210,7 +2210,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         chapters = data.get("chapters") 
         lecturer_id = data.get("lecturer_id")
         
-        course_id = data.get("course_id")
+        cid = data.get("course_id")
+        # Ensure we treat falsy/null values as None
+        course_id = cid if cid and cid != "null" and cid != "undefined" else None
         
         from services.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id)
