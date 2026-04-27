@@ -56,9 +56,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     prompt = f"""Generate {request_count} high-quality learning questions for {language} ({level}). Topic: {topic_title}.
     
     CRITICAL RULES for {language}:
-    1. NEVER include the correct answer word inside the 'prompt' text. (No 'What does [X] mean?' if [X] is the answer).
-    2. MCQ Consistency: All choices (answer + distractors) MUST be in the SAME script (either all {language} or all English). Never mix them.
-    3. Be creative: Use fill-in-the-blank for grammar and MCQ for vocabulary.
+    1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in English.
+    2. CONTENT: Only the 'answer' and 'distractors' (and words within the prompt being tested) should be in {language}.
+    3. NO GHOSTS: NEVER include the correct answer word inside the 'prompt' text.
+    4. MCQ Consistency: All choices (answer + distractors) MUST be in the SAME script (either all {language} or all English). Never mix them.
+    5. Be creative: Use fill-in-the-blank for grammar and MCQ for vocabulary.
     
     JSON structure: {{"data": [{{ "type": "mcq"|"fill_blank", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
