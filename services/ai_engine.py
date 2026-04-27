@@ -23,8 +23,9 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     }).encode("utf-8")
 
     try:
+        print(f"[AI] Calling {model} (timeout=90s)...")
         req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req, timeout=90) as response:
             res_body = response.read().decode("utf-8")
             res_json = json.loads(res_body)
             if "choices" in res_json:
@@ -224,6 +225,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     for attempt in range(2):
         # Increased tokens for batch generation to avoid truncation
         result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
+        print(f"[AI] Response received. Success: {result is not None}")
         raw_list = result.get("data") if result else []
         
         print(f"[AI] Raw items received: {len(raw_list)}")
@@ -303,8 +305,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         if len(final_questions) > 0:
             return final_questions
         
-        # If we got 0, try once more with a sterner warning
-        prompt += "\n\nRETRY WARNING: Your previous attempt was rejected for Ghost answers (answer word in prompt) or Script mixing. DO NOT repeat those mistakes."
+        # If we got 0, try once more with a sterner warning and log the failure
+        print(f"[AI] FAILED to generate valid questions. Raw response preview: {str(result)[:500]}...")
+        prompt += "\n\nRETRY WARNING: Your previous attempt was rejected. Ensure NO English sounds, NO duplicate answers, and NO answer words inside the question prompt."
         
     return []
 
