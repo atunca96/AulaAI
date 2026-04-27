@@ -28,9 +28,15 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
             res_body = response.read().decode("utf-8")
             res_json = json.loads(res_body)
             if "choices" in res_json:
-                content = res_json["choices"][0]["message"]["content"]
-                clean_content = re.sub(r'^```json\n?|\n?```$', '', content.strip(), flags=re.MULTILINE)
-                return json.loads(clean_content)
+                content = res_json["choices"][0]["message"]["content"].strip()
+                # Surgical extraction: find first '{' and last '}'
+                start = content.find('{')
+                end = content.rfind('}')
+                if start != -1 and end != -1:
+                    json_str = content[start:end+1]
+                    return json.loads(json_str)
+                # Fallback to direct load if no braces found (might be raw list or already clean)
+                return json.loads(content)
     except Exception as e:
         print(f"AI Error: {str(e)}")
     return None
