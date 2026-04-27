@@ -195,6 +195,11 @@ function refreshCurrentView() {
         }
       });
     }
+    if (currentUser.role === 'student') {
+      if (document.getElementById('student-portal-screen').classList.contains('active')) {
+        refreshStudentEnrollments();
+      }
+    }
     _buildingCourses = currentlyBuilding;
   });
 
