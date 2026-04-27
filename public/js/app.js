@@ -1369,7 +1369,7 @@ function renderAiLanguages() {
     { id: 'Japanese', name: 'Japonca', icon: '🇯🇵' },
     { id: 'Arabic', name: 'Arapça', icon: '🇸🇦' },
     { id: 'Turkish', name: 'Türkçe', icon: '🇹🇷' },
-    { id: 'Dutch', name: 'Hollandaca', icon: '🇳🇱' },
+    { id: 'Dutch', name: 'Felemenkçe', icon: '🇳🇱' },
     { id: 'Swedish', name: 'İsveççe', icon: '🇸🇪' },
     { id: 'Korean', name: 'Korece', icon: '🇰🇷' },
     { id: 'Greek', name: 'Yunanca', icon: '🇬🇷' }

@@ -135,12 +135,17 @@ def ai_generate_curriculum(language, level, course_name):
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
 
 PEDAGOGY_INSTRUCTION = """
-for a1-a2, generate english questions to help the students geet a grasp of the fundamentals. generate questions related to the topic of choice.
-after a2, with b1 and further, you can slowly start creating questions with the language of the classroom. increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.
+You are teaching students who speak Turkish and English. The target languages are: English, Chinese, Spanish, French, Arabic, Russian, Portuguese, German, Japanese, Turkish, Korean, Italian, Dutch, Swedish, and Greek.
+
+for a1-a2, generate english questions to help the students get a grasp of the fundamentals. generate questions related to the topic of choice.
+after a2, with b1 and further, you can slowly start creating questions with the language of the classroom (the target language). increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.
 always build constructive questions in order to help the student understand the topic further.
-do not overthink while building the distractions for the multichoice questions; just think of similar options with the right answer, and make them the same language. 
-(CRITICAL: Distractors MUST be in the same language as the correct answer. Never mix English and Spanish options in the same question).
-some fill in the blank questions are too hard for a1-a2. just build missing letter fill-in-the-blank questions for a1-a2, and after, you can start with the harder ones.
+
+CRITICAL DISTRACTOR RULE:
+1. Distractors MUST be in the same language as the correct answer.
+2. If the answer is in a target language (e.g., Japanese, Spanish), all distractors MUST be in that SAME target language.
+3. NEVER use English words as distractors for a target language question.
+4. (Example: If the question is "Which Japanese word means 'Hello'?", the answer is "こんにちは" and the distractors MUST be other Japanese words like "さようなら", not English words like "Goodbye").
 """
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
