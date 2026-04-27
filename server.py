@@ -1190,8 +1190,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         time.sleep(0.5)
 
+            print(f"[BG] Topic {topic_id}: Wiping existing bank to make room for fresh strict generation.")
             with db_connection() as db:
-                # 1. Fetch existing questions
+                db.execute("DELETE FROM questions WHERE topic_id = ?", (topic_id,))
+                db.commit()
+
+            with db_connection() as db:
+                # 1. Fresh fetch (should be empty now)
                 rows = db.execute("SELECT id, type, prompt, answer, distractors FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
                 existing_questions = []
                 import random
@@ -2437,6 +2442,11 @@ def _cleanup_orphaned_building_flags():
         
         # 2. Reset Activity Generation flags (Always reset on startup since threads are gone)
         db.execute("UPDATE courses SET activity_status = 'idle', activity_progress = 0 WHERE activity_status = 'generating'")
+        
+        # 3. MAINTENANCE: Wipe ALL questions on startup (KEEPING THIS UNTIL VERIFIED)
+        print("[MAINTENANCE] Nuclear Wipe: Purging question bank...")
+        db.execute("DELETE FROM questions")
+        
         db.commit()
 
 class RobustServer(http.server.ThreadingHTTPServer):

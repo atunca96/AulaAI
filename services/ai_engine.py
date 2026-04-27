@@ -169,10 +169,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         
         dna_instructions = f"""
     PEDAGOGICAL DNA: LOGOGRAPHIC (Chinese Focus)
-    1. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
-    2. SCRIPT PURITY: If asking for 'Pinyin', answer MUST be Latin phonetic with tones (e.g., 'mā'). If asking for 'Character', answer MUST be Hanzi (e.g., '妈').
-    3. NO ENGLISH CRUTCH: Favor mapping Sound ↔ Character over Translation.
-    4. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
+    1. ZERO-ENGLISH MANDATE: NEVER use English words to describe sounds (e.g., NO 'sounds like ah'). Use ONLY pure {language} phonetic marks (e.g., 'ā').
+    2. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
+    3. SCRIPT PURITY: If asking for 'Pinyin', answer MUST be Latin phonetic with tones (e.g., 'mā'). If asking for 'Character', answer MUST be Hanzi (e.g., '妈').
+    4. NO ENGLISH CRUTCH: Favor mapping Sound ↔ Character over Translation.
+    5. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
     """
     elif dna == "syllabic":
         if is_phonetic_topic:
