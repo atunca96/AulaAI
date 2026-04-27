@@ -40,10 +40,29 @@ def detect_language(text):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
     return result.get("language", "English") if result else "English"
 
-def generate_full_lesson(topic, language):
-    prompt = f"Detailed lesson for {topic} in {language}. JSON: {{'content': '...'}}"
+def generate_full_lesson(topic, topic_type, language, count=6):
+    """Generates a complete structured lesson with vocab, grammar, and examples."""
+    prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
+    
+    You must return ONLY a JSON object with this exact structure:
+    {{
+      "content": {{
+        "words": [ {{ "term": "...", "translation": "..." }} ],
+        "rules": [ "Grammar rule 1", "Grammar rule 2" ],
+        "examples": [ {{ "speaker": "A", "text": "..." }}, {{ "speaker": "B", "text": "..." }} ]
+      }},
+      "questions": [
+        {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
+      ]
+    }}
+    
+    Rules:
+    1. Instructions must be in English.
+    2. Content must be level-appropriate (A1/A2).
+    3. Generate at least 5 words and 3 examples.
+    """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=3000)
-    return result.get("content", "Error") if result else "Error"
+    return result if result else {}
 
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
