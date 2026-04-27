@@ -261,8 +261,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - TARGET LANGUAGE MANDATE: The 'answer' and all 'distractors' MUST be written in {language}. NEVER use English for options.
     - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
     - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect but SEMANTICALLY RELATED.
+    - NO SYNONYMS: Distractors MUST NOT be synonyms or near-synonyms of the correct answer in {language}. If multiple words from the source material could correctly answer the prompt, that question is a failure. Ensure there is ONLY ONE undeniably correct answer.
     - NO COMMA-JOINING: Never join multiple distractors into a single string with commas. Each distractor MUST be a separate element in the JSON list.
-    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining: 1. Why the answer is correct. 2. How the distractors are semantically related but contextually/factually wrong.
+    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining: 1. Why the answer is correct. 2. How the distractors are semantically related but contextually/factually wrong. 3. Explicitly confirm why the distractors are NOT synonyms of the answer.
     
     {dna_instructions}
     
