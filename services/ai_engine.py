@@ -31,7 +31,7 @@ except ImportError:
     client = None
 
 # MODEL CONSTANTS
-MODEL_SPEED = "anthropic/claude-3.5-haiku"
+MODEL_SPEED = "anthropic/claude-3.5-sonnet" # Switched to Sonnet for all tasks
 MODEL_QUALITY = "anthropic/claude-3.5-sonnet"
 
 # Direct Anthropic mapping
@@ -135,8 +135,9 @@ def detect_language(text):
     if not client: return "Spanish"
     try:
         prompt = f"Identify the primary language of this text. Respond with ONLY the language name (e.g. 'Spanish', 'French'). Text: {text[:500]}"
+        ant_model = ANT_MODEL_MAP.get(MODEL_QUALITY)
         response = client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model=ant_model,
             max_tokens=20,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -421,8 +422,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     return final_questions[:count]
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1'):
-    """Definitive Unified Generator: Activities use the fast model."""
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, use_quality=False)
+    """Definitive Unified Generator: Activities now use the high-quality model too."""
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, use_quality=True)
 
 def ai_generate_report_insights(cohort_data):
     """Generate detailed AI insights for reports."""
