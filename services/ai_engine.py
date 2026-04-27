@@ -47,10 +47,14 @@ def _call_openrouter(messages, max_tokens=1000, temperature=0.7):
             "X-Title": "AulaAI"
         }
         
-        # Use Claude 3.5 Haiku via OpenRouter for high quality/speed
+        # Use Claude 3.5 Haiku via OpenRouter
+        # Include PEDAGOGY_INSTRUCTION as a system message if possible, 
+        # but OpenRouter usually takes it as the first message or in a 'system' field depending on the provider.
+        # We'll use the 'system' field which is standard for Claude.
         payload = {
             "model": "anthropic/claude-3.5-haiku",
             "messages": messages,
+            "system": PEDAGOGY_INSTRUCTION,
             "max_tokens": max_tokens,
             "temperature": temperature
         }
@@ -98,7 +102,7 @@ def _call_ai(messages, max_tokens=1000, temperature=0.7, bypass_cache=False):
             max_tokens=max_tokens,
             temperature=temperature,
             messages=clean_msgs,
-            system="You are a professional language education assistant. Respond ONLY with valid JSON."
+            system=PEDAGOGY_INSTRUCTION + "\nRespond ONLY with valid JSON."
         )
         
         text = response.content[0].text
@@ -158,6 +162,11 @@ Supported Target Languages: English, Chinese, Spanish, French, Arabic, Russian, 
 4. LEVEL ADAPTATION:
    - A1-A2: Use English for instructions. Use simple vocabulary. For Japanese/Chinese, use Kanji/Hanzi with Hiragana/Pinyin if possible.
    - B1+: Start using the Target Language for instructions. Increase complexity.
+
+5. SEVERE WARNING: 
+   - NEVER provide English distractors if the answer is in the Target Language (Mode A).
+   - NEVER provide Target Language distractors if the answer is in English/Turkish (Mode B).
+   - A blank or "???" prompt is an absolute failure.
 """
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
@@ -167,29 +176,28 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
     if topic_type == "vocabulary":
         structure = """
           "content": { "words": { "word": "translation" } },
-          "questions": [ { "type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "...", "..."] } ]
+          "questions": [ { "type": "mcq", "answer": "...", "distractors": ["...", "...", "..."], "prompt": "..." } ]
         """
         detail = "Include 10-15 essential words/phrases with their English translations."
     else:
         structure = """
           "content": { "rules": ["..."], "examples": ["..."] },
-          "questions": [ { "type": "fill_blank", "word": "...", "translation": "...", "sentence": "..." } ]
+          "questions": [ { "type": "fill_blank", "sentence": "...", "answer": "...", "translation": "..." } ]
         """
         detail = "Include 3-5 clear rules and 4 illustrative examples."
 
-    prompt = f"""{PEDAGOGY_INSTRUCTION}
-    
+    prompt = f"""
     Generate a full educational lesson for the topic '{topic_title}' ({topic_type}) {lang_instruction}.
     
     1. CONTENT: {detail}
-    2. QUESTIONS: Generate exactly {question_count} interactive questions.
+    2. QUESTIONS: Generate exactly {question_count} interactive questions following the SYSTEM rules.
     
     Return ONLY valid JSON with this exact structure:
     {{
       "content": {{ ... }},
       "questions": [
-        {{ "type": "mcq", "word": "target_word", "translation": "translation", "distractors": ["opt1", "opt2", "opt3"] }},
-        {{ "type": "fill_blank", "sentence": "sentence with ____", "word": "answer", "translation": "hint" }}
+        {{ "type": "mcq", "answer": "...", "distractors": ["opt1", "opt2", "opt3"], "prompt": "..." }},
+        {{ "type": "fill_blank", "sentence": "sentence with ____", "answer": "word", "translation": "hint" }}
       ]
     }}"""
     
@@ -255,6 +263,8 @@ def format_activity_by_template(data, level, language):
             else:
                 sentence = sentence + " ____"
         hint = f" ({translation})" if translation else ""
+        if not sentence or sentence.strip() == "" or "____" not in sentence:
+            return None
         return {
             "type": "fill_blank",
             "prompt": f"Complete the sentence{hint}: {sentence}",
@@ -306,6 +316,9 @@ def format_activity_by_template(data, level, language):
         final_prompt = data.get("prompt") or data.get("question")
         if not final_prompt:
             final_prompt = f"{mcq_instr} '{translation}'?"
+            
+        if not final_prompt or final_prompt == "???" or not target or target == "???":
+            return None
             
         return {
             "type": "mcq",
