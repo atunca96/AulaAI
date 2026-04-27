@@ -58,9 +58,15 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     return None
 
 def detect_language(text):
-    prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:500]}"
+    prompt = f"Detect language. Return the name in ENGLISH and Capitalized. JSON: {{'language': '...'}}. Text: {text[:500]}"
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
-    return result.get("language", "English") if result else "English"
+    lang = result.get("language", "English") if result else "English"
+    # Basic normalization for common Turkish-input cases
+    lang_map = {
+        "japonca": "Japanese", "isveççe": "Swedish", "türkçe": "Turkish",
+        "ispanyolca": "Spanish", "almanca": "German", "fransızca": "French"
+    }
+    return lang_map.get(lang.lower(), lang.title())
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""

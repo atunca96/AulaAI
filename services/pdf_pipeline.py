@@ -327,6 +327,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     
     course_id = _uid()
     code = generate_classroom_code()
+    course_name = course_name.title() if course_name else "Untitled Course"
     textbook_url = "/books/" + os.path.basename(pdf_path)
     
     with db_connection() as db:
@@ -367,6 +368,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
 
 
 def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None):
+    course_name = course_name.title() if course_name else "Untitled Course"
     if existing_course_id:
         course_id = existing_course_id
         # Preserve existing code, but update everything else
