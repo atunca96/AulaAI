@@ -138,33 +138,39 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         qs_list = "\n".join([f"- {q['prompt']}" for q in existing_questions])
         forbidden_clause = f"\nDO NOT REPEAT or closely mimic these existing questions:\n{qs_list}\n"
 
-    prompt = f"""Generate {request_count} high-quality Multiple Choice Questions for {language} ({level}). 
+    # Pedagogical Guardrails (Language Specific)
+    pedagogical_rules = ""
+    if language == "Chinese":
+        pedagogical_rules = """
+    CHINESE-SPECIFIC RULES:
+    1. PINYIN vs HANZI: If you ask for 'Pinyin', the answer MUST be the Latin phonetic string (e.g., 'pó'). If you ask for 'Character', the answer MUST be the Hanzi (e.g., '婆'). NEVER swap them.
+    2. NO LATIN PHONETICS: NEVER use 'sounds like [English Word]' in options. Use only the sound itself or the character.
+    """
+    elif language == "Japanese":
+        pedagogical_rules = """
+    JAPANESE-SPECIFIC RULES:
+    1. KANA vs ROMAJI: Avoid Romaji in answers unless specifically teaching it. Use Hiragana/Katakana as the primary script.
+    """
+
+    prompt = f"""You are a master {language} teacher. Generate {request_count} diverse Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
     
-    SOURCE MATERIAL (The Textbook):
+    SOURCE MATERIAL:
     {content_str}
     {forbidden_clause}
     
-    CRITICAL POLICY: 100% MULTIPLE CHOICE ONLY
-    - EVERY SINGLE QUESTION must be Multiple Choice (type: 'mcq').
-    - NO Fill-in-the-blank questions.
+    CORE CONSTRAINTS:
+    - TYPE: 100% Multiple Choice (type: 'mcq').
+    - SOURCE: Use ONLY the vocabulary and grammar from the textbook. Do not hallucinate outside words.
+    - PROMPT: Write the question in {instruction_lang}.
+    - NO MIXING: NEVER mix {language} and English in the same sentence (No Frankenstein sentences).
+    - NO GHOSTS: Do NOT include the correct answer word inside the question text.
+    {pedagogical_rules}
     
-    DIVERSITY MANDATE: You MUST vary the 'Question Profile'. Do not use the same logic for every question.
-    Use a mix of:
-    1. DEFINITION: "What does '[Target Word]' mean?"
-    2. REVERSE: "How do you say '[English Word]' in {language}?"
-    3. USAGE: Provide a sentence in {language} and ask which word from the textbook fits best.
-    4. SCRIPT/PHONETIC: "Which of these is the correct script/pronunciation for [Word]?"
-    5. COMPREHENSION: Based on the examples in the textbook, ask a logic question.
-    
-    STRICT SOURCE RULE:
-    1. All questions MUST be based ONLY on the vocabulary, grammar, and examples provided in the SOURCE MATERIAL above.
-    2. Do NOT introduce new words.
-    
-    CRITICAL RULES for {language}:
-    1. PROMPT LANGUAGE: The 'prompt' (the question/instruction) MUST be in {instruction_lang}.
-    2. NO FRANKENSTEIN SENTENCES: NEVER mix {language} and English in a single sentence. 
-    3. NO VAGUE/GUESSING QUESTIONS: Do NOT ask for specific names or places not in the context.
-    4. NO GHOSTS: NEVER include the correct answer word inside the prompt text.
+    QUESTION PROFILES (MIX THESE):
+    1. SCRIPT CHECK: "Which character matches the sound '[Sound]'?"
+    2. MEANING: "What does '[Word]' mean?"
+    3. REVERSE: "How do you write '[Meaning]' in {language}?"
+    4. USAGE: A sentence with a blank (e.g., '这是我的___。') where the answer is in {language}.
     
     JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
