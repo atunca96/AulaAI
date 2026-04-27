@@ -63,6 +63,8 @@ def detect_language(text):
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """Generates a complete structured lesson with vocab, grammar, and examples."""
+    import json
+    from services.language_data import get_reference_prompt
     
     # Only apply the "Complete set" requirement if the topic is actually about an alphabet
     # We include variations for Spanish, French, German, Italian, Portuguese, Turkish, etc.
@@ -72,15 +74,19 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     ]
     is_alphabet_topic = any(x in topic.lower() for x in alphabet_keywords)
     
+    reference_data = ""
+    if is_alphabet_topic:
+        reference_data = get_reference_prompt(language)
+    
     alphabet_rule = ""
     if is_alphabet_topic:
         alphabet_rule = f"""
     CRITICAL REQUIREMENT for Alphabets/Syllabaries:
     Since this topic is about the alphabet/syllabary in {language}, you MUST include EVERY SINGLE CHARACTER/PHONEME. 
-    - For CHINESE: Do NOT just list A-Z. Instead, focus on the PINYIN INITIALS (b, p, m, f, etc.) and FINALS (a, o, e, i, u, ü, etc.). 
-    - For JAPANESE: Focus on the complete set of 46 HIRAGANA or KATAKANA.
-    - For LATIN SCRIPT: Include A to Z.
-    Skipping characters is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
+    {reference_data}
+    - For CHINESE: Use the Pinyin initials and finals from the reference data.
+    - For JAPANESE: Use the Hiragana/Katakana from the reference data.
+    Skipping characters from the reference data is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
     """
     
     explanation_rule = ""
