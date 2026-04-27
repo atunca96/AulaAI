@@ -381,6 +381,8 @@ const i18n = {
     'draft.type': 'Question Type',
     'draft.fill_blank': 'Fill in the gap',
     'draft.mcq': 'Multiple Choice',
+    'draft.no_auto_gen': 'No questions could be automatically generated.',
+    'draft.click_add': 'Please click "➕ Add Question" to create them manually.',
     // Classroom Selection
     'class.selection': 'Classroom Selection',
     'class.subtitle': 'Select a classroom to manage or create a new one',
@@ -720,6 +722,8 @@ const i18n = {
     'draft.type': 'Soru Tipi',
     'draft.fill_blank': 'Boşluk Doldurma',
     'draft.mcq': 'Çoktan Seçmeli',
+    'draft.no_auto_gen': 'Otomatik olarak soru oluşturulamadı.',
+    'draft.click_add': 'Lütfen manuel olarak oluşturmak için "➕ Soru Ekle" butonuna tıklayın.',
     // Classroom Selection
     'class.selection': 'Sınıf Seçimi',
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
@@ -3451,14 +3455,14 @@ function renderDraftList() {
   if (!currentDraft.questions || currentDraft.questions.length === 0) {
     html += `
       <div style="text-align:center; padding:20px; color:var(--text-muted);">
-        <p>No questions could be automatically generated.</p>
-        <p>Please click "➕ Add Question" to create them manually.</p>
+        <p data-i18n="draft.no_auto_gen">${t('draft.no_auto_gen')}</p>
+        <p data-i18n="draft.click_add">${t('draft.click_add')}</p>
       </div>
     `;
   }
 
   currentDraft.questions.forEach((q, i) => {
-    let typeLabel = q.type === 'mcq' ? t('draft.mcq') : (q.type === 'dialogue_order' || q.type === 'dialogue' ? 'Dialogue' : t('draft.fill_blank'));
+    let typeLabel = q.type === 'mcq' ? t('draft.mcq') : (q.type === 'dialogue_order' || q.type === 'dialogue' ? (t('prac.dialogue') || 'Dialogue') : t('draft.fill_blank'));
 
     let formattedPrompt = formatActivityData(q.prompt);
     let formattedAnswer = formatActivityData(q.answer);

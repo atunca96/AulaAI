@@ -314,9 +314,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     IMPORTANT: You must return a JSON object with a "data" key containing an array.
     Each object in the array MUST use these exact keys depending on logic:
-    - MCQ Translation: {{"type": "mcq", "word": "SpanishWord", "translation": "EnglishMeaning", "distractors": ["W1", "W2", "W3"]}}
-    - Fill Blank: {{"type": "fill_blank", "sentence": "La ____ es roja.", "word": "casa", "translation": "house"}}
-    - Scenario: {{"type": "mcq", "scenario": "You want to say hello", "answer": "Hola", "distractors": ["Adiós", "Gracias"]}}
+    - MCQ Translation: {{"type": "mcq", "word": "TargetLanguageWord", "translation": "NativeLanguageMeaning", "distractors": ["Dist1", "Dist2", "Dist3"]}}
+    - Fill Blank: {{"type": "fill_blank", "sentence": "A sentence in the target language with a ____.", "word": "answer", "translation": "hint"}}
+    - Scenario: {{"type": "mcq", "scenario": "A description of a situation", "answer": "AppropriateResponse", "distractors": ["Wrong1", "Wrong2"]}}
     
     Return JSON ONLY."""
     
