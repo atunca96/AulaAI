@@ -74,10 +74,13 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     
     alphabet_rule = ""
     if is_alphabet_topic:
-        alphabet_rule = """
+        alphabet_rule = f"""
     CRITICAL REQUIREMENT for Alphabets/Syllabaries:
-    Since this topic is about the alphabet/syllabary, you MUST include EVERY SINGLE CHARACTER (e.g. A-Z, all 46 Hiragana). 
-    Skipping even one is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
+    Since this topic is about the alphabet/syllabary in {language}, you MUST include EVERY SINGLE CHARACTER/PHONEME. 
+    - For CHINESE: Do NOT just list A-Z. Instead, focus on the PINYIN INITIALS (b, p, m, f, etc.) and FINALS (a, o, e, i, u, ü, etc.). 
+    - For JAPANESE: Focus on the complete set of 46 HIRAGANA or KATAKANA.
+    - For LATIN SCRIPT: Include A to Z.
+    Skipping characters is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
     """
 
     prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
