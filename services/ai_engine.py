@@ -354,7 +354,13 @@ def ai_generate_single_activity(topic_title, topic_type, topic_content, language
     
     data = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
     if not data: return None
-    print(f"[AI] Activity generated for {topic_title}")
+    print(f"[AI] Raw Single Activity for {topic_title}: {json.dumps(data)}")
+    
+    # Handle both wrapped {"data": {...}} and direct {...} formats
+    if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+        data = data["data"]
+    elif isinstance(data, dict) and "data" in data and isinstance(data["data"], list) and len(data["data"]) > 0:
+        data = data["data"][0]
     
     assembled = format_activity_by_template(data, level, language)
     if assembled and assembled.get("type") == "mcq":
