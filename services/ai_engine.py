@@ -1,40 +1,42 @@
 import os
 import json
 import re
-import requests
+import urllib.request
+import urllib.error
 import time
 from typing import List, Dict, Any, Optional
 
-# Simple AI Engine Reset
+# Simple AI Engine Reset (No extra dependencies)
 MODEL_SPEED = "anthropic/claude-3-haiku" 
 MODEL_QUALITY = "anthropic/claude-3-haiku"
 
 def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
-    """Simple OpenRouter caller."""
+    """Simple OpenRouter caller using built-in urllib."""
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         return None
 
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = json.dumps({
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "response_format": { "type": "json_object" }
+    }).encode("utf-8")
+
     try:
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            data=json.dumps({
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "response_format": { "type": "json_object" }
-            }),
-            timeout=30
-        )
-        res_json = response.json()
-        if "choices" in res_json:
-            content = res_json["choices"][0]["message"]["content"]
-            return json.loads(content)
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req, timeout=30) as response:
+            res_body = response.read().decode("utf-8")
+            res_json = json.loads(res_body)
+            if "choices" in res_json:
+                content = res_json["choices"][0]["message"]["content"]
+                return json.loads(content)
     except Exception as e:
         print(f"AI Error: {str(e)}")
     return None
