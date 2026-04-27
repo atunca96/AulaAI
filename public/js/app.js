@@ -1036,11 +1036,15 @@ function translateOption(text) {
 async function api(path, opts = {}) {
   let url = '/api' + path;
   
-  // Auto-append user identity for role-aware endpoints (e.g., getting enrollment status)
-  // Use currentUser directly as it is a top-level let variable (not necessarily on window)
+  // Auto-append user identity for role-aware endpoints
   if (currentUser && currentUser.id) {
-    const separator = url.includes('?') ? '&' : '?';
-    url += `${separator}user_id=${currentUser.id}&role=${currentUser.role || ''}`;
+    const parsedUrl = new URL(url, window.location.origin);
+    // Only append if not already present to avoid duplicates
+    if (!parsedUrl.searchParams.has('user_id')) {
+      parsedUrl.searchParams.set('user_id', currentUser.id);
+      parsedUrl.searchParams.set('role', currentUser.role || '');
+      url = parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
+    }
   }
 
   const res = await fetch(url, {
@@ -1062,19 +1066,29 @@ function fillDemo(role) {
   if (role === 'lecturer') {
     document.getElementById('login-email').value = 'garcia@university.edu';
     document.getElementById('login-password').value = 'demo123';
+  } else {
+    document.getElementById('student-number').value = '2023001';
+    document.getElementById('student-name-input').value = 'Alex Rivera';
   }
 }
 
 async function completeLogin(user, isFresh = false) {
   currentUser = user;
   if (user.course_id) courseId = user.course_id;
+  
   if (isFresh) {
     localStorage.removeItem('aula_last_tab');
     localStorage.removeItem('aula_last_course');
   }
+
+  // Session Storage is per-tab, so it's safer for multiple roles in different tabs
+  sessionStorage.setItem('aula_user', JSON.stringify(user));
+  
   const remember = document.getElementById('login-remember') ? document.getElementById('login-remember').checked : true;
-  if (remember) localStorage.setItem('aula_user', JSON.stringify(user));
-  else sessionStorage.setItem('aula_user', JSON.stringify(user));
+  if (remember) {
+    localStorage.setItem('aula_user', JSON.stringify(user));
+  }
+  
   localStorage.setItem('aula_lang', currentLang);
 
   // Show Admin Panel if applicable
@@ -1086,11 +1100,11 @@ async function completeLogin(user, isFresh = false) {
 
   if (currentUser.status === 'pending') {
     try {
-      const check = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
+      const check = await api('/user/status'); // api() helper will now append the ID correctly
       if (check && check.status === 'approved') {
         currentUser.status = 'approved';
-        localStorage.setItem('aula_user', JSON.stringify(currentUser));
         sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
+        if (remember) localStorage.setItem('aula_user', JSON.stringify(currentUser));
       }
     } catch (e) { }
 
