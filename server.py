@@ -1116,16 +1116,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # Call the unified batch engine
-            raw_activities = ai_generate_activity_batch(
-                topic["title"], 
-                topic_type, 
-                content, 
-                language, 
-                count=count, 
-                level=topic.get("difficulty", "A1")
-            ) or []
-            update_prog(90)
+            # Start a simulated progress ticker to keep the bar moving
+            import threading
+            stop_ticker = threading.Event()
+            def progress_ticker():
+                p = 5
+                while not stop_ticker.is_set() and p < 90:
+                    time.sleep(1.2)
+                    # Slowly increment to simulate activity
+                    p += py_random.randint(3, 7)
+                    if p > 90: p = 90
+                    update_prog(p)
+            
+            ticker_thread = threading.Thread(target=progress_ticker, daemon=True)
+            ticker_thread.start()
+            
+            try:
+                # Call the unified batch engine
+                raw_activities = ai_generate_activity_batch(
+                    topic["title"], 
+                    topic_type, 
+                    content, 
+                    language, 
+                    count=count, 
+                    level=topic.get("difficulty", "A1")
+                ) or []
+            finally:
+                stop_ticker.set()
+                ticker_thread.join(timeout=1.0)
+
+            update_prog(95)
 
             update_prog(100) # Finished AI work
             
