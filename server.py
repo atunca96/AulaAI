@@ -2442,7 +2442,7 @@ def main():
   Mode: Threaded (crash-safe)
   Maintenance: Auto-cleanup of stale tasks (30min timeout)
 
-  Lecturer login: garcia@university.edu / demo123
+  Lecturer login: atunca96@gmail.com / ALper2002@
   Students: Register at the login page
 ============================================================
         """)
