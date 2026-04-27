@@ -275,6 +275,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
     prompt += "\nQUALITY MANDATE: Distractors MUST be from the same Part of Speech (PoS) and Category. If the answer is a verb, distractors must be verbs. If the answer is a noun, distractors must be nouns. Do not use 'lazy' distractors like 'pen' for a 'leisure activity' question."
     prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct."
+    prompt += "\nOPTION DIVERSITY: Avoid 'set-recycling'. Every question should ideally use a fresh set of distractors. Do not simply swap the answer and distractors between questions."
     
     # PARALLEL BURST: Trigger 5 parallel calls for 5 questions each (Total 25)
     # This is much faster than fewer, larger batches.
