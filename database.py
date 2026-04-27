@@ -15,14 +15,18 @@ def _uid():
 # We use absolute paths to ensure the Railway volume remains mounted correctly.
 IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None
 if IS_RAILWAY:
-    # On Railway, we REQUIRE the /app/data mount. 
-    # If it's missing, we are in a 'Ghost' state and should not seed.
-    DATA_DIR = "/app/data"
+    # On Railway, we prioritize /data (as seen in dashboard) or /app/data
+    if os.path.exists("/data"):
+        DATA_DIR = "/data"
+    else:
+        DATA_DIR = "/app/data"
+
     # Debug directory contents to verify mount
     try:
-        print(f"[DEBUG] Root contents: {os.listdir('/app')}")
+        if os.path.exists('/data'):
+            print(f"[DEBUG] /data contents: {os.listdir('/data')}")
         if os.path.exists('/app/data'):
-            print(f"[DEBUG] Data contents: {os.listdir('/app/data')}")
+            print(f"[DEBUG] /app/data contents: {os.listdir('/app/data')}")
     except: pass
 else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
@@ -30,8 +34,10 @@ else:
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
 # Universal discovery: Look for ANY existing database to prevent data loss
 potential_paths = [
+    "/data/aula.db",
     "/app/data/aula.db",
     "/app/database.sqlite",
+    "/data/prototype.db",
     "/app/data/prototype.db",
     "/app/aula.db",
     os.path.join(os.getcwd(), "aula.db"),
@@ -52,13 +58,18 @@ if IS_RAILWAY:
         DB_PATH = found_path
         IS_GHOST_DB = False
     else:
-        # 2. If no data, wait for the VOLUME MOUNT itself to appear
+        # 2. If no data, wait for ANY valid VOLUME MOUNT to appear
         print("[DB] No existing data found. Verifying volume mount...")
         for attempt in range(30):
+            if os.path.exists("/data"):
+                print("[DB] Persistent volume /data detected. Starting fresh.")
+                DB_PATH = "/data/aula.db"
+                IS_GHOST_DB = True
+                break
             if os.path.exists("/app/data"):
                 print("[DB] Persistent volume /app/data detected. Starting fresh.")
                 DB_PATH = "/app/data/aula.db"
-                IS_GHOST_DB = True # Fresh start on the real volume
+                IS_GHOST_DB = True
                 break
             print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/30)")
             time.sleep(1)
