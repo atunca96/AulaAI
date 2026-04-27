@@ -138,7 +138,8 @@ PEDAGOGY_INSTRUCTION = """
 for a1-a2, generate english questions to help the students geet a grasp of the fundamentals. generate questions related to the topic of choice.
 after a2, with b1 and further, you can slowly start creating questions with the language of the classroom. increase the difficulty level gradually as the level (b1-b2-c1-c2) increases.
 always build constructive questions in order to help the student understand the topic further.
-do not overthink while building the distractions for the multichoice questions; just think of similar options with the right answer, and make them the same language.
+do not overthink while building the distractions for the multichoice questions; just think of similar options with the right answer, and make them the same language. 
+(CRITICAL: Distractors MUST be in the same language as the correct answer. Never mix English and Spanish options in the same question).
 some fill in the blank questions are too hard for a1-a2. just build missing letter fill-in-the-blank questions for a1-a2, and after, you can start with the harder ones.
 """
 
@@ -304,19 +305,18 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     level_norm = (level or 'A1').upper()
     prompt = f"""{PEDAGOGY_INSTRUCTION}
     
-    Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
+    TASK: Create 12 raw data objects for {level_norm} students. Topic: {topic_title}. Content: {json.dumps(topic_content)}.
     
-    Return a JSON object with a "data" key containing an array of objects.
-    Each object MUST follow one of these logic schemas:
-    - {{"type": "mcq", "word": "SpanishWord", "translation": "EnglishTranslation", "distractors": ["W1", "W2", "W3"]}}
-    - {{"type": "fill_blank", "sentence": "La ____ es...", "word": "correct", "translation": "hint"}}
-    - {{"type": "mcq", "scenario": "Context...", "answer": "CorrectResp", "distractors": ["W1", "W2"]}}
-    - {{"type": "mcq", "definition": "Description...", "word": "Target", "distractors": ["W1", "W2"]}}
-    - {{"type": "mcq", "opposite": "Word", "answer": "Antonym", "distractors": ["W1", "W2"]}}
+    IMPORTANT: You must return a JSON object with a "data" key containing an array.
+    Each object in the array MUST use these exact keys depending on logic:
+    - MCQ Translation: {{"type": "mcq", "word": "SpanishWord", "translation": "EnglishMeaning", "distractors": ["W1", "W2", "W3"]}}
+    - Fill Blank: {{"type": "fill_blank", "sentence": "La ____ es roja.", "word": "casa", "translation": "house"}}
+    - Scenario: {{"type": "mcq", "scenario": "You want to say hello", "answer": "Hola", "distractors": ["Adiós", "Gracias"]}}
     
     Return JSON ONLY."""
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+    print(f"[AI] Raw data for {topic_title}: {json.dumps(result)[:200]}...")
     raw_list = result.get("data") if result else None
     if not raw_list: return None
     
@@ -354,6 +354,7 @@ def ai_generate_single_activity(topic_title, topic_type, topic_content, language
     
     data = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000)
     if not data: return None
+    print(f"[AI] Activity generated for {topic_title}")
     
     assembled = format_activity_by_template(data, level, language)
     if assembled and assembled.get("type") == "mcq":
