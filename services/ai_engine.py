@@ -382,62 +382,8 @@ def ai_generate_single_activity(topic_title, topic_type, topic_content, language
     return assembled
 
 def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6):
-    """Optimized to harvest multiple activities from the AI response for speed and variety."""
-    results = []
-    seen_prompts = set()
-    
-    # Try to get them in one or two batches instead of sequential single calls
-    attempts = 0
-    while len(results) < count and attempts < 3:
-        attempts += 1
-        # Use the batch generator logic but for activities
-        level = 'A1' # Default
-        prompt = f"""{PEDAGOGY_INSTRUCTION}
-        
-        TASK: Create {count} distinct raw data objects for {level} students. Topic: {topic_title}.
-        Avoid repetition. If you already generated a word, choose a new one.
-        
-        Return a JSON object with an "activities" key containing an array.
-        Schemas:
-        - {{"type": "mcq", "word": "...", "translation": "...", "distractors": ["...", "..."]}}
-        - {{"type": "fill_blank", "sentence": "...", "word": "...", "translation": "..."}}
-        
-        Return JSON ONLY."""
-        
-        data = _call_ai([{"role": "user", "content": prompt}], max_tokens=2000)
-        if not data: continue
-        
-        # Extract the list
-        raw_list = []
-        if isinstance(data, dict):
-            for key in ["activities", "questions", "data"]:
-                if key in data and isinstance(data[key], list):
-                    raw_list = data[key]
-                    break
-            if not raw_list and "type" in data: # Single object returned
-                raw_list = [data]
-
-        for raw in raw_list:
-            if len(results) >= count: break
-            assembled = format_activity_by_template(raw, level, language)
-            if assembled:
-                # Basic deduplication
-                p_text = assembled.get("prompt", "")
-                if p_text not in seen_prompts:
-                    if assembled.get("type") == "mcq":
-                        ans = str(assembled["answer"]).strip()
-                        dist = assembled.get("distractors", [])
-                        if not isinstance(dist, list): dist = [str(dist)]
-                        dist = [d for d in dist if str(d).strip().lower() != ans.lower()]
-                        import random
-                        opts = [ans] + dist[:3]
-                        random.shuffle(opts)
-                        assembled["options"] = opts
-                    
-                    results.append(assembled)
-                    seen_prompts.add(p_text)
-                    
-    return results
+    """Unified: Uses the same robust logic as Quiz generation for In-Class Activities."""
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count)
 
 def ai_generate_report_insights(cohort_data):
     """Generate detailed AI insights for reports."""
