@@ -1037,9 +1037,10 @@ async function api(path, opts = {}) {
   let url = '/api' + path;
   
   // Auto-append user identity for role-aware endpoints (e.g., getting enrollment status)
-  if (window.currentUser && window.currentUser.id) {
+  // Use currentUser directly as it is a top-level let variable (not necessarily on window)
+  if (currentUser && currentUser.id) {
     const separator = url.includes('?') ? '&' : '?';
-    url += `${separator}user_id=${window.currentUser.id}&role=${window.currentUser.role || ''}`;
+    url += `${separator}user_id=${currentUser.id}&role=${currentUser.role || ''}`;
   }
 
   const res = await fetch(url, {
