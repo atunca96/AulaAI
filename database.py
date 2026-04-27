@@ -80,6 +80,8 @@ def init_db():
             draft_status TEXT DEFAULT 'idle',
             draft_progress INTEGER DEFAULT 0,
             draft_result TEXT,
+            progress INTEGER DEFAULT 0,
+            total_steps INTEGER DEFAULT 0,
             lecturer_id TEXT REFERENCES users(id),
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -126,6 +128,14 @@ def init_db():
     except sqlite3.OperationalError: pass
     try:
         c.execute("ALTER TABLE courses ADD COLUMN draft_result TEXT")
+    except sqlite3.OperationalError: pass
+
+    # -- Pipeline Progress Columns Migration --
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN progress INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
+    try:
+        c.execute("ALTER TABLE courses ADD COLUMN total_steps INTEGER DEFAULT 0")
     except sqlite3.OperationalError: pass
 
     c.executescript("""
