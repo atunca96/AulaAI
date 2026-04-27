@@ -40,7 +40,7 @@ potential_paths = [
 
 IS_GHOST_DB = False
 if IS_RAILWAY:
-    print("[DB] Railway environment detected. Searching for existing data...")
+    # 1. Check for ANY existing data across all potential paths
     found_path = None
     for path in potential_paths:
         if os.path.exists(path) and os.path.getsize(path) > 0:
@@ -52,23 +52,23 @@ if IS_RAILWAY:
         DB_PATH = found_path
         IS_GHOST_DB = False
     else:
-        # Retry loop for volume mount lag - increased to 30s
+        # 2. If no data, wait for the VOLUME MOUNT itself to appear
+        print("[DB] No existing data found. Verifying volume mount...")
         for attempt in range(30):
-            # Check the default volume path again
-            if os.path.exists("/app/data/aula.db"):
-                print(f"[DB] Volume attached successfully! Using /app/data/aula.db")
+            if os.path.exists("/app/data"):
+                print("[DB] Persistent volume /app/data detected. Starting fresh.")
                 DB_PATH = "/app/data/aula.db"
-                IS_GHOST_DB = False
+                IS_GHOST_DB = True # Fresh start on the real volume
                 break
             print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/30)")
             time.sleep(1)
         else:
-            # FATAL ERROR: Stop the server rather than starting with empty data
             print("[FATAL ERROR] Persistent volume NOT FOUND after 30s. Crashing to force restart.")
             import sys
             sys.exit(1)
 else:
     DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
+    IS_GHOST_DB = not os.path.exists(DB_PATH)
     IS_GHOST_DB = not os.path.exists(DB_PATH)
 
 # Thread-safe locks for background tasks
