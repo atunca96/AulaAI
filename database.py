@@ -185,7 +185,7 @@ def init_db():
             pin TEXT,
             enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY(student_id, course_id)
+            UNIQUE(student_id, course_id)
         )''')
 
         c.execute('''CREATE TABLE IF NOT EXISTS sessions (
