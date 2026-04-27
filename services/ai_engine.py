@@ -368,6 +368,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     final_questions = []
     seen_prompts = set()
+    seen_answers = set()
     for item in raw_list:
         assembled = format_activity_by_template(item, level, language)
         if assembled:
@@ -403,6 +404,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             if prompt_hash in seen_prompts:
                 continue
             seen_prompts.add(prompt_hash)
+
+            # 4. Answer Uniqueness Filter (Concept De-duplication)
+            ans_hash = str(assembled.get("answer", "")).strip().lower()
+            if ans_hash in seen_answers:
+                continue
+            seen_answers.add(ans_hash)
 
             final_questions.append(assembled)
             
