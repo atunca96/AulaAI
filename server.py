@@ -583,23 +583,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
                 db.execute("DELETE FROM sessions")
             else:
-                # GLOBAL RESET (Wipe everything)
-                # GLOBAL RESET (Wipe everything)
-                db.execute("DELETE FROM responses")
-                db.execute("DELETE FROM mastery_scores")
-                db.execute("DELETE FROM weekly_reports")
-                db.execute("DELETE FROM messages")
-                db.execute("DELETE FROM sessions")
-                db.execute("DELETE FROM enrollments")
-                db.execute("DELETE FROM quiz_questions")
-                db.execute("DELETE FROM quizzes")
-                db.execute("DELETE FROM assignment_questions")
-                db.execute("DELETE FROM assignments")
-                db.execute("DELETE FROM users WHERE role = 'student' OR email LIKE '%@student.aulaai'")
-                db.execute("DELETE FROM questions")
-                db.execute("DELETE FROM topics")
-                db.execute("DELETE FROM chapters")
-                db.execute("DELETE FROM courses")
+                # GLOBAL RESET DISABLED FOR SAFETY
+                print("[SAFETY] Global reset attempt blocked.")
+                return self._send_error("Global reset is disabled to prevent data loss.", 403)
 
             db.commit()
 
