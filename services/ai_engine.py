@@ -68,29 +68,34 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     for item in raw_list:
         try:
-            # 1. Aggressive Cleaning
-            def clean(text):
-                # Remove all (...) and [...] and strip
+            # 1. Aggressive Universal Cleaning
+            def deep_clean(text):
+                # Remove (...) [...] and {...} and strip
                 t = re.sub(r'[\(\[\{].*?[\)\]\}]', '', str(text))
                 return t.strip()
 
-            ans_clean = clean(item.get("answer", ""))
-            prompt_raw = str(item.get("prompt", ""))
-            # Create a "searchable" prompt without quotes or punctuation
-            prompt_clean = re.sub(r'[^\w\s]', '', prompt_raw).lower()
+            ans_clean = deep_clean(item.get("answer", ""))
+            prompt_raw = str(item.get("prompt", "")).strip()
             
-            # 2. Ghost Rule (Hardened)
-            # Answer must not be empty and must not be inside the prompt
-            if not ans_clean or ans_clean.lower() in prompt_clean:
+            # SAFE AGNOSTIC STRIP: Only remove common punctuation, keep all letters/symbols
+            def agnostic_strip(text):
+                # We only want to remove quotes and common separators, not native characters
+                return re.sub(r'[\'\"\?\!\.\,\:\;\-\_]', '', str(text)).lower().strip()
+
+            prompt_stripped = agnostic_strip(prompt_raw)
+            ans_stripped = agnostic_strip(ans_clean)
+            
+            # 2. Logic Check: Empty or Inside Prompt
+            if not ans_clean or not ans_stripped or len(prompt_raw) < 5:
+                continue
+            if ans_stripped in prompt_stripped:
                 continue
 
             # 3. Script Consistency Rule (Agnostic)
-            # In an MCQ, the answer and distractors should share the same script "vibe"
-            # (e.g. all Latin or all Native).
-            def get_script_type(t):
-                return "latin" if re.search('[a-zA-Z]', t) else "native"
+            def get_vibe(t):
+                return "latin" if re.search('[a-zA-Z]', str(t)) else "native"
             
-            ans_script = get_script_type(ans_clean)
+            ans_vibe = get_vibe(ans_clean)
             distractors = item.get("distractors", [])
             if not isinstance(distractors, list): distractors = []
             
@@ -98,22 +103,24 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             valid_distractors = []
             
             for d in distractors:
-                d_clean = clean(d)
-                # Rule: Distractor must exist, be unique, and match the Answer's script type
-                if d_clean and d_clean.lower() not in all_choices:
-                    if get_script_type(d_clean) == ans_script:
+                d_clean = deep_clean(d)
+                d_stripped = agnostic_strip(d_clean)
+                # Rule: Choice must exist, be unique, share the vibe, and NOT be in the prompt
+                if d_clean and d_stripped and d_clean.lower() not in all_choices:
+                    if d_stripped not in prompt_stripped and get_vibe(d_clean) == ans_vibe:
                         valid_distractors.append(d_clean)
                         all_choices.add(d_clean.lower())
             
-            # Rejection: MCQs need at least 2 valid distractors to be useful
-            if item.get("type") == "mcq" and len(valid_distractors) < 2:
+            # 4. Final Quality Filter
+            # MCQs need at least 2 valid distractors
+            if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
                 continue
 
-            # 4. Duplicate Check (Global)
+            # Check for global duplicates
             if ans_clean.lower() in seen_answers:
                 continue
                 
-            # Success! Save the CLEANED data back to the item
+            # Success!
             item["answer"] = ans_clean
             item["distractors"] = valid_distractors[:3]
             seen_answers.add(ans_clean.lower())
