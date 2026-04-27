@@ -555,17 +555,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)",
                           (admin_id, 'Alper Tunca', 'atunca96@gmail.com', 'ALper2002@', 'lecturer', 'approved'))
                 
-                # Ensure the default Spanish 101 class (11111) is assigned to this admin
-                db.execute("UPDATE courses SET lecturer_id = ? WHERE id = '11111'", (admin_id,))
-                db.commit()
-
-            return self._send_json({"success": True, "message": "Database reset. Admin account and Class 11111 preserved."})
+            return self._send_json({"success": True, "message": "Database reset. Admin account preserved."})
         except Exception as e:
             file_log(f"HARD RESET ERROR: {e}")
             return self._send_error(f"Reset failed: {str(e)}", 500)
 
     def _reset_data(self):
-        """Erase student data. Can be classroom-specific or global (except Spanish 101)."""
+        """Erase student data. Can be classroom-specific or global."""
         body = self._read_body()
         confirm = body.get("confirm")
         course_id = body.get("course_id")
@@ -587,7 +583,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
                 db.execute("DELETE FROM sessions")
             else:
-                # GLOBAL RESET (KEEP SPANISH 101)
+                # GLOBAL RESET (Wipe everything)
                 # GLOBAL RESET (Wipe everything)
                 db.execute("DELETE FROM responses")
                 db.execute("DELETE FROM mastery_scores")
@@ -1161,7 +1157,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             thread.daemon = True
             thread.start()
             
-            # Final check to ensure status is set
             with db_connection() as db:
                 db.execute("UPDATE courses SET activity_status='generating' WHERE id=?", (course_id,))
                 db.commit()
@@ -2368,9 +2363,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if not course:
                     return self._send_error("Course not found")
                 
-                # Protection for the default demo classroom only
-                # [CLEANUP] Universal check
-                if False: # Removed hardcoded Spanish 101 check
+                # [CLEANUP] All classrooms can now be deleted
+                if False: 
                     return self._send_error("The default demo classroom cannot be deleted", 403)
                 
                 # 1. Delete student responses (quizzes, assignments, and topic activities)
@@ -2467,7 +2461,7 @@ def main():
         
         print(f"""
 ============================================================
-  AulaAI — Spanish Learning System
+  AulaAI — Language Learning System
   Textbook: Aula Internacional Plus 1
 
   Server running at: http://localhost:{PORT}

@@ -443,21 +443,8 @@ Return ONLY valid JSON:
         except Exception as e:
             print(f"[AI] Dialogue generation error: {e}")
 
-    # Fallback to templates (Only if language is Spanish)
-    if language == "Spanish":
-        dialogue = random.choice(DIALOGUE_TEMPLATES)
-        lines = dialogue["lines"][:]
-        correct_order = [l["text"] for l in lines]
-        random.shuffle(lines)
-
-        return {
-            "id": _uid(),
-            "type": "dialogue_order",
-            "title": dialogue["title"],
-            "scrambled_lines": [l["text"] for l in lines],
-            "correct_order": correct_order,
-            "speakers": {l["text"]: l["speaker"] for l in dialogue["lines"]},
-        }
+    # [CLEANUP] Removed Spanish-specific hardcoded fallbacks
+    return None
     
     return None
 
