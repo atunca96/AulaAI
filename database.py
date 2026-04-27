@@ -175,9 +175,15 @@ def init_db():
             variant_group TEXT,
             metadata TEXT,
             is_active INTEGER DEFAULT 1,
+            approved INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(topic_id) REFERENCES topics(id)
         )''')
+        
+        # MIGRATION: Ensure approved column exists
+        try:
+            c.execute("ALTER TABLE questions ADD COLUMN approved INTEGER DEFAULT 1")
+        except: pass
 
         # Student Performance & Mastery
         c.execute('''CREATE TABLE IF NOT EXISTS mastery_scores (

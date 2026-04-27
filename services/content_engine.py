@@ -337,32 +337,28 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             else: break
             
         def _gen_for_topic(tid, batch):
-            from database import get_db
-            thread_conn = None
+            from database import db_connection
             try:
-                thread_conn = get_db()
-                tc = thread_conn.cursor()
-                t_data = tc.execute("SELECT title, type, content, difficulty FROM topics WHERE id = ?", (tid,)).fetchone()
-                if not t_data: return [], tid, ""
-                
-                l_row = tc.execute("""
-                    SELECT co.language FROM courses co
-                    JOIN chapters ch ON co.id = ch.course_id
-                    JOIN topics t ON ch.id = t.chapter_id
-                    WHERE t.id = ?
-                """, (tid,)).fetchone()
-                language = l_row["language"] if l_row else "Unknown" 
-                
-                raw_content = t_data["content"]
-                parsed_content = json.loads(raw_content) if raw_content else {}
-                
-                return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch, level=t_data["difficulty"]), tid, t_data["title"]
+                with db_connection() as thread_conn:
+                    tc = thread_conn.cursor()
+                    t_data = tc.execute("SELECT title, type, content, difficulty FROM topics WHERE id = ?", (tid,)).fetchone()
+                    if not t_data: return [], tid, ""
+                    
+                    l_row = tc.execute("""
+                        SELECT co.language FROM courses co
+                        JOIN chapters ch ON co.id = ch.course_id
+                        JOIN topics t ON ch.id = t.chapter_id
+                        WHERE t.id = ?
+                    """, (tid,)).fetchone()
+                    language = l_row["language"] if l_row else "Unknown" 
+                    
+                    raw_content = t_data["content"]
+                    parsed_content = json.loads(raw_content) if raw_content else {}
+                    
+                    return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch, level=t_data["difficulty"]), tid, t_data["title"]
             except Exception as e:
                 print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
                 return [], tid, ""
-            finally:
-                if thread_conn:
-                    thread_conn.close()
 
         # Call AI OUTSIDE any main thread DB connection
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(targets), 4)) as executor:

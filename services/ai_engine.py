@@ -4,7 +4,21 @@ import re
 import urllib.request
 import urllib.error
 import time
+import uuid
 from typing import List, Dict, Any, Optional
+
+def _uid():
+    return str(uuid.uuid4())
+
+# LOCAL DEV: Load .env if it exists
+if os.path.exists(".env"):
+    try:
+        with open(".env", "r") as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v
+    except: pass
 
 # Simple AI Engine with Python Filtering (V1.5-STABILIZED)
 MODEL_SPEED = "anthropic/claude-3-haiku" 
@@ -137,6 +151,10 @@ def get_language_profile(language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
     """Agnostic Engine: Generates questions based on the language's specific Pedagogical DNA."""
+    # Safety Sanitize
+    topic_title = str(topic_title or "Lesson")
+    topic_type = str(topic_type or "general")
+    
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
     
@@ -245,17 +263,31 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     prompt += "\nQUALITY MANDATE: Distractors MUST be from the same Part of Speech (PoS) and Category. If the answer is a verb, distractors must be verbs. If the answer is a noun, distractors must be nouns. Do not use 'lazy' distractors like 'pen' for a 'leisure activity' question."
     prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct."
     
-    for attempt in range(2):
-        # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000, temperature=0.7)
-        print(f"[AI] Response received. Success: {result is not None}")
-        raw_list = result.get("data") if result else []
-        
-        print(f"[AI] Raw items received: {len(raw_list)}")
-        
+    # PARALLEL BURST: Trigger 5 parallel calls for 5 questions each (Total 25)
+    # This is much faster than fewer, larger batches.
+    import concurrent.futures
+    
+    def _fetch_batch():
+        batch_prompt = prompt + "\n\nIMPORTANT: Generate exactly 5 unique questions for this batch."
+        res = _call_ai([{"role": "user", "content": batch_prompt}], max_tokens=1500, temperature=0.8)
+        return res.get("data") if res else []
+
+    try:
+        all_raw_items = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(_fetch_batch) for _ in range(5)]
+            for f in concurrent.futures.as_completed(futures):
+                try:
+                    batch = f.result()
+                    if batch: all_raw_items.extend(batch)
+                except Exception as e:
+                    print(f"[AI] Batch error: {e}")
+
+        print(f"[AI] Parallel Burst completed. Items collected: {len(all_raw_items)}")
+        raw_list = all_raw_items
         final_questions = []
         seen_answers = set()
-        
+            
         for item in raw_list:
             try:
                 # 0. Log Rationale for debugging
@@ -266,7 +298,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
                     t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
                     return t.strip()
-    
+
                 ans_clean = deep_clean(item.get("answer", ""))
                 prompt_raw = str(item.get("prompt", "")).strip()
                 prompt_clean = deep_clean(prompt_raw)
@@ -274,7 +306,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 # 2. Logic Check: Empty or Inside Prompt
                 if not ans_clean or len(prompt_raw) < 5:
                     continue
-    
+
                 # 3. Script Consistency Rule (RESTORED: No mixing vibes)
                 def get_vibe(t):
                     # Broad Latin check including accented characters (ā, ó, ü, etc.)
@@ -325,7 +357,13 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         print(f"[REJECT] English Crutch detected: '{prompt_raw}'")
                         continue
 
-                    # B. DISTRACTOR QUANTITY: Must have exactly 3 high-quality distractors
+                    # B. NEGATIVE QUESTION CHECK: Reject "NOT", "Except", etc.
+                    negative_keywords = ["which of these is not", "is not mentioned", "except for", "following is not"]
+                    if any(nk in prompt_raw.lower() for nk in negative_keywords):
+                        print(f"[REJECT] Negative Question detected: '{prompt_raw}'")
+                        continue
+
+                    # C. DISTRACTOR QUANTITY: Must have exactly 3 high-quality distractors
                     if item.get("type", "mcq") and len(valid_distractors) < 3:
                         print(f"[REJECT] Insufficient distractors: {len(valid_distractors)} (need 3)")
                         continue
@@ -353,23 +391,20 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     if ans_clean.lower() in seen_answers:
                         continue
                     
+                    item["id"] = _uid()
                     item["prompt"] = prompt_clean
                     item["answer"] = ans_clean
                     item["distractors"] = valid_distractors[:3]
                     seen_answers.add(ans_clean.lower())
                     final_questions.append(item)
                 
-                if len(final_questions) >= c: break
+                if len(final_questions) >= count: break
             except: continue
-        
-        if len(final_questions) > 0:
-            return final_questions
-        
-        # If we got 0, try once more with a sterner warning and log the failure
-        print(f"[AI] FAILED to generate valid questions. Raw response preview: {str(result)[:500]}...")
-        prompt += "\n\nRETRY WARNING: Your previous attempt was rejected. Ensure NO English sounds, NO duplicate answers, and NO answer words inside the question prompt."
-        
-    return []
+            
+        return final_questions
+    except Exception as e:
+        print(f"[AI] Burst processing error: {e}")
+        return []
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
     return ai_generate_questions(

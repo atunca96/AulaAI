@@ -84,6 +84,19 @@ function toggleSidebar() {
 // ── Keep Render alive (ping every 10 min) ──
 setInterval(() => fetch('/api/courses').catch(() => { }), 10 * 60 * 1000);
 
+function confirmDeleteAccount() {
+    showConfirmModal('student.delete_account_title', 'student.delete_account_msg', true, null, false, 'student.delete_confirm_btn').then(async confirmed => {
+        if (confirmed) {
+            const res = await api('/user/delete', { method: 'POST' });
+            if (res && res.success) {
+                logout();
+            } else {
+                showAlert('Error', res?.error || 'Failed to delete account');
+            }
+        }
+    });
+}
+
 // ── Live-sync: poll for data changes every 1 second ──
 function startLiveSync() {
   if (_syncInterval) clearInterval(_syncInterval);
@@ -154,7 +167,7 @@ function refreshCurrentView() {
   if (!currentUser) return;
 
   // Track building status for notifications and UI updates
-  api('/courses').then(courses => {
+  api('/courses').then(async courses => {
     if (!courses || !Array.isArray(courses)) return;
     const currentlyBuilding = courses.filter(c => c.is_building === 1).map(c => c.id);
 
@@ -182,20 +195,28 @@ function refreshCurrentView() {
     }
 
     if (currentUser.role === 'lecturer') {
-      _buildingCourses.forEach(id => {
+      for (const id of _buildingCourses) {
         if (!currentlyBuilding.includes(id)) {
           const course = courses.find(c => c.id === id);
           if (course) {
-            showAlert(t('Tebrikler!'), `"${course.name}" ${t('is ready!')}`);
-            // Force a list refresh to show the "Enter" button
-            if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
-              showClassroomSelection();
-            }
+            await showAlert(t('Tebrikler!'), `"${course.name}" ${t('is ready!')}`);
+            location.reload(); // Refresh to ensure everything is fresh
+            return; // reload stops execution anyway
           }
         }
-      });
+      }
     }
     if (currentUser.role === 'student') {
+      if (currentCourse) {
+        const updated = courses.find(c => c.id === currentCourse.id);
+        if (!updated || updated.enrollment_status === 'none') {
+          // Kicked or course deleted
+          currentCourse = null;
+          showStudentPortal();
+          showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
+          return;
+        }
+      }
       if (document.getElementById('student-portal-screen').classList.contains('active')) {
         refreshStudentEnrollments();
       }
@@ -601,6 +622,10 @@ const i18n = {
     'alert.hard_reset_success_title': 'System Reset',
     'alert.hard_reset_success_msg': 'The database has been completely wiped. You will be logged out now.',
     'alert.hard_reset_failed': 'Hard reset failed: {error}',
+    'student.delete_account': 'Delete Account',
+    'student.delete_account_title': 'Delete Account',
+    'student.delete_account_msg': 'Are you sure you want to permanently delete your account? All your progress and data will be lost forever.',
+    'student.delete_confirm_btn': 'Yes, Delete My Account',
   },
   tr: {
     'ai.select_lang': '1. Dil Seçin',
@@ -941,7 +966,11 @@ const i18n = {
     'student.leave_msg': '"{name}" sınıfından ayrılmak istediğinize emin misiniz? Bu sınıftaki tüm ilerlemeniz, puanlarınız ve verileriniz kalıcı olarak silinecektir.',
     'alert.classroom_reset': 'Sınıf Sıfırlandı',
     'alert.classroom_reset_msg': 'Öğretmeniniz bu sınıfı sıfırladı. Sınıf seçim ekranına yönlendirildiniz.',
-    select_study_topic: 'Çalışmak için bir konu seçin'
+    select_study_topic: 'Çalışmak için bir konu seçin',
+    'student.delete_account': 'Hesabı Sil',
+    'student.delete_account_title': 'Hesabı Sil',
+    'student.delete_account_msg': 'Hesabınızı kalıcı olarak silmek istediğinizden emin misiniz? Tüm ilerlemeniz ve verileriniz sonsuza dek kaybolacak.',
+    'student.delete_confirm_btn': 'Evet, Hesabımı Sil',
   }
 };
 
@@ -1579,7 +1608,6 @@ function renderAiLanguages() {
   if (!grid) return;
   const langs = [
     { id: 'Spanish', icon: '🇪🇸' },
-    { id: 'English', icon: '🇬🇧' },
     { id: 'German', icon: '🇩🇪' },
     { id: 'French', icon: '🇫🇷' },
     { id: 'Italian', icon: '🇮🇹' },
@@ -1946,16 +1974,25 @@ document.addEventListener('focusin', (e) => {
 });
 
 function switchTab(btn, skipLoad = false) {
-  // Clean up any open chat overlays/locks when switching tabs
-  closeMobileChat();
-  document.body.style.overflow = '';
-
   // Find which screen we are in (Lecturer or Student)
   const screen = btn.closest('.screen') || (currentUser.role === 'lecturer' ? document.getElementById('lecturer-dashboard') : document.getElementById('student-dashboard'));
   if (!screen) return;
 
   const tabId = btn.dataset.tab;
   if (!tabId) return;
+
+  // LOCK: If building, prevent switching to non-essential tabs
+  if (currentUser.role === 'lecturer' && currentCourse && currentCourse.is_building === 1) {
+      const allowedTabs = ['overview', 'inbox']; // Overview shows progress, Inbox is fine
+      if (!allowedTabs.includes(tabId)) {
+          triggerBuildingFocus();
+          return; // Block navigation
+      }
+  }
+
+  // Clean up any open chat overlays/locks when switching tabs
+  closeMobileChat();
+  document.body.style.overflow = '';
 
   // Update nav-tab active state (if top nav is visible)
   const nav = screen.querySelector('.topnav');
@@ -1985,6 +2022,25 @@ function switchTab(btn, skipLoad = false) {
     if (tabId === 'inbox') loadInbox();
     if (tabId === 's-messages') loadStudentChat();
   }
+}
+
+function triggerBuildingFocus() {
+  const banner = document.getElementById('lecturer-building-banner');
+  const whisper = document.getElementById('architect-whisper');
+  if (!banner) return;
+
+  // Trigger animations
+  banner.classList.add('shake-active', 'glow-active');
+  if (whisper) whisper.classList.add('visible');
+
+  // Clean up after 1s
+  setTimeout(() => {
+    banner.classList.remove('shake-active');
+    setTimeout(() => {
+        banner.classList.remove('glow-active');
+        if (whisper) whisper.classList.remove('visible');
+    }, 1000);
+  }, 300);
 }
 
 function goToHome() {

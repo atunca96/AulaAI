@@ -461,6 +461,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._student_leave_classroom()
         elif path == "/api/register":
             return self._register()
+        elif path == "/api/user/delete":
+            return self._delete_user_account()
         elif path == "/api/students/pending":
             return self._get_pending_students()
         elif path == "/api/students/approve":
@@ -560,6 +562,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             file_log(f"HARD RESET ERROR: {e}")
             return self._send_error(f"Reset failed: {str(e)}", 500)
 
+    def _delete_user_account(self):
+        user_id = self._get_user_id()
+        if not user_id:
+            return self._send_error("Authentication required")
+        
+        with db_connection() as db:
+            # Delete EVERYTHING related to this user
+            db.execute("DELETE FROM responses WHERE student_id = ?", (user_id,))
+            db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (user_id,))
+            db.execute("DELETE FROM enrollments WHERE student_id = ?", (user_id,))
+            db.execute("DELETE FROM messages WHERE student_id = ?", (user_id,))
+            db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            db.commit()
+            
+        bump_version()
+        self._send_json({"success": True})
+
     def _reset_data(self):
         """Erase student data. Can be classroom-specific or global."""
         body = self._read_body()
@@ -644,12 +663,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._send_error("student_id required")
             
         with db_connection() as db:
-            # Delete related data first
+            # Delete related data for this student in this course context
+            # (Note: Usually _delete_student is called for a specific course removal in the UI)
+            # If we want a true 'Kick', we only remove enrollment.
             db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM messages WHERE student_id = ?", (student_id,))
-            db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
+            # DO NOT DELETE USER: db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
         bump_version()
@@ -899,7 +920,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("UPDATE enrollments SET pin = ? WHERE student_id = ? AND course_id = ? AND status = 'approved'", 
                        (pin, student_id, course_id))
             db.commit()
-            
+        
+        bump_version()
         self._send_json({"success": True})
 
     def _student_access_classroom(self):
