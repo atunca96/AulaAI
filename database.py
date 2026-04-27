@@ -83,8 +83,13 @@ def get_task_lock(course_id):
 
 @contextlib.contextmanager
 def db_connection():
-    """Context manager that automatically closes the connection."""
+    # Persistence Sentinel: NEVER allow a connection if the volume is missing on Railway
+    if IS_RAILWAY and not os.path.exists("/app/data"):
+        print("[CRITICAL] VOLUME DISCONNECTED DURING OPERATION! Blocking DB access to prevent data loss.")
+        raise ConnectionError("Railway volume disconnected. Please check your dashboard.")
+
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL") # High performance concurrency
     conn.row_factory = sqlite3.Row
     try:
         yield conn
