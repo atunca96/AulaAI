@@ -68,40 +68,52 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     for item in raw_list:
         try:
-            # 1. Universal Cleaning
-            # Strip parenthetical hints like "(apple)" from both answers and distractors
-            ans = str(item.get("answer", "")).strip()
-            ans_clean = re.sub(r'\(.*?\)', '', ans).strip()
+            # 1. Aggressive Cleaning
+            def clean(text):
+                # Remove all (...) and [...] and strip
+                t = re.sub(r'[\(\[\{].*?[\)\]\}]', '', str(text))
+                return t.strip()
+
+            ans_clean = clean(item.get("answer", ""))
+            prompt_raw = str(item.get("prompt", ""))
+            # Create a "searchable" prompt without quotes or punctuation
+            prompt_clean = re.sub(r'[^\w\s]', '', prompt_raw).lower()
             
-            prompt_text = str(item.get("prompt", "")).strip()
+            # 2. Ghost Rule (Hardened)
+            # Answer must not be empty and must not be inside the prompt
+            if not ans_clean or ans_clean.lower() in prompt_clean:
+                continue
+
+            # 3. Script Consistency Rule (Agnostic)
+            # In an MCQ, the answer and distractors should share the same script "vibe"
+            # (e.g. all Latin or all Native).
+            def get_script_type(t):
+                return "latin" if re.search('[a-zA-Z]', t) else "native"
+            
+            ans_script = get_script_type(ans_clean)
             distractors = item.get("distractors", [])
             if not isinstance(distractors, list): distractors = []
             
-            # 2. The "Ghost" Rule (Agnostic Logic)
-            # The answer and distractors MUST NOT appear in the prompt text.
-            # This catches "flipped" questions in any language (Spanish, Japanese, etc).
-            if ans_clean.lower() in prompt_text.lower() and len(ans_clean) > 0:
-                continue
-            
-            # Ensure distractors don't contain the prompt word either
-            if any(str(d).lower() in prompt_text.lower() for d in distractors if len(str(d)) > 1):
-                continue
-
-            # 3. Unique Choice Rule
-            # Choices must be unique and non-empty
             all_choices = {ans_clean.lower()}
             valid_distractors = []
-            for d in distractors:
-                d_clean = re.sub(r'\(.*?\)', '', str(d)).strip()
-                if d_clean and d_clean.lower() not in all_choices:
-                    valid_distractors.append(d_clean)
-                    all_choices.add(d_clean.lower())
             
+            for d in distractors:
+                d_clean = clean(d)
+                # Rule: Distractor must exist, be unique, and match the Answer's script type
+                if d_clean and d_clean.lower() not in all_choices:
+                    if get_script_type(d_clean) == ans_script:
+                        valid_distractors.append(d_clean)
+                        all_choices.add(d_clean.lower())
+            
+            # Rejection: MCQs need at least 2 valid distractors to be useful
+            if item.get("type") == "mcq" and len(valid_distractors) < 2:
+                continue
+
             # 4. Duplicate Check (Global)
             if ans_clean.lower() in seen_answers:
                 continue
                 
-            # Success!
+            # Success! Save the CLEANED data back to the item
             item["answer"] = ans_clean
             item["distractors"] = valid_distractors[:3]
             seen_answers.add(ans_clean.lower())
