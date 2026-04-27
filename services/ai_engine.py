@@ -242,7 +242,7 @@ def format_activity_by_template(data, level, language):
         return {
             "type": "fill_blank",
             "prompt": f"Complete the {language} word for '{translation}': {display}",
-            "answer": word,
+            "answer": re.sub(r'\(.*?\)', '', str(word)).strip(),
             "metadata": {"template": "missing_letter"}
         }
 
@@ -265,7 +265,7 @@ def format_activity_by_template(data, level, language):
         return {
             "type": "fill_blank",
             "prompt": f"Complete the sentence{hint}: {sentence}",
-            "answer": word,
+            "answer": re.sub(r'\(.*?\)', '', str(word)).strip(),
             "metadata": {"template": "sentence_context"}
         }
 
@@ -389,24 +389,28 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 random.shuffle(opts)
                 assembled["options"] = opts
                 
+                # 1. Clean Options (Strip any parenthetical help/translations from ALL languages)
+                opts = [re.sub(r'\(.*?\)', '', str(o)).strip() for o in opts]
+                assembled["options"] = opts
+                assembled["answer"] = re.sub(r'\(.*?\)', '', str(assembled["answer"])).strip()
+
                 # 2. Strict Quality Filters
                 if len(opts) < 4: continue
-                
-                # Language Consistency Check
+                if any(o == "" or o == "???" for o in opts): continue
+
+                # 3. Language Script Guard (For Non-Latin Languages)
                 is_target_latin = any(x in language.lower() for x in ["english", "spanish", "french", "german", "italian", "portuguese", "dutch", "swedish"])
                 if not is_target_latin:
-                    # Strip any parenthetical help Llama might have added before checking script
-                    clean_opts = [re.sub(r'\(.*?\)', '', str(o)).strip() for o in opts]
-                    has_latin = any(re.search('[a-zA-Z]', str(o)) for o in clean_opts)
+                    has_latin = any(re.search('[a-zA-Z]', str(o)) for o in opts)
                     
                     clean_prompt = re.sub(r'\(.*?\)', '', str(assembled["prompt"])).strip()
                     prompt_has_target = not any(re.search('[a-zA-Z]', str(c)) for c in clean_prompt if c.strip())
                     
                     if prompt_has_target and not has_latin: 
-                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options: {clean_opts}")
+                        print(f"[QC] Discarded Mode B (Meaning) with non-latin options: {opts}")
                         continue 
                     if not prompt_has_target and has_latin: 
-                        print(f"[QC] Discarded Mode A (Target) with latin options: {clean_opts}")
+                        print(f"[QC] Discarded Mode A (Target) with latin options: {opts}")
                         continue
 
             # 3. Uniqueness Filter
