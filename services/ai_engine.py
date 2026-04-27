@@ -292,7 +292,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 
                 # 4. Final Zero-Tolerance Validation
                 if ans_clean and prompt_clean:
-                    # GHOST CHECK: Reject if answer is inside the prompt (Relaxed for phonetics)
+                    # GHOST CHECK: Detect and Fix leaks (Auto-Edit Mistake)
                     is_ghost = False
                     if ans_vibe == 'native':
                         if any(char in prompt_clean for char in ans_clean if char.strip()):
@@ -302,9 +302,41 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         if re.search(pattern, prompt_clean.lower()):
                             is_ghost = True
                     
-                    if is_ghost and not is_phonetic_topic:
-                        print(f"[REJECT] Ghost check failed: '{ans_clean}' in '{prompt_clean}'")
-                        continue
+                    if is_ghost:
+                        # ALGORITHM: Intelligent Masking instead of Rejection
+                        print(f"[FIX] Answer Leak Detected: '{ans_clean}' in '{prompt_clean}'")
+                        
+                        # 1. Contextual Masking (Sound/Letter/Word)
+                        fixed = False
+                        for prefix in ["sound", "letter", "word", "character", "term", "vowel", "consonant"]:
+                            p_regex = re.compile(rf'{prefix}\s+[\'\"“]?{re.escape(ans_clean)}[\'\"”]?', re.IGNORECASE)
+                            if p_regex.search(prompt_raw):
+                                prompt_raw = p_regex.sub(f"the target {prefix}", prompt_raw)
+                                fixed = True
+                                break
+                        
+                        # 2. Brute Force Masking (Fallback)
+                        if not fixed:
+                            # Avoid over-masking common words in instructions (like 'is', 'the' in target language)
+                            if len(ans_clean) > 1:
+                                pattern = re.compile(re.escape(ans_clean), re.IGNORECASE)
+                                prompt_raw = pattern.sub("____", prompt_raw)
+                                fixed = True
+                            else:
+                                # For single characters (Phonetics), if we can't find a prefix, we MUST reject or it's unsolvable
+                                if not is_phonetic_topic:
+                                    pattern = re.compile(re.escape(ans_clean), re.IGNORECASE)
+                                    prompt_raw = pattern.sub("____", prompt_raw)
+                                    fixed = True
+                        
+                        # If still ghosted and it's NOT a phonetic topic (where we allow it as fallback), reject
+                        if not fixed and not is_phonetic_topic:
+                            print(f"[REJECT] Unfixable Ghost leak: {ans_clean}")
+                            continue
+                        
+                        # Update prompt_clean for the next steps
+                        prompt_clean = deep_clean(prompt_raw)
+                        print(f"[FIXED] New Prompt: '{prompt_raw}'")
                     
                     # MCQs need at least 2 valid distractors
                     if item.get("type", "mcq") == "mcq" and len(valid_distractors) < 2:
