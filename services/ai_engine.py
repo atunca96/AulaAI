@@ -150,34 +150,16 @@ def ai_generate_curriculum(language, level, course_name):
     return _call_ai([{"role": "user", "content": prompt}], model=MODEL_QUALITY, max_tokens=4000)
 
 PEDAGOGY_INSTRUCTION = """
-# CORE PEDAGOGICAL RULES (FACTORY RESET)
-You are a language teacher for students who speak TURKISH and ENGLISH. 
-Supported Target Languages: English, Chinese, Spanish, French, Arabic, Russian, Portuguese, German, Japanese, Turkish, Korean, Italian, Dutch, Swedish, Greek.
+# MANDATORY INSTRUCTIONS (DO NOT DEVIATE)
+1. LANGUAGE RULES:
+   - MODE A (Word Identification): Native prompt -> Target options. (All 4 options MUST be in Target Language).
+   - MODE B (Meaning Identification): Target prompt -> Native options. (All 4 options MUST be in English or Turkish).
+   - NEVER MIX Target and Native languages in the same option list.
+   - For beginners (A1-A2), keep instructions in ENGLISH.
 
-1. LANGUAGE BOUNDARIES (CRITICAL):
-   - NATIVE LANGUAGE: Use Turkish or English for instructions and hints.
-   - TARGET LANGUAGE: Use the language being learned (e.g., Japanese) for the actual practice.
-   - NEVER MIX languages in the multiple-choice options.
-
-2. MULTIPLE CHOICE RULES:
-   - MODE A (Target Practice): The question asks for a word in the Target Language. ALL 4 options (answer + distractors) MUST be in the Target Language.
-   - MODE B (Meaning Practice): The question asks for the meaning of a Target word. ALL 4 options (answer + distractors) MUST be in the Native Language (English or Turkish).
-   - FAILURE to keep all options in the same language is a pedagogical error.
-
-3. FILL IN THE BLANK RULES:
-   - The sentence MUST be in the Target Language.
-   - The missing word MUST be in the Target Language.
-   - Provide a Native Language (English/Turkish) hint in parentheses.
-   - Ensure the sentence is complete and grammatically correct.
-
-4. LEVEL ADAPTATION:
-   - A1-A2: Use English for instructions. Use simple vocabulary. For Japanese/Chinese, use Kanji/Hanzi with Hiragana/Pinyin if possible.
-   - B1+: Start using the Target Language for instructions. Increase complexity.
-
-5. SEVERE WARNING: 
-   - NEVER provide English distractors if the answer is in the Target Language (Mode A).
-   - NEVER provide Target Language distractors if the answer is in English/Turkish (Mode B).
-   - A blank or "???" prompt is an absolute failure.
+2. AVOID SELF-REFERENCE:
+   - If the question is "What does [WORD] mean?", the answer CANNOT be [WORD]. It must be the translation.
+   - A question is a FAILURE if the correct answer is already visible in the prompt.
 """
 
 def generate_full_lesson(topic_title, topic_type, language, question_count=8):
@@ -246,12 +228,10 @@ def format_activity_by_template(data, level, language):
     if is_beginner:
         instr_pfx = "Type the full word to complete: "
         mcq_instr = f"Which of these {language} words means "
-    elif "B1" in level_norm or "B2" in level_norm:
-        instr_pfx = "Completa la palabra: "
-        mcq_instr = f"¿Qué palabra significa "
     else:
-        instr_pfx = f"Completa la frase en {language}: "
-        mcq_instr = f"Selecciona la opción correcta: "
+        # For intermediate+ we still use English instructions as requested
+        instr_pfx = f"Complete the sentence in {language}: "
+        mcq_instr = f"Select the correct {language} option for "
 
     if atype == "fill_blank" and is_beginner and data.get("word") and not data.get("sentence"):
         word = data["word"]
@@ -329,6 +309,13 @@ def format_activity_by_template(data, level, language):
         if not final_prompt:
             final_prompt = f"{mcq_instr} '{translation}'?"
             
+        # Validation: If the answer is already in the prompt, it's a hallucination
+        if target and target.lower() in final_prompt.lower():
+            # This is only okay if the prompt is asking for an opposite or something complex.
+            # But for simple "What does X mean?", it's a fail.
+            if "mean" in final_prompt.lower() or "anlamı" in final_prompt.lower():
+                return None
+
         if not final_prompt or final_prompt == "???" or not target or target == "???":
             return None
             
