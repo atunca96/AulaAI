@@ -147,10 +147,17 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
     # Handle non-redundancy
+    # Handle non-redundancy (STRICT)
     forbidden_clause = ""
+    if existing_questions and len(existing_questions) > 0:
+        qs_list = "\n".join([f"- {q['prompt']}" for q in existing_questions])
+        forbidden_clause = f"\nCRITICAL: DO NOT REPEAT or mimic these existing questions:\n{qs_list}\n"
+
     # DNA-Aware Pedagogical Instructions
     dna_instructions = ""
+    diversity_quota = "Vary the question profile."
     if dna == "logographic":
+        diversity_quota = "MIX: 2x 'Character to Sound', 2x 'Sound to Character', 2x 'Contextual Sentence Fill'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: LOGOGRAPHIC (Chinese Focus)
     1. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
@@ -159,25 +166,28 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     4. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
     """
     elif dna == "syllabic":
+        diversity_quota = "MIX: 2x 'Sound to Script', 2x 'Script to Sound', 2x 'Vocabulary Meaning'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: SYLLABIC/SCRIPT (Russian, Japanese, etc.)
     1. DECODING FOCUS: Focus on mapping the unique script (Cyrillic, Kana) to its sound.
     2. ROMAJI/TRANSCRIPTION: Use only as a secondary tool. The primary target is the native script.
     """
     elif dna == "agglutinative":
+        diversity_quota = "MIX: 3x 'Suffix Stacking', 3x 'Sentence Meaning'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish Focus)
     1. SUFFIX STACKING: Focus on how words change with suffixes (e.g., ev-de-ki).
     2. HARMONY: Test Vowel Harmony rules.
     """
     else:
+        diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: INFLECTED LATIN (Spanish, French, etc.)
     1. MORPHOLOGY: Focus on Gender, Number, and Verb Conjugation.
     2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
     """
 
-    prompt = f"""You are a master {language} architect. Generate {request_count} diverse Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
+    prompt = f"""You are a master {language} architect. Generate {request_count} high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
     
     SOURCE MATERIAL:
     {content_str}
@@ -192,7 +202,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     {dna_instructions}
     
-    DIVERSITY MANDATE: Vary the question profile. Use Script Checks, Usage Blanks, Meaning, and Logic.
+    DIVERSITY QUOTA: {diversity_quota}
     
     JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
