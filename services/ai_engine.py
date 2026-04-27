@@ -220,7 +220,7 @@ def generate_full_lesson(topic_title, topic_type, language, question_count=8):
                 opts = [ans] + dist[:3]
                 random.shuffle(opts)
                 assembled["options"] = opts
-                if len(opts) < 3: continue
+                if len(opts) < 4: continue
             final_qs.append(assembled)
     
     result["questions"] = final_qs
@@ -377,7 +377,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 opts = [ans] + dist[:3]
                 random.shuffle(opts)
                 assembled["options"] = opts
-                if len(opts) < 3: continue
+                if len(opts) < 4: continue
             final_questions.append(assembled)
             
     py_random.shuffle(final_questions)
