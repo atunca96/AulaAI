@@ -117,6 +117,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
     return result if result else {}
 
+# Agnostic Engine v1.1 - Diversity Quotas Restored
 def is_ai_available():
     return os.getenv("OPENROUTER_API_KEY") is not None
 
