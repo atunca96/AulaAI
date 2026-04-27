@@ -3955,7 +3955,7 @@ function renderDraftList() {
           <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${typeLabel}</div>
           <div style="font-weight:600; margin-bottom:8px;">${esc(formattedPrompt)}</div>
           <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(formattedAnswer)}</div>
-          ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? `<div style="color:var(--danger); font-size:13px;">✗ ${q.distractors.join(', ')}</div>` : ''}
+          ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? q.distractors.map(d => `<div style="color:var(--danger); font-size:13px;">✗ ${esc(d)}</div>`).join('') : ''}
         </div>
       </div>
     `;
