@@ -1231,9 +1231,16 @@ async function selectClassroom(id, isLecturer = true) {
     id = course.id;
   }
 
-  courseId = id;
-  if (course) {
-    const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
+    courseId = id;
+    if (course) {
+        // If student is not approved, send to waiting room
+        if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
+            showScreen('waiting-room-screen');
+            startWaitingRoomPoll(courseId);
+            return;
+        }
+
+        const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
     const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
 
     if (navName) navName.textContent = course.name;

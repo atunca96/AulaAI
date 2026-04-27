@@ -886,12 +886,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _get_courses(self):
         _cleanup_stale_classrooms()
+        user_id = self._get_user_id()
+        role = self._get_user_role()
+        
         with db_connection() as db:
             courses = db.execute("SELECT * FROM courses").fetchall()
             result = []
             for c in courses:
                 c_dict = dict(c)
-                # Compute progress based on topics with content
+                
+                # Attach enrollment status for students
+                if role == 'student':
+                    enr = db.execute("SELECT status FROM enrollments WHERE student_id=? AND course_id=?", (user_id, c["id"])).fetchone()
+                    c_dict["enrollment_status"] = enr["status"] if enr else "none"
+
+                # Compute progress
                 total = db.execute("""
                     SELECT COUNT(t.id) as cnt FROM topics t
                     JOIN chapters ch ON t.chapter_id = ch.id
