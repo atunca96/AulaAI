@@ -201,9 +201,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         diversity_quota = "MIX: 3x 'Sentence Meaning', 3x 'Suffix/Grammar'."
         dna_instructions = f"""
     PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish, Finnish, etc.)
-    1. CONTEXTUAL VOCABULARY: For vocabulary, use distractors that are grammatical but contextually wrong (e.g., if asking for a fruit, distractors should be vegetables or colors).
+    1. SEMANTIC CONSISTENCY: For vocabulary, distractors MUST be from the same semantic category as the answer. If the answer is an activity (verb), distractors MUST be other activities. If the answer is a noun (e.g. month), distractors MUST be related nouns (e.g. days, seasons). NEVER use random nouns as distractors for a verb-based question.
     2. SUFFIX STACKING: For grammar, focus on suffix combinations (e.g., ev-de-ki).
-    3. LOGICAL CONSISTENCY: Ensure category questions are factually accurate. (e.g., if asking for a month, do not mark a day as a distractor and a month as the answer).
+    3. LOGICAL CONSISTENCY: Ensure category questions are factually accurate.
     4. GRAMMAR NEGATIVE SPACE: Only for GRAMMAR topics, distractors should be ungrammatical strings. For VOCABULARY, they must be valid but incorrect words.
     """
     else:
@@ -229,8 +229,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
     - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
-    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect. There must be NO ambiguity.
-    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining why the answer is correct and why the distractors are wrong. This is for internal verification.
+    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect but SEMANTICALLY RELATED.
+    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining: 1. Why the answer is correct. 2. How the distractors are semantically related but contextually/factually wrong.
     
     {dna_instructions}
     
@@ -240,7 +240,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     Return JSON ONLY.
     """
     prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
-    prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct. If the question is 'Which is a month?', the answer must be a month. If the question is 'Which is not a month?', the answer must NOT be a month."
+    prompt += "\nQUALITY MANDATE: Distractors MUST be from the same Part of Speech (PoS) and Category. If the answer is a verb, distractors must be verbs. If the answer is a noun, distractors must be nouns. Do not use 'lazy' distractors like 'pen' for a 'leisure activity' question."
+    prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct."
     
     for attempt in range(2):
         # Increased tokens for batch generation to avoid truncation, increased temperature for diversity
