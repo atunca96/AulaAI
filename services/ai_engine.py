@@ -527,10 +527,16 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     clean_lang = language.split('(')[0].strip()
     word = word.strip()
     
-    system_prompt = f"You are a linguistic expert for {clean_lang}. Precision is mandatory (e.g., distinguish 'ast' [subordinate] from 'alt' [bottom])."
-    user_prompt = f"Explain '{word}' in {clean_lang}. English translation included. "
+    system_prompt = (
+        f"You are a linguistic expert for {clean_lang}. STRICT TRUTH ONLY. "
+        "NEVER invent morphemes, suffixes, or example words (e.g., do NOT invent 'köyast'). "
+        "If the item is not a valid standalone word or a real productive morpheme, "
+        "you MUST set the explanation to: 'Needs more context to identify this fragment.' "
+        "In Turkish, 'ast' is a STANDALONE word (subordinate), NOT a suffix."
+    )
+    user_prompt = f"Analyze '{word}' in {clean_lang}. If it is a partial fragment or fake, say so."
     if context:
-        user_prompt += f"Context: {context}"
+        user_prompt += f" Context for verification: {context}"
     user_prompt += '\nReturn JSON: {"explanation": "...", "usage": "...", "tip": "..."}'
     
     result = _call_ai([

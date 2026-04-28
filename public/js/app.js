@@ -4701,7 +4701,7 @@ async function showDict(word, e) {
 
         content.innerHTML = `
             <div style="margin-bottom:16px;">
-                <div style="font-size:24px; font-weight:800; color:#ffffff; margin-bottom:4px;">${word}</div>
+                <div id="dict-word-title">${word}</div>
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
             </div>
             
