@@ -513,18 +513,24 @@ def ai_generate_report_insights(cohort_data):
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
 def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> Dict[str, str]:
     """Generates a quick, concise linguistic explanation for a word."""
-    prompt = f"Explain the {language} word '{word}' for an A1 learner."
-    if context:
-        prompt += f" Context where it was found: '{context}'"
+    # Clean language string (e.g., "Turkish (Ispanyolca)" -> "Turkish")
+    clean_lang = language.split('(')[0].strip()
     
-    prompt += "\nRespond ONLY with a JSON object: {'explanation': '...', 'usage': '...', 'tip': '...'}. Be extremely concise (max 2 sentences per field)."
+    prompt = f"Explain the {clean_lang} word '{word}' for an A1 learner. "
+    prompt += "IMPORTANT: Start the explanation with the English translation. "
+    if context:
+        prompt += f"Context: '{context}'"
+    
+    prompt += "\nRespond ONLY with a JSON object: {'explanation': '...', 'usage': '...', 'tip': '...'}. Be extremely concise."
     
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=300, temperature=0.5)
     
     if result and "explanation" in result:
         return result
+    
+    # Improved fallback if AI fails
     return {
-        "explanation": f"The word '{word}' is a common term in {language}.",
-        "usage": "Use it in daily conversations.",
-        "tip": "Click 'Ask AI' again if you need more details!"
+        "explanation": f"'{word}' is a {clean_lang} word. It often translates to something similar in English depending on context.",
+        "usage": "Use it in simple sentences.",
+        "tip": "Try clicking 'Explain with AI' again for a deeper lookup!"
     }
