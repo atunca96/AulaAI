@@ -437,6 +437,8 @@ const i18n = {
     'class.add_topic': 'Add Topic',
     'class.topic_name_placeholder': 'New Topic Name',
     'class.build_btn': 'Build Classroom 🚀',
+    'ai.add_unit': 'Add Custom Unit',
+    'ai.new_unit_title': 'New Unit Title',
     'class.enter': 'Enter Classroom',
     'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
     'class.upload_pdf': 'Upload PDF Textbook',
@@ -882,6 +884,8 @@ const i18n = {
     'class.add_topic': 'Konu Ekle',
     'class.topic_name_placeholder': 'Yeni Konu Adı',
     'class.build_btn': 'Sınıfı Oluştur 🚀',
+    'ai.add_unit': 'Yeni Ünite Ekle',
+    'ai.new_unit_title': 'Yeni Ünite Başlığı',
     'class.enter': 'Sınıfa Gir',
     'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
     'class.upload_pdf': 'PDF Ders Kitabı Yükle',
@@ -1710,10 +1714,10 @@ function addUnitToAiArchitect() {
   const unitHtml = `
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 style="margin:0; color:var(--accent-light);">Unit ${unitIdx + 1}</h4>
+        <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
       </div>
-      <input type="text" class="text-input" placeholder="New Unit Title" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <input type="text" class="text-input" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
       </div>
