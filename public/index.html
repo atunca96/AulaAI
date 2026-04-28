@@ -86,7 +86,12 @@
         .dict-meaning-item { padding:10px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.03); transition:0.2s; }
         .dict-meaning-item:hover { background:rgba(255,255,255,0.05); }
         .study-card [dir="auto"] { cursor: pointer; transition: color 0.2s; }
-        .study-card [dir="auto"]:hover { color: var(--accent-light) !important; }
+        
+        /* The "Color-Lock" Shield: Ensure explanations never turn blue on hover */
+        .ai-explanation, .ai-explanation *, .english-translation, .english-translation * {
+            color: inherit !important;
+            text-decoration: none !important;
+        }
     </style>
 </head>
 <body>
