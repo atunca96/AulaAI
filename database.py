@@ -343,6 +343,7 @@ def _run_migrations():
             ("responses", "graded_by", "TEXT"),
             ("responses", "submitted_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("questions", "is_active", "INTEGER DEFAULT 1"),
+            ("questions", "approved", "INTEGER DEFAULT 1"),
             ("users", "status", "TEXT DEFAULT 'approved'")
         ]
         

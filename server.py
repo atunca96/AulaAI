@@ -324,25 +324,47 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_id = body.get("course_id")
         if not course_id: return self._send_error("Missing course_id")
 
-        with db_connection() as db:
-            # 1. Delete questions
-            db.execute("""
-                DELETE FROM questions WHERE topic_id IN (
-                    SELECT t.id FROM topics t
-                    JOIN chapters ch ON t.chapter_id = ch.id
-                    WHERE ch.course_id = ?
-                )
-            """, (course_id,))
-            
-            # 2. Delete topics
-            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
-            
-            # 3. Delete chapters
-            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
-            
-            # 4. Reset building status
-            db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE id = ?", (course_id,))
-            db.commit()
+        try:
+            with db_connection() as db:
+                # 1. Delete questions
+                db.execute("""
+                    DELETE FROM questions WHERE topic_id IN (
+                        SELECT t.id FROM topics t
+                        JOIN chapters ch ON t.chapter_id = ch.id
+                        WHERE ch.course_id = ?
+                    )
+                """, (course_id,))
+                
+                # 2. Delete topics
+                db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
+                
+                # 3. Delete chapters
+                db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
+
+                # 4. Delete quizzes and assignments
+                db.execute("DELETE FROM quizzes WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM assignments WHERE course_id = ?", (course_id,))
+                db.execute("DELETE FROM quiz_questions WHERE quiz_id NOT IN (SELECT id FROM quizzes)")
+                db.execute("DELETE FROM assignment_questions WHERE assignment_id NOT IN (SELECT id FROM assignments)")
+                
+                # 5. Reset building status and all progress flags
+                db.execute("""
+                    UPDATE courses SET 
+                        is_building = 0, 
+                        progress = 0, 
+                        total_steps = 0,
+                        draft_progress = 0,
+                        draft_status = 'idle',
+                        activity_status = 'idle',
+                        activity_progress = 0,
+                        activity_total = 0,
+                        textbook = 'AI Generated'
+                    WHERE id = ?
+                """, (course_id,))
+                db.commit()
+        except Exception as e:
+            print(f"[ERROR] _wipe_curriculum: {e}")
+            return self._send_error(str(e))
 
         bump_version()
         self._send_json({"status": "success", "message": "Curriculum wiped"})

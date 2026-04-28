@@ -379,7 +379,7 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ? WHERE id = ?",
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated' WHERE id = ?",
                        (course_name, language, level, f"{level} Level", course_id))
             db.commit()
     else:

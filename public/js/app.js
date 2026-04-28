@@ -1755,6 +1755,7 @@ async function buildAiClassroom() {
         course_id: localStorage.getItem('aula_rearchitecting_id')
       }
     });
+    localStorage.removeItem('aula_rearchitecting_id');
     if (res.success) {
       closeAiArchitectModal();
       showClassroomSelection();
@@ -2543,10 +2544,14 @@ async function reArchitectCurriculum() {
     });
     if (res.status === 'success' || res.success) {
       curriculum = [];
+      if (currentCourse) {
+        currentCourse.is_building = 0;
+        currentCourse.progress = 0;
+      }
       localStorage.setItem('aula_rearchitecting_id', currentCourse.id);
       startAiArchitectFlow();
       // Optional: fill in the classroom name
-      const nameInp = document.getElementById('ai-architect-name');
+      const nameInp = document.getElementById('ai-course-name');
       if (nameInp) nameInp.value = currentCourse.name;
       renderCurriculum();
     } else {
