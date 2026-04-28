@@ -37,38 +37,51 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     }).encode("utf-8")
 
     last_error = "Unknown"
-    for attempt in range(3):
-        try:
-            if attempt > 0: print(f"[AI] Retry attempt {attempt} for {model}...")
-            req = urllib.request.Request(url, data=data, headers=headers)
-            with urllib.request.urlopen(req, timeout=45) as response:
-                res_body = response.read().decode("utf-8")
-                res_json = json.loads(res_body)
-                if "choices" in res_json:
-                    content = res_json["choices"][0]["message"]["content"].strip()
-                    
-                    # IRON-CLAD JSON EXTRACTION
-                    start = content.find('{')
-                    end = content.rfind('}')
-                    
-                    if start != -1 and end != -1 and end > start:
-                        json_str = content[start:end+1]
-                        try:
-                            # Try standard JSON
-                            return json.loads(json_str.replace('\n', ' '))
-                        except:
-                            try:
-                                import ast
-                                return ast.literal_eval(json_str)
-                            except: pass
-                    
-                    if len(content) > 10 and '{' not in content:
-                        return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+    models_to_try = [model, "google/gemini-2.0-flash-lite-preview-02-05:free"]
+    
+    for target_model in models_to_try:
+        for attempt in range(2):
+            try:
+                if attempt > 0 or target_model != model: 
+                    print(f"[AI] Switching/Retrying with {target_model}...")
                 
-                last_error = "Empty Response"
-        except Exception as e:
-            last_error = str(e)
-            time.sleep(0.5 * (attempt + 1))
+                req = urllib.request.Request(url, data=json.dumps({
+                    "model": target_model, "messages": messages, "max_tokens": max_tokens, 
+                    "temperature": temperature
+                }).encode("utf-8"), headers=headers)
+                
+                with urllib.request.urlopen(req, timeout=45) as response:
+                    res_body = response.read().decode("utf-8")
+                    res_json = json.loads(res_body)
+                    
+                    if "choices" in res_json:
+                        content = res_json["choices"][0]["message"]["content"].strip()
+                        
+                        # IRON-CLAD JSON EXTRACTION
+                        start = content.find('{')
+                        end = content.rfind('}')
+                        
+                        if start != -1 and end != -1 and end > start:
+                            json_str = content[start:end+1]
+                            try:
+                                return json.loads(json_str.replace('\n', ' '))
+                            except:
+                                try:
+                                    import ast
+                                    return ast.literal_eval(json_str)
+                                except: pass
+                        
+                        if len(content) > 10 and '{' not in content:
+                            return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+                    
+                    if "error" in res_json:
+                        last_error = res_json["error"].get("message", "API Error")
+                    else:
+                        last_error = "Empty Response (No choices)"
+                        
+            except Exception as e:
+                last_error = str(e)
+                time.sleep(0.5)
             
     return {"error_details": last_error}
 
