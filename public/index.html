@@ -21,8 +21,7 @@
         .foreign-word {
             cursor: cell !important;
             transition: all 0.2s ease;
-            display: inline-block !important;
-            width: fit-content !important;
+            display: inline !important; /* Forces the width to match the text exactly */
             user-select: none !important;
             -webkit-user-select: none !important;
             position: relative;
@@ -35,7 +34,7 @@
         .foreign-word::after {
             content: '';
             position: absolute;
-            bottom: 0px;
+            bottom: -2px;
             left: 0;
             right: 0;
             height: 2px;
@@ -47,6 +46,15 @@
         }
         .foreign-word:hover::after {
             transform: scaleX(1);
+        }
+        
+        /* Specific fix for Dictionary Title Underline */
+        #dict-word-title {
+            display: inline-block;
+            width: fit-content;
+            border-bottom: 2px solid var(--accent-light);
+            padding-bottom: 2px;
+            margin-bottom: 10px;
         }
         
         /* Shield for Explanations and English text - NO selection, NO + cursor */
