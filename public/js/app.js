@@ -4363,7 +4363,13 @@ function showStudyTopic(topicId, pageIdx = 0) {
               return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             }
 
-            return `<div style="color:var(--text-muted); font-style:italic;">No detailed content found for this section.</div>`;
+            // 4. ABSOLUTE FALLBACK: Ensure we never show a blank screen
+            return `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; text-align:center; color:var(--text-muted); background:rgba(255,255,255,0.02); border-radius:24px; border:1px dashed var(--border);">
+              <div style="font-size:40px; margin-bottom:16px;">🚧</div>
+              <h3 style="margin:0; color:var(--text-main);">${t('gen.preparing_content') || 'Content Under Construction'}</h3>
+              <p style="margin-top:8px; font-size:14px; opacity:0.7;">${t('gen.preparing_desc') || 'The AI is still polishing this lesson. Please check back in a moment.'}</p>
+              <button class="btn btn-ghost btn-sm" style="margin-top:20px;" onclick="location.reload()">${t('refresh') || 'Refresh Page'}</button>
+            </div>`;
           }
         });
       });
