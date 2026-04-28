@@ -528,21 +528,27 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     if result and "explanation" in result:
         return result
     
-    # EMERGENCY HYBRID FALLBACK: Use Translation API if AI fails
+    if result and "explanation" in result:
+        return result
+    
+    # EMERGENCY HYBRID FALLBACK: Use Wiktionary/Translation if AI fails
     try:
-        from services.dictionary_service import get_definition
-        fallback = get_definition(word, clean_lang)
-        if "definitions" in fallback:
+        # We call the internal Wiktionary scan directly to avoid recursion
+        from services.dictionary_service import _get_wiktionary_definition, LANG_MAP
+        lang_code = LANG_MAP.get(clean_lang.lower(), "en")
+        wikt = _get_wiktionary_definition(word, lang_code)
+        
+        if not wikt.get("error") and wikt.get("definitions"):
             return {
-                "explanation": f"The word '{word}' means '{fallback['definitions'][0]['definition']}'.",
-                "usage": "Use it in basic conversation.",
-                "tip": "AI was busy, but we found this translation for you!"
+                "explanation": wikt["definitions"][0]["definition"],
+                "usage": "Found via Deep Dictionary Scan.",
+                "tip": "The AI was briefly unavailable, but we found this human-verified definition for you!"
             }
-    except:
-        pass
+    except Exception as e:
+        print(f"[AI] Emergency fallback failed: {e}")
         
     return {
-        "explanation": f"'{word}' is a {clean_lang} word used for daily interaction.",
-        "usage": "Try using it in a simple sentence.",
-        "tip": "Click 'Explain' again if you need more details!"
+        "explanation": f"'{word}' is a {clean_lang} word. In this context, it usually refers to a specific quality or action.",
+        "usage": "Try looking at the surrounding sentence for more context.",
+        "tip": "We're having trouble reaching the AI Brain. Please try again in a moment!"
     }
