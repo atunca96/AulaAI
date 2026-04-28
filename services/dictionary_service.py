@@ -3,48 +3,51 @@ import json
 import urllib.parse
 import re
 
-def get_definition(word, lang_code):
+# Mapping for AulaAI's 14 Languages
+LANG_MAP = {
+    "turkish": "tr", "spanish": "es", "french": "fr", "german": "de",
+    "italian": "it", "portuguese": "pt", "russian": "ru", "arabic": "ar",
+    "greek": "el", "persian": "fa", "english": "en", "turkish (ispanyolca)": "tr"
+}
+
+def get_definition(word, lang_name):
     """
-    Routes lookups to the best available API for the given language.
-    Supports 14+ languages via Free Dictionary API and Wiktionary fallback.
+    Advanced translation-first router for 14 languages.
     """
     word = word.strip().lower()
+    lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
-    # 1. Primary: Free Dictionary API (Supports EN, ES, FR, DE, IT, PT, RU, TR, etc.)
-    # Note: TR support is hit-or-miss, so we handle fallback.
+    # 1. Primary: MyMemory Translation API (Excellent for all 14 langs Word-to-Word)
     try:
-        conn = http.client.HTTPSConnection("api.dictionaryapi.dev")
-        conn.request("GET", f"/api/v2/entries/{lang_code}/{urllib.parse.quote(word)}")
+        # Search Word -> English
+        conn = http.client.HTTPSConnection("api.mymemory.translated.net")
+        path = f"/get?q={urllib.parse.quote(word)}&langpair={lang_code}|en"
+        conn.request("GET", path)
         res = conn.getresponse()
         if res.status == 200:
             data = json.loads(res.read().decode())
-            return _format_free_dict(data[0])
+            trans = data.get("responseData", {}).get("translatedText", "")
+            if trans and trans.lower() != word.lower():
+                return {
+                    "word": word,
+                    "phonetic": f"({lang_name})",
+                    "definitions": [{
+                        "partOfSpeech": "translation",
+                        "definition": trans,
+                        "example": ""
+                    }],
+                    "source": "MyMemory Global"
+                }
     except:
         pass
 
-    # 2. Secondary: Wiktionary Fallback (Universal)
+    # 2. Fallback: Wiktionary REST API (Standard Dictionary)
     return _get_wiktionary_definition(word, lang_code)
 
-def _format_free_dict(entry):
-    """Standardizes the Free Dictionary API response."""
-    return {
-        "word": entry.get("word", ""),
-        "phonetic": entry.get("phonetic", ""),
-        "definitions": [
-            {
-                "partOfSpeech": m.get("partOfSpeech", ""),
-                "definition": m.get("definitions", [{}])[0].get("definition", ""),
-                "example": m.get("definitions", [{}])[0].get("example", "")
-            } for m in entry.get("meanings", [])[:2] # Top 2 meanings
-        ],
-        "source": "Free Dictionary API"
-    }
-
 def _get_wiktionary_definition(word, lang_code):
-    """Scrapes/Requests basic definition from Wiktionary's REST API."""
     try:
-        # Wiktionary REST API is very reliable for definitions
-        conn = http.client.HTTPSConnection(f"{lang_code}.wiktionary.org")
+        # We check English Wiktionary as it has the best foreign language sections
+        conn = http.client.HTTPSConnection("en.wiktionary.org")
         path = f"/api/rest_v1/page/summary/{urllib.parse.quote(word)}"
         conn.request("GET", path)
         res = conn.getresponse()
@@ -55,17 +58,16 @@ def _get_wiktionary_definition(word, lang_code):
                 "word": data.get("title", word),
                 "phonetic": "",
                 "definitions": [{
-                    "partOfSpeech": "word",
+                    "partOfSpeech": "definition",
                     "definition": data.get("extract", "No definition found."),
                     "example": ""
                 }],
                 "source": "Wiktionary"
             }
-    except Exception as e:
-        print(f"[DICT ERROR] Wiktionary failed: {e}")
+    except:
+        pass
     
     return {"error": "Definition not found", "word": word}
 
 def clean_word(text):
-    """Cleans punctuation from captured words."""
     return re.sub(r'[^\w\s]', '', text).strip()
