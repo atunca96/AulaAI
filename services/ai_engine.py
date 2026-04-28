@@ -44,33 +44,31 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
             res_json = json.loads(res_body)
             if "choices" in res_json:
                 content = res_json["choices"][0]["message"]["content"].strip()
-                # Universal extraction: find first/last '{' or '['
-                braces_start = content.find('{')
-                brackets_start = content.find('[')
                 
-                # Determine which comes first
-                start = -1
-                end = -1
-                if braces_start != -1 and (brackets_start == -1 or braces_start < brackets_start):
-                    start = braces_start
-                    end = content.rfind('}')
-                elif brackets_start != -1:
-                    start = brackets_start
-                    end = content.rfind(']')
-
+                # IRON-CLAD JSON EXTRACTION
+                # Find the FIRST '{' and the LAST '}'
+                start = content.find('{')
+                end = content.rfind('}')
+                
                 if start != -1 and end != -1 and end > start:
                     json_str = content[start:end+1]
                     try:
+                        # Try to fix common AI JSON errors (like unescaped newlines)
+                        json_str = json_str.replace('\n', ' ').replace('\r', '')
                         return json.loads(json_str)
                     except:
-                        pass
+                        # If standard fails, try a more aggressive clean
+                        try:
+                            import ast
+                            return ast.literal_eval(json_str) # Handles some non-standard JSON
+                        except:
+                            pass
                 
-                # Fallback: Clean markdown and common hallucinations
-                cleaned = content.replace("```json", "").replace("```", "").strip()
-                try:
-                    return json.loads(cleaned)
-                except:
-                    return None
+                # If we get here, the AI might have just sent a string. 
+                # Let's try to wrap it if it looks like what we need.
+                if len(content) > 10 and '{' not in content:
+                    return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+                    
     except Exception as e:
         print(f"AI Error: {str(e)}")
     return None
@@ -517,13 +515,13 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     clean_lang = language.split('(')[0].strip()
     
     prompt = f"Explain the {clean_lang} word '{word}' for an A1 learner. "
-    prompt += "IMPORTANT: Start the explanation with the English translation. "
+    prompt += "Start the explanation with the English translation. "
     if context:
         prompt += f"Context: '{context}'"
     
-    prompt += "\nRespond ONLY with a JSON object: {'explanation': '...', 'usage': '...', 'tip': '...'}. Be extremely concise."
+    prompt += "\nRespond ONLY with a RAW JSON object (no markdown, no backticks). Format: {'explanation': '...', 'usage': '...', 'tip': '...'}. Keep it under 250 tokens."
     
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=300, temperature=0.5)
+    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=400, temperature=0.3)
     
     if result and "explanation" in result:
         return result
