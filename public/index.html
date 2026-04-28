@@ -17,42 +17,48 @@
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/app.js?v=20260426_v2" defer></script>
     <style>
-        /* Aero-Interaction 2.0: High-Precision Underlines */
+        /* Aero-Interaction 2.0: High-Precision Global Snap */
         .foreign-word {
             display: inline !important;
+            width: auto !important;
             cursor: cell !important;
             user-select: none !important;
             -webkit-user-select: none !important;
             position: relative;
             color: inherit;
-            transition: color 0.2s ease;
-            /* The Underline: Linear Gradient for absolute precision */
+            /* The Underline: Absolute pixel precision */
             background-image: linear-gradient(var(--accent-light), var(--accent-light));
-            background-position: 0 95%; /* Sits exactly at the base of the letters */
+            background-position: 0 98%;
             background-repeat: no-repeat;
-            background-size: 0% 2px; /* Starts at 0 width */
-            transition: background-size 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
-        }
-        .foreign-word:hover {
-            color: var(--accent-light) !important;
-            background-size: 100% 2px; /* Snaps perfectly to word width */
-            text-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+            background-size: 0% 2px;
+            transition: background-size 0.2s ease, color 0.2s ease;
         }
         
-        /* Dictionary Popup: Glassmorphism Redesign */
-        #dict-word-title {
-            display: inline-block;
+        .foreign-word:hover {
+            color: var(--accent-light) !important;
+            background-size: 100% 2px !important;
+            text-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+        }
+        
+        /* Force parents to not stretch the inline underlines */
+        div:has(> .foreign-word), p:has(> .foreign-word), h1:has(> .foreign-word), h2:has(> .foreign-word), h3:has(> .foreign-word), 
+        li:has(> .foreign-word), section:has(> .foreign-word), article:has(> .foreign-word) {
+            width: fit-content !important;
+            max-width: 100%;
+        }
+
+        /* Dictionary & List Title Snaps */
+        #dict-word-title, .vocab-word-title, .study-word-title {
+            display: inline-block !important;
+            width: fit-content !important;
             font-size: 28px;
             font-weight: 900;
             color: #ffffff;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-            /* Title Underline */
-            border-bottom: 3px solid var(--accent-light);
-            line-height: 1;
-            padding-bottom: 4px;
+            border-bottom: 3px solid var(--accent-light) !important;
+            padding-bottom: 2px;
+            margin-bottom: 12px;
         }
-        
+
         .ai-card {
             background: rgba(30, 32, 47, 0.8);
             backdrop-filter: blur(12px);
@@ -60,6 +66,7 @@
             border-radius: 20px;
             padding: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            margin-top: 10px;
         }
         
         /* Shield for Explanations - Total Selection Suppression */
