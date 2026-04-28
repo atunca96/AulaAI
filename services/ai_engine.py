@@ -167,7 +167,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     except Exception as e:
         print(f"Lesson Gen Error: {e}")
 
-    return {"pages": [{"type": "grammar", "title": "Introduction", "text": f"Basic lesson content for {topic}."}]}
+    return {
+        "pages": [
+            {
+                "type": "grammar", 
+                "title": "Lesson Overview", 
+                "text": f"Welcome to the lesson on {topic}. In this section, we will explore the foundational concepts and essential vocabulary of {topic} in {language}.\n\n(Note: This lesson is currently in basic mode. Please refresh or check back later for the full deep-dive content)."
+            }
+        ]
+    }
 
 # Agnostic Engine v1.1 - Diversity Quotas Restored
 def is_ai_available():
