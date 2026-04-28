@@ -126,20 +126,18 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
         level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
     # BILINGUAL GUARD: Force English for A1/A2
-    lang_guard = ""
-    if level in ['A1', 'A2']:
-        lang_guard = f"CRITICAL: All grammar explanations, introductions, descriptions, and page titles MUST be in English. Do not use {language} for anything other than the actual vocabulary and examples."
-    else:
-        lang_guard = f"Immersion Mode: You may use {language} for everything, including explanations."
+    lang_guard = f"REQUIRED: Explanations & Titles in English, Examples in {language}." if level in ['A1', 'A2'] else f"Use {language} for everything."
 
     prompt = f"""
-    {lang_guard}
+    Write a professional {language} lesson for: '{topic}' ({topic_type}). Level: {level}.
     
-    Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
-    {alphabet_rule}
-    {level_guidance}
+    INSTRUCTIONS:
+    1. {lang_guard}
+    2. REQUIRED: 3 to 6 pages. Do not return fewer than 3 pages.
+    3. MINIMUM CONTENT: Every 'grammar' page MUST contain at least 3-5 sentences of detailed explanation.
+    4. VARIETY: Do not repeat words or examples across pages.
     
-    Return ONLY a JSON object:
+    Return ONLY JSON:
     {{
       "pages": [
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
@@ -147,14 +145,6 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
         {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
       ]
     }}
-    
-    Rules:
-    1. High-quality, professional content.
-    2. {lang_guard}
-    3. NO LITERAL TRANSLATIONS: Ensure all {language} sentences follow natural {language} grammar.
-    4. SMART VARIETY: Maximize variety across pages. Avoid redundant vocabulary entries unless pedagogically necessary for comparison.
-    5. NATURAL EXPRESSIONS: Focus on commonly used, natural {language} expressions. 
-    6. Generate 3 to 6 pages. Each must have 'type', 'title', and content.
     """
     try:
         # ATTEMPT 1: High Detail
