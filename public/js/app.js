@@ -4258,6 +4258,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
   
+  const fixDiacritics = (txt) => {
+    if (typeof txt !== 'string') return txt;
+    // Add LRM (\u200E) and dotted circle for isolated diacritics
+    return txt.replace(/([\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1\u200E◌$2');
+  };
+  
   // Define pages
   const pages = [];
   
@@ -4278,22 +4284,22 @@ function showStudyTopic(topicId, pageIdx = 0) {
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
                 ${(p.items || []).map(v => `
                   <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                    <div style="font-size:22px; font-weight:800; color:var(--text-primary); line-height:1.2;">${v.term || ''}</div>
-                    <div style="color:var(--accent-light); font-weight:500; font-size:14px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || ''}</div>
+                    <div dir="auto" style="font-size:26px; font-weight:800; color:var(--text-primary); line-height:1.2;">${fixDiacritics(v.term || '')}</div>
+                    <div dir="auto" style="color:var(--accent-light); font-weight:500; font-size:15px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || ''}</div>
                   </div>
                 `).join('')}
               </div>`;
           }
           if (p.type === 'grammar') {
-            return `<div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${p.text || ''}</div>`;
+            return `<div dir="auto" style="font-size:21px; line-height:1.9; color:var(--text-main); white-space:pre-wrap;">${fixDiacritics(p.text || '')}</div>`;
           }
           if (p.type === 'examples') {
             return `
               <div style="display:flex; flex-direction:column; gap:20px;">
                 ${(p.list || []).map(ex => `
                   <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
-                    ${ex.speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker}</div>` : ''}
-                    <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${ex.text || ''}"</div>
+                    ${ex.speaker ? `<div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker}</div>` : ''}
+                    <div dir="auto" style="font-style:italic; font-size:22px; color:var(--text-primary);">"${fixDiacritics(ex.text || '')}"</div>
                   </div>`).join('')}
               </div>`;
           }

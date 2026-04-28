@@ -65,8 +65,12 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
                     except:
                         pass
                 
-                # Fallback to direct load
-                return json.loads(content)
+                # Fallback: Clean markdown and common hallucinations
+                cleaned = content.replace("```json", "").replace("```", "").strip()
+                try:
+                    return json.loads(cleaned)
+                except:
+                    return None
     except Exception as e:
         print(f"AI Error: {str(e)}")
     return None

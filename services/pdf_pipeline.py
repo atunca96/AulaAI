@@ -265,7 +265,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
             
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             # Map each future to its metadata
             future_to_topic = {}
             for ch in chapters_data:
