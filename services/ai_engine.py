@@ -152,8 +152,22 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     5. You can generate between 3 to 6 pages. 
     6. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
     """
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
-    return result if result else {}
+    try:
+        # ATTEMPT 1: High Detail
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.3)
+        if result and result.get("pages"):
+            return result
+            
+        # ATTEMPT 2: Recovery Mode (Simplified)
+        print(f"[AI] Recovery mode for {topic}...")
+        recovery_prompt = f"Create a basic A1 {language} lesson about {topic}. Return JSON with 'pages' array containing vocabulary and grammar."
+        result = _call_ai([{"role": "user", "content": recovery_prompt}], max_tokens=1500, temperature=0.1)
+        if result and result.get("pages"):
+            return result
+    except Exception as e:
+        print(f"Lesson Gen Error: {e}")
+
+    return {"pages": [{"type": "grammar", "title": "Introduction", "text": f"Basic lesson content for {topic}."}]}
 
 # Agnostic Engine v1.1 - Diversity Quotas Restored
 def is_ai_available():
