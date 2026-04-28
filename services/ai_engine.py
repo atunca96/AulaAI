@@ -104,7 +104,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     Skipping characters from the reference data is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
     """
     elif is_alphabet_topic:
-        alphabet_rule = f"\nThis topic is about the {language} alphabet. Please provide a comprehensive overview of the letters and their basic sounds.\n"
+        alphabet_rule = f"\nThis topic is about the {language} alphabet and phonetics. Provide a comprehensive, deep-dive overview: list the letters/characters, their phonetic IPA equivalents, pronunciation guides, and linguistic 'must-knows' (e.g. stress rules, silent letters, tone rules). Draw on your deep knowledge of {language} phonology to ensure native-level accuracy.\n"
     
     level_guidance = ""
     if level == 'B1':
@@ -455,8 +455,13 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    system = "You are a curriculum architect. Create a structured syllabus in JSON."
-    alphabet_rule = "CRITICAL REQUIREMENT: The very first topic of Unit 1 MUST be exactly 'The Alphabet'. " if level == 'A1' else ""
+    system = "You are a curriculum architect and expert linguist. Create a structured, pedagogically sound syllabus in JSON. Use your deep knowledge of global languages to provide accurate, culturally and phonetically grounded roadmaps."
+    alphabet_rule = (
+        "CRITICAL A1 REQUIREMENT: Chapter 1 MUST be titled 'The Alphabet and Phonetics' (or similar) and focus exclusively on the sounds, "
+        "writing system, and pronunciation rules of the language. This must be a detailed deep-dive: cover every character, phonetics, "
+        "pronunciations, and language-specific 'must-knows' (e.g., special characters, accent marks, or tone rules). "
+        "SUBSEQUENT CHAPTERS must NOT repeat basic alphabet instruction; they should transition immediately to context-rich vocabulary and grammar."
+    ) if level == 'A1' else ""
     level_exclusion = ""
     if level in ['B1', 'B2', 'C1', 'C2']:
         level_exclusion = f"EXCLUSION: DO NOT include absolute beginner topics like 'Greetings', 'Colors', 'Numbers 1-10', or 'The Alphabet'. These students are {level} level and need advanced topics appropriate for their proficiency (e.g., 'Abstract Concepts', 'Nuanced Debate', 'Complex Professional Scenarios')."
