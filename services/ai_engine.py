@@ -526,7 +526,7 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     clean_lang = language.split('(')[0].strip()
     word = word.strip()
     
-    system_prompt = f"You are a linguistic expert for {clean_lang}. LINGUISTIC PRECISION is mandatory. In Turkish, distinguish 'ast' [subordinate rank] from 'alt' [physical bottom/under]."
+    system_prompt = f"You are a linguistic expert for {clean_lang}. LINGUISTIC PRECISION is mandatory. Always distinguish between subtle nuances (e.g., in Turkish, 'ast' [subordinate] vs 'alt' [bottom])."
     user_prompt = f"Explain the word '{word}' in {clean_lang} at a student-friendly level. Include the English translation. "
     if context:
         user_prompt += f"Context for accuracy: '{context}'"
