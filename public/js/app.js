@@ -4322,7 +4322,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   
                   // Regular Vocab/Phrase Card
                   return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
-                    <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff; flex:1;">${fixDiacritics(k)}</div>
+                    <div style="flex:1; display:flex; justify-content:flex-start;">
+                        <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div>
+                    </div>
                     <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
                   </div>`;
                 }).join('')}</div>`;
