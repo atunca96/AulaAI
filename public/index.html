@@ -343,9 +343,13 @@
                 <h2 style="margin-bottom:8px;">📝 <span data-i18n="ai.review_title">Review Curriculum</span></h2>
                 <p style="color:var(--text-muted); margin-bottom:24px;" data-i18n="ai.review_desc">AI suggested these topics. You can edit or remove them.</p>
                 
-                <div id="ai-curriculum-list" style="max-height:400px; overflow-y:auto; margin-bottom:24px; padding:10px; background:rgba(0,0,0,0.2); border-radius:12px;">
+                <div id="ai-curriculum-list" style="max-height:400px; overflow-y:auto; margin-bottom:12px; padding:10px; background:rgba(0,0,0,0.2); border-radius:12px;">
                     <!-- Topics will be injected here -->
                 </div>
+
+                <button class="btn btn-ghost" onclick="addUnitToAiArchitect()" style="width:100%; margin-bottom:24px; border:1px dashed var(--border);">
+                    <span>➕</span> <span data-i18n="ai.add_unit">Add Custom Unit</span>
+                </button>
 
                 <div style="display:flex; gap:12px;">
                     <button class="btn btn-ghost" onclick="prevAiStep()" style="flex:1;" data-i18n="go_back">Back</button>

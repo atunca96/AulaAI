@@ -1702,6 +1702,32 @@ function renderAiSyllabusEditor(syllabus) {
   `).join('');
 }
 
+function addUnitToAiArchitect() {
+  const container = document.getElementById('ai-curriculum-list');
+  if (!container) return;
+  
+  const unitIdx = container.querySelectorAll('.syllabus-chapter').length;
+  const unitHtml = `
+    <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h4 style="margin:0; color:var(--accent-light);">Unit ${unitIdx + 1}</h4>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+      </div>
+      <input type="text" class="text-input" placeholder="New Unit Title" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <div class="topics-list">
+        <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
+      </div>
+    </div>
+  `;
+  
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = unitHtml;
+  container.appendChild(tempDiv.firstElementChild);
+  container.scrollTop = container.scrollHeight;
+  const input = container.lastElementChild.querySelector('input');
+  if (input) input.focus();
+}
+
 function addTopicToSyllabus(btn) {
   const div = document.createElement('div');
   div.className = 'topic-item';
