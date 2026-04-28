@@ -4636,8 +4636,8 @@ async function adminHardReset() {
 let activeDictWord = "";
 
 window.addEventListener('dblclick', async (e) => {
-    // 1. English Guard: Ignore if clicking English text
-    if (e.target.closest('.english-translation') || (e.target.closest('p[dir="auto"]') && !e.target.closest('.foreign-word'))) {
+    // 1. English Guard: Ignore if clicking English text (translations or explanations)
+    if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation')) {
         return;
     }
 
