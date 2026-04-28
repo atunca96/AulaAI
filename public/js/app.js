@@ -4282,32 +4282,41 @@ function showStudyTopic(topicId, pageIdx = 0) {
         icon: icon,
         render: () => {
           if (p.type === 'vocabulary') {
-            const items = p.items || p.vocabulary || p.words || p.list || [];
+            const items = p.items || p.vocabulary || p.words || p.list || p.phrases || [];
+            if (items.length === 0) return `<div style="color:var(--text-muted); font-style:italic;">No vocabulary items found for this section.</div>`;
             return `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
                 ${items.map(v => {
-                  const term = v.term || v.word || v.phrase || v[0] || '';
-                  const trans = v.translation || v.meaning || v.definition || v[1] || '';
+                  const term = v.term || v.word || v.phrase || v.expression || (Array.isArray(v) ? v[0] : '');
+                  const trans = v.translation || v.meaning || v.definition || (Array.isArray(v) ? v[1] : '');
                   if (!term && !trans) return '';
                   return `
                     <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                      <div dir="auto" style="font-size:26px; font-weight:800; color:var(--text-primary); line-height:1.2;">${fixDiacritics(term)}</div>
+                      <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff; line-height:1.2;">${fixDiacritics(term)}</div>
                       <div dir="auto" style="color:var(--accent-light); font-weight:500; font-size:15px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${trans}</div>
                     </div>`;
                 }).join('')}
               </div>`;
           }
           if (p.type === 'grammar') {
-            return `<div dir="auto" style="font-size:21px; line-height:1.9; color:var(--text-main); white-space:pre-wrap;">${fixDiacritics(p.text || '')}</div>`;
+            const text = p.text || p.content || p.description || p.explanation || p.rule || "";
+            if (!text) return `<div style="color:var(--text-muted); font-style:italic;">No detailed explanation provided for this section.</div>`;
+            return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
           }
           if (p.type === 'examples') {
+            const list = p.list || p.items || p.examples || p.dialogue || p.conversation || [];
+            if (list.length === 0) return `<div style="color:var(--text-muted); font-style:italic;">No examples found for this section.</div>`;
             return `
-              <div style="display:flex; flex-direction:column; gap:20px;">
-                ${(p.list || []).map(ex => `
-                  <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
-                    ${ex.speaker ? `<div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker}</div>` : ''}
-                    <div dir="auto" style="font-style:italic; font-size:22px; color:var(--text-primary);">"${fixDiacritics(ex.text || '')}"</div>
-                  </div>`).join('')}
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                ${list.map(ex => {
+                  const speaker = ex.speaker || ex.name || "";
+                  const text = ex.text || ex.example || ex.sentence || (typeof ex === 'string' ? ex : "");
+                  return `
+                    <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:16px; border-left:4px solid var(--accent);">
+                      ${speaker ? `<div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px; letter-spacing:1px;">${speaker}</div>` : ''}
+                      <div dir="auto" style="font-style:italic; font-size:21px; color:#ffffff;">"${fixDiacritics(text)}"</div>
+                    </div>`;
+                }).join('')}
               </div>`;
           }
           return '';
