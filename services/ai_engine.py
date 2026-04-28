@@ -133,9 +133,10 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     
     INSTRUCTIONS:
     1. {lang_guard}
-    2. REQUIRED: 3 to 6 pages. Do not return fewer than 3 pages.
-    3. MINIMUM CONTENT: Every 'grammar' page MUST contain at least 3-5 sentences of detailed explanation.
-    4. VARIETY: Do not repeat words or examples across pages.
+    2. STRICT REQUIREMENT: 3 to 6 pages. Returning only 1 or 2 pages is a failure.
+    3. NO EMPTY SECTIONS: Every page MUST be filled with detailed, level-appropriate content.
+    4. MINIMUM CONTENT: Grammar pages MUST have at least 3 sentences of explanation.
+    5. VARIETY: Do not repeat words or examples across pages.
     
     Return ONLY JSON:
     {{
@@ -148,7 +149,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     """
     try:
         # ATTEMPT 1: High Detail
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.3)
+        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.4)
         if result and result.get("pages"):
             return result
             

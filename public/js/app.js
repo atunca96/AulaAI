@@ -4348,8 +4348,18 @@ function showStudyTopic(topicId, pageIdx = 0) {
             }
 
             // 3. Fallback to Grammar/Text (anything else with text)
-            const text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
+            let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
             if (text) {
+              // Fix for [object Object] - if text is an array/object, render it as a list
+              if (typeof text !== 'string') {
+                const arr = Array.isArray(text) ? text : [text];
+                text = arr.map(item => {
+                  if (typeof item === 'string') return `• ${item}`;
+                  const k = item.term || item.word || item.phrase || item.speaker || item.title || "";
+                  const v = item.translation || item.meaning || item.text || item.content || "";
+                  return k ? `<b>${k}</b>: ${v}` : v;
+                }).join('\n');
+              }
               return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             }
 
