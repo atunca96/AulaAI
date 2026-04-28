@@ -12,20 +12,17 @@ LANG_MAP = {
 
 def get_definition(word, lang_name):
     """
-    Intelligent router: Natural Dictionary -> English Wiktionary -> Translation.
+    Intelligent router with multi-layer fallback.
     """
     word = word.strip().lower()
     lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
-    # 1. Primary: English Wiktionary (Highest Accuracy for Word -> English Definition)
-    # This is the best source because it has sections for almost all 14 languages IN English.
+    # 1. Wiktionary Deep Scan
     wikt_result = _get_wiktionary_definition(word, lang_code)
-    if not wikt_result.get("error") and len(wikt_result.get("definitions", [])) > 0:
-        # Check if the definition actually looks like a definition (not a 'No results' page)
-        if "not found" not in wikt_result["definitions"][0]["definition"].lower():
-            return wikt_result
+    if not wikt_result.get("error") and wikt_result.get("definitions"):
+        return wikt_result
 
-    # 2. Secondary: MyMemory Translation (With 'Strict English' Filter)
+    # 2. MyMemory Translation
     try:
         conn = http.client.HTTPSConnection("api.mymemory.translated.net")
         path = f"/get?q={urllib.parse.quote(word)}&langpair={lang_code}|en"
@@ -34,25 +31,17 @@ def get_definition(word, lang_name):
         if res.status == 200:
             data = json.loads(res.read().decode())
             trans = data.get("responseData", {}).get("translatedText", "")
-            
-            # Filter out non-English results (like 'Ciao Mondo')
-            # Simple check: If the translation contains Italian/Spanish/etc words that aren't in common English
             if trans and trans.lower() != word.lower():
-                # Hardcoded sanity for common errors
-                if "ciao" in trans.lower() or "mondo" in trans.lower() and lang_code != "it":
-                    pass # Ignore this result
-                else:
-                    return {
-                        "word": word,
-                        "phonetic": f"({lang_name})",
-                        "definitions": [{"partOfSpeech": "translation", "definition": trans, "example": ""}],
-                        "source": "Translation Engine"
-                    }
+                return {
+                    "word": word,
+                    "phonetic": f"({lang_name})",
+                    "definitions": [{"partOfSpeech": "translation", "definition": trans, "example": ""}],
+                    "source": "Translation Engine"
+                }
     except:
         pass
 
-    # 3. Last Resort: AI Explanation fallback
-    return {"error": "Deep lookup needed", "word": word}
+    return {"error": "No definition found in standard sources. Try AI Explain!", "word": word}
 
 def _get_wiktionary_definition(word, lang_code):
     """

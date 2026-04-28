@@ -511,24 +511,38 @@ def ai_generate_report_insights(cohort_data):
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
 def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> Dict[str, str]:
     """Generates a quick, concise linguistic explanation for a word."""
-    # Clean language string (e.g., "Turkish (Ispanyolca)" -> "Turkish")
     clean_lang = language.split('(')[0].strip()
+    word = word.strip()
     
-    prompt = f"Explain the {clean_lang} word '{word}' for an A1 learner. "
-    prompt += "Start the explanation with the English translation. "
+    system_prompt = f"You are a linguistic expert for {clean_lang}. Explain words for A1 learners concisely."
+    user_prompt = f"Explain the word '{word}' in {clean_lang}. Include the English translation. "
     if context:
-        prompt += f"Context: '{context}'"
+        user_prompt += f"Context found: '{context}'"
+    user_prompt += "\nReturn JSON: {'explanation': '...', 'usage': '...', 'tip': '...'}. No markdown."
     
-    prompt += "\nRespond ONLY with a RAW JSON object (no markdown, no backticks). Format: {'explanation': '...', 'usage': '...', 'tip': '...'}. Keep it under 250 tokens."
-    
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=400, temperature=0.3)
+    result = _call_ai([
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ], max_tokens=400, temperature=0.3)
     
     if result and "explanation" in result:
         return result
     
-    # Improved fallback if AI fails
+    # EMERGENCY HYBRID FALLBACK: Use Translation API if AI fails
+    try:
+        from services.dictionary_service import get_definition
+        fallback = get_definition(word, clean_lang)
+        if "definitions" in fallback:
+            return {
+                "explanation": f"The word '{word}' means '{fallback['definitions'][0]['definition']}'.",
+                "usage": "Use it in basic conversation.",
+                "tip": "AI was busy, but we found this translation for you!"
+            }
+    except:
+        pass
+        
     return {
-        "explanation": f"'{word}' is a {clean_lang} word. It often translates to something similar in English depending on context.",
-        "usage": "Use it in simple sentences.",
-        "tip": "Try clicking 'Explain with AI' again for a deeper lookup!"
+        "explanation": f"'{word}' is a {clean_lang} word used for daily interaction.",
+        "usage": "Try using it in a simple sentence.",
+        "tip": "Click 'Explain' again if you need more details!"
     }
