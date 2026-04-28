@@ -30,11 +30,12 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     if not api_key: return {"error_details": "API Key Missing"}
 
     url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    data = json.dumps({
-        "model": model, "messages": messages, "max_tokens": max_tokens, 
-        "temperature": temperature
-    }).encode("utf-8")
+    headers = {
+        "Authorization": f"Bearer {api_key}", 
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://aulaai.com", # Mandatory for some OpenRouter models
+        "X-Title": "AulaAI"
+    }
 
     last_error = "Unknown"
     models_to_try = [model, "google/gemini-2.0-flash-lite-preview-02-05:free"]
@@ -526,11 +527,11 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     clean_lang = language.split('(')[0].strip()
     word = word.strip()
     
-    system_prompt = f"You are a linguistic expert for {clean_lang}. LINGUISTIC PRECISION is mandatory. Always distinguish between subtle nuances (e.g., in Turkish, 'ast' [subordinate] vs 'alt' [bottom])."
-    user_prompt = f"Explain the word '{word}' in {clean_lang} at a student-friendly level. Include the English translation. "
+    system_prompt = f"You are a linguistic expert for {clean_lang}. Precision is mandatory (e.g., distinguish 'ast' [subordinate] from 'alt' [bottom])."
+    user_prompt = f"Explain '{word}' in {clean_lang}. English translation included. "
     if context:
-        user_prompt += f"Context for accuracy: '{context}'"
-    user_prompt += "\nReturn JSON: {'explanation': '...', 'usage': '...', 'tip': '...'}. No markdown."
+        user_prompt += f"Context: {context}"
+    user_prompt += '\nReturn JSON: {"explanation": "...", "usage": "...", "tip": "..."}'
     
     result = _call_ai([
         {"role": "system", "content": system_prompt},
