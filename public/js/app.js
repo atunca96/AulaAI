@@ -4282,14 +4282,19 @@ function showStudyTopic(topicId, pageIdx = 0) {
         icon: icon,
         render: () => {
           if (p.type === 'vocabulary') {
+            const items = p.items || p.vocabulary || p.words || p.list || [];
             return `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-                ${(p.items || []).map(v => `
-                  <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                    <div dir="auto" style="font-size:26px; font-weight:800; color:var(--text-primary); line-height:1.2;">${fixDiacritics(v.term || '')}</div>
-                    <div dir="auto" style="color:var(--accent-light); font-weight:500; font-size:15px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || ''}</div>
-                  </div>
-                `).join('')}
+                ${items.map(v => {
+                  const term = v.term || v.word || v.phrase || v[0] || '';
+                  const trans = v.translation || v.meaning || v.definition || v[1] || '';
+                  if (!term && !trans) return '';
+                  return `
+                    <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+                      <div dir="auto" style="font-size:26px; font-weight:800; color:var(--text-primary); line-height:1.2;">${fixDiacritics(term)}</div>
+                      <div dir="auto" style="color:var(--accent-light); font-weight:500; font-size:15px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${trans}</div>
+                    </div>`;
+                }).join('')}
               </div>`;
           }
           if (p.type === 'grammar') {
