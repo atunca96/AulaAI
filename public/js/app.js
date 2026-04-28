@@ -4239,6 +4239,8 @@ function renderStudyBook() {
       </div>
     </div>
   `).join('');
+}
+
 function showStudyTopic(topicId, pageIdx = 0) {
   const isStudent = currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
