@@ -4322,8 +4322,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   
                   // Regular Vocab/Phrase Card
                   return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
-                    <div dir="auto" style="font-size:22px; font-weight:800; color:#ffffff; flex:1;">${fixDiacritics(k)}</div>
-                    <div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
+                    <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff; flex:1;">${fixDiacritics(k)}</div>
+                    <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
                   </div>`;
                 }).join('')}</div>`;
             }
@@ -4332,7 +4332,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
             if (text) {
               if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
-              return `<div dir="auto" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
+              return `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             }
             
             return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;
@@ -4635,14 +4635,26 @@ async function adminHardReset() {
 
 let activeDictWord = "";
 
-window.addEventListener('dblclick', async (e) => {
+    // 1. English Guard: Ignore if clicking English text
+    if (e.target.closest('.english-translation') || e.target.closest('p[dir="auto"]') && !e.target.closest('.foreign-word')) {
+        return;
+    }
+
     const selection = window.getSelection();
-    const word = selection.toString().trim();
+    let word = selection.toString().trim();
+    
+    // 2. Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
+    if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
+        const fullText = e.target.innerText || "";
+        if (fullText.toLowerCase().includes('teşekkür ederim')) {
+            word = "teşekkür ederim";
+        }
+    }
     
     // Only trigger if we are inside a study card or book area
     const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
     
-    if (word && isStudyArea && word.length > 1 && word.length < 50) {
+    if (word && isStudyArea && word.length > 1 && word.length < 60) {
         showDict(word, e);
     }
 });
