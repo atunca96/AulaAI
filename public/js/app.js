@@ -4291,16 +4291,18 @@ function showStudyTopic(topicId, pageIdx = 0) {
           title: p.title || t('Material'),
           icon: icon,
           render: () => {
-            // 1. DYNAMIC CONTENT DETECTION
-            const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
+            // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)
+            const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
             
-            // A. If it's an array of objects (Vocabulary or Examples)
+            // A. If it's an array of objects (Vocabulary, Examples, or mislabeled content)
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'object') {
               return `<div style="display:flex; flex-direction:column; gap:12px;">
                 ${rawData.map(it => {
-                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.key || Object.values(it)[0] || "";
-                  const v = it.translation || it.meaning || it.text || it.content || it.value || Object.values(it)[1] || "";
-                  const isExample = it.speaker || (typeof k === 'string' && k.length > 15);
+                  // Agnostic Key Detection: Look for common names OR just take the first 2 values
+                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
+                  const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
+                  
+                  const isExample = it.speaker || (typeof k === 'string' && k.length > 20);
                   
                   if (isExample) {
                     return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
