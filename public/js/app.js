@@ -4725,24 +4725,48 @@ window.addEventListener('mousedown', (e) => {
     }
 });
 
-function askAiAboutWord() {
+async function askAiAboutWord() {
     if (!activeDictWord) return;
     const wordToAsk = activeDictWord;
-    closeDict();
     
-    // Switch to Inbox/Messages tab
-    const selector = currentUser.role === 'student' ? 'button[data-tab="s-messages"]' : 'button[data-tab="inbox"]';
-    const msgTab = document.querySelector(selector);
+    const content = document.getElementById('dict-content');
+    const loading = document.getElementById('dict-loading');
+    const meanings = document.getElementById('dict-meanings');
     
-    if (msgTab) {
-        switchTab(msgTab);
-        setTimeout(() => {
-            const input = document.getElementById('chat-input') || document.querySelector('.chat-input-area textarea');
-            if (input) {
-                input.value = `Can you explain the usage and meaning of the word "${wordToAsk}" in the context of our lesson?`;
-                input.focus();
-            }
-        }, 400);
+    // Show AI Loading State in the popup
+    meanings.innerHTML = `
+        <div style="text-align:center; padding:20px; animation:pulse 1.5s infinite;">
+            <div style="font-size:32px; margin-bottom:12px;">🧠</div>
+            <div style="font-size:10px; color:var(--accent-light); text-transform:uppercase; letter-spacing:2px; font-weight:800;">AI is thinking...</div>
+        </div>
+    `;
+    
+    try {
+        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
+        const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}`);
+        
+        if (res.explanation) {
+            meanings.innerHTML = `
+                <div style="background:rgba(99,102,241,0.1); padding:16px; border-radius:16px; border:1px solid rgba(99,102,241,0.2);">
+                    <div style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                        <span>🤖</span> AI Explanation
+                    </div>
+                    <div style="font-size:14px; color:#fff; line-height:1.5; margin-bottom:12px;">${res.explanation}</div>
+                    
+                    <div style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; opacity:0.7;">Usage</div>
+                    <div style="font-size:13px; color:#e2e8f0; line-height:1.4; margin-bottom:12px; font-style:italic;">"${res.usage}"</div>
+                    
+                    <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:10px; font-size:12px; color:var(--text-muted);">
+                        <span style="color:var(--accent-light); font-weight:700;">PRO-TIP:</span> ${res.tip}
+                    </div>
+                </div>
+            `;
+        } else {
+            meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI was unable to explain this word right now.</div>`;
+        }
+    } catch (err) {
+        console.error("AI Dict error:", err);
+        meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI connection lost.</div>`;
     }
 }
 

@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
-from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch
+from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch, ai_explain_word
 from services.pdf_pipeline import process_pdf_to_classroom
 from services.state import bump_version, get_version
 from services.dictionary_service import get_definition, clean_word
@@ -324,6 +324,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             result = get_definition(word, lang or "en")
             set_cache(cache_key, result)
+            return self._send_json(result)
+        elif path == "/api/dictionary/ai-explain":
+            word = params.get("word", [None])[0]
+            lang = params.get("lang", [None])[0]
+            if not word: return self._send_error("word required")
+            
+            result = ai_explain_word(word, lang or "English")
             return self._send_json(result)
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
