@@ -112,7 +112,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     elif level == 'B2':
         level_guidance = f"IMPORTANT: This is a B2 (Upper-Intermediate) lesson. Focus on advanced grammar, formal/academic register, and idiomatic expressions. Challenge the student with professional-level content."
     elif level in ['C1', 'C2']:
-        level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures."
+        level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
     explanation_rule = ""
     if level in ['A1', 'A2']:
@@ -137,8 +137,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     {explanation_rule}
     2. Content must be level-appropriate ({level}).
     3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar.
-    4. You can generate between 3 to 6 pages. 
-    5. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
+    4. IDIOMATIC ACCURACY: All idioms, proverbs, and colloquialisms MUST be 100% accurate and reflect current native usage. Avoid literal or clunky variants (e.g., 'kendi ayağına sıkmak' is correct, NOT 'kendi ayağına kurşun sıkmak').
+    5. You can generate between 3 to 6 pages. 
+    6. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
     """
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500)
     return result if result else {}
