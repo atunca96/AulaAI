@@ -4247,29 +4247,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
   const container = document.getElementById(contentId);
   if (!container) return;
 
-  // Clear previous content and headers to prevent ghosting
-  container.innerHTML = `
-    <div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;">
-      <div class="spinner"></div>
-      <div style="color:var(--text-muted); font-size:14px;">${t('loading')}</div>
-    </div>
-  `;
+  container.innerHTML = `<div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;"><div class="spinner"></div></div>`;
   
-  const topicTitle = document.getElementById(isStudent ? 's-ai-book-topic-title' : 'ai-book-topic-title');
-  const pageTitle = document.getElementById(isStudent ? 's-ai-book-page-title' : 'ai-book-page-title');
-  const pagTop = document.getElementById(isStudent ? 's-ai-book-pagination-top' : 'ai-book-pagination-top');
-  const pagBot = document.getElementById(isStudent ? 's-ai-book-pagination-bottom' : 'ai-book-pagination-bottom');
-  
-  if (topicTitle) topicTitle.textContent = '...';
-  if (pageTitle) pageTitle.textContent = t('loading');
-  if (pagTop) pagTop.innerHTML = '';
-  if (pagBot) pagBot.innerHTML = '';
-
   // Save for refresh
   localStorage.setItem('aula_last_topic', topicId);
   localStorage.setItem('aula_last_page', pageIdx);
 
-  // Find topic in curriculum
   let topic = null;
   for (const ch of curriculum) {
     topic = ch.topics.find(t => t.id === topicId);
@@ -4282,25 +4265,21 @@ function showStudyTopic(topicId, pageIdx = 0) {
     const isActive = b.textContent.trim() === topic.title;
     b.classList.toggle('active', isActive);
     b.style.background = isActive ? 'var(--accent-glow)' : '';
-    b.style.color = isActive ? 'var(--accent-light)' : '';
-    b.style.fontWeight = isActive ? '700' : '400';
   });
-
-  const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
-  
-  const fixDiacritics = (txt) => {
-    if (typeof txt !== 'string') return txt;
-    // 1. Add dotted circle to isolated marks (at start of string OR after space/parenthesis)
-    let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
-    // 2. Force the whole line to be LTR by prefixing with LRM (\u200E)
-    return '\u200E' + res;
-  };
   
   // Define pages
-  const pages = [];
+  let pages = [];
   
-  if (content.pages && Array.isArray(content.pages)) {
-    // NEW STRUCTURE: AI decides page count and types
+  try {
+    const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
+    
+    const fixDiacritics = (txt) => {
+      if (typeof txt !== 'string') return txt;
+      let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
+      return '\u200E' + res;
+    };
+
+    if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach(p => {
         const type = (p.type || '').toLowerCase();
         let icon = "📄";
@@ -4312,164 +4291,113 @@ function showStudyTopic(topicId, pageIdx = 0) {
           title: p.title || t('Material'),
           icon: icon,
           render: () => {
-            // 1. Try Vocabulary (if it has a list of term/trans objects)
             const items = p.items || p.vocabulary || p.words || p.list || p.phrases || [];
             if (items.length > 0 && typeof items[0] === 'object' && (items[0].term || items[0].word)) {
-              return `
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-                  ${items.map(v => {
-                    const term = v.term || v.word || v.phrase || v.expression || (Array.isArray(v) ? v[0] : '');
-                    const trans = v.translation || v.meaning || v.definition || (Array.isArray(v) ? v[1] : '');
-                    if (!term && !trans) return '';
-                    return `
-                      <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                        <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff; line-height:1.2;">${fixDiacritics(term)}</div>
-                        <div dir="auto" style="color:var(--accent-light); font-weight:500; font-size:15px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${trans}</div>
-                      </div>`;
-                  }).join('')}
-                </div>`;
+              return `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+                ${items.map(v => `<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+                  <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff;">${fixDiacritics(v.term || v.word || "")}</div>
+                  <div style="color:var(--accent-light); font-weight:500; font-size:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v.meaning || ""}</div>
+  // 1. Try to parse curriculum data
+  let pages = [];
+  try {
+    const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
+    const fixDiacritics = (txt) => {
+      if (typeof txt !== 'string') return txt;
+      return '\u200E' + txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
+    };
+
+    if (content.pages && Array.isArray(content.pages)) {
+      content.pages.forEach(p => {
+        const type = (p.type || '').toLowerCase();
+        let icon = "📄";
+        if (type.includes('vocab')) icon = "📙";
+        else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "⚙️";
+        else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "💬";
+        
+        pages.push({
+          title: p.title || t('Material'),
+          icon: icon,
+          render: () => {
+            // A. Vocabulary Logic
+            const items = p.items || p.vocabulary || p.words || p.list || p.phrases || [];
+            if (items.length > 0 && typeof items[0] === 'object' && (items[0].term || items[0].word)) {
+              return `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
+                ${items.map(v => `<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+                  <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff;">${fixDiacritics(v.term || v.word || "")}</div>
+                  <div style="color:var(--accent-light); font-weight:500; font-size:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v.meaning || ""}</div>
+                </div>`).join('')}</div>`;
             }
 
-            // 2. Try Examples (if it has speaker/text objects)
-            const list = p.list || p.items || p.examples || p.dialogue || p.conversation || [];
-            if (list.length > 0 && typeof list[0] === 'object' && (list[0].speaker || list[0].sentence)) {
-              return `
-                <div style="display:flex; flex-direction:column; gap:16px;">
-                  ${list.map(ex => {
-                    const speaker = ex.speaker || ex.name || "";
-                    const text = ex.text || ex.example || ex.sentence || (typeof ex === 'string' ? ex : "");
-                    return `
-                      <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:16px; border-left:4px solid var(--accent);">
-                        ${speaker ? `<div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px; letter-spacing:1px;">${speaker}</div>` : ''}
-                        <div dir="auto" style="font-style:italic; font-size:21px; color:#ffffff;">"${fixDiacritics(text)}"</div>
-                      </div>`;
-                  }).join('')}
-                </div>`;
+            // B. Examples Logic
+            const list = p.list || p.items || p.examples || p.dialogue || [];
+            if (list.length > 0 && typeof list[0] === 'object' && (list[0].speaker || list[0].text)) {
+              return `<div style="display:flex; flex-direction:column; gap:16px;">
+                ${list.map(ex => `<div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:16px; border-left:4px solid var(--accent);">
+                  <div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker || ""}</div>
+                  <div dir="auto" style="font-style:italic; font-size:21px; color:#ffffff;">"${fixDiacritics(ex.text || "")}"</div>
+                </div>`).join('')}</div>`;
             }
 
-            // 3. Fallback to Grammar/Text (anything else with text)
+            // C. Text Logic (Rescue)
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
-            if (text) {
-              // Fix for [object Object] - if text is an array/object, render it as a list
-              if (typeof text !== 'string') {
+            if (text && typeof text !== 'string') {
                 const arr = Array.isArray(text) ? text : [text];
-                text = arr.map(item => {
-                  if (typeof item === 'string') return `• ${item}`;
-                  const k = item.term || item.word || item.phrase || item.speaker || item.title || "";
-                  const v = item.translation || item.meaning || item.text || item.content || "";
-                  return k ? `<b>${k}</b>: ${v}` : v;
-                }).join('\n');
-              }
-              return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
+                text = arr.map(it => (typeof it === 'string' ? it : JSON.stringify(it))).join('\n');
             }
-
-            // 4. ABSOLUTE FALLBACK: Ensure we never show a blank screen
-            return `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; text-align:center; color:var(--text-muted); background:rgba(255,255,255,0.02); border-radius:24px; border:1px dashed var(--border);">
-              <div style="font-size:40px; margin-bottom:16px;">🚧</div>
-              <h3 style="margin:0; color:var(--text-main);">${t('gen.preparing_content') || 'Content Under Construction'}</h3>
-              <p style="margin-top:8px; font-size:14px; opacity:0.7;">${t('gen.preparing_desc') || 'The AI is still polishing this lesson. Please check back in a moment.'}</p>
-              <button class="btn btn-ghost btn-sm" style="margin-top:20px;" onclick="location.reload()">${t('refresh') || 'Refresh Page'}</button>
-            </div>`;
+            if (text) return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
+            
+            return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;
           }
         });
       });
-  } else {
-    // OLD STRUCTURE: Backward compat
-    // Page 1: Vocabulary
-    const vocabulary = content.words || content.vocabulary || {};
-    const vocabArray = Array.isArray(vocabulary) ? vocabulary : Object.entries(vocabulary).map(([term, translation]) => ({ term, translation }));
-    if (vocabArray.length > 0) {
-      pages.push({
-        title: t('study.vocabulary'),
-        icon: "📙",
-        render: () => `
-          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-            ${vocabArray.map(v => `
-              <div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                <div style="font-size:22px; font-weight:800; color:var(--text-primary); line-height:1.2;">${v.term || v[0] || ''}</div>
-                <div style="color:var(--accent-light); font-weight:500; font-size:14px; line-height:1.4; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v[1] || ''}</div>
-              </div>
-            `).join('')}
-          </div>`
-      });
     }
+  } catch (e) { console.error("Renderer Failure:", e); }
 
-    // Page 2: Grammar
-    const grammarText = (content.rules || []).join('\n\n') || content.grammar || "";
-    if (grammarText) {
-      pages.push({
-        title: t('study.grammar'),
-        icon: "⚙️",
-        render: () => `<div style="font-size:19px; line-height:1.8; color:var(--text-main); white-space:pre-wrap;">${grammarText}</div>`
-      });
-    }
-
-    // Page 3: Usage
-    const examples = content.examples || content.dialogue || [];
-    if (examples.length > 0) {
-      pages.push({
-        title: t('study.usage'),
-        icon: "💬",
-        render: () => `
-          <div style="display:flex; flex-direction:column; gap:20px;">
-            ${examples.map(ex => {
-              const isObj = typeof ex === 'object';
-              const text = isObj ? (ex.text || ex.example || "") : ex;
-              const speaker = isObj ? (ex.speaker || "") : "";
-              return `
-              <div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:12px; border-left:4px solid var(--accent);">
-                ${speaker ? `<div style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${speaker}</div>` : ''}
-                <div style="font-style:italic; font-size:20px; color:var(--text-primary);">"${text}"</div>
-              </div>`;
-            }).join('')}
-          </div>`
-      });
-    }
+  // 2. Safety Fallback: Under Construction
+  if (pages.length === 0) {
+    pages.push({
+      title: t('gen.preparing_content') || 'Under Construction',
+      icon: "🚧",
+      render: () => `<div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
+        <div style="font-size:60px; margin-bottom:24px;">🚧</div>
+        <h2 style="color:var(--text-main);">${t('gen.preparing_content') || 'Content Still Building'}</h2>
+        <p>${t('gen.preparing_desc') || 'The AI is currently architecting this lesson. Please wait a few moments.'}</p>
+        <button class="btn btn-primary" style="margin-top:24px;" onclick="location.reload()">Refresh Page</button>
+      </div>`
+    });
   }
 
-  // Final Page: Ready to Practice
+  // 3. Final Completion Page
   pages.push({
     title: isStudent ? t('study.complete') : t('study.preview'),
     icon: "🏁",
-    render: () => `
-      <div style="text-align:center; padding:60px 20px;">
-        <div style="font-size:64px; margin-bottom:24px;">🎯</div>
-        <h2 style="font-size:28px; margin-bottom:12px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
-        <p style="color:var(--text-muted); margin-bottom:40px; font-size:18px; max-width:500px; margin-left:auto; margin-right:auto;">
-          ${isStudent ? t('study.ready_msg') : t('study.preview_msg')}
-        </p>
-        ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')" style="padding:16px 40px; font-size:18px;">${t('study.start_practice')}</button>` : ''}
-      </div>
-    `
+    render: () => `<div style="text-align:center; padding:60px 20px;">
+      <div style="font-size:64px; margin-bottom:24px;">🎯</div>
+      <h2 style="font-size:28px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
+      <p style="color:var(--text-muted); font-size:18px; margin:20px 0 40px;">${isStudent ? t('study.ready_msg') : t('study.preview_msg')}</p>
+      ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')">${t('study.start_practice')}</button>` : ''}
+    </div>`
   });
 
   const page = pages[pageIdx] || pages[0];
 
   container.innerHTML = `
-    <div style="max-width:850px; margin:0 auto; animation:fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
+    <div style="max-width:850px; margin:0 auto; animation:fadeIn 0.4s ease-out;">
       <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:32px; border-bottom:1px solid var(--border); padding-bottom:24px;">
         <div>
           <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${topic.title} • PAGE ${pageIdx + 1}/${pages.length}</div>
           <h1 style="font-size:36px; font-weight:800; letter-spacing:-1px;">${page.icon} ${page.title}</h1>
         </div>
         <div style="display:flex; gap:12px;">
-          ${pageIdx > 0 ? `
-            <button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})" style="border-radius:12px; padding:10px 20px;">← ${t('study.back')}</button>
-          ` : ''}
-          ${pageIdx < pages.length - 1 ? `
-            <button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})" style="border-radius:12px; padding:10px 24px; box-shadow:var(--accent-glow);">${t('study.next')} →</button>
-          ` : ''}
+          ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
+          ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
       </div>
-
       <div class="study-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:24px; padding:40px; min-height:500px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
         ${page.render()}
       </div>
-
       <div style="margin-top:24px; display:flex; justify-content:center; gap:8px;">
-        ${pages.map((_, i) => `
-            <div style="width:${i === pageIdx ? '24px' : '8px'}; height:8px; border-radius:4px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:all 0.3s ease;"></div>
-        `).join('')}
+        ${pages.map((_, i) => `<div style="width:${i === pageIdx ? '24px' : '8px'}; height:8px; border-radius:4px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:0.3s ease;"></div>`).join('')}
       </div>
     </div>
   `;
