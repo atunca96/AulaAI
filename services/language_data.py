@@ -125,6 +125,87 @@ ALPHABETS = {
             {"term": "ق", "translation": "Qaf"}, {"term": "ك", "translation": "Kaf"}, {"term": "ل", "translation": "Lam"}, {"term": "م", "translation": "Mim"}, {"term": "ن", "translation": "Nun"},
             {"term": "ه", "translation": "Ha"}, {"term": "و", "translation": "Waw"}, {"term": "ي", "translation": "Ya"}
         ]
+    },
+    "German": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
+            {"term": "F", "translation": "ef"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "ha"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jot"},
+            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "el"}, {"term": "M", "translation": "em"}, {"term": "N", "translation": "en"}, {"term": "O", "translation": "o"},
+            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "qu"}, {"term": "R", "translation": "er"}, {"term": "S", "translation": "es"}, {"term": "T", "translation": "te"},
+            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vau"}, {"term": "W", "translation": "we"}, {"term": "X", "translation": "ix"}, {"term": "Y", "translation": "ypsilon"}, {"term": "Z", "translation": "zett"},
+            {"term": "Ä", "translation": "a-umlaut"}, {"term": "Ö", "translation": "o-umlaut"}, {"term": "Ü", "translation": "u-umlaut"}, {"term": "ß", "translation": "eszett"}
+        ]
+    },
+    "French": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "A", "translation": "a"}, {"term": "B", "translation": "bé"}, {"term": "C", "translation": "cé"}, {"term": "D", "translation": "dé"}, {"term": "E", "translation": "e"},
+            {"term": "F", "translation": "effe"}, {"term": "G", "translation": "gé"}, {"term": "H", "translation": "hache"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "ji"},
+            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "elle"}, {"term": "M", "translation": "emme"}, {"term": "N", "translation": "enne"}, {"term": "O", "translation": "o"},
+            {"term": "P", "translation": "pé"}, {"term": "Q", "translation": "qu"}, {"term": "R", "translation": "erre"}, {"term": "S", "translation": "esse"}, {"term": "T", "translation": "té"},
+            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vé"}, {"term": "W", "translation": "double vé"}, {"term": "X", "translation": "ics"}, {"term": "Y", "translation": "i grec"}, {"term": "Z", "translation": "zède"}
+        ]
+    },
+    "Italian": {
+        "type": "Alfabeto",
+        "items": [
+            {"term": "A", "translation": "a"}, {"term": "B", "translation": "bi"}, {"term": "C", "translation": "ci"}, {"term": "D", "translation": "di"}, {"term": "E", "translation": "e"},
+            {"term": "F", "translation": "effe"}, {"term": "G", "translation": "gi"}, {"term": "H", "translation": "acca"}, {"term": "I", "translation": "i"}, {"term": "L", "translation": "elle"},
+            {"term": "M", "translation": "emme"}, {"term": "N", "translation": "enne"}, {"term": "O", "translation": "o"}, {"term": "P", "translation": "pi"}, {"term": "Q", "translation": "cu"},
+            {"term": "R", "translation": "erre"}, {"term": "S", "translation": "esse"}, {"term": "T", "translation": "te"}, {"term": "U", "translation": "u"}, {"term": "V", "translation": "vi/vu"}, {"term": "Z", "translation": "zeta"}
+        ]
+    },
+    "Portuguese": {
+        "type": "Alfabeto",
+        "items": [
+            {"term": "A", "translation": "á"}, {"term": "B", "translation": "bê"}, {"term": "C", "translation": "cê"}, {"term": "D", "translation": "dê"}, {"term": "E", "translation": "é"},
+            {"term": "F", "translation": "éfe"}, {"term": "G", "translation": "gê"}, {"term": "H", "translation": "agá"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jota"},
+            {"term": "K", "translation": "capa"}, {"term": "L", "translation": "éle"}, {"term": "M", "translation": "éme"}, {"term": "N", "translation": "éne"}, {"term": "O", "translation": "ó"},
+            {"term": "P", "translation": "pê"}, {"term": "Q", "translation": "quê"}, {"term": "R", "translation": "ére"}, {"term": "S", "translation": "ésse"}, {"term": "T", "translation": "tê"},
+            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vê"}, {"term": "W", "translation": "dáblio"}, {"term": "X", "translation": "xis"}, {"term": "Y", "translation": "ípsilon"}, {"term": "Z", "translation": "zê"}
+        ]
+    },
+    "Dutch": {
+        "type": "Alfabet",
+        "items": [
+            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
+            {"term": "F", "translation": "ef"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "ha"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jee"},
+            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "el"}, {"term": "M", "translation": "em"}, {"term": "N", "translation": "en"}, {"term": "O", "translation": "o"},
+            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "er"}, {"term": "S", "translation": "es"}, {"term": "T", "translation": "te"},
+            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vee"}, {"term": "W", "translation": "wee"}, {"term": "X", "translation": "iks"}, {"term": "Y", "translation": "ij/ypsilon"}, {"term": "Z", "translation": "zet"}
+        ]
+    },
+    "Swedish": {
+        "type": "Alfabet",
+        "items": [
+            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "se"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
+            {"term": "F", "translation": "eff"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "hå"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "ji"},
+            {"term": "K", "translation": "kå"}, {"term": "L", "translation": "ell"}, {"term": "M", "translation": "emm"}, {"term": "N", "translation": "enn"}, {"term": "O", "translation": "o"},
+            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "ärr"}, {"term": "S", "translation": "ess"}, {"term": "T", "translation": "te"},
+            {"term": "U", "translation": "u"}, {"term": "V", "translation": "ve"}, {"term": "W", "translation": "dubbel-ve"}, {"term": "X", "translation": "eks"}, {"term": "Y", "translation": "y"}, {"term": "Z", "translation": "säta"},
+            {"term": "Å", "translation": "å"}, {"term": "Ä", "translation": "ä"}, {"term": "Ö", "translation": "ö"}
+        ]
+    },
+    "Korean": {
+        "type": "Hangul",
+        "items": [
+            {"term": "ㄱ", "translation": "giyeok"}, {"term": "ㄴ", "translation": "nieun"}, {"term": "ㄷ", "translation": "digeut"}, {"term": "ㄹ", "translation": "rieul"}, {"term": "ㅁ", "translation": "mieun"},
+            {"term": "ㅂ", "translation": "bieup"}, {"term": "ㅅ", "translation": "siot"}, {"term": "ㅇ", "translation": "ieung"}, {"term": "ㅈ", "translation": "jieut"}, {"term": "ㅊ", "translation": "chieut"},
+            {"term": "ㅋ", "translation": "kieuk"}, {"term": "ㅌ", "translation": "tieut"}, {"term": "ㅍ", "translation": "pieup"}, {"term": "ㅎ", "translation": "hieut"},
+            {"term": "ㅏ", "translation": "a"}, {"term": "ㅑ", "translation": "ya"}, {"term": "ㅓ", "translation": "eo"}, {"term": "ㅕ", "translation": "yeo"}, {"term": "ㅗ", "translation": "o"},
+            {"term": "ㅛ", "translation": "yo"}, {"term": "ㅜ", "translation": "u"}, {"term": "ㅠ", "translation": "yu"}, {"term": "ㅡ", "translation": "eu"}, {"term": "ㅣ", "translation": "i"}
+        ]
+    },
+    "Greek": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "Α", "translation": "Alpha"}, {"term": "Β", "translation": "Beta"}, {"term": "Γ", "translation": "Gamma"}, {"term": "Δ", "translation": "Delta"}, {"term": "Ε", "translation": "Epsilon"},
+            {"term": "Ζ", "translation": "Zeta"}, {"term": "Η", "translation": "Eta"}, {"term": "Θ", "translation": "Theta"}, {"term": "Ι", "translation": "Iota"}, {"term": "Κ", "translation": "Kappa"},
+            {"term": "Λ", "translation": "Lambda"}, {"term": "Μ", "translation": "Mu"}, {"term": "Ν", "translation": "Nu"}, {"term": "Ξ", "translation": "Xi"}, {"term": "Ο", "translation": "Omicron"},
+            {"term": "Π", "translation": "Pi"}, {"term": "Ρ", "translation": "Rho"}, {"term": "Σ", "translation": "Sigma"}, {"term": "Τ", "translation": "Tau"}, {"term": "Υ", "translation": "Upsilon"},
+            {"term": "Φ", "translation": "Phi"}, {"term": "Χ", "translation": "Chi"}, {"term": "Ψ", "translation": "Psi"}, {"term": "Ω", "translation": "Omega"}
+        ]
     }
 }
 
