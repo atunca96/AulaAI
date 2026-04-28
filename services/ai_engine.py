@@ -25,9 +25,9 @@ MODEL_SPEED = "anthropic/claude-3-haiku"
 MODEL_QUALITY = "anthropic/claude-3-haiku"
 
 def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
-    """OpenRouter caller with markdown cleaning."""
+    """OpenRouter caller with markdown cleaning and automatic retries."""
     api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key: return None
+    if not api_key: return {"error_details": "API Key Missing"}
 
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -36,44 +36,41 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
         "temperature": temperature
     }).encode("utf-8")
 
-    try:
-        print(f"[AI] Calling {model} (timeout=120s)...")
-        req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=120) as response:
-            res_body = response.read().decode("utf-8")
-            res_json = json.loads(res_body)
-            if "choices" in res_json:
-                content = res_json["choices"][0]["message"]["content"].strip()
-                
-                # IRON-CLAD JSON EXTRACTION
-                # Find the FIRST '{' and the LAST '}'
-                start = content.find('{')
-                end = content.rfind('}')
-                
-                if start != -1 and end != -1 and end > start:
-                    json_str = content[start:end+1]
-                    try:
-                        # Try to fix common AI JSON errors (like unescaped newlines)
-                        json_str = json_str.replace('\n', ' ').replace('\r', '')
-                        return json.loads(json_str)
-                    except:
-                        # If standard fails, try a more aggressive clean
-                        try:
-                            import ast
-                            return ast.literal_eval(json_str) # Handles some non-standard JSON
-                        except:
-                            pass
-                
-                # If we get here, the AI might have just sent a string. 
-                # Let's try to wrap it if it looks like what we need.
-                if len(content) > 10 and '{' not in content:
-                    return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+    last_error = "Unknown"
+    for attempt in range(3):
+        try:
+            if attempt > 0: print(f"[AI] Retry attempt {attempt} for {model}...")
+            req = urllib.request.Request(url, data=data, headers=headers)
+            with urllib.request.urlopen(req, timeout=45) as response:
+                res_body = response.read().decode("utf-8")
+                res_json = json.loads(res_body)
+                if "choices" in res_json:
+                    content = res_json["choices"][0]["message"]["content"].strip()
                     
-    except Exception as e:
-        error_msg = str(e)
-        print(f"AI Error: {error_msg}")
-        return {"error_details": error_msg}
-    return None
+                    # IRON-CLAD JSON EXTRACTION
+                    start = content.find('{')
+                    end = content.rfind('}')
+                    
+                    if start != -1 and end != -1 and end > start:
+                        json_str = content[start:end+1]
+                        try:
+                            # Try standard JSON
+                            return json.loads(json_str.replace('\n', ' '))
+                        except:
+                            try:
+                                import ast
+                                return ast.literal_eval(json_str)
+                            except: pass
+                    
+                    if len(content) > 10 and '{' not in content:
+                        return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+                
+                last_error = "Empty Response"
+        except Exception as e:
+            last_error = str(e)
+            time.sleep(0.5 * (attempt + 1))
+            
+    return {"error_details": last_error}
 
 def detect_language(text):
     prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:500]}"

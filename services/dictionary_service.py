@@ -42,7 +42,8 @@ def get_definition(word, lang_name, context=None):
         "hola": "Hello / Hi", "gracias": "Thank you", "teşekkür": "Thank you",
         "teşekkür ederim": "I thank you / Thank you", "zayıf": "Weak / Thin / Slender",
         "güzel": "Beautiful / Good / Nice", "merhaba": "Hello", "tamam": "OK / Fine",
-        "evet": "Yes", "hayır": "No"
+        "evet": "Yes", "hayır": "No", "bilgisayar": "Computer", "öğrenci": "Student",
+        "okul": "School", "kitap": "Book"
     }
     if word in SANITY:
         return {
