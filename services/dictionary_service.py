@@ -39,9 +39,9 @@ def get_definition(word, lang_name, context=None):
     
     # 1. Check Cache
     if cache_key in AI_CACHE:
-        cached = AI_CACHE[cache_key]
         # VALIDATION: If the cached result is just a fallback, ignore it and re-run
-        is_fallback = "daily interaction" in cached.get("explanation", "").lower() or "simple sentence" in cached.get("usage", "").lower()
+        expl = cached.get("explanation", "").lower()
+        is_fallback = "daily interaction" in expl or "specific quality" in expl or "surrounding sentence" in expl
         if not is_fallback:
             return {**cached, "source": "AulaAI Memory"}
     
