@@ -146,8 +146,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     
     Rules:
     1. Provide high-quality, professional content.
-    2. Content must be level-appropriate ({level}).
-    3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar.
+    2. LANGUAGE POLICY: For levels A1 and A2, all grammar explanations, introductions, and 'meta' text MUST be in English. For levels B1 and above, use {language} for everything.
+    3. NO LITERAL TRANSLATIONS: Ensure all {language} sentences follow natural {language} grammar.
     4. SMART VARIETY: Maximize variety across pages. Avoid redundant vocabulary entries unless pedagogically necessary for comparison (e.g., contrasting formal vs. informal forms of the same concept).
     5. NATURAL EXPRESSIONS: Focus on commonly used, natural {language} expressions. Ensure idiomatic accuracy but do not be so restrictive that you return empty content.
     6. You can generate between 3 to 6 pages. 
