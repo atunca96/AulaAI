@@ -12,37 +12,20 @@ LANG_MAP = {
 
 def get_definition(word, lang_name):
     """
-    Intelligent router: Natural Dictionary -> Translation -> Fallback.
+    Intelligent router: Natural Dictionary -> English Wiktionary -> Translation.
     """
     word = word.strip().lower()
     lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
-    # A. Special Case: English words should get definitions, not translations
-    # If the word is very common English or we are in an English context
-    
-    # 1. Primary: Free Dictionary API (Most Natural)
-    try:
-        # We try the specific lang first
-        conn = http.client.HTTPSConnection("api.dictionaryapi.dev")
-        conn.request("GET", f"/api/v2/entries/{lang_code}/{urllib.parse.quote(word)}")
-        res = conn.getresponse()
-        if res.status == 200:
-            data = json.loads(res.read().decode())
-            entry = data[0]
-            return {
-                "word": entry.get("word", word),
-                "phonetic": entry.get("phonetic", ""),
-                "definitions": [{
-                    "partOfSpeech": m.get("partOfSpeech", "word"),
-                    "definition": m.get("definitions", [{}])[0].get("definition", ""),
-                    "example": m.get("definitions", [{}])[0].get("example", "")
-                } for m in entry.get("meanings", [])[:2]],
-                "source": "Dictionary API"
-            }
-    except:
-        pass
+    # 1. Primary: English Wiktionary (Highest Accuracy for Word -> English Definition)
+    # This is the best source because it has sections for almost all 14 languages IN English.
+    wikt_result = _get_wiktionary_definition(word, lang_code)
+    if not wikt_result.get("error") and len(wikt_result.get("definitions", [])) > 0:
+        # Check if the definition actually looks like a definition (not a 'No results' page)
+        if "not found" not in wikt_result["definitions"][0]["definition"].lower():
+            return wikt_result
 
-    # 2. Secondary: MyMemory Translation (For non-dictionary words)
+    # 2. Secondary: MyMemory Translation (With 'Strict English' Filter)
     try:
         conn = http.client.HTTPSConnection("api.mymemory.translated.net")
         path = f"/get?q={urllib.parse.quote(word)}&langpair={lang_code}|en"
@@ -51,20 +34,25 @@ def get_definition(word, lang_name):
         if res.status == 200:
             data = json.loads(res.read().decode())
             trans = data.get("responseData", {}).get("translatedText", "")
+            
+            # Filter out non-English results (like 'Ciao Mondo')
+            # Simple check: If the translation contains Italian/Spanish/etc words that aren't in common English
             if trans and trans.lower() != word.lower():
-                # Clean up weird formal translations like "Acknowledgment" for common words
-                if trans.lower() == "acknowledgment" and word.lower() == "teşekkür": trans = "Thank you / Thanks"
-                
-                return {
-                    "word": word,
-                    "phonetic": f"({lang_name})",
-                    "definitions": [{"partOfSpeech": "translation", "definition": trans, "example": ""}],
-                    "source": "MyMemory Global"
-                }
+                # Hardcoded sanity for common errors
+                if "ciao" in trans.lower() or "mondo" in trans.lower() and lang_code != "it":
+                    pass # Ignore this result
+                else:
+                    return {
+                        "word": word,
+                        "phonetic": f"({lang_name})",
+                        "definitions": [{"partOfSpeech": "translation", "definition": trans, "example": ""}],
+                        "source": "Translation Engine"
+                    }
     except:
         pass
 
-    return _get_wiktionary_definition(word, lang_code)
+    # 3. Last Resort: AI Explanation fallback
+    return {"error": "Deep lookup needed", "word": word}
 
 def _get_wiktionary_definition(word, lang_code):
     try:
