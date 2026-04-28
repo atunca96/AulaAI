@@ -33,13 +33,13 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = json.dumps({
         "model": model, "messages": messages, "max_tokens": max_tokens, 
-        "temperature": temperature, "response_format": { "type": "json_object" }
+        "temperature": temperature
     }).encode("utf-8")
 
     try:
-        print(f"[AI] Calling {model} (timeout=90s)...")
+        print(f"[AI] Calling {model} (timeout=120s)...")
         req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=90) as response:
+        with urllib.request.urlopen(req, timeout=120) as response:
             res_body = response.read().decode("utf-8")
             res_json = json.loads(res_body)
             if "choices" in res_json:
