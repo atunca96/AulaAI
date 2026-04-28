@@ -114,6 +114,17 @@ ALPHABETS = {
             {"term": "R", "translation": "re"}, {"term": "S", "translation": "se"}, {"term": "Ş", "translation": "şe"}, {"term": "T", "translation": "te"}, {"term": "U", "translation": "u"},
             {"term": "Ü", "translation": "ü"}, {"term": "V", "translation": "ve"}, {"term": "Y", "translation": "ye"}, {"term": "Z", "translation": "ze"}
         ]
+    },
+    "Arabic": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "ا", "translation": "Alif"}, {"term": "ب", "translation": "Ba"}, {"term": "ت", "translation": "Ta"}, {"term": "ث", "translation": "Tha"}, {"term": "ج", "translation": "Jim"},
+            {"term": "ح", "translation": "Ha"}, {"term": "خ", "translation": "Kha"}, {"term": "د", "translation": "Dal"}, {"term": "ذ", "translation": "Dhal"}, {"term": "ر", "translation": "Ra"},
+            {"term": "ز", "translation": "Zay"}, {"term": "س", "translation": "Sin"}, {"term": "ش", "translation": "Shin"}, {"term": "ص", "translation": "Sad"}, {"term": "ض", "translation": "Dad"},
+            {"term": "ط", "translation": "Ta"}, {"term": "ظ", "translation": "Za"}, {"term": "ع", "translation": "Ayn"}, {"term": "غ", "translation": "Ghayn"}, {"term": "ف", "translation": "Fa"},
+            {"term": "ق", "translation": "Qaf"}, {"term": "ك", "translation": "Kaf"}, {"term": "ل", "translation": "Lam"}, {"term": "م", "translation": "Mim"}, {"term": "ن", "translation": "Nun"},
+            {"term": "ه", "translation": "Ha"}, {"term": "و", "translation": "Waw"}, {"term": "ي", "translation": "Ya"}
+        ]
     }
 }
 

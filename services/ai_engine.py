@@ -108,7 +108,14 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     Skipping characters from the reference data is a pedagogical failure. Use as many 'vocabulary' pages as needed to list the ENTIRE set.
     """
     elif is_alphabet_topic:
-        alphabet_rule = f"\nThis topic is about the {language} alphabet and phonetics. Provide a comprehensive, deep-dive overview: list the letters/characters, their phonetic IPA equivalents, pronunciation guides, and linguistic 'must-knows' (e.g. stress rules, silent letters, tone rules). Draw on your deep knowledge of {language} phonology to ensure native-level accuracy.\n"
+        alphabet_rule = f"""
+    This topic is about the {language} alphabet and phonetics. 
+    INSTRUCTIONS:
+    1. Provide a comprehensive overview: list the letters/characters, their phonetic IPA equivalents, and pronunciation guides.
+    2. For isolated diacritics (like Fatha, Kasra, etc.), use a placeholder dotted circle (◌) so they are visible (e.g., ◌َ instead of just َ ).
+    3. Draw on your deep knowledge of {language} phonology (IPA, stress, tones) to ensure native-level accuracy.
+    4. Group characters logically across multiple 'vocabulary' pages if needed.
+    """
     
     level_guidance = ""
     if level == 'B1':
