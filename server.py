@@ -34,6 +34,7 @@ from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch
 from services.pdf_pipeline import process_pdf_to_classroom
 from services.state import bump_version, get_version
+from services.dictionary_service import get_definition, clean_word
 
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
@@ -311,6 +312,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_user_status(user_id)
         elif path == "/api/version":
             return self._send_json({"version": get_version()})
+        elif path == "/api/dictionary":
+            word = params.get("word", [None])[0]
+            lang = params.get("lang", [None])[0]
+            if not word: return self._send_error("word required")
+            
+            # Simple caching for dictionaries
+            cache_key = f"dict_{lang}_{word.lower()}"
+            cached = get_cache(cache_key)
+            if cached: return self._send_json(cached)
+            
+            result = get_definition(word, lang or "en")
+            set_cache(cache_key, result)
+            return self._send_json(result)
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
         elif path.startswith("/api/"):

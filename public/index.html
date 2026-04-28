@@ -16,6 +16,22 @@
     <link rel="stylesheet" href="/css/styles.css?v=20260426_v2">
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/app.js?v=20260426_v2" defer></script>
+    <style>
+        /* AulaAI Dictionary Aero Popup */
+        @keyframes dictScaleUp { from { transform:scale(0.95) translateY(10px); opacity:0; } to { transform:scale(1) translateY(0); opacity:1; } }
+        #aula-dict-popup {
+            display:none; position:fixed; z-index:10001; width:280px; 
+            background:rgba(20, 24, 40, 0.85); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+            border:1px solid rgba(255,255,255,0.1); border-radius:24px; 
+            box-shadow:0 25px 60px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.1); 
+            padding:24px; pointer-events:auto; overflow:hidden;
+            animation:dictScaleUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1.1);
+        }
+        .dict-meaning-item { padding:10px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.03); transition:0.2s; }
+        .dict-meaning-item:hover { background:rgba(255,255,255,0.05); }
+        .study-card [dir="auto"] { cursor: cell; transition: color 0.2s; }
+        .study-card [dir="auto"]:hover { color: var(--accent-light) !important; }
+    </style>
 </head>
 <body>
     <!-- Floating Actions (PC Only) -->
@@ -963,5 +979,26 @@
     </div>
 
     <script src="/js/app.js?v=20260426"></script>
+    <!-- AulaAI Global Dictionary Popup -->
+    <div id="aula-dict-popup">
+        <div id="dict-loading" style="display:none; text-align:center; padding:20px;">
+            <div class="spinner" style="width:28px; height:28px; margin:0 auto 12px; border-top-color:var(--accent);"></div>
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:2px; font-weight:800;">Translating...</div>
+        </div>
+        <div id="dict-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h4 id="dict-word" style="margin:0; font-size:24px; color:#fff; font-weight:800; letter-spacing:-0.5px;">Word</h4>
+                <button onclick="closeDict()" style="background:rgba(255,255,255,0.05); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center;">&times;</button>
+            </div>
+            <div id="dict-phonetic" style="color:var(--accent-light); font-size:14px; font-weight:600; margin-bottom:20px; font-family:'Inter', monospace; opacity:0.8;">/phonetic/</div>
+            <div id="dict-meanings" style="display:flex; flex-direction:column; gap:12px;">
+                <!-- Meanings injected here -->
+            </div>
+            <div style="margin-top:24px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+                <span id="dict-source" style="font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; font-weight:800;">Wiktionary</span>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:6px 12px; border-radius:8px; background:rgba(99,102,241,0.1); color:var(--accent-light);" onclick="askAiAboutWord()">Explain with AI 🤖</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

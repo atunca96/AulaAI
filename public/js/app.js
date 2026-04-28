@@ -4631,6 +4631,122 @@ async function adminHardReset() {
   }
 }
 
+// ── AulaAI Global Dictionary Logic ──
+
+let activeDictWord = "";
+
+window.addEventListener('dblclick', async (e) => {
+    const selection = window.getSelection();
+    const word = selection.toString().trim();
+    
+    // Only trigger if we are inside a study card or book area
+    const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
+    
+    if (word && isStudyArea && word.length > 1 && word.length < 50) {
+        showDict(word, e.clientX, e.clientY);
+    }
+});
+
+async function showDict(word, x, y) {
+    const popup = document.getElementById('aula-dict-popup');
+    const content = document.getElementById('dict-content');
+    const loading = document.getElementById('dict-loading');
+    
+    activeDictWord = word;
+    
+    // Position popup
+    popup.style.display = 'block';
+    const popupWidth = 280;
+    const popupHeight = 300;
+    
+    // Boundary check
+    let left = x - popupWidth / 2;
+    let top = y + 20;
+    
+    if (left < 10) left = 10;
+    if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
+    if (top + popupHeight > window.innerHeight) top = y - popupHeight - 20;
+    
+    popup.style.left = `${left}px`;
+    popup.style.top = `${top}px`;
+    
+    // Reset and Load
+    content.style.display = 'none';
+    loading.style.display = 'block';
+    
+    try {
+        // Detect language from current course
+        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'en';
+        const res = await api(`/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`);
+        
+        loading.style.display = 'none';
+        content.style.display = 'block';
+        
+        if (res.error || !res.definitions) {
+            document.getElementById('dict-word').textContent = word;
+            document.getElementById('dict-phonetic').textContent = "No definition found";
+            document.getElementById('dict-meanings').innerHTML = `<div style="font-size:13px; color:var(--text-muted);">We couldn't find an exact match in the dictionary, but you can ask AI for help.</div>`;
+            document.getElementById('dict-source').textContent = "AulaAI";
+        } else {
+            document.getElementById('dict-word').textContent = res.word || word;
+            document.getElementById('dict-phonetic').textContent = res.phonetic || `/${word}/`;
+            document.getElementById('dict-source').textContent = res.source || "Dictionary";
+            
+            const meaningsHtml = (res.definitions || []).map(m => `
+                <div class="dict-meaning-item" style="margin-bottom:8px;">
+                    <div style="font-size:10px; font-weight:800; color:var(--accent); text-transform:uppercase; margin-bottom:4px; opacity:0.7;">${m.partOfSpeech || 'Word'}</div>
+                    <div style="font-size:14px; color:#e2e8f0; line-height:1.4; margin-bottom:4px;">${m.definition}</div>
+                    ${m.example ? `<div style="font-size:12px; color:var(--text-muted); font-style:italic;">"${m.example}"</div>` : ''}
+                </div>
+            `).join('') || `<div style="font-size:13px; color:var(--text-muted);">No detailed meanings available.</div>`;
+            
+            document.getElementById('dict-meanings').innerHTML = meaningsHtml;
+        }
+    } catch (err) {
+        console.error("Dict error:", err);
+        // Show silent error in popup
+        loading.style.display = 'none';
+        content.style.display = 'block';
+        document.getElementById('dict-word').textContent = word;
+        document.getElementById('dict-meanings').innerHTML = `<div style="color:var(--danger); font-size:12px;">Dictionary service unavailable.</div>`;
+    }
+}
+
+function closeDict() {
+    const popup = document.getElementById('aula-dict-popup');
+    if (popup) popup.style.display = 'none';
+}
+
+// Close on click outside
+window.addEventListener('mousedown', (e) => {
+    const popup = document.getElementById('aula-dict-popup');
+    if (popup && popup.style.display === 'block' && !popup.contains(e.target)) {
+        closeDict();
+    }
+});
+
+function askAiAboutWord() {
+    if (!activeDictWord) return;
+    const wordToAsk = activeDictWord;
+    closeDict();
+    
+    // Switch to Inbox/Messages tab
+    const selector = currentUser.role === 'student' ? 'button[data-tab="s-messages"]' : 'button[data-tab="inbox"]';
+    const msgTab = document.querySelector(selector);
+    
+    if (msgTab) {
+        switchTab(msgTab);
+        setTimeout(() => {
+            const input = document.getElementById('chat-input') || document.querySelector('.chat-input-area textarea');
+            if (input) {
+                input.value = `Can you explain the usage and meaning of the word "${wordToAsk}" in the context of our lesson?`;
+                input.focus();
+            }
+        }, 400);
+    }
+}
+
+
 
 
 
