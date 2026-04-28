@@ -12,17 +12,32 @@ LANG_MAP = {
 
 def get_definition(word, lang_name):
     """
-    Intelligent router with multi-layer fallback.
+    Intelligent router with multi-layer fallback and Iron Curtain filter.
     """
     word = word.strip().lower()
     lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
+    # 0. Hardcoded Sanity (For the most common student words)
+    SANITY = {
+        "merhaba": "Hello / Hi",
+        "teşekkür": "Thank you / Thanks",
+        "günaydın": "Good morning",
+        "nasılsınız": "How are you?",
+        "iyiyim": "I am fine / I'm good"
+    }
+    if word in SANITY and lang_code == "tr":
+        return {
+            "word": word, "phonetic": "(Turkish)",
+            "definitions": [{"partOfSpeech": "greeting", "definition": SANITY[word], "example": ""}],
+            "source": "AulaAI Core"
+        }
+
     # 1. Wiktionary Deep Scan
     wikt_result = _get_wiktionary_definition(word, lang_code)
     if not wikt_result.get("error") and wikt_result.get("definitions"):
         return wikt_result
 
-    # 2. MyMemory Translation
+    # 2. MyMemory Translation (With Iron Curtain Filter)
     try:
         conn = http.client.HTTPSConnection("api.mymemory.translated.net")
         path = f"/get?q={urllib.parse.quote(word)}&langpair={lang_code}|en"
@@ -31,7 +46,12 @@ def get_definition(word, lang_name):
         if res.status == 200:
             data = json.loads(res.read().decode())
             trans = data.get("responseData", {}).get("translatedText", "")
-            if trans and trans.lower() != word.lower():
+            
+            # IRON CURTAIN: Reject non-English 'hallucinations'
+            bad_words = ["ciao", "mondo", "bonjour", "hallo", "salut"]
+            is_hallucination = any(bw in trans.lower() for bw in bad_words) and lang_code not in ["it", "fr", "de"]
+            
+            if trans and trans.lower() != word.lower() and not is_hallucination:
                 return {
                     "word": word,
                     "phonetic": f"({lang_name})",
@@ -41,7 +61,7 @@ def get_definition(word, lang_name):
     except:
         pass
 
-    return {"error": "No definition found in standard sources. Try AI Explain!", "word": word}
+    return {"error": "Deep lookup needed. Try AI Explain!", "word": word}
 
 def _get_wiktionary_definition(word, lang_code):
     """
