@@ -4670,51 +4670,58 @@ async function showDict(word, e) {
     // Position popup using page coordinates so it scrolls with content
     popup.style.display = 'block';
     const popupWidth = 280;
-    const popupHeight = 350;
     
-    // Use pageX/pageY for absolute positioning relative to document
     let left = e.pageX - popupWidth / 2;
     let top = e.pageY + 20;
     
-    // Horizontal boundary check (viewport based)
     if (left < 10) left = 10;
     if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
     
     popup.style.left = `${left}px`;
     popup.style.top = `${top}px`;
     
-    // Reset and Load
     content.style.display = 'none';
     loading.style.display = 'block';
     
     try {
-        // Detect language from current course
-        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'en';
+        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
         const res = await api(`/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`);
         
         loading.style.display = 'none';
         content.style.display = 'block';
         
-        if (res.error || !res.definitions) {
-            document.getElementById('dict-word').textContent = word;
-            document.getElementById('dict-phonetic').textContent = "No definition found";
-            document.getElementById('dict-meanings').innerHTML = `<div style="font-size:13px; color:var(--text-muted);">We couldn't find an exact match in the dictionary, but you can ask AI for help.</div>`;
-            document.getElementById('dict-source').textContent = "AulaAI";
-        } else {
-            document.getElementById('dict-word').textContent = res.word || word;
-            document.getElementById('dict-phonetic').textContent = res.phonetic || `/${word}/`;
-            document.getElementById('dict-source').textContent = res.source || "Dictionary";
+        // Unified AI-First Display
+        const explanation = res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found.");
+        const usage = res.usage || "Use it in daily conversation.";
+        const tip = res.tip || "Click 'Explain' again for more details.";
+        const source = res.source || "AulaAI Brain";
+
+        content.innerHTML = `
+            <div style="margin-bottom:16px;">
+                <div style="font-size:24px; font-weight:800; color:#ffffff; margin-bottom:4px;">${word}</div>
+                <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
+            </div>
             
-            const meaningsHtml = (res.definitions || []).map(m => `
-                <div class="dict-meaning-item" style="margin-bottom:8px;">
-                    <div style="font-size:10px; font-weight:800; color:var(--accent); text-transform:uppercase; margin-bottom:4px; opacity:0.7;">${m.partOfSpeech || 'Word'}</div>
-                    <div style="font-size:14px; color:#e2e8f0; line-height:1.4; margin-bottom:4px;">${m.definition}</div>
-                    ${m.example ? `<div style="font-size:12px; color:var(--text-muted); font-style:italic;">"${m.example}"</div>` : ''}
+            <div style="background:rgba(99, 102, 241, 0.1); border:1px solid rgba(99, 102, 241, 0.2); border-radius:16px; padding:16px; margin-bottom:16px;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                    <span style="font-size:16px;">🤖</span>
+                    <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">Linguistic Intelligence</span>
                 </div>
-            `).join('') || `<div style="font-size:13px; color:var(--text-muted);">No detailed meanings available.</div>`;
+                <div style="font-size:15px; color:#ffffff; line-height:1.5; margin-bottom:12px;">${explanation}</div>
+                
+                <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px;">Usage</div>
+                <div style="font-style:italic; font-size:14px; color:rgba(255,255,255,0.7); margin-bottom:12px;">"${usage}"</div>
+                
+                <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:13px; color:rgba(255,255,255,0.6);">
+                    <span style="font-weight:700; color:var(--accent-light);">PRO-TIP:</span> ${tip}
+                </div>
+            </div>
             
-            document.getElementById('dict-meanings').innerHTML = meaningsHtml;
-        }
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); opacity:0.6;">
+                <span>POWERED BY ${source.toUpperCase()}</span>
+                <span style="cursor:pointer;" onclick="activeDictWord=''; document.getElementById('aula-dict-popup').style.display='none';">CLOSE</span>
+            </div>
+        `;
     } catch (err) {
         console.error("Dict error:", err);
         // Show silent error in popup

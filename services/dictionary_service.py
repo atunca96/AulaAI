@@ -2,6 +2,7 @@ import http.client
 import json
 import urllib.parse
 import re
+import os
 
 # Mapping for AulaAI's 14 Languages
 LANG_MAP = {
@@ -10,11 +11,48 @@ LANG_MAP = {
     "greek": "el", "persian": "fa", "english": "en", "turkish (ispanyolca)": "tr"
 }
 
-def get_definition(word, lang_name):
+# Cache for AI results to minimize costs
+AI_CACHE_FILE = "services/ai_dict_cache.json"
+def _load_cache():
+    try:
+        if os.path.exists(AI_CACHE_FILE):
+            with open(AI_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except: pass
+    return {}
+
+def _save_cache(cache):
+    try:
+        with open(AI_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except: pass
+
+AI_CACHE = _load_cache()
+
+def get_definition(word, lang_name, context=None):
     """
-    Intelligent router with multi-layer fallback and Iron Curtain filter.
+    AI-First dictionary logic with persistent caching.
     """
     word = word.strip().lower()
+    lang_name = lang_name.split('(')[0].strip()
+    cache_key = f"{lang_name}_{word}"
+    
+    # 1. Check Cache
+    if cache_key in AI_CACHE:
+        return {**AI_CACHE[cache_key], "source": "AulaAI Memory"}
+    
+    # 2. Call AI Brain
+    try:
+        from services.ai_engine import ai_explain_word
+        result = ai_explain_word(word, lang_name, context)
+        if result and "explanation" in result:
+            AI_CACHE[cache_key] = result
+            _save_cache(AI_CACHE)
+            return {**result, "source": "AulaAI Brain"}
+    except Exception as e:
+        print(f"[DICT] AI Brain failed: {e}")
+        
+    # 3. Last Resort Fallback (Wiktionary/Translation)
     lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
     # 0. Hardcoded Sanity (For the most common student words in major languages)
