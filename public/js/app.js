@@ -4643,29 +4643,29 @@ window.addEventListener('dblclick', async (e) => {
     const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
     
     if (word && isStudyArea && word.length > 1 && word.length < 50) {
-        showDict(word, e.clientX, e.clientY);
+        showDict(word, e);
     }
 });
 
-async function showDict(word, x, y) {
+async function showDict(word, e) {
     const popup = document.getElementById('aula-dict-popup');
     const content = document.getElementById('dict-content');
     const loading = document.getElementById('dict-loading');
     
     activeDictWord = word;
     
-    // Position popup
+    // Position popup using page coordinates so it scrolls with content
     popup.style.display = 'block';
     const popupWidth = 280;
-    const popupHeight = 300;
+    const popupHeight = 350;
     
-    // Boundary check
-    let left = x - popupWidth / 2;
-    let top = y + 20;
+    // Use pageX/pageY for absolute positioning relative to document
+    let left = e.pageX - popupWidth / 2;
+    let top = e.pageY + 20;
     
+    // Horizontal boundary check (viewport based)
     if (left < 10) left = 10;
     if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
-    if (top + popupHeight > window.innerHeight) top = y - popupHeight - 20;
     
     popup.style.left = `${left}px`;
     popup.style.top = `${top}px`;
