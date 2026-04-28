@@ -148,7 +148,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     1. Provide high-quality, professional content.
     2. Content must be level-appropriate ({level}).
     3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar.
-    4. VARIETY: Do NOT repeat vocabulary items or examples across different pages. Ensure each page adds new value.
+    4. SMART VARIETY: Maximize variety across pages. Avoid redundant vocabulary entries unless pedagogically necessary for comparison (e.g., contrasting formal vs. informal forms of the same concept).
     5. NATURAL EXPRESSIONS: Focus on commonly used, natural {language} expressions. Ensure idiomatic accuracy but do not be so restrictive that you return empty content.
     6. You can generate between 3 to 6 pages. 
     7. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
