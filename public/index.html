@@ -19,40 +19,38 @@
     <style>
         /* Premium Foreign Word Interaction */
         .foreign-word {
-            cursor: pointer !important;
+            cursor: cell !important; /* The + cursor you like for lookups */
             transition: all 0.2s ease;
             display: inline-block;
-            border-radius: 4px;
-            padding: 0 4px;
-            user-select: none; /* KILL THE BLUE HIGHLIGHT */
-            -webkit-user-select: none;
+            user-select: none !important;
+            -webkit-user-select: none !important;
             position: relative;
         }
         .foreign-word:hover {
             color: var(--accent-light) !important;
-            text-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
         }
         .foreign-word::after {
             content: '';
             position: absolute;
-            bottom: 2px;
-            left: 4px;
-            right: 4px;
+            bottom: 0px;
+            left: 0;
+            right: 0;
             height: 2px;
-            background: var(--accent);
+            background: var(--accent-light);
+            box-shadow: 0 0 8px var(--accent-light);
             transform: scaleX(0);
-            transition: transform 0.2s ease;
-            transform-origin: bottom right;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-origin: center;
         }
         .foreign-word:hover::after {
             transform: scaleX(1);
-            transform-origin: bottom left;
         }
         
-        /* Disable selection for triggers */
-        .dict-trigger {
-            user-select: none;
-            -webkit-user-select: none;
+        /* Shield for Explanations and English text - NO selection, NO + cursor */
+        .ai-explanation, .english-translation, .ai-explanation *, .english-translation * {
+            cursor: default !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
         }
 
         /* AulaAI Dictionary Aero Popup */
