@@ -4705,17 +4705,17 @@ async function showDict(word, e) {
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
             </div>
             
-            <div style="background:rgba(99, 102, 241, 0.1); border:1px solid rgba(99, 102, 241, 0.2); border-radius:16px; padding:16px; margin-bottom:16px;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-                    <span style="font-size:16px;">🤖</span>
+            <div class="ai-card">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span style="font-size:18px;">🤖</span>
                     <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">Linguistic Intelligence</span>
                 </div>
-                <div style="font-size:15px; color:#ffffff; line-height:1.5; margin-bottom:12px;">${explanation}</div>
+                <div class="ai-explanation" style="font-size:16px; color:#ffffff; line-height:1.6; margin-bottom:14px;">${explanation}</div>
                 
-                <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px;">Usage</div>
-                <div style="font-style:italic; font-size:14px; color:rgba(255,255,255,0.7); margin-bottom:12px;">"${usage}"</div>
+                <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:6px;">Usage</div>
+                <div class="english-translation" style="font-style:italic; font-size:15px; color:rgba(255,255,255,0.7); margin-bottom:14px;">"${usage}"</div>
                 
-                <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:13px; color:rgba(255,255,255,0.6);">
+                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:12px; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.4;">
                     <span style="font-weight:700; color:var(--accent-light);">PRO-TIP:</span> ${tip}
                 </div>
             </div>

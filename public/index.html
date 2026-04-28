@@ -17,54 +17,57 @@
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/app.js?v=20260426_v2" defer></script>
     <style>
-        /* Premium Foreign Word Interaction */
+        /* Aero-Interaction 2.0: High-Precision Underlines */
         .foreign-word {
+            display: inline !important;
             cursor: cell !important;
-            transition: all 0.2s ease;
-            display: inline !important; /* Forces the width to match the text exactly */
             user-select: none !important;
             -webkit-user-select: none !important;
             position: relative;
-            padding: 0 !important;
-            margin: 0 !important;
+            color: inherit;
+            transition: color 0.2s ease;
+            /* The Underline: Linear Gradient for absolute precision */
+            background-image: linear-gradient(var(--accent-light), var(--accent-light));
+            background-position: 0 95%; /* Sits exactly at the base of the letters */
+            background-repeat: no-repeat;
+            background-size: 0% 2px; /* Starts at 0 width */
+            transition: background-size 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease;
         }
         .foreign-word:hover {
             color: var(--accent-light) !important;
-        }
-        .foreign-word::after {
-            content: '';
-            position: absolute;
-            bottom: -2px;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: var(--accent-light);
-            box-shadow: 0 0 8px var(--accent-light);
-            transform: scaleX(0);
-            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            transform-origin: center;
-        }
-        .foreign-word:hover::after {
-            transform: scaleX(1);
+            background-size: 100% 2px; /* Snaps perfectly to word width */
+            text-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
         }
         
-        /* Specific fix for Dictionary Title Underline */
+        /* Dictionary Popup: Glassmorphism Redesign */
         #dict-word-title {
             display: inline-block;
-            width: fit-content;
-            font-size: 24px;
-            font-weight: 800;
+            font-size: 28px;
+            font-weight: 900;
             color: #ffffff;
-            border-bottom: 2px solid var(--accent-light);
-            padding-bottom: 2px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+            /* Title Underline */
+            border-bottom: 3px solid var(--accent-light);
+            line-height: 1;
+            padding-bottom: 4px;
         }
         
-        /* Shield for Explanations and English text - NO selection, NO + cursor */
+        .ai-card {
+            background: rgba(30, 32, 47, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        /* Shield for Explanations - Total Selection Suppression */
         .ai-explanation, .english-translation, .ai-explanation *, .english-translation * {
             cursor: default !important;
             user-select: none !important;
             -webkit-user-select: none !important;
+            pointer-events: none; /* Prevents cursor from changing at all inside explanations */
         }
 
         /* AulaAI Dictionary Aero Popup */
