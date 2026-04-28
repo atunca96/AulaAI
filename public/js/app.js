@@ -4635,24 +4635,27 @@ async function adminHardReset() {
 
 let activeDictWord = "";
 
-window.addEventListener('dblclick', async (e) => {
-    // 1. English Guard: Ignore if clicking English text (translations or explanations)
+// 3. Single-Click Trigger for Dictionary
+window.addEventListener('click', async (e) => {
+    // English Guard: Ignore if clicking English text
     if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation')) {
         return;
     }
 
-    const selection = window.getSelection();
-    let word = selection.toString().trim();
+    let trigger = e.target.closest('.foreign-word');
+    if (!trigger) return;
+
+    let word = trigger.innerText.trim();
     
-    // 2. Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
+    // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
     if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
-        const fullText = e.target.innerText || "";
+        const fullText = trigger.parentElement.innerText || "";
         if (fullText.toLowerCase().includes('teşekkür ederim')) {
             word = "teşekkür ederim";
         }
     }
     
-    // Only trigger if we are inside a study card or book area
+    // Only trigger if we are inside a study area
     const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
     
     if (word && isStudyArea && word.length > 1 && word.length < 60) {
