@@ -4239,8 +4239,6 @@ function renderStudyBook() {
       </div>
     </div>
   `).join('');
-}
-
 function showStudyTopic(topicId, pageIdx = 0) {
   const isStudent = currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
@@ -4291,30 +4289,36 @@ function showStudyTopic(topicId, pageIdx = 0) {
           title: p.title || t('Material'),
           icon: icon,
           render: () => {
-            const items = p.items || p.vocabulary || p.words || p.list || p.phrases || [];
-            if (items.length > 0 && typeof items[0] === 'object' && (items[0].term || items[0].word)) {
-              return `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-                ${items.map(v => `<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                  <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff;">${fixDiacritics(v.term || v.word || "")}</div>
-                  <div style="color:var(--accent-light); font-weight:500; font-size:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v.meaning || ""}</div>
-                </div>`).join('')}</div>`;
+            // 1. DYNAMIC CONTENT DETECTION
+            const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
+            
+            // A. If it's an array of objects (Vocabulary or Examples)
+            if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'object') {
+              return `<div style="display:flex; flex-direction:column; gap:12px;">
+                ${rawData.map(it => {
+                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.key || Object.values(it)[0] || "";
+                  const v = it.translation || it.meaning || it.text || it.content || it.value || Object.values(it)[1] || "";
+                  const isExample = it.speaker || (typeof k === 'string' && k.length > 15);
+                  
+                  if (isExample) {
+                    return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
+                      ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ''}
+                      <div style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div>
+                    </div>`;
+                  }
+                  return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                    <div dir="auto" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div>
+                    <div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right;">${v}</div>
+                  </div>`;
+                }).join('')}</div>`;
             }
 
-            const list = p.list || p.items || p.examples || p.dialogue || [];
-            if (list.length > 0 && typeof list[0] === 'object' && (list[0].speaker || list[0].text)) {
-              return `<div style="display:flex; flex-direction:column; gap:16px;">
-                ${list.map(ex => `<div style="background:rgba(255,255,255,0.02); padding:20px; border-radius:16px; border-left:4px solid var(--accent);">
-                  <div dir="auto" style="font-weight:800; color:var(--accent-light); font-size:12px; text-transform:uppercase; margin-bottom:6px;">${ex.speaker || ""}</div>
-                  <div dir="auto" style="font-style:italic; font-size:21px; color:#ffffff;">"${fixDiacritics(ex.text || "")}"</div>
-                </div>`).join('')}</div>`;
-            }
-
+            // B. If it's a string (Grammar or Intro)
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
-            if (text && typeof text !== 'string') {
-                const arr = Array.isArray(text) ? text : [text];
-                text = arr.map(it => (typeof it === 'string' ? it : JSON.stringify(it))).join('\n');
+            if (text) {
+              if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
+              return `<div dir="auto" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             }
-            if (text) return `<div dir="auto" style="font-size:21px; line-height:1.9; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             
             return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;
           }
