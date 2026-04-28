@@ -4260,8 +4260,10 @@ function showStudyTopic(topicId, pageIdx = 0) {
   
   const fixDiacritics = (txt) => {
     if (typeof txt !== 'string') return txt;
-    // Add LRM (\u200E) and dotted circle for isolated diacritics
-    return txt.replace(/([\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1\u200E◌$2');
+    // 1. Add dotted circle to isolated marks (at start of string OR after space/parenthesis)
+    let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
+    // 2. Force the whole line to be LTR by prefixing with LRM (\u200E)
+    return '\u200E' + res;
   };
   
   // Define pages
