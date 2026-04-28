@@ -4297,38 +4297,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
                 ${items.map(v => `<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
                   <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff;">${fixDiacritics(v.term || v.word || "")}</div>
                   <div style="color:var(--accent-light); font-weight:500; font-size:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v.meaning || ""}</div>
-  // 1. Try to parse curriculum data
-  let pages = [];
-  try {
-    const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
-    const fixDiacritics = (txt) => {
-      if (typeof txt !== 'string') return txt;
-      return '\u200E' + txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
-    };
-
-    if (content.pages && Array.isArray(content.pages)) {
-      content.pages.forEach(p => {
-        const type = (p.type || '').toLowerCase();
-        let icon = "📄";
-        if (type.includes('vocab')) icon = "📙";
-        else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "⚙️";
-        else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "💬";
-        
-        pages.push({
-          title: p.title || t('Material'),
-          icon: icon,
-          render: () => {
-            // A. Vocabulary Logic
-            const items = p.items || p.vocabulary || p.words || p.list || p.phrases || [];
-            if (items.length > 0 && typeof items[0] === 'object' && (items[0].term || items[0].word)) {
-              return `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px;">
-                ${items.map(v => `<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:16px; border:1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
-                  <div dir="auto" style="font-size:26px; font-weight:800; color:#ffffff;">${fixDiacritics(v.term || v.word || "")}</div>
-                  <div style="color:var(--accent-light); font-weight:500; font-size:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:8px;">${v.translation || v.meaning || ""}</div>
                 </div>`).join('')}</div>`;
             }
 
-            // B. Examples Logic
             const list = p.list || p.items || p.examples || p.dialogue || [];
             if (list.length > 0 && typeof list[0] === 'object' && (list[0].speaker || list[0].text)) {
               return `<div style="display:flex; flex-direction:column; gap:16px;">
@@ -4338,7 +4309,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
                 </div>`).join('')}</div>`;
             }
 
-            // C. Text Logic (Rescue)
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
             if (text && typeof text !== 'string') {
                 const arr = Array.isArray(text) ? text : [text];
@@ -4353,7 +4323,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
     }
   } catch (e) { console.error("Renderer Failure:", e); }
 
-  // 2. Safety Fallback: Under Construction
   if (pages.length === 0) {
     pages.push({
       title: t('gen.preparing_content') || 'Under Construction',
@@ -4367,7 +4336,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
     });
   }
 
-  // 3. Final Completion Page
   pages.push({
     title: isStudent ? t('study.complete') : t('study.preview'),
     icon: "🏁",
