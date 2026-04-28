@@ -39,7 +39,11 @@ def get_definition(word, lang_name, context=None):
     
     # 1. Check Cache
     if cache_key in AI_CACHE:
-        return {**AI_CACHE[cache_key], "source": "AulaAI Memory"}
+        cached = AI_CACHE[cache_key]
+        # VALIDATION: If the cached result is just a fallback, ignore it and re-run
+        is_fallback = "daily interaction" in cached.get("explanation", "").lower() or "simple sentence" in cached.get("usage", "").lower()
+        if not is_fallback:
+            return {**cached, "source": "AulaAI Memory"}
     
     # 2. Call AI Brain
     try:
