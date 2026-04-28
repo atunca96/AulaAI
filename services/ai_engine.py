@@ -70,7 +70,9 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
                     return {"explanation": content, "usage": "N/A", "tip": "N/A"}
                     
     except Exception as e:
-        print(f"AI Error: {str(e)}")
+        error_msg = str(e)
+        print(f"AI Error: {error_msg}")
+        return {"error_details": error_msg}
     return None
 
 def detect_language(text):
@@ -528,8 +530,8 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     if result and "explanation" in result:
         return result
     
-    if result and "explanation" in result:
-        return result
+    # If we have error details, pass them along
+    error_note = result.get("error_details", "Unknown API Error") if result else "Connection Failure"
     
     # EMERGENCY HYBRID FALLBACK: Use Wiktionary/Translation if AI fails
     try:
@@ -542,7 +544,7 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
             return {
                 "explanation": wikt["definitions"][0]["definition"],
                 "usage": "Found via Deep Dictionary Scan.",
-                "tip": "The AI was briefly unavailable, but we found this human-verified definition for you!"
+                "tip": f"AI Brain was busy ({error_note}), so we found this for you!"
             }
     except Exception as e:
         print(f"[AI] Emergency fallback failed: {e}")
@@ -550,5 +552,5 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     return {
         "explanation": f"'{word}' is a {clean_lang} word. In this context, it usually refers to a specific quality or action.",
         "usage": "Try looking at the surrounding sentence for more context.",
-        "tip": "We're having trouble reaching the AI Brain. Please try again in a moment!"
+        "tip": f"AI Diagnostic: {error_note}. Please try again later!"
     }
