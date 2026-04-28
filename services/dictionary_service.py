@@ -17,18 +17,19 @@ def get_definition(word, lang_name):
     word = word.strip().lower()
     lang_code = LANG_MAP.get(lang_name.lower(), "en")
     
-    # 0. Hardcoded Sanity (For the most common student words)
+    # 0. Hardcoded Sanity (For the most common student words in major languages)
     SANITY = {
-        "merhaba": "Hello / Hi",
-        "teşekkür": "Thank you / Thanks",
-        "günaydın": "Good morning",
-        "nasılsınız": "How are you?",
-        "iyiyim": "I am fine / I'm good"
+        "tr": {"merhaba": "Hello / Hi", "teşekkür": "Thank you", "günaydın": "Good morning", "nasılsınız": "How are you?"},
+        "es": {"hola": "Hello / Hi", "gracias": "Thank you", "buenos días": "Good morning", "cómo estás": "How are you?"},
+        "fr": {"bonjour": "Hello / Good morning", "merci": "Thank you", "ça va": "How are you? / It's going well"},
+        "it": {"ciao": "Hello / Hi / Goodbye", "grazie": "Thank you", "buongiorno": "Good morning / Good day"}
     }
-    if word in SANITY and lang_code == "tr":
+    
+    lang_sanity = SANITY.get(lang_code, {})
+    if word in lang_sanity:
         return {
-            "word": word, "phonetic": "(Turkish)",
-            "definitions": [{"partOfSpeech": "greeting", "definition": SANITY[word], "example": ""}],
+            "word": word, "phonetic": f"({lang_name})",
+            "definitions": [{"partOfSpeech": "greeting", "definition": lang_sanity[word], "example": ""}],
             "source": "AulaAI Core"
         }
 
