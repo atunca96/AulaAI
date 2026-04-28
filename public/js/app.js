@@ -4294,30 +4294,41 @@ function showStudyTopic(topicId, pageIdx = 0) {
             // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)
             const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
             
-            // A. If it's an array of objects (Vocabulary, Examples, or mislabeled content)
+            // A. If it's an array of strings (Alphabet/Simple Lists)
+            if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'string') {
+              return `<div style="display:flex; flex-direction:column; gap:16px; font-size:20px; line-height:1.8; color:#e2e8f0;">
+                ${rawData.map(str => `<div dir="auto">${fixDiacritics(str)}</div>`).join('')}
+              </div>`;
+            }
+
+            // B. If it's an array of objects (Vocabulary, Examples, or mislabeled content)
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'object') {
               return `<div style="display:flex; flex-direction:column; gap:12px;">
                 ${rawData.map(it => {
-                  // Agnostic Key Detection: Look for common names OR just take the first 2 values
+                  // Agnostic Key Detection
                   const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
                   const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
                   
-                  const isExample = it.speaker || (typeof k === 'string' && k.length > 20);
-                  
-                  if (isExample) {
+                  // Smarter Example Detection: Only hide the 'term' side if 'v' is empty or speaker exists
+                  const isExplicitExample = !!it.speaker;
+                  const isLongSentence = typeof k === 'string' && k.length > 40 && (!v || v === k);
+
+                  if (isExplicitExample || isLongSentence) {
                     return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
                       ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ''}
                       <div style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div>
                     </div>`;
                   }
+                  
+                  // Regular Vocab/Phrase Card
                   return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
-                    <div dir="auto" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div>
-                    <div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right;">${v}</div>
+                    <div dir="auto" style="font-size:22px; font-weight:800; color:#ffffff; flex:1;">${fixDiacritics(k)}</div>
+                    <div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
                   </div>`;
                 }).join('')}</div>`;
             }
 
-            // B. If it's a string (Grammar or Intro)
+            // C. If it's a string (Grammar or Intro)
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
             if (text) {
               if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
