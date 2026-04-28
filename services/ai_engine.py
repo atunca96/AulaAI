@@ -125,13 +125,17 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     elif level in ['C1', 'C2']:
         level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
-    explanation_rule = ""
+    # BILINGUAL GUARD: Force English for A1/A2
+    lang_guard = ""
     if level in ['A1', 'A2']:
-        explanation_rule = f"1. EXPLANATION LANGUAGE: All grammar explanations, instructions, and descriptions MUST be in English. Only the actual {language} examples and vocabulary terms should be in {language}."
+        lang_guard = f"CRITICAL: All grammar explanations, introductions, descriptions, and page titles MUST be in English. Do not use {language} for anything other than the actual vocabulary and examples."
     else:
-        explanation_rule = f"1. EXPLANATION LANGUAGE: You may use English, {language}, or a mix of both for explanations, as appropriate for {level} level immersion."
+        lang_guard = f"Immersion Mode: You may use {language} for everything, including explanations."
 
-    prompt = f"""Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
+    prompt = f"""
+    {lang_guard}
+    
+    Write a professional {language} lesson for the topic: '{topic}' ({topic_type}).
     {alphabet_rule}
     {level_guidance}
     
@@ -145,13 +149,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     }}
     
     Rules:
-    1. Provide high-quality, professional content.
-    2. LANGUAGE POLICY: For levels A1 and A2, all grammar explanations, introductions, and 'meta' text MUST be in English. For levels B1 and above, use {language} for everything.
+    1. High-quality, professional content.
+    2. {lang_guard}
     3. NO LITERAL TRANSLATIONS: Ensure all {language} sentences follow natural {language} grammar.
-    4. SMART VARIETY: Maximize variety across pages. Avoid redundant vocabulary entries unless pedagogically necessary for comparison (e.g., contrasting formal vs. informal forms of the same concept).
-    5. NATURAL EXPRESSIONS: Focus on commonly used, natural {language} expressions. Ensure idiomatic accuracy but do not be so restrictive that you return empty content.
-    6. You can generate between 3 to 6 pages. 
-    7. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
+    4. SMART VARIETY: Maximize variety across pages. Avoid redundant vocabulary entries unless pedagogically necessary for comparison.
+    5. NATURAL EXPRESSIONS: Focus on commonly used, natural {language} expressions. 
+    6. Generate 3 to 6 pages. Each must have 'type', 'title', and content.
     """
     try:
         # ATTEMPT 1: High Detail
