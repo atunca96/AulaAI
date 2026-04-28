@@ -137,7 +137,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     {explanation_rule}
     2. Content must be level-appropriate ({level}).
     3. NO LITERAL TRANSLATIONS: Ensure all sentences follow natural {language} grammar.
-    4. IDIOMATIC ACCURACY: All idioms, proverbs, and colloquialisms MUST be 100% accurate and reflect current native usage. Avoid literal or clunky variants (e.g., 'kendi ayağına sıkmak' is correct, NOT 'kendi ayağına kurşun sıkmak').
+    4. EXPRESSION INTEGRITY: Idioms, proverbs, and fixed expressions MUST be 100% accurate. DO NOT invent plausible-sounding expressions, translate literally from other languages, or alter the wording of fixed phrases. If unsure of an exact wording, prioritize conceptual explanation, reduce the number of examples, or mark the item with [needs_review] instead of fabricating content.
     5. You can generate between 3 to 6 pages. 
     6. Each page must have a 'type' (vocabulary, grammar, or examples) and a 'title'.
     """
