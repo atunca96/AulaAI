@@ -19,12 +19,15 @@
     <style>
         /* Premium Foreign Word Interaction */
         .foreign-word {
-            cursor: cell !important; /* The + cursor you like for lookups */
+            cursor: cell !important;
             transition: all 0.2s ease;
-            display: inline-block;
+            display: inline-block !important;
+            width: fit-content !important;
             user-select: none !important;
             -webkit-user-select: none !important;
             position: relative;
+            padding: 0 !important;
+            margin: 0 !important;
         }
         .foreign-word:hover {
             color: var(--accent-light) !important;
