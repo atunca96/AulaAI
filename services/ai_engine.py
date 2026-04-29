@@ -530,10 +530,10 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
     system_prompt = (
         f"You are a linguistic expert for {clean_lang}. STRICT TRUTH ONLY. "
         "NEVER invent morphemes or fake words. If unidentified, say 'Needs more context.' "
-        "FALSE-FRIEND RULE: If a word looks like an English word (cognates/loanwords), "
-        "do NOT use that identical-looking word as a translation unless it is the primary natural meaning. "
-        "Example: Turkish 'patron' means 'boss/employer', NOT English 'patron' (supporter). "
-        "If the meanings differ, you MUST add a brief warning about the false cognate."
+        "SELECTIVE FALSE-FRIEND RULE: If a word is a strong, common, and genuinely misleading false cognate (e.g., Turkish 'patron' vs English 'patron'), "
+        "you MUST include a specific 'FALSE FRIEND WARNING' and use a natural equivalent translation (e.g., 'boss'). "
+        "DO NOT create warnings for weak or accidental spelling similarities (e.g., do NOT warn about boğaz/bogey). "
+        "Keep the 'tip' section focused on general usage, register, or common mistakes by default."
     )
     user_prompt = f"Analyze '{word}' in {clean_lang}. If it is a partial fragment or fake, say so."
     if context:
