@@ -1,10 +1,16 @@
 import os
+import sys
 import json
 import re
 import urllib.request
 import urllib.error
 import time
 import uuid
+from datetime import datetime
+
+print(f"--- AI_ENGINE LOADED AT {datetime.now()} ---")
+with open("pipeline.log", "a", encoding="utf-8") as f:
+    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [INIT] ai_engine.py loaded\n")
 from typing import List, Dict, Any, Optional
 
 def _uid():
@@ -51,25 +57,62 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
                     "temperature": temperature
                 }).encode("utf-8"), headers=headers)
                 
-                with urllib.request.urlopen(req, timeout=45) as response:
+                with urllib.request.urlopen(req, timeout=120) as response:
                     res_body = response.read().decode("utf-8")
                     res_json = json.loads(res_body)
                     
                     if "choices" in res_json:
                         content = res_json["choices"][0]["message"]["content"].strip()
+                        # PERSISTENCE: Save raw AI output for inspection
+                        try:
+                            if not os.path.exists("scratch"): os.makedirs("scratch")
+                            with open("scratch/last_ai_response.txt", "w", encoding="utf-8") as f:
+                                f.write(content)
+                        except: pass
                         
-                        # IRON-CLAD JSON EXTRACTION
-                        start = content.find('{')
-                        end = content.rfind('}')
+                        # LOGGING: Capture the raw content length for debugging
+                        with open("pipeline.log", "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-DEBUG] Received {len(content)} chars from {target_model}\n")
                         
+                        # IRON-CLAD JSON EXTRACTION (Objects or Lists)
+                        start_obj = content.find('{')
+                        start_list = content.find('[')
+                        
+                        start = -1
+                        end = -1
+                        
+                        if start_obj != -1 and (start_list == -1 or start_obj < start_list):
+                            start = start_obj
+                            end = content.rfind('}')
+                        elif start_list != -1:
+                            start = start_list
+                            end = content.rfind(']')
+                            
                         if start != -1 and end != -1 and end > start:
                             json_str = content[start:end+1]
+                            # SUPER SANITIZER: Remove invalid control characters (0-31) except 9, 10, 13
+                            json_str = "".join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
+                            
+                            def deep_clean_result(data):
+                                """Recursively nukes backslashes from AI strings."""
+                                if isinstance(data, str):
+                                    return data.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
+                                elif isinstance(data, list):
+                                    return [deep_clean_result(i) for i in data]
+                                elif isinstance(data, dict):
+                                    return {k: deep_clean_result(v) for k, v in data.items()}
+                                return data
+
                             try:
-                                return json.loads(json_str.replace('\n', ' '))
-                            except:
+                                parsed = json.loads(json_str, strict=False)
+                                return deep_clean_result(parsed)
+                            except Exception as je:
+                                with open("pipeline.log", "a", encoding="utf-8") as f:
+                                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-ERROR] JSON Parse Error: {je}\n")
                                 try:
                                     import ast
-                                    return ast.literal_eval(json_str)
+                                    parsed = ast.literal_eval(json_str)
+                                    return deep_clean_result(parsed)
                                 except: pass
                         
                         if len(content) > 10 and '{' not in content:
@@ -82,22 +125,25 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
                         
             except Exception as e:
                 last_error = str(e)
+                with open("pipeline.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FATAL] {last_error}\n")
                 time.sleep(0.5)
             
     return {"error_details": last_error}
 
-def detect_language(text):
-    prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:500]}"
+def detect_language(text, hint=""):
+    prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:800]}"
+    if hint:
+        prompt += f" (Hint: The course is named '{hint}')"
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
     return result.get("language", "English") if result else "English"
 
-def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
-    """Generates a complete structured lesson with vocab, grammar, and examples."""
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
+    """Generates a complete structured lesson, using source_text as the primary source if provided."""
     import json
     from services.language_data import get_reference_prompt
     
     # Only apply the "Complete set" requirement if the topic is actually about an alphabet
-    # We include variations for Spanish, French, German, Italian, Portuguese, Turkish, etc.
     alphabet_keywords = [
         "alphabet", "syllabary", "hiragana", "katakana", "cyrillic", "pinyin", 
         "alfabeto", "abecedario", "alfabe", "abcto", "letters", "buchstaben"
@@ -139,15 +185,31 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1'):
     # BILINGUAL GUARD: Force English for A1/A2
     lang_guard = f"REQUIRED: Explanations & Titles in English, Examples in {language}." if level in ['A1', 'A2'] else f"Use {language} for everything."
 
+    source_rule = ""
+    if source_text:
+        source_rule = f"""
+        SOURCE TEXT REQUIREMENT:
+        You MUST use the following provided text as your EXCLUSIVE source of truth for vocabulary, grammar, and examples. 
+        Extract the relevant section for '{topic}' from this text and format it into the lesson pages. 
+        If the text contains specific examples or vocabulary for this topic, DO NOT invent your own. Use the book's content exactly.
+        
+        SOURCE TEXT (First 10,000 chars):
+        {source_text[:10000]}
+        """
+
     prompt = f"""
     Write a professional {language} lesson for: '{topic}' ({topic_type}). Level: {level}.
     
+    {source_rule}
+    
     INSTRUCTIONS:
     1. {lang_guard}
-    2. STRICT REQUIREMENT: 3 to 6 pages. Returning only 1 or 2 pages is a failure.
-    3. NO EMPTY SECTIONS: Every page MUST be filled with detailed, level-appropriate content.
-    4. MINIMUM CONTENT: Grammar pages MUST have at least 3 sentences of explanation.
-    5. VARIETY: Do not repeat words or examples across pages.
+    2. {alphabet_rule}
+    3. {level_guidance}
+    4. STRICT REQUIREMENT: 3 to 6 pages. Returning only 1 or 2 pages is a failure.
+    5. NO EMPTY SECTIONS: Every page MUST be filled with detailed, level-appropriate content.
+    6. MINIMUM CONTENT: Grammar pages MUST have at least 3 sentences of explanation.
+    7. VARIETY: Do not repeat words or examples across pages.
     
     Return ONLY JSON:
     {{
@@ -196,13 +258,12 @@ def get_language_profile(language):
     if language in logographic: return "logographic"
     if language in syllabic: return "syllabic"
     if language in agglutinative: return "agglutinative"
-    return "inflected_latin" # Default for Spanish, French, German, etc.
+    return "inflected" # Default for Spanish, French, German, English, etc.
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
-    """Agnostic Engine: Generates questions based on the language's specific Pedagogical DNA."""
-    # Safety Sanitize
-    topic_title = str(topic_title or "Lesson")
-    topic_type = str(topic_type or "general")
+    print(f"!!! AI_GENERATE_QUESTIONS CALLED !!! topic={topic_title} count={count}")
+    with open("pipeline.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
     
     c = int(count)
     request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
@@ -221,8 +282,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     # Handle non-redundancy (STRICT)
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
-        qs_list = "\n".join([f"- {q['prompt']}" for q in existing_questions])
-        forbidden_clause = f"\nCRITICAL: DO NOT REPEAT or mimic these existing questions:\n{qs_list}\n"
+        # Prevent both identical prompts and identical answers/concepts
+        qs_list = "\n".join([f"- Prompt: '{q['prompt']}' (Target/Answer: '{q.get('answer', '')}')" for q in existing_questions])
+        forbidden_clause = f"\nCRITICAL PEDAGOGY RULE: You MUST NOT test the exact same concepts or answers as these existing questions:\n{qs_list}\n"
 
     # DNA-Aware Pedagogical Instructions
     dna_instructions = ""
@@ -277,9 +339,18 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     else:
         diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
         dna_instructions = f"""
-    PEDAGOGICAL DNA: INFLECTED LATIN (Spanish, French, etc.)
+    PEDAGOGICAL DNA: INFLECTED (Romance, Germanic, etc.)
     1. MORPHOLOGY: Focus on Gender, Number, and Verb Conjugation.
     2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
+    3. SEMANTIC CONSISTENCY: Distractors MUST be from the same semantic category and word class. If the answer is a verb, all distractors MUST be verbs.
+    4. WORD CLASS MATCH (STRICT): Never mix nouns and verbs. 
+       - BAD: Answer='feiern' (verb), Distractor='die Feier' (noun).
+       - GOOD: Answer='feiern' (verb), Distractor='tanzen' (verb), 'singen' (verb).
+    5. NO ROOT-CLONING: Do not use different parts of speech from the same root word as distractors.
+    6. SYNTACTIC PARALLELISM (STRICT): Distractors MUST match the length and complexity of the answer.
+       - BAD: Answer="Ich heiße Maria." (sentence), Distractor="Name" (word).
+       - GOOD: Answer="Ich heiße Maria.", Distractor="Ich bin Maria.", "Das ist Maria."
+    7. PLAUSIBILITY: Distractors must be grammatically correct sentences that are simply incorrect answers to the specific question prompt.
     """
 
     # Request 25 to ensure survival after strict filtering
@@ -295,6 +366,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     CORE CONSTRAINTS:
     - TYPE: 100% Multiple Choice (type: 'mcq').
     - PROMPT: Write the question in {instruction_lang}.
+    - HIGH PLAUSIBILITY: Distractors must be challenging and semantically related. Never use obvious non-answers.
     - NO NEGATIVE QUESTIONS: Avoid questions like "Which of these is NOT...". Always prefer positive identification questions.
     - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
     - NO GHOSTS: Do NOT include the correct answer word inside the question text.
@@ -303,13 +375,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect but SEMANTICALLY RELATED.
     - NO SYNONYMS: Distractors MUST NOT be synonyms or near-synonyms of the correct answer in {language}. If multiple words from the source material could correctly answer the prompt, that question is a failure. Ensure there is ONLY ONE undeniably correct answer.
     - NO COMMA-JOINING: Never join multiple distractors into a single string with commas. Each distractor MUST be a separate element in the JSON list.
-    - RATIONALE: For every question, you MUST provide a 'rationale' field in English explaining: 1. Why the answer is correct. 2. How the distractors are semantically related but contextually/factually wrong. 3. Explicitly confirm why the distractors are NOT synonyms of the answer.
     
     {dna_instructions}
     
     DIVERSITY QUOTA: {diversity_quota}
     
-    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."], "rationale": "..." }}]}}
+    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
     Return JSON ONLY.
     """
     prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
@@ -317,30 +388,24 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct."
     prompt += "\nOPTION DIVERSITY: Avoid 'set-recycling'. Every question should ideally use a fresh set of distractors. Do not simply swap the answer and distractors between questions."
     
-    # PARALLEL BURST: Trigger 5 parallel calls for 5 questions each (Total 25)
-    # This is much faster than fewer, larger batches.
-    import concurrent.futures
+    # BIG BATCH: Single request to ensure zero redundancy and lower costs
+    import random
+    seed = random.randint(1000, 9999)
+    batch_prompt = prompt + f"\n\nRANDOM SEED: {seed}\nIMPORTANT: Generate exactly {request_count} UNIQUE questions in one go. Do not repeat concepts."
     
-    def _fetch_batch():
-        batch_prompt = prompt + "\n\nIMPORTANT: Generate exactly 5 unique questions for this batch."
-        res = _call_ai([{"role": "user", "content": batch_prompt}], max_tokens=1500, temperature=0.8)
-        return res.get("data") if res else []
-
     try:
-        all_raw_items = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(_fetch_batch) for _ in range(5)]
-            for f in concurrent.futures.as_completed(futures):
-                try:
-                    batch = f.result()
-                    if batch: all_raw_items.extend(batch)
-                except Exception as e:
-                    print(f"[AI] Batch error: {e}")
-
-        print(f"[AI] Parallel Burst completed. Items collected: {len(all_raw_items)}")
-        raw_list = all_raw_items
+        res = _call_ai([{"role": "user", "content": batch_prompt}], max_tokens=4000, temperature=0.7)
+        raw_list = res.get("data") if res else []
+        
+        print(f"[AI] Big Batch completed. Items collected: {len(raw_list)}")
         final_questions = []
         seen_answers = set()
+        
+        # Pre-populate seen_answers from existing questions to prevent duplicates across runs
+        if existing_questions:
+            for eq in existing_questions:
+                ea = str(eq.get('answer', '')).strip()
+                if ea: seen_answers.add(re.sub(r'[^\w\s]', '', ea.lower()).strip())
             
         for item in raw_list:
             try:
@@ -351,15 +416,26 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 def deep_clean(text):
                     # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
                     t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
+                    # SUPER SCRUB: Remove all backslashes that AI often hallucinates
+                    t = t.replace("\\", "")
                     return t.strip()
 
+                def super_clean_key(text):
+                    # For duplicate checking: lowercase, strip, and remove punctuation
+                    t = deep_clean(text).lower()
+                    return re.sub(r'[^\w\s]', '', t).strip()
+
                 ans_clean = deep_clean(item.get("answer", ""))
+                ans_key = super_clean_key(ans_clean)
                 prompt_raw = str(item.get("prompt", "")).strip()
                 prompt_clean = deep_clean(prompt_raw)
                 
                 # 2. Logic Check: Empty or Inside Prompt
                 if not ans_clean or len(prompt_raw) < 5:
                     continue
+                
+                # CLEAN ESCAPING: Remove unnecessary backslashes from prompts
+                prompt_clean = prompt_clean.replace("\\'", "'").replace('\\"', '"')
 
                 # 3. Script Consistency Rule (RESTORED: No mixing vibes)
                 def get_vibe(t):
@@ -448,14 +524,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                              continue
                     
                     # Check for global duplicates
-                    if ans_clean.lower() in seen_answers:
+                    if ans_key in seen_answers:
                         continue
                     
                     item["id"] = _uid()
                     item["prompt"] = prompt_clean
                     item["answer"] = ans_clean
                     item["distractors"] = valid_distractors[:3]
-                    seen_answers.add(ans_clean.lower())
+                    seen_answers.add(ans_key)
                     final_questions.append(item)
                 
                 if len(final_questions) >= count: break

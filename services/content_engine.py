@@ -15,87 +15,7 @@ def _uid():
 
 # ── Activity Templates ──────────────────────────────────────────
 
-FILL_BLANK_TEMPLATES = {
-    "Spanish": {
-        "ser_estar": [
-            {"prompt": "Madrid ___ la capital de España.", "answer": "es", "hint": "identity → ser"},
-            {"prompt": "Yo ___ estudiante de español.", "answer": "soy", "hint": "identity → ser"},
-            {"prompt": "Mi hermana ___ muy contenta hoy.", "answer": "está", "hint": "temporary state → estar"},
-            {"prompt": "Nosotros ___ en la clase.", "answer": "estamos", "hint": "location → estar"},
-            {"prompt": "Ellos ___ de México.", "answer": "son", "hint": "origin → ser"},
-            {"prompt": "Tú ___ cansado después de estudiar.", "answer": "estás", "hint": "temporary state → estar"},
-            {"prompt": "La profesora ___ muy simpática.", "answer": "es", "hint": "permanent trait → ser"},
-            {"prompt": "El libro ___ en la mesa.", "answer": "está", "hint": "location → estar"},
-        ],
-        "present_regular": [
-            {"prompt": "Yo ___ (hablar) español todos los días.", "answer": "hablo", "hint": "-ar: -o, -as, -a, -amos, -áis, -an"},
-            {"prompt": "Tú ___ (comer) en la cafetería.", "answer": "comes", "hint": "-er: -o, -es, -e, -emos, -áis, -en"},
-            {"prompt": "Ella ___ (vivir) en Barcelona.", "answer": "vive", "hint": "-ir: -o, -es, -e, -imos, -ís, -en"},
-            {"prompt": "Nosotros ___ (estudiar) mucho.", "answer": "estudiamos", "hint": "-ar nosotros: -amos"},
-            {"prompt": "Ellos ___ (escribir) en el cuaderno.", "answer": "escriben", "hint": "-ir ellos: -en"},
-            {"prompt": "Yo ___ (aprender) palabras nuevas.", "answer": "aprendo", "hint": "-er yo: -o"},
-        ],
-        "reflexive": [
-            {"prompt": "Yo ___ (levantarse) a las siete.", "answer": "me levanto", "hint": "reflexive: me + verb"},
-            {"prompt": "Ella ___ (ducharse) por la mañana.", "answer": "se ducha", "hint": "reflexive: se + verb"},
-            {"prompt": "Nosotros ___ (acostarse) a las once.", "answer": "nos acostamos", "hint": "reflexive: nos + verb"},
-            {"prompt": "Tú ___ (vestirse) rápidamente.", "answer": "te vistes", "hint": "reflexive: te + verb (e→i)"},
-        ],
-        "possessives": [
-            {"prompt": "___ hermano se llama Carlos. (yo)", "answer": "Mi", "hint": "mi/mis for yo"},
-            {"prompt": "___ padres son muy amables. (tú)", "answer": "Tus", "hint": "tu/tus for tú"},
-            {"prompt": "___ casa es grande. (él)", "answer": "Su", "hint": "su/sus for él/ella"},
-            {"prompt": "___ profesora es española. (nosotros)", "answer": "Nuestra", "hint": "nuestro/a/os/as for nosotros"},
-        ],
-        "articles": [
-            {"prompt": "___ libro es interesante. (definido, m.sg.)", "answer": "El", "hint": "el (m.sg), la (f.sg)"},
-            {"prompt": "Necesito ___ cuaderno. (indefinido, m.sg.)", "answer": "un", "hint": "un (m.sg), una (f.sg)"},
-            {"prompt": "___ estudiantes estudian mucho. (definido, m.pl.)", "answer": "Los", "hint": "los (m.pl), las (f.pl)"},
-            {"prompt": "Hay ___ palabras nuevas. (indefinido, f.pl.)", "answer": "unas", "hint": "unos (m.pl), unas (f.pl)"},
-        ],
-        "comparatives": [
-            {"prompt": "Esta camiseta es ___ bonita que esa. (more)", "answer": "más", "hint": "más... que = more... than"},
-            {"prompt": "Estos zapatos son ___ caros que esos. (less)", "answer": "menos", "hint": "menos... que = less... than"},
-            {"prompt": "Mi hermano es ___ alto como mi padre. (as)", "answer": "tan", "hint": "tan... como = as... as"},
-        ],
-    }
-}
-
-DIALOGUE_TEMPLATES = [
-    {
-        "title": "En la cafetería",
-        "lines": [
-            {"order": 1, "speaker": "A", "text": "¡Hola! ¿Cómo te llamas?"},
-            {"order": 2, "speaker": "B", "text": "Me llamo María. ¿Y tú?"},
-            {"order": 3, "speaker": "A", "text": "Soy Carlos. ¿De dónde eres?"},
-            {"order": 4, "speaker": "B", "text": "Soy de Colombia. ¿Y tú?"},
-            {"order": 5, "speaker": "A", "text": "Soy de España. ¡Mucho gusto!"},
-            {"order": 6, "speaker": "B", "text": "¡Igualmente! Hasta luego."},
-        ]
-    },
-    {
-        "title": "Describiendo a la familia",
-        "lines": [
-            {"order": 1, "speaker": "A", "text": "¿Tienes hermanos?"},
-            {"order": 2, "speaker": "B", "text": "Sí, tengo una hermana y un hermano."},
-            {"order": 3, "speaker": "A", "text": "¿Cómo es tu hermana?"},
-            {"order": 4, "speaker": "B", "text": "Es alta y tiene pelo largo."},
-            {"order": 5, "speaker": "A", "text": "¿Y tu hermano?"},
-            {"order": 6, "speaker": "B", "text": "Es bajo y muy simpático."},
-        ]
-    },
-    {
-        "title": "La rutina diaria",
-        "lines": [
-            {"order": 1, "speaker": "A", "text": "¿A qué hora te levantas?"},
-            {"order": 2, "speaker": "B", "text": "Me levanto a las siete."},
-            {"order": 3, "speaker": "A", "text": "¿Qué haces después?"},
-            {"order": 4, "speaker": "B", "text": "Me ducho y desayuno."},
-            {"order": 5, "speaker": "A", "text": "¿A qué hora vas a clase?"},
-            {"order": 6, "speaker": "B", "text": "Voy a clase a las nueve."},
-        ]
-    }
-]
+# (Templates removed for language-agnostic AulaAI 3.0)
 
 
 def generate_activity(topic_data, difficulty="standard", count=5, language="English"):
@@ -123,7 +43,12 @@ def generate_activity(topic_data, difficulty="standard", count=5, language="Engl
                         "difficulty": difficulty,
                     }
                     if a.get("type") == "mcq":
-                        activity["options"] = a.get("options", [])
+                        distractors = a.get("distractors", [])
+                        options = list(distractors)
+                        if a.get("answer") and a.get("answer") not in options:
+                            options.append(a.get("answer"))
+                        random.shuffle(options)
+                        activity["options"] = options
                     if a.get("hint"):
                         activity["hint"] = a["hint"]
                     result.append(activity)
@@ -217,37 +142,6 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     """Generate grammar fill-in-the-blank activities."""
     title_lower = title.lower()
 
-    # Match to template bank
-    template_key = None
-    if "ser" in title_lower and "estar" in title_lower:
-        template_key = "ser_estar"
-    elif "presente" in title_lower or "regular" in title_lower:
-        template_key = "present_regular"
-    elif "reflexiv" in title_lower:
-        template_key = "reflexive"
-    elif "posesiv" in title_lower:
-        template_key = "possessives"
-    elif "art\u00edculo" in title_lower:
-        template_key = "articles"
-    elif "comparativ" in title_lower or "demostrativ" in title_lower:
-        template_key = "comparatives"
-
-    # Only use templates if the language is supported
-    if language in FILL_BLANK_TEMPLATES and template_key and template_key in FILL_BLANK_TEMPLATES[language]:
-        templates = FILL_BLANK_TEMPLATES[language][template_key]
-        random.shuffle(templates)
-        activities = []
-        for t in templates[:count]:
-            activities.append({
-                "id": _uid(),
-                "type": "fill_blank",
-                "prompt": t["prompt"],
-                "answer": t["answer"],
-                "hint": t.get("hint", ""),
-                "difficulty": difficulty,
-            })
-        return activities
-
     # Fallback: generate from examples in content
     examples = content.get("examples", [])
     activities = []
@@ -302,25 +196,27 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             if cid not in chapter_groups: chapter_groups[cid] = []
         
         print(f"[DEBUG] generate_quiz: topic_ids count={len(topic_ids)}, unique chapters identified={len(all_chapter_ids)}: {all_chapter_ids}")
-            
-        rows = c.execute(
-            "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
-            (tid,)
-        ).fetchall()
         
-        for row in rows:
-            q = dict(row)
-            try:
-                raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-            except: q["distractors"] = []
-            if not q["distractors"]: continue
-            q["chapter_id"] = cid
-            chapter_groups[cid].append(q)
+        # Pull existing approved questions to fill part of the quota
+        for tid in topic_ids:
+            rows = c.execute(
+                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
+                (tid,)
+            ).fetchall()
+            
+            for row in rows:
+                q = dict(row)
+                try:
+                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
+                except: q["distractors"] = []
+                if not q["distractors"]: continue
+                q["chapter_id"] = topic_to_chapter.get(tid, "unknown")
+                chapter_groups[q["chapter_id"]].append(q)
 
     # 2. Balanced Assembly
     questions = []
-    # Phase A: Seed one from every chapter that has questions in DB
+    # Seed one from every chapter that has questions in DB
     shuffled_chapters = list(all_chapter_ids)
     random.shuffle(shuffled_chapters)
     
@@ -331,97 +227,67 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             questions.append(group.pop())
             if len(questions) >= count: break
 
-    # 3. AI Generation for missing chapters or filling gaps
-    max_retries = 3
-    retry_count = 0
-    
-    import concurrent.futures
-    from services.state import bump_version
-    from services.ai_engine import ai_generate_questions, is_ai_available
-
-    while len(questions) < count and is_ai_available() and retry_count < max_retries:
-        retry_count += 1
+    # 3. BIG BATCH AI Generation for remaining gaps
+    if len(questions) < count and is_ai_available():
         needed = count - len(questions)
+        print(f"[AI] Quiz Big Batch: Requesting {needed} questions for {len(topic_ids)} topics")
         
-        # Identify chapters STILL missing representation
-        present_chapters = set(q.get("chapter_id") for q in questions)
-        missing_chapters = all_chapter_ids - present_chapters
+        # Build a consolidated prompt for multiple topics
+        topics_summary = []
+        with db_connection() as db_conn:
+            for tid in topic_ids:
+                t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+                if t_row:
+                    topics_summary.append({
+                        "id": tid,
+                        "title": t_row["title"],
+                        "type": t_row["type"],
+                        "content": json.loads(t_row["content"]) if t_row["content"] else {}
+                    })
         
-        targets = []
-        if missing_chapters:
-            # Pick 1 topic from each missing chapter up to 5 parallel targets
-            for mcid in list(missing_chapters)[:5]:
-                t_in_c = [tid for tid, cid in topic_to_chapter.items() if cid == mcid]
-                if t_in_c: targets.append(random.choice(t_in_c))
-        else:
-            # Just fill the gap
-            targets = random.sample(topic_ids, min(len(topic_ids), 3))
-            
-        if not targets: break
+        # Use first topic's language as base
+        base_lang = "Unknown"
+        if topics_summary:
+            with db_connection() as db_conn:
+                l_row = db_conn.execute("""
+                    SELECT co.language FROM courses co
+                    JOIN chapters ch ON co.id = ch.course_id
+                    JOIN topics t ON ch.id = t.chapter_id
+                    WHERE t.id = ?
+                """, (topics_summary[0]["id"],)).fetchone()
+                base_lang = l_row["language"] if l_row else "Unknown"
 
-        def _gen_for_topic(tid, batch):
-            from database import db_connection
-            try:
-                with db_connection() as thread_conn:
-                    tc = thread_conn.cursor()
-                    t_data = tc.execute("SELECT title, type, content, difficulty FROM topics WHERE id = ?", (tid,)).fetchone()
-                    if not t_data: return [], tid, ""
+        # Call the unified engine
+        from services.ai_engine import ai_generate_questions
+        new_qs = ai_generate_questions(
+            topic_title="Quiz/Review", 
+            topic_type="mixed_curriculum",
+            topic_content={"topics": topics_summary},
+            language=base_lang,
+            count=needed,
+            existing_questions=questions
+        )
+        
+        if new_qs:
+            with db_connection() as db_conn:
+                for q in new_qs:
+                    if len(questions) >= count: break
+                    tid = q.get("topic_id") or random.choice(topic_ids)
+                    q_id = str(uuid.uuid4())
+                    distractors = q.get("distractors", [])
                     
-                    l_row = tc.execute("""
-                        SELECT co.language FROM courses co
-                        JOIN chapters ch ON co.id = ch.course_id
-                        JOIN topics t ON ch.id = t.chapter_id
-                        WHERE t.id = ?
-                    """, (tid,)).fetchone()
-                    language = l_row["language"] if l_row else "Unknown" 
-                    parsed_content = json.loads(t_data["content"]) if t_data["content"] else {}
+                    db_conn.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                               (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
+                                json.dumps(distractors), "A1.1"))
                     
-                    return ai_generate_questions(t_data["title"], t_data["type"], parsed_content, language, batch, level=t_data["difficulty"]), tid, t_data["title"]
-            except Exception as e:
-                print(f"[ERROR] Parallel AI Gen failed for {tid}: {e}")
-                return [], tid, ""
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as executor:
-            # If we have missing chapters, we take only 1-2 questions per target to ensure we see them all
-            is_balancing = len(missing_chapters) > 0
-            batch_size = 2 if is_balancing else max(needed // len(targets) + 1, 5)
-            
-            futures = [executor.submit(_gen_for_topic, tid, batch_size) for tid in targets]
-            
-            for f in concurrent.futures.as_completed(futures):
-                new_qs, tid, t_title = f.result()
-                if new_qs:
-                    cid = topic_to_chapter.get(tid, "unknown")
-                    added_this_batch = 0
-                    with db_connection() as db_conn:
-                        for q in new_qs:
-                            if not q.get("prompt") or not q.get("answer"): continue
-                            # If we are balancing, we take only 1-2 per topic initially to leave room for others
-                            if is_balancing and added_this_batch >= 2: break
-                            if len(questions) >= count + 5: break 
-                            
-                            q_id = str(uuid.uuid4())
-                            distractors = q.get("distractors", [])
-                            if not isinstance(distractors, list): distractors = []
-                            
-                            db_conn.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                       (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                        json.dumps(distractors), "A1.1"))
-                            
-                            questions.append({
-                                "id": q_id, "topic_id": tid, "chapter_id": cid,
-                                "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
-                                "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
-                            })
-                            added_this_batch += 1
-                        db_conn.commit()
-                    if added_this_batch > 0:
-                        bump_version()
-                        print(f"[AI] Forced balance gen: {added_this_batch} questions for chapter {cid} (topic {t_title})")
-                
-                if progress_callback:
-                    current_prog = 20 + int((len(questions) / count) * 80)
-                    progress_callback(min(current_prog, 99))
+                    questions.append({
+                        "id": q_id, "topic_id": tid, 
+                        "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
+                        "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
+                    })
+                db_conn.commit()
+            from services.state import bump_version
+            bump_version()
 
     if progress_callback: progress_callback(100)
     return questions[:count]
@@ -461,8 +327,6 @@ Return ONLY valid JSON:
 
     # [CLEANUP] Removed Spanish-specific hardcoded fallbacks
     return None
-    
-    return None
 
 
 def grade_response(question_type, student_answer, correct_answer):
@@ -478,6 +342,7 @@ def grade_response(question_type, student_answer, correct_answer):
 
     if question_type == "fill_blank" and is_ai_available():
         try:
+            from services.ai_engine import ai_grade_open_response
             ai_result = ai_grade_open_response("Fill in the blank", student_answer, correct_answer)
             if ai_result: return ai_result[0], ai_result[1]
         except Exception: pass

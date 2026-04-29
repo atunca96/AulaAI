@@ -157,6 +157,7 @@ def init_db():
             course_id TEXT,
             number INTEGER,
             title TEXT,
+            page_number INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(course_id) REFERENCES courses(id)
         )''')
@@ -169,6 +170,7 @@ def init_db():
             difficulty TEXT,
             content TEXT,
             pdf_url TEXT,
+            page_number INTEGER,
             sort_order INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(chapter_id) REFERENCES chapters(id)
@@ -344,7 +346,9 @@ def _run_migrations():
             ("responses", "submitted_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
             ("questions", "is_active", "INTEGER DEFAULT 1"),
             ("questions", "approved", "INTEGER DEFAULT 1"),
-            ("users", "status", "TEXT DEFAULT 'approved'")
+            ("users", "status", "TEXT DEFAULT 'approved'"),
+            ("chapters", "page_number", "INTEGER"),
+            ("topics", "page_number", "INTEGER")
         ]
         
         for table, column, definition in migrations:

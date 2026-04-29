@@ -30,13 +30,15 @@ def _log(msg):
 def generate_classroom_code():
     return "".join([str(random.randint(0, 9)) for _ in range(5)])
 
-def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=None):
+def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=None, source_markdown_path=None, language=None):
     """
     Background worker that runs Phase 1 and Phase 2.
     """
     start_time = datetime.now()
     toc_text = ""
-    language = "Detecting..."
+    # Use provided language or default to Detecting...
+    if not language:
+        language = "Detecting..."
     
     try:
         _log(f"Phase 1: Starting for {course_id} ({course_name})")
@@ -63,12 +65,23 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
 
         if not is_pre_parsed:
             # 1. Extract TOC Text (if range provided)
-            if pdf_path != "NONE" and toc_range and "-" in toc_range:
+            if pdf_path != "NONE" and toc_range:
                 _log("Step 1: Extracting TOC text from PDF...")
                 try:
                     import fitz # PyMuPDF
                     doc = fitz.open(pdf_path)
-                    start_p, end_p = map(int, toc_range.split("-"))
+                    
+                    start_p = 1
+                    end_p = 1
+                    
+                    if "-" in toc_range:
+                        sp, ep = toc_range.split("-")
+                        start_p = int(sp)
+                        end_p = int(ep)
+                    elif toc_range.strip().isdigit():
+                        start_p = int(toc_range.strip())
+                        end_p = start_p
+
                     for p in range(start_p-1, min(end_p, len(doc))):
                         toc_text += doc[p].get_text()
                     doc.close()
@@ -76,25 +89,38 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 except Exception as e:
                     _log(f"ERROR in TOC Extraction: {e}")
 
-            # 2. Detect Language (if not NONE)
-            if pdf_path != "NONE":
-                _log("Step 2: Detecting language...")
-                language = "Unknown"
-                text_for_lang = manual_toc if manual_toc else toc_text
-                if text_for_lang and text_for_lang.strip():
-                    try:
-                        language = detect_language(text_for_lang)
-                    except:
-                        language = "Unknown"
-                _log(f"Language detected: {language}")
-                with db_connection() as db:
-                    db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
-                    db.commit()
+            # 2. Detect Language
+            _log("Step 2: Detecting language...")
+            language = "Unknown"
+            
+            # Get course name for hint
+            course_name = "Unknown Course"
+            with db_connection() as db:
+                row = db.execute("SELECT name FROM courses WHERE id = ?", (course_id,)).fetchone()
+                if row: course_name = row[0]
+
+            text_for_lang = manual_toc if manual_toc else toc_text
+            if text_for_lang and text_for_lang.strip():
+                try:
+                    language = detect_language(text_for_lang, hint=course_name)
+                except:
+                    language = "Unknown"
+            _log(f"Language detected: {language}")
+            with db_connection() as db:
+                db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+                db.commit()
             
             bump_version()
             
             # 3. Parse Structure
             _log("Step 3: Analyzing curriculum structure...")
+            
+            # If we have a source markdown but no manual TOC, use the markdown to find structure
+            if not manual_toc and source_markdown_path and os.path.exists(source_markdown_path):
+                with open(source_markdown_path, "r", encoding="utf-8") as f:
+                    manual_toc = f.read()
+                _log("Using Source Markdown for structural analysis.")
+
             if manual_toc:
                 _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
                 _log("Using Manual Curriculum provided by teacher.")
@@ -106,14 +132,16 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 1. Identify Chapters/Units: Look for lines starting with 'Chapter', 'Unit', 'Tema', 'Section', or Roman Numerals.
                 2. Identify Topics: Everything under a Chapter is a topic. If no chapters are found, treat the whole list as topics under one 'General Curriculum' chapter.
                 3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
+                4. CRITICAL: Skip meta-sections like 'About', 'Authors', 'License', 'Preface', 'Index', 'Bibliography', 'Introduction' (if just a welcome), 'Appendix', 'GNU', etc. Focus ONLY on lessons and teaching material.
                 
                 Return ONLY a valid JSON object with this exact structure:
                 {{
                   "chapters": [
                     {{
                       "title": "Chapter 1: ...",
+                      "page": 12,
                       "topics": [
-                        {{ "title": "Topic Name", "type": "vocabulary" }}
+                        {{ "title": "Topic Name", "type": "vocabulary", "page": 13 }}
                       ]
                     }}
                   ]
@@ -124,7 +152,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 """
             else:
                 _log("Extracting curriculum from PDF TOC text.")
-                prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\" }} ] }} ] }}\n\nText:\n{toc_text}"
+                prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"page\": 12, \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\", \"page\": 13 }} ] }} ] }}\n\nText:\n{toc_text}"
             
             resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
             
@@ -173,21 +201,23 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 chapter_id = _uid()
                 ch_num = idx + 1
                 ch_title = str(ch.get("title", "Untitled Chapter"))
-                db.execute("INSERT INTO chapters (id, course_id, number, title) VALUES (?,?,?,?)",
-                           (chapter_id, course_id, ch_num, ch_title))
+                ch_page = ch.get("page")
+                db.execute("INSERT INTO chapters (id, course_id, number, title, page_number) VALUES (?,?,?,?,?)",
+                           (chapter_id, course_id, ch_num, ch_title, ch_page))
                 for topic_idx, topic in enumerate(ch.get("topics", [])):
                     topic_id = _uid()
                     t_title = topic.get("title", "Untitled Topic")
                     t_type = topic.get("type", "vocabulary")
-                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order) VALUES (?,?,?,?,?,?,?)",
-                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx))
+                    t_page = topic.get("page")
+                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number) VALUES (?,?,?,?,?,?,?,?)",
+                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx, t_page))
             db.commit()
         _log("Structure creation complete.")
         bump_version()
         
         # Phase 2: Enrichment
         _log(f"Phase 1 Complete for {course_id}. Starting Phase 2...")
-        enrich_classroom_phase2(course_id, pdf_path)
+        enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path)
 
     except Exception as e:
         _log(f"CRITICAL ERROR in Phase 1: {e}")
@@ -196,7 +226,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
 
-def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
+def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_markdown_path=None):
     """
     Standalone entry point for Phase 2 enrichment.
     """
@@ -205,6 +235,15 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
     if manual_toc_path and os.path.exists(manual_toc_path):
         with open(manual_toc_path, "r", encoding="utf-8") as f:
             manual_toc = f.read()
+
+    source_markdown_content = None
+    if source_markdown_path and os.path.exists(source_markdown_path):
+        try:
+            with open(source_markdown_path, "r", encoding="utf-8") as f:
+                source_markdown_content = f.read()
+            _log(f"Phase 2: Loaded external source markdown ({len(source_markdown_content)} chars)")
+        except Exception as e:
+            _log(f"Phase 2 ERROR reading source markdown: {e}")
 
     try:
         # Get language and structure from DB
@@ -245,24 +284,29 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
         MAX_TOTAL_TOPICS = 250 
         topic_count = 0
         
-        def process_topic_task(t_id, t_title, t_type, language, level):
+        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
             """Wrapper to ensure questions are generated FROM the textbook content."""
             from services.ai_engine import generate_full_lesson, ai_generate_questions
-            
-            # 1. Generate Textbook Content (with retry)
+            def step_up():
+                try:
+                    with db_connection() as db:
+                        db.execute("UPDATE courses SET progress = progress + 1 WHERE id = ?", (course_id,))
+                        db.commit()
+                except: pass
+
+            # 1. Generate Textbook Content
             pages = []
-            for attempt in range(3):
-                lesson = generate_full_lesson(t_title, t_type, language, 6, level)
-                pages = lesson.get("pages", [])
-                if pages: break
-                _log(f"Empty lesson for {t_title}, retry {attempt+1}/3")
-                time.sleep(1)
+            lesson = generate_full_lesson(t_title, t_type, language, 6, level, source_text=source_text)
+            pages = lesson.get("pages", [])
             
+            step_up() # Halfway point
+
             content = {"pages": pages}
             
-            # 2. Generate Questions based ON that content
+            # 2. Generate Questions
             questions = ai_generate_questions(t_title, t_type, content, language, 6, level)
             
+            step_up() # Final point for this task
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -271,13 +315,18 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
-                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level)
+                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=source_markdown_content)
                     future_to_topic[future] = topic.get("title")
                     topic_count += 1
             
-            completed = 0
             total_queued = len(future_to_topic)
+            total_steps = total_queued * 2
             
+            with db_connection() as db:
+                db.execute("UPDATE courses SET progress = 1, total_steps = ? WHERE id = ?", (total_steps, course_id))
+                db.commit()
+
+            completed_topics = 0
             for future in concurrent.futures.as_completed(future_to_topic):
                 t_title = future_to_topic[future]
                 try:
@@ -290,10 +339,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                         if t_id:
                             content_json = json.dumps(content, ensure_ascii=False)
                             db.execute("UPDATE topics SET content = ? WHERE id = ?", (content_json, t_id))
-                            
-                            # Clean up old questions first to prevent redundancy
                             db.execute("DELETE FROM questions WHERE topic_id = ?", (t_id,))
-                            
                             for q in questions:
                                 p_val = q.get("prompt", "")
                                 p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)
@@ -301,15 +347,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
                                 a_text = json.dumps(a_val, ensure_ascii=False) if isinstance(a_val, (list, dict)) else str(a_val)
                                 d_list = q.get("distractors", [])
                                 if not isinstance(d_list, list): d_list = [d_list] if d_list else []
-                                
                                 db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, is_active) VALUES (?,?,?,?,?,?,?,1)",
                                            (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
                         db.commit()
-                    completed += 1
-                    with db_connection() as db:
-                        db.execute("UPDATE courses SET progress = ?, total_steps = ? WHERE id = ?", (completed, total_queued, course_id))
-                        db.commit()
-                    _log(f"Topic {completed}/{total_queued} finalized: {t_title}")
+                    completed_topics += 1
+                    _log(f"Topic {completed_topics}/{total_queued} fully finalized: {t_title}")
                     bump_version()
                 except Exception as e:
                     _log(f"ERROR finalizing topic '{t_title}': {e}")
@@ -327,7 +369,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None):
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
 
-def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None):
+def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None):
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
     
@@ -337,7 +379,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     
     with db_connection() as db:
         db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, "Fall 2026", textbook_url, "Detecting...", code, 1, lecturer_id))
+                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", code, 1, lecturer_id))
         db.commit()
     
     manual_toc_file = None
@@ -356,6 +398,16 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
         cmd = [sys.executable, "worker.py", pdf_path, toc_range or "0-0", str(lecturer_id), str(course_id), course_name]
         if manual_toc_file:
             cmd.append(manual_toc_file)
+        else:
+            cmd.append("NONE") # Placeholder for manual_toc_file
+            
+        if source_markdown_path:
+            cmd.append(source_markdown_path)
+        else:
+            cmd.append("NONE")
+            
+        if language:
+            cmd.append(language)
             
         if sys.platform == "win32":
             process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 

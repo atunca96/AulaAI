@@ -452,31 +452,56 @@
         </div>
     </div>
 
-    <!-- Create Classroom Modal (PDF Flow) -->
+    <!-- Create Classroom Modal (PDF & Markdown Flow) -->
     <div id="create-classroom-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:500px;">
+        <div class="modal-content" style="max-width:550px;">
             <button class="modal-close" onclick="closeCreateClassroomModal()">&times;</button>
-            <h2 style="margin-bottom:24px;">🚀 <span data-i18n="class.create">Create Classroom from PDF</span></h2>
+            <h2 style="margin-bottom:24px;">🚀 <span data-i18n="class.create">Classroom Architect</span></h2>
+            
             <form id="create-classroom-form" onsubmit="handleCreateClassroom(event)">
                 <div class="form-group">
                     <label data-i18n="class.name">Classroom Name</label>
-                    <input type="text" id="course-name-input" class="text-input" placeholder="e.g. French 101" required>
+                    <input type="text" id="course-name-input" class="text-input" placeholder="e.g. Language Course 101" required>
                 </div>
+
+                <!-- PDF Upload (Always Visible) -->
+                <div id="section-pdf" class="form-group">
+                    <label data-i18n="class.upload_pdf">1. Select PDF Textbook</label>
+                    <input type="file" id="pdf-upload" accept="application/pdf" style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;" data-i18n="class.pdf_limit">Upload the textbook to enable Deep Extraction.</small>
+                </div>
+
+                <!-- Markdown Section (Always Visible) -->
+                <div id="section-markdown" class="form-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <label style="margin-bottom:0;">2. Markdown Analysis (High Fidelity)</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label style="margin-bottom:0; font-size:11px; white-space:nowrap;">Scan Range (e.g. 1-15 or 5):</label>
+                            <input type="text" id="pdf-toc-range" class="text-input" value="1-12" style="width:60px; padding:4px; font-size:11px; text-align:center; height:auto;">
+                            <button type="button" id="deep-extract-btn" class="btn btn-sm" style="background:var(--accent); color:white; font-size:11px; padding:4px 10px;" onclick="triggerDeepExtract()">
+                                ⚡ Deep Extract (Local AI)
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="markdown-analysis-input" class="text-input" style="height:150px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Paste analysis or use 'Deep Extract' above..."></textarea>
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Paste the extracted text/analysis. The AI will use this as its <b>absolute source of truth</b>.</small>
+                    <div id="extract-status" class="hidden" style="margin-top:8px; font-size:11px; color:var(--accent); display:flex; align-items:center; gap:8px;">
+                        <div class="spinner-small"></div>
+                        <span id="extract-status-text">Marker AI is shredding your PDF...</span>
+                    </div>
+                </div>
+
                 <div class="form-group">
-                    <label data-i18n="class.upload_pdf">1. Upload PDF Textbook (for content)</label>
-                    <input type="file" id="pdf-upload" accept="application/pdf" required style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;" data-i18n="class.pdf_limit">Max size: 50MB. Large files may take longer to process.</small>
+                    <label data-i18n="class.toc_manual">2. Curriculum Roadmap / TOC (Optional)</label>
+                    <textarea id="manual-toc-input" class="text-input" style="height:100px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Chapter 1: Greetings..."></textarea>
+                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Provide a list of chapters/topics if you want a specific order.</small>
                 </div>
-                <div class="form-group">
-                    <label data-i18n="class.toc_manual">2. Manual Curriculum / TOC (Paste here)</label>
-                    <textarea id="manual-toc-input" class="text-input" style="height:120px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Chapter 1: Greetings&#10;- Hello and Goodbye&#10;Chapter 2: Numbers..."></textarea>
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;" data-i18n="class.toc_manual_hint">Paste the book's contents or your syllabus. The AI will use this as a roadmap.</small>
-                </div>
+
                 <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:12px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font-size:14px; display:flex; align-items:center; gap:12px;">
                     <div class="spinner"></div>
-                    <span data-i18n="class.processing">Processing PDF & generating curriculum... This may take a minute.</span>
+                    <span id="creation-status-text">Architecting your curriculum... This may take a minute.</span>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" data-i18n="class.start_pipeline">Start Pipeline</button>
+                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" data-i18n="class.start_pipeline">Launch Architect</button>
             </form>
         </div>
     </div>

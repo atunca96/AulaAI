@@ -7,6 +7,7 @@ let currentLang = localStorage.getItem('aula_lang') || 'en';
 let aiStatus = null;
 let _lastVersion = -1;
 let _syncInterval = null;
+let _lastExtractedLanguage = null;
 let _buildingCourses = [];
 let _lastActivityData = null;
 let _lastOverviewData = null;
@@ -85,16 +86,16 @@ function toggleSidebar() {
 setInterval(() => fetch('/api/courses').catch(() => { }), 10 * 60 * 1000);
 
 function confirmDeleteAccount() {
-    showConfirmModal('student.delete_account_title', 'student.delete_account_msg', true, null, false, 'student.delete_confirm_btn').then(async confirmed => {
-        if (confirmed) {
-            const res = await api('/user/delete', { method: 'POST' });
-            if (res && res.success) {
-                logout();
-            } else {
-                showAlert('Error', res?.error || 'Failed to delete account');
-            }
-        }
-    });
+  showConfirmModal('student.delete_account_title', 'student.delete_account_msg', true, null, false, 'student.delete_confirm_btn').then(async confirmed => {
+    if (confirmed) {
+      const res = await api('/user/delete', { method: 'POST' });
+      if (res && res.success) {
+        logout();
+      } else {
+        showAlert('Error', res?.error || 'Failed to delete account');
+      }
+    }
+  });
 }
 
 // ── Live-sync: poll for data changes every 1 second ──
@@ -138,19 +139,19 @@ function startLiveSync() {
             const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
             const fillId = isLecturer ? 'lecturer-progress-fill' : 'student-progress-fill';
             const textId = isLecturer ? 'lecturer-progress-text' : 'student-progress-text';
-            
+
             const buildBanner = document.getElementById(bannerId);
             const progressFill = document.getElementById(fillId);
             const progressText = document.getElementById(textId);
-            
+
             if (buildBanner) buildBanner.classList.toggle('hidden', !prog.is_building);
             if (progressFill) progressFill.style.width = prog.percentage + '%';
             if (progressText) progressText.textContent = prog.percentage + '%';
-            
+
             // Update local state if it finished building
             if (!prog.is_building && currentCourse.is_building) {
               currentCourse.is_building = 0;
-              refreshCurrentView(); 
+              refreshCurrentView();
             }
           }
         });
@@ -533,6 +534,8 @@ const i18n = {
     'confirm.delete_classroom_msg': 'Are you sure you want to delete the classroom "{name}"?',
     'confirm.delete_quiz': 'Delete Quiz',
     'confirm.delete_quiz_msg': 'Are you sure you want to delete the quiz "{title}"?',
+    'confirm.cancel_creation_title': 'Cancel Creation?',
+    'confirm.cancel_creation_msg': 'Are you sure? All extracted curriculum data and settings will be lost.',
     'confirm.delete_assignment': 'Delete Assignment',
     'confirm.delete_assignment_msg': 'Are you sure you want to delete the assignment "{title}"?',
     'confirm.kick_student_title': 'Kick Student',
@@ -1026,7 +1029,7 @@ function applyTranslations() {
       try { if (dataStr) data = JSON.parse(dataStr); } catch (e) { }
 
       const translation = t(key, data);
-      
+
       // Safety: Don't overwrite buttons that are currently showing a "loading" spinner
       if (el.tagName === 'BUTTON' && el.querySelector('.spinner-small')) return;
       if (el.disabled && el.innerHTML.includes('spinner')) return;
@@ -1073,7 +1076,7 @@ function applyTranslations() {
 
   // Refresh dynamic components that don't use simple data-i18n
   if (document.getElementById('ai-architect-modal') && !document.getElementById('ai-architect-modal').classList.contains('hidden')) {
-      renderAiLanguages();
+    renderAiLanguages();
   }
 }
 
@@ -1175,7 +1178,7 @@ function translateOption(text) {
 
 async function api(path, opts = {}) {
   let url = '/api' + path;
-  
+
   // Auto-append user identity for role-aware endpoints
   if (currentUser && currentUser.id) {
     const parsedUrl = new URL(url, window.location.origin);
@@ -1192,17 +1195,17 @@ async function api(path, opts = {}) {
     headers: opts.body ? { 'Content-Type': 'application/json' } : {},
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
-  
+
   if (res.status === 404 && currentUser && currentUser.role === 'student' && currentCourse) {
-      // If we are in a course and get a 404, it might be deleted
-      const data = await res.json();
-      if (data.error === "Course not found" || data.error === "Not found") {
-          localStorage.removeItem('aula_last_course');
-          await showAlert("Classroom Deleted", "This classroom has been deleted by the lecturer. You are being redirected to your portal.");
-          window.location.reload(); // Re-fetch portal state
-          return { error: "Classroom Deleted" };
-      }
-      return data;
+    // If we are in a course and get a 404, it might be deleted
+    const data = await res.json();
+    if (data.error === "Course not found" || data.error === "Not found") {
+      localStorage.removeItem('aula_last_course');
+      await showAlert("Classroom Deleted", "This classroom has been deleted by the lecturer. You are being redirected to your portal.");
+      window.location.reload(); // Re-fetch portal state
+      return { error: "Classroom Deleted" };
+    }
+    return data;
   }
 
   return res.json();
@@ -1228,7 +1231,7 @@ function fillDemo(role) {
 async function completeLogin(user, isFresh = false) {
   currentUser = user;
   if (user.course_id) courseId = user.course_id;
-  
+
   if (isFresh) {
     localStorage.removeItem('aula_last_tab');
     localStorage.removeItem('aula_last_course');
@@ -1236,12 +1239,12 @@ async function completeLogin(user, isFresh = false) {
 
   // Session Storage is per-tab, so it's safer for multiple roles in different tabs
   sessionStorage.setItem('aula_user', JSON.stringify(user));
-  
+
   const remember = document.getElementById('login-remember') ? document.getElementById('login-remember').checked : true;
   if (remember) {
     localStorage.setItem('aula_user', JSON.stringify(user));
   }
-  
+
   localStorage.setItem('aula_lang', currentLang);
 
   // Show Admin Panel if applicable
@@ -1297,10 +1300,10 @@ async function completeLogin(user, isFresh = false) {
     // Global Student Portal
     const savedCourse = localStorage.getItem('aula_last_course');
     if (savedCourse) {
-        await selectClassroom(savedCourse, false);
+      await selectClassroom(savedCourse, false);
     } else {
-        showScreen('student-portal-screen');
-        await refreshStudentEnrollments();
+      showScreen('student-portal-screen');
+      await refreshStudentEnrollments();
     }
   }
   startLiveSync();
@@ -1342,7 +1345,7 @@ function renderClassroomSelection(courses) {
         ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" data-i18n="${c.language || 'class.unknown'}">${t(c.language) || t('class.unknown')}</span>
+                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
                 <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
@@ -1413,23 +1416,23 @@ async function selectClassroom(id, isLecturer = true) {
     id = course.id;
   }
 
-    courseId = id;
-    if (course) {
-        if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
-            showScreen('waiting-room-screen');
-            startWaitingRoomPoll(courseId);
-            return;
-        }
-
-        const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
-        const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
-
-        if (navName) navName.textContent = course.name;
-        if (navCode) {
-            navCode.textContent = '#' + (course.code || '00000');
-            navCode.classList.remove('hidden');
-        }
+  courseId = id;
+  if (course) {
+    if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
+      showScreen('waiting-room-screen');
+      startWaitingRoomPoll(courseId);
+      return;
     }
+
+    const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
+    const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
+
+    if (navName) navName.textContent = course.name;
+    if (navCode) {
+      navCode.textContent = '#' + (course.code || '00000');
+      navCode.classList.remove('hidden');
+    }
+  }
 
   const buildBanner = document.getElementById(currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner');
   if (buildBanner) {
@@ -1451,11 +1454,11 @@ async function selectClassroom(id, isLecturer = true) {
 
   let bookPath = course ? course.textbook : '';
   const isAiGenerated = course && (course.textbook === 'AI Generated' || (course.textbook || '').toUpperCase().includes('AI GENERATED'));
-  
+
   const pdfViewerSrc = (!isAiGenerated && bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
-  
-  document.querySelectorAll('.pdf-viewer').forEach(el => { 
-      if (el.src !== pdfViewerSrc) el.src = pdfViewerSrc || 'about:blank'; 
+
+  document.querySelectorAll('.pdf-viewer').forEach(el => {
+    if (el.src !== pdfViewerSrc) el.src = pdfViewerSrc || 'about:blank';
   });
   document.querySelectorAll('a[data-tab="book"], a[data-tab="s-book"], .pdf-download-link').forEach(el => {
     if (el.tagName === 'A' && pdfViewerSrc) el.href = pdfViewerSrc;
@@ -1474,16 +1477,16 @@ async function selectClassroom(id, isLecturer = true) {
 
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
   document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
-  
+
   const lectBookTab = document.getElementById('lecturer-book-tab');
   const sStudyTabBtn = document.getElementById('nav-s-study-tab');
   const sBookTabBtn = document.getElementById('nav-s-book-tab');
-  
+
   if (currentUser.role === 'lecturer' && lectBookTab) {
     lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
     const label = lectBookTab.querySelector('.tab-label');
     if (label) label.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('book') || 'Book');
-    
+
     const mainTitle = document.getElementById('book-tab-main-title');
     if (mainTitle) {
       mainTitle.innerHTML = isAiGenerated ? `📘 <span>${t('Material')}</span>` : `📖 <span>${t('book')}</span>`;
@@ -1493,7 +1496,7 @@ async function selectClassroom(id, isLecturer = true) {
   if (currentUser.role === 'student') {
     if (sStudyTabBtn) sStudyTabBtn.style.display = isAiGenerated ? '' : 'none';
     if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : (pdfViewerSrc ? '' : 'none');
-    
+
     const sMainTitle = document.getElementById('s-study-tab-main-title');
     if (sMainTitle) {
       sMainTitle.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('study') || 'Study Lessons');
@@ -1508,15 +1511,15 @@ async function selectClassroom(id, isLecturer = true) {
     showScreen('lecturer-dashboard');
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
     let finalTab = targetTab;
-    
+
     // If it's a PDF-only course, but they were on the 'Material' (AI) tab, move them to 'book' (PDF)
     if (!isAiGenerated && targetTab === 'book') finalTab = 'book';
     // If it's AI-generated, allow the 'book' tab (which is our Material tab)
-    
+
     const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
     if (tabBtn) switchTab(tabBtn);
     await initLecturer();
-    
+
     if (finalTab === 'book' && isAiGenerated) {
       renderStudyBook();
       const lastTopic = localStorage.getItem('aula_last_topic');
@@ -1532,8 +1535,8 @@ async function selectClassroom(id, isLecturer = true) {
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
     if (tabBtn) switchTab(tabBtn, true); // skipLoad=true since we call initStudent after
     else {
-        const homeBtn = document.querySelector(`#student-dashboard [data-tab="s-home"]`);
-        if (homeBtn) switchTab(homeBtn, true);
+      const homeBtn = document.querySelector(`#student-dashboard [data-tab="s-home"]`);
+      if (homeBtn) switchTab(homeBtn, true);
     }
     await initStudent();
 
@@ -1686,20 +1689,26 @@ function renderAiSyllabusEditor(syllabus) {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">Unit ${i + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+           <span style="font-size:11px; color:var(--text-muted);">Page:</span>
+           <input type="number" class="text-input syllabus-page" value="${chapter.page || ''}" style="width:50px; padding:2px 4px; background:rgba(0,0,0,0.2); font-size:11px; height:auto;">
+           <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        </div>
       </div>
-      <input type="text" class="text-input" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <input type="text" class="text-input syllabus-title" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         ${chapter.topics.map(topic => {
-          const title = typeof topic === 'string' ? topic : (topic.title || '');
-          return `
+    const title = typeof topic === 'string' ? topic : (topic.title || '');
+    const page = typeof topic === 'object' ? topic.page : '';
+    return `
             <div class="topic-item" data-type="${topic.type || 'vocabulary'}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '⚙️' : '•'}</span>
-              <input type="text" class="text-input" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
+              <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
+              <input type="number" class="text-input topic-page" placeholder="P#" value="${page || ''}" style="width:40px; padding:4px; font-size:11px; background:rgba(0,0,0,0.1); height:auto;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
           `;
-        }).join('')}
+  }).join('')}
         <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
       </div>
     </div>
@@ -1709,21 +1718,25 @@ function renderAiSyllabusEditor(syllabus) {
 function addUnitToAiArchitect() {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
-  
+
   const unitIdx = container.querySelectorAll('.syllabus-chapter').length;
   const unitHtml = `
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+           <span style="font-size:11px; color:var(--text-muted);">Page:</span>
+           <input type="number" class="text-input syllabus-page" placeholder="P#" style="width:50px; padding:2px 4px; background:rgba(0,0,0,0.2); font-size:11px; height:auto;">
+           <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        </div>
       </div>
-      <input type="text" class="text-input" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <input type="text" class="text-input syllabus-title" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
       </div>
     </div>
   `;
-  
+
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = unitHtml;
   container.appendChild(tempDiv.firstElementChild);
@@ -1738,7 +1751,8 @@ function addTopicToSyllabus(btn) {
   div.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
   div.innerHTML = `
     <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">•</span>
-    <input type="text" class="text-input" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1);">
+    <input type="text" class="text-input topic-title" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
+    <input type="number" class="text-input topic-page" placeholder="P#" style="width:40px; padding:4px; font-size:11px; background:rgba(0,0,0,0.1); height:auto;">
     <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
   `;
   div.setAttribute('data-type', 'vocabulary');
@@ -1758,14 +1772,16 @@ async function buildAiClassroom() {
   const courseName = document.getElementById('ai-course-name').value;
   const chapters = [];
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
-    const title = chapterEl.querySelector('input').value;
+    const title = chapterEl.querySelector('.syllabus-title').value;
+    const page = chapterEl.querySelector('.syllabus-page').value;
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
-      const topicInp = topicItem.querySelector('input');
+      const topicInp = topicItem.querySelector('.topic-title');
+      const topicPage = topicItem.querySelector('.topic-page').value;
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
-      topics.push({ title: topicInp.value, type: type });
+      topics.push({ title: topicInp.value, type: type, page: topicPage });
     });
-    chapters.push({ title, topics });
+    chapters.push({ title, topics, page });
   });
 
   const btn = document.getElementById('ai-build-btn');
@@ -1776,11 +1792,11 @@ async function buildAiClassroom() {
   try {
     const res = await api('/classroom/create-from-scratch', {
       method: 'POST',
-      body: { 
-        course_name: courseName, 
-        language: _selectedAiLanguage, 
-        level: _selectedAiLevel, 
-        chapters, 
+      body: {
+        course_name: courseName,
+        language: _selectedAiLanguage,
+        level: _selectedAiLevel,
+        chapters,
         lecturer_id: currentUser.id,
         course_id: localStorage.getItem('aula_rearchitecting_id')
       }
@@ -1808,8 +1824,63 @@ async function openCreateClassroomModal() {
   document.getElementById('submit-creation-btn').disabled = false;
 }
 
-function closeCreateClassroomModal() {
+async function closeCreateClassroomModal(force = false) {
+  const name = document.getElementById('course-name-input').value.trim();
+  const md = document.getElementById('markdown-analysis-input').value.trim();
+  const toc = document.getElementById('manual-toc-input').value.trim();
+
+  if (!force && (name || md || toc)) {
+    const confirmed = await showConfirmModal('confirm.cancel_creation_title', 'confirm.cancel_creation_msg', true);
+    if (!confirmed) return;
+  }
   document.getElementById('create-classroom-modal').classList.add('hidden');
+}
+
+async function triggerDeepExtract() {
+  const fileInput = document.getElementById('pdf-upload');
+  const mdInput = document.getElementById('markdown-analysis-input');
+  const statusEl = document.getElementById('extract-status');
+  const btn = document.getElementById('deep-extract-btn');
+
+  if (!fileInput.files[0]) {
+    return showAlert(t('missing_info'), 'Please select a PDF file first.', true);
+  }
+
+  statusEl.classList.remove('hidden');
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+
+  const formData = new FormData();
+  formData.append('pdf', fileInput.files[0]);
+  formData.append('toc_range', document.getElementById('pdf-toc-range').value || '1-12');
+
+  try {
+    const res = await fetch('/api/marker/extract', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error);
+
+    mdInput.value = data.markdown;
+    _lastExtractedLanguage = data.language;
+    
+    // Automatically set course name if empty
+    const nameInput = document.getElementById('course-name-input');
+    if (nameInput && !nameInput.value.trim() && data.language) {
+      nameInput.value = `${data.language} Course`;
+    }
+
+    showAlert('success', 'Deep extraction complete! Review the content below.', false);
+  } catch (err) {
+    console.error('Extraction Error:', err);
+    showAlert(t('error'), 'Deep extraction failed: ' + err.message, true);
+  } finally {
+    statusEl.classList.add('hidden');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
 }
 
 async function handleCreateClassroom(e) {
@@ -1817,51 +1888,52 @@ async function handleCreateClassroom(e) {
   const nameInput = document.getElementById('course-name-input');
   const fileInput = document.getElementById('pdf-upload');
   const manualTocInput = document.getElementById('manual-toc-input');
+  const markdownInput = document.getElementById('markdown-analysis-input');
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
 
-  if (!fileInput.files[0]) return showAlert(t('missing_info'), t('alert.select_pdf'), true);
+  if (!markdownInput.value.trim()) {
+    return showAlert(t('missing_info'), 'Please paste your Markdown analysis or use Deep Extract.', true);
+  }
 
   const formData = new FormData();
   formData.append('course_name', nameInput.value.trim());
-  formData.append('pdf', fileInput.files[0]);
+  
+  // Send PDF if available (for textbook rendering/book tab)
+  if (fileInput.files[0]) {
+    formData.append('pdf', fileInput.files[0]);
+  }
+  
+  formData.append('external_markdown', markdownInput.value.trim());
   formData.append('manual_toc', manualTocInput.value.trim());
   formData.append('lecturer_id', currentUser.id);
+  if (_lastExtractedLanguage) {
+    formData.append('language', _lastExtractedLanguage);
+  }
 
   statusEl.classList.remove('hidden');
   btn.disabled = true;
   btn.style.opacity = '0.5';
-  btn.style.cursor = 'default';
 
-  let data;
   try {
     const res = await fetch('/api/classroom/create-from-pdf', {
       method: 'POST',
       body: formData
     });
-    data = await res.json();
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    await showAlert('success', 'class.create_success_full', false, { code: data.code });
+    closeCreateClassroomModal(true);
+    if (typeof _buildingCourses !== 'undefined') _buildingCourses.push(data.course_id);
+    await showClassroomSelection();
   } catch (err) {
     console.error('Creation Error:', err);
-    if (currentUser.role === 'lecturer') stopLiveSync();
-    return showAlert(t('error'), t('class.create_failed'), true);
-  }
-
-  if (!data.success) {
     statusEl.classList.add('hidden');
     btn.disabled = false;
     btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-    return showAlert(t('error'), data.error || (currentLang === 'tr' ? 'Sınıf oluşturulamadı.' : 'Failed to create classroom.'), true);
+    showAlert(t('error'), err.message || t('class.create_failed'), true);
   }
-
-  await showAlert('success', 'class.create_success_full', false, { code: data.code });
-  closeCreateClassroomModal();
-
-  if (typeof _buildingCourses !== 'undefined') {
-    _buildingCourses.push(data.course_id);
-  }
-
-  await showClassroomSelection();
 }
 
 async function handleStudentLogin(e) {
@@ -2014,11 +2086,11 @@ function switchTab(btn, skipLoad = false) {
 
   // LOCK: If building, prevent switching to non-essential tabs
   if (currentUser.role === 'lecturer' && currentCourse && currentCourse.is_building === 1) {
-      const allowedTabs = ['overview', 'inbox']; // Overview shows progress, Inbox is fine
-      if (!allowedTabs.includes(tabId)) {
-          triggerBuildingFocus();
-          return; // Block navigation
-      }
+    const allowedTabs = ['overview', 'inbox']; // Overview shows progress, Inbox is fine
+    if (!allowedTabs.includes(tabId)) {
+      triggerBuildingFocus();
+      return; // Block navigation
+    }
   }
 
   // Clean up any open chat overlays/locks when switching tabs
@@ -2038,12 +2110,12 @@ function switchTab(btn, skipLoad = false) {
   const panels = screen.querySelectorAll('.tab-panel');
   panels.forEach(p => {
     if (p.id === 'tab-' + tabId) {
-        p.classList.add('active');
-        p.style.display = 'block';
-        if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();
+      p.classList.add('active');
+      p.style.display = 'block';
+      if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();
     } else {
-        p.classList.remove('active');
-        p.style.display = 'none';
+      p.classList.remove('active');
+      p.style.display = 'none';
     }
   });
 
@@ -2068,8 +2140,8 @@ function triggerBuildingFocus() {
   setTimeout(() => {
     banner.classList.remove('shake-active');
     setTimeout(() => {
-        banner.classList.remove('glow-active');
-        if (whisper) whisper.classList.remove('visible');
+      banner.classList.remove('glow-active');
+      if (whisper) whisper.classList.remove('visible');
     }, 1000);
   }, 300);
 }
@@ -2507,43 +2579,75 @@ function renderCurriculum() {
       if (btnText) btnText.textContent = isBuilding ? t('Building...') : t('Build All Lessons');
     }
 
-    treeEl.innerHTML = curriculum.map((ch, i) => `
+    treeEl.innerHTML = curriculum.map((ch, i) => {
+      const cleanTitle = (ch.title || "").replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
+      const displayNum = i + 1;
+      return `
       <div class="chapter-block">
         <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
-          <div style="display:flex;align-items:center"><span class="chapter-num">${ch.number}</span><span class="chapter-title">${esc(ch.title)}</span></div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="chapter-num">${displayNum}</span>
+            <span class="chapter-title">${esc(cleanTitle)}</span>
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', '${esc(ch.title)}')" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">🗑️</button>
+          </div>
           <span class="chapter-toggle">▸</span>
         </div>
-        <div class="chapter-topics">${(ch.topics || []).map(t_obj => `
+        <div class="chapter-topics">${(ch.topics || []).map(t_obj => {
+          const cleanTopicTitle = (t_obj.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
+          return `
           <div class="topic-item">
             <div class="topic-info">
               <span class="topic-type-badge ${t_obj.type}">${t_obj.type}</span>
-              <span class="topic-name">${esc(t_obj.title)}</span>
+              <span class="topic-name">${esc(cleanTopicTitle)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
               ${t_obj.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${t_obj.pdf_url}', '_blank')">📖</button>` : ''}
+              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', '${esc(t_obj.title)}')" style="color:var(--danger); padding:4px;">🗑️</button>
               <div class="topic-meta">
                 <span>${t_obj.difficulty}</span>
                 <span>${t_obj.question_count || 0} ${t('questions')}</span>
               </div>
             </div>
-          </div>`).join('')}</div>
-      </div>`).join('');
+          </div>`}).join('')}</div>
+      </div>`}).join('');
   } catch (err) {
     console.error('Render Error:', err);
+  }
+}
+
+async function deleteChapter(id, title) {
+  const ok = await showConfirmModal('confirm.delete_chapter', `Are you sure you want to delete chapter: ${title}?`, true, null, false, "Delete", "Cancel");
+  if (!ok) return;
+  const res = await api('/curriculum/chapter/delete', { method: 'POST', body: { chapter_id: id } });
+  if (res.success) {
+    curriculum = curriculum.filter(ch => ch.id !== id);
+    renderCurriculum();
+  }
+}
+
+async function deleteTopic(id, title) {
+  const ok = await showConfirmModal('confirm.delete_topic', `Are you sure you want to delete topic: ${title}?`, true, null, false, "Delete", "Cancel");
+  if (!ok) return;
+  const res = await api('/curriculum/topic/delete', { method: 'POST', body: { topic_id: id } });
+  if (res.success) {
+    curriculum.forEach(ch => {
+      if (ch.topics) ch.topics = ch.topics.filter(t => t.id !== id);
+    });
+    renderCurriculum();
   }
 }
 
 async function rebuildClassroom() {
   if (!currentCourse) return;
   const ok = await showConfirmModal(
-    'confirm.rebuild_title', 
+    'confirm.rebuild_title',
     "confirm.rebuild_msg",
     false, null, false, "confirm.rebuild_ok", "confirm.rebuild_cancel"
   );
   if (!ok) return;
 
   try {
-    const res = await api('/classroom/rebuild', { 
+    const res = await api('/classroom/rebuild', {
       method: 'POST',
       body: { course_id: currentCourse.id }
     });
@@ -2561,7 +2665,7 @@ async function rebuildClassroom() {
 async function reArchitectCurriculum() {
   if (!currentCourse) return;
   const ok = await showConfirmModal(
-    'confirm.rearchitect_title', 
+    'confirm.rearchitect_title',
     'confirm.rearchitect_msg',
     true, null, false, 'confirm.rearchitect_ok', 'confirm.rebuild_cancel'
   );
@@ -2594,9 +2698,20 @@ async function reArchitectCurriculum() {
 
 function populateSelects() {
   let topicOpts = '', chapterOpts = '';
-  curriculum.forEach(ch => {
-    chapterOpts += `<option value="${ch.id}">${t('Unit')} ${ch.number}: ${ch.title}</option>`;
-    (ch.topics || []).forEach(t => { topicOpts += `<option value="${t.id}">U${ch.number} — ${t.title} (${t.type})</option>`; });
+  curriculum.forEach((ch, idx) => {
+    let title = ch.title || "";
+    // Remove redundant "Unit X:" or "Chapter X:" if it already exists in the title
+    const cleanTitle = title.replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
+    
+    // Always use the index + 1 for the unit number to ensure they start at 1 and are sequential
+    const displayNum = idx + 1;
+    const displayTitle = `${t('Unit')} ${displayNum}: ${cleanTitle}`;
+    
+    chapterOpts += `<option value="${ch.id}">${displayTitle}</option>`;
+    (ch.topics || []).forEach(t => { 
+      const cleanT = (t.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
+      topicOpts += `<option value="${t.id}">U${displayNum} — ${cleanT} (${t.type})</option>`; 
+    });
   });
   document.getElementById('activity-topic-select').innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
   document.getElementById('quiz-chapter-select').innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
@@ -2641,7 +2756,7 @@ function startActivityPolling(targetId, title) {
 
   activityProgressInterval = setInterval(async () => {
     try {
-      const data = await api(`/activity/progress?course_id=${courseId}`);
+      const data = await api(`/activity/progress?course_id=${courseId}&v=${Date.now()}`);
       if (data && !data.error) {
         if (fill) fill.style.width = data.percentage + '%';
         if (text) text.textContent = data.percentage + '%';
@@ -2657,7 +2772,7 @@ function startActivityPolling(targetId, title) {
         }
       }
     } catch (e) { console.error("Poll Error:", e); }
-  }, 1000);
+  }, 300);
 }
 
 let draftProgressInterval = null;
@@ -2675,7 +2790,7 @@ function startDraftPolling(type, btn, originalText, callback) {
 
   draftProgressInterval = setInterval(async () => {
     try {
-      const data = await api(`/draft/progress?course_id=${courseId}`);
+      const data = await api(`/draft/progress?course_id=${courseId}&v=${Date.now()}`);
 
       if (data.status === 'generating') {
         const pct = data.percentage || 0;
@@ -2685,7 +2800,7 @@ function startDraftPolling(type, btn, originalText, callback) {
         clearInterval(draftProgressInterval);
         if (fill) fill.style.width = '100%';
         if (pctText) pctText.textContent = '100%';
-        
+
         setTimeout(() => {
           if (container) container.classList.add('hidden');
           btn.textContent = originalText;
@@ -2702,7 +2817,7 @@ function startDraftPolling(type, btn, originalText, callback) {
     } catch (err) {
       console.error("Draft Polling Error:", err);
     }
-  }, 1000);
+  }, 300);
 }
 
 async function launchActivity() {
@@ -2756,18 +2871,18 @@ function renderActivityCard(a, idx, ctx) {
 }
 
 async function editActivityQuestion(qid, cardId, type) {
-    const card = document.getElementById(cardId);
-    if (!card) return;
-    
-    // Find the original data from _lastActivityData
-    const qData = (_lastActivityData?.activities || []).find(q => q.id === qid);
-    if (!qData) return;
+  const card = document.getElementById(cardId);
+  if (!card) return;
 
-    // Switch to edit mode by replacing card innerHTML
-    const originalContent = card.innerHTML;
-    card.dataset.original = originalContent;
+  // Find the original data from _lastActivityData
+  const qData = (_lastActivityData?.activities || []).find(q => q.id === qid);
+  if (!qData) return;
 
-    card.innerHTML = `
+  // Switch to edit mode by replacing card innerHTML
+  const originalContent = card.innerHTML;
+  card.dataset.original = originalContent;
+
+  card.innerHTML = `
         <div style="padding:10px;">
             <label style="display:block; font-size:11px; color:var(--accent); font-weight:700; text-transform:uppercase; margin-bottom:4px;">Edit Question</label>
             <input type="text" id="edit-prompt-${qid}" class="text-input" value="${esc(qData.prompt)}" style="margin-bottom:12px; background:rgba(0,0,0,0.2);" placeholder="Prompt">
@@ -2782,68 +2897,76 @@ async function editActivityQuestion(qid, cardId, type) {
 }
 
 function cancelEditQuestion(cardId) {
-    const card = document.getElementById(cardId);
-    if (card && card.dataset.original) {
-        card.innerHTML = card.dataset.original;
-        delete card.dataset.original;
-    }
+  const card = document.getElementById(cardId);
+  if (card && card.dataset.original) {
+    card.innerHTML = card.dataset.original;
+    delete card.dataset.original;
+  }
 }
 
 async function saveEditedQuestion(qid, cardId, type) {
-    const prompt = document.getElementById(`edit-prompt-${qid}`).value.trim();
-    const answer = document.getElementById(`edit-answer-${qid}`).value.trim();
-    let distractors = [];
-    if (type === 'mcq') {
-        distractors = document.getElementById(`edit-distractors-${qid}`).value.split(',').map(s => s.trim()).filter(s => s);
+  const prompt = document.getElementById(`edit-prompt-${qid}`).value.trim();
+  const answer = document.getElementById(`edit-answer-${qid}`).value.trim();
+  let distractors = [];
+  if (type === 'mcq') {
+    distractors = document.getElementById(`edit-distractors-${qid}`).value.split(',').map(s => s.trim()).filter(s => s);
+  }
+
+  if (!prompt || !answer) return showAlert('error', 'Prompt and Answer are required', true);
+
+  const res = await api('/question/update', {
+    method: 'POST',
+    body: { id: qid, prompt, answer, distractors }
+  });
+
+  if (res.success) {
+    // Update local data so re-render works
+    const qIdx = _lastActivityData.activities.findIndex(q => q.id === qid);
+    if (qIdx !== -1) {
+      _lastActivityData.activities[qIdx].prompt = prompt;
+      _lastActivityData.activities[qIdx].answer = answer;
+      if (type === 'mcq') {
+        _lastActivityData.activities[qIdx].distractors = distractors;
+        _lastActivityData.activities[qIdx].options = [answer, ...distractors].sort(() => Math.random() - 0.5);
+      }
+      const updatedCardHtml = renderActivityCard(_lastActivityData.activities[qIdx], qIdx, cardId.split('-')[0]);
+      document.getElementById(cardId).outerHTML = updatedCardHtml;
     }
-
-    if (!prompt || !answer) return showAlert('error', 'Prompt and Answer are required', true);
-
-    const res = await api('/question/update', {
-        method: 'POST',
-        body: { id: qid, prompt, answer, distractors }
-    });
-
-    if (res.success) {
-        // Update local data so re-render works
-        const qIdx = _lastActivityData.activities.findIndex(q => q.id === qid);
-        if (qIdx !== -1) {
-            _lastActivityData.activities[qIdx].prompt = prompt;
-            _lastActivityData.activities[qIdx].answer = answer;
-            if (type === 'mcq') {
-                _lastActivityData.activities[qIdx].distractors = distractors;
-                _lastActivityData.activities[qIdx].options = [answer, ...distractors].sort(() => Math.random() - 0.5);
-            }
-            const updatedCardHtml = renderActivityCard(_lastActivityData.activities[qIdx], qIdx, cardId.split('-')[0]);
-            document.getElementById(cardId).outerHTML = updatedCardHtml;
-        }
-    } else {
-        showAlert('error', 'Failed to save question', true);
-    }
+  } else {
+    showAlert('error', 'Failed to save question', true);
+  }
 }
 
 async function deleteActivityQuestion(qid, cardId) {
-    if (!confirm('Are you sure you want to delete this question?')) return;
+  if (!confirm('Are you sure you want to delete this question?')) return;
 
-    const res = await api('/question/delete', {
-        method: 'POST',
-        body: { id: qid }
-    });
+  const res = await api('/question/delete', {
+    method: 'POST',
+    body: { id: qid }
+  });
 
-    if (res.success) {
-        const card = document.getElementById(cardId);
-        if (card) {
-            card.style.opacity = '0';
-            card.style.transform = 'scale(0.9)';
-            card.style.transition = 'all 0.3s ease';
-            setTimeout(() => card.remove(), 300);
-        }
-    } else {
-        showAlert('error', 'Failed to delete question', true);
+  if (res.success) {
+    const card = document.getElementById(cardId);
+    if (card) {
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.9)';
+      card.style.transition = 'all 0.3s ease';
+      setTimeout(() => card.remove(), 300);
     }
+  } else {
+    showAlert('error', 'Failed to delete question', true);
+  }
 }
 
-function esc(s) { return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+function esc(s) { 
+  if (!s) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function formatActivityData(val) {
   if (!val) return '';
@@ -2856,9 +2979,9 @@ function formatActivityData(val) {
       // Not valid JSON, keep as string
     }
   }
-  // If it's an array, join with backslashes for readability
+  // If it's an array, join with clean comma-space
   if (Array.isArray(data)) {
-    return data.map(item => String(item)).join(' \\ ');
+    return data.map(item => String(item)).join(', ');
   }
   return String(data);
 }
@@ -3489,31 +3612,31 @@ async function initStudent() {
 
   const greeting = document.getElementById('student-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
-  
+
   // Background poller to check if classroom still exists (Safety/Immediate Notification)
   if (window._studentPoll) clearInterval(window._studentPoll);
   window._studentPoll = setInterval(async () => {
     if (currentCourse && currentUser && currentUser.role === 'student') {
-        const check = await api('/courses');
-        if (check && Array.isArray(check)) {
-            const stillExists = check.some(c => c.id === currentCourse.id);
-            if (!stillExists) {
-                clearInterval(window._studentPoll);
-                await showAlert("Classroom Deleted", "The lecturer has deleted this classroom. Redirecting to your portal...");
-                window.location.reload();
-            }
+      const check = await api('/courses');
+      if (check && Array.isArray(check)) {
+        const stillExists = check.some(c => c.id === currentCourse.id);
+        if (!stillExists) {
+          clearInterval(window._studentPoll);
+          await showAlert("Classroom Deleted", "The lecturer has deleted this classroom. Redirecting to your portal...");
+          window.location.reload();
         }
+      }
     }
   }, 15000);
 
   try {
     await Promise.all([
-        loadCurriculumAsync(),
-        loadStudentHome(),
-        loadQuizList(),
-        loadAssignmentList(),
-        loadStudentProgress(),
-        loadStudentChat()
+      loadCurriculumAsync(),
+      loadStudentHome(),
+      loadQuizList(),
+      loadAssignmentList(),
+      loadStudentProgress(),
+      loadStudentChat()
     ]);
   } catch (e) {
     console.error("Error initializing student dashboard:", e);
@@ -3570,13 +3693,13 @@ function loadStudentPractice() {
 }
 
 function startStudyFirst(topicId) {
-    // 1. Find the Study tab button and switch to it
-    const studyTabBtn = document.getElementById('nav-s-study-tab') || document.querySelector('button[data-tab="s-book"]');
-    if (studyTabBtn) {
-        switchTab(studyTabBtn);
-        // 2. Load the study content for this topic
-        setTimeout(() => showStudyTopic(topicId), 50);
-    }
+  // 1. Find the Study tab button and switch to it
+  const studyTabBtn = document.getElementById('nav-s-study-tab') || document.querySelector('button[data-tab="s-book"]');
+  if (studyTabBtn) {
+    switchTab(studyTabBtn);
+    // 2. Load the study content for this topic
+    setTimeout(() => showStudyTopic(topicId), 50);
+  }
 }
 
 async function startPractice(tid, title) {
@@ -3584,12 +3707,12 @@ async function startPractice(tid, title) {
   const targetId = isLecturer ? 'activity-preview' : 'practice-area';
   const topicsGrid = isLecturer ? null : document.getElementById('practice-topics');
   const area = document.getElementById(targetId);
-  
+
   if (topicsGrid) topicsGrid.classList.add('hidden');
   if (area) {
-    area.innerHTML = ''; 
+    area.innerHTML = '';
     area.classList.remove('hidden');
-    area.style.display = 'block'; 
+    area.style.display = 'block';
     showGenerationLoading(area);
   }
 
@@ -3600,13 +3723,13 @@ async function startPractice(tid, title) {
       body: { topic_id: tid, course_id: courseId, count: 6 }
     });
     if (res.error) throw new Error(res.error);
-    
+
     // 2. Start polling
     startActivityPolling(targetId, `${t('practice')}: ${title}`);
   } catch (err) {
     console.error("Practice Start Error:", err);
     if (area) {
-        area.innerHTML = `<div style="padding:40px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
+      area.innerHTML = `<div style="padding:40px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
           <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
           <h3 style="margin-bottom:8px;">${t('assign.retry')}</h3>
           <p style="color:var(--text-muted); margin-bottom:24px;">${err.message || 'Generation failed'}</p>
@@ -3617,13 +3740,13 @@ async function startPractice(tid, title) {
 }
 
 function cancelPractice() {
-    const topicsGrid = document.getElementById('practice-topics');
-    const area = document.getElementById('practice-area');
-    if (topicsGrid) topicsGrid.classList.remove('hidden');
-    if (area) {
-        area.classList.add('hidden');
-        area.innerHTML = '';
-    }
+  const topicsGrid = document.getElementById('practice-topics');
+  const area = document.getElementById('practice-area');
+  if (topicsGrid) topicsGrid.classList.remove('hidden');
+  if (area) {
+    area.classList.add('hidden');
+    area.innerHTML = '';
+  }
 }
 
 async function loadStudentProgress() {
@@ -4205,7 +4328,7 @@ function renderStudyBook() {
   const container = document.getElementById('s-ai-book-container');
   const fallback = document.getElementById('s-ai-book-fallback');
   const isAiGenerated = currentCourse && currentCourse.textbook === 'AI Generated';
-  
+
   if (currentUser.role === 'student') {
     if (!isAiGenerated) {
       if (container) container.classList.add('hidden');
@@ -4229,7 +4352,7 @@ function renderStudyBook() {
   // Clear existing content and render
   toc.innerHTML = curriculum.map((ch, i) => `
     <div class="study-ch-group" style="margin-bottom:16px;">
-      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">${t('Unit')} ${ch.number || (i+1)}</div>
+      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">${t('Unit')} ${ch.number || (i + 1)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
         ${(ch.topics || []).map(t => `
           <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.3; height:auto; transition:0.2s ease;">
@@ -4248,7 +4371,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
   if (!container) return;
 
   container.innerHTML = `<div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;"><div class="spinner"></div></div>`;
-  
+
   // Save for refresh
   localStorage.setItem('aula_last_topic', topicId);
   localStorage.setItem('aula_last_page', pageIdx);
@@ -4266,13 +4389,13 @@ function showStudyTopic(topicId, pageIdx = 0) {
     b.classList.toggle('active', isActive);
     b.style.background = isActive ? 'var(--accent-glow)' : '';
   });
-  
+
   // Define pages
   let pages = [];
-  
+
   try {
     const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
-    
+
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
@@ -4286,14 +4409,14 @@ function showStudyTopic(topicId, pageIdx = 0) {
         if (type.includes('vocab')) icon = "📙";
         else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "⚙️";
         else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "💬";
-        
+
         pages.push({
           title: p.title || t('Material'),
           icon: icon,
           render: () => {
             // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)
             const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
-            
+
             // A. If it's an array of strings (Alphabet/Simple Lists)
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'string') {
               return `<div style="display:flex; flex-direction:column; gap:16px; font-size:20px; line-height:1.8; color:#e2e8f0;">
@@ -4305,29 +4428,29 @@ function showStudyTopic(topicId, pageIdx = 0) {
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'object') {
               return `<div style="display:flex; flex-direction:column; gap:12px;">
                 ${rawData.map(it => {
-                  // Agnostic Key Detection
-                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
-                  const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
-                  
-                  // Smarter Example Detection: Only hide the 'term' side if 'v' is empty or speaker exists
-                  const isExplicitExample = !!it.speaker;
-                  const isLongSentence = typeof k === 'string' && k.length > 40 && (!v || v === k);
+                // Agnostic Key Detection
+                const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
+                const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
 
-                  if (isExplicitExample || isLongSentence) {
-                    return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
+                // Smarter Example Detection: Only hide the 'term' side if 'v' is empty or speaker exists
+                const isExplicitExample = !!it.speaker;
+                const isLongSentence = typeof k === 'string' && k.length > 40 && (!v || v === k);
+
+                if (isExplicitExample || isLongSentence) {
+                  return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
                       ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ''}
                       <div style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div>
                     </div>`;
-                  }
-                  
-                  // Regular Vocab/Phrase Card
-                  return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                }
+
+                // Regular Vocab/Phrase Card
+                return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
                     <div style="flex:1; display:flex; justify-content:flex-start;">
                         <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div>
                     </div>
                     <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
                   </div>`;
-                }).join('')}</div>`;
+              }).join('')}</div>`;
             }
 
             // C. If it's a string (Grammar or Intro)
@@ -4336,7 +4459,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
               if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
               return `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
             }
-            
+
             return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;
           }
         });
@@ -4393,30 +4516,30 @@ function showStudyTopic(topicId, pageIdx = 0) {
 }
 
 function launchStudyActivity(topicId, topicTitle) {
-    const selector = currentUser.role === 'lecturer' ? 'button[data-tab="activities"]' : 'button[data-tab="s-practice"]';
-    const tabBtn = document.querySelector(selector);
-    if (tabBtn) {
-        switchTab(tabBtn);
-        // Start practice after a small delay to ensure DOM is ready
-        setTimeout(() => startPractice(topicId, topicTitle), 100);
-    } else {
-        // Fallback if button not found
-        startPractice(topicId, topicTitle);
-    }
+  const selector = currentUser.role === 'lecturer' ? 'button[data-tab="activities"]' : 'button[data-tab="s-practice"]';
+  const tabBtn = document.querySelector(selector);
+  if (tabBtn) {
+    switchTab(tabBtn);
+    // Start practice after a small delay to ensure DOM is ready
+    setTimeout(() => startPractice(topicId, topicTitle), 100);
+  } else {
+    // Fallback if button not found
+    startPractice(topicId, topicTitle);
+  }
 }
 
 // ── Student Portal Functions ──
 
 async function refreshStudentEnrollments() {
-    if (!currentUser) return;
-    const res = await api('/student/login', {
-        method: 'POST',
-        body: { student_number: currentUser.email.split('@')[0], name: currentUser.name }
-    });
-    if (!res.error) {
-        currentStudentEnrollments = res.enrollments || [];
-        renderStudentPortal();
-    }
+  if (!currentUser) return;
+  const res = await api('/student/login', {
+    method: 'POST',
+    body: { student_number: currentUser.email.split('@')[0], name: currentUser.name }
+  });
+  if (!res.error) {
+    currentStudentEnrollments = res.enrollments || [];
+    renderStudentPortal();
+  }
 }
 
 function renderStudentPortal() {
@@ -4459,30 +4582,30 @@ function renderStudentPortal() {
 }
 
 function openJoinClassroomModal() {
-    document.getElementById('join-classroom-modal').classList.remove('hidden');
-    document.getElementById('join-class-code').value = '';
-    document.getElementById('join-class-code').focus();
+  document.getElementById('join-classroom-modal').classList.remove('hidden');
+  document.getElementById('join-class-code').value = '';
+  document.getElementById('join-class-code').focus();
 }
 
 function closeJoinClassroomModal() {
-    document.getElementById('join-classroom-modal').classList.add('hidden');
+  document.getElementById('join-classroom-modal').classList.add('hidden');
 }
 
 async function handleJoinClassroom() {
-    const code = document.getElementById('join-class-code').value.trim();
-    if (code.length < 5) return;
+  const code = document.getElementById('join-class-code').value.trim();
+  if (code.length < 5) return;
 
-    const res = await api('/student/join', {
-        method: 'POST',
-        body: { student_id: currentUser.id, code: code }
-    });
+  const res = await api('/student/join', {
+    method: 'POST',
+    body: { student_id: currentUser.id, code: code }
+  });
 
-    if (res.error) {
-        showAlert(t('error'), res.error, true);
-    } else {
-        closeJoinClassroomModal();
-        await refreshStudentEnrollments();
-    }
+  if (res.error) {
+    showAlert(t('error'), res.error, true);
+  } else {
+    closeJoinClassroomModal();
+    await refreshStudentEnrollments();
+  }
 }
 
 async function enterStudentClassroom(courseId) {
@@ -4534,53 +4657,53 @@ function showPinModal(mode, courseId) {
 }
 
 function closePinModal() {
-    document.getElementById('pin-entry-modal').classList.add('hidden');
+  document.getElementById('pin-entry-modal').classList.add('hidden');
 }
 
 async function handleSetPin(courseId, pin) {
-    if (pin.length !== 4) return;
-    const res = await api('/student/set-pin', {
-        method: 'POST',
-        body: { student_id: currentUser.id, course_id: courseId, pin: pin }
-    });
-    if (res.error) {
-        document.getElementById('pin-error').textContent = res.error;
-        document.getElementById('pin-error').classList.remove('hidden');
-    } else {
-        closePinModal();
-        await selectClassroom(courseId, false);
-    }
+  if (pin.length !== 4) return;
+  const res = await api('/student/set-pin', {
+    method: 'POST',
+    body: { student_id: currentUser.id, course_id: courseId, pin: pin }
+  });
+  if (res.error) {
+    document.getElementById('pin-error').textContent = res.error;
+    document.getElementById('pin-error').classList.remove('hidden');
+  } else {
+    closePinModal();
+    await selectClassroom(courseId, false);
+  }
 }
 
 async function handleVerifyPin(courseId, pin) {
-    if (pin.length !== 4) return;
-    const res = await api('/student/access', {
-        method: 'POST',
-        body: { student_id: currentUser.id, course_id: courseId, pin: pin }
-    });
-    if (res.error) {
-        document.getElementById('pin-error').textContent = t('student.invalid_pin');
-        document.getElementById('pin-error').classList.remove('hidden');
-    } else {
-        closePinModal();
-        stopLiveSync();
-        currentUser.role = 'student';
-        await selectClassroom(courseId, false);
-    }
+  if (pin.length !== 4) return;
+  const res = await api('/student/access', {
+    method: 'POST',
+    body: { student_id: currentUser.id, course_id: courseId, pin: pin }
+  });
+  if (res.error) {
+    document.getElementById('pin-error').textContent = t('student.invalid_pin');
+    document.getElementById('pin-error').classList.remove('hidden');
+  } else {
+    closePinModal();
+    stopLiveSync();
+    currentUser.role = 'student';
+    await selectClassroom(courseId, false);
+  }
 }
 
 function startWaitingRoomPoll(courseId) {
-    if (window._waitingPoll) clearInterval(window._waitingPoll);
-    window._waitingPoll = setInterval(async () => {
-        const check = await api('/user/status?user_id=' + currentUser.id + '&course_id=' + courseId);
-        if (check && check.status === 'approved') {
-            clearInterval(window._waitingPoll);
-            currentUser.status = 'approved';
-            localStorage.setItem('aula_user', JSON.stringify(currentUser));
-            sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
-            window.location.reload(); 
-        }
-    }, 2000);
+  if (window._waitingPoll) clearInterval(window._waitingPoll);
+  window._waitingPoll = setInterval(async () => {
+    const check = await api('/user/status?user_id=' + currentUser.id + '&course_id=' + courseId);
+    if (check && check.status === 'approved') {
+      clearInterval(window._waitingPoll);
+      currentUser.status = 'approved';
+      localStorage.setItem('aula_user', JSON.stringify(currentUser));
+      sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
+      window.location.reload();
+    }
+  }, 2000);
 }
 
 async function leaveClassroom(courseId, courseName) {
@@ -4639,69 +4762,69 @@ let activeDictWord = "";
 
 // 3. Single-Click Trigger for Dictionary
 window.addEventListener('click', async (e) => {
-    // English Guard: Ignore if clicking English text
-    if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation')) {
-        return;
-    }
+  // English Guard: Ignore if clicking English text
+  if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation')) {
+    return;
+  }
 
-    let trigger = e.target.closest('.foreign-word');
-    if (!trigger) return;
+  let trigger = e.target.closest('.foreign-word');
+  if (!trigger) return;
 
-    let word = trigger.innerText.trim();
-    
-    // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
-    if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
-        const fullText = trigger.parentElement.innerText || "";
-        if (fullText.toLowerCase().includes('teşekkür ederim')) {
-            word = "teşekkür ederim";
-        }
+  let word = trigger.innerText.trim();
+
+  // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
+  if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
+    const fullText = trigger.parentElement.innerText || "";
+    if (fullText.toLowerCase().includes('teşekkür ederim')) {
+      word = "teşekkür ederim";
     }
-    
-    // Only trigger if we are inside a study area
-    const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
-    
-    if (word && isStudyArea && word.length > 1 && word.length < 60) {
-        showDict(word, e);
-    }
+  }
+
+  // Only trigger if we are inside a study area
+  const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
+
+  if (word && isStudyArea && word.length > 1 && word.length < 60) {
+    showDict(word, e);
+  }
 });
 
 async function showDict(word, e) {
-    const popup = document.getElementById('aula-dict-popup');
-    const content = document.getElementById('dict-content');
-    const loading = document.getElementById('dict-loading');
-    
-    activeDictWord = word;
-    
-    // Position popup using page coordinates so it scrolls with content
-    popup.style.display = 'block';
-    const popupWidth = 280;
-    
-    let left = e.pageX - popupWidth / 2;
-    let top = e.pageY + 20;
-    
-    if (left < 10) left = 10;
-    if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
-    
-    popup.style.left = `${left}px`;
-    popup.style.top = `${top}px`;
-    
-    content.style.display = 'none';
-    loading.style.display = 'block';
-    
-    try {
-        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
-        const res = await api(`/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`);
-        
-        loading.style.display = 'none';
-        content.style.display = 'block';
-        
-        // Unified AI-First Display
-        const explanation = res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found.");
-        const usage = res.usage || "Use it in daily conversation.";
-        const tip = res.tip || "Click 'Explain' again for more details.";
-        const source = res.source || "AulaAI Brain";
+  const popup = document.getElementById('aula-dict-popup');
+  const content = document.getElementById('dict-content');
+  const loading = document.getElementById('dict-loading');
 
-        content.innerHTML = `
+  activeDictWord = word;
+
+  // Position popup using page coordinates so it scrolls with content
+  popup.style.display = 'block';
+  const popupWidth = 280;
+
+  let left = e.pageX - popupWidth / 2;
+  let top = e.pageY + 20;
+
+  if (left < 10) left = 10;
+  if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
+
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  content.style.display = 'none';
+  loading.style.display = 'block';
+
+  try {
+    const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
+    const res = await api(`/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`);
+
+    loading.style.display = 'none';
+    content.style.display = 'block';
+
+    // Unified AI-First Display
+    const explanation = res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found.");
+    const usage = res.usage || "Use it in daily conversation.";
+    const tip = res.tip || "Click 'Explain' again for more details.";
+    const source = res.source || "AulaAI Brain";
+
+    content.innerHTML = `
             <div style="margin-bottom:16px;">
                 <div id="dict-word-title">${word}</div>
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
@@ -4727,51 +4850,51 @@ async function showDict(word, e) {
                 <span style="cursor:pointer;" onclick="activeDictWord=''; document.getElementById('aula-dict-popup').style.display='none';">CLOSE</span>
             </div>
         `;
-    } catch (err) {
-        console.error("Dict error:", err);
-        // Show silent error in popup
-        loading.style.display = 'none';
-        content.style.display = 'block';
-        document.getElementById('dict-word').textContent = word;
-        document.getElementById('dict-meanings').innerHTML = `<div style="color:var(--danger); font-size:12px;">Dictionary service unavailable.</div>`;
-    }
+  } catch (err) {
+    console.error("Dict error:", err);
+    // Show silent error in popup
+    loading.style.display = 'none';
+    content.style.display = 'block';
+    document.getElementById('dict-word').textContent = word;
+    document.getElementById('dict-meanings').innerHTML = `<div style="color:var(--danger); font-size:12px;">Dictionary service unavailable.</div>`;
+  }
 }
 
 function closeDict() {
-    const popup = document.getElementById('aula-dict-popup');
-    if (popup) popup.style.display = 'none';
+  const popup = document.getElementById('aula-dict-popup');
+  if (popup) popup.style.display = 'none';
 }
 
 // Close on click outside
 window.addEventListener('mousedown', (e) => {
-    const popup = document.getElementById('aula-dict-popup');
-    if (popup && popup.style.display === 'block' && !popup.contains(e.target)) {
-        closeDict();
-    }
+  const popup = document.getElementById('aula-dict-popup');
+  if (popup && popup.style.display === 'block' && !popup.contains(e.target)) {
+    closeDict();
+  }
 });
 
 async function askAiAboutWord() {
-    if (!activeDictWord) return;
-    const wordToAsk = activeDictWord;
-    
-    const content = document.getElementById('dict-content');
-    const loading = document.getElementById('dict-loading');
-    const meanings = document.getElementById('dict-meanings');
-    
-    // Show AI Loading State in the popup
-    meanings.innerHTML = `
+  if (!activeDictWord) return;
+  const wordToAsk = activeDictWord;
+
+  const content = document.getElementById('dict-content');
+  const loading = document.getElementById('dict-loading');
+  const meanings = document.getElementById('dict-meanings');
+
+  // Show AI Loading State in the popup
+  meanings.innerHTML = `
         <div style="text-align:center; padding:20px; animation:pulse 1.5s infinite;">
             <div style="font-size:32px; margin-bottom:12px;">🧠</div>
             <div style="font-size:10px; color:var(--accent-light); text-transform:uppercase; letter-spacing:2px; font-weight:800;">AI is thinking...</div>
         </div>
     `;
-    
-    try {
-        const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
-        const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}`);
-        
-        if (res.explanation) {
-            meanings.innerHTML = `
+
+  try {
+    const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
+    const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}`);
+
+    if (res.explanation) {
+      meanings.innerHTML = `
                 <div style="background:rgba(99,102,241,0.1); padding:16px; border-radius:16px; border:1px solid rgba(99,102,241,0.2);">
                     <div style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                         <span>🤖</span> AI Explanation
@@ -4786,13 +4909,13 @@ async function askAiAboutWord() {
                     </div>
                 </div>
             `;
-        } else {
-            meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI was unable to explain this word right now.</div>`;
-        }
-    } catch (err) {
-        console.error("AI Dict error:", err);
-        meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI connection lost.</div>`;
+    } else {
+      meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI was unable to explain this word right now.</div>`;
     }
+  } catch (err) {
+    console.error("AI Dict error:", err);
+    meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI connection lost.</div>`;
+  }
 }
 
 

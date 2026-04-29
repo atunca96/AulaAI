@@ -25,8 +25,11 @@ def file_log(msg):
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [SERVER] {msg}\n")
         f.flush()
 
+VERSION = "1.0.4-BIG-BATCH-FIX"
+
 # Add project root to path
-sys.path.insert(0, os.path.dirname(__file__))
+ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, ROOT_DIR)
 
 from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
@@ -37,26 +40,32 @@ from services.state import bump_version, get_version
 from services.dictionary_service import get_definition, clean_word
 
 PORT = int(os.environ.get("PORT", 3000))
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "public")
+STATIC_DIR = os.path.join(ROOT_DIR, "public")
 
 # Auto-reload logic
 def watch_files():
     last_mtime = {}
     while True:
-        for root, dirs, files in os.walk(os.path.dirname(__file__)):
-            for f in files:
-                if f.endswith('.py'):
-                    path = os.path.join(root, f)
-                    mtime = os.path.getmtime(path)
-                    if path in last_mtime and mtime > last_mtime[path]:
-                        print("[RELOAD] Change detected, restarting...")
-                        os.execv(sys.executable, ['python'] + sys.argv)
-                    last_mtime[path] = mtime
-        time.sleep(2)
+        try:
+            for root, dirs, files in os.walk(ROOT_DIR):
+                for f in files:
+                    if f.endswith('.py'):
+                        path = os.path.join(root, f)
+                        try:
+                            mtime = os.path.getmtime(path)
+                            if path in last_mtime and mtime > last_mtime[path]:
+                                print(f"[RELOAD] Change detected in {f}, restarting...")
+                                os.execv(sys.executable, ['python'] + sys.argv)
+                            last_mtime[path] = mtime
+                        except: pass
+        except: pass
+        time.sleep(1)
 
 # Only start auto-reload in local dev (no PORT or RAILWAY env)
 if not os.environ.get("PORT") and not os.environ.get("RAILWAY_ENVIRONMENT"):
     threading.Thread(target=watch_files, daemon=True).start()
+
+print(f"--- AULA AI SERVER v{VERSION} STARTED ---")
 
 
 # Version tracking moved to services.state
@@ -482,6 +491,252 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._classroom_rebuild()
         elif path == "/api/classroom/wipe-curriculum":
             return self._wipe_curriculum()
+        elif path == "/api/curriculum/chapter/delete":
+            return self._delete_chapter()
+        elif path == "/api/curriculum/topic/delete":
+            return self._delete_topic()
+        elif path == "/api/marker/extract":
+            file_log("MARKER: Received extraction request")
+            fields, files = self._read_multipart()
+            if not files or "pdf" not in files:
+                return self._send_error("PDF file required")
+            
+            pdf_data = files["pdf"]["content"]
+            safe_id = _uid()
+            temp_pdf = os.path.join(BOOKS_DIR, f"extract_{safe_id}.pdf")
+            
+            with open(temp_pdf, "wb") as f:
+                f.write(pdf_data)
+            pdf_path = temp_pdf
+            toc_range = fields.get("toc_range", "1-12")
+            language = fields.get("language", "Detecting...")
+            
+            try:
+                from services.ai_engine import _call_ai
+                # CLOUD NITRO FALLBACK: 
+                # Instead of waiting for local AI to compile/load, we use a robust cloud bridge
+                # for instant high-fidelity extraction using PyMuPDF (fitz).
+                import fitz
+                doc = fitz.open(pdf_path)
+                
+                # Parse Range
+                start_page = 1
+                end_page = 12
+                try:
+                    if '-' in toc_range:
+                        sp, ep = toc_range.split('-')
+                        start_page = max(1, int(sp))
+                        end_page = min(len(doc), int(ep))
+                    elif toc_range.strip().isdigit():
+                        start_page = int(toc_range.strip())
+                        end_page = start_page
+                    else:
+                        # Fallback for unexpected formats
+                        start_page = 1
+                        end_page = 12
+                except: pass
+
+                raw_text = ""
+                # Language Agnostic Extraction: Use the specified range
+                toc_text = ""
+                for i in range(start_page - 1, end_page):
+                    if i < len(doc):
+                        toc_text += doc[i].get_text() + "\n"
+
+                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars")
+                
+                if not toc_text or len(toc_text.strip()) < 20:
+                    doc.close()
+                    try: os.remove(temp_pdf)
+                    except: pass
+                    return self._send_error("This PDF appears to have no selectable text (possibly a scanned image). Please use an OCR tool.")
+                
+                # --- PASS 1.5: PAGE OFFSET DETECTION ---
+                # We need to know which PDF page corresponds to which Printed Page
+                file_log("NITRO: Detecting page offset...")
+                offset_text = ""
+                for i in range(min(20, len(doc))):
+                    offset_text += f"[PDF PAGE {i+1}]: {doc[i].get_text()[:500]}\n"
+                
+                offset_prompt = f"""
+                Analyze these PDF pages and find the PRINTED page number shown on each.
+                Example: If [PDF PAGE 10] contains text like "Pág. 1", then the offset is 9.
+                Return ONLY the offset number (PDF_PAGE - PRINTED_PAGE). If you can't find it, return 0.
+                
+                TEXT:
+                {offset_text}
+                """
+                offset_res = _call_ai([{"role": "user", "content": offset_prompt}], model="anthropic/claude-3-haiku", max_tokens=10)
+                page_offset = 0
+                try: 
+                    offset_val = str(offset_res).strip()
+                    # Extract digits only
+                    offset_val = "".join(filter(str.isdigit, offset_val))
+                    if offset_val: page_offset = int(offset_val)
+                except: pass
+                file_log(f"NITRO: Detected Page Offset: {page_offset}")
+
+                # --- PASS 2: SKELETON SCAN (High Intensity) ---
+                skeleton_prompt = f"""
+                RULES:
+                - Treat EVERY major section in the Table of Contents as a Unit.
+                - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
+                - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
+                - If the text is in German, the titles MUST be in German.
+                - RETURN ONLY A JSON LIST of units.
+                - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
+                
+                TEXT:
+                {toc_text[:35000]}
+                """
+                # Use 3.5 Haiku for precision now that the JSON fix is in place
+                skeleton_res = _call_ai([{"role": "user", "content": skeleton_prompt}], model="anthropic/claude-3.5-haiku", max_tokens=2500)
+                
+                pages_to_dive = []
+                import json
+                import ast
+                try:
+                    # Clean the response if it contains markdown code blocks
+                    clean_res = str(skeleton_res).replace("```json", "").replace("```", "").strip()
+                    # Find the first [ and last ]
+                    start_idx = clean_res.find("[")
+                    end_idx = clean_res.rfind("]") + 1
+                    
+                    units_list = []
+                    if start_idx != -1 and end_idx != 0:
+                        content_to_parse = clean_res[start_idx:end_idx]
+                        try:
+                            units_list = json.loads(content_to_parse)
+                        except:
+                            try:
+                                # FALLBACK: LLMs sometimes use single quotes. ast.literal_eval handles this safely for literals.
+                                units_list = ast.literal_eval(content_to_parse)
+                            except: pass
+
+                        skeleton = ""
+                        for u in units_list:
+                            if not isinstance(u, dict): continue
+                            p_num = u.get('page')
+                            if p_num:
+                                try:
+                                    printed_p = int(p_num)
+                                    pdf_p = printed_p + page_offset
+                                    pages_to_dive.append(pdf_p)
+                                    skeleton += f"Unit {u.get('unit', '')}: {u.get('title', '')} (Page {printed_p})\n"
+                                except: pass
+                        if not skeleton: skeleton = str(skeleton_res)
+                    else:
+                        skeleton = str(skeleton_res)
+                except Exception as e:
+                    file_log(f"NITRO: Skeleton JSON Parse Error: {e}")
+                    skeleton = str(skeleton_res)
+
+                # Fallback regex if pages_to_dive is still empty
+                if not pages_to_dive:
+                    import re
+                    page_markers = re.findall(r'\[(\d+)\]|p\.\s*(\d+)|Pág\.\s*(\d+)|Page\s*(\d+)|(\d+)\s*\.\.\.', skeleton, re.IGNORECASE)
+                    for match in page_markers:
+                        for m in match:
+                            if m: 
+                                try:
+                                    pdf_p = int(m) + page_offset
+                                    pages_to_dive.append(pdf_p)
+                                except: pass
+                
+                pages_to_dive = sorted(list(set(pages_to_dive)))[:25]
+                file_log(f"NITRO: Identified {len(pages_to_dive)} PDF pages to deep dive: {pages_to_dive}")
+                file_log(f"NITRO: Skeleton Content: {skeleton[:500]}...")
+                
+                final_details = [None] * len(pages_to_dive)
+                from concurrent.futures import ThreadPoolExecutor
+
+                def process_page(idx, page_num):
+                    if page_num > len(doc) or page_num < 1: return
+                    # Extract 6 pages around this marker
+                    start_p = max(0, page_num - 1)
+                    end_p = min(len(doc), page_num + 5)
+                    dive_text = ""
+                    for i in range(start_p, end_p):
+                        dive_text += doc[i].get_text() + "\n"
+                    
+                    file_log(f"NITRO: Deep Diving into Page {page_num}...")
+                    dive_msg = [{"role": "user", "content": f"You are looking at Page {page_num} of a {language} textbook. Extract EVERYTHING: Unit title, every lesson title, grammar points, and vocabulary topics. Return as a detailed list. TEXT:\n{dive_text[:15000]}"}]
+                    dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=2000)
+                    if isinstance(dive_res, dict): final_details[idx] = dive_res.get("explanation", "")
+                    else: final_details[idx] = str(dive_res)
+
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    for i, p in enumerate(pages_to_dive):
+                        executor.submit(process_page, i, p)
+                
+                # Filter out None values (e.g. if a page was invalid)
+                final_details = [d for d in final_details if d is not None]
+
+                # --- PASS 3: THE MASTER MERGE ---
+                merge_prompt = f"""
+                You are the MASTER MERGE engine for a {language} textbook. 
+                Combine the high-level skeleton with the deep-dive details.
+                
+                CRITICAL INSTRUCTIONS:
+                1. {language.upper()} ONLY: The content must match the {language} textbook provided.
+                2. COMPLETE COVERAGE: Ensure NO unit found in the skeleton is missing.
+                3. SEQUENTIALITY: Units must be numbered correctly (1, 2, 3, 4, 5, 6, 7...). 
+                4. PAGE TRACEABILITY: Include '(Page XX)' for every chapter and lesson.
+                5. SORTING: You MUST output units in ascending order of their Page Numbers.
+                6. LITERAL TITLES: Do not summarize or change the unit titles. Use the exact titles from the skeleton.
+                
+                SKELETON:
+                {skeleton}
+                
+                DEEP DIVE DETAILS (LESSON TITLES):
+                {chr(10).join(final_details)}
+                """
+                res = _call_ai([{"role": "user", "content": merge_prompt}], model="anthropic/claude-3-haiku", max_tokens=8000)
+                
+                markdown = ""
+                detected_lang = "English"
+                
+                if isinstance(res, dict):
+                    markdown = res.get("explanation", "") or json.dumps(res, indent=2)
+                else:
+                    markdown = str(res)
+                
+                file_log(f"NITRO: Final Recursive Markdown Length: {len(markdown)} chars")
+                
+                # Auto-Detect Language and update classroom
+                try:
+                    from services.ai_engine import detect_language
+                    detected_lang = detect_language(toc_text)
+                    # We don't have the course_id here easily, but we can find it by looking for the 
+                    # most recent classroom or using the session.
+                    # Actually, the frontend sends the course_id if it's a re-architect.
+                    course_id = fields.get("course_id")
+                    if course_id:
+                        with db_connection() as db:
+                            db.execute("UPDATE courses SET language = ? WHERE id = ?", (detected_lang, course_id))
+                            db.commit()
+                except: pass
+
+                if not markdown or len(markdown) < 50:
+                    # Final fallback to raw text if AI fails
+                    markdown = f"# Extracted Content\n\n{toc_text[:10000]}"
+                
+                return self._send_json({
+                    "success": True, 
+                    "markdown": markdown,
+                    "language": detected_lang
+                })
+                
+            except Exception as e:
+                file_log(f"FALLBACK ERROR: {e}")
+                return self._send_error(f"Extraction failed: {str(e)}")
+            finally:
+                # Cleanup
+                try: doc.close()
+                except: pass
+                try: os.remove(temp_pdf)
+                except: pass
+
         elif path == "/api/classroom/create-from-pdf":
             return self._create_classroom_from_pdf()
         elif path == "/api/classroom/create-from-scratch":
@@ -1222,7 +1477,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _bg_generate_activities(self, course_id, topic_id, count):
         try:
             def update_prog(p, status='generating'):
-                # Retry loop for DB locks
+                if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
                 for retry in range(5):
                     try:
                         with db_connection() as db_c:
@@ -1233,37 +1488,59 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             """, (p, status, course_id))
                             db_c.commit()
                         return
-                    except Exception:
-                        time.sleep(0.5)
+                    except Exception as e:
+                        if retry == 4: print(f"[DB ERROR] {e}")
+                        time.sleep(0.2)
 
             # Nuclear Wipe removed to prevent data loss.
 
             with db_connection() as db:
-                # 1. Fresh fetch (should be empty now)
-                rows = db.execute("SELECT id, type, prompt, answer, distractors FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
-                existing_questions = []
-                import random
-                for r in rows:
+                # 1. Fetch ALL questions in this course to prevent duplicates across topics (Deduplication Pool)
+                all_rows = db.execute("""
+                    SELECT q.id, q.topic_id, q.type, q.prompt, q.answer, q.distractors FROM questions q
+                    JOIN topics t ON q.topic_id = t.id
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ch.course_id = ?
+                """, (course_id,)).fetchall()
+                
+                def scrub(text):
+                    if not isinstance(text, str): return text
+                    return text.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
+
+                course_wide_questions = []
+                topic_existing_questions = []
+                seen_keys = set()
+                
+                import re
+                for r in all_rows:
                     q = dict(r)
+                    q["prompt"] = scrub(q.get("prompt", ""))
+                    q["answer"] = scrub(q.get("answer", ""))
+                    
+                    ans_key = re.sub(r'[^a-z0-9]', '', q["answer"].lower()).strip()
+                    if ans_key in seen_keys: continue
+                    seen_keys.add(ans_key)
+
                     try:
                         q["distractors"] = json.loads(q["distractors"])
+                        q["distractors"] = [scrub(d) for d in q["distractors"]]
                     except:
                         q["distractors"] = []
                     
-                    # VITAL: Re-assemble the options for the frontend
                     all_opts = [q["answer"]] + q["distractors"]
-                    random.shuffle(all_opts)
+                    py_random.shuffle(all_opts)
                     q["options"] = all_opts
                     
-                    existing_questions.append(q)
+                    course_wide_questions.append(q)
+                    if str(q["topic_id"]) == str(topic_id):
+                        topic_existing_questions.append(q)
                 
-                # Check for capacity limit
-                if len(existing_questions) >= 30:
+                # Check for capacity limit based ONLY on the current topic's existing questions
+                if len(topic_existing_questions) >= 30:
                     print(f"[BG] Topic {topic_id} is at max capacity (30). Returning existing pool.")
-                    # Satisfy frontend by providing the existing results
                     update_prog(100, status='done')
                     with db_connection() as db_c:
-                        db_c.execute("UPDATE courses SET activity_result=? WHERE id=?", (json.dumps(existing_questions), course_id))
+                        db_c.execute("UPDATE courses SET activity_result=? WHERE id=?", (json.dumps(topic_existing_questions), course_id))
                         db_c.commit()
                     return
 
@@ -1279,42 +1556,70 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             file_log(f"Starting CUMULATIVE generation for {topic['title']}")
 
             # Starting...
+            # Starting...
             update_prog(5)
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # Start a simulated progress ticker to keep the bar moving
-            import threading
-            stop_ticker = threading.Event()
-            def progress_ticker():
-                p = 5
-                while not stop_ticker.is_set() and p < 90:
-                    time.sleep(0.6) # Faster ticks for better feedback
-                    # Increment more aggressively to reach ~80% in 5-8 seconds
-                    p += py_random.randint(5, 12)
-                    if p > 90: p = 90
-                    update_prog(p)
-            
-            ticker_thread = threading.Thread(target=progress_ticker, daemon=True)
-            ticker_thread.start()
-            
             try:
-                # Call the unified batch engine with knowledge of existing questions
-                raw_activities = ai_generate_activity_batch(
-                    topic["title"], 
-                    topic_type, 
-                    content, 
-                    language, 
-                    count=count, 
-                    level=topic.get("difficulty", "A1"),
-                    existing_questions=existing_questions
-                ) or []
-            finally:
-                stop_ticker.set()
-                ticker_thread.join(timeout=1.0)
+                # ULTRA-SMOOTH HYBRID PROGRESS: 12 smaller batches + faster ticker
+                raw_activities = []
+                batch_size = 2 
+                total_batches = 12 
+                
+                class ProgressState:
+                    def __init__(self):
+                        self.current_milestone = 3
+                        self.is_done = False
+                
+                state = ProgressState()
 
-            update_prog(95)
+                def ticker_worker():
+                    p = 20
+                    while not state.is_done:
+                        time.sleep(0.2) # Ultra-fast 200ms updates
+                        
+                        # 1. Extreme Velocity: 20% per second
+                        p += 4.0 
+                        
+                        # 2. Sync with REAL progress
+                        real_p = (len(raw_activities) / count) * 98
+                        if real_p > p: p = real_p
+                        
+                        if p > 99: p = 99
+                        update_prog(int(p))
+                
+                ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
+                ticker_thread.start()
+
+                try:
+                    update_prog(20)
+                    for b in range(total_batches):
+                        # The ticker now monitors raw_activities directly!
+                        batch = ai_generate_activity_batch(
+                            topic["title"], 
+                            topic_type, 
+                            content, 
+                            language, 
+                            count=batch_size, 
+                            level=topic.get("difficulty", "A1"),
+                            existing_questions=course_wide_questions + raw_activities
+                        )
+                        if batch:
+                            raw_activities.extend(batch)
+                        
+                        if len(raw_activities) >= count: break
+                    
+                    state.current_milestone = 96
+                finally:
+                    state.is_done = True
+                    ticker_thread.join(timeout=1.0)
+                
+                update_prog(95)
+            except Exception as e:
+                file_log(f"Error during batched generation: {e}")
+                raise e
 
             update_prog(100) # Finished AI work
             
@@ -1322,7 +1627,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             for act in raw_activities:
                 if not act or not isinstance(act, dict): continue
                 
-                # Normalization Layer: Ensure frontend gets exactly what it expects
+                # 1. SYNTACTIC VALIDATION: Kill "lazy" distractors (sentence vs single word)
+                ans = str(act.get("answer", "")).strip()
+                distractors = act.get("distractors", [])
+                if not isinstance(distractors, list): distractors = []
+                
+                ans_words = ans.split()
+                if len(ans_words) >= 3: # If answer is a sentence/phrase
+                    # Reject if any distractor is just 1 or 2 words (usually lazy tags like "Name")
+                    has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
+                    if has_lazy:
+                        file_log(f"REJECTED lazy question: {ans} vs {distractors}")
+                        continue
+
+                # 2. MCQ Normalization Layer: Ensure frontend gets exactly what it expects
                 atype = act.get("type", "mcq")
                 
                 # 1. MCQ Normalization
@@ -1369,25 +1687,37 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 act["id"] = _uid()
                 # Ensure distractors and answer are clean string types for the DB
-                if 'distractors' in act and isinstance(act['distractors'], list):
-                    act['distractors'] = [str(d) for d in act['distractors']]
+                act["prompt"] = scrub(act.get("prompt", ""))
+                act["answer"] = scrub(act.get("answer", ""))
+                if "distractors" in act and isinstance(act["distractors"], list):
+                    act["distractors"] = [scrub(d) for d in act["distractors"]]
+
+                # FINAL DEDUPLICATION: Check against EVERYTHING we know so far
+                ans_key = re.sub(r'[^a-z0-9]', '', act["answer"].lower()).strip()
+                course_ans_keys = {re.sub(r'[^a-z0-9]', '', str(eq.get('answer', '')).lower()).strip() for eq in course_wide_questions}
+                current_batch_keys = {re.sub(r'[^a-z0-9]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_activities}
+                
+                if ans_key in course_ans_keys or ans_key in current_batch_keys:
+                    print(f"[FINAL REJECT] Duplicate found in final pass: {ans_key}")
+                    continue
                 
                 final_activities.append(act)
             
+            # Prepare the cumulative list for the UI
+            cumulative_list = topic_existing_questions + final_activities
+            
             # Done!
-            print(f"[BG] [{course_id}] Saving {len(final_activities)} activities...")
+            print(f"[BG] [{course_id}] Saving {len(final_activities)} NEW activities (Total: {len(cumulative_list)})...")
             try:
                 with db_connection() as db:
-                    # Mark existing questions as unapproved to avoid conflicts/overwrites
-                    db.execute("UPDATE questions SET approved = 0 WHERE topic_id = ?", (topic_id,))
-                    
+                    # Update course status with cumulative results for UI
                     db.execute("""
                         UPDATE courses 
                         SET activity_status='done', activity_result=? 
                         WHERE id=?
-                    """, (json.dumps(final_activities), course_id))
+                    """, (json.dumps(cumulative_list), course_id))
                     
-                    # Also save to questions table for future retrieval
+                    # Save ONLY NEW questions to the questions table
                     for act in final_activities:
                         q_id = _uid()
                         a_type = act.get("type", "mcq")
@@ -1403,14 +1733,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] [{course_id}] Final save failed: {e}")
                 file_log(f"Final Save Error: {e}")
-                # We still set it to done if we have activities in memory, so the UI can show them
-                if final_activities:
-                     with db_connection() as db:
-                        db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
-                                   (json.dumps(final_activities), course_id))
-                        db.commit()
-                else:
-                    raise e
+                # Fallback: still set it to done so the UI doesn't hang
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
+                               (json.dumps(cumulative_list), course_id))
+                    db.commit()
                 
         except Exception as e:
             file_log(f"BG Activity Error: {str(e)}")
@@ -1706,22 +2033,70 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         return
                     except Exception: time.sleep(0.5)
 
-            update_draft_prog(10)
+            class ProgressState:
+                def __init__(self):
+                    self.current_milestone = 10
+                    self.is_done = False
             
-            # EXORCISM: Clear out old unfiltered questions for these topics before starting
-            with db_connection() as db:
-                for tid in topic_ids:
-                    db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
-                db.commit()
+            state = ProgressState()
+
+            def ticker_worker():
+                p = 10
+                # Quizzes take longer as they pull from multiple topics
+                # Estimate: 3 seconds per question + 10s overhead
+                est_time = (count * 3.0) + 10
+                start_time = time.time()
+                
+                while not state.is_done:
+                    time.sleep(0.5)
+                    elapsed = time.time() - start_time
+                    
+                    # Asymptotic curve
+                    import math
+                    k = 2.0 / est_time 
+                    predicted_p = 95 * (1 - math.exp(-k * elapsed))
+                    
+                    if predicted_p > p: p = predicted_p
+                    if p > 98: p = 98
+                    update_draft_prog(int(p))
             
+            ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
+            ticker_thread.start()
+
             try:
-                questions = generate_quiz(topic_ids, count=count, progress_callback=update_draft_prog)
+                # EXORCISM: Clear out old unfiltered questions for these topics before starting
+                with db_connection() as db:
+                    for tid in topic_ids:
+                        db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
+                    db.commit()
+                
+                questions = generate_quiz(topic_ids, count=count)
             finally:
-                pass
+                state.is_done = True
+                ticker_thread.join(timeout=1.0)
 
             result = []
             for q in questions:
                 q_dict = dict(q)
+                
+                # --- SYNTACTIC VALIDATOR ---
+                ans = str(q_dict.get("answer", "")).strip()
+                raw_dist = q_dict.get("distractors", [])
+                if isinstance(raw_dist, str):
+                    try: raw_dist = json.loads(raw_dist)
+                    except: raw_dist = []
+                
+                if not isinstance(raw_dist, list): raw_dist = []
+                
+                # Rule: Rejection if answer is a sentence but distractor is a word
+                ans_words = ans.split()
+                if len(ans_words) >= 3:
+                    has_lazy = any(len(str(d).split()) <= 1 for d in raw_dist)
+                    if has_lazy:
+                        file_log(f"QUIZ REJECTED lazy: {ans} vs {raw_dist}")
+                        continue
+                # ---------------------------
+
                 if isinstance(q_dict.get("distractors"), str):
                     try: q_dict["distractors"] = json.loads(q_dict["distractors"])
                     except: q_dict["distractors"] = []
@@ -2346,37 +2721,59 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("Invalid multipart data")
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Fields received: {list(fields.keys())}")
-            if not files or "pdf" not in files:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] PDF file missing in request")
-                return self._send_error("PDF file required")
+            external_markdown = fields.get("external_markdown")
+            lecturer_id = fields.get("lecturer_id")
+            
+            # ALLOW MOCK/MARKDOWN ONLY CREATION
+            if not (files and "pdf" in files) and not external_markdown:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] No PDF and no Markdown provided")
+                return self._send_error("PDF file or Markdown analysis required")
             
             course_name = fields.get("course_name")
             toc_range = fields.get("toc_range", "1-5")
             manual_toc = fields.get("manual_toc")
+            external_markdown = fields.get("external_markdown")
             lecturer_id = fields.get("lecturer_id")
+            language = fields.get("language")
             
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing PDF for {lecturer_id} | Name: {course_name} | TOC: {toc_range}")
-            if manual_toc:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Manual TOC detected (Length: {len(manual_toc)})")
-
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing Request for {lecturer_id} | Name: {course_name} | Language: {language}")
+            
             if not lecturer_id:
                 return self._send_error("lecturer_id required")
                 
-            pdf_data = files["pdf"]["content"]
-            pdf_filename = files["pdf"]["filename"]
+            pdf_path = "NONE"
+            if files and "pdf" in files:
+                pdf_data = files["pdf"]["content"]
+                pdf_filename = files["pdf"]["filename"]
+                
+                # Save file persistently in data/books/
+                safe_filename = f"course_{_uid()}.pdf"
+                os.makedirs(BOOKS_DIR, exist_ok=True)
+                pdf_path = os.path.join(BOOKS_DIR, safe_filename)
+                
+                file_log(f"[DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
+                with open(pdf_path, "wb") as f:
+                    f.write(pdf_data)
             
-            # Save file persistently in data/books/
-            safe_filename = f"course_{_uid()}.pdf"
-            os.makedirs(BOOKS_DIR, exist_ok=True)
-            pdf_path = os.path.join(BOOKS_DIR, safe_filename)
-            
-            file_log(f"[DEBUG] Saving PDF to {pdf_path} ({len(pdf_data)} bytes)")
-
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_data)
-            
-            file_log('LAUNCHING PHASE2 THREAD')
-            result = process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=course_name, manual_toc=manual_toc)
+            # Save External Markdown if provided
+            source_md_path = None
+            if external_markdown:
+                safe_md_name = f"course_{_uid()}_source.md"
+                source_md_path = os.path.join(BOOKS_DIR, safe_md_name)
+                with open(source_md_path, "w", encoding="utf-8") as f:
+                    f.write(external_markdown)
+                file_log(f"[DEBUG] External Markdown saved to {source_md_path}")
+ 
+            file_log('LAUNCHING ARCHITECT PIPELINE')
+            result = process_pdf_to_classroom(
+                pdf_path, 
+                toc_range, 
+                lecturer_id, 
+                course_name=course_name, 
+                manual_toc=manual_toc,
+                source_markdown_path=source_md_path,
+                language=language
+            )
             
             file_log(f"[DEBUG] Pipeline result: {result}")
 
@@ -2388,11 +2785,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             import traceback
             traceback.print_exc()
             return self._send_json({"success": False, "error": str(e)}, 500)
-        except Exception as e:
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [CRITICAL] Error in _create_classroom_from_pdf")
-            import traceback
-            traceback.print_exc()
-            self._send_error(f"Server error during processing: {str(e)}")
 
     def _delete_classroom(self):
         body = self._read_body()
@@ -2430,7 +2822,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
                 db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
                 
-                # 5. Delete curriculum (questions, topics, chapters)
+                # Generate a new batch of 15 questions (total cap is 30)
+                count = 15
                 db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
                 db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
                 db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
@@ -2454,6 +2847,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             err_msg = traceback.format_exc()
             file_log(f"Deletion Error: {err_msg}")
             self._send_error(f"Internal server error: {str(e)}", 500)
+
+    def _delete_chapter(self):
+        data = self._read_body()
+        chapter_id = data.get("chapter_id")
+        if not chapter_id: return self._send_error("Missing chapter_id")
+        with db_connection() as db:
+            db.execute("DELETE FROM topics WHERE chapter_id = ?", (chapter_id,))
+            db.execute("DELETE FROM chapters WHERE id = ?", (chapter_id,))
+            db.commit()
+        return self._send_json({"success": True})
+
+    def _delete_topic(self):
+        data = self._read_body()
+        topic_id = data.get("topic_id")
+        if not topic_id: return self._send_error("Missing topic_id")
+        with db_connection() as db:
+            db.execute("DELETE FROM topics WHERE id = ?", (topic_id,))
+            db.commit()
+        return self._send_json({"success": True})
 
 def _cleanup_stale_classrooms():
     """Find and reset classrooms stuck in 'building' state for too long."""
@@ -2520,7 +2932,6 @@ def main():
         import traceback
         traceback.print_exc()
         # input("\nPress Enter to exit...")
-
 
 if __name__ == "__main__":
     main()

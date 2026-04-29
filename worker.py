@@ -62,15 +62,17 @@ def main():
         course_id = sys.argv[4]
         course_name = sys.argv[5] if len(sys.argv) > 5 else "Untitled Course"
         manual_toc_path = sys.argv[6] if len(sys.argv) > 6 else None
+        source_markdown_path = sys.argv[7] if len(sys.argv) > 7 else None
+        language = sys.argv[8] if len(sys.argv) > 8 else None
 
         manual_toc = None
-        if manual_toc_path and os.path.exists(manual_toc_path):
+        if manual_toc_path and os.path.exists(manual_toc_path) and manual_toc_path != "NONE":
             with open(manual_toc_path, "r", encoding="utf-8") as f:
                 manual_toc = f.read()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE for Course {course_id} ({course_name})")
         # start_pipeline_background handles Phase 1 and then internally triggers enrichment
-        start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=manual_toc)
+        start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=manual_toc, source_markdown_path=source_markdown_path, language=language)
         print(f"[PIPELINE] Worker finished FULL PIPELINE for Course {course_id}")
 
     except Exception as e:
