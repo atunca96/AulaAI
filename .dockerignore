@@ -1,38 +1,6 @@
 .git
-.gitignore
-.railwayignore
-.dockerignore
-__pycache__
-*.pyc
-.env
 .venv
 venv
-.vscode
-.idea
-.DS_Store
-
-# Databases
-*.db
-*.sqlite
-*.db-journal
-*.db-wal
-
-# Logs & Debug
-*.log
-*.txt
-server_debug*
-final_debug.log
-final_test.log
-pipeline.log
-worker.log
-
-# Large Assets
-public/books/*.pdf
-public/books/*.txt
-public/books/textbook.pdf
-
-# Folders
-data/
-scratch/
-tools/
 node_modules/
+public/books/textbook.pdf
+aulaai-current.zip

@@ -60,7 +60,7 @@ if IS_RAILWAY:
     else:
         # 2. If no data, wait for ANY valid VOLUME MOUNT to appear
         print("[DB] No existing data found. Verifying volume mount...")
-        for attempt in range(30):
+        for attempt in range(5):
             if os.path.exists("/data"):
                 print("[DB] Persistent volume /data detected. Starting fresh.")
                 DB_PATH = "/data/aula.db"

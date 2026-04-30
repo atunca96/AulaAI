@@ -8,7 +8,6 @@ import json
 import os
 import sys
 import uuid
-import sys
 import sqlite3
 import threading
 import time
