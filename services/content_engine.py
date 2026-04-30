@@ -71,8 +71,19 @@ def _generate_vocab_activity(content, difficulty, count, language):
     items = list(words.items()) # List of (target_word, source_word)
     random.shuffle(items)
 
-    # Import semantic categorizer for smart distractors
-    from database import _categorize_words
+    # Simple semantic categorizer for smart distractors
+    def _categorize_words(words_dict):
+        categories = {"short": [], "medium": [], "long": []}
+        for target, source in words_dict.items():
+            length = len(source)
+            if length <= 4:
+                categories["short"].append((target, source))
+            elif length <= 7:
+                categories["medium"].append((target, source))
+            else:
+                categories["long"].append((target, source))
+        return categories
+
     categories = _categorize_words(words)
 
     activities = []

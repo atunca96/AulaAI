@@ -42,6 +42,10 @@ from services.dictionary_service import get_definition, clean_word
 PORT = int(os.environ.get("PORT", 3000))
 STATIC_DIR = os.path.join(ROOT_DIR, "public")
 
+import hashlib
+def hash_password(password: str) -> str:
+    return hashlib.sha256((password + "AulaAI_Salt").encode('utf-8')).hexdigest()
+
 # Auto-reload logic
 def watch_files():
     last_mtime = {}
@@ -122,10 +126,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return params.get("user_id", [None])[0]
 
     def _get_user_role(self):
-        """Extract role from query parameters."""
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-        return params.get("role", [None])[0]
+        """Extract user_id from query parameters and look up role in DB to prevent spoofing."""
+        user_id = self._get_user_id()
+        if not user_id:
+            return None
+        with db_connection() as db:
+            row = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+            if row:
+                return row["role"]
+        return None
 
     def _send_json(self, data, status=200):
         # Auto-cache eligible GET requests
@@ -883,8 +892,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # This ensures they remain the owner of the default '11111' class.
             with db_connection() as db:
                 admin_id = "lecturer-demo-id"
+                hashed_pwd = hash_password('ALper2002@')
                 db.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)",
-                          (admin_id, 'Alper Tunca', 'atunca96@gmail.com', 'ALper2002@', 'lecturer', 'approved'))
+                          (admin_id, 'Alper Tunca', 'atunca96@gmail.com', hashed_pwd, 'lecturer', 'approved'))
                 
             return self._send_json({"success": True, "message": "Database reset. Admin account preserved."})
         except Exception as e:
@@ -1125,10 +1135,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         body = self._read_body()
         email = body.get("email", "")
         password = body.get("password", "")
+        
+        hashed_pwd = hash_password(password)
 
         with db_connection() as db:
             user = db.execute("SELECT * FROM users WHERE email = ? AND password = ?",
-                              (email, password)).fetchone()
+                              (email, hashed_pwd)).fetchone()
 
         if user:
             user = dict(user)
@@ -1148,6 +1160,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         if not name or not email or not password:
             return self._send_error("Name, email, and password are required")
+            
+        hashed_pwd = hash_password(password)
 
         with db_connection() as db:
             existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
@@ -1156,7 +1170,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             student_id = _uid()
             db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
-                       (student_id, name, email, password, "student", "pending"))
+                       (student_id, name, email, hashed_pwd, "student", "pending"))
 
             # Auto-enroll in the first course
             course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
@@ -2889,7 +2903,7 @@ def main():
   Mode: Threaded (crash-safe)
   Maintenance: Auto-cleanup of stale tasks (30min timeout)
 
-  Lecturer login: atunca96@gmail.com / ALper2002@
+  Lecturer login: atunca96@gmail.com / [Secured]
   Students: Register at the login page
 ============================================================
         """)
