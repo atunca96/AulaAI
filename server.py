@@ -1686,11 +1686,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
+            
+            # PDF Detection: If topic has a pdf_url, it's a PDF classroom topic
+            is_pdf_classroom = bool(topic.get("pdf_url"))
+            if is_pdf_classroom:
+                count = 10 # Enforce 10 items for PDF classrooms
+                file_log(f"PDF Classroom detected. Target: {count} questions.")
 
             try:
                 raw_activities = []
-                batch_size = count  # Removed the *3 double-multiplier (ai_engine already multiplies internally)
-                total_batches = 2
+                # Latency Optimization: For 10 questions, 1 parallel batch is sufficient 
+                # because ai_engine now requests 20+ items internally.
+                total_batches = 1 if is_pdf_classroom or count <= 10 else 2
                 
                 class ProgressState:
                     def __init__(self):
@@ -1723,12 +1730,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             topic_type, 
                             content, 
                             language, 
-                            count=batch_size, 
+                            count=count, 
                             level=topic.get("difficulty", "A1"),
-                            existing_questions=topic_pool + raw_activities
+                            existing_questions=topic_pool + raw_activities,
+                            is_pdf_source=is_pdf_classroom
                         )
                     
-                    # Run batches in parallel for instant generation
+                    # Run batches in parallel
                     with concurrent.futures.ThreadPoolExecutor(max_workers=total_batches) as executor:
                         futures = [executor.submit(_fetch_batch, b) for b in range(total_batches)]
                         

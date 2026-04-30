@@ -310,17 +310,24 @@ def get_language_profile(language):
     if language in agglutinative: return "agglutinative"
     return "inflected" # Default for Spanish, French, German, English, etc.
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', use_quality=True, existing_questions=None, is_pdf_source=False):
     """V2: Clean activity question generator built from scratch."""
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
     
     c = int(count)
-    request_count = max(c * 4, 20)  # Request 4x surplus
+    # Latency Optimization: Request 2x surplus instead of 4x to reduce response time
+    request_count = max(c * 2, 12) 
     
     dna = get_language_profile(language)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
-    instruction_lang = "English" if is_beginner else language
+    
+    # PDF Rule: For PDF-based classrooms, we favor the target language for prompts 
+    # to provide a more immersive experience, even at beginner levels.
+    if is_pdf_source:
+        instruction_lang = language
+    else:
+        instruction_lang = "English" if is_beginner else language
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
     forbidden_clause = ""
@@ -495,7 +502,7 @@ Return ONLY valid JSON:
         return []
 
 
-def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False):
     return ai_generate_questions(
         topic_title=topic_title, 
         topic_type=topic_type, 
@@ -503,10 +510,11 @@ def ai_generate_activity_batch(topic_title, topic_type, topic_content, language,
         language=language, 
         count=count, 
         level=level, 
-        existing_questions=existing_questions
+        existing_questions=existing_questions,
+        is_pdf_source=is_pdf_source
     )
 
-def ai_generate_activity(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False):
     return ai_generate_questions(
         topic_title=topic_title, 
         topic_type=topic_type, 
@@ -514,7 +522,8 @@ def ai_generate_activity(topic_title, topic_type, topic_content, language, count
         language=language, 
         count=count, 
         level=level, 
-        existing_questions=existing_questions
+        existing_questions=existing_questions,
+        is_pdf_source=is_pdf_source
     )
 
 def ai_grade_open_response(question, student_answer, correct_answer):
