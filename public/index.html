@@ -342,23 +342,6 @@
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
                 <button class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger); font-size:12px; opacity:0.6" onclick="resetData(null)" data-i18n="erase_all_btn">Erase All Data</button>
             </div>
-
-            <script>
-            // 3. Single-Click Trigger for Dictionary
-            window.addEventListener('click', async (e) => {
-                const trigger = e.target.closest('.foreign-word');
-                if (!trigger) return;
-
-                // Prevent default selection behavior
-                e.preventDefault();
-                
-                const word = trigger.innerText.trim();
-                if (word && word.length > 1 && word.length < 60) {
-                    showDict(word, e);
-                }
-            });
-            </script>
-
             <!-- Admin Only Hard Reset -->
             <div id="admin-panel" class="hidden" style="margin-top:60px; padding:32px; border:1px solid var(--danger); border-radius:16px; background:rgba(239,68,68,0.02); text-align:center;">
                 <div style="font-size:32px; margin-bottom:16px;">☢️</div>
