@@ -2973,7 +2973,7 @@ async function launchActivity() {
     // 1. Kick off the background task
     await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: topicId, course_id: courseId, count: 6 }
+      body: { topic_id: topicId, course_id: courseId, count: 10 }
     });
     // 2. Start polling AFTER the task is successfully initiated
     startActivityPolling('activity-preview', '📋 ' + (t('Content Map') || 'Content Map'));
@@ -3856,7 +3856,7 @@ async function startPractice(tid, title) {
     // 1. Kick off the background task
     const res = await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: tid, course_id: courseId, count: 6 }
+      body: { topic_id: tid, course_id: courseId, count: 10 }
     });
     if (res.error) throw new Error(res.error);
 

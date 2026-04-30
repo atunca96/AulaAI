@@ -222,8 +222,8 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                     t_title = topic.get("title", "Untitled Topic")
                     t_type = topic.get("type", "vocabulary")
                     t_page = topic.get("page")
-                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number) VALUES (?,?,?,?,?,?,?,?)",
-                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx, t_page))
+                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
+                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx, t_page, pdf_path))
             db.commit()
         _log("Structure creation complete.")
         bump_version()

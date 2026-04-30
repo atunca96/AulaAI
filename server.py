@@ -1592,7 +1592,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             post_data = json.loads(self.rfile.read(content_len).decode("utf-8"))
             topic_id = post_data.get("topic_id")
             course_id = post_data.get("course_id")
-            count = int(post_data.get("count", 6))
+            # Default to 10 for safety, though frontend will now send 10
+            count = int(post_data.get("count", 10))
             
             if not topic_id or not course_id:
                 return self._send_error("Missing info")
@@ -1691,7 +1692,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             is_pdf_classroom = bool(topic.get("pdf_url"))
             if is_pdf_classroom:
                 count = 10 # Enforce 10 items for PDF classrooms
-                file_log(f"PDF Classroom detected. Target: {count} questions.")
+                file_log(f"PDF Classroom detected via topic.pdf_url. Enforcing count={count}")
+            else:
+                file_log(f"Standard classroom detected. Count={count}")
 
             try:
                 raw_activities = []
@@ -1816,7 +1819,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             # ── Serve fresh questions directly (ephemeral, not saved to DB) ──
             selected = final_fresh[:count]
-            print(f"[BG] [{course_id}] Serving {len(selected)} FRESH questions for '{topic['title']}'")
+            file_log(f"Serving {len(selected)} questions for topic '{topic['title']}' (Target was {count})")
             
             update_prog(100, status='done')
             with db_connection() as db:
