@@ -548,39 +548,54 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         end_page = 12
                 except: pass
 
-                def reorder_internal_pages(text):
+                def normalize_text_structure(text):
                     """
-                    Detects internal textbook page markers (e.g. PÁG. 10, Page 14) 
-                    and reorders the text blocks into sequential order.
+                    Cleans artifacts, reorders internal pages semantically, 
+                    and normalizes markdown structure.
                     """
                     import re
-                    # Pattern for common internal page markers
-                    pattern = r'(?i)(?:PÁG\.|Page|P\.)\s*\d+'
+                    # 1. Strip malformed metadata & artifacts
+                    text = re.sub(r'\[\s*Page\s*\d+\s*\]', '', text) # Remove physical markers
+                    text = re.sub(r'\[\s*\]', '', text) # Remove empty/broken brackets
                     
-                    # Find all positions where a marker starts
+                    # 2. Reorder internal textbook pages
+                    # Catch PÁG. 10, Page 14, P. 28 etc.
+                    pattern = r'(?i)(?:PÁG\.|Page|P\.)\s*(\d+)'
                     matches = list(re.finditer(pattern, text))
-                    if not matches: return text
+                    
+                    if not matches:
+                        # Final structural cleanup for marker-less text
+                        text = re.sub(r'\n{3,}', '\n\n', text)
+                        return text.strip()
                     
                     starts = [m.start() for m in matches]
                     chunks = []
                     
                     # Handle orphan text before first marker
                     if starts[0] > 0:
-                        chunks.append({'page': -1, 'text': text[:starts[0]]})
+                        chunks.append({'page': -1, 'text': text[:starts[0]].strip()})
                     
                     for i in range(len(starts)):
                         start = starts[i]
                         end = starts[i+1] if i+1 < len(starts) else len(text)
-                        chunk_text = text[start:end]
+                        m = matches[i]
+                        p_num = int(m.group(1))
                         
-                        # Extract the FIRST number found in this marker block
-                        p_match = re.search(r'\d+', chunk_text)
-                        p_num = int(p_match.group()) if p_match else 9999
-                        chunks.append({'page': p_num, 'text': chunk_text})
+                        # Extract content after the marker
+                        content = text[m.end():end].strip()
+                        # Use stable normalized heading
+                        chunks.append({'page': p_num, 'text': f"# Source Page {p_num}\n{content}"})
                     
-                    # Sort by the semantic textbook page number
+                    # Sort by semantic textbook page
                     chunks.sort(key=lambda x: x['page'])
-                    return "\n".join([c['text'] for c in chunks])
+                    result = "\n\n".join([c['text'] for c in chunks])
+                    
+                    # 3. Final structural polish
+                    result = re.sub(r'\n{3,}', '\n\n', result) # Normalize whitespace
+                    # Join broken lines (heuristic: line ends with word char and next starts with lowercase)
+                    result = re.sub(r'(?<=[a-zA-Z0-9,])\n(?=[a-z])', ' ', result)
+                    
+                    return result.strip()
 
                 raw_text = ""
                 # Language Agnostic Extraction: Use the specified range
@@ -619,9 +634,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         toc_text += f"\n[Page {printed_p}]\n"
                         toc_text += doc[i].get_text() + "\n"
 
-                # Normalize TOC text by reordering internal page blocks
-                toc_text = reorder_internal_pages(toc_text)
-                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars (Reordered)")
+                # Normalize TOC text structure
+                toc_text = normalize_text_structure(toc_text)
+                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars (Normalized)")
                 
                 if not toc_text or len(toc_text.strip()) < 20:
                     doc.close()
@@ -635,7 +650,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 - Treat EVERY major section in the Table of Contents as a Unit.
                 - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
                 - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
-                - The titles MUST be in the same language as they appear in the text.
+                - IGNORE reference sections, appendices, glossary, bibliography, and credits.
+                - Focus ONLY on teaching units/chapters.
                 - RETURN ONLY A JSON LIST of units.
                 - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
                 
@@ -708,8 +724,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         dive_text += f"\n[Page {i + 1 - page_offset}]\n"
                         dive_text += doc[i].get_text() + "\n"
                     
-                    # Normalize unit text by reordering internal page blocks
-                    dive_text = reorder_internal_pages(dive_text)
+                    # Normalize unit text structure
+                    dive_text = normalize_text_structure(dive_text)
                     
                     u_title = unit_info.get('title', 'Unknown Unit')
                     file_log(f"NITRO: Deep Diving into {u_title} (PDF Pages {start_p+1}-{end_p})...")

@@ -259,11 +259,16 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             
             # Build Page Chunks for faster/better surgical context
             import re
-            parts = re.split(r'\[Page\s*(\d+)\]', source_markdown_content)
-            for i in range(1, len(parts), 2):
+            # Catch both physical [Page X] and semantic # Source Page X markers
+            parts = re.split(r'(?:\[Page\s*(\d+)\]|#\s*Source Page\s*(\d+))', source_markdown_content)
+            # re.split with 2 capturing groups will return [intro, p1, p2, text, p1, p2, text, ...]
+            # If [Page X] matches, p1 is X and p2 is None. If # Source Page X matches, p1 is None and p2 is X.
+            for i in range(1, len(parts), 3):
                 try:
-                    p_num = int(parts[i])
-                    p_text = parts[i+1].strip()
+                    p1 = parts[i]
+                    p2 = parts[i+1]
+                    p_num = int(p1) if p1 else int(p2)
+                    p_text = parts[i+2].strip()
                     page_chunks[p_num] = p_text
                 except: pass
             _log(f"Phase 2: Indexed {len(page_chunks)} normalized page chunks.")
