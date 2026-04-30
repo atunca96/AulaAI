@@ -550,19 +550,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                 raw_text = ""
                 # Language Agnostic Extraction: Use the specified range
-                toc_text = ""
-                for i in range(start_page - 1, end_page):
-                    if i < len(doc):
-                        toc_text += doc[i].get_text() + "\n"
-
-                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars")
-                
-                if not toc_text or len(toc_text.strip()) < 20:
-                    doc.close()
-                    try: os.remove(temp_pdf)
-                    except: pass
-                    return self._send_error("This PDF appears to have no selectable text (possibly a scanned image). Please use an OCR tool.")
-                
                 # --- PASS 1.5: PAGE OFFSET DETECTION ---
                 # We need to know which PDF page corresponds to which Printed Page
                 file_log("NITRO: Detecting page offset...")
@@ -587,6 +574,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if offset_val: page_offset = int(offset_val)
                 except: pass
                 file_log(f"NITRO: Detected Page Offset: {page_offset}")
+
+                # --- STEP 1: TOC EXTRACTION ---
+                toc_text = ""
+                for i in range(start_page - 1, end_page):
+                    if i < len(doc):
+                        # Inject explicit page marker for AI coordinate stability
+                        # We use Printed Page number if offset was found, else PDF page
+                        printed_p = i + 1 - page_offset
+                        toc_text += f"\n[Page {printed_p}]\n"
+                        toc_text += doc[i].get_text() + "\n"
+
+                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars")
+                
+                if not toc_text or len(toc_text.strip()) < 20:
+                    doc.close()
+                    try: os.remove(temp_pdf)
+                    except: pass
+                    return self._send_error("This PDF appears to have no selectable text (possibly a scanned image). Please use an OCR tool.")
 
                 # --- PASS 2: SKELETON SCAN (High Intensity) ---
                 skeleton_prompt = f"""
@@ -663,6 +668,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     
                     dive_text = ""
                     for i in range(start_p, end_p):
+                        # Inject explicit page marker so AI can scope details to the correct page
+                        dive_text += f"\n[Page {i + 1 - page_offset}]\n"
                         dive_text += doc[i].get_text() + "\n"
                     
                     u_title = unit_info.get('title', 'Unknown Unit')

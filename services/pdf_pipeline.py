@@ -124,15 +124,18 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             if manual_toc:
                 _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
                 _log("Using Manual Curriculum provided by teacher.")
+                prompt_lang = language if language and language != "Detecting..." else "the target"
                 prompt = f"""
-                Task: Convert this messy curriculum text into a structured JSON Roadmap for a {language} course.
+                Task: Convert this messy curriculum text into a structured JSON Roadmap for a {prompt_lang} course.
                 Input can be: numbered lists, plain text, indented outlines, or comma-separated items.
                 
                 Rules:
                 1. Identify Chapters/Units: Look for overarching grouping headers ('Chapter', 'Unit', 'Module', 'Lektion', 'Tema', 'Unidad', etc.).
-                2. CHUNKING FLAT LISTS (CRITICAL): If the curriculum is just a long flat list of lessons/topics with no explicit chapters, YOU MUST group them into logical sequential chapters (e.g., "Unit 1: Foundations", "Unit 2: Daily Life") with roughly 3-5 topics per chapter. NEVER return a single massive chapter with 6+ topics.
+                2. CHUNKING FLAT LISTS (CRITICAL): If the curriculum is just a long flat list of lessons/topics with no explicit chapters, YOU MUST group them into logical sequential chapters.
                 3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
-                4. CRITICAL: Skip meta-sections like 'About', 'Authors', 'License', 'Preface', 'Index', 'Bibliography', 'Introduction' (if just a welcome), 'Appendix', 'GNU', etc. Focus ONLY on lessons and teaching material.
+                4. CRITICAL: Skip meta-sections like 'About', 'Authors', 'License', 'Preface', 'Index', 'Bibliography', 'Appendix', etc.
+                5. ORDER: You MUST list chapters and topics in the exact sequential order they appear in the text (strictly ascending page numbers).
+                6. LANGUAGE: If the language is unknown, focus on extracting the literal titles without translating them.
                 
                 Return ONLY a valid JSON object with this exact structure:
                 {{
@@ -247,11 +250,23 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             manual_toc = f.read()
 
     source_markdown_content = None
+    page_chunks = {} # dictionary of page_num -> text
     if source_markdown_path and os.path.exists(source_markdown_path):
         try:
             with open(source_markdown_path, "r", encoding="utf-8") as f:
                 source_markdown_content = f.read()
             _log(f"Phase 2: Loaded external source markdown ({len(source_markdown_content)} chars)")
+            
+            # Build Page Chunks for faster/better surgical context
+            import re
+            parts = re.split(r'\[Page\s*(\d+)\]', source_markdown_content)
+            for i in range(1, len(parts), 2):
+                try:
+                    p_num = int(parts[i])
+                    p_text = parts[i+1].strip()
+                    page_chunks[p_num] = p_text
+                except: pass
+            _log(f"Phase 2: Indexed {len(page_chunks)} normalized page chunks.")
         except Exception as e:
             _log(f"Phase 2 ERROR reading source markdown: {e}")
 
@@ -327,34 +342,42 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             def get_surgical_context(page_num, full_text, topic_title=""):
                 if not full_text: return ""
                 
-                # Priority 1: Page Marker
+                # Priority 1: Exact Normalized Page Chunk
+                if page_num and page_num in page_chunks:
+                    # Take the target page and 2 subsequent pages for full context
+                    context_chunk = ""
+                    for p in range(page_num, page_num + 3):
+                        if p in page_chunks:
+                            context_chunk += f"\n[Page {p}]\n{page_chunks[p]}\n"
+                    if len(context_chunk) > 100:
+                        return context_chunk
+                
+                # Priority 2: Page Marker Search (if not in indexed chunks)
                 if page_num:
                     p_marker = f"Page {page_num}"
                     idx = full_text.find(p_marker)
                     if idx != -1:
-                        start = max(0, idx - 1000)
-                        end = idx + 6000 # Take a larger slice for better context
+                        start = max(0, idx - 200)
+                        end = idx + 8000
                         return full_text[start:end]
                 
-                # Priority 2: Heading Match (Markdown or literal match)
+                # Priority 3: Heading Match (Markdown or literal match)
                 if topic_title and len(topic_title) > 3:
                     import re
-                    # Look for markdown headings that include the topic title
                     h_pattern = rf"(?:^|\n)#+\s*.*{re.escape(topic_title)}.*"
                     h_match = re.search(h_pattern, full_text, re.IGNORECASE)
                     if h_match:
                         start = max(0, h_match.start() - 200)
-                        end = h_match.start() + 8000 # Take a healthy chunk after heading
+                        end = h_match.start() + 8000
                         return full_text[start:end]
                     
-                    # Fallback to literal title match if no heading found
                     idx = full_text.lower().find(topic_title.lower())
                     if idx != -1:
                         start = max(0, idx - 500)
                         end = idx + 6000
                         return full_text[start:end]
                 
-                # Priority 3: Final broad fallback (first 8k chars)
+                # Priority 4: Final broad fallback (first 8k chars)
                 return full_text[:8000]
 
             for ch in chapters_data:
