@@ -1,0 +1,114 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Introductions and Greetings",
+      "topics": [
+        {
+          "title": "Greetings and Farewells",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Introducing Oneself and Others",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Polite Expressions",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Present Tense of Verbs",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Daily Routines and Activities",
+      "topics": [
+        {
+          "title": "Daily Routines Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Telling Time",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Expressing Frequency",
+          "type": "grammar"
+        },
+        {
+          "title": "Possessive Suffixes",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Family and Relationships",
+      "topics": [
+        {
+          "title": "Family Members Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Describing Physical Appearance",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Genitive and Dative Cases",
+          "type": "grammar"
+        },
+        {
+          "title": "Possessive Pronouns",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Food and Dining",
+      "topics": [
+        {
+          "title": "Food and Drink Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Ordering in a Restaurant",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Expressing Likes and Dislikes",
+          "type": "grammar"
+        },
+        {
+          "title": "Accusative Case",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Hobbies and Leisure Activities",
+      "topics": [
+        {
+          "title": "Hobbies and Interests Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Talking about Free Time",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Modal Verbs (can, want to, like to)",
+          "type": "grammar"
+        },
+        {
+          "title": "Adverbs of Frequency",
+          "type": "grammar"
+        }
+      ]
+    }
+  ]
+}

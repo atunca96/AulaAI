@@ -1,14 +1,32 @@
+# Dependencies
 node_modules/
+.venv/
+venv/
+
+# Python
 __pycache__/
 *.pyc
+
+# Data & Databases
 data/
-.env
+*.db
+*.sqlite
 *.db-journal
 *.db-wal
+
+# Secrets
+.env
+
+# Logs & Temp
 *.log
 *.txt
 scratch/
-public/books/
-aula.db
-*.db
 tools/
+final_debug.log
+final_test.log
+pipeline.log
+worker.log
+
+# Large Assets
+public/books/*.pdf
+public/books/*.txt
