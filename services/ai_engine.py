@@ -345,14 +345,17 @@ SOURCE MATERIAL:
 {forbidden_clause}
 RULES:
 1. Write each question prompt in {instruction_lang}.
-2. ALL 4 OPTIONS IN THE SAME LANGUAGE: The answer and all 3 distractors must ALL be in the same language. Either all in {language} or all in {instruction_lang}. NEVER mix languages across options. If the question asks "which means X?", put all options in {language}. If the question asks "what does X mean?", put all options in {instruction_lang}.
+2. ALL 4 OPTIONS IN THE SAME LANGUAGE: The answer and all 3 distractors must ALL be in the same language. Either all in {language} or all in {instruction_lang}. NEVER mix languages across options. 
+   - If the correct answer is in {instruction_lang}, all 3 distractors MUST be in {instruction_lang}.
+   - If the correct answer is in {language}, all 3 distractors MUST be in {language}.
+   - This applies especially to translation questions. Never mix the target word and its translation in the same options list.
 3. STRUCTURAL INVISIBILITY: The correct answer must be visually indistinguishable from the distractors. Same word count, same format, same grammatical category, same language. A student should NOT be able to guess the answer by looking at which option "looks different".
 4. ONE BLANK ONLY: If testing with a fill-in sentence, use exactly ONE blank (___). The answer must be ONE word or ONE short phrase. Never use two blanks.
 5. NO COMMA LISTS: Never join multiple words with commas as a single option. Each option is ONE coherent unit.
 6. CATEGORY LOCK: If the answer is a noun, all distractors are nouns. If a verb, all verbs. If an article+noun, all are article+noun with the SAME noun. If a sentence, all are sentences of similar length.
 7. NO GIVEAWAYS: Don't put the answer word inside the question. Don't make one option obviously longer/shorter than the others.
 8. MAXIMUM VARIETY & RANDOMIZATION: Do NOT test items in the sequential order they appear in the source material. Pick concepts randomly from across the entire material. Vary question styles: meaning, translation, fill-in-blank, grammar selection. NEVER use the exact same set of distractors twice.
-9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words that a student might confuse with the answer. No random or unrelated words.
+9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words (if options are in {language}) or real {instruction_lang} words (if options are in {instruction_lang}) that a student might confuse with the answer. Use words from the same semantic category (e.g. if the answer is a color, all distractors are colors).
 10. NO META: Don't ask about dialogues, speakers, or examples. Test the language itself.
 11. JSON SYNTAX: If you use quotation marks inside your prompt or answer strings, you MUST escape them (e.g., \\").
 
@@ -369,131 +372,126 @@ Return ONLY valid JSON:
         
         print(f"[AI-V2] Raw batch: {len(raw_list)} items")
         
-        # Pre-calculate vocabulary richness to determine if we should enforce distractor recycling rules immediately
-        all_raw_words = set()
-        for item in raw_list:
-            if isinstance(item, dict):
-                for d in item.get("distractors", []):
-                    all_raw_words.add(str(d).lower().strip())
+    # ── VALIDATION HELPER ──
+    def _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab):
+        if not isinstance(item, dict): return None
         
-        has_rich_vocab = len(all_raw_words) >= 15
+        ans = str(item.get("answer", "")).strip()
+        prompt_text = str(item.get("prompt", "")).strip()
+        distractors = item.get("distractors", [])
+        if not isinstance(distractors, list): return None
+        distractors = [str(d).strip() for d in distractors if str(d).strip()]
         
-        final = []
-        seen_answers = set()
-        used_dist_sets = []
+        # Hard Rejects
+        if not ans or not prompt_text or len(prompt_text) < 5: return None
+        if len(distractors) < 3: return None
+        distractors = distractors[:3]
         
-        for item in raw_list:
-            try:
-                if not isinstance(item, dict): continue
-                
-                ans = str(item.get("answer", "")).strip()
-                prompt_text = str(item.get("prompt", "")).strip()
-                distractors = item.get("distractors", [])
-                if not isinstance(distractors, list): continue
-                distractors = [str(d).strip() for d in distractors if str(d).strip()]
-                
-                # ── HARD REJECTS ──
-                if not ans or not prompt_text or len(prompt_text) < 10: continue
-                if len(distractors) < 3: continue
-                distractors = distractors[:3]
-                
-                # Comma-joined option
-                all_opts = [ans] + distractors
-                if any("," in opt and len(opt.split(",")) >= 2 for opt in all_opts):
-                    print(f"[V2-REJECT] Comma-joined option")
-                    continue
-                
-                # Ghost: answer word inside prompt
-                if len(ans) > 2 and ans.lower() in prompt_text.lower():
-                    continue
-                
-                # Meta-question labels
-                combined = (prompt_text + " " + " ".join(all_opts)).lower()
-                if any(mk in combined for mk in ["person 1", "person 2", "speaker a", "speaker b"]):
-                    continue
-                
-                # ── UNIVERSAL OUTLIER DETECTOR ──
-                def _option_fingerprint(text):
-                    words = text.split()
-                    ascii_chars = sum(1 for c in text if ord(c) < 128)
-                    total_chars = max(len(text), 1)
-                    return {
-                        'word_count': len(words),
-                        'char_len': len(text),
-                        'ascii_ratio': round(ascii_chars / total_chars, 1),
-                        'has_upper_mid': any(c.isupper() for c in text[1:]) if len(text) > 1 else False,
-                        'has_punctuation': any(c in text for c in '.,!?;:…'),
-                        'starts_upper': text[0].isupper() if text else False,
-                    }
-                
-                fingerprints = [_option_fingerprint(o) for o in all_opts]
-                
-                is_outlier = False
-                for key in ['word_count', 'ascii_ratio', 'has_punctuation']:
-                    values = [fp[key] for fp in fingerprints]
-                    for i in range(4):
-                        others = [v for j, v in enumerate(values) if j != i]
-                        if len(set(others)) == 1 and values[i] != others[0]:
-                            if key == 'word_count':
-                                if abs(values[i] - others[0]) >= 2:
-                                    is_outlier = True; break
-                            elif key == 'ascii_ratio':
-                                if abs(values[i] - others[0]) >= 0.3:
-                                    is_outlier = True; break
-                            else:
-                                is_outlier = True; break
-                    if is_outlier: break
-                
-                if not is_outlier:
-                    char_lens = [fp['char_len'] for fp in fingerprints]
-                    for i, cl in enumerate(char_lens):
-                        others_avg = sum(cl2 for j, cl2 in enumerate(char_lens) if j != i) / 3
-                        if others_avg > 0 and (cl / others_avg > 2.5 or cl / others_avg < 0.3):
-                            is_outlier = True; break
-                
-                if is_outlier:
-                    print(f"[V2-REJECT] Outlier detected in options: {all_opts}")
-                    continue
-                
-                # 2-word grab-bag: if all 2 words, must share a common word
-                word_counts = [len(o.split()) for o in all_opts]
-                if all(wc == 2 for wc in word_counts):
-                    firsts = set(o.split()[0].lower() for o in all_opts)
-                    seconds = set(o.split()[1].lower() for o in all_opts)
-                    if len(firsts) == 4 and len(seconds) == 4:
-                        print(f"[V2-REJECT] Mixed 2-word categories")
-                        continue
-                
-                # ── DEDUP ──
-                ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
-                if ans_key in seen_answers: continue
-                
-                # Adaptive distractor recycling
-                dist_set = frozenset(d.lower().strip() for d in distractors)
-                if has_rich_vocab:
-                    if any(len(dist_set & prev) >= 2 for prev in used_dist_sets):
-                        print(f"[V2-REJECT] Recycled distractors (rich vocab)")
-                        continue
-                
-                # ── ACCEPT ──
-                import random as _r
-                opts = [ans] + distractors
-                _r.shuffle(opts)
-                
-                final.append({
-                    "id": _uid(),
-                    "type": "mcq",
-                    "prompt": prompt_text,
-                    "answer": ans,
-                    "distractors": distractors,
-                    "options": opts
-                })
-                seen_answers.add(ans_key)
-                used_dist_sets.append(dist_set)
-                
-                if len(final) >= c: break
-            except:
-                continue
+        all_opts = [ans] + distractors
+        
+        # Comma-joined option check
+        if any("," in opt and len(opt.split(",")) >= 2 for opt in all_opts):
+            print(f"[V2-REJECT] Comma-joined option")
+            return None
+        
+        # Answer word inside prompt (Ghost)
+        if len(ans) > 3 and ans.lower() in prompt_text.lower():
+            return None
+        
+        # Meta-question labels
+        combined = (prompt_text + " " + " ".join(all_opts)).lower()
+        if any(mk in combined for mk in ["person 1", "person 2", "speaker a", "speaker b"]):
+            return None
+
+        # ── UNIVERSAL OUTLIER DETECTOR ──
+        def _option_fingerprint(text):
+            words = text.split()
+            ascii_chars = sum(1 for c in text if ord(c) < 128)
+            total_chars = max(len(text), 1)
+            has_special = any(c.lower() in "áéíóúñü¡¿" for c in text)
+            return {
+                'word_count': len(words),
+                'char_len': len(text),
+                'ascii_ratio': round(ascii_chars / total_chars, 1),
+                'has_special': has_special,
+                'has_upper_mid': any(c.isupper() for c in text[1:]) if len(text) > 1 else False,
+                'has_punctuation': any(c in text for c in '.,!?;:…'),
+                'starts_upper': text[0].isupper() if text else False,
+            }
+        
+        fingerprints = [_option_fingerprint(o) for o in all_opts]
+        
+        # Mixed Language Heuristic (Special Characters)
+        special_counts = [fp['has_special'] for fp in fingerprints]
+        if any(special_counts) and not all(special_counts):
+            print(f"[V2-REJECT] Mixed special characters (language mix?): {all_opts}")
+            return None
+
+        # Numeric and Structural Outliers
+        for key in ['word_count', 'ascii_ratio', 'has_punctuation']:
+            values = [fp[key] for fp in fingerprints]
+            for i in range(4):
+                others = [v for j, v in enumerate(values) if j != i]
+                if len(set(others)) == 1 and values[i] != others[0]:
+                    if key == 'word_count' and abs(values[i] - others[0]) >= 2: return None
+                    if key == 'ascii_ratio' and abs(values[i] - others[0]) >= 0.3: return None
+                    if key == 'has_punctuation': return None
+        
+        char_lens = [fp['char_len'] for fp in fingerprints]
+        for i, cl in enumerate(char_lens):
+            others_avg = sum(cl2 for j, cl2 in enumerate(char_lens) if j != i) / 3
+            if others_avg > 0 and (cl / others_avg > 2.5 or cl / others_avg < 0.3):
+                return None
+
+        # Mixed 2-word categories
+        word_counts = [len(o.split()) for o in all_opts]
+        if all(wc == 2 for wc in word_counts):
+            firsts = set(o.split()[0].lower() for o in all_opts)
+            seconds = set(o.split()[1].lower() for o in all_opts)
+            if len(firsts) == 4 and len(seconds) == 4: return None
+
+        # Dedup
+        ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
+        if ans_key in seen_answers: return None
+        
+        # Distractor recycling
+        dist_set = frozenset(d.lower().strip() for d in distractors)
+        if has_rich_vocab:
+            if any(len(dist_set & prev) >= 2 for prev in used_dist_sets): return None
+
+        return {
+            "id": _uid(),
+            "type": "mcq",
+            "prompt": prompt_text,
+            "answer": ans,
+            "distractors": distractors,
+            "ans_key": ans_key,
+            "dist_set": dist_set
+        }
+
+    all_raw_words = set()
+    for item in raw_list:
+        if isinstance(item, dict):
+            for d in item.get("distractors", []):
+                all_raw_words.add(str(d).lower().strip())
+    
+    has_rich_vocab = len(all_raw_words) >= 15
+    final = []
+    seen_answers = set()
+    used_dist_sets = []
+    
+    for item in raw_list:
+        valid = _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab)
+        if valid:
+            import random as _r
+            opts = [valid["answer"]] + valid["distractors"]
+            _r.shuffle(opts)
+            valid["options"] = opts
+            final.append(valid)
+            seen_answers.add(valid["ans_key"])
+            used_dist_sets.append(valid["dist_set"])
+            if len(final) >= c: break
+
         
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2] generated={len(raw_list)} validated={len(final)} requested={c}\n")
@@ -517,14 +515,14 @@ SOURCE MATERIAL:
 {forbidden_clause}
 RULES:
 1. Write each question prompt in {instruction_lang}.
-2. ALL 4 OPTIONS IN THE SAME LANGUAGE: answer and all 3 distractors must ALL be in the same language.
+2. ALL 4 OPTIONS IN THE SAME LANGUAGE: answer and all 3 distractors must ALL be in the same language. If answer is {instruction_lang}, all distractors must be {instruction_lang}. If answer is {language}, all distractors must be {language}.
 3. STRUCTURAL INVISIBILITY: The correct answer must be visually indistinguishable from the distractors.
 4. ONE BLANK ONLY: If testing with fill-in sentence, use exactly ONE blank (___). Answer = one word/phrase.
 5. NO COMMA LISTS: Each option is ONE coherent unit.
 6. CATEGORY LOCK: noun→nouns, verb→verbs, etc.
 7. NO GIVEAWAYS: Don't put answer word inside the question.
 8. MAXIMUM VARIETY: Pick different concepts from the source than those already accepted.
-9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words.
+9. PLAUSIBLE WRONG ANSWERS: Distractors must be real words in the SAME language as the answer.
 10. NO META: Don't ask about dialogues or speakers.
 11. JSON SYNTAX: Escape any internal quotation marks.
 
@@ -541,30 +539,17 @@ SEED: {new_seed}"""
             topup_raw = (topup_res.get("data") if topup_res else []) or []
 
             for item in topup_raw:
-                if len(final) >= c:
-                    break
-                try:
-                    if not isinstance(item, dict): continue
-                    ans = str(item.get("answer", "")).strip()
-                    prompt_text = str(item.get("prompt", "")).strip()
-                    distractors = item.get("distractors", [])
-                    if not isinstance(distractors, list): continue
-                    distractors = [str(d).strip() for d in distractors if str(d).strip()]
-                    if not ans or not prompt_text or len(prompt_text) < 10: continue
-                    if len(distractors) < 3: continue
-                    distractors = distractors[:3]
-                    all_opts = [ans] + distractors
-                    if any("," in opt and len(opt.split(",")) >= 2 for opt in all_opts): continue
-                    if len(ans) > 2 and ans.lower() in prompt_text.lower(): continue
-                    ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
-                    if ans_key in seen_answers: continue
+                if len(final) >= c: break
+                valid = _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab)
+                if valid:
                     import random as _r2
-                    opts = [ans] + distractors
+                    opts = [valid["answer"]] + valid["distractors"]
                     _r2.shuffle(opts)
-                    final.append({"id": _uid(), "type": "mcq", "prompt": prompt_text, "answer": ans, "distractors": distractors, "options": opts})
-                    seen_answers.add(ans_key)
-                except:
-                    continue
+                    valid["options"] = opts
+                    final.append(valid)
+                    seen_answers.add(valid["ans_key"])
+                    used_dist_sets.append(valid["dist_set"])
+
 
             print(f"[AI-V2] After top-up pass {topup_pass}: have {len(final)}/{c}")
             with open("pipeline.log", "a", encoding="utf-8") as f:
