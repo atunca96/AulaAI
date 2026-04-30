@@ -4559,7 +4559,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
             // A. If it's an array of strings (Alphabet/Simple Lists)
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'string') {
               return `<div style="display:flex; flex-direction:column; gap:16px; font-size:20px; line-height:1.8; color:#e2e8f0;">
-                ${rawData.map(str => `<div dir="auto">${fixDiacritics(str)}</div>`).join('')}
+                ${rawData.map(str => `<div dir="auto" class="foreign-word" style="cursor:pointer; display:inline-block;">${fixDiacritics(str)}</div>`).join('')}
               </div>`;
             }
 
@@ -4578,14 +4578,14 @@ function showStudyTopic(topicId, pageIdx = 0) {
                 if (isExplicitExample || isLongSentence) {
                   return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
                       ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ''}
-                      <div style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div>
+                      <div class="foreign-word" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(v || k)}"</div>
                     </div>`;
                 }
 
                 // Regular Vocab/Phrase Card
                 return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
                     <div style="flex:1; display:flex; justify-content:flex-start;">
-                        <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div>
+                        <div dir="auto" class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(k)}</div>
                     </div>
                     <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
                   </div>`;
