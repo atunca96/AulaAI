@@ -557,8 +557,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     # 1. Conservative Noise Cleanup (Structural only)
                     lines = text.split('\n')
                     clean_lines = []
-                    # Generic Unit/Chapter markers to protect
-                    unit_markers = r'(?i)^(?:Unit|Chapter|Module|Lektion|Tema|Unidad|Lesson)\s*\d+|^\d+[\./]\s*'
+                    # Generic Unit/Chapter markers to protect (Handles 0/ and common O/ OCR confusion)
+                    unit_markers = r'(?i)^(?:Unit|Chapter|Module|Lektion|Tema|Unidad|Lesson)\s*\d+|^[0-9O][\./]\s*'
                     
                     for line in lines:
                         l = line.strip()
@@ -623,8 +623,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                         # CLASSIFICATION: Support vs Teaching material
                         is_support = False
-                        # If no unit marker found in first 300 chars and text is very short/reference-like
-                        if not re.search(unit_markers, content[:300]) and len(content) < 500:
+                        
+                        # PROTECT: Starter units (0/ or O/)
+                        has_starter_marker = re.search(r'(?i)^[0O][\./]\s*', content[:100])
+                        
+                        # CHECK: Pedagogical signals (Generic cross-linguistic keywords)
+                        # Looks for 'Objective', 'Goal', 'Objetivo', 'Lernziel', 'Learning', etc.
+                        has_pedagogical_keywords = re.search(r'(?i)Objectiv|Goal|Lernziel|Objetivo|Compétence|Learning|Lesson|Capitulo|Unit', content[:500])
+                        
+                        # Only mark as support if it lacks all unit-like markers and pedagogical signals
+                        if not re.search(unit_markers, content[:300]) and not has_starter_marker and not has_pedagogical_keywords and len(content) < 500:
                             is_support = True
                         
                         # Use stable normalized heading with classification hint
