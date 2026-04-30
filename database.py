@@ -48,20 +48,28 @@ IS_GHOST_DB = False
 if IS_RAILWAY:
     # 1. Check for ANY existing data across all potential paths
     found_path = None
+    print("[DB] === RAILWAY DATABASE DISCOVERY ===")
     for path in potential_paths:
-        if os.path.exists(path) and os.path.getsize(path) > 0:
-            print(f"[DB] FOUND EXISTING DATA at {path} ({os.path.getsize(path)} bytes)")
+        exists = os.path.exists(path)
+        size = os.path.getsize(path) if exists else 0
+        print(f"[DB]   Checking {path}: exists={exists}, size={size}")
+        if exists and size > 0 and not found_path:
+            print(f"[DB]   >>> SELECTED: {path} ({size} bytes)")
             found_path = path
-            break
     
     if found_path:
         DB_PATH = found_path
         IS_GHOST_DB = False
+        print(f"[DB] Using existing database: {DB_PATH}")
     else:
         # 2. If no data, wait for ANY valid VOLUME MOUNT to appear
         print("[DB] No existing data found. Verifying volume mount...")
         for attempt in range(5):
             if os.path.exists("/data"):
+                # List what IS on the volume for diagnostics
+                try:
+                    print(f"[DB] Volume /data contains: {os.listdir('/data')}")
+                except: pass
                 print("[DB] Persistent volume /data detected. Starting fresh.")
                 DB_PATH = "/data/aula.db"
                 IS_GHOST_DB = True
@@ -71,12 +79,13 @@ if IS_RAILWAY:
                 DB_PATH = "/app/data/aula.db"
                 IS_GHOST_DB = True
                 break
-            print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/30)")
+            print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/5)")
             time.sleep(1)
         else:
-            print("[FATAL ERROR] Persistent volume NOT FOUND after 30s. Crashing to force restart.")
+            print("[FATAL ERROR] Persistent volume NOT FOUND after 5 attempts. Crashing to force restart.")
             import sys
             sys.exit(1)
+    print(f"[DB] === FINAL: DB_PATH={DB_PATH}, IS_GHOST_DB={IS_GHOST_DB} ===")
 else:
     DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
     IS_GHOST_DB = not os.path.exists(DB_PATH)
