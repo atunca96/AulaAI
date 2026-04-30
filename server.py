@@ -557,12 +557,27 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     # 1. Conservative Noise Cleanup (Structural only)
                     lines = text.split('\n')
                     clean_lines = []
+                    # Generic Unit/Chapter markers to protect
+                    unit_markers = r'(?i)^(?:Unit|Chapter|Module|Lektion|Tema|Unidad|Lesson)\s*\d+|^\d+[\./]\s*'
+                    
                     for line in lines:
                         l = line.strip()
-                        # Skip standalone punctuation/symbols (likely artifacts)
+                        if not l:
+                            clean_lines.append(line)
+                            continue
+                            
+                        # PROTECT: Real unit/chapter/lesson markers
+                        if re.match(unit_markers, l):
+                            clean_lines.append(line)
+                            continue
+                            
+                        # SKIP: Standalone punctuation/symbols (likely artifacts)
                         if len(l) == 1 and not l.isalnum(): continue
-                        # Skip standalone hyphen lines
+                        # SKIP: Standalone hyphen lines
                         if l == '-' or l == '—': continue
+                        # SKIP: Standalone page fragments (e.g. "Page 10" or "10 Page")
+                        if re.match(r'(?i)^(?:Page\s*\d+|\d+\s*Page)$', l): continue
+                        
                         clean_lines.append(line)
                     text = '\n'.join(clean_lines)
 
@@ -606,8 +621,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                 c_lines.pop(1)
                                 content = '\n'.join(c_lines)
 
-                        # Use stable normalized heading
-                        chunks.append({'page': p_num, 'text': f"# Source Page {p_num}\n{content}"})
+                        # CLASSIFICATION: Support vs Teaching material
+                        is_support = False
+                        # If no unit marker found in first 300 chars and text is very short/reference-like
+                        if not re.search(unit_markers, content[:300]) and len(content) < 500:
+                            is_support = True
+                        
+                        # Use stable normalized heading with classification hint
+                        header = f"# Source Page {p_num}"
+                        if is_support: header += " (Support/Reference)"
+                        
+                        chunks.append({'page': p_num, 'text': f"{header}\n{content}"})
                     
                     # Sort by semantic textbook page
                     chunks.sort(key=lambda x: x['page'])
@@ -674,7 +698,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
                 - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
                 - IGNORE reference sections, appendices, glossary, bibliography, and credits.
-                - Skip sections that appear at the end of the book and lack a clear unit number or teaching structure.
+                - CRITICAL: Skip any pages marked with '(Support/Reference)' unless they contain a clear Unit number and Teaching content.
                 - Focus ONLY on teaching units/chapters.
                 - RETURN ONLY A JSON LIST of units.
                 - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
