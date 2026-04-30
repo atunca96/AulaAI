@@ -554,7 +554,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     and normalizes markdown structure.
                     """
                     import re
-                    # 1. Strip malformed metadata & artifacts
+                    # 1. Conservative Noise Cleanup (Structural only)
+                    lines = text.split('\n')
+                    clean_lines = []
+                    for line in lines:
+                        l = line.strip()
+                        # Skip standalone punctuation/symbols (likely artifacts)
+                        if len(l) == 1 and not l.isalnum(): continue
+                        # Skip standalone hyphen lines
+                        if l == '-' or l == '—': continue
+                        clean_lines.append(line)
+                    text = '\n'.join(clean_lines)
+
+                    # Strip malformed metadata & artifacts
                     text = re.sub(r'\[\s*Page\s*\d+\s*\]', '', text) # Remove physical markers
                     text = re.sub(r'\[\s*\]', '', text) # Remove empty/broken brackets
                     
@@ -583,6 +595,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         
                         # Extract content after the marker
                         content = text[m.end():end].strip()
+                        
+                        # HEURISTIC: Heading joining for split uppercase titles
+                        # If the first few lines are all uppercase and short, join them.
+                        c_lines = content.split('\n')
+                        if len(c_lines) > 1:
+                            if c_lines[0].isupper() and len(c_lines[0]) < 60 and \
+                               c_lines[1].isupper() and len(c_lines[1]) < 60:
+                                c_lines[0] = c_lines[0] + " " + c_lines[1]
+                                c_lines.pop(1)
+                                content = '\n'.join(c_lines)
+
                         # Use stable normalized heading
                         chunks.append({'page': p_num, 'text': f"# Source Page {p_num}\n{content}"})
                     
@@ -651,6 +674,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
                 - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
                 - IGNORE reference sections, appendices, glossary, bibliography, and credits.
+                - Skip sections that appear at the end of the book and lack a clear unit number or teaching structure.
                 - Focus ONLY on teaching units/chapters.
                 - RETURN ONLY A JSON LIST of units.
                 - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
