@@ -223,7 +223,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
     # BILINGUAL GUARD: Force English for A1/A2
-    lang_guard = f"REQUIRED: Explanations & Titles in English, Examples in {language}." if level in ['A1', 'A2'] else f"Use {language} for everything."
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text must be in English (including instructions, grammar explanations, teacher notes, student guidance, and activity directions). The ACTUAL learning content MUST remain in {language} (including vocabulary, examples, dialogues, model phrases, answer choices, and forms being taught)." if level in ['A1', 'A2'] else f"Use {language} for everything."
 
     source_rule = ""
     if source_text:
