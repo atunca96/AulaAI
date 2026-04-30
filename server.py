@@ -604,118 +604,93 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Use 3.0 Haiku for cost efficiency
                 skeleton_res = _call_ai([{"role": "user", "content": skeleton_prompt}], model="anthropic/claude-3-haiku", max_tokens=2500)
                 
-                pages_to_dive = []
-                import json
-                import ast
+                # Pre-detect language to avoid "Detecting..." leakage in deep-dive prompts
+                clean_lang = language if language and language != "Detecting..." else "this"
+                if clean_lang == "this":
+                    try:
+                        from services.ai_engine import detect_language
+                        detected_initial = detect_language(toc_text)
+                        if detected_initial and detected_initial != "English":
+                            clean_lang = detected_initial
+                    except: pass
+                
+                # --- PASS 2.1: PARSE UNITS & RANGES ---
+                units_data = [] # List of {unit: 1, title: '...', pdf_page: 10}
                 try:
-                    # Clean the response if it contains markdown code blocks
                     clean_res = str(skeleton_res).replace("```json", "").replace("```", "").strip()
-                    # Find the first [ and last ]
                     start_idx = clean_res.find("[")
                     end_idx = clean_res.rfind("]") + 1
-                    
-                    units_list = []
                     if start_idx != -1 and end_idx != 0:
-                        content_to_parse = clean_res[start_idx:end_idx]
-                        try:
-                            units_list = json.loads(content_to_parse)
-                        except:
-                            try:
-                                # FALLBACK: LLMs sometimes use single quotes. ast.literal_eval handles this safely for literals.
-                                units_list = ast.literal_eval(content_to_parse)
-                            except: pass
-
-                        skeleton = ""
-                        for u in units_list:
-                            if not isinstance(u, dict): continue
+                        raw_list = json.loads(clean_res[start_idx:end_idx])
+                        for u in raw_list:
                             p_num = u.get('page')
                             if p_num:
                                 try:
-                                    printed_p = int(p_num)
-                                    pdf_p = printed_p + page_offset
-                                    pages_to_dive.append(pdf_p)
-                                    skeleton += f"Unit {u.get('unit', '')}: {u.get('title', '')} (Page {printed_p})\n"
+                                    u['pdf_page'] = int(p_num) + page_offset
+                                    units_data.append(u)
                                 except: pass
-                        if not skeleton: skeleton = str(skeleton_res)
-                    else:
-                        skeleton = str(skeleton_res)
                 except Exception as e:
-                    file_log(f"NITRO: Skeleton JSON Parse Error: {e}")
-                    skeleton = str(skeleton_res)
+                    file_log(f"NITRO: Skeleton Parse Error: {e}")
 
-                # Fallback regex if pages_to_dive is still empty
-                if not pages_to_dive:
+                if not units_data:
+                    # Fallback to simple regex if JSON fails
                     import re
-                    page_markers = re.findall(r'\[(\d+)\]|p\.\s*(\d+)|Pág\.\s*(\d+)|Page\s*(\d+)|(\d+)\s*\.\.\.', skeleton, re.IGNORECASE)
+                    page_markers = re.findall(r'Unit\s*(\d+):?\s*(.*?)\s*\(Page\s*(\d+)\)', str(skeleton_res), re.IGNORECASE)
                     for match in page_markers:
-                        for m in match:
-                            if m: 
-                                try:
-                                    pdf_p = int(m) + page_offset
-                                    pages_to_dive.append(pdf_p)
-                                except: pass
-                
-                pages_to_dive = sorted(list(set(pages_to_dive)))[:25]
-                file_log(f"NITRO: Identified {len(pages_to_dive)} PDF pages to deep dive: {pages_to_dive}")
-                file_log(f"NITRO: Skeleton Content: {skeleton[:500]}...")
-                
-                final_details = [None] * len(pages_to_dive)
+                        try:
+                            units_data.append({
+                                'unit': match[0],
+                                'title': match[1],
+                                'pdf_page': int(match[2]) + page_offset
+                            })
+                        except: pass
+
+                # Ensure units are sorted by page
+                units_data = sorted(units_data, key=lambda x: x['pdf_page'])
+                file_log(f"NITRO: Identified {len(units_data)} units to deep dive.")
+
+                # --- PASS 3: UNIT-SCOPED DEEP DIVE ---
+                final_details = [None] * len(units_data)
                 from concurrent.futures import ThreadPoolExecutor
 
-                def process_page(idx, page_num):
-                    if page_num > len(doc) or page_num < 1: return
-                    # Extract 6 pages around this marker
-                    start_p = max(0, page_num - 1)
-                    end_p = min(len(doc), page_num + 5)
+                def process_unit(idx, unit_info):
+                    start_p = unit_info['pdf_page']
+                    # End page is the start of next unit or +8 pages
+                    end_p = units_data[idx+1]['pdf_page'] if idx+1 < len(units_data) else start_p + 8
+                    # Cap the range to avoid huge extractions
+                    end_p = min(end_p, start_p + 12, len(doc))
+                    start_p = max(0, start_p - 1) # Slight buffer for headings
+                    
                     dive_text = ""
                     for i in range(start_p, end_p):
                         dive_text += doc[i].get_text() + "\n"
                     
-                    file_log(f"NITRO: Deep Diving into Page {page_num}...")
-                    dive_msg = [{"role": "user", "content": f"You are looking at Page {page_num} of a {language} textbook. Extract EVERYTHING: Unit title, every lesson title, grammar points, and vocabulary topics. Return as a detailed list. TEXT:\n{dive_text[:15000]}"}]
+                    u_title = unit_info.get('title', 'Unknown Unit')
+                    file_log(f"NITRO: Deep Diving into {u_title} (PDF Pages {start_p+1}-{end_p})...")
+                    
+                    dive_msg = [{
+                        "role": "user", 
+                        "content": f"You are analyzing Unit '{u_title}' from a {clean_lang} textbook. "
+                                   f"Extract all lesson titles, grammar points, vocabulary topics, and culture/video sections specifically FOR THIS UNIT. "
+                                   f"Include page numbers for each. "
+                                   f"TEXT:\n{dive_text[:20000]}"
+                    }]
                     try:
-                        dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=2000)
-                        if isinstance(dive_res, dict): final_details[idx] = dive_res.get("explanation", "")
-                        else: final_details[idx] = str(dive_res)
+                        dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=3000)
+                        res_str = dive_res.get("explanation", "") if isinstance(dive_res, dict) else str(dive_res)
+                        final_details[idx] = f"## Unit {unit_info.get('unit', idx+1)}: {u_title}\n{res_str}"
                     except Exception as e:
-                        file_log(f"NITRO: Page {page_num} extraction failed: {e}")
-                        final_details[idx] = f"[Page {page_num} extraction failed]"
+                        file_log(f"NITRO: Unit {u_title} extraction failed: {e}")
+                        final_details[idx] = f"## Unit {unit_info.get('unit', idx+1)}: {u_title}\n[Extraction failed]"
 
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    for i, p in enumerate(pages_to_dive):
-                        executor.submit(process_page, i, p)
-                
-                # Filter out None values (e.g. if a page was invalid)
-                final_details = [d for d in final_details if d is not None]
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    for i, u_info in enumerate(units_data):
+                        executor.submit(process_unit, i, u_info)
 
-                # --- PASS 3: THE MASTER MERGE ---
-                merge_prompt = f"""
-                You are the MASTER MERGE engine for a {language} textbook. 
-                Combine the high-level skeleton with the deep-dive details.
+                # Assemble Markdown sequentially (No Master Merge needed!)
+                markdown = "\n\n".join([d for d in final_details if d])
                 
-                CRITICAL INSTRUCTIONS:
-                1. {language.upper()} ONLY: The content must match the {language} textbook provided.
-                2. COMPLETE COVERAGE: Ensure NO unit found in the skeleton is missing.
-                3. SEQUENTIALITY: Units must be numbered correctly (1, 2, 3, 4, 5, 6, 7...). 
-                4. PAGE TRACEABILITY: Include '(Page XX)' for every chapter and lesson.
-                5. SORTING: You MUST output units in ascending order of their Page Numbers.
-                6. LITERAL TITLES: Do not summarize or change the unit titles. Use the exact titles from the skeleton.
-                
-                SKELETON:
-                {skeleton}
-                
-                DEEP DIVE DETAILS (LESSON TITLES):
-                {chr(10).join(final_details)}
-                """
-                res = _call_ai([{"role": "user", "content": merge_prompt}], model="anthropic/claude-3-haiku", max_tokens=8000)
-                
-                markdown = ""
                 detected_lang = "English"
-                
-                if isinstance(res, dict):
-                    markdown = res.get("explanation", "") or json.dumps(res, indent=2)
-                else:
-                    markdown = str(res)
                 
                 file_log(f"NITRO: Final Recursive Markdown Length: {len(markdown)} chars")
                 

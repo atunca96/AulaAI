@@ -336,16 +336,25 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                         end = idx + 6000 # Take a larger slice for better context
                         return full_text[start:end]
                 
-                # Priority 2: Topic Title Match
+                # Priority 2: Heading Match (Markdown or literal match)
                 if topic_title and len(topic_title) > 3:
+                    import re
+                    # Look for markdown headings that include the topic title
+                    h_pattern = rf"(?:^|\n)#+\s*.*{re.escape(topic_title)}.*"
+                    h_match = re.search(h_pattern, full_text, re.IGNORECASE)
+                    if h_match:
+                        start = max(0, h_match.start() - 200)
+                        end = h_match.start() + 8000 # Take a healthy chunk after heading
+                        return full_text[start:end]
+                    
+                    # Fallback to literal title match if no heading found
                     idx = full_text.lower().find(topic_title.lower())
                     if idx != -1:
                         start = max(0, idx - 500)
                         end = idx + 6000
                         return full_text[start:end]
                 
-                # Priority 3: Proportional slice if no markers found
-                # (Simple fallback to first 8k chars if all else fails)
+                # Priority 3: Final broad fallback (first 8k chars)
                 return full_text[:8000]
 
             for ch in chapters_data:
