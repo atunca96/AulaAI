@@ -1,6 +1,45 @@
+# Version control
 .git
+
+# Local virtual environments
 .venv
 venv
-node_modules/
-public/books/textbook.pdf
-aulaai-current.zip
+env
+
+# Local embedded Python runtime (not used in containers)
+tools/
+
+# Local database files (container uses volume at /data)
+data/
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+
+# Uploaded PDFs and textbooks
+public/books/
+uploads/
+
+# Log files
+*.log
+pipeline.log
+server.log
+server_latest.log
+worker.log
+
+# Debug/scratch files
+server_debug*.txt
+scratch/
+*.txt
+
+# Local dev archives
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

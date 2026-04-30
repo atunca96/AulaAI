@@ -1,6 +1,47 @@
+# Version control
 .git
+
+# Local virtual environments (never needed in Railway build)
 .venv
 venv
-node_modules/
-public/books/textbook.pdf
+env
+
+# Local embedded Python runtime (5 GB — not used on Railway)
+tools/
+
+# Local database files (Railway uses persistent volume at /data)
+data/
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+
+# Uploaded PDFs and textbooks (served from volume, not source)
+public/books/
+uploads/
+
+# Log files
+*.log
+pipeline.log
+server.log
+server_latest.log
+worker.log
+worker_log.txt
+
+# Debug/scratch files
+server_debug*.txt
+scratch/
+*.txt
+
+# Local dev archives
+*.zip
 aulaai-current.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

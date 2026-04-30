@@ -68,7 +68,8 @@ def watch_files():
 if not os.environ.get("PORT") and not os.environ.get("RAILWAY_ENVIRONMENT"):
     threading.Thread(target=watch_files, daemon=True).start()
 
-print(f"--- AULA AI SERVER v{VERSION} STARTED ---")
+_startup_t = time.time()
+print(f"--- AULA AI SERVER v{VERSION} STARTING ---")
 
 
 # Version tracking moved to services.state
@@ -3046,6 +3047,8 @@ def main():
 ============================================================
         """)
         
+        elapsed = round(time.time() - _startup_t, 2)
+        print(f"[READY] AulaAI listening on 0.0.0.0:{PORT} — startup took {elapsed}s")
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n[Server] Shutting down...")

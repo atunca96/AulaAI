@@ -2,7 +2,9 @@
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+# --no-cache-dir avoids writing a pip cache to disk (Railway layer cache handles it via cacheDirectories)
+# --prefer-binary skips slow source compilations for wheels that already exist
+cmds = ["pip install --no-cache-dir --prefer-binary -r requirements.txt"]
 cacheDirectories = ["/root/.cache/pip"]
 
 [start]
