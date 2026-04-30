@@ -571,14 +571,34 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             clean_lines.append(line)
                             continue
                             
-                        # SKIP: Standalone punctuation/symbols (likely artifacts)
+                        # SKIP: Single isolated non-alphanumeric characters (symbols, punctuation)
                         if len(l) == 1 and not l.isalnum(): continue
-                        # SKIP: Standalone hyphen lines
-                        if l == '-' or l == '—': continue
+                        # SKIP: Single isolated alphabetic characters (e.g. stray "I", "a")
+                        # Only skip truly isolated ones — real content has surrounding context
+                        if len(l) == 1 and l.isalpha(): continue
+                        # SKIP: Standalone hyphen/dash lines
+                        if re.match(r'^[-–—]+$', l): continue
                         # SKIP: Standalone page fragments (e.g. "Page 10" or "10 Page")
                         if re.match(r'(?i)^(?:Page\s*\d+|\d+\s*Page)$', l): continue
+                        # SKIP: Footer/header fragments: short word + number, or number + short word
+                        # Pattern: a word of ≤8 chars followed by a number (or vice-versa), nothing else
+                        # e.g. "ocho 8", "nueve 9", "doce 12", "8 ocho"
+                        # Guard: only remove if the line is short (≤16 chars total)
+                        if len(l) <= 16 and re.match(r'(?i)^[a-záéíóúüñàèìòùâêîôûäëïöü]{1,8}\s+\d{1,3}$', l): continue
+                        if len(l) <= 16 and re.match(r'(?i)^\d{1,3}\s+[a-záéíóúüñàèìòùâêîôûäëïöü]{1,8}$', l): continue
                         
                         clean_lines.append(line)
+
+                    # SKIP: Remove runs of duplicate short lines (layout column artifacts)
+                    # Only deduplicate consecutive identical lines that are very short
+                    deduped = []
+                    for i, line in enumerate(clean_lines):
+                        l = line.strip()
+                        if l and len(l) <= 20 and i > 0 and clean_lines[i-1].strip() == l:
+                            continue  # Skip exact duplicate of previous short line
+                        deduped.append(line)
+                    clean_lines = deduped
+
                     text = '\n'.join(clean_lines)
 
                     # Strip malformed metadata & artifacts
