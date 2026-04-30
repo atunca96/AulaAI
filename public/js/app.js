@@ -433,6 +433,10 @@ const i18n = {
     'ai.course_name': '3. Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
     'ai.gen_curriculum': 'Generate Curriculum ✨',
+    'ai.clear_cache': 'Clear Cached Blueprints',
+    'ai.regenerate': 'Regenerate',
+    'ai.cache_cleared': 'All cached blueprints have been deleted. Next generation will create fresh curricula.',
+    'ai.cache_cleared_title': 'Cache Cleared',
     'ai.review_title': 'Review Curriculum',
     'ai.review_desc': 'AI suggested these topics. You can edit or remove them.',
     'class.add_topic': 'Add Topic',
@@ -559,6 +563,8 @@ const i18n = {
     'is ready!': 'is ready!',
     'gen.preparing': 'Preparing Classroom...',
     'gen.building': 'Building Lessons...',
+    'gen.preparing_content': 'Preparing Content',
+    'gen.preparing_desc': 'The AI is currently architecting this lesson. Please wait a few moments.',
     'gen.generating': 'Generating questions...',
     'gen.ai_architecting': 'Our AI is architecting your curriculum and generating study materials. Please wait a moment.',
     'gen.please_wait': 'Please Wait',
@@ -602,7 +608,17 @@ const i18n = {
     'approved': 'Approved',
     'pending': 'Pending',
     'class.name': 'Classroom Name',
-    'class.pdf_limit': 'Max size: 50MB. Large files may take longer to process.',
+    'class.name_placeholder': 'e.g. Spanish 101 — Fall 2026',
+    'class.magic_pdf': 'Magic PDF',
+    'class.magic_pdf_wizard_desc': 'Upload a textbook and let AI build your course automatically.',
+    'class.drop_pdf': 'Click to select or drag & drop your PDF',
+    'class.extract_step': 'Extract & Analyze',
+    'class.extract_desc': 'AI will scan your PDF and extract the table of contents, chapters, and topics.',
+    'class.deep_extract': 'Deep Extract',
+    'class.extract_done': 'Extraction Complete',
+    'class.advanced': 'Advanced Options',
+    'class.start_pipeline': 'Launch Architect',
+    'class.pdf_limit': 'Searchable text PDFs only. Scanned images are not supported.',
     'class.building_msg': 'Your content is still being built from the textbook — check back soon.',
     'class.no_curriculum': 'No curriculum data available for this classroom.',
     'low_mastery': 'Low Mastery',
@@ -743,7 +759,17 @@ const i18n = {
     'student.enter_code': 'Öğretmeniniz tarafından verilen 5 haneli kodu girin',
     'signIn': 'Giriş Yap',
     'class.name': 'Sınıf Adı',
-    'class.pdf_limit': 'Maks dosya boyutu: 50MB. Büyük dosyaların işlenmesi daha uzun sürebilir.',
+    'class.name_placeholder': 'örn. İspanyolca 101 — Güz 2026',
+    'class.magic_pdf': 'Sihirli PDF',
+    'class.magic_pdf_wizard_desc': 'Bir ders kitabı yükleyin ve yapay zeka dersinizi otomatik olarak oluştursun.',
+    'class.drop_pdf': 'PDF dosyanızı seçmek için tıklayın veya sürükleyip bırakın',
+    'class.extract_step': 'Çıkar & Analiz Et',
+    'class.extract_desc': 'Yapay zeka PDF\'nizi tarayacak ve içindekileri, bölümleri ve konuları çıkaracaktır.',
+    'class.deep_extract': 'Derin Çıkarım',
+    'class.extract_done': 'Çıkarım Tamamlandı',
+    'class.advanced': 'Gelişmiş Seçenekler',
+    'class.start_pipeline': 'Mimarı Başlat',
+    'class.pdf_limit': 'Yalnızca aranabilir metin içeren PDF\'ler. Taranmış resimler desteklenmez.',
     'class.toc_manual_hint': 'Kitabın içindekiler kısmını veya müfredatınızı buraya yapıştırın. Yapay zeka bunu yol haritası olarak kullanacaktır.',
     'class.building_msg': 'İçeriğiniz hala hazırlanıyor — kısa süre sonra tekrar kontrol edin.',
     'class.no_curriculum': 'Bu sınıf için müfredat verisi bulunamadı.',
@@ -882,6 +908,10 @@ const i18n = {
     'ai.course_name': '3. Kurs Adı',
     'ai.name_placeholder': 'Örn: Yoğun İspanyolca Yaz Kursu',
     'ai.gen_curriculum': 'Müfredatı Oluştur ✨',
+    'ai.clear_cache': 'Önbellekteki Taslakları Temizle',
+    'ai.regenerate': 'Yeniden Oluştur',
+    'ai.cache_cleared': 'Tüm önbellekteki müfredat taslakları silindi. Bir sonraki oluşturma yeni müfredat üretecektir.',
+    'ai.cache_cleared_title': 'Önbellek Temizlendi',
     'ai.review_title': 'Müfredatı İncele',
     'ai.review_desc': 'Yapay zeka bu konuları önerdi. Bunları düzenleyebilir veya kaldırabilirsiniz.',
     'class.add_topic': 'Konu Ekle',
@@ -909,6 +939,8 @@ const i18n = {
     'gen.time': 'Bu işlem 5-10 saniye sürebilir.',
     'gen.preparing': 'Sınıf Hazırlanıyor...',
     'gen.building': 'Dersler Oluşturuluyor...',
+    'gen.preparing_content': 'İçerik Hazırlanıyor',
+    'gen.preparing_desc': 'Yapay zeka bu dersi kurguluyor. Lütfen birkaç dakika bekleyin.',
     'gen.generating': 'Sorular oluşturuluyor...',
     'gen.ai_architecting': 'Yapay zekamız müfredatınızı kurguluyor ve çalışma materyallerini oluşturuyor. Lütfen bekleyin.',
     'gen.please_wait': 'Lütfen Bekleyin',
@@ -1610,6 +1642,26 @@ function prevAiStep() {
   if (_currentAiStep > 1) showAiStep(_currentAiStep - 1);
 }
 
+async function clearBlueprintCache() {
+  const res = await api('/blueprint/delete-all', { method: 'POST', body: {} });
+  if (res && res.success) {
+    showAlert(t('ai.cache_cleared_title'), t('ai.cache_cleared'));
+  } else {
+    showAlert(t('error'), 'Failed to clear cache', true);
+  }
+}
+
+async function regenerateAiCurriculum() {
+  if (!_selectedAiLanguage || !_selectedAiLevel) return;
+
+  // 1. Delete the cached blueprint for this language/level
+  await api('/blueprint/delete', { method: 'POST', body: { language: _selectedAiLanguage, level: _selectedAiLevel } });
+
+  // 2. Go back to step 1 and auto-trigger generation
+  showAiStep(1);
+  await generateAiCurriculum();
+}
+
 function renderAiLanguages() {
   const grid = document.getElementById('ai-language-grid');
   if (!grid) return;
@@ -1689,22 +1741,16 @@ function renderAiSyllabusEditor(syllabus) {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">Unit ${i + 1}</h4>
-        <div style="display:flex; align-items:center; gap:8px;">
-           <span style="font-size:11px; color:var(--text-muted);">Page:</span>
-           <input type="number" class="text-input syllabus-page" value="${chapter.page || ''}" style="width:50px; padding:2px 4px; background:rgba(0,0,0,0.2); font-size:11px; height:auto;">
-           <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
-        </div>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
       </div>
       <input type="text" class="text-input syllabus-title" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         ${chapter.topics.map(topic => {
     const title = typeof topic === 'string' ? topic : (topic.title || '');
-    const page = typeof topic === 'object' ? topic.page : '';
     return `
             <div class="topic-item" data-type="${topic.type || 'vocabulary'}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '⚙️' : '•'}</span>
               <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
-              <input type="number" class="text-input topic-page" placeholder="P#" value="${page || ''}" style="width:40px; padding:4px; font-size:11px; background:rgba(0,0,0,0.1); height:auto;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
           `;
@@ -1724,11 +1770,7 @@ function addUnitToAiArchitect() {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
-        <div style="display:flex; align-items:center; gap:8px;">
-           <span style="font-size:11px; color:var(--text-muted);">Page:</span>
-           <input type="number" class="text-input syllabus-page" placeholder="P#" style="width:50px; padding:2px 4px; background:rgba(0,0,0,0.2); font-size:11px; height:auto;">
-           <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
-        </div>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
       </div>
       <input type="text" class="text-input syllabus-title" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
@@ -1752,7 +1794,6 @@ function addTopicToSyllabus(btn) {
   div.innerHTML = `
     <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">•</span>
     <input type="text" class="text-input topic-title" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
-    <input type="number" class="text-input topic-page" placeholder="P#" style="width:40px; padding:4px; font-size:11px; background:rgba(0,0,0,0.1); height:auto;">
     <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
   `;
   div.setAttribute('data-type', 'vocabulary');
@@ -1773,15 +1814,13 @@ async function buildAiClassroom() {
   const chapters = [];
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
     const title = chapterEl.querySelector('.syllabus-title').value;
-    const page = chapterEl.querySelector('.syllabus-page').value;
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
       const topicInp = topicItem.querySelector('.topic-title');
-      const topicPage = topicItem.querySelector('.topic-page').value;
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
-      topics.push({ title: topicInp.value, type: type, page: topicPage });
+      topics.push({ title: topicInp.value, type: type });
     });
-    chapters.push({ title, topics, page });
+    chapters.push({ title, topics });
   });
 
   const btn = document.getElementById('ai-build-btn');
@@ -1817,11 +1856,78 @@ async function buildAiClassroom() {
 }
 
 async function openCreateClassroomModal() {
-  if (await showConfirmModal('class.pdf_status_title', 'class.pdf_status_msg', false, null, false, 'class.pdf_status_ok', 'class.pdf_status_cancel')) {
-    document.getElementById('create-classroom-modal').classList.remove('hidden');
-  }
+  document.getElementById('create-classroom-modal').classList.remove('hidden');
   document.getElementById('creation-status').classList.add('hidden');
+  document.getElementById('extract-status').classList.add('hidden');
+  document.getElementById('extract-success').classList.add('hidden');
   document.getElementById('submit-creation-btn').disabled = false;
+  document.getElementById('submit-creation-btn').style.opacity = '1';
+  
+  // Setup drag & drop
+  const dropZone = document.getElementById('pdf-drop-zone');
+  if (dropZone && !dropZone._initialized) {
+    dropZone._initialized = true;
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--accent)';
+      dropZone.style.background = 'rgba(139,92,246,0.06)';
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = 'var(--border)';
+      dropZone.style.background = 'rgba(255,255,255,0.02)';
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--border)';
+      dropZone.style.background = 'rgba(255,255,255,0.02)';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'application/pdf') {
+        const input = document.getElementById('pdf-upload');
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        onPdfFileSelected(input);
+      } else {
+        showAlert(t('error'), 'Please drop a PDF file.', true);
+      }
+    });
+  }
+}
+
+function onPdfFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const emptyState = document.getElementById('pdf-drop-empty');
+  const filledState = document.getElementById('pdf-drop-filled');
+  const nameEl = document.getElementById('pdf-file-name');
+  const sizeEl = document.getElementById('pdf-file-size');
+  
+  nameEl.textContent = file.name;
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+  sizeEl.textContent = `${sizeMB} MB — PDF`;
+  
+  emptyState.classList.add('hidden');
+  filledState.classList.remove('hidden');
+  filledState.style.display = 'flex';
+  
+  // Auto-set course name from filename if empty
+  const nameInput = document.getElementById('course-name-input');
+  if (nameInput && !nameInput.value.trim()) {
+    const cleanName = file.name.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ');
+    nameInput.value = cleanName;
+  }
+}
+
+function clearPdfUpload() {
+  const input = document.getElementById('pdf-upload');
+  input.value = '';
+  document.getElementById('pdf-drop-empty').classList.remove('hidden');
+  const filled = document.getElementById('pdf-drop-filled');
+  filled.classList.add('hidden');
+  filled.style.display = 'none';
+  document.getElementById('extract-success').classList.add('hidden');
+  document.getElementById('markdown-analysis-input').value = '';
 }
 
 async function closeCreateClassroomModal(force = false) {
@@ -1840,15 +1946,18 @@ async function triggerDeepExtract() {
   const fileInput = document.getElementById('pdf-upload');
   const mdInput = document.getElementById('markdown-analysis-input');
   const statusEl = document.getElementById('extract-status');
+  const successEl = document.getElementById('extract-success');
   const btn = document.getElementById('deep-extract-btn');
 
   if (!fileInput.files[0]) {
-    return showAlert(t('missing_info'), 'Please select a PDF file first.', true);
+    return showAlert(t('missing_info'), t('class.select_pdf_first') || 'Please select a PDF file first.', true);
   }
 
   statusEl.classList.remove('hidden');
+  successEl.classList.add('hidden');
   btn.disabled = true;
   btn.style.opacity = '0.5';
+  btn.textContent = '⏳ ' + (t('class.extracting') || 'Extracting...');
 
   const formData = new FormData();
   formData.append('pdf', fileInput.files[0]);
@@ -1866,20 +1975,30 @@ async function triggerDeepExtract() {
     mdInput.value = data.markdown;
     _lastExtractedLanguage = data.language;
     
-    // Automatically set course name if empty
+    // Auto-set course name if still empty
     const nameInput = document.getElementById('course-name-input');
     if (nameInput && !nameInput.value.trim() && data.language) {
       nameInput.value = `${data.language} Course`;
     }
 
-    showAlert('success', 'Deep extraction complete! Review the content below.', false);
+    // Show success banner
+    statusEl.classList.add('hidden');
+    successEl.classList.remove('hidden');
+    const summaryEl = document.getElementById('extract-summary');
+    const lineCount = data.markdown.split('\n').filter(l => l.trim()).length;
+    summaryEl.textContent = `${data.language || 'Unknown'} detected • ${lineCount} content lines extracted`;
+    
+    // Auto-expand advanced section so user can see/edit the content
+    // document.getElementById('advanced-section').open = true;
+    
   } catch (err) {
     console.error('Extraction Error:', err);
+    statusEl.classList.add('hidden');
     showAlert(t('error'), 'Deep extraction failed: ' + err.message, true);
   } finally {
-    statusEl.classList.add('hidden');
     btn.disabled = false;
     btn.style.opacity = '1';
+    btn.innerHTML = '⚡ ' + (t('class.deep_extract') || 'Deep Extract');
   }
 }
 
@@ -1892,8 +2011,25 @@ async function handleCreateClassroom(e) {
   const statusEl = document.getElementById('creation-status');
   const btn = document.getElementById('submit-creation-btn');
 
-  if (!markdownInput.value.trim()) {
-    return showAlert(t('missing_info'), 'Please paste your Markdown analysis or use Deep Extract.', true);
+  if (!fileInput.files[0] && !markdownInput.value.trim()) {
+    return showAlert(t('missing_info'), t('class.select_pdf_first') || 'Please select a PDF file first.', true);
+  }
+
+  // Auto-extract if they skipped step 3
+  if (fileInput.files[0] && !markdownInput.value.trim()) {
+    const confirmed = await showConfirmModal('Extract PDF', 'You haven\'t extracted the PDF yet. Should we do that automatically before building?', true, null, false, 'Yes, extract it', 'Cancel');
+    if (!confirmed) return;
+    
+    // Attempt auto extraction
+    try {
+      await triggerDeepExtract();
+    } catch (e) {
+      return; // Stop if extraction fails
+    }
+    
+    if (!markdownInput.value.trim()) {
+      return showAlert(t('error'), 'Auto-extraction failed to produce content.', true);
+    }
   }
 
   const formData = new FormData();
@@ -4383,6 +4519,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
   }
   if (!topic) return;
 
+  // Save topic title for dictionary context (prevents AI contradicting lesson material)
+  localStorage.setItem('aula_last_topic_title', topic.title || '');
+
   // Highlight active sidebar item
   document.querySelectorAll('.study-topic-btn').forEach(b => {
     const isActive = b.textContent.trim() === topic.title;
@@ -4813,7 +4952,11 @@ async function showDict(word, e) {
 
   try {
     const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
-    const res = await api(`/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`);
+    // Pass the current study topic as context so the AI doesn't contradict lesson material
+    const topicTitle = localStorage.getItem('aula_last_topic_title') || '';
+    let dictUrl = `/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`;
+    if (topicTitle) dictUrl += `&context=${encodeURIComponent(topicTitle)}`;
+    const res = await api(dictUrl);
 
     loading.style.display = 'none';
     content.style.display = 'block';

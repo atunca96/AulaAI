@@ -1,0 +1,118 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Alphabet and Phonetics",
+      "topics": [
+        {
+          "title": "The Dutch Alphabet",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Vowel Sounds",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Consonant Sounds",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Pronunciation Rules",
+          "type": "grammar"
+        },
+        {
+          "title": "Accent Marks and Special Characters",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Greetings and Introductions",
+      "topics": [
+        {
+          "title": "Formal and Informal Greetings",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Introducing Yourself",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking for and Giving Personal Information",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Norms in Introductions",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Everyday Interactions",
+      "topics": [
+        {
+          "title": "Conversational Phrases",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking for Clarification",
+          "type": "grammar"
+        },
+        {
+          "title": "Making Polite Requests",
+          "type": "grammar"
+        },
+        {
+          "title": "Expressing Gratitude",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Describing People and Things",
+      "topics": [
+        {
+          "title": "Adjectives for Physical Descriptions",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Possessive Pronouns",
+          "type": "grammar"
+        },
+        {
+          "title": "Describing Likes and Dislikes",
+          "type": "grammar"
+        },
+        {
+          "title": "Noun-Adjective Agreement",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Daily Routines and Activities",
+      "topics": [
+        {
+          "title": "Vocabulary for Daily Routines",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Present Tense Verbs",
+          "type": "grammar"
+        },
+        {
+          "title": "Expressing Frequency",
+          "type": "grammar"
+        },
+        {
+          "title": "Time and Schedule Expressions",
+          "type": "vocabulary"
+        }
+      ]
+    }
+  ]
+}

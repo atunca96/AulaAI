@@ -129,8 +129,8 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 Input can be: numbered lists, plain text, indented outlines, or comma-separated items.
                 
                 Rules:
-                1. Identify Chapters/Units: Look for lines starting with 'Chapter', 'Unit', 'Tema', 'Section', or Roman Numerals.
-                2. Identify Topics: Everything under a Chapter is a topic. If no chapters are found, treat the whole list as topics under one 'General Curriculum' chapter.
+                1. Identify Chapters/Units: Look for overarching grouping headers ('Chapter', 'Unit', 'Module', 'Lektion', 'Tema', 'Unidad', etc.).
+                2. CHUNKING FLAT LISTS (CRITICAL): If the curriculum is just a long flat list of lessons/topics with no explicit chapters, YOU MUST group them into logical sequential chapters (e.g., "Unit 1: Foundations", "Unit 2: Daily Life") with roughly 3-5 topics per chapter. NEVER return a single massive chapter with 6+ topics.
                 3. Types: Assign a type ('vocabulary', 'grammar', or 'reading') to each topic based on its title.
                 4. CRITICAL: Skip meta-sections like 'About', 'Authors', 'License', 'Preface', 'Index', 'Bibliography', 'Introduction' (if just a welcome), 'Appendix', 'GNU', etc. Focus ONLY on lessons and teaching material.
                 
@@ -138,7 +138,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 {{
                   "chapters": [
                     {{
-                      "title": "Chapter 1: ...",
+                      "title": "Unit 1: ...",
                       "page": 12,
                       "topics": [
                         {{ "title": "Topic Name", "type": "vocabulary", "page": 13 }}
@@ -181,8 +181,18 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                     grammar_keys = ["verb", "conjugation", "grammar", "rule", "tense", "pronoun", "article", "preposition", "syntax", "order", "structure", "word order"]
                     t_type = "grammar" if any(k in t.lower() for k in grammar_keys) else "vocabulary"
                     topics.append({"title": t, "type": t_type})
+            
             if topics:
-                chapters_data = [{"title": "Imported Curriculum", "topics": topics}]
+                # Chunk into groups of 5
+                chapters_data = []
+                chunk_size = 5
+                for i in range(0, len(topics), chunk_size):
+                    chunk = topics[i:i + chunk_size]
+                    unit_num = (i // chunk_size) + 1
+                    chapters_data.append({
+                        "title": f"Unit {unit_num}",
+                        "topics": chunk
+                    })
         
         if not chapters_data:
             _log("ERROR: All parsing attempts failed.")
@@ -256,11 +266,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
             chapters_data = []
             for ch in chapters:
-                topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
+                topics = db.execute("SELECT id, title, type, page_number FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
                 chapters_data.append({
                     "id": ch[0],
                     "title": ch[1],
-                    "topics": [{"id": t[0], "title": t[1], "type": t[2]} for t in topics]
+                    "topics": [{"id": t[0], "title": t[1], "type": t[2], "page": t[3]} for t in topics]
                 })
         
         if not chapters_data:
@@ -303,8 +313,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
             content = {"pages": pages}
             
-            # 2. Generate Questions
-            questions = ai_generate_questions(t_title, t_type, content, language, 6, level)
+            # 2. Skip initial question generation to save time & costs!
+            # Questions will be lazily generated on-the-fly by content_engine.py when users take quizzes.
+            questions = []
             
             step_up() # Final point for this task
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
@@ -312,10 +323,36 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             # Map each future to its metadata
             future_to_topic = {}
+            # Context Surgery Helper: Extract relevant pages from source markdown
+            def get_surgical_context(page_num, full_text):
+                if not page_num or not full_text: return full_text
+                # Simple heuristic: Split by "Page X" or similar markers if present, 
+                # or just take a proportional slice based on total pages.
+                # Since we often don't have perfect page markers in markdown, 
+                # we'll take the Topic's page and a small buffer.
+                lines = full_text.split('\n')
+                # If we can't find markers, we use the source_text as is but shortened
+                if len(full_text) < 10000: return full_text
+                
+                # Try to find page markers like "Page 12"
+                p_marker = f"Page {page_num}"
+                idx = full_text.find(p_marker)
+                if idx != -1:
+                    start = max(0, idx - 1000) # 1000 chars before
+                    end = idx + 4000 # 4000 chars after (approx 2 pages)
+                    return full_text[start:end]
+                
+                return full_text[:8000] # Fallback to first 8k chars
+
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
-                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=source_markdown_content)
+                    
+                    # Apply Context Surgery
+                    topic_page = topic.get("page")
+                    surgical_text = get_surgical_context(topic_page, source_markdown_content)
+                    
+                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=surgical_text)
                     future_to_topic[future] = topic.get("title")
                     topic_count += 1
             
@@ -332,6 +369,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 try:
                     result = future.result()
                     t_id = result["t_id"]
+                    # Batch Optimization: Reduce request count to prevent 'length' truncation
+                    request_count = 12 
                     content = result["content"]
                     questions = result["questions"]
                     

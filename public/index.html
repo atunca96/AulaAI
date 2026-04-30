@@ -136,9 +136,11 @@
                     <button class="btn btn-ghost sidebar-item" data-tab="students-tab" onclick="toggleSidebar(); switchTab(this)">
                         <span class="sidebar-icon">👥</span> <span data-i18n="Students">Students</span>
                     </button>
+                    <!-- Reports tab hidden for now
                     <button class="btn btn-ghost sidebar-item" data-tab="reports" onclick="toggleSidebar(); switchTab(this)">
                         <span class="sidebar-icon">📑</span> <span data-i18n="Reports">Reports</span>
                     </button>
+                    -->
                     <button class="btn btn-ghost sidebar-item" data-tab="book" onclick="toggleSidebar(); switchTab(this)">
                         <span class="sidebar-icon">📖</span> <span data-i18n="book">Book</span>
                     </button>
@@ -426,8 +428,9 @@
                     <input type="text" id="ai-course-name" data-i18n-placeholder="ai.name_placeholder" placeholder="e.g. Intensive Language Course" style="width:100%; padding:12px; border-radius:10px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-main);">
                 </div>
 
-                <div style="margin-top:32px; text-align:right;">
+                <div style="margin-top:32px; display:flex; flex-direction:column; gap:8px;">
                     <button class="btn btn-primary" onclick="generateAiCurriculum()" id="ai-gen-btn" style="width:100%; padding:14px;" data-i18n="ai.gen_curriculum">Generate Curriculum ✨</button>
+                    <button class="btn btn-ghost" onclick="clearBlueprintCache()" id="ai-clear-cache-btn" style="width:100%; font-size:12px; color:var(--text-muted);">🗑️ <span data-i18n="ai.clear_cache">Clear Cached Blueprints</span></button>
                 </div>
             </div>
 
@@ -446,62 +449,107 @@
 
                 <div style="display:flex; gap:12px;">
                     <button class="btn btn-ghost" onclick="prevAiStep()" style="flex:1;" data-i18n="go_back">Back</button>
+                    <button class="btn btn-outline" onclick="regenerateAiCurriculum()" style="flex:1;">🔄 <span data-i18n="ai.regenerate">Regenerate</span></button>
                     <button class="btn btn-primary" onclick="buildAiClassroom()" id="ai-build-btn" style="flex:2;" data-i18n="class.build_btn">Build Classroom 🚀</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Create Classroom Modal (PDF & Markdown Flow) -->
+    <!-- Create Classroom Modal (PDF Upload Wizard) -->
     <div id="create-classroom-modal" class="modal hidden">
-        <div class="modal-content" style="max-width:550px;">
+        <div class="modal-content" style="max-width:580px;">
             <button class="modal-close" onclick="closeCreateClassroomModal()">&times;</button>
-            <h2 style="margin-bottom:24px;">🚀 <span data-i18n="class.create">Classroom Architect</span></h2>
+            <h2 style="margin-bottom:4px;">📄 <span data-i18n="class.magic_pdf">Magic PDF</span></h2>
+            <p style="color:var(--text-muted); margin-bottom:28px; font-size:13px;" data-i18n="class.magic_pdf_wizard_desc">Upload a textbook and let AI build your course automatically.</p>
             
             <form id="create-classroom-form" onsubmit="handleCreateClassroom(event)">
+                <!-- Step 1: Course Name -->
                 <div class="form-group">
-                    <label data-i18n="class.name">Classroom Name</label>
-                    <input type="text" id="course-name-input" class="text-input" placeholder="e.g. Language Course 101" required>
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">1</span>
+                        <span data-i18n="class.name">Classroom Name</span>
+                    </label>
+                    <input type="text" id="course-name-input" class="text-input" data-i18n-placeholder="class.name_placeholder" placeholder="e.g. Spanish 101 — Fall 2026" required style="font-size:14px;">
                 </div>
 
-                <!-- PDF Upload (Always Visible) -->
-                <div id="section-pdf" class="form-group">
-                    <label data-i18n="class.upload_pdf">1. Select PDF Textbook</label>
-                    <input type="file" id="pdf-upload" accept="application/pdf" style="padding:12px; border:2px dashed var(--border); border-radius:12px; width:100%; cursor:pointer;">
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;" data-i18n="class.pdf_limit">Upload the textbook to enable Deep Extraction.</small>
-                </div>
-
-                <!-- Markdown Section (Always Visible) -->
-                <div id="section-markdown" class="form-group">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <label style="margin-bottom:0;">2. Markdown Analysis (High Fidelity)</label>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                            <label style="margin-bottom:0; font-size:11px; white-space:nowrap;">Scan Range (e.g. 1-15 or 5):</label>
-                            <input type="text" id="pdf-toc-range" class="text-input" value="1-12" style="width:60px; padding:4px; font-size:11px; text-align:center; height:auto;">
-                            <button type="button" id="deep-extract-btn" class="btn btn-sm" style="background:var(--accent); color:white; font-size:11px; padding:4px 10px;" onclick="triggerDeepExtract()">
-                                ⚡ Deep Extract (Local AI)
-                            </button>
+                <!-- Step 2: PDF Upload (Drag & Drop) -->
+                <div class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">2</span>
+                        <span data-i18n="class.upload_pdf">Upload PDF Textbook</span>
+                    </label>
+                    <div id="pdf-drop-zone" style="border:2px dashed var(--border); border-radius:14px; padding:32px 24px; text-align:center; cursor:pointer; transition:all 0.2s; background:rgba(255,255,255,0.02);" onclick="document.getElementById('pdf-upload').click()">
+                        <input type="file" id="pdf-upload" accept="application/pdf" style="display:none;" onchange="onPdfFileSelected(this)">
+                        <div id="pdf-drop-empty">
+                            <div style="font-size:40px; margin-bottom:12px; opacity:0.6;">📤</div>
+                            <p style="font-weight:600; margin-bottom:4px;" data-i18n="class.drop_pdf">Click to select or drag & drop your PDF</p>
+                            <p style="font-size:12px; color:var(--text-muted);" data-i18n="class.pdf_limit">Searchable text PDFs only. Scanned images are not supported.</p>
+                        </div>
+                        <div id="pdf-drop-filled" class="hidden" style="display:flex; align-items:center; gap:14px; text-align:left;">
+                            <div style="font-size:36px;">📕</div>
+                            <div style="flex:1; min-width:0;">
+                                <div id="pdf-file-name" style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">—</div>
+                                <div id="pdf-file-size" style="font-size:12px; color:var(--text-muted);">—</div>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); clearPdfUpload()" style="color:var(--danger); font-size:16px; padding:4px 8px;">✕</button>
                         </div>
                     </div>
-                    <textarea id="markdown-analysis-input" class="text-input" style="height:150px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Paste analysis or use 'Deep Extract' above..."></textarea>
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Paste the extracted text/analysis. The AI will use this as its <b>absolute source of truth</b>.</small>
-                    <div id="extract-status" class="hidden" style="margin-top:8px; font-size:11px; color:var(--accent); display:flex; align-items:center; gap:8px;">
+                </div>
+
+                <!-- Step 3: Auto-Extract -->
+                <div id="section-extract" class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">3</span>
+                        <span data-i18n="class.extract_step">Extract & Analyze</span>
+                    </label>
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;" data-i18n="class.extract_desc">AI will scan your PDF and extract the table of contents, chapters, and topics.</p>
+                    <button type="button" id="deep-extract-btn" class="btn btn-primary" style="width:100%; padding:12px; font-size:14px;" onclick="triggerDeepExtract()">
+                        ⚡ <span data-i18n="class.deep_extract">Deep Extract</span>
+                    </button>
+                    <div id="extract-status" class="hidden" style="margin-top:12px; padding:14px; border-radius:12px; background:rgba(var(--accent-rgb, 139,92,246),0.08); border:1px solid rgba(var(--accent-rgb, 139,92,246),0.2); display:flex; align-items:center; gap:10px;">
                         <div class="spinner-small"></div>
-                        <span id="extract-status-text">Marker AI is shredding your PDF...</span>
+                        <span id="extract-status-text" style="font-size:13px; color:var(--accent-light);">Analyzing your PDF…</span>
+                    </div>
+                    <div id="extract-success" class="hidden" style="margin-top:12px; padding:14px; border-radius:12px; background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2); display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:20px;">✅</span>
+                        <div>
+                            <div style="font-weight:700; font-size:13px; color:#22c55e;" data-i18n="class.extract_done">Extraction Complete</div>
+                            <div id="extract-summary" style="font-size:12px; color:var(--text-muted);"></div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label data-i18n="class.toc_manual">2. Curriculum Roadmap / TOC (Optional)</label>
-                    <textarea id="manual-toc-input" class="text-input" style="height:100px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Chapter 1: Greetings..."></textarea>
-                    <small style="color:var(--text-secondary); display:block; margin-top:4px;">Provide a list of chapters/topics if you want a specific order.</small>
-                </div>
+                <!-- Advanced: Markdown & TOC (collapsible) -->
+                <details id="advanced-section" style="margin-bottom:16px;">
+                    <summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--text-muted); padding:8px 0; user-select:none;">
+                        ⚙️ <span data-i18n="class.advanced">Advanced Options</span>
+                    </summary>
+                    <div style="padding-top:12px; display:flex; flex-direction:column; gap:14px;">
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <label style="font-size:12px; font-weight:600; margin:0;">Scan Range (PDF pages)</label>
+                                <input type="text" id="pdf-toc-range" class="text-input" value="1-12" style="width:70px; padding:4px 8px; font-size:12px; text-align:center; height:auto;">
+                            </div>
+                            <small style="color:var(--text-muted); font-size:11px;">Which pages contain the Table of Contents (e.g., 1-12).</small>
+                        </div>
+                        <div>
+                            <label style="font-size:12px; font-weight:600; margin-bottom:6px; display:block;">Extracted Content (editable)</label>
+                            <textarea id="markdown-analysis-input" class="text-input" style="height:120px; font-family:monospace; font-size:11px; resize:vertical;" placeholder="Auto-populated after Deep Extract, or paste your own analysis..."></textarea>
+                        </div>
+                        <div>
+                            <label style="font-size:12px; font-weight:600; margin-bottom:6px; display:block;" data-i18n="class.toc_manual">Curriculum Roadmap (Optional)</label>
+                            <textarea id="manual-toc-input" class="text-input" style="height:80px; font-family:monospace; font-size:11px; resize:vertical;" placeholder="Chapter 1: Greetings&#10;Chapter 2: Numbers..."></textarea>
+                        </div>
+                    </div>
+                </details>
 
-                <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:12px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font-size:14px; display:flex; align-items:center; gap:12px;">
+                <!-- Status & Submit -->
+                <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:14px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font-size:14px; display:flex; align-items:center; gap:12px;">
                     <div class="spinner"></div>
-                    <span id="creation-status-text">Architecting your curriculum... This may take a minute.</span>
+                    <span id="creation-status-text" data-i18n="class.building_msg">Building your classroom… This may take a minute.</span>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" data-i18n="class.start_pipeline">Launch Architect</button>
+                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" style="padding:14px; font-size:15px;" data-i18n="class.start_pipeline">🚀 Launch Architect</button>
             </form>
         </div>
     </div>
@@ -580,7 +628,8 @@
                 <button class="nav-tab pc-only" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon">📝</span><span class="tab-label" data-i18n="Quizzes">Quizzes</span></button>
                 <button class="nav-tab pc-only" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon">📅</span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
                 <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
-                <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button>
+                <!-- Reports tab hidden for now -->
+                <!-- <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button> -->
                 <button class="nav-tab pc-only" id="lecturer-book-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="Material">Material</span></button>
                 <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
@@ -767,6 +816,7 @@
             </section>
 
             <!-- Reports Tab -->
+            <!-- Reports Tab (hidden for now)
             <section id="tab-reports" class="tab-panel">
                 <div class="page-header">
                     <div>
@@ -779,6 +829,7 @@
                 </div>
                 <div id="report-content"></div>
             </section>
+            -->
             
             <!-- Messages Tab (formerly Inbox) -->
             <section id="tab-inbox" class="tab-panel">

@@ -321,17 +321,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_user_status(user_id)
         elif path == "/api/version":
             return self._send_json({"version": get_version()})
+        elif path == "/api/blueprints":
+            from services.ai_engine import list_blueprint_cache
+            return self._send_json({"blueprints": list_blueprint_cache()})
         elif path == "/api/dictionary":
             word = params.get("word", [None])[0]
             lang = params.get("lang", [None])[0]
+            context = params.get("context", [None])[0]
             if not word: return self._send_error("word required")
             
-            # Simple caching for dictionaries
-            cache_key = f"dict_{lang}_{word.lower()}"
+            # Context-aware cache key: lesson-specific lookups get their own cache entry
+            cache_key = f"dict_{lang}_{word.lower()}" + (f"_ctx_{context[:30]}" if context else "")
             cached = get_cache(cache_key)
             if cached: return self._send_json(cached)
             
-            result = get_definition(word, lang or "en")
+            result = get_definition(word, lang or "en", context=context)
             set_cache(cache_key, result)
             return self._send_json(result)
         elif path == "/api/dictionary/ai-explain":
@@ -589,8 +593,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 TEXT:
                 {toc_text[:35000]}
                 """
-                # Use 3.5 Haiku for precision now that the JSON fix is in place
-                skeleton_res = _call_ai([{"role": "user", "content": skeleton_prompt}], model="anthropic/claude-3.5-haiku", max_tokens=2500)
+                # Use 3.0 Haiku for cost efficiency
+                skeleton_res = _call_ai([{"role": "user", "content": skeleton_prompt}], model="anthropic/claude-3-haiku", max_tokens=2500)
                 
                 pages_to_dive = []
                 import json
@@ -803,8 +807,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._question_delete()
         elif path == "/api/admin/hard-reset":
             return self._admin_hard_reset()
+        elif path == "/api/blueprint/delete":
+            return self._delete_blueprint()
+        elif path == "/api/blueprint/delete-all":
+            return self._delete_all_blueprints()
         else:
             self._send_error("Not found", 404)
+
+    def _delete_blueprint(self):
+        """Deletes a single cached blueprint."""
+        data = self._read_body()
+        language = data.get("language", "")
+        level = data.get("level", "")
+        if not language or not level:
+            return self._send_error("language and level required")
+        from services.ai_engine import delete_blueprint_cache
+        deleted = delete_blueprint_cache(language, level)
+        return self._send_json({"success": True, "deleted": deleted})
+
+    def _delete_all_blueprints(self):
+        """Deletes all cached blueprints."""
+        import os, glob
+        cache_dir = os.path.join("services", "blueprints")
+        count = 0
+        if os.path.exists(cache_dir):
+            for f in glob.glob(os.path.join(cache_dir, "*.json")):
+                os.remove(f)
+                count += 1
+        print(f"[CACHE] Purged {count} blueprint(s).")
+        return self._send_json({"success": True, "deleted_count": count})
 
     def _admin_hard_reset(self):
         """Hard delete everything. Restricted to admin emails."""
@@ -1476,6 +1507,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _bg_generate_activities(self, course_id, topic_id, count):
         try:
+            import re
+            
             def update_prog(p, status='generating'):
                 if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
                 for retry in range(5):
@@ -1492,102 +1525,69 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         if retry == 4: print(f"[DB ERROR] {e}")
                         time.sleep(0.2)
 
-            # Nuclear Wipe removed to prevent data loss.
+            def scrub(text):
+                if not isinstance(text, str): return text
+                return text.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
 
             with db_connection() as db:
-                # 1. Fetch ALL questions in this course to prevent duplicates across topics (Deduplication Pool)
-                all_rows = db.execute("""
+                # 1. Fetch existing questions for THIS TOPIC from DB
+                topic_rows = db.execute("""
                     SELECT q.id, q.topic_id, q.type, q.prompt, q.answer, q.distractors FROM questions q
-                    JOIN topics t ON q.topic_id = t.id
-                    JOIN chapters ch ON t.chapter_id = ch.id
-                    WHERE ch.course_id = ?
-                """, (course_id,)).fetchall()
+                    WHERE q.topic_id = ?
+                """, (topic_id,)).fetchall()
                 
-                def scrub(text):
-                    if not isinstance(text, str): return text
-                    return text.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
-
-                course_wide_questions = []
-                topic_existing_questions = []
-                seen_keys = set()
-                
-                import re
-                for r in all_rows:
+                topic_pool = []
+                for r in topic_rows:
                     q = dict(r)
                     q["prompt"] = scrub(q.get("prompt", ""))
                     q["answer"] = scrub(q.get("answer", ""))
-                    
-                    ans_key = re.sub(r'[^a-z0-9]', '', q["answer"].lower()).strip()
-                    if ans_key in seen_keys: continue
-                    seen_keys.add(ans_key)
-
                     try:
                         q["distractors"] = json.loads(q["distractors"])
                         q["distractors"] = [scrub(d) for d in q["distractors"]]
                     except:
                         q["distractors"] = []
-                    
                     all_opts = [q["answer"]] + q["distractors"]
                     py_random.shuffle(all_opts)
                     q["options"] = all_opts
-                    
-                    course_wide_questions.append(q)
-                    if str(q["topic_id"]) == str(topic_id):
-                        topic_existing_questions.append(q)
+                    topic_pool.append(q)
                 
-                # Check for capacity limit based ONLY on the current topic's existing questions
-                if len(topic_existing_questions) >= 30:
-                    print(f"[BG] Topic {topic_id} is at max capacity (30). Returning existing pool.")
-                    update_prog(100, status='done')
-                    with db_connection() as db_c:
-                        db_c.execute("UPDATE courses SET activity_result=? WHERE id=?", (json.dumps(topic_existing_questions), course_id))
-                        db_c.commit()
-                    return
-
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 if not row:
-                    print(f"[ERROR] Topic {topic_id} not found in DB")
                     raise Exception(f"Topic {topic_id} not found")
                 topic = dict(row)
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
-            
-            print(f"[BG] Starting CUMULATIVE activity generation for {topic['title']} ({language})")
-            file_log(f"Starting CUMULATIVE generation for {topic['title']}")
 
-            # Starting...
-            # Starting...
+            # ── ALWAYS generate fresh questions via AI ──
+            # No forbidden pool — rely on random seed + temperature for variety each press
+            print(f"[BG] Topic '{topic['title']}': Generating FRESH questions")
+            file_log(f"Fresh generation for {topic['title']}")
+            
             update_prog(5)
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
             try:
-                # ULTRA-SMOOTH HYBRID PROGRESS: 12 smaller batches + faster ticker
                 raw_activities = []
-                batch_size = 2 
-                total_batches = 12 
+                batch_size = count  # Removed the *3 double-multiplier (ai_engine already multiplies internally)
+                total_batches = 2
                 
                 class ProgressState:
                     def __init__(self):
-                        self.current_milestone = 3
                         self.is_done = False
                 
                 state = ProgressState()
-
                 def ticker_worker():
-                    p = 20
+                    start_time = time.time()
                     while not state.is_done:
-                        time.sleep(0.2) # Ultra-fast 200ms updates
-                        
-                        # 1. Extreme Velocity: 20% per second
-                        p += 4.0 
-                        
-                        # 2. Sync with REAL progress
-                        real_p = (len(raw_activities) / count) * 98
-                        if real_p > p: p = real_p
-                        
-                        if p > 99: p = 99
+                        time.sleep(1)
+                        elapsed = time.time() - start_time
+                        if elapsed < 15:
+                            p = 20 + (elapsed / 15.0) * 50
+                        else:
+                            p = 70 + ((elapsed - 15) / 10.0) * 20
+                            p = min(p, 94)
                         update_prog(int(p))
                 
                 ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
@@ -1595,23 +1595,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                 try:
                     update_prog(20)
-                    for b in range(total_batches):
-                        # The ticker now monitors raw_activities directly!
-                        batch = ai_generate_activity_batch(
+                    
+                    import concurrent.futures
+                    
+                    def _fetch_batch(_b):
+                        return ai_generate_activity_batch(
                             topic["title"], 
                             topic_type, 
                             content, 
                             language, 
                             count=batch_size, 
                             level=topic.get("difficulty", "A1"),
-                            existing_questions=course_wide_questions + raw_activities
+                            existing_questions=topic_pool + raw_activities
                         )
-                        if batch:
-                            raw_activities.extend(batch)
-                        
-                        if len(raw_activities) >= count: break
                     
-                    state.current_milestone = 96
+                    # Run batches in parallel for instant generation
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=total_batches) as executor:
+                        futures = [executor.submit(_fetch_batch, b) for b in range(total_batches)]
+                        
+                        for future in concurrent.futures.as_completed(futures):
+                            try:
+                                batch = future.result()
+                                if batch:
+                                    raw_activities.extend(batch)
+                            except Exception as e:
+                                print(f"[BG] Parallel batch failed: {e}")
+                                
+                            if len(raw_activities) >= count:
+                                break
+                            
                 finally:
                     state.is_done = True
                     ticker_thread.join(timeout=1.0)
@@ -1621,123 +1633,69 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 file_log(f"Error during batched generation: {e}")
                 raise e
 
-            update_prog(100) # Finished AI work
+            # ── Post-process & validate fresh questions ──
+            final_fresh = []
             
-            final_activities = []
             for act in raw_activities:
                 if not act or not isinstance(act, dict): continue
                 
-                # 1. SYNTACTIC VALIDATION: Kill "lazy" distractors (sentence vs single word)
                 ans = str(act.get("answer", "")).strip()
                 distractors = act.get("distractors", [])
                 if not isinstance(distractors, list): distractors = []
                 
+                # Syntactic validation
                 ans_words = ans.split()
-                if len(ans_words) >= 3: # If answer is a sentence/phrase
-                    # Reject if any distractor is just 1 or 2 words (usually lazy tags like "Name")
+                if len(ans_words) >= 3:
                     has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
-                    if has_lazy:
-                        file_log(f"REJECTED lazy question: {ans} vs {distractors}")
-                        continue
+                    if has_lazy: continue
 
-                # 2. MCQ Normalization Layer: Ensure frontend gets exactly what it expects
+                # MCQ Normalization
                 atype = act.get("type", "mcq")
-                
-                # 1. MCQ Normalization
                 if atype == 'mcq':
-                    ans = act.get("answer", "")
-                    dist = act.get("distractors", [])
-                    if not isinstance(dist, list): dist = [str(dist)]
-                    
-                    # Ensure answer is not in distractors
-                    dist = [d for d in dist if str(d).strip().lower() != str(ans).strip().lower()]
+                    dist = [d for d in distractors if str(d).strip().lower() != str(ans).strip().lower()]
                     act["distractors"] = dist[:3]
-                    
-                    if not act.get("options") or not isinstance(act["options"], list) or len(act["options"]) < 2:
-                        # Combine answer + distractors if AI used the old format or missed options
-                        opts = [ans] + dist
-                        py_random.shuffle(opts)
-                        act["options"] = opts
-                    
-                    # Final check: if still no options or no prompt, discard
-                    if not act.get("options") or not act.get("prompt"):
-                        file_log(f"Discarding broken MCQ: {json.dumps(act)}")
-                        continue
-                
-                # 2. Dialogue Normalization
+                    opts = [ans] + dist[:3]
+                    py_random.shuffle(opts)
+                    act["options"] = opts
+                    if not act.get("options") or not act.get("prompt"): continue
+
+                # Dialogue Normalization
                 if atype == 'dialogue_order':
                     if not act.get("scrambled_lines") and act.get("lines"):
                         act["scrambled_lines"] = act.get("lines")
-                    
-                    if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list):
-                        file_log(f"Discarding broken dialogue: {json.dumps(act)}")
-                        continue
-
+                    if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list): continue
                     if not act.get("correct_order"):
                         if act.get("answer"):
-                            # If AI sent indices, convert to actual lines
                             if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
                                 lines = act.get("scrambled_lines", [])
                                 act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
                             else:
                                 act["correct_order"] = act.get("answer")
                         else:
-                            # Try to use the original order if it's there
                             act["correct_order"] = act.get("scrambled_lines")
                 
                 act["id"] = _uid()
-                # Ensure distractors and answer are clean string types for the DB
                 act["prompt"] = scrub(act.get("prompt", ""))
                 act["answer"] = scrub(act.get("answer", ""))
                 if "distractors" in act and isinstance(act["distractors"], list):
                     act["distractors"] = [scrub(d) for d in act["distractors"]]
 
-                # FINAL DEDUPLICATION: Check against EVERYTHING we know so far
+                # Dedup only within this batch (not against DB — we WANT fresh questions)
                 ans_key = re.sub(r'[^a-z0-9]', '', act["answer"].lower()).strip()
-                course_ans_keys = {re.sub(r'[^a-z0-9]', '', str(eq.get('answer', '')).lower()).strip() for eq in course_wide_questions}
-                current_batch_keys = {re.sub(r'[^a-z0-9]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_activities}
+                batch_keys = {re.sub(r'[^a-z0-9]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_fresh}
+                if ans_key in batch_keys: continue
                 
-                if ans_key in course_ans_keys or ans_key in current_batch_keys:
-                    print(f"[FINAL REJECT] Duplicate found in final pass: {ans_key}")
-                    continue
-                
-                final_activities.append(act)
+                final_fresh.append(act)
             
-            # Prepare the cumulative list for the UI
-            cumulative_list = topic_existing_questions + final_activities
+            # ── Serve fresh questions directly (ephemeral, not saved to DB) ──
+            selected = final_fresh[:count]
+            print(f"[BG] [{course_id}] Serving {len(selected)} FRESH questions for '{topic['title']}'")
             
-            # Done!
-            print(f"[BG] [{course_id}] Saving {len(final_activities)} NEW activities (Total: {len(cumulative_list)})...")
-            try:
-                with db_connection() as db:
-                    # Update course status with cumulative results for UI
-                    db.execute("""
-                        UPDATE courses 
-                        SET activity_status='done', activity_result=? 
-                        WHERE id=?
-                    """, (json.dumps(cumulative_list), course_id))
-                    
-                    # Save ONLY NEW questions to the questions table
-                    for act in final_activities:
-                        q_id = _uid()
-                        a_type = act.get("type", "mcq")
-                        a_prompt = json.dumps(act.get("prompt", ""), ensure_ascii=False) if isinstance(act.get("prompt"), (list, dict)) else str(act.get("prompt", ""))
-                        a_answer = json.dumps(act.get("answer", ""), ensure_ascii=False) if isinstance(act.get("answer"), (list, dict)) else str(act.get("answer", ""))
-                        distractors = json.dumps(act.get("distractors", []))
-                        db.execute("""
-                            INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-                        """, (q_id, topic_id, a_type, a_prompt, a_answer, distractors, "A1.1"))
-                    db.commit()
-                print(f"[BG] [{course_id}] Save SUCCESSFUL")
-            except Exception as e:
-                print(f"[ERROR] [{course_id}] Final save failed: {e}")
-                file_log(f"Final Save Error: {e}")
-                # Fallback: still set it to done so the UI doesn't hang
-                with db_connection() as db:
-                    db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
-                               (json.dumps(cumulative_list), course_id))
-                    db.commit()
+            update_prog(100, status='done')
+            with db_connection() as db:
+                db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
+                           (json.dumps(selected), course_id))
+                db.commit()
                 
         except Exception as e:
             file_log(f"BG Activity Error: {str(e)}")
@@ -2655,6 +2613,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         cid = data.get("course_id")
         # Ensure we treat falsy/null values as None
         course_id = cid if cid and cid != "null" and cid != "undefined" else None
+        
+        # Save blueprint to cache NOW (user committed to building)
+        if language and level and chapters:
+            from services.ai_engine import save_blueprint_cache
+            # Convert the frontend format to the cache format
+            cache_chapters = []
+            for ch in chapters:
+                cache_topics = []
+                for t in ch.get("topics", []):
+                    cache_topics.append({"title": t.get("title", ""), "type": t.get("type", "vocabulary")})
+                cache_chapters.append({"number": len(cache_chapters) + 1, "title": ch.get("title", ""), "topics": cache_topics})
+            save_blueprint_cache(language, level, cache_chapters)
         
         from services.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id)

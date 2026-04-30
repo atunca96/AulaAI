@@ -31,9 +31,9 @@ def main():
                 f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Starting REGENERATE mode for Course {course_id}\n")
             
             with db_connection() as db:
-                row = db.execute("SELECT name, pdf_path FROM courses WHERE id=?", (course_id,)).fetchone()
+                row = db.execute("SELECT name, textbook FROM courses WHERE id=?", (course_id,)).fetchone()
                 course_name = row["name"] if row else "Unknown Course"
-                pdf_path = row["pdf_path"] if row else None
+                pdf_path = row["textbook"] if row else None
             
             try:
                 # Phase 2 Only - use the correct function name!

@@ -26,11 +26,12 @@ if os.path.exists(".env"):
                     os.environ[k] = v
     except: pass
 
-# Simple AI Engine with Python Filtering (V1.5-STABILIZED)
-MODEL_SPEED = "anthropic/claude-3-haiku" 
-MODEL_QUALITY = "anthropic/claude-3-haiku"
+# Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
+MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Lowest cost per output
+MODEL_NARRATIVE = "anthropic/claude-3-haiku"  # Legacy stable voice
+MODEL_FALLBACK = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
-def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
+def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
     """OpenRouter caller with markdown cleaning and automatic retries."""
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key: return {"error_details": "API Key Missing"}
@@ -44,7 +45,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     }
 
     last_error = "Unknown"
-    models_to_try = [model, "google/gemini-2.0-flash-lite-preview-02-05:free"]
+    models_to_try = [model, MODEL_FALLBACK]
     
     for target_model in models_to_try:
         for attempt in range(2):
@@ -132,27 +133,57 @@ def _call_ai(messages: List[Dict], model: str = MODEL_SPEED, max_tokens: int = 1
     return {"error_details": last_error}
 
 def detect_language(text, hint=""):
-    prompt = f"Detect language. JSON: {{'language': '...'}}. Text: {text[:800]}"
+    prompt = f"""
+    Identify the TARGET language being taught in this textbook or curriculum. 
+    For example, if this is an English book teaching German, the target language is 'German'. 
+    If it's teaching Spanish to French speakers, the target language is 'Spanish'.
+    Return ONLY a JSON object: {{"language": "..."}}
+    
+    Text: {text[:1000]}
+    """
     if hint:
-        prompt += f" (Hint: The course is named '{hint}')"
-    result = _call_ai([{"role": "user", "content": prompt}], max_tokens=50)
-    return result.get("language", "English") if result else "English"
+        prompt += f"\n(Hint: The course is named '{hint}')"
+    result = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=50)
+    
+    try:
+        if isinstance(result, dict) and "language" in result:
+            return result["language"]
+        elif isinstance(result, str):
+            import json
+            clean_str = result.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(clean_str)
+            return parsed.get("language", "English")
+    except:
+        pass
+    return "English"
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
     import json
-    from services.language_data import get_reference_prompt
+    from services.language_data import get_reference_prompt, get_special_chars_prompt
     
-    # Only apply the "Complete set" requirement if the topic is actually about an alphabet
+    # Match topics that need verified alphabet data
     alphabet_keywords = [
         "alphabet", "syllabary", "hiragana", "katakana", "cyrillic", "pinyin", 
         "alfabeto", "abecedario", "alfabe", "abcto", "letters", "buchstaben"
     ]
     is_alphabet_topic = any(x in topic.lower() for x in alphabet_keywords)
     
+    # Match topics that need verified special character / accent / phonetics data
+    special_char_keywords = [
+        "accent", "special character", "diacritic", "umlaut", "trema", "diaeresis",
+        "cedilla", "tilde", "circumflex", "eszett", "dakuten", "tone mark",
+        "vowel sound", "consonant sound", "pronunciation", "phonetic", "phonolog"
+    ]
+    is_special_char_topic = any(x in topic.lower() for x in special_char_keywords)
+    
     reference_data = ""
     if is_alphabet_topic:
         reference_data = get_reference_prompt(language)
+    
+    special_char_data = ""
+    if is_special_char_topic or is_alphabet_topic:
+        special_char_data = get_special_chars_prompt(language)
     
     alphabet_rule = ""
     if is_alphabet_topic and reference_data:
@@ -174,6 +205,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     4. Group characters logically across multiple 'vocabulary' pages if needed.
     """
     
+    # Inject special character constraints for accent/phonetic topics
+    if is_special_char_topic and special_char_data:
+        alphabet_rule += f"""
+    LANGUAGE-SPECIFIC CONSTRAINT:
+    {special_char_data}
+    You MUST use ONLY the characters listed in the reference data above. 
+    Do NOT invent or include characters from other languages. This is a {language}-specific lesson.
+    """
+    
     level_guidance = ""
     if level == 'B1':
         level_guidance = f"IMPORTANT: This is a B1 (Intermediate) lesson. Avoid simple A1-level sentences. Use complex structures, {language} nuances, and professional/narrative vocabulary. Explanations should be more in-depth."
@@ -189,16 +229,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     if source_text:
         source_rule = f"""
         SOURCE TEXT REQUIREMENT:
-        You MUST use the following provided text as your EXCLUSIVE source of truth for vocabulary, grammar, and examples. 
-        Extract the relevant section for '{topic}' from this text and format it into the lesson pages. 
-        If the text contains specific examples or vocabulary for this topic, DO NOT invent your own. Use the book's content exactly.
+        You MUST use the following text as your EXCLUSIVE source. Format the relevant section for '{topic}'.
         
-        SOURCE TEXT (First 10,000 chars):
+        SOURCE TEXT:
         {source_text[:10000]}
         """
+    else:
+        source_rule = "NO SOURCE TEXT: Use your internal knowledge to create a concise, high-value lesson. Avoid filler text. Focus on pure vocabulary and grammar facts."
 
     prompt = f"""
-    Write a professional {language} lesson for: '{topic}' ({topic_type}). Level: {level}.
+    Write a {language} {level} lesson for: '{topic}' ({topic_type}).
     
     {source_rule}
     
@@ -206,10 +246,10 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     1. {lang_guard}
     2. {alphabet_rule}
     3. {level_guidance}
-    4. STRICT REQUIREMENT: 3 to 6 pages. Returning only 1 or 2 pages is a failure.
-    5. NO EMPTY SECTIONS: Every page MUST be filled with detailed, level-appropriate content.
-    6. MINIMUM CONTENT: Grammar pages MUST have at least 3 sentences of explanation.
-    7. VARIETY: Do not repeat words or examples across pages.
+    4. REQUIREMENT: 2 to 4 high-quality pages.
+    5. NO EMPTY SECTIONS: Every page MUST have detailed content.
+    6. MINIMUM CONTENT: Grammar pages MUST have 3+ sentences of explanation.
+    7. VARIETY: Do not repeat examples.
     
     Return ONLY JSON:
     {{
@@ -221,15 +261,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     }}
     """
     try:
-        # ATTEMPT 1: High Detail
-        result = _call_ai([{"role": "user", "content": prompt}], max_tokens=2500, temperature=0.4)
+        # ATTEMPT 1: High Detail (Using Narrative Engine)
+        result = _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.4)
         if result and result.get("pages"):
             return result
             
         # ATTEMPT 2: Recovery Mode (Simplified)
         print(f"[AI] Recovery mode for {topic}...")
         recovery_prompt = f"Create a basic A1 {language} lesson about {topic}. Return JSON with 'pages' array containing vocabulary and grammar."
-        result = _call_ai([{"role": "user", "content": recovery_prompt}], max_tokens=1500, temperature=0.1)
+        result = _call_ai([{"role": "user", "content": recovery_prompt}], model=MODEL_STRUCTURAL, max_tokens=1500, temperature=0.1)
         if result and result.get("pages"):
             return result
     except Exception as e:
@@ -261,286 +301,189 @@ def get_language_profile(language):
     return "inflected" # Default for Spanish, French, German, English, etc.
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=6, level='A1', use_quality=True, existing_questions=None):
-    print(f"!!! AI_GENERATE_QUESTIONS CALLED !!! topic={topic_title} count={count}")
+    """V2: Clean activity question generator built from scratch."""
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
     
     c = int(count)
-    request_count = int((c + 1) * 1.5) if c % 2 != 0 else int(c * 1.5)
+    request_count = max(c * 4, 20)  # Request 4x surplus
     
-    # Level-Gated Immersion Rule
+    dna = get_language_profile(language)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang = "English" if is_beginner else language
-    
-    # Language DNA Analysis
-    dna = get_language_profile(language)
-    
-    # Sanitize content for prompt
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
-    # Handle non-redundancy
-    # Handle non-redundancy (STRICT)
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
-        # Prevent both identical prompts and identical answers/concepts
-        qs_list = "\n".join([f"- Prompt: '{q['prompt']}' (Target/Answer: '{q.get('answer', '')}')" for q in existing_questions])
-        forbidden_clause = f"\nCRITICAL PEDAGOGY RULE: You MUST NOT test the exact same concepts or answers as these existing questions:\n{qs_list}\n"
+        qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
+        forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
-    # DNA-Aware Pedagogical Instructions
-    dna_instructions = ""
-    diversity_quota = "Vary the question profile."
+    prompt = f"""Generate {request_count} multiple-choice questions for a {language} lesson.
     
-    # Topic-Type Bias
-    type_bias = ""
-    if topic_type == "grammar":
-        diversity_quota = "MIX: 3x 'Grammar Rule Application', 2x 'Sentence Construction', 1x 'Exception Identification'."
-        type_bias = "\nFOCUS: This is a GRAMMAR topic. Prioritize testing rules, syntax, and conjugation over simple vocabulary meaning.\n"
-    elif topic_type == "vocabulary":
-        diversity_quota = "MIX: 3x 'Meaning/Translation', 2x 'Contextual Usage', 1x 'Categorization'."
-        type_bias = "\nFOCUS: This is a VOCABULARY topic. Focus on semantic meaning and usage in simple sentences.\n"
-    
-    # Contextual Quota Relaxation (Alphabet/Phonetics usually can't do sentence fills)
-    is_phonetic_topic = any(x in topic_title.lower() for x in ["alphabet", "pinyin", "phonetic", "initial", "final", "script"])
-    
-    if dna == "logographic":
-        if is_phonetic_topic:
-            diversity_quota = "MIX: 3x 'Character to Sound', 3x 'Sound to Character'."
-        else:
-            diversity_quota = "MIX: 2x 'Character to Sound', 2x 'Sound to Character', 2x 'Contextual Sentence Fill'."
-        
-        dna_instructions = f"""
-    PEDAGOGICAL DNA: LOGOGRAPHIC (Chinese Focus)
-    1. ZERO-ENGLISH MANDATE: NEVER use English words to describe sounds (e.g., NO 'sounds like ah'). Use ONLY pure {language} phonetic marks (e.g., 'ā').
-    2. TRIPLE-LINK MAPPING: Every item has [Character] + [Pinyin/Sound] + [Meaning].
-    3. SCRIPT PURITY: If asking for 'Pinyin', answer MUST be Latin phonetic with tones (e.g., 'mā'). If asking for 'Character', answer MUST be Hanzi (e.g., '妈').
-    4. NO ENGLISH CRUTCH: Favor mapping Sound ↔ Character over Translation.
-    5. TONAL ACCURACY: Pinyin without tone marks is a failure. Always use ā, á, ǎ, à.
-    """
-    if dna == "syllabic":
-        if is_phonetic_topic:
-            diversity_quota = "MIX: 3x 'Sound to Script', 3x 'Script to Sound'."
-        else:
-            diversity_quota = "MIX: 2x 'Sound to Script', 2x 'Script to Sound', 2x 'Vocabulary Meaning'."
-        dna_instructions = f"""
-    PEDAGOGICAL DNA: SYLLABIC/SCRIPT (Russian, Japanese, etc.)
-    1. DECODING FOCUS: Focus on mapping the unique script (Cyrillic, Kana) to its sound.
-    2. NATIVE TARGET: The primary target is the native script. Avoid over-reliance on transcriptions.
-    """
-    elif dna == "agglutinative":
-        diversity_quota = "MIX: 3x 'Sentence Meaning', 3x 'Suffix/Grammar'."
-        dna_instructions = f"""
-    PEDAGOGICAL DNA: AGGLUTINATIVE (Turkish, Finnish, etc.)
-    1. SEMANTIC CONSISTENCY: Distractors MUST be from the same semantic category but conceptually DIFFERENT words. If the answer is a verb (e.g. 'yüzmek'), distractors MUST be other verbs (e.g. 'koşmak', 'okumak'). 
-    2. NO ROOT-CLONING: NEVER use morphological variations of the same root as distractors (e.g. if answer is 'yüzmek', do NOT use 'yüzücü' or 'yüzme' as distractors). This is a 'lazy' distraction and pedagogically weak.
-    3. SUFFIX STACKING: For grammar-specific topics, focus on suffix combinations (e.g., ev-de-ki).
-    4. LOGICAL CONSISTENCY: Ensure category questions are factually accurate.
-    5. GRAMMAR NEGATIVE SPACE: Only for GRAMMAR topics, distractors should be ungrammatical strings. For VOCABULARY, they must be valid but incorrect words.
-    """
-    else:
-        diversity_quota = "MIX: 2x 'Verb Conjugation', 2x 'Gender/Articles', 2x 'Translation'."
-        dna_instructions = f"""
-    PEDAGOGICAL DNA: INFLECTED (Romance, Germanic, etc.)
-    1. MORPHOLOGY: Focus on Gender, Number, and Verb Conjugation.
-    2. CONTEXTUAL USAGE: Use the textbook examples to test grammar in sentences.
-    3. SEMANTIC CONSISTENCY: Distractors MUST be from the same semantic category and word class. If the answer is a verb, all distractors MUST be verbs.
-    4. WORD CLASS MATCH (STRICT): Never mix nouns and verbs. 
-       - BAD: Answer='feiern' (verb), Distractor='die Feier' (noun).
-       - GOOD: Answer='feiern' (verb), Distractor='tanzen' (verb), 'singen' (verb).
-    5. NO ROOT-CLONING: Do not use different parts of speech from the same root word as distractors.
-    6. SYNTACTIC PARALLELISM (STRICT): Distractors MUST match the length and complexity of the answer.
-       - BAD: Answer="Ich heiße Maria." (sentence), Distractor="Name" (word).
-       - GOOD: Answer="Ich heiße Maria.", Distractor="Ich bin Maria.", "Das ist Maria."
-    7. PLAUSIBILITY: Distractors must be grammatically correct sentences that are simply incorrect answers to the specific question prompt.
-    """
+TOPIC: {topic_title} ({topic_type})
+LEVEL: {level}
 
-    # Request 25 to ensure survival after strict filtering
-    prompt = f"""You are a master {language} architect. Generate 25 high-quality Multiple Choice Questions based ONLY on the SOURCE MATERIAL.
-    
-    CRITICAL QUALITY RULE: Never, ever include the 'answer' word or phrase inside the 'prompt' text. This is a pedagogical failure.
-    
-    SOURCE MATERIAL:
-    {content_str}
-    {forbidden_clause}
-    {type_bias}
-    
-    CORE CONSTRAINTS:
-    - TYPE: 100% Multiple Choice (type: 'mcq').
-    - PROMPT: Write the question in {instruction_lang}.
-    - HIGH PLAUSIBILITY: Distractors must be challenging and semantically related. Never use obvious non-answers.
-    - NO NEGATIVE QUESTIONS: Avoid questions like "Which of these is NOT...". Always prefer positive identification questions.
-    - NO FRANKENSTEIN: Never mix {language} and English in a single sentence string.
-    - NO GHOSTS: Do NOT include the correct answer word inside the question text.
-    - TARGET LANGUAGE MANDATE: The 'answer' and all 'distractors' MUST be written in {language}. NEVER use English for options.
-    - NO LATIN PHONETICS: Never use 'sounds like [English Word]' in options or prompts. Use word examples from lesson if possible.
-    - PEDAGOGICAL INTEGRITY: Distractors MUST be 100% incorrect but SEMANTICALLY RELATED.
-    - NO SYNONYMS: Distractors MUST NOT be synonyms or near-synonyms of the correct answer in {language}. If multiple words from the source material could correctly answer the prompt, that question is a failure. Ensure there is ONLY ONE undeniably correct answer.
-    - NO COMMA-JOINING: Never join multiple distractors into a single string with commas. Each distractor MUST be a separate element in the JSON list.
-    
-    {dna_instructions}
-    
-    DIVERSITY QUOTA: {diversity_quota}
-    
-    JSON structure: {{"data": [{{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}]}}
-    Return JSON ONLY.
-    """
-    prompt += "\nCREATIVITY BOOST: Do not always start with the same words. Vary the sentence structure. Use different aspects of the source material for each question."
-    prompt += "\nQUALITY MANDATE: Distractors MUST be from the same Part of Speech (PoS) and Category. If the answer is a verb, distractors must be verbs. If the answer is a noun, distractors must be nouns. Do not use 'lazy' distractors like 'pen' for a 'leisure activity' question."
-    prompt += "\nLOGICAL MANDATE: Before returning, double-check that the 'answer' is factually correct."
-    prompt += "\nOPTION DIVERSITY: Avoid 'set-recycling'. Every question should ideally use a fresh set of distractors. Do not simply swap the answer and distractors between questions."
-    
-    # BIG BATCH: Single request to ensure zero redundancy and lower costs
+SOURCE MATERIAL:
+{content_str}
+{forbidden_clause}
+RULES:
+1. Write each question prompt in {instruction_lang}.
+2. ALL 4 OPTIONS IN THE SAME LANGUAGE: The answer and all 3 distractors must ALL be in the same language. Either all in {language} or all in {instruction_lang}. NEVER mix languages across options. If the question asks "which means X?", put all options in {language}. If the question asks "what does X mean?", put all options in {instruction_lang}.
+3. STRUCTURAL INVISIBILITY: The correct answer must be visually indistinguishable from the distractors. Same word count, same format, same grammatical category, same language. A student should NOT be able to guess the answer by looking at which option "looks different".
+4. ONE BLANK ONLY: If testing with a fill-in sentence, use exactly ONE blank (___). The answer must be ONE word or ONE short phrase. Never use two blanks.
+5. NO COMMA LISTS: Never join multiple words with commas as a single option. Each option is ONE coherent unit.
+6. CATEGORY LOCK: If the answer is a noun, all distractors are nouns. If a verb, all verbs. If an article+noun, all are article+noun with the SAME noun. If a sentence, all are sentences of similar length.
+7. NO GIVEAWAYS: Don't put the answer word inside the question. Don't make one option obviously longer/shorter than the others.
+8. MAXIMUM VARIETY & RANDOMIZATION: Do NOT test items in the sequential order they appear in the source material. Pick concepts randomly from across the entire material. Vary question styles: meaning, translation, fill-in-blank, grammar selection. NEVER use the exact same set of distractors twice.
+9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words that a student might confuse with the answer. No random or unrelated words.
+10. NO META: Don't ask about dialogues, speakers, or examples. Test the language itself.
+11. JSON SYNTAX: If you use quotation marks inside your prompt or answer strings, you MUST escape them (e.g., \\").
+
+Return ONLY valid JSON:
+{{"data": [{{"type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."]}}]}}"""
+
     import random
     seed = random.randint(1000, 9999)
-    batch_prompt = prompt + f"\n\nRANDOM SEED: {seed}\nIMPORTANT: Generate exactly {request_count} UNIQUE questions in one go. Do not repeat concepts."
+    prompt += f"\n\nSEED: {seed}"
     
     try:
-        res = _call_ai([{"role": "user", "content": batch_prompt}], max_tokens=4000, temperature=0.7)
-        raw_list = res.get("data") if res else []
+        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.9)
+        raw_list = (res.get("data") if res else []) or []
         
-        print(f"[AI] Big Batch completed. Items collected: {len(raw_list)}")
-        final_questions = []
+        print(f"[AI-V2] Raw batch: {len(raw_list)} items")
+        
+        # Pre-calculate vocabulary richness to determine if we should enforce distractor recycling rules immediately
+        all_raw_words = set()
+        for item in raw_list:
+            if isinstance(item, dict):
+                for d in item.get("distractors", []):
+                    all_raw_words.add(str(d).lower().strip())
+        
+        has_rich_vocab = len(all_raw_words) >= 15
+        
+        final = []
         seen_answers = set()
+        used_dist_sets = []
         
-        # Pre-populate seen_answers from existing questions to prevent duplicates across runs
-        if existing_questions:
-            for eq in existing_questions:
-                ea = str(eq.get('answer', '')).strip()
-                if ea: seen_answers.add(re.sub(r'[^\w\s]', '', ea.lower()).strip())
-            
         for item in raw_list:
             try:
-                # 0. Log Rationale for debugging
-                rat = item.get("rationale", "No rationale provided")
+                if not isinstance(item, dict): continue
                 
-                # 1. Aggressive Universal Cleaning (RESTORED: Strips all brackets/hints)
-                def deep_clean(text):
-                    # Remove (...), [...], {...}, （...）, 「...」, 『...』, 【...】 and strip
-                    t = re.sub(r'[\(\[\{（「『【].*?[\)\]\}）」』】]', '', str(text))
-                    # SUPER SCRUB: Remove all backslashes that AI often hallucinates
-                    t = t.replace("\\", "")
-                    return t.strip()
-
-                def super_clean_key(text):
-                    # For duplicate checking: lowercase, strip, and remove punctuation
-                    t = deep_clean(text).lower()
-                    return re.sub(r'[^\w\s]', '', t).strip()
-
-                ans_clean = deep_clean(item.get("answer", ""))
-                ans_key = super_clean_key(ans_clean)
-                prompt_raw = str(item.get("prompt", "")).strip()
-                prompt_clean = deep_clean(prompt_raw)
+                ans = str(item.get("answer", "")).strip()
+                prompt_text = str(item.get("prompt", "")).strip()
+                distractors = item.get("distractors", [])
+                if not isinstance(distractors, list): continue
+                distractors = [str(d).strip() for d in distractors if str(d).strip()]
                 
-                # 2. Logic Check: Empty or Inside Prompt
-                if not ans_clean or len(prompt_raw) < 5:
+                # ── HARD REJECTS ──
+                if not ans or not prompt_text or len(prompt_text) < 10: continue
+                if len(distractors) < 3: continue
+                distractors = distractors[:3]
+                
+                # Comma-joined option
+                all_opts = [ans] + distractors
+                if any("," in opt and len(opt.split(",")) >= 2 for opt in all_opts):
+                    print(f"[V2-REJECT] Comma-joined option")
                     continue
                 
-                # CLEAN ESCAPING: Remove unnecessary backslashes from prompts
-                prompt_clean = prompt_clean.replace("\\'", "'").replace('\\"', '"')
-
-                # 3. Script Consistency Rule (RESTORED: No mixing vibes)
-                def get_vibe(t):
-                    # Broad Latin check including accented characters (ā, ó, ü, etc.)
-                    return "latin" if re.search('[a-zA-Z\u00C0-\u017F]', str(t)) else "native"
+                # Ghost: answer word inside prompt
+                if len(ans) > 2 and ans.lower() in prompt_text.lower():
+                    continue
                 
-                ans_vibe = get_vibe(ans_clean)
-                raw_dist = item.get("distractors", [])
-                if isinstance(raw_dist, str):
-                    distractors = [d.strip() for d in raw_dist.split(",") if d.strip()]
-                elif isinstance(raw_dist, list):
-                    distractors = []
-                    for d in raw_dist:
-                        d_str = str(d).strip()
-                        if "," in d_str:
-                            distractors.extend([x.strip() for x in d_str.split(",") if x.strip()])
-                        else:
-                            distractors.append(d_str)
-                else:
-                    distractors = []
+                # Meta-question labels
+                combined = (prompt_text + " " + " ".join(all_opts)).lower()
+                if any(mk in combined for mk in ["person 1", "person 2", "speaker a", "speaker b"]):
+                    continue
                 
-                all_choices = {ans_clean.lower()}
-                valid_distractors = []
+                # ── UNIVERSAL OUTLIER DETECTOR ──
+                def _option_fingerprint(text):
+                    words = text.split()
+                    ascii_chars = sum(1 for c in text if ord(c) < 128)
+                    total_chars = max(len(text), 1)
+                    return {
+                        'word_count': len(words),
+                        'char_len': len(text),
+                        'ascii_ratio': round(ascii_chars / total_chars, 1),
+                        'has_upper_mid': any(c.isupper() for c in text[1:]) if len(text) > 1 else False,
+                        'has_punctuation': any(c in text for c in '.,!?;:…'),
+                        'starts_upper': text[0].isupper() if text else False,
+                    }
                 
-                for d in distractors:
-                    d_clean = deep_clean(d)
-                    if d_clean and d_clean.lower() not in all_choices:
-                        if get_vibe(d_clean) == ans_vibe:
-                            valid_distractors.append(d_clean)
-                            all_choices.add(d_clean.lower())
+                fingerprints = [_option_fingerprint(o) for o in all_opts]
                 
-                # 4. Final Zero-Tolerance Validation
-                if ans_clean and prompt_clean:
-                    # GHOST CHECK: Strict Zero-Tolerance Rejection
-                    is_ghost = False
-                    if ans_vibe == 'native':
-                        # For native scripts, if ANY character from the answer is in the prompt, reject
-                        if any(char in prompt_clean for char in ans_clean if char.strip()):
-                            is_ghost = True
-                    else:
-                        # For Latin, check for whole word match
-                        pattern = r'\b' + re.escape(ans_clean.lower()) + r'\b'
-                        if re.search(pattern, prompt_clean.lower()) or ans_clean.lower() in prompt_clean.lower():
-                            is_ghost = True
-                    
-                    if is_ghost:
-                        print(f"[REJECT] Ghost Leak: '{ans_clean}' in '{prompt_clean}'")
-                        continue
-                    
-                    # 5. THE TEACHER'S FILTER (Strict Pedagogical Validation)
-                    
-                    # A. CRUTCH CHECK: Reject English phonetic crutches
-                    crutch_keywords = ["pronounced like", "sounds like", "similar to", "in English", "the 'u' in", "the 'a' in", "the 'i' in"]
-                    if any(ck in prompt_raw.lower() for ck in crutch_keywords):
-                        print(f"[REJECT] English Crutch detected: '{prompt_raw}'")
-                        continue
-
-                    # B. NEGATIVE QUESTION CHECK: Reject "NOT", "Except", etc.
-                    negative_keywords = ["which of these is not", "is not mentioned", "except for", "following is not"]
-                    if any(nk in prompt_raw.lower() for nk in negative_keywords):
-                        print(f"[REJECT] Negative Question detected: '{prompt_raw}'")
-                        continue
-
-                    # C. DISTRACTOR QUANTITY: Must have exactly 3 high-quality distractors
-                    if item.get("type", "mcq") and len(valid_distractors) < 3:
-                        print(f"[REJECT] Insufficient distractors: {len(valid_distractors)} (need 3)")
-                        continue
-                    
-                    # C. LAZY DISTRACTOR CHECK: Reject if distractors are too similar to answer
-                    if not is_phonetic_topic and len(ans_clean) > 3:
-                        lazy_count = 0
-                        for d in valid_distractors:
-                            if len(d) == len(ans_clean):
-                                diffs = sum(1 for a, b in zip(ans_clean, d) if a != b)
-                                if diffs <= 1: lazy_count += 1
-                        
-                        if lazy_count >= 2:
-                            print(f"[REJECT] Lazy distractors detected (too similar)")
-                            continue
-
-                    # D. SCRIPT PURITY: Ensure no English words leak into the answers for native topics
-                    if ans_vibe == 'native':
-                        english_leak = ["the", "is", "of", "and", "with"]
-                        if any(word in " ".join(valid_distractors).lower().split() for word in english_leak):
-                             print(f"[REJECT] English leak in native distractors")
-                             continue
-                    
-                    # Check for global duplicates
-                    if ans_key in seen_answers:
-                        continue
-                    
-                    item["id"] = _uid()
-                    item["prompt"] = prompt_clean
-                    item["answer"] = ans_clean
-                    item["distractors"] = valid_distractors[:3]
-                    seen_answers.add(ans_key)
-                    final_questions.append(item)
+                is_outlier = False
+                for key in ['word_count', 'ascii_ratio', 'has_punctuation']:
+                    values = [fp[key] for fp in fingerprints]
+                    for i in range(4):
+                        others = [v for j, v in enumerate(values) if j != i]
+                        if len(set(others)) == 1 and values[i] != others[0]:
+                            if key == 'word_count':
+                                if abs(values[i] - others[0]) >= 2:
+                                    is_outlier = True; break
+                            elif key == 'ascii_ratio':
+                                if abs(values[i] - others[0]) >= 0.3:
+                                    is_outlier = True; break
+                            else:
+                                is_outlier = True; break
+                    if is_outlier: break
                 
-                if len(final_questions) >= count: break
-            except: continue
-            
-        return final_questions
+                if not is_outlier:
+                    char_lens = [fp['char_len'] for fp in fingerprints]
+                    for i, cl in enumerate(char_lens):
+                        others_avg = sum(cl2 for j, cl2 in enumerate(char_lens) if j != i) / 3
+                        if others_avg > 0 and (cl / others_avg > 2.5 or cl / others_avg < 0.3):
+                            is_outlier = True; break
+                
+                if is_outlier:
+                    print(f"[V2-REJECT] Outlier detected in options: {all_opts}")
+                    continue
+                
+                # 2-word grab-bag: if all 2 words, must share a common word
+                word_counts = [len(o.split()) for o in all_opts]
+                if all(wc == 2 for wc in word_counts):
+                    firsts = set(o.split()[0].lower() for o in all_opts)
+                    seconds = set(o.split()[1].lower() for o in all_opts)
+                    if len(firsts) == 4 and len(seconds) == 4:
+                        print(f"[V2-REJECT] Mixed 2-word categories")
+                        continue
+                
+                # ── DEDUP ──
+                ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
+                if ans_key in seen_answers: continue
+                
+                # Adaptive distractor recycling
+                dist_set = frozenset(d.lower().strip() for d in distractors)
+                if has_rich_vocab:
+                    if any(len(dist_set & prev) >= 2 for prev in used_dist_sets):
+                        print(f"[V2-REJECT] Recycled distractors (rich vocab)")
+                        continue
+                
+                # ── ACCEPT ──
+                import random as _r
+                opts = [ans] + distractors
+                _r.shuffle(opts)
+                
+                final.append({
+                    "id": _uid(),
+                    "type": "mcq",
+                    "prompt": prompt_text,
+                    "answer": ans,
+                    "distractors": distractors,
+                    "options": opts
+                })
+                seen_answers.add(ans_key)
+                used_dist_sets.append(dist_set)
+                
+                if len(final) >= c: break
+            except:
+                continue
+        
+        print(f"[AI-V2] Final: {len(final)} questions (from {len(raw_list)} raw)")
+        return final
     except Exception as e:
-        print(f"[AI] Burst processing error: {e}")
+        print(f"[AI-V2] Error: {e}")
         return []
+
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=6, level='A1', existing_questions=None):
     return ai_generate_questions(
@@ -569,8 +512,70 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150)
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
+def _get_blueprint_path(language, level):
+    """Returns the cache file path for a language/level combo."""
+    cache_dir = os.path.join("services", "blueprints")
+    if not os.path.exists(cache_dir): os.makedirs(cache_dir)
+    clean_lang = "".join(filter(str.isalnum, language.split('(')[0])).lower()
+    clean_level = "".join(filter(str.isalnum, level)).lower()
+    return os.path.join(cache_dir, f"{clean_lang}_{clean_level}.json")
+
+def save_blueprint_cache(language, level, chapters):
+    """Explicitly saves a blueprint to cache. Called only when user commits to building."""
+    try:
+        cache_file = _get_blueprint_path(language, level)
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"chapters": chapters}, f, ensure_ascii=False, indent=2)
+        print(f"[CACHE] Blueprint for {language} {level} saved to library.")
+        return True
+    except Exception as e:
+        print(f"[CACHE] Failed to save blueprint: {e}")
+        return False
+
+def delete_blueprint_cache(language, level):
+    """Deletes a cached blueprint so the next generation creates a fresh one."""
+    try:
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            print(f"[CACHE] Deleted blueprint for {language} {level}.")
+            return True
+        return False
+    except Exception as e:
+        print(f"[CACHE] Failed to delete blueprint: {e}")
+        return False
+
+def list_blueprint_cache():
+    """Lists all cached blueprints."""
+    cache_dir = os.path.join("services", "blueprints")
+    if not os.path.exists(cache_dir): return []
+    blueprints = []
+    for f in os.listdir(cache_dir):
+        if f.endswith(".json"):
+            parts = f.replace(".json", "").rsplit("_", 1)
+            if len(parts) == 2:
+                blueprints.append({"language": parts[0].capitalize(), "level": parts[1].upper(), "file": f})
+    return blueprints
+
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    system = "You are a curriculum architect and expert linguist. Create a structured, pedagogically sound syllabus in JSON. Use your deep knowledge of global languages to provide accurate, culturally and phonetically grounded roadmaps."
+    """Generates course structure, using a local blueprint cache to eliminate recurring costs.
+    Caching is READ-ONLY here. Writing to cache only happens via save_blueprint_cache() when user builds."""
+    
+    # 1. Check Blueprint Cache (The Thrift Strategy)
+    cache_file = _get_blueprint_path(language, level)
+    
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                if cached_data and "chapters" in cached_data:
+                    print(f"[CACHE] Serving blueprint for {language} {level} from disk ($0.00 cost).")
+                    return cached_data["chapters"]
+        except Exception as e:
+            print(f"[CACHE] Error reading cache: {e}")
+
+    # 2. AI Architect Generation (The "One-Time" Cost)
+    system = "You are a curriculum architect. Create a structured syllabus in JSON. Focus on logical progression."
     alphabet_rule = (
         "CRITICAL A1 REQUIREMENT: Chapter 1 MUST be titled 'The Alphabet and Phonetics' (or similar) and focus exclusively on the sounds, "
         "writing system, and pronunciation rules of the language. This must be a detailed deep-dive: cover every character, phonetics, "
@@ -589,7 +594,7 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     result = _call_ai([
         {"role": "system", "content": system},
         {"role": "user", "content": user}
-    ], model=MODEL_QUALITY, max_tokens=2000)
+    ], model=MODEL_STRUCTURAL, max_tokens=2000)
     
     if result and "chapters" in result:
         return result["chapters"]
@@ -599,21 +604,39 @@ def ai_generate_report_insights(cohort_data):
     prompt = f"Analyze: {json.dumps(cohort_data)}"
     return _call_ai([{"role": "user", "content": prompt}], max_tokens=500)
 def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> Dict[str, str]:
-    """Generates a quick, concise linguistic explanation for a word."""
+    """Generates a quick, concise linguistic explanation for a word.
+    When 'context' (the lesson topic title) is provided, the AI explains the word
+    within that educational context instead of potentially dismissing it."""
     clean_lang = language.split('(')[0].strip()
     word = word.strip()
     
-    system_prompt = (
-        f"You are a linguistic expert for {clean_lang}. STRICT TRUTH ONLY. "
-        "NEVER invent morphemes or fake words. If unidentified, say 'Needs more context.' "
-        "SELECTIVE FALSE-FRIEND RULE: If a word is a strong, common, and genuinely misleading false cognate (e.g., Turkish 'patron' vs English 'patron'), "
-        "you MUST include a specific 'FALSE FRIEND WARNING' and use a natural equivalent translation (e.g., 'boss'). "
-        "DO NOT create warnings for weak or accidental spelling similarities (e.g., do NOT warn about boğaz/bogey). "
-        "Keep the 'tip' section focused on general usage, register, or common mistakes by default."
-    )
-    user_prompt = f"Analyze '{word}' in {clean_lang}. If it is a partial fragment or fake, say so."
+    # Context-Aware System Prompt: If the student is in a lesson, the AI must teach, not contradict
     if context:
-        user_prompt += f" Context for verification: {context}"
+        system_prompt = (
+            f"You are a helpful {clean_lang} language teacher. "
+            f"The student is currently studying the lesson: '{context}'. "
+            f"They clicked on '{word}' to learn more about it. "
+            "Your job is to EXPLAIN this word/phrase/character within the context of what they are studying. "
+            "NEVER say a word is 'fake', 'not part of the language', or 'non-standard' if it appears in the lesson material — "
+            "the lesson put it there for a pedagogical reason. Instead, explain WHAT it is, HOW it's used, and WHY it's relevant to the lesson. "
+            "For characters, letters, or symbols: explain their pronunciation, usage patterns, and any rules associated with them. "
+            "Keep your response educational and encouraging."
+        )
+    else:
+        system_prompt = (
+            f"You are a linguistic expert for {clean_lang}. STRICT TRUTH ONLY. "
+            "NEVER invent morphemes or fake words. If unidentified, say 'Needs more context.' "
+            "SELECTIVE FALSE-FRIEND RULE: If a word is a strong, common, and genuinely misleading false cognate (e.g., Turkish 'patron' vs English 'patron'), "
+            "you MUST include a specific 'FALSE FRIEND WARNING' and use a natural equivalent translation (e.g., 'boss'). "
+            "DO NOT create warnings for weak or accidental spelling similarities (e.g., do NOT warn about boğaz/bogey). "
+            "Keep the 'tip' section focused on general usage, register, or common mistakes by default."
+        )
+    
+    if context:
+        user_prompt = f"The student is studying '{context}' and clicked on '{word}'. Explain it in the context of this lesson."
+    else:
+        user_prompt = f"Analyze '{word}' in {clean_lang}. If it is a partial fragment or fake, say so."
+    
     user_prompt += '\nReturn JSON: {"explanation": "...", "usage": "...", "tip": "..."}'
     
     result = _call_ai([
