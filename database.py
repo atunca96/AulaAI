@@ -46,65 +46,47 @@ potential_paths = [
 
 IS_GHOST_DB = False
 if IS_RAILWAY:
-    import shutil
-    
     print("[DB] === RAILWAY DATABASE DISCOVERY ===")
+    DB_PATH = "/data/aula.db"
     
-    # Canonical DB location — ALL Railway deploys must converge here
-    CANONICAL_PATH = "/data/aula.db"
-    
-    # List volume contents for diagnostics
-    try:
-        if os.path.exists('/data'):
-            print(f"[DB] Volume /data contains: {os.listdir('/data')}")
-    except: pass
-    
-    if os.path.exists(CANONICAL_PATH) and os.path.getsize(CANONICAL_PATH) > 0:
-        # Happy path: aula.db exists on the volume
-        DB_PATH = CANONICAL_PATH
-        IS_GHOST_DB = False
-        print(f"[DB] Found canonical DB: {DB_PATH} ({os.path.getsize(DB_PATH)} bytes)")
-    
-    elif os.path.exists("/data/prototype.db") and os.path.getsize("/data/prototype.db") > 0:
-        # Migration: prototype.db exists but aula.db doesn't — copy it over
-        print(f"[DB] No aula.db found. Migrating from prototype.db ({os.path.getsize('/data/prototype.db')} bytes)...")
+    # Self-Healing: If the database is malformed (corrupted), delete it to allow a fresh start.
+    if os.path.exists(DB_PATH):
         try:
-            shutil.copy2("/data/prototype.db", CANONICAL_PATH)
-            # Also copy WAL/SHM if they exist
-            for ext in ['-wal', '-shm']:
-                src = f"/data/prototype.db{ext}"
-                if os.path.exists(src):
-                    shutil.copy2(src, f"{CANONICAL_PATH}{ext}")
-            print(f"[DB] Migration complete: prototype.db → aula.db ({os.path.getsize(CANONICAL_PATH)} bytes)")
-            DB_PATH = CANONICAL_PATH
+            import sqlite3
+            # Try a simple PRAGMA check
+            conn = sqlite3.connect(DB_PATH, timeout=1.0)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.close()
             IS_GHOST_DB = False
-        except Exception as e:
-            print(f"[DB] Migration failed ({e}), using prototype.db directly")
-            DB_PATH = "/data/prototype.db"
-            IS_GHOST_DB = False
-    
-    elif os.path.exists("/data"):
-        # Volume exists but no database files — fresh start
-        print("[DB] Volume mounted but empty. Creating fresh aula.db.")
-        DB_PATH = CANONICAL_PATH
-        IS_GHOST_DB = True
-    
-    else:
-        # No volume at all — wait for mount
-        print("[DB] No volume detected. Waiting for Railway mount...")
-        for attempt in range(5):
-            if os.path.exists("/data"):
-                print("[DB] Volume appeared. Creating fresh aula.db.")
-                DB_PATH = CANONICAL_PATH
+            print(f"[DB] Existing database {DB_PATH} is healthy.")
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower():
+                print(f"[DB] CRITICAL: Database {DB_PATH} is malformed. Deleting for fresh start.")
+                try:
+                    conn.close()
+                except: pass
+                for ext in ['', '-wal', '-shm']:
+                    p = f"{DB_PATH}{ext}"
+                    if os.path.exists(p): os.remove(p)
                 IS_GHOST_DB = True
-                break
-            print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/5)")
+            else:
+                print(f"[DB] Database check warning: {e}")
+                IS_GHOST_DB = False
+    else:
+        IS_GHOST_DB = True
+        print(f"[DB] No database found at {DB_PATH}. Will create fresh.")
+
+    # Volume Mount Wait (for safety)
+    if not os.path.exists("/data"):
+        print("[DB] Waiting for Railway volume mount...")
+        for attempt in range(5):
+            if os.path.exists("/data"): break
             time.sleep(1)
         else:
-            print("[FATAL ERROR] Persistent volume NOT FOUND. Crashing to force restart.")
+            print("[FATAL ERROR] Persistent volume /data NOT FOUND.")
             import sys
             sys.exit(1)
-    
+            
     print(f"[DB] === FINAL: DB_PATH={DB_PATH}, IS_GHOST_DB={IS_GHOST_DB} ===")
 else:
     DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
