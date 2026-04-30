@@ -278,21 +278,21 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             count=needed,
             existing_questions=questions
         )
-        
         if new_qs:
             with db_connection() as db_conn:
                 for q in new_qs:
-                    if len(questions) >= count: break
+                    if len(questions) >= count:
+                        break
                     tid = q.get("topic_id") or random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
-                    
-                    db_conn.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                               (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), 
-                                json.dumps(distractors), "A1.1"))
-                    
+                    db_conn.execute(
+                        "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
+                         json.dumps(distractors), "A1.1")
+                    )
                     questions.append({
-                        "id": q_id, "topic_id": tid, 
+                        "id": q_id, "topic_id": tid,
                         "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
                         "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
                     })
@@ -300,8 +300,60 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             from services.state import bump_version
             bump_version()
 
-    if progress_callback: progress_callback(100)
-    return questions[:count]
+        print(f"[QUIZ] After first AI call: have {len(questions)}/{count}")
+
+    # ── AI RETRY LOOP ── Keep requesting until count is met or retries exhausted ──
+    MAX_QUIZ_AI_PASSES = 3
+    quiz_ai_pass = 0
+    while len(questions) < count and is_ai_available() and quiz_ai_pass < MAX_QUIZ_AI_PASSES:
+        quiz_ai_pass += 1
+        still_needed = count - len(questions)
+        print(f"[QUIZ] AI pass {quiz_ai_pass}: still need {still_needed} questions")
+
+        # Re-build topics summary (first pass already did this; reuse if available)
+        if quiz_ai_pass == 1:
+            pass  # topics_summary and base_lang already set from the block above
+        # For subsequent passes topics_summary / base_lang are already in scope
+
+        from services.ai_engine import ai_generate_questions
+        extra_qs = ai_generate_questions(
+            topic_title="Quiz/Review",
+            topic_type="mixed_curriculum",
+            topic_content={"topics": topics_summary},
+            language=base_lang,
+            count=still_needed,
+            existing_questions=questions  # forbidden list grows each pass
+        )
+
+        if extra_qs:
+            with db_connection() as db_conn:
+                for q in extra_qs:
+                    if len(questions) >= count:
+                        break
+                    tid = q.get("topic_id") or random.choice(topic_ids)
+                    q_id = str(uuid.uuid4())
+                    distractors = q.get("distractors", [])
+                    db_conn.execute(
+                        "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
+                         json.dumps(distractors), "A1.1")
+                    )
+                    questions.append({
+                        "id": q_id, "topic_id": tid,
+                        "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
+                        "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
+                    })
+                db_conn.commit()
+            from services.state import bump_version
+            bump_version()
+
+        print(f"[QUIZ] After AI pass {quiz_ai_pass}: have {len(questions)}/{count}")
+
+    final_quiz = questions[:count]
+    print(f"[QUIZ] FINAL: requested={count} returned={len(final_quiz)}")
+    if progress_callback:
+        progress_callback(100)
+    return final_quiz
 
 
 def generate_dialogue_activity(language="Unknown"):

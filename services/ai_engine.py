@@ -495,8 +495,86 @@ Return ONLY valid JSON:
             except:
                 continue
         
-        print(f"[AI-V2] Final: {len(final)} questions (from {len(raw_list)} raw)")
-        return final
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2] generated={len(raw_list)} validated={len(final)} requested={c}\n")
+        print(f"[AI-V2] Pass 1: generated={len(raw_list)} validated={len(final)} requested={c}")
+
+        # ── TOP-UP LOOP ── If validation rejected too many items, request more ──
+        MAX_TOPUP_PASSES = 3
+        topup_pass = 0
+        while len(final) < c and topup_pass < MAX_TOPUP_PASSES:
+            topup_pass += 1
+            still_needed = c - len(final)
+            topup_request = max(still_needed * 2, 8)  # small efficient batch
+            new_seed = random.randint(1000, 9999)
+            topup_prompt = f"""Generate {topup_request} multiple-choice questions for a {language} lesson.
+
+TOPIC: {topic_title} ({topic_type})
+LEVEL: {level}
+
+SOURCE MATERIAL:
+{content_str}
+{forbidden_clause}
+RULES:
+1. Write each question prompt in {instruction_lang}.
+2. ALL 4 OPTIONS IN THE SAME LANGUAGE: answer and all 3 distractors must ALL be in the same language.
+3. STRUCTURAL INVISIBILITY: The correct answer must be visually indistinguishable from the distractors.
+4. ONE BLANK ONLY: If testing with fill-in sentence, use exactly ONE blank (___). Answer = one word/phrase.
+5. NO COMMA LISTS: Each option is ONE coherent unit.
+6. CATEGORY LOCK: noun→nouns, verb→verbs, etc.
+7. NO GIVEAWAYS: Don't put answer word inside the question.
+8. MAXIMUM VARIETY: Pick different concepts from the source than those already accepted.
+9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words.
+10. NO META: Don't ask about dialogues or speakers.
+11. JSON SYNTAX: Escape any internal quotation marks.
+
+ALREADY GENERATED (do NOT repeat these answers):
+{chr(10).join([f"- {q['answer']}" for q in final])}
+
+Return ONLY valid JSON:
+{{"data": [{{"type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."]}}]}}
+
+SEED: {new_seed}"""
+
+            print(f"[AI-V2] Top-up pass {topup_pass}: requesting {topup_request} more (need {still_needed})")
+            topup_res = _call_ai([{"role": "user", "content": topup_prompt}], model=MODEL_STRUCTURAL, max_tokens=4000, temperature=0.95)
+            topup_raw = (topup_res.get("data") if topup_res else []) or []
+
+            for item in topup_raw:
+                if len(final) >= c:
+                    break
+                try:
+                    if not isinstance(item, dict): continue
+                    ans = str(item.get("answer", "")).strip()
+                    prompt_text = str(item.get("prompt", "")).strip()
+                    distractors = item.get("distractors", [])
+                    if not isinstance(distractors, list): continue
+                    distractors = [str(d).strip() for d in distractors if str(d).strip()]
+                    if not ans or not prompt_text or len(prompt_text) < 10: continue
+                    if len(distractors) < 3: continue
+                    distractors = distractors[:3]
+                    all_opts = [ans] + distractors
+                    if any("," in opt and len(opt.split(",")) >= 2 for opt in all_opts): continue
+                    if len(ans) > 2 and ans.lower() in prompt_text.lower(): continue
+                    ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
+                    if ans_key in seen_answers: continue
+                    import random as _r2
+                    opts = [ans] + distractors
+                    _r2.shuffle(opts)
+                    final.append({"id": _uid(), "type": "mcq", "prompt": prompt_text, "answer": ans, "distractors": distractors, "options": opts})
+                    seen_answers.add(ans_key)
+                except:
+                    continue
+
+            print(f"[AI-V2] After top-up pass {topup_pass}: have {len(final)}/{c}")
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-TOPUP-{topup_pass}] topup_raw={len(topup_raw)} now_have={len(final)}/{c}\n")
+
+        final_count = len(final[:c])
+        print(f"[AI-V2] FINAL: requested={c} returned={final_count}")
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={final_count}\n")
+        return final[:c]
     except Exception as e:
         print(f"[AI-V2] Error: {e}")
         return []
