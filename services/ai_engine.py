@@ -237,8 +237,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     else:
         source_rule = "NO SOURCE TEXT: Use your internal knowledge to create a concise, high-value lesson. Avoid filler text. Focus on pure vocabulary and grammar facts."
 
+    # Determine the primary instruction based on level
+    if level in ['A1', 'A2']:
+        primary_command = f"Write an English-instruction {level} lesson teaching {language} for: '{topic}' ({topic_type})."
+        json_language_rule = f"8. JSON LANGUAGE: For 'title' and 'text' fields, you MUST use English. For 'term', 'translation', and 'speaker'/'text' inside examples, use {language} where appropriate."
+    else:
+        primary_command = f"Write a {language} {level} lesson for: '{topic}' ({topic_type})."
+        json_language_rule = f"8. JSON LANGUAGE: Use {language} for all JSON fields."
+
     prompt = f"""
-    Write a {language} {level} lesson for: '{topic}' ({topic_type}).
+    {primary_command}
     
     {source_rule}
     
@@ -250,6 +258,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     5. NO EMPTY SECTIONS: Every page MUST have detailed content.
     6. MINIMUM CONTENT: Grammar pages MUST have 3+ sentences of explanation.
     7. VARIETY: Do not repeat examples.
+    {json_language_rule}
     
     Return ONLY JSON:
     {{
@@ -268,7 +277,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             
         # ATTEMPT 2: Recovery Mode (Simplified)
         print(f"[AI] Recovery mode for {topic}...")
-        recovery_prompt = f"Create a basic A1 {language} lesson about {topic}. Return JSON with 'pages' array containing vocabulary and grammar."
+        recovery_cmd = f"Create a basic A1 English-instruction lesson teaching {language} about {topic}. Explanations and titles MUST be in English. Return JSON with 'pages' array containing vocabulary and grammar." if level in ['A1', 'A2'] else f"Create a basic {level} {language} lesson about {topic}. Return JSON with 'pages' array containing vocabulary and grammar."
+        recovery_prompt = recovery_cmd
         result = _call_ai([{"role": "user", "content": recovery_prompt}], model=MODEL_STRUCTURAL, max_tokens=1500, temperature=0.1)
         if result and result.get("pages"):
             return result
