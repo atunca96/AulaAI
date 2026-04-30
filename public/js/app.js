@@ -4936,13 +4936,14 @@ async function showDict(word, e) {
 
   // Position popup using page coordinates so it scrolls with content
   popup.style.display = 'block';
-  const popupWidth = 280;
+  // Support dynamic width calculation up to 520px max, with 16px margins
+  const popupWidth = Math.min(520, window.innerWidth - 32);
 
   let left = e.pageX - popupWidth / 2;
   let top = e.pageY + 20;
 
-  if (left < 10) left = 10;
-  if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 10;
+  if (left < 16) left = 16;
+  if (left + popupWidth > window.innerWidth - 16) left = window.innerWidth - popupWidth - 16;
 
   popup.style.left = `${left}px`;
   popup.style.top = `${top}px`;
