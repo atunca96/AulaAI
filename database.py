@@ -92,15 +92,58 @@ def get_task_lock(course_id):
             _task_locks[course_id] = threading.Lock()
         return _task_locks[course_id]
 
+# ── VOLUME RESILIENCE ─────────────────────────────────────
+# The DB volume directory — derived from DB_PATH so checks are always consistent.
+_VOLUME_DIR = os.path.dirname(DB_PATH)
+
+MAX_VOLUME_RETRIES = 8
+VOLUME_RETRY_DELAY = 1.5  # seconds; grows with each attempt (backoff)
+
+def _volume_is_accessible():
+    """
+    Lightweight, non-destructive check: can we stat the volume directory?
+    Uses os.stat to catch NFS/FUSE stalls that os.path.exists() misses.
+    """
+    try:
+        os.stat(_VOLUME_DIR)
+        return True
+    except OSError:
+        return False
+
+def _wait_for_volume(context="operation"):
+    """
+    Retry loop used at startup and before any DB connection.
+    Returns True if the volume is accessible, False after all retries fail.
+    """
+    if not IS_RAILWAY:
+        return True  # Local dev — no volume check needed
+    
+    if _volume_is_accessible():
+        return True  # Fast-path: already available
+    
+    for attempt in range(1, MAX_VOLUME_RETRIES + 1):
+        delay = VOLUME_RETRY_DELAY * attempt  # Simple linear backoff: 1.5s, 3s, 4.5s …
+        print(f"[DB] Volume not accessible for '{context}'. Retrying in {delay:.1f}s (attempt {attempt}/{MAX_VOLUME_RETRIES})...")
+        time.sleep(delay)
+        if _volume_is_accessible():
+            print(f"[DB] Volume connection restored after {attempt} attempt(s). Continuing.")
+            return True
+    
+    print(f"[DB] CRITICAL: Volume confirmed unavailable after {MAX_VOLUME_RETRIES} retries. Blocking to prevent data loss.")
+    return False
+
+
 @contextlib.contextmanager
 def db_connection():
-    # Persistence Sentinel: NEVER allow a connection if the volume is missing on Railway
-    if IS_RAILWAY and not os.path.exists("/app/data"):
-        print("[CRITICAL] VOLUME DISCONNECTED DURING OPERATION! Blocking DB access to prevent data loss.")
-        raise ConnectionError("Railway volume disconnected. Please check your dashboard.")
+    # Persistence Sentinel: NEVER allow a connection if the volume is genuinely unavailable.
+    # Uses retry logic to tolerate transient Railway mount timing issues.
+    if IS_RAILWAY and not _volume_is_accessible():
+        if not _wait_for_volume(context="db_connection"):
+            print("[CRITICAL] VOLUME DISCONNECTED DURING OPERATION! Blocking DB access to prevent data loss.")
+            raise ConnectionError("Railway volume disconnected. Please check your dashboard.")
 
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL") # High performance concurrency
+    conn.execute("PRAGMA journal_mode=WAL")  # High performance concurrency
     conn.row_factory = sqlite3.Row
     try:
         yield conn

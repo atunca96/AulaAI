@@ -3026,6 +3026,11 @@ class RobustServer(http.server.ThreadingHTTPServer):
 
 def main():
     try:
+        # Startup: wait for volume before DB init, with retries for Railway timing instability
+        from database import _wait_for_volume
+        if not _wait_for_volume(context="startup/init_db"):
+            print("[FATAL] Volume unavailable at startup after retries. Exiting to force Railway restart.")
+            sys.exit(1)
         init_db()
         _cleanup_stale_classrooms()
         _cleanup_orphaned_building_flags()
