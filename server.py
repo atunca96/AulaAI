@@ -498,7 +498,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         path = parsed.path.rstrip('/')
 
         # Classroom management routes (check these first to be safe)
-        if path == "/api/classroom/delete":
+        if path == "/api/admin/upload-db":
+            return self._admin_upload_db()
+        elif path == "/api/classroom/delete":
             return self._delete_classroom()
         elif path == "/api/classroom/rebuild":
             return self._classroom_rebuild()
@@ -1244,6 +1246,40 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     # ── API Implementations ─────────────────────────────────
+
+    def _admin_upload_db(self):
+        """Temporary admin endpoint: upload a DB file to the Railway volume."""
+        role = self._get_user_role()
+        if role != "lecturer":
+            return self._send_error("Unauthorized", 403)
+        
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            return self._send_error("No data received")
+        
+        db_bytes = self.rfile.read(length)
+        
+        from database import DB_PATH, IS_RAILWAY
+        target = DB_PATH if IS_RAILWAY else os.path.join("data", "aula.db")
+        
+        # Backup existing DB before overwriting
+        backup = target + ".backup"
+        if os.path.exists(target):
+            import shutil
+            shutil.copy2(target, backup)
+            print(f"[ADMIN] Backed up existing DB to {backup}")
+        
+        with open(target, "wb") as f:
+            f.write(db_bytes)
+        
+        size = os.path.getsize(target)
+        print(f"[ADMIN] Uploaded DB: {size} bytes -> {target}")
+        
+        # Re-run migrations on the uploaded DB to ensure schema compatibility
+        from database import _run_migrations
+        _run_migrations()
+        
+        return self._send_json({"success": True, "size": size, "path": target})
 
     def _get_ai_status(self):
         """Return whether AI (Groq) is configured and available."""

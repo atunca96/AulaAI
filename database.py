@@ -46,49 +46,68 @@ potential_paths = [
 
 IS_GHOST_DB = False
 if IS_RAILWAY:
-    # 1. Check for ANY existing data across all potential paths
-    found_path = None
-    print("[DB] === RAILWAY DATABASE DISCOVERY ===")
-    for path in potential_paths:
-        exists = os.path.exists(path)
-        size = os.path.getsize(path) if exists else 0
-        print(f"[DB]   Checking {path}: exists={exists}, size={size}")
-        if exists and size > 0 and not found_path:
-            print(f"[DB]   >>> SELECTED: {path} ({size} bytes)")
-            found_path = path
+    import shutil
     
-    if found_path:
-        DB_PATH = found_path
+    print("[DB] === RAILWAY DATABASE DISCOVERY ===")
+    
+    # Canonical DB location — ALL Railway deploys must converge here
+    CANONICAL_PATH = "/data/aula.db"
+    
+    # List volume contents for diagnostics
+    try:
+        if os.path.exists('/data'):
+            print(f"[DB] Volume /data contains: {os.listdir('/data')}")
+    except: pass
+    
+    if os.path.exists(CANONICAL_PATH) and os.path.getsize(CANONICAL_PATH) > 0:
+        # Happy path: aula.db exists on the volume
+        DB_PATH = CANONICAL_PATH
         IS_GHOST_DB = False
-        print(f"[DB] Using existing database: {DB_PATH}")
+        print(f"[DB] Found canonical DB: {DB_PATH} ({os.path.getsize(DB_PATH)} bytes)")
+    
+    elif os.path.exists("/data/prototype.db") and os.path.getsize("/data/prototype.db") > 0:
+        # Migration: prototype.db exists but aula.db doesn't — copy it over
+        print(f"[DB] No aula.db found. Migrating from prototype.db ({os.path.getsize('/data/prototype.db')} bytes)...")
+        try:
+            shutil.copy2("/data/prototype.db", CANONICAL_PATH)
+            # Also copy WAL/SHM if they exist
+            for ext in ['-wal', '-shm']:
+                src = f"/data/prototype.db{ext}"
+                if os.path.exists(src):
+                    shutil.copy2(src, f"{CANONICAL_PATH}{ext}")
+            print(f"[DB] Migration complete: prototype.db → aula.db ({os.path.getsize(CANONICAL_PATH)} bytes)")
+            DB_PATH = CANONICAL_PATH
+            IS_GHOST_DB = False
+        except Exception as e:
+            print(f"[DB] Migration failed ({e}), using prototype.db directly")
+            DB_PATH = "/data/prototype.db"
+            IS_GHOST_DB = False
+    
+    elif os.path.exists("/data"):
+        # Volume exists but no database files — fresh start
+        print("[DB] Volume mounted but empty. Creating fresh aula.db.")
+        DB_PATH = CANONICAL_PATH
+        IS_GHOST_DB = True
+    
     else:
-        # 2. If no data, wait for ANY valid VOLUME MOUNT to appear
-        print("[DB] No existing data found. Verifying volume mount...")
+        # No volume at all — wait for mount
+        print("[DB] No volume detected. Waiting for Railway mount...")
         for attempt in range(5):
             if os.path.exists("/data"):
-                # List what IS on the volume for diagnostics
-                try:
-                    print(f"[DB] Volume /data contains: {os.listdir('/data')}")
-                except: pass
-                print("[DB] Persistent volume /data detected. Starting fresh.")
-                DB_PATH = "/data/aula.db"
-                IS_GHOST_DB = True
-                break
-            if os.path.exists("/app/data"):
-                print("[DB] Persistent volume /app/data detected. Starting fresh.")
-                DB_PATH = "/app/data/aula.db"
+                print("[DB] Volume appeared. Creating fresh aula.db.")
+                DB_PATH = CANONICAL_PATH
                 IS_GHOST_DB = True
                 break
             print(f"[DB] Waiting for Railway volume mount... ({attempt+1}/5)")
             time.sleep(1)
         else:
-            print("[FATAL ERROR] Persistent volume NOT FOUND after 5 attempts. Crashing to force restart.")
+            print("[FATAL ERROR] Persistent volume NOT FOUND. Crashing to force restart.")
             import sys
             sys.exit(1)
+    
     print(f"[DB] === FINAL: DB_PATH={DB_PATH}, IS_GHOST_DB={IS_GHOST_DB} ===")
 else:
     DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
-    IS_GHOST_DB = not os.path.exists(DB_PATH)
     IS_GHOST_DB = not os.path.exists(DB_PATH)
 
 # Thread-safe locks for background tasks
