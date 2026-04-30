@@ -548,6 +548,40 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         end_page = 12
                 except: pass
 
+                def reorder_internal_pages(text):
+                    """
+                    Detects internal textbook page markers (e.g. PÁG. 10, Page 14) 
+                    and reorders the text blocks into sequential order.
+                    """
+                    import re
+                    # Pattern for common internal page markers
+                    pattern = r'(?i)(?:PÁG\.|Page|P\.)\s*\d+'
+                    
+                    # Find all positions where a marker starts
+                    matches = list(re.finditer(pattern, text))
+                    if not matches: return text
+                    
+                    starts = [m.start() for m in matches]
+                    chunks = []
+                    
+                    # Handle orphan text before first marker
+                    if starts[0] > 0:
+                        chunks.append({'page': -1, 'text': text[:starts[0]]})
+                    
+                    for i in range(len(starts)):
+                        start = starts[i]
+                        end = starts[i+1] if i+1 < len(starts) else len(text)
+                        chunk_text = text[start:end]
+                        
+                        # Extract the FIRST number found in this marker block
+                        p_match = re.search(r'\d+', chunk_text)
+                        p_num = int(p_match.group()) if p_match else 9999
+                        chunks.append({'page': p_num, 'text': chunk_text})
+                    
+                    # Sort by the semantic textbook page number
+                    chunks.sort(key=lambda x: x['page'])
+                    return "\n".join([c['text'] for c in chunks])
+
                 raw_text = ""
                 # Language Agnostic Extraction: Use the specified range
                 # --- PASS 1.5: PAGE OFFSET DETECTION ---
@@ -585,7 +619,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         toc_text += f"\n[Page {printed_p}]\n"
                         toc_text += doc[i].get_text() + "\n"
 
-                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars")
+                # Normalize TOC text by reordering internal page blocks
+                toc_text = reorder_internal_pages(toc_text)
+                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars (Reordered)")
                 
                 if not toc_text or len(toc_text.strip()) < 20:
                     doc.close()
@@ -672,14 +708,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         dive_text += f"\n[Page {i + 1 - page_offset}]\n"
                         dive_text += doc[i].get_text() + "\n"
                     
+                    # Normalize unit text by reordering internal page blocks
+                    dive_text = reorder_internal_pages(dive_text)
+                    
                     u_title = unit_info.get('title', 'Unknown Unit')
                     file_log(f"NITRO: Deep Diving into {u_title} (PDF Pages {start_p+1}-{end_p})...")
                     
                     dive_msg = [{
                         "role": "user", 
                         "content": f"You are analyzing Unit '{u_title}' from a {clean_lang} textbook. "
-                                   f"Extract all lesson titles, grammar points, vocabulary topics, and culture/video sections specifically FOR THIS UNIT. "
-                                   f"Include page numbers for each. "
+                                   f"Extract all lesson titles, grammar points, vocabulary topics, phonetics, and culture/video sections specifically FOR THIS UNIT. "
+                                   f"IMPORTANT: If explicit lesson titles are missing, extract the major sub-headings, bolded topics, or section themes instead. "
+                                   f"Provide a comprehensive outline. Include page numbers for each. "
                                    f"TEXT:\n{dive_text[:20000]}"
                     }]
                     try:
