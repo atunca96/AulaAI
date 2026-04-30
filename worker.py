@@ -63,7 +63,8 @@ def main():
         course_name = sys.argv[5] if len(sys.argv) > 5 else "Untitled Course"
         manual_toc_path = sys.argv[6] if len(sys.argv) > 6 else None
         source_markdown_path = sys.argv[7] if len(sys.argv) > 7 else None
-        language = sys.argv[8] if len(sys.argv) > 8 else None
+        language = sys.argv[8] if len(sys.argv) > 8 else "Detecting..."
+        level = sys.argv[9] if len(sys.argv) > 9 else "A1"
 
         manual_toc = None
         if manual_toc_path and os.path.exists(manual_toc_path) and manual_toc_path != "NONE":

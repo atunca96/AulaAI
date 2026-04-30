@@ -324,25 +324,29 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             # Map each future to its metadata
             future_to_topic = {}
             # Context Surgery Helper: Extract relevant pages from source markdown
-            def get_surgical_context(page_num, full_text):
-                if not page_num or not full_text: return full_text
-                # Simple heuristic: Split by "Page X" or similar markers if present, 
-                # or just take a proportional slice based on total pages.
-                # Since we often don't have perfect page markers in markdown, 
-                # we'll take the Topic's page and a small buffer.
-                lines = full_text.split('\n')
-                # If we can't find markers, we use the source_text as is but shortened
-                if len(full_text) < 10000: return full_text
+            def get_surgical_context(page_num, full_text, topic_title=""):
+                if not full_text: return ""
                 
-                # Try to find page markers like "Page 12"
-                p_marker = f"Page {page_num}"
-                idx = full_text.find(p_marker)
-                if idx != -1:
-                    start = max(0, idx - 1000) # 1000 chars before
-                    end = idx + 4000 # 4000 chars after (approx 2 pages)
-                    return full_text[start:end]
+                # Priority 1: Page Marker
+                if page_num:
+                    p_marker = f"Page {page_num}"
+                    idx = full_text.find(p_marker)
+                    if idx != -1:
+                        start = max(0, idx - 1000)
+                        end = idx + 6000 # Take a larger slice for better context
+                        return full_text[start:end]
                 
-                return full_text[:8000] # Fallback to first 8k chars
+                # Priority 2: Topic Title Match
+                if topic_title and len(topic_title) > 3:
+                    idx = full_text.lower().find(topic_title.lower())
+                    if idx != -1:
+                        start = max(0, idx - 500)
+                        end = idx + 6000
+                        return full_text[start:end]
+                
+                # Priority 3: Proportional slice if no markers found
+                # (Simple fallback to first 8k chars if all else fails)
+                return full_text[:8000]
 
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
@@ -350,7 +354,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     
                     # Apply Context Surgery
                     topic_page = topic.get("page")
-                    surgical_text = get_surgical_context(topic_page, source_markdown_content)
+                    surgical_text = get_surgical_context(topic_page, source_markdown_content, topic_title=topic.get("title"))
                     
                     future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=surgical_text)
                     future_to_topic[future] = topic.get("title")
@@ -408,7 +412,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
 
-def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None):
+def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1"):
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
     
@@ -417,8 +421,8 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     textbook_url = "/books/" + os.path.basename(pdf_path)
     
     with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", code, 1, lecturer_id))
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id))
         db.commit()
     
     manual_toc_file = None
@@ -447,6 +451,13 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
             
         if language:
             cmd.append(language)
+        else:
+            cmd.append("Detecting...")
+            
+        if level:
+            cmd.append(level)
+        else:
+            cmd.append("A1")
             
         if sys.platform == "win32":
             process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 

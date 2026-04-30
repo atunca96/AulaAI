@@ -673,9 +673,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     
                     file_log(f"NITRO: Deep Diving into Page {page_num}...")
                     dive_msg = [{"role": "user", "content": f"You are looking at Page {page_num} of a {language} textbook. Extract EVERYTHING: Unit title, every lesson title, grammar points, and vocabulary topics. Return as a detailed list. TEXT:\n{dive_text[:15000]}"}]
-                    dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=2000)
-                    if isinstance(dive_res, dict): final_details[idx] = dive_res.get("explanation", "")
-                    else: final_details[idx] = str(dive_res)
+                    try:
+                        dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=2000)
+                        if isinstance(dive_res, dict): final_details[idx] = dive_res.get("explanation", "")
+                        else: final_details[idx] = str(dive_res)
+                    except Exception as e:
+                        file_log(f"NITRO: Page {page_num} extraction failed: {e}")
+                        final_details[idx] = f"[Page {page_num} extraction failed]"
 
                 with ThreadPoolExecutor(max_workers=10) as executor:
                     for i, p in enumerate(pages_to_dive):
@@ -718,7 +722,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Auto-Detect Language and update classroom
                 try:
                     from services.ai_engine import detect_language
-                    detected_lang = detect_language(toc_text)
+                    # Prioritize the much richer Master Markdown for language detection
+                    # but fall back to toc_text if markdown is too short.
+                    detection_source = markdown if len(markdown) > 200 else toc_text
+                    detected_lang = detect_language(detection_source)
+                    
+                    # If the frontend explicitly sent a language, and detection says English (fallback),
+                    # trust the frontend.
+                    if language and language != "Detecting..." and (detected_lang == "English" or not detected_lang):
+                        detected_lang = language
                     # We don't have the course_id here easily, but we can find it by looking for the 
                     # most recent classroom or using the session.
                     # Actually, the frontend sends the course_id if it's a re-architect.
@@ -2718,6 +2730,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             external_markdown = fields.get("external_markdown")
             lecturer_id = fields.get("lecturer_id")
             language = fields.get("language")
+            level = fields.get("level", "A1")
             
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing Request for {lecturer_id} | Name: {course_name} | Language: {language}")
             
@@ -2755,7 +2768,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 course_name=course_name, 
                 manual_toc=manual_toc,
                 source_markdown_path=source_md_path,
-                language=language
+                language=language,
+                level=level
             )
             
             file_log(f"[DEBUG] Pipeline result: {result}")
