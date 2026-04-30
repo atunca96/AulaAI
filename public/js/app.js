@@ -4922,7 +4922,7 @@ window.addEventListener('click', async (e) => {
   // Only trigger if we are inside a study area
   const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
 
-  if (word && isStudyArea && word.length > 1 && word.length < 60) {
+  if (word && isStudyArea && word.length > 1 && word.length < 600) {
     showDict(word, e);
   }
 });
@@ -4970,7 +4970,7 @@ async function showDict(word, e) {
 
     content.innerHTML = `
             <div style="margin-bottom:16px;">
-                <div id="dict-word-title">${word}</div>
+                <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-height:1.4; margin-bottom:8px; word-break:break-word;">${word}</div>
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
             </div>
             
