@@ -262,13 +262,8 @@ function refreshCurrentView() {
             }
           }
           if (document.getElementById('tab-inbox') && document.getElementById('tab-inbox').classList.contains('active')) {
-            if (currentChatStudentId) {
-              const titleEl = document.getElementById('inbox-title');
-              if (titleEl) {
-                const nameText = titleEl.textContent;
-                const name = nameText.includes('💬') ? nameText.split('💬 ')[1] : nameText;
-                openChat(currentChatStudentId, name);
-              }
+            if (currentChatStudentId && currentChatStudentName) {
+              openChat(currentChatStudentId, currentChatStudentName, currentChatCourseId);
             } else {
               loadInbox();
             }
@@ -1431,6 +1426,8 @@ async function selectClassroom(id, isLecturer = true) {
 
   // Reset chat/inbox state
   currentChatStudentId = null;
+  currentChatStudentName = null;
+  currentChatCourseId = null;
   const inboxBackBtn = document.getElementById('inbox-back-btn');
   if (inboxBackBtn) inboxBackBtn.classList.add('hidden');
   const inboxReplyArea = document.getElementById('inbox-reply-area');
@@ -2308,10 +2305,13 @@ function closeMobileChat() {
 
   document.body.style.overflow = '';
   currentChatStudentId = null;
+  currentChatStudentName = null;
+  currentChatCourseId = null;
 }
 
 // ── Messages ──
 let currentChatStudentId = null;
+let currentChatStudentName = null;
 let currentChatCourseId = null;
 
 async function loadStudentChat() {
@@ -2458,6 +2458,7 @@ async function loadInbox() {
 
 async function openChat(studentId, studentName, cid) {
   currentChatStudentId = studentId;
+  currentChatStudentName = studentName;
   const activeCourseId = cid || currentCourse?.id;
   currentChatCourseId = activeCourseId;
 
@@ -2532,8 +2533,7 @@ async function sendLecturerMessage() {
     }
   });
 
-  const name = document.getElementById('inbox-title').textContent.replace('💬 ', '');
-  await openChat(currentChatStudentId, name, currentChatCourseId);
+  await openChat(currentChatStudentId, currentChatStudentName, currentChatCourseId);
 }
 
 // ── New Chat Logic ──
