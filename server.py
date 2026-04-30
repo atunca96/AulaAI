@@ -595,7 +595,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 - Treat EVERY major section in the Table of Contents as a Unit.
                 - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
                 - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
-                - If the text is in German, the titles MUST be in German.
+                - The titles MUST be in the same language as they appear in the text.
                 - RETURN ONLY A JSON LIST of units.
                 - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
                 
