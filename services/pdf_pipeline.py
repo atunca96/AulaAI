@@ -135,6 +135,22 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             if manual_toc:
                 _log(f"RAW MANUAL TOC RECEIVED ({len(manual_toc)} chars)")
                 _log("Using Manual Curriculum provided by teacher.")
+                parse_source = manual_toc
+            else:
+                _log("Extracting curriculum from PDF TOC text.")
+                parse_source = toc_text
+
+            # PRIMARY: Fast deterministic parser (milliseconds)
+            import time as _t
+            _parse_start = _t.time()
+            from services.fast_parser import fast_parse_curriculum
+            chapters_data = fast_parse_curriculum(parse_source)
+            _parse_ms = (_t.time() - _parse_start) * 1000
+            _log(f"Fast parser completed in {_parse_ms:.0f}ms → {len(chapters_data)} chapters")
+
+            # FALLBACK: AI parsing only if fast parser produced nothing
+            if not chapters_data:
+                _log("Fast parser returned 0 chapters — falling back to AI parsing...")
                 prompt_lang = language if language and language != "Detecting..." else "the target"
                 prompt = f"""
                 Task: Convert this messy curriculum text into a structured JSON Roadmap for a {prompt_lang} course.
@@ -162,51 +178,22 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 }}
                 
                 Manual Text to Parse:
-                {manual_toc}
+                {parse_source}
                 """
-            else:
-                _log("Extracting curriculum from PDF TOC text.")
-                prompt = f"Extract the curriculum (Table of Contents) from the following text. Language: {language}.\n\nReturn ONLY JSON with structure:\n{{ \"chapters\": [ {{ \"title\": \"...\", \"page\": 12, \"topics\": [ {{ \"title\": \"...\", \"type\": \"vocabulary/grammar/reading\", \"page\": 13 }} ] }} ] }}\n\nText:\n{toc_text}"
-            
-            resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
-            
-            try:
-                if isinstance(resp, dict):
-                    chapters_data = resp.get("chapters", [])
-                elif isinstance(resp, str) and resp.strip():
-                    clean_resp = resp.replace("```json", "").replace("```", "").strip()
-                    start_idx = clean_resp.find('{')
-                    end_idx = clean_resp.rfind('}')
-                    if start_idx != -1 and end_idx != -1:
-                        clean_resp = clean_resp[start_idx:end_idx+1]
-                    data = json.loads(clean_resp)
-                    chapters_data = data.get("chapters", [])
-            except Exception as e:
-                _log(f"AI Parsing failed ({e}). Attempting manual fallback.")
-            
-        # Fallback Logic
-        if not chapters_data and manual_toc:
-            _log("Using line-by-line fallback for manual curriculum.")
-            topics = []
-            for line in manual_toc.split('\n'):
-                t = line.strip().strip('-').strip('*').strip()
-                if len(t) > 3:
-                    # Simple heuristic for grammar
-                    grammar_keys = ["verb", "conjugation", "grammar", "rule", "tense", "pronoun", "article", "preposition", "syntax", "order", "structure", "word order"]
-                    t_type = "grammar" if any(k in t.lower() for k in grammar_keys) else "vocabulary"
-                    topics.append({"title": t, "type": t_type})
-            
-            if topics:
-                # Chunk into groups of 5
-                chapters_data = []
-                chunk_size = 5
-                for i in range(0, len(topics), chunk_size):
-                    chunk = topics[i:i + chunk_size]
-                    unit_num = (i // chunk_size) + 1
-                    chapters_data.append({
-                        "title": f"Unit {unit_num}",
-                        "topics": chunk
-                    })
+                resp = _call_ai([{"role": "user", "content": prompt}], max_tokens=4000)
+                try:
+                    if isinstance(resp, dict):
+                        chapters_data = resp.get("chapters", [])
+                    elif isinstance(resp, str) and resp.strip():
+                        clean_resp = resp.replace("```json", "").replace("```", "").strip()
+                        start_idx = clean_resp.find('{')
+                        end_idx = clean_resp.rfind('}')
+                        if start_idx != -1 and end_idx != -1:
+                            clean_resp = clean_resp[start_idx:end_idx+1]
+                        data = json.loads(clean_resp)
+                        chapters_data = data.get("chapters", [])
+                except Exception as e:
+                    _log(f"AI Parsing also failed ({e}).")
         
         if not chapters_data:
             _log("ERROR: All parsing attempts failed.")
