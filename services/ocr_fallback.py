@@ -188,6 +188,60 @@ TESS_LANG_MAP = {
     "persian": "fas",
 }
 
+# Cache which language packs are actually installed
+_available_langs = None
+
+def _get_available_tess_langs():
+    """Check which tesseract language packs are actually installed."""
+    global _available_langs
+    if _available_langs is not None:
+        return _available_langs
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["tesseract", "--list-langs"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            _available_langs = set(result.stdout.strip().split("\n")[1:])  # skip header line
+            _log(f"Available tesseract langs: {_available_langs}")
+        else:
+            _available_langs = {"eng"}
+    except:
+        _available_langs = {"eng"}
+    return _available_langs
+
+
+def _resolve_ocr_language(language):
+    """
+    Resolve the language parameter to a tesseract language string.
+    Handles None, 'Detecting...', and explicit language names.
+    Falls back to all installed packs for best coverage.
+    """
+    # If explicit language is provided and valid, use it + English
+    if language and language.lower() not in ("detecting...", "unknown", ""):
+        tess_lang = TESS_LANG_MAP.get(language.lower())
+        if tess_lang and tess_lang != "eng":
+            available = _get_available_tess_langs()
+            if tess_lang in available:
+                return f"{tess_lang}+eng"
+            else:
+                _log(f"Language pack '{tess_lang}' not installed, falling back")
+
+    # No language specified or pack not installed — use all available packs
+    # This is slower but handles any script automatically
+    available = _get_available_tess_langs()
+    # Build a reasonable multi-lang string from installed packs
+    # Prioritize common scripts to avoid overwhelming tesseract
+    priority = ["rus", "ara", "chi_sim", "jpn", "kor", "ell", "tur",
+                "spa", "deu", "fra", "ita", "por", "nld", "swe"]
+    active = [l for l in priority if l in available]
+    if active:
+        # Use up to 4 languages to keep it fast + always include eng
+        combo = "+".join(active[:4]) + "+eng"
+        return combo
+
+    return "eng"
 
 def ocr_page(page, page_num=0, dpi=300, language=None):
     """
@@ -219,12 +273,7 @@ def ocr_page(page, page_num=0, dpi=300, language=None):
         img = Image.open(io.BytesIO(img_data))
 
         # Determine tesseract language code
-        tess_lang = "eng"
-        if language:
-            tess_lang = TESS_LANG_MAP.get(language.lower(), "eng")
-            # Use both the target language + English for mixed-language textbooks
-            if tess_lang != "eng":
-                tess_lang = f"{tess_lang}+eng"
+        tess_lang = _resolve_ocr_language(language)
 
         # Run tesseract OCR with language-specific model
         text = pytesseract.image_to_string(img, lang=tess_lang)
