@@ -420,12 +420,6 @@ Return ONLY valid JSON:
             
             fingerprints = [_option_fingerprint(o) for o in all_opts]
             
-            # Mixed Language Heuristic (Special Characters)
-            special_counts = [fp['has_special'] for fp in fingerprints]
-            if any(special_counts) and not all(special_counts):
-                print(f"[V2-REJECT] Mixed special characters (language mix?): {all_opts}")
-                return None
-
             # Numeric and Structural Outliers
             for key in ['word_count', 'ascii_ratio', 'has_punctuation']:
                 values = [fp[key] for fp in fingerprints]
