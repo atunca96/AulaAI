@@ -1,8 +1,8 @@
 """
 OCR Fallback Module — Extracts text from image-based (scanned) PDFs.
 
-Uses PyMuPDF to render pages as images and sends them to a vision-capable
-AI model via OpenRouter for text extraction. Zero system-level dependencies.
+Uses PyMuPDF to render pages as images and pytesseract for local OCR.
+No AI/API calls. All processing runs locally.
 
 This module is only invoked when normal text extraction fails or yields
 insufficient content.
@@ -10,9 +10,7 @@ insufficient content.
 
 import os
 import re
-import base64
-import json
-import time
+import io
 from datetime import datetime
 
 
@@ -48,7 +46,7 @@ def is_image_based_page(page_text, page_index=0):
     if len(content_chars) < 30:
         return True
 
-    # Noise ratio: if less than 40% of chars are alphanumeric, it's garbage
+    # Noise ratio: if less than 35% of chars are alphanumeric, it's garbage
     alnum_count = sum(1 for c in cleaned if c.isalnum())
     if len(cleaned) > 0 and (alnum_count / len(cleaned)) < 0.35:
         return True
@@ -69,10 +67,9 @@ def is_image_based_pdf(pdf_path, sample_pages=5):
             doc.close()
             return False
 
-        # Sample evenly across the document (skip page 0 which is often a cover)
+        # Sample evenly across the document
         step = max(1, total_pages // sample_pages)
         pages_to_check = [min(i * step, total_pages - 1) for i in range(sample_pages)]
-        # Always include a middle page
         pages_to_check.append(total_pages // 2)
         pages_to_check = list(set(pages_to_check))[:sample_pages]
 
@@ -86,8 +83,6 @@ def is_image_based_pdf(pdf_path, sample_pages=5):
 
         ratio = image_pages / len(pages_to_check)
         _log(f"PDF scan check: {image_pages}/{len(pages_to_check)} sampled pages are image-based (ratio={ratio:.2f})")
-
-        # If more than half the sampled pages are image-based, treat entire PDF as scanned
         return ratio >= 0.5
 
     except Exception as e:
@@ -95,107 +90,51 @@ def is_image_based_pdf(pdf_path, sample_pages=5):
         return False
 
 
-# ── OCR via Vision AI ────────────────────────────────────────────────
+# ── Local OCR via pytesseract ────────────────────────────────────────
 
-def _render_page_to_base64(page, dpi=200):
-    """Renders a PyMuPDF page to a base64-encoded PNG string."""
-    # Scale matrix for target DPI (default PyMuPDF is 72 DPI)
-    scale = dpi / 72.0
-    mat = None
+def _get_tesseract():
+    """Import and return pytesseract, or None if unavailable."""
     try:
+        import pytesseract
+        return pytesseract
+    except ImportError:
+        _log("pytesseract not installed — OCR unavailable")
+        return None
+
+
+def ocr_page(page, page_num=0, dpi=300):
+    """
+    OCR a single PyMuPDF page using pytesseract.
+    Returns the extracted text string, or empty string on failure.
+    """
+    pytesseract = _get_tesseract()
+    if not pytesseract:
+        return ""
+
+    try:
+        from PIL import Image
         import fitz
+
+        # Render page to a high-DPI pixmap
+        scale = dpi / 72.0
         mat = fitz.Matrix(scale, scale)
-    except:
-        pass
+        pix = page.get_pixmap(matrix=mat)
 
-    pix = page.get_pixmap(matrix=mat) if mat else page.get_pixmap()
-    png_bytes = pix.tobytes("png")
-    return base64.b64encode(png_bytes).decode("utf-8")
+        # Convert PyMuPDF pixmap to PIL Image (no temp files)
+        img_data = pix.tobytes("png")
+        img = Image.open(io.BytesIO(img_data))
 
+        # Run tesseract OCR
+        text = pytesseract.image_to_string(img)
 
-def _ocr_page_via_vision(base64_png, page_num, api_key):
-    """
-    Sends a page image to a vision-capable AI model for text extraction.
-    Returns the extracted text string.
-    """
-    import urllib.request
-    import urllib.error
+        if text and text.strip():
+            _log(f"Page {page_num}: Extracted {len(text.strip())} chars via tesseract")
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://aulaai.com",
-        "X-Title": "AulaAI-OCR"
-    }
+        return text.strip() if text else ""
 
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": (
-                        "Extract ALL text from this scanned page image. "
-                        "Preserve the original text exactly as written — do not translate, summarize, or interpret. "
-                        "Maintain paragraph breaks and logical structure. "
-                        "If there are tables, preserve them in a readable format. "
-                        "If the page is blank or contains only images with no text, respond with: [BLANK PAGE]. "
-                        "Return ONLY the extracted text, no commentary."
-                    )
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{base64_png}"
-                    }
-                }
-            ]
-        }
-    ]
-
-    # Try vision-capable models in order
-    models_to_try = [
-        "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "google/gemini-2.5-flash",
-        "anthropic/claude-3-haiku",
-    ]
-
-    last_error = "Unknown"
-    for model in models_to_try:
-        try:
-            payload = json.dumps({
-                "model": model,
-                "messages": messages,
-                "max_tokens": 4000,
-                "temperature": 0.1
-            }).encode("utf-8")
-
-            req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=120) as response:
-                res_body = response.read().decode("utf-8")
-                res_json = json.loads(res_body)
-
-                if "choices" in res_json and res_json["choices"]:
-                    content = res_json["choices"][0]["message"]["content"].strip()
-                    if content and content != "[BLANK PAGE]":
-                        _log(f"Page {page_num}: Extracted {len(content)} chars via {model}")
-                        return content
-                    elif content == "[BLANK PAGE]":
-                        _log(f"Page {page_num}: Blank page detected by {model}")
-                        return ""
-
-                if "error" in res_json:
-                    last_error = res_json["error"].get("message", "API Error")
-                    _log(f"Page {page_num}: Model {model} error: {last_error}")
-
-        except Exception as e:
-            last_error = str(e)
-            _log(f"Page {page_num}: Model {model} failed: {last_error}")
-            time.sleep(0.5)
-
-    _log(f"Page {page_num}: All vision models failed. Last error: {last_error}")
-    return ""
+    except Exception as e:
+        _log(f"Page {page_num}: OCR failed: {e}")
+        return ""
 
 
 def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
@@ -211,9 +150,9 @@ def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
     Returns:
         str: Combined text with "# Source Page X" markers
     """
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        _log("ERROR: OPENROUTER_API_KEY not set, cannot perform OCR")
+    pytesseract = _get_tesseract()
+    if not pytesseract:
+        _log("ERROR: pytesseract not available, cannot perform OCR")
         return ""
 
     try:
@@ -237,16 +176,13 @@ def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
             # First try normal text extraction — only OCR if it fails
             normal_text = page.get_text()
             if not is_image_based_page(normal_text, page_idx):
-                # This page has good text, use it directly
                 result_parts.append(f"# Source Page {page_idx + 1}\n{normal_text.strip()}")
                 continue
 
-            # Render page to image and OCR via vision AI
-            base64_png = _render_page_to_base64(page, dpi=200)
-            ocr_text = _ocr_page_via_vision(base64_png, page_idx + 1, api_key)
+            # Run local OCR via pytesseract
+            ocr_text = ocr_page(page, page_num=page_idx + 1)
 
             if ocr_text:
-                # Basic cleanup
                 ocr_text = _cleanup_ocr_text(ocr_text)
                 result_parts.append(f"# Source Page {page_idx + 1}\n{ocr_text}")
             else:
@@ -293,7 +229,7 @@ def _cleanup_ocr_text(text):
             continue
         # Skip lines that are entirely non-alphanumeric symbols
         if stripped and not any(c.isalnum() for c in stripped):
-            if len(stripped) < 5:  # Short symbol-only lines are noise
+            if len(stripped) < 5:
                 continue
         cleaned_lines.append(line)
 

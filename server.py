@@ -686,13 +686,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     # OCR FALLBACK for offset detection on scanned pages
                     if len(page_text.strip()) < 20:
                         try:
-                            from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
-                            api_key = os.getenv("OPENROUTER_API_KEY")
-                            if api_key:
-                                b64 = _render_page_to_base64(doc[i], dpi=150)
-                                ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
-                                if ocr_result:
-                                    page_text = ocr_result[:500]
+                            from services.ocr_fallback import ocr_page
+                            ocr_result = ocr_page(doc[i], page_num=i + 1, dpi=150)
+                            if ocr_result:
+                                page_text = ocr_result[:500]
                         except: pass
                     offset_text += f"[PDF PAGE {i+1}]: {page_text}\n"
                 
@@ -723,17 +720,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         printed_p = i + 1 - page_offset
                         page_text = doc[i].get_text()
                         
-                        # OCR FALLBACK: If this page has no text, try vision OCR
+                        # OCR FALLBACK: If this page has no text, run local OCR
                         if not page_text or len(page_text.strip()) < 20:
                             try:
-                                from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
-                                api_key = os.getenv("OPENROUTER_API_KEY")
-                                if api_key:
-                                    b64 = _render_page_to_base64(doc[i], dpi=200)
-                                    ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
-                                    if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
-                                        page_text = ocr_result
-                                        file_log(f"NITRO: OCR fallback for page {i+1}: {len(page_text)} chars")
+                                from services.ocr_fallback import ocr_page
+                                ocr_result = ocr_page(doc[i], page_num=i + 1)
+                                if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
+                                    page_text = ocr_result
+                                    file_log(f"NITRO: OCR fallback for page {i+1}: {len(page_text)} chars")
                             except Exception as ocr_e:
                                 file_log(f"NITRO: OCR fallback failed for page {i+1}: {ocr_e}")
                         
@@ -833,13 +827,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         # OCR FALLBACK for image-based pages
                         if not page_text or len(page_text.strip()) < 20:
                             try:
-                                from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
-                                api_key = os.getenv("OPENROUTER_API_KEY")
-                                if api_key:
-                                    b64 = _render_page_to_base64(doc[i], dpi=200)
-                                    ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
-                                    if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
-                                        page_text = ocr_result
+                                from services.ocr_fallback import ocr_page
+                                ocr_result = ocr_page(doc[i], page_num=i + 1)
+                                if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
+                                    page_text = ocr_result
                             except: pass
                         
                         dive_text += f"\n[Page {i + 1 - page_offset}]\n"
