@@ -528,6 +528,11 @@ const i18n = {
     'ok': 'OK',
     'cancel': 'Cancel',
     'no_messages': 'No messages.',
+    'tap_explain': '🧠 Tap to explain',
+    'explain_ai': 'Explain with AI 🤖',
+    'ai_error': 'AI was unable to explain this word right now.',
+    'explain_more': 'Click \'Explain\' again for more details.',
+    'ai_analyzing': 'AI is analyzing your answer...',
     'prac.dialogue': 'Dialogue',
     'confirm.delete_classroom': 'Delete Classroom',
     'confirm.delete_classroom_msg': 'Are you sure you want to delete the classroom "{name}"?',
@@ -978,6 +983,11 @@ const i18n = {
     'prac.dialogue_order': 'Diyaloğu doğru sıraya dizin:',
     'prac.dialogue': 'Diyalog',
     'no_messages': 'Mesaj yok.',
+    'tap_explain': '🧠 Açıklamak için dokun',
+    'explain_ai': 'Yapay Zeka ile Açıkla 🤖',
+    'ai_error': 'Yapay zeka şu anda bu kelimeyi açıklayamadı.',
+    'explain_more': 'Daha fazla detay için \'Açıkla\'ya tekrar tıklayın.',
+    'ai_analyzing': 'Yapay zeka cevabınızı analiz ediyor...',
     'No assignments yet.': 'Henüz ödev yok.',
     'No quizzes yet.': 'Henüz sınav yok.',
     'prac.dialogue': 'Diyalog',
@@ -3154,7 +3164,7 @@ async function checkMCQ(btn, answer, cardId, qid) {
     fb.textContent = t('correctMsg');
     fb.onclick = null;
   } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">🧠 Tap to explain</span>`;
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">${t('tap_explain')}</span>`;
     fb.onclick = () => explainMistake(cardId, answer, picked);
   }
   if (cardId.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: picked, correct_answer: answer, question_type: 'mcq' } });
@@ -3175,7 +3185,7 @@ async function checkFill(id, answer, qid) {
     fb.textContent = t('correctMsg');
     fb.onclick = null;
   } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">🧠 Tap to explain</span>`;
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">${t('tap_explain')}</span>`;
     fb.onclick = () => explainMistake(id, answer, val);
   }
   if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' } });
@@ -3187,7 +3197,7 @@ async function explainMistake(cardId, correct_answer, student_answer) {
   fb.dataset.explaining = "true";
   
   const originalHtml = fb.innerHTML;
-  fb.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span>🧠</span> <span style="font-size:12px; animation:pulse 1.5s infinite;">AI is analyzing your answer...</span></div>`;
+  fb.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span>🧠</span> <span style="font-size:12px; animation:pulse 1.5s infinite;">${t('ai_analyzing')}</span></div>`;
   
   const card = document.getElementById(cardId);
   const prompt = card.querySelector('.activity-prompt').innerText;
@@ -5028,7 +5038,7 @@ async function showDict(word, e) {
     // Unified AI-First Display
     const explanation = res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found.");
     const usage = res.usage || "Use it in daily conversation.";
-    const tip = res.tip || "Click 'Explain' again for more details.";
+    const tip = res.tip || t('explain_more');
     const source = res.source || "AulaAI Brain";
 
     content.innerHTML = `
@@ -5117,7 +5127,7 @@ async function askAiAboutWord() {
                 </div>
             `;
     } else {
-      meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI was unable to explain this word right now.</div>`;
+      meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">${t('ai_error')}</div>`;
     }
   } catch (err) {
     console.error("AI Dict error:", err);
