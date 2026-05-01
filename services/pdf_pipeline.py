@@ -86,6 +86,17 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                         toc_text += doc[p].get_text()
                     doc.close()
                     _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
+                    
+                    # OCR FALLBACK: If text extraction yielded nothing useful, try vision OCR
+                    from services.ocr_fallback import is_image_based_page, ocr_pdf_pages
+                    if is_image_based_page(toc_text):
+                        _log("TOC text is empty/garbage — activating OCR fallback...")
+                        ocr_toc = ocr_pdf_pages(pdf_path, start_page=start_p, end_page=end_p)
+                        if ocr_toc and len(ocr_toc.strip()) > len(toc_text.strip()):
+                            toc_text = ocr_toc
+                            _log(f"OCR TOC extraction successful: {len(toc_text)} chars")
+                        else:
+                            _log("OCR fallback did not improve TOC extraction.")
                 except Exception as e:
                     _log(f"ERROR in TOC Extraction: {e}")
 
@@ -230,6 +241,27 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         
         # Phase 2: Enrichment
         _log(f"Phase 1 Complete for {course_id}. Starting Phase 2...")
+        
+        # OCR FALLBACK: If no source markdown exists and the PDF is scanned,
+        # generate source markdown via OCR so Phase 2 has context for enrichment
+        if not source_markdown_path and pdf_path and pdf_path != "NONE":
+            try:
+                from services.ocr_fallback import is_image_based_pdf, ocr_pdf_pages
+                if is_image_based_pdf(pdf_path):
+                    _log("Image-based PDF detected — generating OCR source markdown...")
+                    from database import BOOKS_DIR
+                    ocr_md_path = os.path.join(BOOKS_DIR, f"ocr_{course_id}.md")
+                    ocr_text = ocr_pdf_pages(pdf_path)
+                    if ocr_text and len(ocr_text) > 100:
+                        with open(ocr_md_path, "w", encoding="utf-8") as f:
+                            f.write(ocr_text)
+                        source_markdown_path = ocr_md_path
+                        _log(f"OCR source markdown saved: {len(ocr_text)} chars -> {ocr_md_path}")
+                    else:
+                        _log("OCR produced insufficient text, skipping.")
+            except Exception as e:
+                _log(f"OCR fallback error (non-fatal): {e}")
+        
         enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path)
 
     except Exception as e:

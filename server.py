@@ -682,7 +682,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 file_log("NITRO: Detecting page offset...")
                 offset_text = ""
                 for i in range(min(20, len(doc))):
-                    offset_text += f"[PDF PAGE {i+1}]: {doc[i].get_text()[:500]}\n"
+                    page_text = doc[i].get_text()[:500]
+                    # OCR FALLBACK for offset detection on scanned pages
+                    if len(page_text.strip()) < 20:
+                        try:
+                            from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
+                            api_key = os.getenv("OPENROUTER_API_KEY")
+                            if api_key:
+                                b64 = _render_page_to_base64(doc[i], dpi=150)
+                                ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
+                                if ocr_result:
+                                    page_text = ocr_result[:500]
+                        except: pass
+                    offset_text += f"[PDF PAGE {i+1}]: {page_text}\n"
                 
                 offset_prompt = f"""
                 Analyze these PDF pages and find the PRINTED page number shown on each.
@@ -709,8 +721,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         # Inject explicit page marker for AI coordinate stability
                         # We use Printed Page number if offset was found, else PDF page
                         printed_p = i + 1 - page_offset
+                        page_text = doc[i].get_text()
+                        
+                        # OCR FALLBACK: If this page has no text, try vision OCR
+                        if not page_text or len(page_text.strip()) < 20:
+                            try:
+                                from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
+                                api_key = os.getenv("OPENROUTER_API_KEY")
+                                if api_key:
+                                    b64 = _render_page_to_base64(doc[i], dpi=200)
+                                    ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
+                                    if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
+                                        page_text = ocr_result
+                                        file_log(f"NITRO: OCR fallback for page {i+1}: {len(page_text)} chars")
+                            except Exception as ocr_e:
+                                file_log(f"NITRO: OCR fallback failed for page {i+1}: {ocr_e}")
+                        
                         toc_text += f"\n[Page {printed_p}]\n"
-                        toc_text += doc[i].get_text() + "\n"
+                        toc_text += page_text + "\n"
 
                 # Normalize TOC text structure
                 toc_text = normalize_text_structure(toc_text)
@@ -720,7 +748,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     doc.close()
                     try: os.remove(temp_pdf)
                     except: pass
-                    return self._send_error("This PDF appears to have no selectable text (possibly a scanned image). Please use an OCR tool.")
+                    return self._send_error("Could not extract text from this PDF. The document may be a scanned image with unreadable content.")
 
                 # --- PASS 2: SKELETON SCAN (High Intensity) ---
                 skeleton_prompt = f"""
@@ -800,8 +828,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     dive_text = ""
                     for i in range(start_p, end_p):
                         # Inject explicit page marker so AI can scope details to the correct page
+                        page_text = doc[i].get_text()
+                        
+                        # OCR FALLBACK for image-based pages
+                        if not page_text or len(page_text.strip()) < 20:
+                            try:
+                                from services.ocr_fallback import _render_page_to_base64, _ocr_page_via_vision
+                                api_key = os.getenv("OPENROUTER_API_KEY")
+                                if api_key:
+                                    b64 = _render_page_to_base64(doc[i], dpi=200)
+                                    ocr_result = _ocr_page_via_vision(b64, i + 1, api_key)
+                                    if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
+                                        page_text = ocr_result
+                            except: pass
+                        
                         dive_text += f"\n[Page {i + 1 - page_offset}]\n"
-                        dive_text += doc[i].get_text() + "\n"
+                        dive_text += page_text + "\n"
                     
                     # Normalize unit text structure
                     dive_text = normalize_text_structure(dive_text)
