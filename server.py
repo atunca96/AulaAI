@@ -687,7 +687,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if len(page_text.strip()) < 20:
                         try:
                             from services.ocr_fallback import ocr_page
-                            ocr_result = ocr_page(doc[i], page_num=i + 1, dpi=150)
+                            ocr_result = ocr_page(doc[i], page_num=i + 1, dpi=150, language=language)
                             if ocr_result:
                                 page_text = ocr_result[:500]
                         except: pass
@@ -724,7 +724,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         if not page_text or len(page_text.strip()) < 20:
                             try:
                                 from services.ocr_fallback import ocr_page
-                                ocr_result = ocr_page(doc[i], page_num=i + 1)
+                                ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
                                 if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
                                     page_text = ocr_result
                                     file_log(f"NITRO: OCR fallback for page {i+1}: {len(page_text)} chars")
@@ -828,7 +828,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         if not page_text or len(page_text.strip()) < 20:
                             try:
                                 from services.ocr_fallback import ocr_page
-                                ocr_result = ocr_page(doc[i], page_num=i + 1)
+                                ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
                                 if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
                                     page_text = ocr_result
                             except: pass
