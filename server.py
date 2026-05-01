@@ -1513,6 +1513,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     t_dict = dict(t)
                     count_row = db.execute("SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)).fetchone()
                     t_dict["question_count"] = count_row["cnt"] if count_row else 0
+                    if t_dict.get("pdf_url"):
+                        t_dict["pdf_url"] = "/books/" + os.path.basename(t_dict["pdf_url"])
                     processed_topics.append(t_dict)
                 ch_dict["topics"] = processed_topics
                 result.append(ch_dict)
