@@ -893,7 +893,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                 if not markdown or len(markdown) < 50:
                     # Final fallback to raw text if AI fails
-                    markdown = f"# Extracted Content\n\n{toc_text[:10000]}"
+                    markdown = f"{toc_text[:10000]}"
                 
                 return self._send_json({
                     "success": True, 

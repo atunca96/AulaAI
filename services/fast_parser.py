@@ -40,6 +40,10 @@ META_SKIP = [
     "acknowledgment", "copyright", "introduction to the",
     "table of contents", "answer key", "respuestas",
     "credits", "maps", "map of", "scope and sequence",
+    "contents", "sommaire", "table des matières", "inhalt", 
+    "inhaltsverzeichnis", "indice", "índice", "sommario",
+    "sumário", "содержание", "оглавление", "içindekiler",
+    "المحتويات", "目录", "目次", "extracted content", "source page"
 ]
 
 
