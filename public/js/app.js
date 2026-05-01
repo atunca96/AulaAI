@@ -3200,12 +3200,12 @@ async function explainMistake(cardId, correct_answer, student_answer) {
     });
     
     if (res.explanation) {
-      fb.innerHTML = \`
-        <div style="font-weight:600; margin-bottom:6px;">\${t('incorrectAns')} \${correct_answer}</div>
+      fb.innerHTML = `
+        <div style="font-weight:600; margin-bottom:6px;">${t('incorrectAns')} ${correct_answer}</div>
         <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; font-size:13.5px; line-height:1.45;">
-          <span style="font-size:16px; margin-right:4px;">🤖</span> \${res.explanation}
+          <span style="font-size:16px; margin-right:4px;">🤖</span> ${res.explanation}
         </div>
-      \`;
+      `;
       fb.onclick = null;
       fb.classList.remove('clickable-feedback');
       fb.style.cursor = 'default';
