@@ -331,6 +331,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
+    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
+    translation_field = '"translation": "...", ' if is_beginner else ""
+
     prompt = f"""Generate {request_count} multiple-choice questions for a {language} lesson.
     
 TOPIC: {topic_title} ({topic_type})
@@ -354,9 +357,10 @@ RULES:
 9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words (if options are in {language}) or real {instruction_lang} words (if options are in {instruction_lang}) that a student might confuse with the answer. Use words from the same semantic category (e.g. if the answer is a color, all distractors are colors).
 10. NO META: Don't ask about dialogues, speakers, or examples. Test the language itself.
 11. JSON SYNTAX: If you use quotation marks inside your prompt or answer strings, you MUST escape them (e.g., \\").
+{translation_rule}
 
 Return ONLY valid JSON:
-{{"data": [{{"type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."]}}]}}"""
+{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."]}}]}}"""
 
     import random
     seed = random.randint(1000, 9999)
@@ -472,12 +476,13 @@ RULES:
 9. PLAUSIBLE WRONG ANSWERS: Distractors must be real words in the SAME language as the answer.
 10. NO META: Don't ask about dialogues or speakers.
 11. JSON SYNTAX: Escape any internal quotation marks.
+{translation_rule}
 
 ALREADY GENERATED (do NOT repeat these answers):
 {chr(10).join([f"- {q['answer']}" for q in final])}
 
 Return ONLY valid JSON:
-{{"data": [{{"type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."]}}]}}
+{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."]}}]}}
 
 SEED: {new_seed}"""
 
