@@ -2225,9 +2225,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def ticker_worker():
                 p = 10
-                # Quizzes pull ALL questions from AI (no DB recycling)
-                # Realistic estimate: 6 seconds per question + 15s overhead
-                est_time = (count * 6.0) + 15
+                # AI generates in a single fast batch call
+                # Realistic estimate: ~1.5s per question + 5s overhead
+                est_time = (count * 1.5) + 5
                 start_time = time.time()
                 
                 while not state.is_done:
