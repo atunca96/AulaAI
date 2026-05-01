@@ -398,8 +398,8 @@ Return ONLY valid JSON:
             if any(mk in combined for mk in ["person 1", "person 2", "speaker a", "speaker b"]):
                 return None
 
-            # Dedup
-            ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
+            # Dedup (Support all scripts by using \W which removes non-word chars but keeps Unicode letters)
+            ans_key = re.sub(r'[^\w]', '', ans.lower()).strip()
             if ans_key in seen_answers: return None
             
             # Distractor recycling
