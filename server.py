@@ -1710,11 +1710,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def normalize_mcq_punctuation(answer, distractors):
                 """Language-agnostic: strip leading/trailing punctuation from
-                any MCQ option that is a structural outlier (e.g. ¿Puede vs Hola).
-                Uses majority-rule: the most common punctuation pattern is kept."""
+                ALL MCQ options if there is ANY structural disagreement (e.g. ¿Puede vs Hola)."""
                 if not answer or not distractors:
                     return answer, distractors
                 all_opts = [str(answer).strip()] + [str(d).strip() for d in distractors]
+                
                 def _lp(s):
                     i = 0
                     while i < len(s) and not s[i].isalnum() and not s[i].isspace():
@@ -1725,30 +1725,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     while i > 0 and not s[i-1].isalnum() and not s[i-1].isspace():
                         i -= 1
                     return s[i:]
-                # Leading punctuation — majority wins
+                
                 leads = [_lp(o) for o in all_opts]
-                lc = {}
-                for lp in leads: lc[lp] = lc.get(lp, 0) + 1
-                maj_lead = max(lc, key=lc.get)
-                cleaned = []
-                for i, opt in enumerate(all_opts):
-                    if leads[i] and leads[i] != maj_lead:
-                        opt = opt[len(leads[i]):]
-                    cleaned.append(opt.strip())
-                # Trailing punctuation — majority wins
-                trails = [_tp(o) for o in cleaned]
-                tc = {}
-                for tp in trails: tc[tp] = tc.get(tp, 0) + 1
-                maj_trail = max(tc, key=tc.get)
-                result = []
-                for i, opt in enumerate(cleaned):
-                    if trails[i] and trails[i] != maj_trail:
-                        opt = opt[:-len(trails[i])]
-                    result.append(opt.strip())
-                # Guard: if normalization emptied the answer, return originals
-                if not result[0]:
+                if len(set(leads)) > 1:
+                    for i in range(len(all_opts)):
+                        if leads[i]: all_opts[i] = all_opts[i][len(leads[i]):].strip()
+                        
+                trails = [_tp(o) for o in all_opts]
+                if len(set(trails)) > 1:
+                    for i in range(len(all_opts)):
+                        if trails[i]: all_opts[i] = all_opts[i][:-len(trails[i])].strip()
+                        
+                if not all_opts[0]:
                     return str(answer).strip(), [str(d).strip() for d in distractors]
-                return result[0], result[1:]
+                return all_opts[0], all_opts[1:]
 
             with db_connection() as db:
                 # 1. Fetch existing questions for THIS TOPIC from DB

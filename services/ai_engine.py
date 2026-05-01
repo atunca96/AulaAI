@@ -426,7 +426,7 @@ Return ONLY valid JSON:
                 for i in range(4):
                     others = [v for j, v in enumerate(values) if j != i]
                     if len(set(others)) == 1 and values[i] != others[0]:
-                        if key == 'word_count' and abs(values[i] - others[0]) >= 2: return None
+                        if key == 'word_count' and abs(values[i] - others[0]) >= 1: return None
                         if key == 'ascii_ratio' and abs(values[i] - others[0]) >= 0.3: return None
                         if key == 'has_punctuation': return None
             
