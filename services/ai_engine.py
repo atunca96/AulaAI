@@ -950,9 +950,10 @@ def ai_explain_activity(prompt: str, correct_answer: str, student_answer: str, l
     
     system_prompt = (
         f"You are a helpful {clean_lang} language teacher. "
-        "A student answered a question incorrectly. Your job is to briefly explain WHY their answer is wrong "
-        "and WHY the correct answer is right. Keep it extremely concise, supportive, and educational. "
-        "Do not give a long lecture. 1-2 short sentences max. "
+        "Your student just answered a question incorrectly. Explain the mistake DIRECTLY to them "
+        "(use 'you', not 'the student'). Be warm, encouraging, and conversational. "
+        "Explain WHY their answer is wrong and WHY the correct answer is right in a simple, learner-friendly way. "
+        "Keep it extremely concise (1-2 short sentences max). Avoid sounding robotic or overly academic. "
         "CRITICAL: You MUST write your explanation entirely in English, regardless of the language being taught."
     )
     
