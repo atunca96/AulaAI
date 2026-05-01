@@ -3002,8 +3002,24 @@ async function launchActivity() {
   }
 }
 
+function renderPromptHTML(a) {
+  let p = formatActivityData(a.prompt);
+  p = translatePrompt(p); // Preserve existing localization mechanism
+  
+  const level = currentCourse?.level || '';
+  const isBeginner = level.includes('A1') || level.includes('A2');
+  
+  if (isBeginner && a.translation) {
+    return `<div class="activity-prompt-wrapper" style="cursor:pointer; display:block; margin-bottom:16px;" onclick="const t=this.querySelector('.activity-translation'); if(t.style.display==='none'){t.style.display='block';}else{t.style.display='none';}" title="Click to reveal translation">
+      <div class="activity-prompt" style="display:inline; border-bottom:1px dashed var(--text-muted); padding-bottom:2px;">${p}</div>
+      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:12px; display:none; padding:10px 14px; background:rgba(0,0,0,0.15); border-radius:8px; border-left:3px solid var(--accent);"><i>${esc(a.translation)}</i></div>
+    </div>`;
+  }
+  return `<div class="activity-prompt">${p}</div>`;
+}
+
 function renderActivityCard(a, idx, ctx) {
-  const p = formatActivityData(a.prompt);
+  const promptHTML = renderPromptHTML(a);
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const editBtns = isLecturer ? `
     <div style="position:absolute; top:12px; right:12px; display:flex; gap:6px; z-index:10;">
@@ -3012,8 +3028,8 @@ function renderActivityCard(a, idx, ctx) {
     </div>
   ` : '';
 
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div><div class="activity-prompt">${p}</div><div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div><div class="activity-prompt">${p}</div><div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${esc(a.answer)}','${ctx}-${idx}','${esc(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${esc(a.answer)}','${esc(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
@@ -3462,7 +3478,7 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
-  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card"><div class="activity-prompt">${translatePrompt(q.prompt)}</div>` +
+  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q)}` +
     (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
@@ -4471,7 +4487,7 @@ function showAssignmentQuestion(area) {
       <div class="activity-type-label" style="margin-bottom:10px">
         ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
       </div>
-      <div class="activity-prompt" style="font-size:16px;line-height:1.6">${formatActivityData(q.prompt)}</div>
+      <div style="font-size:16px;line-height:1.6">${renderPromptHTML(q)}</div>
       ${answerHTML}
     </div>`;
 
