@@ -3,7 +3,10 @@ nixPkgs = ["python311"]
 aptPkgs = ["tesseract-ocr"]
 
 [phases.install]
-cmds = ["pip install --no-cache-dir --prefer-binary -r requirements.txt"]
+cmds = [
+    "apt-get update -qq && apt-get install -y -qq tesseract-ocr 2>/dev/null || true",
+    "pip install --no-cache-dir --prefer-binary -r requirements.txt"
+]
 cacheDirectories = ["/root/.cache/pip"]
 
 [start]
