@@ -95,7 +95,7 @@ def is_image_based_pdf(pdf_path, sample_pages=5):
 _tesseract_configured = False
 
 def _get_tesseract():
-    """Import pytesseract and auto-discover the tesseract binary."""
+    """Import pytesseract and auto-discover or auto-install the tesseract binary."""
     global _tesseract_configured
     try:
         import pytesseract
@@ -107,59 +107,56 @@ def _get_tesseract():
     if not _tesseract_configured:
         _tesseract_configured = True
 
-        # Check if tesseract is already in PATH
         import shutil
+        import subprocess
+
+        # Check if tesseract is already in PATH
         if shutil.which("tesseract"):
             _log(f"tesseract found in PATH: {shutil.which('tesseract')}")
             return pytesseract
 
-        # Auto-discover in common locations (nix store, system paths)
-        import subprocess
-        import glob
-
-        search_paths = [
-            "/usr/bin/tesseract",
-            "/usr/local/bin/tesseract",
-        ]
-        # Search nix store
-        nix_matches = glob.glob("/nix/store/*/bin/tesseract")
-        search_paths.extend(nix_matches)
-
-        for path in search_paths:
+        # Check common locations
+        for path in ["/usr/bin/tesseract", "/usr/local/bin/tesseract"]:
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 pytesseract.pytesseract.tesseract_cmd = path
-                _log(f"tesseract binary found at: {path}")
-
-                # Also find tessdata directory near this binary
-                bin_dir = os.path.dirname(path)
-                store_dir = os.path.dirname(bin_dir)
-                tessdata_candidates = [
-                    os.path.join(store_dir, "share", "tessdata"),
-                    os.path.join(store_dir, "share", "tesseract", "tessdata"),
-                ]
-                for td in tessdata_candidates:
-                    if os.path.isdir(td):
-                        os.environ["TESSDATA_PREFIX"] = td
-                        _log(f"TESSDATA_PREFIX set to: {td}")
-                        break
+                _log(f"tesseract found at: {path}")
                 return pytesseract
 
-        # Last resort: try `find` command
+        # Search nix store
+        import glob
+        for path in glob.glob("/nix/store/*/bin/tesseract"):
+            if os.access(path, os.X_OK):
+                pytesseract.pytesseract.tesseract_cmd = path
+                _log(f"tesseract found in nix store: {path}")
+                return pytesseract
+
+        # NOT FOUND — attempt runtime install via apt-get
+        _log("tesseract not found — attempting runtime install via apt-get...")
         try:
             result = subprocess.run(
-                ["find", "/nix", "-name", "tesseract", "-type", "f"],
-                capture_output=True, text=True, timeout=5
+                ["apt-get", "update", "-qq"],
+                capture_output=True, text=True, timeout=30
             )
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line and os.access(line, os.X_OK):
-                    pytesseract.pytesseract.tesseract_cmd = line
-                    _log(f"tesseract found via find: {line}")
+            result = subprocess.run(
+                ["apt-get", "install", "-y", "-qq", "tesseract-ocr"],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0:
+                _log("tesseract-ocr installed successfully via apt-get")
+                # Verify it's now available
+                if shutil.which("tesseract"):
+                    _log(f"tesseract now in PATH: {shutil.which('tesseract')}")
                     return pytesseract
-        except:
-            pass
+                elif os.path.isfile("/usr/bin/tesseract"):
+                    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+                    _log("tesseract available at /usr/bin/tesseract")
+                    return pytesseract
+            else:
+                _log(f"apt-get install failed: {result.stderr[:200]}")
+        except Exception as e:
+            _log(f"Runtime install failed: {e}")
 
-        _log("tesseract binary not found in any known location")
+        _log("tesseract could not be installed — OCR unavailable")
 
     return pytesseract
 
