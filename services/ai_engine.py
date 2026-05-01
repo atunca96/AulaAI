@@ -222,14 +222,18 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     elif level in ['C1', 'C2']:
         level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
-    # BILINGUAL GUARD: Force English explanations for all levels
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text must be in English (including instructions, grammar explanations, teacher notes, student guidance, and activity directions). The ACTUAL learning content MUST remain in {language} (including vocabulary, examples, dialogues, model phrases, answer choices, and forms being taught)."
+    # BILINGUAL GUARD: Force English explanations for all levels, but STRICTLY for beginners
+    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text MUST be in English. The ACTUAL learning content (words, sentences) MUST remain in {language}."
+    if is_beginner:
+        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners! ALL titles, explanations, grammar rules, and instructions MUST be in English. If the SOURCE TEXT is in {language}, you MUST translate its concepts and explain them in English."
 
     source_rule = ""
     if source_text:
         source_rule = f"""
         SOURCE TEXT REQUIREMENT:
-        You MUST use the following text as your EXCLUSIVE source. Format the relevant section for '{topic}'.
+        You MUST use the following text as your core source. Extract the concepts for '{topic}'.
+        (If the source is in {language} and the student is {level}, translate the explanations into English!)
         
         SOURCE TEXT:
         {source_text[:10000]}
