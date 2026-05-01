@@ -1543,16 +1543,18 @@ async function selectClassroom(id, isLecturer = true) {
   }
 
   if (currentUser.role === 'student') {
-    if (sStudyTabBtn) sStudyTabBtn.style.display = isAiGenerated ? '' : 'none';
-    if (sBookTabBtn) sBookTabBtn.style.display = isAiGenerated ? 'none' : (pdfViewerSrc ? '' : 'none');
+    if (sStudyTabBtn) sStudyTabBtn.style.display = '';
+    if (sBookTabBtn) sBookTabBtn.style.display = pdfViewerSrc ? '' : 'none';
 
     const sMainTitle = document.getElementById('s-study-tab-main-title');
     if (sMainTitle) {
-      sMainTitle.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('study') || 'Study Lessons');
+      sMainTitle.textContent = t('study') || 'Study Lessons';
     }
   }
 
   if (currentUser.role === 'student') {
+    renderStudyBook();
+  } else if (currentUser.role === 'lecturer') {
     renderStudyBook();
   }
 
@@ -1561,15 +1563,11 @@ async function selectClassroom(id, isLecturer = true) {
     const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
     let finalTab = targetTab;
 
-    // If it's a PDF-only course, but they were on the 'Material' (AI) tab, move them to 'book' (PDF)
-    if (!isAiGenerated && targetTab === 'book') finalTab = 'book';
-    // If it's AI-generated, allow the 'book' tab (which is our Material tab)
-
     const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
     if (tabBtn) switchTab(tabBtn);
     await initLecturer();
 
-    if (finalTab === 'book' && isAiGenerated) {
+    if (finalTab === 'book') {
       renderStudyBook();
       const lastTopic = localStorage.getItem('aula_last_topic');
       const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
@@ -1578,8 +1576,6 @@ async function selectClassroom(id, isLecturer = true) {
   } else {
     showScreen('student-dashboard');
     let targetTab = localStorage.getItem('aula_last_tab') || 's-home';
-    if (!isAiGenerated && targetTab === 's-study-tab') targetTab = 's-home';
-    if (isAiGenerated && targetTab === 's-book') targetTab = 's-study-tab';
 
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
     if (tabBtn) switchTab(tabBtn, true); // skipLoad=true since we call initStudent after
@@ -1589,7 +1585,7 @@ async function selectClassroom(id, isLecturer = true) {
     }
     await initStudent();
 
-    if (targetTab === 's-study-tab' && isAiGenerated) {
+    if (targetTab === 's-study-tab') {
       const lastTopic = localStorage.getItem('aula_last_topic');
       const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
       if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
@@ -3891,7 +3887,7 @@ function renderStudentHome(data) {
 
 function loadStudentPractice() {
   document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
-    `<div class="topic-practice-card" onclick="startPractice('${tp.id}', '${esc(tp.title)}')">
+    `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
         <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
       </div>
