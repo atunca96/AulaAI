@@ -92,14 +92,76 @@ def is_image_based_pdf(pdf_path, sample_pages=5):
 
 # ── Local OCR via pytesseract ────────────────────────────────────────
 
+_tesseract_configured = False
+
 def _get_tesseract():
-    """Import and return pytesseract, or None if unavailable."""
+    """Import pytesseract and auto-discover the tesseract binary."""
+    global _tesseract_configured
     try:
         import pytesseract
-        return pytesseract
     except ImportError:
         _log("pytesseract not installed — OCR unavailable")
         return None
+
+    # Only do path discovery once
+    if not _tesseract_configured:
+        _tesseract_configured = True
+
+        # Check if tesseract is already in PATH
+        import shutil
+        if shutil.which("tesseract"):
+            _log(f"tesseract found in PATH: {shutil.which('tesseract')}")
+            return pytesseract
+
+        # Auto-discover in common locations (nix store, system paths)
+        import subprocess
+        import glob
+
+        search_paths = [
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+        ]
+        # Search nix store
+        nix_matches = glob.glob("/nix/store/*/bin/tesseract")
+        search_paths.extend(nix_matches)
+
+        for path in search_paths:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                pytesseract.pytesseract.tesseract_cmd = path
+                _log(f"tesseract binary found at: {path}")
+
+                # Also find tessdata directory near this binary
+                bin_dir = os.path.dirname(path)
+                store_dir = os.path.dirname(bin_dir)
+                tessdata_candidates = [
+                    os.path.join(store_dir, "share", "tessdata"),
+                    os.path.join(store_dir, "share", "tesseract", "tessdata"),
+                ]
+                for td in tessdata_candidates:
+                    if os.path.isdir(td):
+                        os.environ["TESSDATA_PREFIX"] = td
+                        _log(f"TESSDATA_PREFIX set to: {td}")
+                        break
+                return pytesseract
+
+        # Last resort: try `find` command
+        try:
+            result = subprocess.run(
+                ["find", "/nix", "-name", "tesseract", "-type", "f"],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line and os.access(line, os.X_OK):
+                    pytesseract.pytesseract.tesseract_cmd = line
+                    _log(f"tesseract found via find: {line}")
+                    return pytesseract
+        except:
+            pass
+
+        _log("tesseract binary not found in any known location")
+
+    return pytesseract
 
 
 def ocr_page(page, page_num=0, dpi=300):

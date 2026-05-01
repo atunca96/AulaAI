@@ -7,5 +7,8 @@ nixPkgs = ["python311", "tesseract"]
 cmds = ["pip install --no-cache-dir --prefer-binary -r requirements.txt"]
 cacheDirectories = ["/root/.cache/pip"]
 
+[phases.build]
+cmds = ["which tesseract && tesseract --version || echo 'WARN: tesseract not in PATH'", "find /nix -name 'tesseract' -type f 2>/dev/null | head -5 || true"]
+
 [start]
 cmd = "python server.py"
