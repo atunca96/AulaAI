@@ -3891,10 +3891,9 @@ function renderStudentHome(data) {
 
 function loadStudentPractice() {
   document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
-    `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
+    `<div class="topic-practice-card" onclick="startPractice('${tp.id}', '${esc(tp.title)}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
         <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
-        ${tp.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${tp.pdf_url}${tp.page_number ? '#page=' + tp.page_number : ''}', '_blank')">📖</button>` : ''}
       </div>
       <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
       <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${tp.difficulty}</div>
