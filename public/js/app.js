@@ -4529,14 +4529,13 @@ async function submitAssignment(area) {
 
 // ── Digital Study Book (AI Architect) ──
 function renderStudyBook() {
-  const container = document.getElementById('s-ai-book-container');
+  const isStudent = currentUser.role === 'student';
+  const containerId = isStudent ? 's-ai-book-container' : 'ai-book-container';
+  const container = document.getElementById(containerId);
   const fallback = document.getElementById('s-ai-book-fallback');
-  const isAiGenerated = currentCourse && currentCourse.textbook === 'AI Generated';
 
-  if (currentUser.role === 'student') {
-    if (container) container.classList.remove('hidden');
-    if (fallback) fallback.classList.add('hidden');
-  }
+  if (container) container.classList.remove('hidden');
+  if (isStudent && fallback) fallback.classList.add('hidden');
 
   const tocId = currentUser.role === 'lecturer' ? 'ai-book-toc' : 's-ai-book-toc';
   const toc = document.getElementById(tocId);

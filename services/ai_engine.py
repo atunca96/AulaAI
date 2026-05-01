@@ -398,47 +398,6 @@ Return ONLY valid JSON:
             if any(mk in combined for mk in ["person 1", "person 2", "speaker a", "speaker b"]):
                 return None
 
-            # ── UNIVERSAL OUTLIER DETECTOR ──
-            def _option_fingerprint(text):
-                words = text.split()
-                ascii_chars = sum(1 for c in text if ord(c) < 128)
-                total_chars = max(len(text), 1)
-                has_special = any(c.lower() in "áéíóúñü¡¿" for c in text)
-                return {
-                    'word_count': len(words),
-                    'char_len': len(text),
-                    'ascii_ratio': round(ascii_chars / total_chars, 1),
-                    'has_special': has_special,
-                    'has_upper_mid': any(c.isupper() for c in text[1:]) if len(text) > 1 else False,
-                    'has_punctuation': any(c in text for c in '.,!?;:…'),
-                    'starts_upper': text[0].isupper() if text else False,
-                }
-            
-            fingerprints = [_option_fingerprint(o) for o in all_opts]
-            
-            # Numeric and Structural Outliers
-            for key in ['word_count', 'ascii_ratio', 'has_punctuation']:
-                values = [fp[key] for fp in fingerprints]
-                for i in range(4):
-                    others = [v for j, v in enumerate(values) if j != i]
-                    if len(set(others)) == 1 and values[i] != others[0]:
-                        if key == 'word_count' and abs(values[i] - others[0]) >= 1: return None
-                        if key == 'ascii_ratio' and abs(values[i] - others[0]) >= 0.3: return None
-                        if key == 'has_punctuation': return None
-            
-            char_lens = [fp['char_len'] for fp in fingerprints]
-            for i, cl in enumerate(char_lens):
-                others_avg = sum(cl2 for j, cl2 in enumerate(char_lens) if j != i) / 3
-                if others_avg > 0 and (cl / others_avg > 2.5 or cl / others_avg < 0.3):
-                    return None
-
-            # Mixed 2-word categories
-            word_counts = [len(o.split()) for o in all_opts]
-            if all(wc == 2 for wc in word_counts):
-                firsts = set(o.split()[0].lower() for o in all_opts)
-                seconds = set(o.split()[1].lower() for o in all_opts)
-                if len(firsts) == 4 and len(seconds) == 4: return None
-
             # Dedup
             ans_key = re.sub(r'[^a-z0-9]', '', ans.lower()).strip()
             if ans_key in seen_answers: return None
