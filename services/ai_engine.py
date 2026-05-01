@@ -748,3 +748,33 @@ def ai_explain_word(word: str, language: str, context: Optional[str] = None) -> 
         "usage": "Try looking at the surrounding sentence for more context.",
         "tip": f"AI Diagnostic: {error_note}. Please try again later!"
     }
+
+def ai_explain_activity(prompt: str, correct_answer: str, student_answer: str, language: str) -> Dict[str, str]:
+    """Generates a brief educational explanation for why a student's answer is incorrect in an MCQ/Fill-in-the-blank activity."""
+    clean_lang = language.split('(')[0].strip()
+    
+    system_prompt = (
+        f"You are a helpful {clean_lang} language teacher. "
+        "A student answered a question incorrectly. Your job is to briefly explain WHY their answer is wrong "
+        "and WHY the correct answer is right. Keep it extremely concise, supportive, and educational. "
+        "Do not give a long lecture. 1-2 short sentences max."
+    )
+    
+    user_prompt = (
+        f"Question: {prompt}\n"
+        f"Correct Answer: {correct_answer}\n"
+        f"Student Answer: {student_answer}\n"
+        "Explain the mistake."
+    )
+    
+    user_prompt += '\nReturn JSON: {"explanation": "..."}'
+    
+    result = _call_ai([
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ], max_tokens=200, temperature=0.3)
+    
+    if result and "explanation" in result:
+        return result
+        
+    return {"explanation": f"The correct answer is {correct_answer}. Your answer was {student_answer}."}

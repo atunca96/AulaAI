@@ -594,6 +594,8 @@ body {
 }
 .feedback-msg.correct { background: var(--success-bg); color: var(--success); }
 .feedback-msg.incorrect { background: var(--danger-bg); color: var(--danger); }
+.feedback-msg.clickable-feedback { cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
+.feedback-msg.clickable-feedback:hover { filter: brightness(1.1); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
 
 /* ── Roster ──────────────────────────────────────────── */
 .roster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }

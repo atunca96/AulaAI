@@ -3147,9 +3147,16 @@ async function checkMCQ(btn, answer, cardId, qid) {
   });
 
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
-  document.getElementById('fb-' + cardId).classList.remove('hidden');
-  document.getElementById('fb-' + cardId).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  document.getElementById('fb-' + cardId).textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
+  const fb = document.getElementById('fb-' + cardId);
+  fb.classList.remove('hidden');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect clickable-feedback');
+  if (isCorrect) {
+    fb.textContent = t('correctMsg');
+    fb.onclick = null;
+  } else {
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">🧠 Tap to explain</span>`;
+    fb.onclick = () => explainMistake(cardId, answer, picked);
+  }
   if (cardId.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: picked, correct_answer: answer, question_type: 'mcq' } });
 }
 
@@ -3161,10 +3168,56 @@ async function checkFill(id, answer, qid) {
   const isCorrect = val.toLowerCase() === answer.toLowerCase();
   inp.disabled = true;
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
-  document.getElementById('fb-' + id).classList.remove('hidden');
-  document.getElementById('fb-' + id).className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  document.getElementById('fb-' + id).textContent = isCorrect ? t('correctMsg') : `${t('incorrectAns')} ${answer}`;
+  const fb = document.getElementById('fb-' + id);
+  fb.classList.remove('hidden');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect clickable-feedback');
+  if (isCorrect) {
+    fb.textContent = t('correctMsg');
+    fb.onclick = null;
+  } else {
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">🧠 Tap to explain</span>`;
+    fb.onclick = () => explainMistake(id, answer, val);
+  }
   if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' } });
+}
+
+async function explainMistake(cardId, correct_answer, student_answer) {
+  const fb = document.getElementById('fb-' + cardId);
+  if (fb.dataset.explaining) return;
+  fb.dataset.explaining = "true";
+  
+  const originalHtml = fb.innerHTML;
+  fb.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span>🧠</span> <span style="font-size:12px; animation:pulse 1.5s infinite;">AI is analyzing your answer...</span></div>`;
+  
+  const card = document.getElementById(cardId);
+  const prompt = card.querySelector('.activity-prompt').innerText;
+  const language = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
+  
+  try {
+    const res = await api('/activity/explain', {
+      method: 'POST',
+      body: { prompt, correct_answer, student_answer, language }
+    });
+    
+    if (res.explanation) {
+      fb.innerHTML = \`
+        <div style="font-weight:600; margin-bottom:6px;">\${t('incorrectAns')} \${correct_answer}</div>
+        <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; font-size:13.5px; line-height:1.45;">
+          <span style="font-size:16px; margin-right:4px;">🤖</span> \${res.explanation}
+        </div>
+      \`;
+      fb.onclick = null;
+      fb.classList.remove('clickable-feedback');
+      fb.style.cursor = 'default';
+    } else {
+      fb.innerHTML = originalHtml;
+      fb.dataset.explaining = "";
+    }
+  } catch (e) {
+    console.error("AI Explanation error:", e);
+    fb.innerHTML = originalHtml;
+    fb.dataset.explaining = "";
+  }
 }
 
 function moveDialogueLine(btn, direction) {

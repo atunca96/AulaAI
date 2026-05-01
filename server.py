@@ -33,7 +33,7 @@ sys.path.insert(0, ROOT_DIR)
 from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
-from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch, ai_explain_word
+from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch, ai_explain_word, ai_explain_activity
 from services.pdf_pipeline import process_pdf_to_classroom
 from services.state import bump_version, get_version
 from services.dictionary_service import get_definition, clean_word
@@ -914,6 +914,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._submit_quiz()
         elif path == "/api/activity/respond":
             return self._submit_activity_response()
+        elif path == "/api/activity/explain":
+            return self._explain_activity_question()
         elif path == "/api/assignment/create":
             return self._create_assignment()
         elif path == "/api/assignment/submit":
@@ -2413,6 +2415,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             "results": results,
             "question_count": len(answers)
         })
+
+    def _explain_activity_question(self):
+        body = self._read_body()
+        prompt = body.get("prompt")
+        correct_answer = body.get("correct_answer")
+        student_answer = body.get("student_answer")
+        language = body.get("language", "English")
+        
+        if not all([prompt, correct_answer, student_answer]):
+            return self._send_error("Missing required fields for explanation", 400)
+            
+        result = ai_explain_activity(prompt, correct_answer, student_answer, language)
+        return self._send_json(result)
 
     def _submit_activity_response(self):
         body = self._read_body()
