@@ -2264,6 +2264,7 @@ function switchTab(btn, skipLoad = false) {
   panels.forEach(p => {
     if (p.id === 'tab-' + tabId) {
       p.classList.add('active');
+      p.classList.remove('hidden');
       p.style.display = 'block';
       if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();
     } else {
