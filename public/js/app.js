@@ -3005,11 +3005,11 @@ async function launchActivity() {
   }
 }
 
-function renderPromptHTML(a) {
+function renderPromptHTML(a, isQuiz = false) {
   let p = formatActivityData(a.prompt);
   p = translatePrompt(p); // Preserve existing localization mechanism
   
-  if (a.translation) {
+  if (a.translation && !isQuiz) {
     return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
       onmouseenter="this.querySelector('.activity-translation').style.display='block'" 
       onmouseleave="this.querySelector('.activity-translation').style.display='none'">
@@ -3480,7 +3480,7 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
-  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q)}` +
+  area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
     (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${esc(q.id)}','${esc(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${esc(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${esc(q.id)}',document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
