@@ -2156,8 +2156,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         quiz_id = _uid()
         with db_connection() as db:
-            db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
-                       (quiz_id, course_id, title, None if chapter_id == "all" else chapter_id))
+            db.execute("INSERT INTO quizzes (id, course_id, title, due_date, is_published, created_at) VALUES (?,?,?,datetime('now','+1 day'),1,datetime('now'))",
+                       (quiz_id, course_id, title))
 
             for i, q in enumerate(questions):
                 db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
@@ -2315,8 +2315,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
             pub_id = _uid()
             if pub_type == "quiz":
-                db.execute("INSERT INTO quizzes VALUES (?,?,?,?,datetime('now'),datetime('now','+1 day'),15,datetime('now'))",
-                           (pub_id, course_id, title, None if chapter_id == "all" else chapter_id))
+                db.execute("INSERT INTO quizzes (id, course_id, title, due_date, is_published, created_at) VALUES (?,?,?,datetime('now','+1 day'),1,datetime('now'))",
+                           (pub_id, course_id, title))
             else:
                 db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
                            (pub_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
