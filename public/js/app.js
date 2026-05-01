@@ -1525,7 +1525,6 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
 
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
-  document.querySelectorAll('.study-container').forEach(el => el.classList.toggle('hidden', !isAiGenerated));
 
   const lectBookTab = document.getElementById('lecturer-book-tab');
   const sStudyTabBtn = document.getElementById('nav-s-study-tab');
@@ -4535,14 +4534,8 @@ function renderStudyBook() {
   const isAiGenerated = currentCourse && currentCourse.textbook === 'AI Generated';
 
   if (currentUser.role === 'student') {
-    if (!isAiGenerated) {
-      if (container) container.classList.add('hidden');
-      if (fallback) fallback.classList.remove('hidden');
-      return;
-    } else {
-      if (container) container.classList.remove('hidden');
-      if (fallback) fallback.classList.add('hidden');
-    }
+    if (container) container.classList.remove('hidden');
+    if (fallback) fallback.classList.add('hidden');
   }
 
   const tocId = currentUser.role === 'lecturer' ? 'ai-book-toc' : 's-ai-book-toc';
