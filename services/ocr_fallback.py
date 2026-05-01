@@ -137,9 +137,27 @@ def _get_tesseract():
                 ["apt-get", "update", "-qq"],
                 capture_output=True, text=True, timeout=30
             )
+            # Install tesseract + all 14 AulaAI language packs
+            lang_packs = [
+                "tesseract-ocr",
+                "tesseract-ocr-spa",  # Spanish
+                "tesseract-ocr-deu",  # German
+                "tesseract-ocr-fra",  # French
+                "tesseract-ocr-ita",  # Italian
+                "tesseract-ocr-por",  # Portuguese
+                "tesseract-ocr-rus",  # Russian
+                "tesseract-ocr-chi-sim",  # Chinese (Simplified)
+                "tesseract-ocr-jpn",  # Japanese
+                "tesseract-ocr-ara",  # Arabic
+                "tesseract-ocr-tur",  # Turkish
+                "tesseract-ocr-nld",  # Dutch
+                "tesseract-ocr-swe",  # Swedish
+                "tesseract-ocr-kor",  # Korean
+                "tesseract-ocr-ell",  # Greek
+            ]
             result = subprocess.run(
-                ["apt-get", "install", "-y", "-qq", "tesseract-ocr"],
-                capture_output=True, text=True, timeout=60
+                ["apt-get", "install", "-y", "-qq"] + lang_packs,
+                capture_output=True, text=True, timeout=120
             )
             if result.returncode == 0:
                 _log("tesseract-ocr installed successfully via apt-get")
@@ -161,9 +179,26 @@ def _get_tesseract():
     return pytesseract
 
 
-def ocr_page(page, page_num=0, dpi=300):
+# Map AulaAI language names → tesseract language codes
+TESS_LANG_MAP = {
+    "spanish": "spa", "german": "deu", "french": "fra", "italian": "ita",
+    "portuguese": "por", "russian": "rus", "chinese": "chi_sim",
+    "japanese": "jpn", "arabic": "ara", "turkish": "tur", "dutch": "nld",
+    "swedish": "swe", "korean": "kor", "greek": "ell", "english": "eng",
+    "persian": "fas",
+}
+
+
+def ocr_page(page, page_num=0, dpi=300, language=None):
     """
     OCR a single PyMuPDF page using pytesseract.
+    
+    Args:
+        page: PyMuPDF page object
+        page_num: Page number for logging
+        dpi: Render resolution (higher = better OCR, slower)
+        language: AulaAI language name (e.g. 'Russian', 'Spanish') for better accuracy
+    
     Returns the extracted text string, or empty string on failure.
     """
     pytesseract = _get_tesseract()
@@ -183,11 +218,19 @@ def ocr_page(page, page_num=0, dpi=300):
         img_data = pix.tobytes("png")
         img = Image.open(io.BytesIO(img_data))
 
-        # Run tesseract OCR
-        text = pytesseract.image_to_string(img)
+        # Determine tesseract language code
+        tess_lang = "eng"
+        if language:
+            tess_lang = TESS_LANG_MAP.get(language.lower(), "eng")
+            # Use both the target language + English for mixed-language textbooks
+            if tess_lang != "eng":
+                tess_lang = f"{tess_lang}+eng"
+
+        # Run tesseract OCR with language-specific model
+        text = pytesseract.image_to_string(img, lang=tess_lang)
 
         if text and text.strip():
-            _log(f"Page {page_num}: Extracted {len(text.strip())} chars via tesseract")
+            _log(f"Page {page_num}: Extracted {len(text.strip())} chars via tesseract (lang={tess_lang})")
 
         return text.strip() if text else ""
 
