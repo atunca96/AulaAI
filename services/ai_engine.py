@@ -398,8 +398,15 @@ Return ONLY valid JSON:
                 print(f"[V2-REJECT] Comma-joined option")
                 return None
             
-            # Answer word inside prompt (Ghost)
-            if len(ans) > 3 and ans.lower() in prompt_text.lower():
+            # Answer word inside prompt (Ghost) - catch even short words
+            ans_lower = ans.lower()
+            prompt_lower = prompt_text.lower()
+            if len(ans) > 1 and ans_lower in prompt_lower:
+                print(f"[V2-REJECT] Answer '{ans}' found inside prompt")
+                return None
+            # Quoted answer check: "uno", 'uno', «uno»
+            if f'"{ans_lower}"' in prompt_lower or f"'{ans_lower}'" in prompt_lower or f'«{ans_lower}»' in prompt_lower:
+                print(f"[V2-REJECT] Answer '{ans}' quoted inside prompt")
                 return None
             
             # Meta-question labels
