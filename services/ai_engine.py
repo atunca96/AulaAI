@@ -222,8 +222,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     elif level in ['C1', 'C2']:
         level_guidance = f"IMPORTANT: This is a {level} (Advanced/Proficient) lesson. Content MUST be highly sophisticated and 100% accurate. Use professional, academic, or literary {language}. Focus on subtle nuances, complex abstractions, and near-native fluency. ZERO TOLERANCE for basic structures or inaccurate/clunky idioms."
 
-    # BILINGUAL GUARD: Force English for A1/A2
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text must be in English (including instructions, grammar explanations, teacher notes, student guidance, and activity directions). The ACTUAL learning content MUST remain in {language} (including vocabulary, examples, dialogues, model phrases, answer choices, and forms being taught)." if level in ['A1', 'A2'] else f"Use {language} for everything."
+    # BILINGUAL GUARD: Force English explanations for all levels
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text must be in English (including instructions, grammar explanations, teacher notes, student guidance, and activity directions). The ACTUAL learning content MUST remain in {language} (including vocabulary, examples, dialogues, model phrases, answer choices, and forms being taught)."
 
     source_rule = ""
     if source_text:
@@ -237,13 +237,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     else:
         source_rule = "NO SOURCE TEXT: Use your internal knowledge to create a concise, high-value lesson. Avoid filler text. Focus on pure vocabulary and grammar facts."
 
-    # Determine the primary instruction based on level
-    if level in ['A1', 'A2']:
-        primary_command = f"Write an English-instruction {level} lesson teaching {language} for: '{topic}' ({topic_type})."
-        json_language_rule = f"8. JSON LANGUAGE: For 'title' and 'text' fields, you MUST use English. For 'term', 'translation', and 'speaker'/'text' inside examples, use {language} where appropriate."
-    else:
-        primary_command = f"Write a {language} {level} lesson for: '{topic}' ({topic_type})."
-        json_language_rule = f"8. JSON LANGUAGE: Use {language} for all JSON fields."
+    # Always use English for explanations and instructions
+    primary_command = f"Write an English-instruction {level} lesson teaching {language} for: '{topic}' ({topic_type})."
+    json_language_rule = f"8. JSON LANGUAGE: For 'title' and 'text' fields, you MUST use English. For 'term', 'translation', and 'speaker'/'text' inside examples, use {language} where appropriate."
 
     prompt = f"""
     {primary_command}
