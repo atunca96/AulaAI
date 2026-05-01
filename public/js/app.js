@@ -3006,13 +3006,12 @@ function renderPromptHTML(a) {
   let p = formatActivityData(a.prompt);
   p = translatePrompt(p); // Preserve existing localization mechanism
   
-  const level = currentCourse?.level || '';
-  const isBeginner = level.includes('A1') || level.includes('A2');
-  
-  if (isBeginner && a.translation) {
-    return `<div class="activity-prompt-wrapper" style="cursor:pointer; display:block; margin-bottom:16px;" onclick="const t=this.querySelector('.activity-translation'); if(t.style.display==='none'){t.style.display='block';}else{t.style.display='none';}" title="Click to reveal translation">
+  if (a.translation) {
+    return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
+      onmouseenter="this.querySelector('.activity-translation').style.display='block'" 
+      onmouseleave="this.querySelector('.activity-translation').style.display='none'">
       <div class="activity-prompt" style="display:inline; border-bottom:1px dashed var(--text-muted); padding-bottom:2px;">${p}</div>
-      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:12px; display:none; padding:10px 14px; background:rgba(0,0,0,0.15); border-radius:8px; border-left:3px solid var(--accent);"><i>${esc(a.translation)}</i></div>
+      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:8px; display:none; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; border-left:3px solid var(--accent); position:absolute; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.5); width:max-content; max-width:400px; left:0; top:100%;"><i>${esc(a.translation)}</i></div>
     </div>`;
   }
   return `<div class="activity-prompt">${p}</div>`;
