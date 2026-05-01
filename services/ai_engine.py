@@ -550,6 +550,10 @@ SEED: {new_seed}"""
         print(f"[AI-V2] FINAL: requested={c} returned={final_count}")
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={final_count}\n")
+        # Strip internal tracking keys before returning (frozenset is not JSON-serializable)
+        for q in final:
+            q.pop("ans_key", None)
+            q.pop("dist_set", None)
         return final[:c]
     except Exception as e:
         print(f"[AI-V2] Error: {e}")
