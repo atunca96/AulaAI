@@ -209,21 +209,24 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         print(f"[DEBUG] generate_quiz: topic_ids count={len(topic_ids)}, unique chapters identified={len(all_chapter_ids)}: {all_chapter_ids}")
         
         # Pull existing approved questions to fill part of the quota
-        for tid in topic_ids:
-            rows = c.execute(
-                "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
-                (tid,)
-            ).fetchall()
-            
-            for row in rows:
-                q = dict(row)
-                try:
-                    raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                    q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                except: q["distractors"] = []
-                if not q["distractors"]: continue
-                q["chapter_id"] = topic_to_chapter.get(tid, "unknown")
-                chapter_groups[q["chapter_id"]].append(q)
+        # Skip DB pull for quizzes — existing questions may be in English (A1/A2 practice)
+        # and quizzes must be strictly in the target language.
+        if not is_quiz:
+            for tid in topic_ids:
+                rows = c.execute(
+                    "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
+                    (tid,)
+                ).fetchall()
+                
+                for row in rows:
+                    q = dict(row)
+                    try:
+                        raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                        q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
+                    except: q["distractors"] = []
+                    if not q["distractors"]: continue
+                    q["chapter_id"] = topic_to_chapter.get(tid, "unknown")
+                    chapter_groups[q["chapter_id"]].append(q)
 
     # 2. Balanced Assembly
     questions = []
@@ -276,7 +279,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=needed,
-            existing_questions=questions
+            existing_questions=questions,
+            is_quiz=is_quiz
         )
         if new_qs:
             with db_connection() as db_conn:
