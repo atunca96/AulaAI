@@ -358,6 +358,7 @@ RULES:
 6. CATEGORY LOCK: If the answer is a noun, all distractors are nouns. If a verb, all verbs. If an article+noun, all are article+noun with the SAME noun. If a sentence, all are sentences of similar length.
 7. NO GIVEAWAYS: Don't put the answer word inside the question. Don't make one option obviously longer/shorter than the others.
 8. MAXIMUM VARIETY & RANDOMIZATION: Do NOT test items in the sequential order they appear in the source material. Pick concepts randomly from across the entire material. Vary question styles: meaning, translation, fill-in-blank, grammar selection. NEVER use the exact same set of distractors twice.
+8b. TOPIC DISTRIBUTION: The source material contains MULTIPLE topics. You MUST spread questions EVENLY across ALL topics listed. Do NOT cluster questions from a single topic. If 10 questions are needed and 5 topics exist, generate ~2 questions per topic. Each question should test a DIFFERENT topic than the previous one.
 9. PLAUSIBLE WRONG ANSWERS: Distractors must be real {language} words (if options are in {language}) or real {instruction_lang} words (if options are in {instruction_lang}) that a student might confuse with the answer. Use words from the same semantic category (e.g. if the answer is a color, all distractors are colors).
 10. NO META: Don't ask about dialogues, speakers, or examples. Test the language itself.
 11. JSON SYNTAX: If you use quotation marks inside your prompt or answer strings, you MUST escape them (e.g., \\").
@@ -480,6 +481,7 @@ RULES:
 6. CATEGORY LOCK: noun→nouns, verb→verbs, etc.
 7. NO GIVEAWAYS: Don't put answer word inside the question.
 8. MAXIMUM VARIETY: Pick different concepts from the source than those already accepted.
+8b. TOPIC DISTRIBUTION: Spread questions EVENLY across ALL topics in the source material. Do NOT cluster on one topic.
 9. PLAUSIBLE WRONG ANSWERS: Distractors must be real words in the SAME language as the answer.
 10. NO META: Don't ask about dialogues or speakers.
 11. JSON SYNTAX: Escape any internal quotation marks.
