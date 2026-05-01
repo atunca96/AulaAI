@@ -1,14 +1,10 @@
 [phases.setup]
-nixPkgs = ["python311", "tesseract"]
+nixPkgs = ["python311"]
+aptPkgs = ["tesseract-ocr"]
 
 [phases.install]
-# --no-cache-dir avoids writing a pip cache to disk (Railway layer cache handles it via cacheDirectories)
-# --prefer-binary skips slow source compilations for wheels that already exist
 cmds = ["pip install --no-cache-dir --prefer-binary -r requirements.txt"]
 cacheDirectories = ["/root/.cache/pip"]
-
-[phases.build]
-cmds = ["which tesseract && tesseract --version || echo 'WARN: tesseract not in PATH'", "find /nix -name 'tesseract' -type f 2>/dev/null | head -5 || true"]
 
 [start]
 cmd = "python server.py"
