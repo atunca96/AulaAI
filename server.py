@@ -2253,7 +2253,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
                     db.commit()
                 
-                questions = generate_quiz(topic_ids, count=count, is_quiz=(pub_type == "quiz"))
+                questions = generate_quiz(topic_ids, count=count, is_quiz=True)
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
