@@ -1143,7 +1143,7 @@ function toggleLanguage() {
       else if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
     } else {
       if (currentCourse) renderStudentSync();
-      else if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
+      else renderStudentPortal();
     }
   }
 
@@ -3884,7 +3884,7 @@ function renderStudentHome(data) {
 
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
-    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">${t('📖 Current Chapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">📖 ${t('currentChapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
   }
 }
 
