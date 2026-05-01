@@ -411,7 +411,7 @@ Return ONLY valid JSON:
             if has_rich_vocab:
                 if any(len(dist_set & prev) >= 2 for prev in used_dist_sets): return None
 
-            return {
+            valid_item = {
                 "id": _uid(),
                 "type": "mcq",
                 "prompt": prompt_text,
@@ -420,6 +420,9 @@ Return ONLY valid JSON:
                 "ans_key": ans_key,
                 "dist_set": dist_set
             }
+            if "translation" in item:
+                valid_item["translation"] = item["translation"]
+            return valid_item
 
         all_raw_words = set()
         for item in raw_list:
