@@ -184,7 +184,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=False):
     """
     Generate a quiz pulling questions from given topics.
     If student_mastery is provided, adjusts difficulty.
@@ -322,7 +322,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=still_needed,
-            existing_questions=questions  # forbidden list grows each pass
+            existing_questions=questions,  # forbidden list grows each pass
+            is_quiz=is_quiz
         )
 
         if extra_qs:

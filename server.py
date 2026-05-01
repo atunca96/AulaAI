@@ -2152,7 +2152,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 topic_ids = list(set(t["id"] for t in topics))
 
         from services.content_engine import generate_quiz
-        questions = generate_quiz(topic_ids, count=count)
+        questions = generate_quiz(topic_ids, count=count, is_quiz=True)
 
         quiz_id = _uid()
         with db_connection() as db:
@@ -2253,7 +2253,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
                     db.commit()
                 
-                questions = generate_quiz(topic_ids, count=count)
+                questions = generate_quiz(topic_ids, count=count, is_quiz=(pub_type == "quiz"))
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
@@ -2600,7 +2600,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
 
         from services.content_engine import generate_quiz
-        questions = generate_quiz(topic_ids, count=count)
+        questions = generate_quiz(topic_ids, count=count, is_quiz=False)
         
         with db_connection() as db:
             for i, q in enumerate(questions):

@@ -310,7 +310,7 @@ def get_language_profile(language):
     if language in agglutinative: return "agglutinative"
     return "inflected" # Default for Spanish, French, German, English, etc.
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', use_quality=True, existing_questions=None, is_pdf_source=False):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', use_quality=True, existing_questions=None, is_pdf_source=False, is_quiz=False):
     """V2: Clean activity question generator built from scratch."""
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
@@ -324,7 +324,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     # PDF Rule: For PDF-based classrooms, we favor the target language for prompts 
     # to provide a more immersive experience, even at beginner levels.
-    if is_pdf_source:
+    if is_pdf_source or is_quiz:
         instruction_lang = language
     else:
         instruction_lang = "English" if is_beginner else language
@@ -335,8 +335,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
-    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
-    translation_field = '"translation": "...", ' if is_beginner else ""
+    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if (is_beginner and not is_quiz) else ""
+    translation_field = '"translation": "...", ' if (is_beginner and not is_quiz) else ""
 
     prompt = f"""Generate {request_count} multiple-choice questions for a {language} lesson.
     
