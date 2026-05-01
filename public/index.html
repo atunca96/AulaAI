@@ -613,7 +613,8 @@
                 <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon">👥</span><span class="tab-label" data-i18n="Students">Students</span></button>
                 <!-- Reports tab hidden for now -->
                 <!-- <button class="nav-tab pc-only" data-tab="reports" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Reports">Reports</span></button> -->
-                <button class="nav-tab pc-only" id="lecturer-book-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="Material">Material</span></button>
+                <button class="nav-tab pc-only" id="lecturer-study-tab" data-tab="study-materials" onclick="switchTab(this)"><span class="tab-icon">📑</span><span class="tab-label" data-i18n="Material">Material</span></button>
+                <button class="nav-tab pc-only" id="lecturer-book-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon">📖</span><span class="tab-label" data-i18n="Read Textbook">Read Textbook</span></button>
                 <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon">💬</span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
@@ -851,19 +852,6 @@
                     </div>
                 </div>
 
-                <!-- Digital Study Container -->
-                <div class="study-container hidden" id="ai-book-container" style="display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border); min-height: 600px;">
-                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
-                        <div id="ai-book-toc"></div>
-                    </div>
-                    <div id="ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
-                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
-                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
-                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
-                        </div>
-                    </div>
-                </div>
                 <div class="mobile-preview mobile-only">
                     <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
                         <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
@@ -911,6 +899,27 @@
         <main class="dashboard-content">
 
 
+
+            <!-- AI Study Materials Tab (Lecturer) -->
+            <section id="tab-study-materials" class="tab-panel">
+                <div class="page-header">
+                    <h1>📑 <span data-i18n="Material">Material</span></h1>
+                    <p class="subtitle book-subtitle">Course Materials</p>
+                </div>
+                <!-- Digital Study Container -->
+                <div class="study-container hidden" id="ai-book-container" style="display:flex; background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border); min-height: 600px;">
+                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
+                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
+                        <div id="ai-book-toc"></div>
+                    </div>
+                    <div id="ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
+                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
+                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
+                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                        </div>
+                    </div>
+                </div>
+            </section>
             <section id="tab-s-home" class="tab-panel active">
                 <div class="page-header">
                     <h1 id="student-greeting"></h1>

@@ -1527,17 +1527,20 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.pdf-container').forEach(el => el.classList.toggle('hidden', isAiGenerated));
 
   const lectBookTab = document.getElementById('lecturer-book-tab');
+  const lectStudyTab = document.getElementById('lecturer-study-tab');
   const sStudyTabBtn = document.getElementById('nav-s-study-tab');
   const sBookTabBtn = document.getElementById('nav-s-book-tab');
 
-  if (currentUser.role === 'lecturer' && lectBookTab) {
-    lectBookTab.style.display = (pdfViewerSrc || isAiGenerated) ? '' : 'none';
-    const label = lectBookTab.querySelector('.tab-label');
-    if (label) label.textContent = isAiGenerated ? (t('Material') || 'Material') : (t('book') || 'Book');
-
-    const mainTitle = document.getElementById('book-tab-main-title');
-    if (mainTitle) {
-      mainTitle.innerHTML = isAiGenerated ? `📘 <span>${t('Material')}</span>` : `📖 <span>${t('book')}</span>`;
+  if (currentUser.role === 'lecturer') {
+    if (lectBookTab) {
+      lectBookTab.style.display = pdfViewerSrc ? '' : 'none';
+      const label = lectBookTab.querySelector('.tab-label');
+      if (label) label.textContent = t('Read Textbook') || 'Read Textbook';
+    }
+    if (lectStudyTab) {
+      lectStudyTab.style.display = '';
+      const label = lectStudyTab.querySelector('.tab-label');
+      if (label) label.textContent = t('Material') || 'Material';
     }
   }
 
@@ -2261,7 +2264,7 @@ function switchTab(btn, skipLoad = false) {
       p.classList.add('active');
       p.classList.remove('hidden');
       p.style.display = 'block';
-      if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();
+      if (tabId === 'book' || tabId === 's-study-tab' || tabId === 'study-materials') renderStudyBook();
     } else {
       p.classList.remove('active');
       p.style.display = 'none';
