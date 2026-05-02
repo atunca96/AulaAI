@@ -424,7 +424,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             course = db.execute("SELECT is_building FROM courses WHERE id = ?", (course_id,)).fetchone()
             if not course: return self._send_error("Course not found")
-            if course["is_building"]: return self._send_error("Course is already building")
+            force = body.get("force", False)
+            if course["is_building"] and not force: return self._send_error("Course is already building")
 
             # Delete all existing questions/activities for this course to start fresh
             db.execute("""

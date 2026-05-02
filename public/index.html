@@ -665,6 +665,7 @@
                         <div class="spinner-small" style="border-top-color:var(--accent);"></div>
                         <div style="flex:1;">
                             <span data-i18n="class.building_msg">Your content is being built...</span>
+                            <button class="btn btn-ghost btn-xs" onclick="rebuildClassroom(true)" style="margin-left:8px; font-size:10px; color:var(--accent-light); border:1px solid rgba(99,102,241,0.3); padding:2px 8px; vertical-align:middle;">🔄 Force Restart</button>
                             <span id="lecturer-progress-text" style="float:right; font-size:14px; color:var(--accent); font-weight:700;">0%</span>
                         </div>
                     </div>
@@ -706,7 +707,8 @@
                         <p class="subtitle" id="curriculum-subtitle"></p>
                     </div>
                     <div style="display:flex; gap:12px; align-items:center;">
-
+                        <button id="rearchitect-btn" class="btn btn-ghost" style="color:var(--text-muted); font-size:12px;" onclick="reArchitectCurriculum()">🏗️ <span data-i18n="Re-Architect">Re-Architect</span></button>
+                        <button id="rebuild-curriculum-btn" class="btn btn-primary" onclick="rebuildClassroom()">🔄 <span data-i18n="Build Lessons">Build All Lessons</span></button>
                     </div>
                 </div>
                 <div id="curriculum-tree"></div>

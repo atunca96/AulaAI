@@ -2794,19 +2794,22 @@ async function deleteTopic(id, title) {
   }
 }
 
-async function rebuildClassroom() {
+async function rebuildClassroom(force = false) {
   if (!currentCourse) return;
-  const ok = await showConfirmModal(
-    'confirm.rebuild_title',
-    "confirm.rebuild_msg",
-    false, null, false, "confirm.rebuild_ok", "confirm.rebuild_cancel"
-  );
-  if (!ok) return;
+  
+  if (!force) {
+    const ok = await showConfirmModal(
+      'confirm.rebuild_title',
+      "confirm.rebuild_msg",
+      false, null, false, "confirm.rebuild_ok", "confirm.rebuild_cancel"
+    );
+    if (!ok) return;
+  }
 
   try {
     const res = await api('/classroom/rebuild', {
       method: 'POST',
-      body: { course_id: currentCourse.id }
+      body: { course_id: currentCourse.id, force: force }
     });
     if (res.status === 'success') {
       currentCourse.is_building = 1;
@@ -4696,6 +4699,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
         <h2 style="color:var(--text-main);">${t('gen.preparing_content') || 'Content Still Building'}</h2>
         <p>${t('gen.preparing_desc') || 'The AI is currently architecting this lesson. Please wait a few moments.'}</p>
         <button class="btn btn-primary" style="margin-top:24px;" onclick="location.reload()">Refresh Page</button>
+        ${!isStudent ? `<button class="btn btn-outline" style="margin-top:12px; border-color:var(--accent); color:var(--accent-light);" onclick="rebuildClassroom(true)">🔄 Rebuild All Lessons (Force)</button>` : ''}
       </div>`
     });
   }
