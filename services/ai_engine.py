@@ -32,6 +32,10 @@ MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Lowest cost per output
 MODEL_NARRATIVE = "anthropic/claude-3-haiku"  # Legacy stable voice
 MODEL_FALLBACK = "google/gemini-2.0-flash-lite-preview-02-05:free"
 
+def is_ai_available():
+    """Checks if the system has AI capabilities configured."""
+    return os.getenv("OPENROUTER_API_KEY") is not None and len(os.getenv("OPENROUTER_API_KEY", "")) > 10
+
 def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
     """OpenRouter caller with markdown cleaning and automatic retries."""
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -248,10 +252,56 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    system = "You are a curriculum architect. Return JSON: {'chapters': [{'title': '...', 'topics': [{'title': '...', 'type': 'vocabulary|grammar'}]}]}"
-    user = f"Create a {level} {language} syllabus. {prompt_extra}"
+    """Generates course structure, using a local blueprint cache to eliminate recurring costs."""
+    cache_file = _get_blueprint_path(language, level)
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                if cached_data and "chapters" in cached_data:
+                    return cached_data["chapters"]
+        except: pass
+
+    system = "You are a curriculum architect. Create a structured syllabus in JSON."
+    user = f"Create a comprehensive {level} {language} course syllabus. {prompt_extra}\nReturn JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=2000)
     return res.get("chapters", []) if res else []
+
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
+    """Generates a complete structured lesson, using source_text as the primary source if provided."""
+    from services.language_data import get_reference_prompt, get_special_chars_prompt
+    
+    is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
+    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text MUST be in English. The ACTUAL learning content (words, sentences) MUST remain in {language}."
+    if is_beginner:
+        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners! ALL titles, explanations, grammar rules, and instructions MUST be in English."
+
+    source_rule = ""
+    if source_text:
+        source_rule = f"SOURCE TEXT REQUIREMENT:\nYou MUST use the following text as your core source: {source_text[:10000]}"
+    else:
+        source_rule = "NO SOURCE TEXT: Use your internal knowledge."
+
+    primary_command = f"Write an English-instruction {level} lesson teaching {language} for: '{topic}' ({topic_type})."
+    
+    prompt = f"""
+    {primary_command}
+    {source_rule}
+    INSTRUCTIONS:
+    1. {lang_guard}
+    2. REQUIREMENT: 2 to 4 high-quality pages.
+    3. Return ONLY JSON:
+    {{
+      "pages": [
+        {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
+        {{ "type": "grammar", "title": "...", "text": "..." }},
+        {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
+      ]
+    }}
+    """
+    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.4) or {"pages": []}
 
 def ai_explain_word(word, language, context=None):
     prompt = f"Explain '{word}' in {language}. Context: {context}. JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"
