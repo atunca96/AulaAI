@@ -23,7 +23,7 @@ GRAMMAR_KEYS = [
     "comparat", "superlativ", "negat", "interrogat", "passiv",
     "adjective", "adverb", "plural", "singular", "declens", "conjug",
     "struktur", "regla", "regel", "règle", "satzbau", "satzstellung",
-    "accord", "concordan",
+    "accord", "concordan", "case", "kasus", "fall", "casus", "cas",
 ]
 
 READING_KEYS = [
@@ -176,55 +176,110 @@ def parse_curriculum_text(text):
 
     lines = text.split('\n')
 
-    # Clean and normalize lines
-    entries = []
+    # 1. Basic clean and noise removal
+    cleaned_lines = []
     for raw_line in lines:
         line = raw_line.rstrip()
         if not line.strip():
             continue
 
-        indent = get_indent_level(line)
-        stripped = line.strip()
-
-        # Remove bullet markers
-        stripped = re.sub(r'^[\u2022\u25E6\u25AA\u25CF\u25CB•◦▪●○◆◇►▸▹\-\*]\s*', '', stripped)
+        # Remove bullet markers but DO NOT strip hyphens that are attached to words
+        # (e.g. suffixes like -OBa- should not be stripped of their hyphen)
+        # We only strip standalone bullets or hyphens followed by space
+        stripped = re.sub(r'^[\u2022\u25E6\u25AA\u25CF\u25CB•◦▪●○◆◇►▸▹\*]\s*', '', line.strip())
+        stripped = re.sub(r'^-\s+', '', stripped).strip()
 
         # Remove leading numbering like "1.", "1)", "a.", "a)", "1.1", "1.1."
         sub_number_match = re.match(r'^(\d+\.)+\d*\s+', stripped)
         if sub_number_match:
-            # Only strip sub-numbering (like 1.1, 2.3) for topics, not chapter-level "1."
             pass  # Keep it — the chapter detection handles "1." separately
 
-        stripped = stripped.strip()
-        if len(stripped) < 2:
+        if not stripped:
+            continue
+            
+        # Noise removal
+        # Single short tokens
+        if len(stripped) <= 3 and stripped.lower() in ("cal", "so", "un", "re", "il", "la", "el", "le", "as", "es"):
+            continue
+            
+        # Non-alphabetic fragments (must contain at least one letter)
+        if not re.search(r'[a-zA-Zа-яА-ЯёЁ]', stripped):
+            continue
+            
+        # Specific OCR artifacts
+        if stripped.startswith("ーー"):
+            continue
+            
+        if len(stripped) < 2 and not stripped.isdigit():
+            continue
+            
+        # Ignore lines that are ONLY digits or digits with symbols (like "147", "1-20")
+        if re.match(r'^[\d\s\-\.\/]+$', stripped):
             continue
 
-        cleaned, page = extract_page_number(stripped)
+        cleaned_lines.append({'raw': stripped, 'indent': get_indent_level(line)})
+
+    # 2. Split mixed lines
+    split_lines = []
+    for entry in cleaned_lines:
+        line_text = entry['raw']
+        if "|" in line_text:
+            parts = [p.strip() for p in line_text.split("|") if p.strip()]
+            for p in parts:
+                split_lines.append({'raw': p, 'indent': entry['indent']})
+        else:
+            split_lines.append(entry)
+
+    # 3. Merge broken lines
+    merged_lines = []
+    i = 0
+    while i < len(split_lines):
+        curr_entry = split_lines[i]
+        curr = curr_entry['raw']
+        
+        while i + 1 < len(split_lines):
+            nxt_entry = split_lines[i+1]
+            nxt = nxt_entry['raw']
+            
+            # Condition to merge:
+            is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
+            nxt_is_continuation = bool(re.match(r'^([a-zа-я]|-)', nxt))
+            is_comma = bool(re.search(r',\s*$', curr))
+            is_bracket = bool(re.match(r'^[\[({]', nxt))
+            
+            # Words that strongly imply the sentence is unfinished
+            hanging_words = r'(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes)$'
+            is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
+            
+            if (not is_terminal and nxt_is_continuation) or is_comma or is_bracket or is_hanging:
+                curr = curr + " " + nxt
+                i += 1
+            else:
+                break
+                
+        merged_lines.append({'raw': curr, 'indent': curr_entry['indent']})
+        i += 1
+
+    # 4. Extract pages and detect headers
+    entries = []
+    for entry in merged_lines:
+        cleaned, page = extract_page_number(entry['raw'])
         if cleaned and len(cleaned) > 1:
+            is_ch, ch_num = is_chapter_header(cleaned)
             entries.append({
                 'raw': cleaned,
                 'page': page,
-                'indent': indent,
-                'is_header': False,
-                'chapter_num': None,
+                'indent': entry['indent'],
+                'is_header': is_ch,
+                'chapter_num': ch_num,
             })
 
     if not entries:
         return []
 
-    # Pass 1: Detect chapter headers
-    for entry in entries:
-        is_ch, ch_num = is_chapter_header(entry['raw'])
-        entry['is_header'] = is_ch
-        entry['chapter_num'] = ch_num
-
-    # Pass 2: Build structure
+    # 5. Build structure
     chapters = []
     current_chapter = None
-
-    # Determine the dominant indent level for headers vs topics
-    header_indents = [e['indent'] for e in entries if e['is_header']]
-    min_indent = min(header_indents) if header_indents else 0
 
     for entry in entries:
         if is_meta_section(entry['raw']):
@@ -241,49 +296,33 @@ def parse_curriculum_text(text):
             }
         elif current_chapter is not None:
             # This is a topic under the current chapter
-            current_chapter['topics'].append({
-                'title': entry['raw'],
-                'type': classify_topic(entry['raw']),
-                'page': entry['page'],
-            })
+            if not re.match(r'^[\d\s\-\.\/]+$', entry['raw']) and len(entry['raw']) > 1:
+                current_chapter['topics'].append({
+                    'title': entry['raw'],
+                    'type': classify_topic(entry['raw']),
+                    'page': entry['page'],
+                })
         else:
             # No chapter started yet — treat as orphan topic
-            # Will be grouped into auto-chapters later
             if not chapters:
                 current_chapter = {
-                    'title': 'Unit 1',
+                    'title': 'Curriculum Topics',
                     'page': entry['page'],
                     'topics': []
                 }
-            current_chapter['topics'].append({
-                'title': entry['raw'],
-                'type': classify_topic(entry['raw']),
-                'page': entry['page'],
-            })
+            if not re.match(r'^[\d\s\-\.\/]+$', entry['raw']) and len(entry['raw']) > 1:
+                current_chapter['topics'].append({
+                    'title': entry['raw'],
+                    'type': classify_topic(entry['raw']),
+                    'page': entry['page'],
+                })
 
     # Don't forget the last chapter
     if current_chapter and (current_chapter.get('topics') or current_chapter.get('title')):
         chapters.append(current_chapter)
 
-    # Pass 3: If no chapters were detected (flat list), auto-chunk
-    if len(chapters) <= 1 and chapters and len(chapters[0].get('topics', [])) > 8:
-        all_topics = chapters[0].get('topics', [])
-        chapters = []
-        chunk_size = 5
-        for i in range(0, len(all_topics), chunk_size):
-            chunk = all_topics[i:i + chunk_size]
-            unit_num = (i // chunk_size) + 1
-            chapters.append({
-                'title': f'Unit {unit_num}',
-                'page': chunk[0].get('page'),
-                'topics': chunk,
-            })
-
-    # Pass 4: If chapters have no topics (just headers), treat subsequent lines as topics
-    # This handles the case where all entries were detected as headers
+    # 6. If chapters have no topics (just headers), treat subsequent lines as topics
     if chapters and all(len(ch.get('topics', [])) == 0 for ch in chapters):
-        # Reset — every other entry is a topic
-        # Actually, demote non-first headers to topics of the previous chapter
         rebuilt = []
         for i, ch in enumerate(chapters):
             if i == 0 or (i > 0 and ch.get('chapter_num')):
@@ -300,6 +339,7 @@ def parse_curriculum_text(text):
     chapters = [ch for ch in chapters if ch.get('topics') or ch.get('title')]
 
     return chapters
+
 
 
 def parse_table_format(text):
