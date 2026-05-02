@@ -232,21 +232,24 @@ Return ONLY valid JSON:
             
             clean_lang = language if language and language.lower() != "unknown" else "this language"
             
-            # Create 3 distinct fallbacks instead of 1
+            # Create 'count' distinct fallbacks
             placeholders = [
-                ("concept", "Definition 1", "Definition 2", "Definition 3"),
-                ("usage", "Context A", "Context B", "Context C"),
-                ("term", "Synonym 1", "Synonym 2", "Synonym 3")
+                ("concept", "Definition A", "Definition B", "Definition C"),
+                ("usage", "Usage A", "Usage B", "Usage C"),
+                ("context", "Context A", "Context B", "Context C"),
+                ("term", "Synonym A", "Synonym B", "Synonym C"),
+                ("application", "Example A", "Example B", "Example C")
             ]
             
-            for i, (kind, w1, w2, w3) in enumerate(placeholders):
-                ans = f"Correct {kind} of {topic_title}"
+            for i in range(c):
+                kind, w1, w2, w3 = placeholders[i % len(placeholders)]
+                ans = f"Correct {kind} of {topic_title} #{i+1}"
                 final.append({
                     "id": _uid() + f"_{i}", "type": "mcq", 
-                    "prompt": f"Which of the following describes the {kind} of '{topic_title}' in {clean_lang}?",
+                    "prompt": f"({i+1}) Which of the following describes the {kind} of '{topic_title}' in {clean_lang}?",
                     "answer": ans, 
-                    "distractors": [w1, w2, w3],
-                    "options": py_random.sample([ans, w1, w2, w3], 4)
+                    "distractors": [f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"],
+                    "options": py_random.sample([ans, f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"], 4)
                 })
 
         with open("pipeline.log", "a", encoding="utf-8") as f:

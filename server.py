@@ -1753,7 +1753,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             language, 
                             count=count, 
                             level=topic.get("difficulty", "A1"),
-                            existing_questions=topic_pool + raw_activities,
+                            existing_questions=None, # Fresh generation (user requested no memory of previous questions)
                             is_pdf_source=is_pdf_classroom
                         )
                     
