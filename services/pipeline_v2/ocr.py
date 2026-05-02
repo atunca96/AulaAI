@@ -26,10 +26,12 @@ def process_page_image(image) -> List[str]:
         logger.error(f"OCR failed for a page: {e}")
         return []
 
-def extract_text_ocr(pdf_path: str, max_workers: int = 4) -> List[str]:
+def extract_text_ocr(pdf_path: str, max_workers: int = 4, page_limit: int = None) -> List[str]:
     logger.info(f"Extracting text via OCR for {pdf_path}")
     try:
-        images = convert_from_path(pdf_path)
+        # Pass page range to convert_from_path (1-indexed)
+        last_page = page_limit if page_limit else None
+        images = convert_from_path(pdf_path, first_page=1, last_page=last_page)
     except Exception as e:
         logger.error(f"Failed to convert PDF to images: {e}")
         return []

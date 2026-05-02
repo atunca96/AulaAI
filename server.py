@@ -42,6 +42,15 @@ from services.state import bump_version, get_version
 from services.dictionary_service import get_definition, clean_word
 
 PORT = int(os.environ.get("PORT", 3000))
+# Manual .env loader for local dev stability
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                os.environ[k] = v
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 STATIC_DIR = os.path.join(ROOT_DIR, "public")
 
 import hashlib
@@ -558,7 +567,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             try:
                 from services.pipeline_v2.pdf_processor import process_pdf
-                curriculum = process_pdf(temp_pdf)
+                # Limit to first 30 pages for TOC preview to avoid overwhelming the LLM with 36MB+ books
+                curriculum = process_pdf(temp_pdf, page_limit=30)
                 
                 # Convert V2 JSON to the Markdown format the Architect frontend expects
                 final_details = []

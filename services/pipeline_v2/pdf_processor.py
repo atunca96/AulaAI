@@ -28,12 +28,13 @@ def is_text_pdf(pdf_path: str, threshold: int = 50) -> bool:
         logger.error(f"Failed to check PDF type: {e}")
         return False
 
-def extract_text_pdfplumber(pdf_path: str) -> List[str]:
+def extract_text_pdfplumber(pdf_path: str, page_limit: int = None) -> List[str]:
     logger.info(f"Extracting text via pdfplumber for {pdf_path}")
     lines = []
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
+            pages = pdf.pages[:page_limit] if page_limit else pdf.pages
+            for page in pages:
                 text = page.extract_text()
                 if text:
                     lines.extend(text.splitlines())
@@ -73,7 +74,7 @@ def process_text(lines: List[str]) -> dict:
     curriculum = build_curriculum(structured_lines, tagged_topics)
     return curriculum
 
-def process_pdf(pdf_path: str) -> dict:
+def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
     # 1. Generate file hash
     with open(pdf_path, "rb") as f:
         file_bytes = f.read()
@@ -86,12 +87,13 @@ def process_pdf(pdf_path: str) -> dict:
             return processed_files_v2[file_hash]
 
     if is_text_pdf(pdf_path):
-        lines = extract_text_pdfplumber(pdf_path)
+        lines = extract_text_pdfplumber(pdf_path, page_limit=page_limit)
     else:
         if not check_ocr_available():
             raise RuntimeError("OCR is required for this PDF, but Tesseract is not installed.")
         logger.info("OCR USED")
-        lines = extract_text_ocr(pdf_path)
+        from .ocr import extract_text_ocr
+        lines = extract_text_ocr(pdf_path, page_limit=page_limit)
 
     if not lines:
         raise ValueError("Failed to extract any text from the PDF.")
