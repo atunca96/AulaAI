@@ -1,0 +1,7 @@
+f = open('public/js/app.js', 'r', encoding='utf-8')
+content = f.read()
+f.close()
+content = content.replace("if (tabId === 'book' || tabId === 's-study-tab') renderStudyBook();", "if (tabId === 'book' || tabId === 's-study-tab' || tabId === 'study-materials') renderStudyBook();")
+f = open('public/js/app.js', 'w', encoding='utf-8')
+f.write(content)
+f.close()

@@ -53,13 +53,12 @@ META_SKIP = [
     "scope and sequence", "contents", "sommaire", "table des matières", "inhalt", 
     "inhaltsverzeichnis", "indice", "índice", "sommario", "sumário", "содержание", 
     "оглавление", "içindekiler", "extracted content", "source page", "приложение", 
-    "аудио", "page", "chapter", "unit", "lección", "leccion", "урок", "задание", 
-    "упражнение", "русский на каждый день", "review", "references", "точкару", 
-    "точка ру", "дополнительно", "тесты", "проверьте себя", "extra practice", 
-    "workbook", "cuaderno", "arbeitsbuch", "exercice", "test yourself", "self-check", 
-    "audio scripts", "transcripts", "интервью", "миграционной карты", 
-    "коммуникативные задания", "аудиоприложение", "проверь себя", "ответы к заданиям",
-    "ссылки"
+    "аудио", "задание", "упражнение", "русский на каждый день", "review", 
+    "references", "точкару", "точка ру", "дополнительно", "тесты", 
+    "проверьте себя", "extra practice", "workbook", "cuaderno", "arbeitsbuch", 
+    "exercice", "test yourself", "self-check", "audio scripts", "transcripts", 
+    "интервью", "миграционной карты", "коммуникативные задания", "аудиоприложение", 
+    "проверь себя", "ответы к заданиям", "ссылки"
 ]
 
 
@@ -129,7 +128,7 @@ def extract_page_number(line):
 # Language-agnostic unit markers
 UNIT_PATTERN = re.compile(
     r'^(?:'
-    r'(?:unit|chapter|module|unidad|unité|lektion|kapitel|lección|leccion|tema|thème|chapitre|modulo|módulo|etapa|paso|stufe)'
+    r'(?:unit|chapter|module|unidad|unité|lektion|kapitel|lección|leccion|tema|thème|chapitre|modulo|módulo|etapa|paso|stufe|урок|раздел|часть)'
     r'\s*\.?\s*(\d+)'           # "Unit 1", "Unidad 1", etc.
     r'|(\d+)\s*[.:/\-–—]\s*'   # "1. Title", "1: Title", "1/ Title"
     r'|([IVXLC]+)\s*[.:/\-–—]\s*'  # "I. Title", "IV: Title"

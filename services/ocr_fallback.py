@@ -317,29 +317,41 @@ def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
         s = max(0, s)
         e = min(e, total_pages)
 
-        _log(f"Starting OCR for pages {s+1}-{e} of {pdf_path} ({e - s} pages)")
+        _log(f"Starting parallel OCR for pages {s+1}-{e} of {pdf_path} ({e - s} pages)")
+        
+        results_map = {}
+        lock = threading.Lock()
 
-        result_parts = []
+        def _process_page(p_idx):
+            try:
+                page = doc[p_idx]
+                # First try normal text extraction
+                normal_text = page.get_text()
+                if not is_image_based_page(normal_text, p_idx):
+                    with lock: results_map[p_idx] = f"# Source Page {p_idx + 1}\n{normal_text.strip()}"
+                    return
 
-        for page_idx in range(s, e):
-            page = doc[page_idx]
+                # Run local OCR
+                ocr_text = ocr_page(page, page_num=p_idx + 1)
+                if ocr_text:
+                    ocr_text = _cleanup_ocr_text(ocr_text)
+                    with lock: results_map[p_idx] = f"# Source Page {p_idx + 1}\n{ocr_text}"
+                else:
+                    with lock: results_map[p_idx] = f"# Source Page {p_idx + 1}\n[No readable text found]"
+            except Exception as pe:
+                _log(f"Error on page {p_idx+1}: {pe}")
 
-            # First try normal text extraction — only OCR if it fails
-            normal_text = page.get_text()
-            if not is_image_based_page(normal_text, page_idx):
-                result_parts.append(f"# Source Page {page_idx + 1}\n{normal_text.strip()}")
-                continue
-
-            # Run local OCR via pytesseract
-            ocr_text = ocr_page(page, page_num=page_idx + 1)
-
-            if ocr_text:
-                ocr_text = _cleanup_ocr_text(ocr_text)
-                result_parts.append(f"# Source Page {page_idx + 1}\n{ocr_text}")
-            else:
-                result_parts.append(f"# Source Page {page_idx + 1}\n[No readable text found]")
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(_process_page, range(s, e))
 
         doc.close()
+
+        # Reconstruct in order
+        result_parts = []
+        for p_idx in range(s, e):
+            if p_idx in results_map:
+                result_parts.append(results_map[p_idx])
 
         combined = "\n\n".join(result_parts)
         _log(f"OCR complete: {len(result_parts)} pages processed, {len(combined)} total chars")
