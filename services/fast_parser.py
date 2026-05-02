@@ -301,8 +301,8 @@ def parse_curriculum_text(text):
             is_comma = bool(re.search(r',\s*$', curr))
             is_bracket = bool(re.match(r'^[\[({]', nxt))
             
-            # Words that strongly imply the sentence is unfinished (connectors in all languages)
-            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller)\s*$'
+            # Words that strongly imply the sentence is unfinished (connectors and category headers)
+            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller|verb|verbs|preposition|prepositions|adverb|adverbs|pronoun|pronouns|adjective|adjectives|noun|nouns|ordinal|number|numbers|gender|modal|conjugation|instrumental|genitive|dative|accusative|prepositional|nominative)\s*$'
             is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
 
             # Force merge if the current line ends with a "hanging" word
