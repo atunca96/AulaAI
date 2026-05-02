@@ -24,6 +24,12 @@ GRAMMAR_KEYS = [
     "adjective", "adverb", "plural", "singular", "declens", "conjug",
     "struktur", "regla", "regel", "règle", "satzbau", "satzstellung",
     "accord", "concordan", "case", "kasus", "fall", "casus", "cas",
+    "noun", "sentence", "phrase", "question", "вопрос", "существительн", 
+    "глагол", "наречие", "прилагательн", "местоимени", "падеж", "склонени",
+    "кто", "что", "чей", "как", "где", "когда", "куда", "откуда", "почему", "зачем", "сколько",
+    "where", "what", "who", "when", "why", "how", "whose", "whom",
+    "qual", "quien", "quién", "como", "cómo", "donde", "dónde", "quando", "cuándo", "porque", "por qué",
+    "quel", "qui", "comment", "où", "quand", "pourquoi"
 ]
 
 READING_KEYS = [
@@ -43,7 +49,9 @@ META_SKIP = [
     "contents", "sommaire", "table des matières", "inhalt", 
     "inhaltsverzeichnis", "indice", "índice", "sommario",
     "sumário", "содержание", "оглавление", "içindekiler",
-    "المحتويات", "目录", "目次", "extracted content", "source page"
+    "المحتويات", "目录", "目次", "extracted content", "source page",
+    "приложение", "аудио", "page", "chapter", "unit", "lección", "leccion",
+    "урок", "задание", "упражнение"
 ]
 
 
@@ -137,12 +145,6 @@ def is_chapter_header(line, prev_indent=0):
         num = m.group(1) or m.group(2) or m.group(3)
         return True, num
 
-    # ALL CAPS short line (likely a section header) — but only if under 80 chars
-    if stripped == stripped.upper() and len(stripped) < 80 and len(stripped) > 3:
-        alpha_chars = [c for c in stripped if c.isalpha()]
-        if len(alpha_chars) > 3:
-            return True, None
-
     return False, None
 
 
@@ -195,9 +197,12 @@ def parse_curriculum_text(text):
         if not stripped:
             continue
             
-        # Noise removal
-        # Single short tokens
-        if len(stripped) <= 3 and stripped.lower() in ("cal", "so", "un", "re", "il", "la", "el", "le", "as", "es"):
+        # Single short tokens or non-alphabetic fragments
+        if len(stripped) < 3 and not stripped.isdigit():
+            continue
+            
+        # Hard noise removal: broken symbols like "ee he", "es :", "С О"
+        if re.search(r'^[a-zа-яA-ZА-ЯёЁ]\s[a-zа-яA-ZА-ЯёЁ]$', stripped, re.IGNORECASE) or re.search(r'[a-zA-Zа-яА-ЯёЁ]\s*:', stripped) and len(stripped) < 6:
             continue
             
         # Non-alphabetic fragments (must contain at least one letter)
@@ -205,10 +210,11 @@ def parse_curriculum_text(text):
             continue
             
         # Specific OCR artifacts
-        if stripped.startswith("ーー"):
+        if stripped.startswith("ーー") or stripped == "ee he":
             continue
             
-        if len(stripped) < 2 and not stripped.isdigit():
+        # Fake headers or generic all caps headings (e.g., "CASES.", "REVIEW")
+        if stripped.isupper() and len(stripped) < 15 and not re.search(r'\d', stripped):
             continue
             
         # Ignore lines that are ONLY digits or digits with symbols (like "147", "1-20")
@@ -226,12 +232,18 @@ def parse_curriculum_text(text):
         sub_parts = re.split(r'\s*\|\s*|\t+|\s{3,}', line_text)
         
         for sp in sub_parts:
-            # Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
-            # Look behind for letter+period, match spaces, look ahead for Capital letter
-            sentence_parts = re.split(r'(?<=[a-zA-Zа-яА-ЯёЁ]\.)\s+(?=[A-ZА-ЯЁ])', sp)
-            for p in sentence_parts:
-                if p.strip():
-                    split_lines.append({'raw': p.strip(), 'indent': entry['indent']})
+            # 1. Split on commas/spaces followed by major structural keywords that imply a new concept
+            # Use a NON-CAPTURING group so re.split doesn't return the delimiters!
+            grammar_split_pattern = r'(?<=[a-zA-Zа-яА-ЯёЁ.,])\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs)\b)'
+            sp_parts = re.split(grammar_split_pattern, sp)
+            
+            for p1 in sp_parts:
+                if not p1.strip(): continue
+                # 2. Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
+                sentence_parts = re.split(r'(?<=[a-zA-Zа-яА-ЯёЁ]\.)\s+(?=[A-ZА-ЯЁ])', p1)
+                for p2 in sentence_parts:
+                    if p2.strip():
+                        split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
 
     # 3. Merge broken lines
     merged_lines = []
@@ -284,8 +296,20 @@ def parse_curriculum_text(text):
     chapters = []
     current_chapter = None
 
+    def is_valid_topic(text):
+        if re.match(r'^[\d\s\-\.\/]+$', text) or len(text) < 3:
+            return False
+        # Remove fake headers (e.g. "CASES.", "REVIEW")
+        if text.isupper() and len(text) < 20 and not re.search(r'\d', text):
+            return False
+        # Remove meta sections
+        if is_meta_section(text):
+            return False
+        return True
+
     for entry in entries:
-        if is_meta_section(entry['raw']):
+        raw_t = entry['raw']
+        if is_meta_section(raw_t):
             continue
 
         if entry['is_header']:
@@ -293,16 +317,16 @@ def parse_curriculum_text(text):
             if current_chapter:
                 chapters.append(current_chapter)
             current_chapter = {
-                'title': entry['raw'],
+                'title': raw_t,
                 'page': entry['page'],
                 'topics': []
             }
         elif current_chapter is not None:
             # This is a topic under the current chapter
-            if not re.match(r'^[\d\s\-\.\/]+$', entry['raw']) and len(entry['raw']) > 1:
+            if is_valid_topic(raw_t):
                 current_chapter['topics'].append({
-                    'title': entry['raw'],
-                    'type': classify_topic(entry['raw']),
+                    'title': raw_t,
+                    'type': classify_topic(raw_t),
                     'page': entry['page'],
                 })
         else:
@@ -313,10 +337,10 @@ def parse_curriculum_text(text):
                     'page': entry['page'],
                     'topics': []
                 }
-            if not re.match(r'^[\d\s\-\.\/]+$', entry['raw']) and len(entry['raw']) > 1:
+            if is_valid_topic(raw_t):
                 current_chapter['topics'].append({
-                    'title': entry['raw'],
-                    'type': classify_topic(entry['raw']),
+                    'title': raw_t,
+                    'type': classify_topic(raw_t),
                     'page': entry['page'],
                 })
 
@@ -369,6 +393,26 @@ def parse_curriculum_text(text):
                 'page': u[0].get('page'),
                 'topics': u
             })
+
+    # 8. Final normalization (trim, deduplicate)
+    for ch in chapters:
+        seen = set()
+        clean_topics = []
+        for t in ch.get('topics', []):
+            # Trim trailing punctuation like comma or dash if it's dangling at the end
+            title = re.sub(r'[\s,\-]+$', '', t['title']).strip()
+            # Title case for formatting? No, keep original case but ensure first letter is capital if possible
+            if title and title[0].islower():
+                title = title[0].upper() + title[1:]
+            
+            # Deduplicate within chapter
+            t_key = title.lower()
+            if t_key not in seen:
+                seen.add(t_key)
+                t['title'] = title
+                clean_topics.append(t)
+        ch['topics'] = clean_topics
+        ch['title'] = ch['title'].strip()
 
     return chapters
 
