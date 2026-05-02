@@ -28,8 +28,8 @@ if os.path.exists(".env"):
     except: pass
 
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
-MODEL_STRUCTURAL = "anthropic/claude-3.5-sonnet" # Primary high-quality model
-MODEL_NARRATIVE = "anthropic/claude-3.5-sonnet" 
+MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Primary fast model
+MODEL_NARRATIVE = "anthropic/claude-3-haiku" 
 MODEL_FALLBACK = None # No fallback layer as per user request
 
 def is_ai_available():
