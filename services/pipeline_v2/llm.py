@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 CHEAP_MODEL = "anthropic/claude-3-haiku"
-FALLBACK_MODEL = "anthropic/claude-3.5-sonnet"
+FALLBACK_MODEL = "openai/gpt-4o-mini"
 
 CACHE_NAMESPACE = "pipeline_v2_v4"
 
@@ -58,7 +58,13 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
                 logger.error(f"OpenRouter Error {response.status_code}: {response.text}")
                 response.raise_for_status()
                 
-            result = response.json()["choices"][0]["message"]["content"]
+            try:
+                data = response.json()
+            except Exception as json_e:
+                logger.error(f"Failed to parse OpenRouter JSON. Raw response: {response.text[:500]}")
+                raise json_e
+
+            result = data["choices"][0]["message"]["content"]
             
             # Basic validation that it contains JSON
             # Extract JSON block if surrounded by markdown
