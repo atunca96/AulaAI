@@ -265,6 +265,7 @@ def parse_curriculum_text(text):
                 sentence_parts = re.split(r'(?<=[^\W\d_][.?!])\s+(?=[^\W\d_])', p1)
                 for p2 in sentence_parts:
                     p2_s = p2.strip()
+                    if p2_s:
                         # Only mark as atomic if it was actually split from a larger line
                         # to prevent the merge loop from joining unrelated topics back together.
                         was_split = len(sp_parts) > 1 or len(sentence_parts) > 1
@@ -281,14 +282,6 @@ def parse_curriculum_text(text):
             nxt_entry = split_lines[i+1]
             nxt = nxt_entry['raw']
             
-            # If the next line is an atomic split from the SAME original line, DO NOT merge it back
-            # EXCEPT if the current line is 'hanging' (e.g. "The verb" split from "Говорить")
-            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic') and not is_hanging:
-                break
-
-            # Condition to merge:
-            is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
-            
             # nxt_is_continuation if it starts with a lowercase letter or hyphen
             # [^\W\d_] matches any letter. We check if it is lowercase by getting the first letter.
             nxt_is_continuation = False
@@ -304,6 +297,13 @@ def parse_curriculum_text(text):
             # Words that strongly imply the sentence is unfinished (connectors and category headers)
             hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller|verb|verbs|preposition|prepositions|adverb|adverbs|pronoun|pronouns|adjective|adjectives|noun|nouns|ordinal|number|numbers|gender|modal|conjugation|instrumental|genitive|dative|accusative|prepositional|nominative)\s*$'
             is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
+            
+            # If the next line is an atomic split from the SAME original line, DO NOT merge it back
+            # EXCEPT if the current line is 'hanging' (e.g. "The verb" split from "Говорить")
+            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic') and not is_hanging:
+                break
+
+            is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
 
             # Force merge if the current line ends with a "hanging" word
             if is_hanging or is_comma:
