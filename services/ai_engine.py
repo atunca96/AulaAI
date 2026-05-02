@@ -267,6 +267,12 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=2000)
     return res.get("chapters", []) if res else []
 
+def ai_generate_report_insights(cohort_data):
+    """Generates high-level pedagogical insights for teacher reports."""
+    prompt = f"Analyze student performance and provide 3 actionable teaching insights: {json.dumps(cohort_data)}"
+    res = _call_ai([{"role": "user", "content": prompt}], max_tokens=600)
+    return res.get("explanation", "Insufficient data for insights.") if res else "Connection Error."
+
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
     from services.language_data import get_reference_prompt, get_special_chars_prompt
