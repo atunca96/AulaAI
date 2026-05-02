@@ -29,7 +29,23 @@ GRAMMAR_KEYS = [
     "кто", "что", "чей", "как", "где", "когда", "куда", "откуда", "почему", "зачем", "сколько",
     "where", "what", "who", "when", "why", "how", "whose", "whom",
     "qual", "quien", "quién", "como", "cómo", "donde", "dónde", "quando", "cuándo", "porque", "por qué",
-    "quel", "qui", "comment", "où", "quand", "pourquoi"
+    "quel", "qui", "comment", "où", "quand", "pourquoi",
+    "isim", "fiil", "sıfat", "zarf", "zamir", "cümle", "soru", "gramer", "dilbilgisi",
+    "ne", "kim", "nerede", "nereye", "nasıl", "neden", "niçin", "hangi", "kaç",
+    "werkwoord", "zelfstandig naamwoord", "bijvoeglijk", "bijwoord", "zin", "vraag", "grammatica",
+    "wie", "wat", "waar", "wanneer", "waarom", "hoe", "welke",
+    "substantiv", "adjektiv", "mening", "fråga", "grammatik",
+    "vem", "vad", "var", "när", "varför", "hur", "vilken", "vilket", "vilka",
+    "ρήμα", "ουσιαστικό", "επίθετο", "επίρρημα", "γραμματική", "πρόταση", "ερώτηση",
+    "τι", "ποιος", "πού", "πότε", "γιατί", "πώς", "ποιο",
+    "فعل", "اسم", "صفة", "ظرف", "جملة", "سؤال", "قواعد",
+    "من", "ماذا", "أين", "متى", "لماذا", "كيف", "أي",
+    "动词", "名词", "形容词", "副词", "句子", "问题", "语法",
+    "谁", "什么", "哪里", "何时", "为什么", "怎么", "哪",
+    "動詞", "名詞", "形容詞", "副詞", "文", "質問", "文法",
+    "誰", "何", "どこ", "いつ", "なぜ", "どう", "どれ",
+    "동사", "명사", "형용사", "부사", "문장", "질문", "문법",
+    "누구", "무엇", "어디", "언제", "왜", "어떻게", "어느"
 ]
 
 READING_KEYS = [
@@ -202,11 +218,11 @@ def parse_curriculum_text(text):
             continue
             
         # Hard noise removal: broken symbols like "ee he", "es :", "С О"
-        if re.search(r'^[a-zа-яA-ZА-ЯёЁ]\s[a-zа-яA-ZА-ЯёЁ]$', stripped, re.IGNORECASE) or re.search(r'[a-zA-Zа-яА-ЯёЁ]\s*:', stripped) and len(stripped) < 6:
+        if re.search(r'^[^\W\d_]\s[^\W\d_]$', stripped, re.IGNORECASE) or re.search(r'[^\W\d_]\s*:', stripped) and len(stripped) < 6:
             continue
             
         # Non-alphabetic fragments (must contain at least one letter)
-        if not re.search(r'[a-zA-Zа-яА-ЯёЁ]', stripped):
+        if not re.search(r'[^\W\d_]', stripped):
             continue
             
         # Specific OCR artifacts
@@ -234,16 +250,25 @@ def parse_curriculum_text(text):
         for sp in sub_parts:
             # 1. Split on commas/spaces followed by major structural keywords that imply a new concept
             # Use a NON-CAPTURING group so re.split doesn't return the delimiters!
-            grammar_split_pattern = r'(?<=[a-zA-Zа-яА-ЯёЁ.,])\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs)\b)'
+            grammar_split_pattern = r'(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs)\b)'
             sp_parts = re.split(grammar_split_pattern, sp)
             
             for p1 in sp_parts:
                 if not p1.strip(): continue
                 # 2. Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
-                sentence_parts = re.split(r'(?<=[a-zA-Zа-яА-ЯёЁ]\.)\s+(?=[A-ZА-ЯЁ])', p1)
+                sentence_parts = re.split(r'(?<=[^\W\d_]\.)\s+(?=[^\W\d_])', p1)
                 for p2 in sentence_parts:
                     if p2.strip():
-                        split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
+                        # Only split if the next word starts with a capital letter (or is capital-like)
+                        # We use a trick: check if the first character of p2 is upper
+                        if p2.strip()[0].isupper():
+                            split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
+                        else:
+                            # Re-merge because it wasn't a capital letter (e.g. "т. д.")
+                            if split_lines:
+                                split_lines[-1]['raw'] += " " + p2.strip()
+                            else:
+                                split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
 
     # 3. Merge broken lines
     merged_lines = []
@@ -258,12 +283,21 @@ def parse_curriculum_text(text):
             
             # Condition to merge:
             is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
-            nxt_is_continuation = bool(re.match(r'^([a-zа-я]|-)', nxt))
+            
+            # nxt_is_continuation if it starts with a lowercase letter or hyphen
+            # [^\W\d_] matches any letter. We check if it is lowercase by getting the first letter.
+            nxt_is_continuation = False
+            if nxt.startswith('-'):
+                nxt_is_continuation = True
+            else:
+                m_letter = re.match(r'^([^\W\d_])', nxt)
+                if m_letter and m_letter.group(1).islower():
+                    nxt_is_continuation = True
             is_comma = bool(re.search(r',\s*$', curr))
             is_bracket = bool(re.match(r'^[\[({]', nxt))
             
-            # Words that strongly imply the sentence is unfinished
-            hanging_words = r'(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes)$'
+            # Words that strongly imply the sentence is unfinished (connectors in all languages)
+            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller)\s*$'
             is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
             
             if (not is_terminal and nxt_is_continuation) or is_comma or is_bracket or is_hanging:
