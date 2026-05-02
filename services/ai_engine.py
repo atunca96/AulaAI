@@ -142,7 +142,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    request_count = c + 2 # Keep it small to avoid truncation
+    request_count = c + 5 # Small buffer for validation fallout
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     
     if is_pdf_source or is_quiz:
@@ -189,7 +189,10 @@ Return ONLY valid JSON:
     try:
         # SINGLE ATTEMPT WITH PREMIUM MODEL
         res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.85)
-        raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
+        if isinstance(res, list):
+            raw_list = res
+        else:
+            raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
         def _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab):
             if not isinstance(item, dict): return None
@@ -200,21 +203,16 @@ Return ONLY valid JSON:
             distractors = [str(d).strip() for d in distractors[:3] if str(d).strip()]
             if len(distractors) < 3: return None
             
-            if not ans or not prompt_text or len(prompt_text) < 5: return None
+            if not ans or not prompt_text or len(prompt_text) < 2: return None
             ans_lower = ans.lower()
             prompt_lower = prompt_text.lower()
-            if len(ans) > 4 and ans_lower in prompt_lower:
-                # Relaxed: only reject if it's obviously the same word wrapped in quotes
-                if f'"{ans_lower}"' in prompt_lower or f"'{ans_lower}'" in prompt_lower: return None
-                # Otherwise, allow it (could be "Which word means 'X'?")
-                pass
+            # ALLOW answer in prompt (e.g. 'What does [word] mean?')
+            pass
             
-            ans_key = re.sub(r'[^\w]', '', ans_lower).strip()
+            ans_key = ans_lower.strip()
             if ans_key in seen_answers: return None
             
-            dist_set = frozenset(d.lower().strip() for d in distractors)
-            if has_rich_vocab:
-                if any(len(dist_set & prev) >= 2 for prev in used_dist_sets): return None
+            # REMOVED dist_set check to allow more questions through
 
             return {
                 "id": _uid(), "type": "mcq", "prompt": prompt_text, 

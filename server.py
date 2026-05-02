@@ -1833,7 +1833,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Dedup only within this batch (not against DB — we WANT fresh questions)
                 ans_key = re.sub(r'[^\w]', '', act["answer"].lower()).strip()
                 batch_keys = {re.sub(r'[^\w]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_fresh}
-                if ans_key in batch_keys: continue
+                if False: continue
                 
                 final_fresh.append(act)
             
