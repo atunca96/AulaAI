@@ -26,6 +26,8 @@ GRAMMAR_KEYS = [
     "accord", "concordan", "case", "kasus", "fall", "casus", "cas",
     "noun", "sentence", "phrase", "вопрос", "существительн", 
     "глагол", "наречие", "прилагательн", "местоимени", "падеж", "склонени",
+    "чей", "кто", "что", "где", "когда", "куда", "откуда", "почему", "как", "сколько",
+    "quien", "que", "donde", "cuando", "como", "cuanto", "por que", "cual",
     "isim", "fiil", "sıfat", "zarf", "zamir", "cümle", "gramer", "dilbilgisi",
     "werkwoord", "zelfstandig naamwoord", "bijvoeglijk", "bijwoord", "zin", "grammatica",
     "substantiv", "adjektiv", "mening", "grammatik",
@@ -54,9 +56,11 @@ META_SKIP = [
     "inhaltsverzeichnis", "indice", "índice", "sommario",
     "sumário", "содержание", "оглавление", "içindekiler",
     "المحتويات", "目录", "目次", "extracted content", "source page",
-    "приложение", "аυдио", "page", "chapter", "unit", "lección", "leccion",
+    "приложение", "аудио", "page", "chapter", "unit", "lección", "leccion",
     "урок", "задание", "упражнение", "русский на каждый день", "review",
-    "appendix", "bibliography", "glossary", "index", "references", "точкару", "точка ру"
+    "appendix", "bibliography", "glossary", "index", "references", "точкару", "точка ру",
+    "дополнительно", "тесты", "проверьте себя", "extra practice", "workbook", "cuaderno",
+    "arbeitsbuch", "exercice", "test yourself", "self-check", "audio scripts", "transcripts"
 ]
 
 
@@ -338,9 +342,18 @@ def parse_curriculum_text(text):
         if re.match(r'^(\d+|\[\d+\])$', t_clean):
             return False
         
-        # Ratio check: if text is mostly digits/symbols/whitespace, it's noise
-        alpha_count = len([c for c in text if c.isalpha()])
-        if alpha_count < len(text) * 0.4:
+        # Topic density filter: ensure it's not mostly numbers or symbols
+        alnum_count = sum(1 for c in text if c.isalnum())
+        if len(text) > 0 and (alnum_count / len(text)) < 0.4:
+            return False
+            
+        # Skip lines that are mostly digits (e.g. "147 148 149")
+        digit_count = sum(1 for c in text if c.isdigit())
+        if len(text) > 5 and (digit_count / len(text)) > 0.5:
+            return False
+
+        # Skip specific book titles/artifacts if they appear standalone
+        if text.lower() in ("точкару а1", "точкару а2", "точка ру", "aula internacional", "aula 1", "aula 2"):
             return False
             
         # Specific OCR artifacts and short tokens (Rule 2)

@@ -523,7 +523,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             with open(temp_pdf, "wb") as f:
                 f.write(pdf_data)
             pdf_path = temp_pdf
-            toc_range = fields.get("toc_range", "1-12")
+            toc_range = fields.get("toc_range", "1-8")
             language = fields.get("language", "Detecting...")
             
             try:
@@ -536,7 +536,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 # Parse Range
                 start_page = 1
-                end_page = 12
+                end_page = 8
                 try:
                     if '-' in toc_range:
                         sp, ep = toc_range.split('-')
@@ -548,7 +548,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     else:
                         # Fallback for unexpected formats
                         start_page = 1
-                        end_page = 12
+                        end_page = 8
                 except: pass
 
                 def normalize_text_structure(text):
@@ -2860,7 +2860,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("PDF file or Markdown analysis required")
             
             course_name = fields.get("course_name")
-            toc_range = fields.get("toc_range", "1-5")
+            toc_range = fields.get("toc_range", "1-8")
             manual_toc = fields.get("manual_toc")
             external_markdown = fields.get("external_markdown")
             lecturer_id = fields.get("lecturer_id")
