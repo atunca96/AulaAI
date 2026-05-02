@@ -744,156 +744,45 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     except: pass
                     return self._send_error("Could not extract text from this PDF. The document may be a scanned image with unreadable content.")
 
-                # --- PASS 2: SKELETON SCAN (High Intensity) ---
-                skeleton_prompt = f"""
-                RULES:
-                - Treat EVERY major section in the Table of Contents as a Unit.
-                - Include "Introductory Units", "Unit 0", and "Unit 1" even if they are short.
-                - Use the LITERAL TITLES as they appear in the text. DO NOT TRANSLATE THEM.
-                - IGNORE reference sections, appendices, glossary, bibliography, and credits.
-                - CRITICAL: Skip any pages marked with '(Support/Reference)' unless they contain a clear Unit number and Teaching content.
-                - Focus ONLY on teaching units/chapters.
-                - RETURN ONLY A JSON LIST of units.
-                - Format: [ {{"unit": 1, "title": "...", "page": 10}}, ... ]
+                # --- PASS 2: DETERMINISTIC FAST PARSING ---
+                file_log("NITRO: Using fast deterministic parser on TOC text...")
+                from services.fast_parser import fast_parse_curriculum
+                chapters = fast_parse_curriculum(toc_text)
                 
-                TEXT:
-                {toc_text[:35000]}
-                """
-                # Use 3.0 Haiku for cost efficiency
-                skeleton_res = _call_ai([{"role": "user", "content": skeleton_prompt}], model="anthropic/claude-3-haiku", max_tokens=2500)
+                if not chapters:
+                    file_log("NITRO: Fast parser returned empty. Falling back to raw text.")
+                    markdown = f"{toc_text[:10000]}"
+                else:
+                    final_details = []
+                    for ch in chapters:
+                        ch_title = ch.get("title", "Unit")
+                        markdown_lines = [f"## {ch_title}"]
+                        for topic in ch.get("topics", []):
+                            t_title = topic.get("title", "")
+                            t_type = topic.get("type", "vocabulary")
+                            t_page = topic.get("page", "")
+                            page_str = f" (Page {t_page})" if t_page else ""
+                            markdown_lines.append(f"- {t_title} [{t_type}]{page_str}")
+                        final_details.append("\n".join(markdown_lines))
+                    
+                    markdown = "\n\n".join(final_details)
                 
-                # Pre-detect language to avoid "Detecting..." leakage in deep-dive prompts
-                clean_lang = language if language and language != "Detecting..." else "this"
-                if clean_lang == "this":
-                    try:
+                detected_lang = language if language and language != "Detecting..." else "English"
+                
+                # Auto-Detect Language and update classroom if possible
+                try:
+                    if detected_lang == "English" or not detected_lang:
                         from services.ai_engine import detect_language
                         detected_initial = detect_language(toc_text)
-                        if detected_initial and detected_initial != "English":
-                            clean_lang = detected_initial
-                    except: pass
-                
-                # --- PASS 2.1: PARSE UNITS & RANGES ---
-                units_data = [] # List of {unit: 1, title: '...', pdf_page: 10}
-                try:
-                    clean_res = str(skeleton_res).replace("```json", "").replace("```", "").strip()
-                    start_idx = clean_res.find("[")
-                    end_idx = clean_res.rfind("]") + 1
-                    if start_idx != -1 and end_idx != 0:
-                        raw_list = json.loads(clean_res[start_idx:end_idx])
-                        for u in raw_list:
-                            p_num = u.get('page')
-                            if p_num:
-                                try:
-                                    u['pdf_page'] = int(p_num) + page_offset
-                                    units_data.append(u)
-                                except: pass
-                except Exception as e:
-                    file_log(f"NITRO: Skeleton Parse Error: {e}")
-
-                if not units_data:
-                    # Fallback to simple regex if JSON fails
-                    import re
-                    page_markers = re.findall(r'Unit\s*(\d+):?\s*(.*?)\s*\(Page\s*(\d+)\)', str(skeleton_res), re.IGNORECASE)
-                    for match in page_markers:
-                        try:
-                            units_data.append({
-                                'unit': match[0],
-                                'title': match[1],
-                                'pdf_page': int(match[2]) + page_offset
-                            })
-                        except: pass
-
-                # Ensure units are sorted by page
-                units_data = sorted(units_data, key=lambda x: x['pdf_page'])
-                file_log(f"NITRO: Identified {len(units_data)} units to deep dive.")
-
-                # --- PASS 3: UNIT-SCOPED DEEP DIVE ---
-                final_details = [None] * len(units_data)
-                from concurrent.futures import ThreadPoolExecutor
-
-                def process_unit(idx, unit_info):
-                    start_p = unit_info['pdf_page']
-                    # End page is the start of next unit or +8 pages
-                    end_p = units_data[idx+1]['pdf_page'] if idx+1 < len(units_data) else start_p + 8
-                    # Cap the range to avoid huge extractions
-                    end_p = min(end_p, start_p + 12, len(doc))
-                    start_p = max(0, start_p - 1) # Slight buffer for headings
-                    
-                    dive_text = ""
-                    for i in range(start_p, end_p):
-                        # Inject explicit page marker so AI can scope details to the correct page
-                        page_text = doc[i].get_text()
-                        
-                        # OCR FALLBACK for image-based pages
-                        if not page_text or len(page_text.strip()) < 20:
-                            try:
-                                from services.ocr_fallback import ocr_page
-                                ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
-                                if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
-                                    page_text = ocr_result
-                            except: pass
-                        
-                        dive_text += f"\n[Page {i + 1 - page_offset}]\n"
-                        dive_text += page_text + "\n"
-                    
-                    # Normalize unit text structure
-                    dive_text = normalize_text_structure(dive_text)
-                    
-                    u_title = unit_info.get('title', 'Unknown Unit')
-                    file_log(f"NITRO: Deep Diving into {u_title} (PDF Pages {start_p+1}-{end_p})...")
-                    
-                    dive_msg = [{
-                        "role": "user", 
-                        "content": f"You are analyzing Unit '{u_title}' from a {clean_lang} textbook. "
-                                   f"Extract all lesson titles, grammar points, vocabulary topics, phonetics, and culture/video sections specifically FOR THIS UNIT. "
-                                   f"IMPORTANT: If explicit lesson titles are missing, extract the major sub-headings, bolded topics, or section themes instead. "
-                                   f"Provide a comprehensive outline. Include page numbers for each. "
-                                   f"TEXT:\n{dive_text[:20000]}"
-                    }]
-                    try:
-                        dive_res = _call_ai(dive_msg, model="anthropic/claude-3-haiku", max_tokens=3000)
-                        res_str = dive_res.get("explanation", "") if isinstance(dive_res, dict) else str(dive_res)
-                        final_details[idx] = f"## Unit {unit_info.get('unit', idx+1)}: {u_title}\n{res_str}"
-                    except Exception as e:
-                        file_log(f"NITRO: Unit {u_title} extraction failed: {e}")
-                        final_details[idx] = f"## Unit {unit_info.get('unit', idx+1)}: {u_title}\n[Extraction failed]"
-
-                with ThreadPoolExecutor(max_workers=8) as executor:
-                    for i, u_info in enumerate(units_data):
-                        executor.submit(process_unit, i, u_info)
-
-                # Assemble Markdown sequentially (No Master Merge needed!)
-                markdown = "\n\n".join([d for d in final_details if d])
-                
-                detected_lang = "English"
-                
-                file_log(f"NITRO: Final Recursive Markdown Length: {len(markdown)} chars")
-                
-                # Auto-Detect Language and update classroom
-                try:
-                    from services.ai_engine import detect_language
-                    # Prioritize the much richer Master Markdown for language detection
-                    # but fall back to toc_text if markdown is too short.
-                    detection_source = markdown if len(markdown) > 200 else toc_text
-                    detected_lang = detect_language(detection_source)
-                    
-                    # If the frontend explicitly sent a language, and detection says English (fallback),
-                    # trust the frontend.
-                    if language and language != "Detecting..." and (detected_lang == "English" or not detected_lang):
-                        detected_lang = language
-                    # We don't have the course_id here easily, but we can find it by looking for the 
-                    # most recent classroom or using the session.
-                    # Actually, the frontend sends the course_id if it's a re-architect.
+                        if detected_initial:
+                            detected_lang = detected_initial
+                            
                     course_id = fields.get("course_id")
                     if course_id:
                         with db_connection() as db:
                             db.execute("UPDATE courses SET language = ? WHERE id = ?", (detected_lang, course_id))
                             db.commit()
                 except: pass
-
-                if not markdown or len(markdown) < 50:
-                    # Final fallback to raw text if AI fails
-                    markdown = f"{toc_text[:10000]}"
                 
                 return self._send_json({
                     "success": True, 
