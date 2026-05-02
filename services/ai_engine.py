@@ -28,9 +28,9 @@ if os.path.exists(".env"):
     except: pass
 
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
-MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Primary fast model
+MODEL_STRUCTURAL = "anthropic/claude-3-haiku" 
 MODEL_NARRATIVE = "anthropic/claude-3-haiku" 
-MODEL_FALLBACK = None # No fallback layer as per user request
+MODEL_FALLBACK = None 
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured."""
@@ -83,19 +83,31 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         
                     if start != -1 and end != -1 and end > start:
                         json_str = content[start:end+1]
-                        json_str = "".join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
-                        try:
-                            return json.loads(json_str, strict=False)
-                        except Exception as je:
-                            # Log the exact JSON that failed
-                            with open("pipeline.log", "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-JSON-FAIL] {target_model}: {str(je)}\n")
-                                f.write(f"--- RAW JSON START ---\n{json_str[:1000]}...\n--- RAW JSON END ---\n")
-                            try:
-                                import ast
-                                clean_json = json_str.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-                                return ast.literal_eval(clean_json)
-                            except: pass
+                        
+                        def _try_parse(s):
+                            try: return json.loads(s, strict=False)
+                            except:
+                                try:
+                                    import ast
+                                    c_s = s.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+                                    return ast.literal_eval(c_s)
+                                except: return None
+
+                        # Attempt 1: Raw
+                        data = _try_parse(json_str)
+                        if data: return data
+                        
+                        # Attempt 2: Repair unclosed JSON
+                        if '[' in json_str and ']' not in json_str:
+                            data = _try_parse(json_str + ']}')
+                            if data: return data
+                        if '{' in json_str and '}' not in json_str:
+                            data = _try_parse(json_str + '}')
+                            if data: return data
+                            
+                        # Attempt 3: Log failure
+                        with open("pipeline.log", "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-JSON-FAIL] {target_model}: Failed to parse {len(json_str)} chars\n")
                     
                     if len(content) > 10 and '{' not in content:
                         return {"explanation": content}
@@ -107,8 +119,10 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         
         except Exception as e:
             last_error = str(e)
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] {target_model}: {last_error}\n")
+            try:
+                with open("pipeline.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] {target_model}: {last_error}\n")
+            except: pass
             
     return {"error_details": last_error}
 
@@ -128,7 +142,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    request_count = max(c * 3, 20) 
+    request_count = c + 2 # Keep it small to avoid truncation
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     
     if is_pdf_source or is_quiz:
