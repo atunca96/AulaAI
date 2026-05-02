@@ -548,8 +548,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     else:
                         # Fallback for unexpected formats
                         start_page = 1
-                        end_page = 8
-                except: pass
+                except:
+                    start_page = 1
+                    end_page = 8
+
 
                 def normalize_text_structure(text):
                     """
@@ -681,7 +683,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # We need to know which PDF page corresponds to which Printed Page
                 file_log("NITRO: Detecting page offset...")
                 offset_text = ""
-                for i in range(min(20, len(doc))):
+                # Scan a smaller sample (first 5 pages) to detect offset
+                # Offset is usually established on the very first pages.
+                # Scanning 20 pages is too slow on image-based PDFs.
+                sample_limit = min(5, len(doc))
+                for i in range(sample_limit):
                     page_text = doc[i].get_text()[:500]
                     # OCR FALLBACK for offset detection on scanned pages
                     if len(page_text.strip()) < 20:
