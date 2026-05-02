@@ -86,7 +86,11 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         json_str = "".join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
                         try:
                             return json.loads(json_str, strict=False)
-                        except:
+                        except Exception as je:
+                            # Log the exact JSON that failed
+                            with open("pipeline.log", "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-JSON-FAIL] {target_model}: {str(je)}\n")
+                                f.write(f"--- RAW JSON START ---\n{json_str[:1000]}...\n--- RAW JSON END ---\n")
                             try:
                                 import ast
                                 clean_json = json_str.replace('true', 'True').replace('false', 'False').replace('null', 'None')
@@ -180,8 +184,11 @@ Return ONLY valid JSON:
             if not ans or not prompt_text or len(prompt_text) < 5: return None
             ans_lower = ans.lower()
             prompt_lower = prompt_text.lower()
-            if len(ans) > 4 and ans_lower in prompt_lower: return None
-            if f'"{ans_lower}"' in prompt_lower or f"'{ans_lower}'" in prompt_lower: return None
+            if len(ans) > 4 and ans_lower in prompt_lower:
+                # Relaxed: only reject if it's obviously the same word wrapped in quotes
+                if f'"{ans_lower}"' in prompt_lower or f"'{ans_lower}'" in prompt_lower: return None
+                # Otherwise, allow it (could be "Which word means 'X'?")
+                pass
             
             ans_key = re.sub(r'[^\w]', '', ans_lower).strip()
             if ans_key in seen_answers: return None
@@ -222,15 +229,25 @@ Return ONLY valid JSON:
             msg = f"Generation failed for {topic_title} in {language}."
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FALLBACK] {msg}\n")
+            
             clean_lang = language if language and language.lower() != "unknown" else "this language"
-            fallback_ans = f"Correct concept: {topic_title}"
-            final.append({
-                "id": _uid(), "type": "mcq", 
-                "prompt": f"Which of the following is a core concept of '{topic_title}' in {clean_lang}?",
-                "answer": fallback_ans, 
-                "distractors": ["Incorrect concept 1", "Incorrect concept 2", "Incorrect concept 3"],
-                "options": [fallback_ans, "Incorrect concept 1", "Incorrect concept 2", "Incorrect concept 3"]
-            })
+            
+            # Create 3 distinct fallbacks instead of 1
+            placeholders = [
+                ("concept", "Definition 1", "Definition 2", "Definition 3"),
+                ("usage", "Context A", "Context B", "Context C"),
+                ("term", "Synonym 1", "Synonym 2", "Synonym 3")
+            ]
+            
+            for i, (kind, w1, w2, w3) in enumerate(placeholders):
+                ans = f"Correct {kind} of {topic_title}"
+                final.append({
+                    "id": _uid() + f"_{i}", "type": "mcq", 
+                    "prompt": f"Which of the following describes the {kind} of '{topic_title}' in {clean_lang}?",
+                    "answer": ans, 
+                    "distractors": [w1, w2, w3],
+                    "options": py_random.sample([ans, w1, w2, w3], 4)
+                })
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={len(final)}\n")
