@@ -677,15 +677,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     
                     return result.strip()
 
-                raw_text = ""
-                # Language Agnostic Extraction: Use the specified range
                 # --- PASS 1.5: PAGE OFFSET DETECTION ---
-                # We need to know which PDF page corresponds to which Printed Page
                 file_log("NITRO: Detecting page offset...")
                 offset_text = ""
-                # Scan a smaller sample (first 5 pages) to detect offset
-                # Offset is usually established on the very first pages.
-                # Scanning 20 pages is too slow on image-based PDFs.
+                ocr_cache = {} # Cache OCR results to avoid redundant work
+                
                 sample_limit = min(5, len(doc))
                 for i in range(sample_limit):
                     page_text = doc[i].get_text()[:500]
@@ -696,6 +692,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             ocr_result = ocr_page(doc[i], page_num=i + 1, dpi=150, language=language)
                             if ocr_result:
                                 page_text = ocr_result[:500]
+                                ocr_cache[i] = ocr_result # Cache full text
                         except: pass
                     offset_text += f"[PDF PAGE {i+1}]: {page_text}\n"
                 
@@ -710,9 +707,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 offset_res = _call_ai([{"role": "user", "content": offset_prompt}], model="anthropic/claude-3-haiku", max_tokens=10)
                 page_offset = 0
                 try: 
-                    offset_val = str(offset_res).strip()
-                    # Extract digits only
-                    offset_val = "".join(filter(str.isdigit, offset_val))
+                    offset_val = "".join(filter(str.isdigit, str(offset_res).strip()))
                     if offset_val: page_offset = int(offset_val)
                 except: pass
                 file_log(f"NITRO: Detected Page Offset: {page_offset}")
@@ -721,21 +716,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 toc_text = ""
                 for i in range(start_page - 1, end_page):
                     if i < len(doc):
-                        # Inject explicit page marker for AI coordinate stability
-                        # We use Printed Page number if offset was found, else PDF page
                         printed_p = i + 1 - page_offset
-                        page_text = doc[i].get_text()
-                        
-                        # OCR FALLBACK: If this page has no text, run local OCR
-                        if not page_text or len(page_text.strip()) < 20:
-                            try:
-                                from services.ocr_fallback import ocr_page
-                                ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
-                                if ocr_result and len(ocr_result.strip()) > len(page_text.strip()):
-                                    page_text = ocr_result
-                                    file_log(f"NITRO: OCR fallback for page {i+1}: {len(page_text)} chars")
-                            except Exception as ocr_e:
-                                file_log(f"NITRO: OCR fallback failed for page {i+1}: {ocr_e}")
+                        # Check cache first
+                        if i in ocr_cache:
+                            page_text = ocr_cache[i]
+                        else:
+                            page_text = doc[i].get_text()
+                            # OCR FALLBACK: If this page has no text, run local OCR
+                            if not page_text or len(page_text.strip()) < 20:
+                                try:
+                                    from services.ocr_fallback import ocr_page
+                                    ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
+                                    if ocr_result:
+                                        page_text = ocr_result
+                                        ocr_cache[i] = ocr_result
+                                except Exception as ocr_e:
+                                    file_log(f"NITRO: OCR fallback failed for page {i+1}: {ocr_e}")
                         
                         toc_text += f"\n[Page {printed_p}]\n"
                         toc_text += page_text + "\n"
