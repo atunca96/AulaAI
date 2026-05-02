@@ -169,47 +169,44 @@ def is_chapter_header(line):
 
 def parse_curriculum_text(text):
     """
-    Parse curriculum text into structured units/chapters.
-    Focuses on bullet-point boundaries and multi-line title reconstruction.
+    Final robust version of curriculum parser.
+    Uses strict boundaries and multi-pass merging.
     """
     if not text or not text.strip():
         return []
 
     chapters = []
     current_chapter = None
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    
+    # 1. Cleaning & Pre-processing
+    raw_lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines = []
+    for rl in raw_lines:
+        # Split on internal bullets immediately to simplify logic
+        if '•' in rl:
+            lines.extend([p.strip() for p in rl.split('•') if p.strip()])
+        else:
+            lines.append(rl)
 
     i = 0
     while i < len(lines):
         line = lines[i]
         
-        # 1. Pre-Processing: Merge Fragments
-        # If this line and next line are both ALL CAPS and no bullets, merge them.
-        while i + 1 < len(lines):
-            nxt = lines[i+1]
-            if nxt.startswith('-') or nxt.startswith('•') or nxt.startswith('*'): break
-            if is_chapter_header(nxt)[0]: break
-            
-            # If both are ALL CAPS and short, or one is a continuation
-            if (line.isupper() and nxt.isupper()) or (not nxt[0].isalnum()):
-                line += " " + nxt
-                i += 1
-            else:
-                break
-
-        # 2. Internal Bullet Splitting
-        if '•' in line:
-            parts = [p.strip() for p in line.split('•') if p.strip()]
-            lines[i+1:i+1] = parts[1:] # Insert remaining parts
-            line = parts[0]
-
-        # 3. Detect Chapter/Unit Header
+        # A. Detect Chapter/Unit Header
         is_ch, ch_num = is_chapter_header(line)
-        # FORCE: If a line doesn't start with a bullet/dash and is followed by bullets, it's a header
-        if not is_ch and not (line.startswith('-') or line.startswith('•') or line.startswith('*')):
-            if i + 1 < len(lines) and (lines[i+1].startswith('-') or lines[i+1].startswith('•') or lines[i+1].startswith('*')):
-                is_ch = True
-                ch_num = "H"
+        
+        # B. Detect Topic Characteristics
+        is_topic_marker = line.startswith('-') or line.startswith('•') or line.startswith('*')
+        has_tag = bool(re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', line, re.I))
+        is_recursos = any(k in line.upper() for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS"])
+        
+        # Heuristic Header: No bullet, All Caps, not a 'Recursos' line, and followed by content
+        if not is_ch and not is_topic_marker and not is_recursos and line.isupper() and len(line) < 40:
+            if i + 1 < len(lines):
+                nxt = lines[i+1]
+                if nxt.startswith('-') or nxt.startswith('•') or "RECURSOS" in nxt.upper():
+                    is_ch = True
+                    ch_num = "H"
 
         if is_ch:
             if current_chapter: chapters.append(current_chapter)
@@ -219,32 +216,33 @@ def parse_curriculum_text(text):
             i += 1
             continue
 
-        # 4. Topic Discovery & Merging
+        # C. Topic Discovery & Merging
         content = line
-        topic_type = classify_topic(content)
+        # Start merging until we hit a clear new boundary
+        while i + 1 < len(lines):
+            nxt = lines[i+1]
+            
+            # Boundaries:
+            if is_chapter_header(nxt)[0]: break
+            if nxt.startswith('-') or nxt.startswith('•'): break
+            if any(k in nxt.upper() for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS"]): break
+            if re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I): break # Current already has tag
+            
+            # If current line is a 'hanging' line (no punctuation or ends with connector)
+            is_hanging = not re.search(r'[.!?\]\)]$', content)
+            if is_hanging or nxt[0].islower():
+                content += " " + nxt
+                i += 1
+            else:
+                break
         
-        # Find tag
+        # D. Cleanup and Classify
+        topic_type = classify_topic(content)
         tag_match = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I)
         if tag_match:
             topic_type = tag_match.group(1).lower()
             content = content[:tag_match.start()].strip()
-        else:
-            # Look ahead: merge until tag or boundary
-            while i + 1 < len(lines):
-                nxt = lines[i+1]
-                if is_chapter_header(nxt)[0]: break
-                if nxt.startswith('-') or nxt.startswith('•') or nxt.startswith('*'): break
-                
-                nxt_tag = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', nxt, re.I)
-                if nxt_tag:
-                    topic_type = nxt_tag.group(1).lower()
-                    content += " " + nxt[:nxt_tag.start()].strip()
-                    i += 1
-                    break
-                content += " " + nxt
-                i += 1
-
-        # Cleanup content
+        
         content = re.sub(r'^[#\*_\-\s.:/]+', '', content).strip()
         if len(content) > 3 and not is_meta_section(content):
             if not current_chapter:
@@ -260,7 +258,7 @@ def parse_curriculum_text(text):
 
     if current_chapter: chapters.append(current_chapter)
 
-    # Final Deduplication & Normalization
+    # Final Deduplication & Post-processing
     for ch in chapters:
         seen = set()
         unique_topics = []
