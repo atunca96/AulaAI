@@ -10,6 +10,8 @@ Produces the same output schema as the AI parser:
 Design: Single-pass, language-agnostic, zero dependencies beyond stdlib.
 """
 
+# LEGACY - DO NOT USE
+# TO BE REMOVED AFTER VALIDATION
 import re
 
 # ── Topic Type Classification ────────────────────────────────────────

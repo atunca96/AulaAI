@@ -37,7 +37,7 @@ from database import get_db, init_db, db_connection, DATA_DIR, BOOKS_DIR
 from services.content_engine import generate_activity, generate_quiz, grade_response, generate_dialogue_activity
 from services.mastery import compute_mastery, generate_weekly_report
 from services.ai_engine import is_ai_available, ai_generate_report_insights, ai_generate_activity_batch, ai_explain_word, ai_explain_activity
-from services.pdf_pipeline import process_pdf_to_classroom
+from services.legacy.pdf_pipeline import process_pdf_to_classroom
 from services.state import bump_version, get_version
 from services.dictionary_service import get_definition, clean_word
 
@@ -544,7 +544,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/curriculum/topic/delete":
             return self._delete_topic()
         elif path == "/api/marker/extract":
-            file_log("MARKER: Received extraction request")
+            file_log("MARKER: Received extraction request (Routing to Pipeline V2)")
             fields, files = self._read_multipart()
             if not files or "pdf" not in files:
                 return self._send_error("PDF file required")
@@ -555,283 +555,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             with open(temp_pdf, "wb") as f:
                 f.write(pdf_data)
-            pdf_path = temp_pdf
-            toc_range = fields.get("toc_range", "1-20")
-
-            language = fields.get("language", "Detecting...")
             
             try:
-                from services.ai_engine import _call_ai
-                # CLOUD NITRO FALLBACK: 
-                # Instead of waiting for local AI to compile/load, we use a robust cloud bridge
-                # for instant high-fidelity extraction using PyMuPDF (fitz).
-                import fitz
-                doc = fitz.open(pdf_path)
+                from services.pipeline_v2.pdf_processor import process_pdf
+                curriculum = process_pdf(temp_pdf)
                 
-                # Parse Range
-                start_page = 1
-                end_page = 8
-                try:
-                    if '-' in toc_range:
-                        sp, ep = toc_range.split('-')
-                        start_page = max(1, int(sp))
-                        end_page = min(len(doc), int(ep))
-                    elif toc_range.strip().isdigit():
-                        start_page = int(toc_range.strip())
-                        end_page = start_page
-                    else:
-                        # Fallback for unexpected formats
-                        start_page = 1
-                except:
-                    start_page = 1
-                    end_page = 8
-
-
-                def normalize_text_structure(text):
-                    """
-                    Cleans artifacts, reorders internal pages semantically, 
-                    and normalizes markdown structure.
-                    """
-                    import re
-                    # 1. Conservative Noise Cleanup (Structural only)
-                    lines = text.split('\n')
-                    clean_lines = []
-                    # Generic Unit/Chapter markers to protect (Handles 0/ and common O/ OCR confusion)
-                    unit_markers = r'(?i)^(?:Unit|Chapter|Module|Lektion|Tema|Unidad|Lesson)\s*\d+|^[0-9O][\./]\s*'
-                    
-                    for line in lines:
-                        l = line.strip()
-                        if not l:
-                            clean_lines.append(line)
-                            continue
-                            
-                        # PROTECT: Real unit/chapter/lesson markers
-                        if re.match(unit_markers, l):
-                            clean_lines.append(line)
-                            continue
-                            
-                        # SKIP: Single isolated non-alphanumeric characters (symbols, punctuation)
-                        if len(l) == 1 and not l.isalnum(): continue
-                        # SKIP: Single isolated alphabetic characters (e.g. stray "I", "a")
-                        # Only skip truly isolated ones — real content has surrounding context
-                        if len(l) == 1 and l.isalpha(): continue
-                        # SKIP: Standalone hyphen/dash lines
-                        if re.match(r'^[-–—]+$', l): continue
-                        # SKIP: Standalone page fragments (e.g. "Page 10" or "10 Page")
-                        if re.match(r'(?i)^(?:Page\s*\d+|\d+\s*Page)$', l): continue
-                        # SKIP: Footer/header fragments: short word + number, or number + short word
-                        # Pattern: a word of ≤8 chars followed by a number (or vice-versa), nothing else
-                        # e.g. "ocho 8", "nueve 9", "doce 12", "8 ocho"
-                        # Guard: only remove if the line is short (≤16 chars total)
-                        if len(l) <= 16 and re.match(r'(?i)^[a-záéíóúüñàèìòùâêîôûäëïöü]{1,8}\s+\d{1,3}$', l): continue
-                        if len(l) <= 16 and re.match(r'(?i)^\d{1,3}\s+[a-záéíóúüñàèìòùâêîôûäëïöü]{1,8}$', l): continue
-                        
-                        clean_lines.append(line)
-
-                    # SKIP: Remove runs of duplicate short lines (layout column artifacts)
-                    # Only deduplicate consecutive identical lines that are very short
-                    deduped = []
-                    for i, line in enumerate(clean_lines):
-                        l = line.strip()
-                        if l and len(l) <= 20 and i > 0 and clean_lines[i-1].strip() == l:
-                            continue  # Skip exact duplicate of previous short line
-                        deduped.append(line)
-                    clean_lines = deduped
-
-                    text = '\n'.join(clean_lines)
-
-                    # Strip malformed metadata & artifacts
-                    text = re.sub(r'\[\s*Page\s*\d+\s*\]', '', text) # Remove physical markers
-                    text = re.sub(r'\[\s*\]', '', text) # Remove empty/broken brackets
-                    
-                    # 2. Reorder internal textbook pages
-                    # Catch PÁG. 10, Page 14, P. 28 etc.
-                    pattern = r'(?i)(?:PÁG\.|Page|P\.)\s*(\d+)'
-                    matches = list(re.finditer(pattern, text))
-                    
-                    if not matches:
-                        # Final structural cleanup for marker-less text
-                        text = re.sub(r'\n{3,}', '\n\n', text)
-                        return text.strip()
-                    
-                    starts = [m.start() for m in matches]
-                    chunks = []
-                    
-                    # Handle orphan text before first marker
-                    if starts[0] > 0:
-                        chunks.append({'page': -1, 'text': text[:starts[0]].strip()})
-                    
-                    for i in range(len(starts)):
-                        start = starts[i]
-                        end = starts[i+1] if i+1 < len(starts) else len(text)
-                        m = matches[i]
-                        p_num = int(m.group(1))
-                        
-                        # Extract content after the marker
-                        content = text[m.end():end].strip()
-                        
-                        # HEURISTIC: Heading joining for split uppercase titles
-                        # If the first few lines are all uppercase and short, join them.
-                        c_lines = content.split('\n')
-                        if len(c_lines) > 1:
-                            if c_lines[0].isupper() and len(c_lines[0]) < 60 and \
-                               c_lines[1].isupper() and len(c_lines[1]) < 60:
-                                c_lines[0] = c_lines[0] + " " + c_lines[1]
-                                c_lines.pop(1)
-                                content = '\n'.join(c_lines)
-
-                        # CLASSIFICATION: Support vs Teaching material
-                        is_support = False
-                        
-                        # PROTECT: Starter units (0/ or O/)
-                        has_starter_marker = re.search(r'(?i)^[0O][\./]\s*', content[:100])
-                        
-                        # CHECK: Pedagogical signals (Generic cross-linguistic keywords)
-                        # Looks for 'Objective', 'Goal', 'Objetivo', 'Lernziel', 'Learning', etc.
-                        has_pedagogical_keywords = re.search(r'(?i)Objectiv|Goal|Lernziel|Objetivo|Compétence|Learning|Lesson|Capitulo|Unit', content[:500])
-                        
-                        # Only mark as support if it lacks all unit-like markers and pedagogical signals
-                        if not re.search(unit_markers, content[:300]) and not has_starter_marker and not has_pedagogical_keywords and len(content) < 500:
-                            is_support = True
-                        
-                        # Use stable normalized heading with classification hint
-                        header = f"# Source Page {p_num}"
-                        if is_support: header += " (Support/Reference)"
-                        
-                        chunks.append({'page': p_num, 'text': f"{header}\n{content}"})
-                    
-                    # Sort by semantic textbook page
-                    chunks.sort(key=lambda x: x['page'])
-                    result = "\n\n".join([c['text'] for c in chunks])
-                    
-                    # 3. Final structural polish
-                    result = re.sub(r'\n{3,}', '\n\n', result) # Normalize whitespace
-                    # Join broken lines (heuristic: line ends with word char and next starts with lowercase)
-                    result = re.sub(r'(?<=[a-zA-Z0-9,])\n(?=[a-z])', ' ', result)
-                    
-                    return result.strip()
-
-                # --- PASS 1.5: PAGE OFFSET DETECTION ---
-                file_log("NITRO: Detecting page offset...")
-                offset_text = ""
-                ocr_cache = {} # Cache OCR results to avoid redundant work
+                # Convert V2 JSON to the Markdown format the Architect frontend expects
+                final_details = []
+                for unit in curriculum.get("units", []):
+                    u_title = unit.get("title", "Unit")
+                    markdown_lines = [f"## {u_title}"]
+                    for topic in unit.get("topics", []):
+                        t_text = topic.get("text", "")
+                        t_tag = topic.get("tag", "vocabulary")
+                        markdown_lines.append(f"- {t_text} [{t_tag}]")
+                    final_details.append("\n".join(markdown_lines))
                 
-                sample_limit = min(5, len(doc))
-                for i in range(sample_limit):
-                    page_text = doc[i].get_text()[:500]
-                    # OCR FALLBACK for offset detection on scanned pages
-                    if len(page_text.strip()) < 20:
-                        try:
-                            from services.ocr_fallback import ocr_page
-                            ocr_result = ocr_page(doc[i], page_num=i + 1, dpi=150, language=language)
-                            if ocr_result:
-                                page_text = ocr_result[:500]
-                                ocr_cache[i] = ocr_result # Cache full text
-                        except: pass
-                    offset_text += f"[PDF PAGE {i+1}]: {page_text}\n"
-                
-                offset_prompt = f"""
-                Analyze these PDF pages and find the PRINTED page number shown on each.
-                Example: If [PDF PAGE 10] contains text like "Pág. 1", then the offset is 9.
-                Return ONLY the offset number (PDF_PAGE - PRINTED_PAGE). If you can't find it, return 0.
-                
-                TEXT:
-                {offset_text}
-                """
-                offset_res = _call_ai([{"role": "user", "content": offset_prompt}], model="anthropic/claude-3-haiku", max_tokens=10)
-                page_offset = 0
-                try: 
-                    offset_val = "".join(filter(str.isdigit, str(offset_res).strip()))
-                    if offset_val: page_offset = int(offset_val)
-                except: pass
-                file_log(f"NITRO: Detected Page Offset: {page_offset}")
-
-                # --- STEP 1: TOC EXTRACTION ---
-                toc_text = ""
-                for i in range(start_page - 1, end_page):
-                    if i < len(doc):
-                        printed_p = i + 1 - page_offset
-                        # Check cache first
-                        if i in ocr_cache:
-                            page_text = ocr_cache[i]
-                        else:
-                            page_text = doc[i].get_text()
-                            # OCR FALLBACK: If this page has no text, run local OCR
-                            if not page_text or len(page_text.strip()) < 20:
-                                try:
-                                    from services.ocr_fallback import ocr_page
-                                    ocr_result = ocr_page(doc[i], page_num=i + 1, language=language)
-                                    if ocr_result:
-                                        page_text = ocr_result
-                                        ocr_cache[i] = ocr_result
-                                except Exception as ocr_e:
-                                    file_log(f"NITRO: OCR fallback failed for page {i+1}: {ocr_e}")
-                        
-                        toc_text += f"\n[Page {printed_p}]\n"
-                        toc_text += page_text + "\n"
-
-                # Normalize TOC text structure
-                toc_text = normalize_text_structure(toc_text)
-                file_log(f"NITRO: TOC extraction complete. Length: {len(toc_text)} chars (Normalized)")
-                
-                if not toc_text or len(toc_text.strip()) < 20:
-                    doc.close()
-                    try: os.remove(temp_pdf)
-                    except: pass
-                    return self._send_error("Could not extract text from this PDF. The document may be a scanned image with unreadable content.")
-
-                # --- PASS 2: DETERMINISTIC FAST PARSING ---
-                file_log("NITRO: Using fast deterministic parser on TOC text...")
-                from services.fast_parser import fast_parse_curriculum
-                chapters = fast_parse_curriculum(toc_text)
-                
-                if not chapters:
-                    file_log("NITRO: Fast parser returned empty. Falling back to raw text.")
-                    markdown = f"{toc_text[:10000]}"
-                else:
-                    final_details = []
-                    for ch in chapters:
-                        ch_title = ch.get("title", "Unit")
-                        markdown_lines = [f"## {ch_title}"]
-                        for topic in ch.get("topics", []):
-                            t_title = topic.get("title", "")
-                            t_type = topic.get("type", "vocabulary")
-                            t_page = topic.get("page", "")
-                            page_str = f" (Page {t_page})" if t_page else ""
-                            markdown_lines.append(f"- {t_title} [{t_type}]{page_str}")
-                        final_details.append("\n".join(markdown_lines))
-                    
-                    markdown = "\n\n".join(final_details)
-                
-                detected_lang = language if language and language != "Detecting..." else "English"
-                
-                # Auto-Detect Language and update classroom if possible
-                try:
-                    if detected_lang == "English" or not detected_lang:
-                        from services.ai_engine import detect_language
-                        detected_initial = detect_language(toc_text)
-                        if detected_initial:
-                            detected_lang = detected_initial
-                            
-                    course_id = fields.get("course_id")
-                    if course_id:
-                        with db_connection() as db:
-                            db.execute("UPDATE courses SET language = ? WHERE id = ?", (detected_lang, course_id))
-                            db.commit()
-                except: pass
+                markdown = "\n\n".join(final_details)
                 
                 return self._send_json({
                     "success": True, 
                     "markdown": markdown,
-                    "language": detected_lang
+                    "language": fields.get("language", "Spanish") # Default to Spanish for AulaAI
                 })
-                
             except Exception as e:
-                file_log(f"FALLBACK ERROR: {e}")
+                file_log(f"V2 EXTRACTION ERROR: {e}")
                 return self._send_error(f"Extraction failed: {str(e)}")
             finally:
-                if 'doc' in locals() and doc:
-                    try: doc.close()
+                if os.path.exists(temp_pdf):
+                    try: os.remove(temp_pdf)
                     except: pass
                 # Clean up everything in BOOKS_DIR that is temporary or old
                 cleanup_storage()
@@ -2827,7 +2579,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 cache_chapters.append({"number": len(cache_chapters) + 1, "title": ch.get("title", ""), "topics": cache_topics})
             save_blueprint_cache(language, level, cache_chapters)
         
-        from services.pdf_pipeline import process_manual_to_classroom
+        from services.legacy.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id)
         return self._send_json(result)
 

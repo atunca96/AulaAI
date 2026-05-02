@@ -1,3 +1,10 @@
-pymupdf
+fastapi
+uvicorn
+pdfplumber
 pytesseract
+requests
+python-multipart
+pdf2image
 Pillow
+pydantic
+PyMuPDF

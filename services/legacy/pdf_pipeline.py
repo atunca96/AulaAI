@@ -1,4 +1,5 @@
-
+# LEGACY - DO NOT USE
+# TO BE REMOVED AFTER VALIDATION
 import os
 import random
 import threading
@@ -88,7 +89,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                     _log(f"TOC Extraction complete. Length: {len(toc_text)} chars")
                     
                     # OCR FALLBACK: If text extraction yielded nothing useful, try vision OCR
-                    from services.ocr_fallback import is_image_based_page, ocr_pdf_pages
+                    from services.legacy.ocr_fallback import is_image_based_page, ocr_pdf_pages
                     if is_image_based_page(toc_text):
                         _log("TOC text is empty/garbage — activating OCR fallback...")
                         ocr_toc = ocr_pdf_pages(pdf_path, start_page=start_p, end_page=end_p)
@@ -143,7 +144,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             # PRIMARY: Fast deterministic parser (milliseconds)
             import time as _t
             _parse_start = _t.time()
-            from services.fast_parser import fast_parse_curriculum
+            from services.legacy.fast_parser import fast_parse_curriculum
             chapters_data = fast_parse_curriculum(parse_source)
             _parse_ms = (_t.time() - _parse_start) * 1000
             _log(f"Fast parser completed in {_parse_ms:.0f}ms → {len(chapters_data)} chapters")
@@ -233,7 +234,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         # generate source markdown via OCR for ONLY the pages mentioned in the topics
         if not source_markdown_path and pdf_path and pdf_path != "NONE":
             try:
-                from services.ocr_fallback import is_image_based_pdf, ocr_pdf_pages
+                from services.legacy.ocr_fallback import is_image_based_pdf, ocr_pdf_pages
                 if is_image_based_pdf(pdf_path):
                     _log("Image-based PDF detected — generating surgical OCR source markdown...")
                     
@@ -501,6 +502,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             db.commit()
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1"):
+    import logging
+    logging.getLogger(__name__).warning("LEGACY PIPELINE IN USE")
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
     

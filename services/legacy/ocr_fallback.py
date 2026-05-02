@@ -8,6 +8,8 @@ This module is only invoked when normal text extraction fails or yields
 insufficient content.
 """
 
+# LEGACY - DO NOT USE
+# TO BE REMOVED AFTER VALIDATION
 import os
 import re
 import io

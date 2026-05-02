@@ -3,7 +3,7 @@ import traceback
 import threading
 import time
 import os
-from services.pdf_pipeline import start_pipeline_background
+from services.pipeline_v2.orchestrator import start_pipeline_v2
 
 def heartbeat():
     while True:
@@ -24,7 +24,7 @@ def main():
         # Check if this is a REBUILD (1 argument) or a FULL PIPELINE (4+ arguments)
         if len(sys.argv) == 2:
             course_id = sys.argv[1]
-            from services.pdf_pipeline import enrich_classroom_phase2
+            from services.legacy.pdf_pipeline import enrich_classroom_phase2
             from database import db_connection
             
             with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -71,10 +71,9 @@ def main():
             with open(manual_toc_path, "r", encoding="utf-8") as f:
                 manual_toc = f.read()
 
-        print(f"[PIPELINE] Worker starting FULL PIPELINE for Course {course_id} ({course_name})")
-        # start_pipeline_background handles Phase 1 and then internally triggers enrichment
-        start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, course_name, manual_toc=manual_toc, source_markdown_path=source_markdown_path, language=language)
-        print(f"[PIPELINE] Worker finished FULL PIPELINE for Course {course_id}")
+        print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
+        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc)
+        print(f"[PIPELINE] Worker finished FULL PIPELINE (V2) for Course {course_id}")
 
     except Exception as e:
         print("[PIPELINE] FATAL ERROR in worker.py:", file=sys.stderr)
