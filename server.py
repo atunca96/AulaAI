@@ -428,6 +428,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         progress = 0, 
                         total_steps = 0,
                         draft_progress = 0,
+
                         draft_status = 'idle',
                         activity_status = 'idle',
                         activity_progress = 0,
@@ -555,7 +556,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             with open(temp_pdf, "wb") as f:
                 f.write(pdf_data)
             pdf_path = temp_pdf
-            toc_range = fields.get("toc_range", "1-8")
+            toc_range = fields.get("toc_range", "1-20")
+
             language = fields.get("language", "Detecting...")
             
             try:
@@ -2899,7 +2901,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("PDF file or Markdown analysis required")
             
             course_name = fields.get("course_name")
-            toc_range = fields.get("toc_range", "1-8")
+            toc_range = fields.get("toc_range", "1-20")
             manual_toc = fields.get("manual_toc")
             external_markdown = fields.get("external_markdown")
             lecturer_id = fields.get("lecturer_id")

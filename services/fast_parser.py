@@ -130,19 +130,19 @@ UNIT_PATTERN = re.compile(
     r'^(?:'
     r'(?:unit|chapter|module|unidad|unité|lektion|kapitel|lección|leccion|tema|thème|chapitre|modulo|módulo|etapa|paso|stufe|урок|раздел|часть)'
     r'\s*\.?\s*(\d+)'           # "Unit 1", "Unidad 1", etc.
-    r'|(\d+)\s*[.:/\-–—]\s*'   # "1. Title", "1: Title", "1/ Title"
-    r'|([IVXLC]+)\s*[.:/\-–—]\s*'  # "I. Title", "IV: Title"
+    r'|(\d+)\s*[.:/\\\-–—]\s*'  # "1. Title", "1: Title", "1/ Title"
+    r'|([IVXLC]+)\s*[.:/\\\-–—]\s*'  # "I. Title", "IV: Title"
     r')',
     re.IGNORECASE
 )
 
 # Detect if a line is a chapter/unit header
-def is_chapter_header(line, prev_indent=0):
+def is_chapter_header(line):
     """
     Determines if a line is a chapter/unit header.
     Returns (True, chapter_number_str) or (False, None).
     """
-    # Clean leading Markdown symbols and common decorations
+    # Clean leading Markdown symbols
     clean_line = re.sub(r'^[#\*_\-\s]+', '', line.strip()).strip()
     if not clean_line or len(clean_line) < 3:
         return False, None
@@ -151,11 +151,19 @@ def is_chapter_header(line, prev_indent=0):
     if is_meta_section(clean_line):
         return False, None
 
-    # Check against unit patterns
+    # 1. Standard Patterns
     m = UNIT_PATTERN.match(clean_line)
     if m:
         num = m.group(1) or m.group(2) or m.group(3)
         return True, num
+
+    # 2. Heuristic: All-caps short lines that don't look like topics
+    # Topics in this book are often "RECURSOS ..." or start with lowercase.
+    # Unit headers are often "DIAADIA", "EL BARRIO", "NOSOTROS Y NOSOTRAS"
+    if clean_line.isupper() and len(clean_line) < 35:
+        # Exclude common noisy caps that are NOT units
+        if not any(k in clean_line for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
+            return True, "H" # Heuristic header
 
     return False, None
 
@@ -192,11 +200,20 @@ def parse_curriculum_text(text):
     while i < len(lines):
         line = lines[i]
         
-        # 1. Detect Chapter/Unit Header
+        # 1. Internal Bullet Splitting: "Topic 1 • Topic 2 • Topic 3"
+        # We split the line and treat each part as a separate topic/line
+        if '•' in line:
+            parts = [p.strip() for p in line.split('•') if p.strip()]
+            lines[i:i+1] = parts
+            line = lines[i]
+
+        # 2. Detect Chapter/Unit Header
         is_ch, ch_num = is_chapter_header(line)
         if is_ch:
             if current_chapter: chapters.append(current_chapter)
             title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', line).strip()
+            # Clean "3/ " from title if matched by UNIT_PATTERN
+            title = re.sub(r'^\d+\s*[.:/\\\-–—]\s*', '', title).strip()
             current_chapter = {"title": title, "topics": []}
             i += 1
             continue

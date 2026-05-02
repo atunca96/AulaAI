@@ -443,12 +443,13 @@ const i18n = {
     'class.delete_confirm': 'Are you sure you want to delete this classroom? All data including students, grades, and content will be permanently removed.',
     'class.upload_pdf': 'Upload PDF Textbook',
     'class.toc_range': 'Contents Page Range (e.g. 2-5)',
-    'class.toc_placeholder': '2-5',
+    'class.toc_placeholder': '1-25',
     'class.processing': 'Processing PDF & generating curriculum... This may take a minute.',
     'class.start_pipeline': 'Start Pipeline',
     'class.toc_manual': '2. Manual Curriculum / TOC (Paste here)',
     'class.toc_manual_hint': "Paste the book's contents or your syllabus. The AI will use this as a roadmap.",
     'class.toc_range_hint': 'If left empty, AI will use the Manual Syllabus above as the primary source.',
+
     // Student Portal
     'ai.select_lang': '1. Select Language',
     'ai.target_level': '2. Target Level',
@@ -932,14 +933,14 @@ const i18n = {
     'class.enter': 'Sınıfa Gir',
     'class.delete_confirm': 'Bu sınıfı silmek istediğinizden emin misiniz? Öğrenciler, notlar ve içerik dahil tüm veriler kalıcı olarak silinecektir.',
     'class.upload_pdf': 'PDF Ders Kitabı Yükle',
-    'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 2-5)',
-    'class.toc_placeholder': '2-5',
+    'class.toc_range': 'İçindekiler Sayfa Aralığı (örn. 1-25)',
+    'class.toc_placeholder': '1-25',
     'class.processing': 'PDF işleniyor ve müfredat oluşturuluyor... Bu işlem bir dakika sürebilir.',
     'class.start_pipeline': 'İşlemi Başlat',
     'class.toc_manual': '2. Manuel Müfredat / İçindekiler (Buraya yapıştırın)',
     'class.toc_manual_hint': 'Kitabın içindekilerini veya müfredatınızı yapıştırın. Yapay zeka bunu yol haritası olarak kullanacaktır.',
     'class.toc_range_hint': 'Burayı boş bırakırsanız, yapay zeka yukarıdaki Manuel Müfredatı birincil kaynak olarak kullanacaktır.',
-    'class.toc_range': '3. PDF İçindekiler Sayfa Aralığı (Opsiyonel)',
+
     'class.create_success': 'Sınıf başarıyla oluşturuldu!',
     'class.share_msg': 'Derse başlamak için Katılım Kodunu öğrencilerinizle paylaşın.',
     'class.create_success_full': 'Sınıf başarıyla oluşturuldu! \n\nKatılım Kodu: {code}\n\nDerse başlamak için Katılım Kodunu öğrencilerinizle paylaşın.',
@@ -1976,7 +1977,7 @@ async function triggerDeepExtract() {
 
   const formData = new FormData();
   formData.append('pdf', fileInput.files[0]);
-  formData.append('toc_range', document.getElementById('pdf-toc-range').value || '1-12');
+  formData.append('toc_range', document.getElementById('pdf-toc-range').value || '1-25');
   const pdfLang = document.getElementById('pdf-language-select') ? document.getElementById('pdf-language-select').value : 'Detecting...';
   formData.append('language', pdfLang);
 
