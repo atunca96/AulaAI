@@ -75,7 +75,35 @@ _startup_t = time.time()
 print(f"--- AULA AI SERVER v{VERSION} [FIX-STABILIZE-V2] STARTING ---")
 
 
-# Version tracking moved to services.state
+# ── DISK CLEANUP ──────────────────────────────────────────
+def cleanup_storage():
+    """Purges old PDF and Markdown artifacts to prevent disk exhaustion."""
+    try:
+        if not os.path.exists(BOOKS_DIR): return
+        now = time.time()
+        count = 0
+        for f in os.listdir(BOOKS_DIR):
+            fpath = os.path.join(BOOKS_DIR, f)
+            # Delete anything older than 6 hours or all temporary extract files
+            if f.startswith("extract_") or (now - os.path.getmtime(fpath) > 6 * 3600):
+                try:
+                    if os.path.isfile(fpath):
+                        os.remove(fpath)
+                        count += 1
+                except: pass
+        if count > 0:
+            print(f"[CLEANUP] Purged {count} temporary/old files from {BOOKS_DIR}")
+    except Exception as e:
+        print(f"[CLEANUP] Error: {e}")
+
+# Run cleanup on startup and periodically
+def periodic_cleanup():
+    while True:
+        cleanup_storage()
+        time.sleep(3600) # Every hour
+
+cleanup_storage()
+threading.Thread(target=periodic_cleanup, daemon=True).start()
 
 # ── Global Cache ──
 _cache = {}
@@ -800,11 +828,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 file_log(f"FALLBACK ERROR: {e}")
                 return self._send_error(f"Extraction failed: {str(e)}")
             finally:
-                # Cleanup
-                try: doc.close()
-                except: pass
-                try: os.remove(temp_pdf)
-                except: pass
+                if 'doc' in locals() and doc:
+                    try: doc.close()
+                    except: pass
+                # Clean up everything in BOOKS_DIR that is temporary or old
+                cleanup_storage()
 
         elif path == "/api/classroom/create-from-pdf":
             return self._create_classroom_from_pdf()
