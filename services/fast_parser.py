@@ -130,7 +130,7 @@ UNIT_PATTERN = re.compile(
     r'^(?:'
     r'(?:unit|chapter|module|unidad|unité|lektion|kapitel|lección|leccion|tema|thème|chapitre|modulo|módulo|etapa|paso|stufe|урок|раздел|часть)'
     r'\s*\.?\s*(\d+)'           # "Unit 1", "Unidad 1", etc.
-    r'|(\d+)\s*[.:/\\\-–—]\s*'  # "1. Title", "1: Title", "1/ Title"
+    r'|([0-9O]+)\s*[.:/\\\-–—]\s*'  # "1. Title", "1/ Title", "O/ Title" (O is common OCR for 0)
     r'|([IVXLC]+)\s*[.:/\\\-–—]\s*'  # "I. Title", "IV: Title"
     r')',
     re.IGNORECASE
@@ -139,7 +139,7 @@ UNIT_PATTERN = re.compile(
 # Detect if a line is a chapter/unit header
 def is_chapter_header(line):
     """
-    Determines if a line is a chapter/unit header.
+    Determines if a line is a chapter/unit header based on strict numbering.
     Returns (True, chapter_number_str) or (False, None).
     """
     # Clean leading Markdown symbols
@@ -151,19 +151,12 @@ def is_chapter_header(line):
     if is_meta_section(clean_line):
         return False, None
 
-    # Skip generic section titles that are NOT units
-    if clean_line.upper() in ["FONÉTICA", "MÁS EJERCICIOS", "MÁS GRAMÁTICA", "RESUMEN", "AUTOEVALUACIÓN", "REVIEW"]:
-        return False, None
-
-    # 1. Standard Patterns (Numbers are the most reliable)
+    # 1. Standard Patterns (Strict Numbering)
     m = UNIT_PATTERN.match(clean_line)
     if m:
         num = m.group(1) or m.group(2) or m.group(3)
         return True, num
 
-    # 2. Heuristic: Only if it's very likely a new unit (e.g. "Unidad ...")
-    # We removed the broad all-caps heuristic as it was fragmenting multi-line titles.
-    
     return False, None
 
 
@@ -198,14 +191,6 @@ def parse_curriculum_text(text):
         
         # 2. Header Detection
         is_ch, ch_num = is_chapter_header(line)
-        
-        # Heuristic Header: ALL CAPS, not too long, not a known topic marker
-        if not is_ch and line.isupper() and len(line) < 60:
-            if not any(k in line for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
-                # Allow basic letters, numbers, spaces, and common Spanish punctuation
-                if re.match(r'^[A-Z0-9ÁÉÍÓÚÑÄËÏÖÜ\s\?\¿\!\¡\/\-\:\.]+$', line):
-                    is_ch = True
-                    ch_num = "H"
 
         if is_ch:
             if current_chapter:
@@ -214,10 +199,10 @@ def parse_curriculum_text(text):
             # Keep the raw line as the title to preserve numbers like "3/ "
             title = re.sub(r'^#+\s*', '', line).strip()
             
-            # Look ahead to reconstruct multi-line ALL CAPS titles
+            # Look ahead to reconstruct multi-line ALL CAPS titles ONLY if they immediately follow a numbered header
+            # We don't want to merge unrelated caps, but if the title spans lines, we merge it.
             while i + 1 < len(lines):
                 nxt = lines[i+1]
-                # If next is also a header according to heuristic, merge it
                 if nxt.isupper() and len(nxt) < 60 and not any(k in nxt for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
                     if re.match(r'^[A-Z0-9ÁÉÍÓÚÑÄËÏÖÜ\s\?\¿\!\¡\/\-\:\.]+$', nxt):
                         title += " " + nxt.strip()
@@ -244,11 +229,9 @@ def parse_curriculum_text(text):
             if any(k in nxt.upper() for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS"]): break
             if re.search(r'\[(vocabulary|grammar)\]', content, re.I): break
             
-            # Additional heuristic: if next line is ALL CAPS, it might be a new header starting
-            if nxt.isupper() and len(nxt) < 60: break
-            
             content += " " + nxt
             i += 1
+
 
         # 4. Process Topic
         topic_type = classify_topic(content)
