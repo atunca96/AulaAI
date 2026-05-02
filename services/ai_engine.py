@@ -48,87 +48,58 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
     models_to_try = [model, MODEL_FALLBACK]
     
     for target_model in models_to_try:
-        for attempt in range(2):
-            try:
-                if attempt > 0 or target_model != model: 
-                    print(f"[AI] Switching/Retrying with {target_model}...")
+        try:
+            req = urllib.request.Request(url, data=json.dumps({
+                "model": target_model, "messages": messages, "max_tokens": max_tokens, 
+                "temperature": temperature
+            }).encode("utf-8"), headers=headers)
+            
+            # Target speed: 45s timeout for fast failover
+            with urllib.request.urlopen(req, timeout=45) as response:
+                res_body = response.read().decode("utf-8")
+                res_json = json.loads(res_body)
                 
-                req = urllib.request.Request(url, data=json.dumps({
-                    "model": target_model, "messages": messages, "max_tokens": max_tokens, 
-                    "temperature": temperature
-                }).encode("utf-8"), headers=headers)
-                
-                with urllib.request.urlopen(req, timeout=120) as response:
-                    res_body = response.read().decode("utf-8")
-                    res_json = json.loads(res_body)
+                if "choices" in res_json:
+                    content = res_json["choices"][0]["message"]["content"].strip()
+                    # LOGGING
+                    with open("pipeline.log", "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-SPEED] Received {len(content)} chars from {target_model}\n")
                     
-                    if "choices" in res_json:
-                        content = res_json["choices"][0]["message"]["content"].strip()
-                        # PERSISTENCE: Save raw AI output for inspection
+                    # ROBUST JSON EXTRACTION
+                    start_obj = content.find('{')
+                    start_list = content.find('[')
+                    start = -1
+                    end = -1
+                    if start_obj != -1 and (start_list == -1 or start_obj < start_list):
+                        start = start_obj
+                        end = content.rfind('}')
+                    elif start_list != -1:
+                        start = start_list
+                        end = content.rfind(']')
+                        
+                    if start != -1 and end != -1 and end > start:
+                        json_str = content[start:end+1]
+                        # Remove control characters
+                        json_str = "".join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
                         try:
-                            if not os.path.exists("scratch"): os.makedirs("scratch")
-                            with open("scratch/last_ai_response.txt", "w", encoding="utf-8") as f:
-                                f.write(content)
-                        except: pass
-                        
-                        # LOGGING: Capture the raw content length for debugging
-                        with open("pipeline.log", "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-DEBUG] Received {len(content)} chars from {target_model}\n")
-                        
-                        # IRON-CLAD JSON EXTRACTION (Objects or Lists)
-                        start_obj = content.find('{')
-                        start_list = content.find('[')
-                        
-                        start = -1
-                        end = -1
-                        
-                        if start_obj != -1 and (start_list == -1 or start_obj < start_list):
-                            start = start_obj
-                            end = content.rfind('}')
-                        elif start_list != -1:
-                            start = start_list
-                            end = content.rfind(']')
-                            
-                        if start != -1 and end != -1 and end > start:
-                            json_str = content[start:end+1]
-                            # SUPER SANITIZER: Remove invalid control characters (0-31) except 9, 10, 13
-                            json_str = "".join(ch for ch in json_str if ord(ch) >= 32 or ch in '\n\r\t')
-                            
-                            def deep_clean_result(data):
-                                """Recursively nukes backslashes from AI strings."""
-                                if isinstance(data, str):
-                                    return data.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
-                                elif isinstance(data, list):
-                                    return [deep_clean_result(i) for i in data]
-                                elif isinstance(data, dict):
-                                    return {k: deep_clean_result(v) for k, v in data.items()}
-                                return data
-
+                            return json.loads(json_str, strict=False)
+                        except:
+                            # Fallback to simple cleanup for common AI mistakes
                             try:
-                                parsed = json.loads(json_str, strict=False)
-                                return deep_clean_result(parsed)
-                            except Exception as je:
-                                with open("pipeline.log", "a", encoding="utf-8") as f:
-                                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-ERROR] JSON Parse Error: {je}\n")
-                                try:
-                                    import ast
-                                    parsed = ast.literal_eval(json_str)
-                                    return deep_clean_result(parsed)
-                                except: pass
-                        
-                        if len(content) > 10 and '{' not in content:
-                            return {"explanation": content, "usage": "N/A", "tip": "N/A"}
+                                import ast
+                                return ast.literal_eval(json_str)
+                            except: pass
                     
-                    if "error" in res_json:
-                        last_error = res_json["error"].get("message", "API Error")
-                    else:
-                        last_error = "Empty Response (No choices)"
-                        
-            except Exception as e:
-                last_error = str(e)
-                with open("pipeline.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FATAL] {last_error}\n")
-                time.sleep(0.5)
+                    if len(content) > 10 and '{' not in content:
+                        return {"explanation": content}
+                
+                if "error" in res_json:
+                    last_error = res_json["error"].get("message", "API Error")
+                    
+        except Exception as e:
+            last_error = str(e)
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] {target_model}: {last_error}\n")
             
     return {"error_details": last_error}
 
@@ -316,8 +287,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
     
     c = int(count)
-    # Latency Optimization: Request 2x surplus instead of 4x to reduce response time
-    request_count = max(c * 2, 12) 
+    # Latency Optimization: Request 3x surplus to guarantee 10+ questions in one pass
+    request_count = max(c * 3, 20) 
     
     dna = get_language_profile(language)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
@@ -372,7 +343,7 @@ Return ONLY valid JSON:
     prompt += f"\n\nSEED: {seed}"
     
     try:
-        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.9)
+        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.7)
         raw_list = (res.get("data") if res else []) or []
         
         print(f"[AI-V2] Raw batch: {len(raw_list)} items")
@@ -460,72 +431,9 @@ Return ONLY valid JSON:
                 if len(final) >= c: break
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2] generated={len(raw_list)} validated={len(final)} requested={c}\n")
-        print(f"[AI-V2] Pass 1: generated={len(raw_list)} validated={len(final)} requested={c}")
-
-        # ── TOP-UP LOOP ── If validation rejected too many items, request more ──
-        MAX_TOPUP_PASSES = 3
-        topup_pass = 0
-        while len(final) < c and topup_pass < MAX_TOPUP_PASSES:
-            topup_pass += 1
-            still_needed = c - len(final)
-            topup_request = max(still_needed * 2, 8)  # small efficient batch
-            new_seed = random.randint(1000, 9999)
-            topup_prompt = f"""Generate {topup_request} multiple-choice questions for a {language} lesson.
-
-TOPIC: {topic_title} ({topic_type})
-LEVEL: {level}
-
-SOURCE MATERIAL:
-{content_str}
-{forbidden_clause}
-RULES:
-1. Write each question prompt in {instruction_lang}.
-2. ALL 4 OPTIONS IN THE SAME LANGUAGE: answer and all 3 distractors must ALL be in the same language. If answer is {instruction_lang}, all distractors must be {instruction_lang}. If answer is {language}, all distractors must be {language}.
-3. STRUCTURAL INVISIBILITY: The correct answer must be visually indistinguishable from the distractors.
-4. ONE BLANK ONLY: If testing with fill-in sentence, use exactly ONE blank (___). Answer = one word/phrase.
-5. NO COMMA LISTS: Each option is ONE coherent unit.
-6. CATEGORY LOCK: noun→nouns, verb→verbs, etc.
-7. NO GIVEAWAYS: Don't put answer word inside the question.
-8. MAXIMUM VARIETY: Pick different concepts from the source than those already accepted.
-8b. TOPIC DISTRIBUTION: Spread questions EVENLY across ALL topics in the source material. Do NOT cluster on one topic.
-9. PLAUSIBLE WRONG ANSWERS: Distractors must be real words in the SAME language as the answer.
-10. NO META: Don't ask about dialogues or speakers.
-11. JSON SYNTAX: Escape any internal quotation marks.
-{translation_rule}
-
-ALREADY GENERATED (do NOT repeat these answers):
-{chr(10).join([f"- {q['answer']}" for q in final])}
-
-Return ONLY valid JSON:
-{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."]}}]}}
-
-SEED: {new_seed}"""
-
-            print(f"[AI-V2] Top-up pass {topup_pass}: requesting {topup_request} more (need {still_needed})")
-            topup_res = _call_ai([{"role": "user", "content": topup_prompt}], model=MODEL_STRUCTURAL, max_tokens=4000, temperature=0.95)
-            topup_raw = (topup_res.get("data") if topup_res else []) or []
-
-            for item in topup_raw:
-                if len(final) >= c: break
-                valid = _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab)
-                if valid:
-                    import random as _r2
-                    opts = [valid["answer"]] + valid["distractors"]
-                    _r2.shuffle(opts)
-                    valid["options"] = opts
-                    final.append(valid)
-                    seen_answers.add(valid["ans_key"])
-                    used_dist_sets.append(valid["dist_set"])
-
-            print(f"[AI-V2] After top-up pass {topup_pass}: have {len(final)}/{c}")
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-TOPUP-{topup_pass}] topup_raw={len(topup_raw)} now_have={len(final)}/{c}\n")
-
-        final_count = len(final[:c])
-        print(f"[AI-V2] FINAL: requested={c} returned={final_count}")
-        with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={final_count}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={len(final)}\n")
+        print(f"[AI-V2] FINAL: requested={c} returned={len(final)}")
+        
         # Strip internal tracking keys before returning (frozenset is not JSON-serializable)
         for q in final:
             q.pop("ans_key", None)
