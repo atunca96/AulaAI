@@ -265,9 +265,10 @@ def parse_curriculum_text(text):
                 sentence_parts = re.split(r'(?<=[^\W\d_][.?!])\s+(?=[^\W\d_])', p1)
                 for p2 in sentence_parts:
                     p2_s = p2.strip()
-                    if p2_s:
-                        # Tag as atomic split to prevent re-merging
-                        split_lines.append({'raw': p2_s, 'indent': entry['indent'], 'is_atomic': True})
+                        # Only mark as atomic if it was actually split from a larger line
+                        # to prevent the merge loop from joining unrelated topics back together.
+                        was_split = len(sp_parts) > 1 or len(sentence_parts) > 1
+                        split_lines.append({'raw': p2_s, 'indent': entry['indent'], 'is_atomic': was_split})
 
     # 3. Merge broken lines (ONLY if they aren't atomic splits)
     merged_lines = []
@@ -281,9 +282,8 @@ def parse_curriculum_text(text):
             nxt = nxt_entry['raw']
             
             # If the next line is an atomic split from the SAME original line, DO NOT merge it back
-            # (In our case, the split loop happens before, so we don't easily know if they were from same line)
-            # But we can check if curr_entry['is_atomic'] is set.
-            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic'):
+            # EXCEPT if the current line is 'hanging' (e.g. "The verb" split from "Говорить")
+            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic') and not is_hanging:
                 break
 
             # Condition to merge:
@@ -368,11 +368,11 @@ def parse_curriculum_text(text):
             return False
             
         # Specific OCR artifacts and short tokens (Rule 2)
-        if t_clean in ("the", "of", "and", "in", "on", "with", "de", "y", "en", "con", "и", "в", "на", "с", "the verbs"):
+        if t_clean in ("the", "of", "and", "in", "on", "with", "de", "y", "en", "con", "и", "в", "на", "с", "the verbs", "ofverbs"):
             return False
             
         # OCR Garbage fragments (Rule 2)
-        if re.search(r'^(es|ee|he|cal|so|un|re|il|la|el|le|as|es|ee he|es :|ee he)\b', t_clean):
+        if re.search(r'^(es|ee|he|cal|so|un|re|il|la|el|le|as|es|ee he|es :|ee he|py 1)\b', t_clean):
             return False
         if len(t_clean) < 3 and not t_clean.isdigit():
             return False
