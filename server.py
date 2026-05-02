@@ -1841,11 +1841,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             selected = final_fresh[:count]
             file_log(f"Serving {len(selected)} questions for topic '{topic['title']}' (Target was {count})")
             
-            update_prog(100, status='done')
+            # ATOMIC UPDATE: Prevent race condition where UI sees 'done' before results are saved
             with db_connection() as db:
-                db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
-                           (json.dumps(selected, ensure_ascii=False), course_id))
+                db.execute("""
+                    UPDATE courses 
+                    SET activity_status='done', 
+                        activity_progress=100, 
+                        activity_result=? 
+                    WHERE id=?
+                """, (json.dumps(selected, ensure_ascii=False), course_id))
                 db.commit()
+            
+            file_log(f"Atomic update complete for course {course_id}. Status: done, Results: {len(selected)}")
                 
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"

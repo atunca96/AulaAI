@@ -2920,12 +2920,26 @@ function startActivityPolling(targetId, title) {
       if (data && !data.error) {
         if (fill) fill.style.width = data.percentage + '%';
         if (text) text.textContent = data.percentage + '%';
-        if (data.status === 'done' && data.results) {
-          clearInterval(activityProgressInterval);
-          _lastActivityData = { activities: data.results };
-          const isStudent = currentUser.role === 'student';
-          const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
-          document.getElementById(targetId).innerHTML = header + (data.results || []).map((a, i) => renderActivityCard(a, i, targetId)).join('');
+        if (data.status === 'done') {
+          if (data.results && data.results.length > 0) {
+            clearInterval(activityProgressInterval);
+            _lastActivityData = { activities: data.results };
+            const isStudent = currentUser.role === 'student';
+            const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
+            document.getElementById(targetId).innerHTML = header + data.results.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+          } else {
+            // Done but no results - wait a few more polls or show error
+            if (!window._retryEmptyPoll) window._retryEmptyPoll = 0;
+            window._retryEmptyPoll++;
+            if (window._retryEmptyPoll > 10) {
+                clearInterval(activityProgressInterval);
+                document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
+                    <div style="font-size:48px; margin-bottom:16px;">🔍</div>
+                    <div style="font-weight:700; margin-bottom:8px;">No questions found</div>
+                    <div style="font-size:14px;">The AI couldn't generate valid questions for this specific topic content. Try a different topic or build the curriculum again.</div>
+                </div>`;
+            }
+          }
         } else if (data.status === 'error') {
           clearInterval(activityProgressInterval);
           document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">Error generating activities.</div>`;
