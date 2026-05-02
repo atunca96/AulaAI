@@ -28,9 +28,9 @@ if os.path.exists(".env"):
     except: pass
 
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
-MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Lowest cost per output
-MODEL_NARRATIVE = "anthropic/claude-3-haiku"  # Legacy stable voice
-MODEL_FALLBACK = "anthropic/claude-3.5-sonnet" # High-quality fallback layer
+MODEL_STRUCTURAL = "anthropic/claude-3.5-sonnet" # Primary high-quality model
+MODEL_NARRATIVE = "anthropic/claude-3.5-sonnet" 
+MODEL_FALLBACK = None # No fallback layer as per user request
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured."""
@@ -50,7 +50,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
     }
 
     last_error = "Unknown"
-    models_to_try = [model, MODEL_FALLBACK]
+    models_to_try = [model] if model else [MODEL_STRUCTURAL]
     
     for target_model in models_to_try:
         try:
@@ -145,25 +145,27 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if (is_beginner and not is_quiz) else ""
     translation_field = '"translation": "...", ' if (is_beginner and not is_quiz) else ""
 
-    prompt = f"""Write {request_count} high-quality, creative multiple-choice questions for a {language} lesson.
-TOPIC: {topic_title} ({topic_type})
+    prompt = f"""You are a master {language} teacher known for extremely creative, engaging, and pedagogical questions.
+TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
 LEVEL: {level}
 SOURCE MATERIAL: {content_str}
-{forbidden_clause}
+
+CREATIVITY GUIDELINES:
+1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a train station in Moscow...', 'Your friend Sasha says...').
+2. VARY FORMATS: Mix fill-in-the-blanks, dialogue completion, "Which word is the odd one out?", and "What is the best response?".
+3. NO REPETITION: Every question must feel unique. DO NOT use 'Which of the following...' repeatedly.
+4. PEDAGOGICAL DEPTH: Test nuance, not just literal translation.
+
 RULES:
-1. CREATIVITY: Do NOT use repetitive patterns. Vary the question styles (fill-in-the-blank, translation, context-based, grammar usage).
-2. Write each question prompt in {instruction_lang}.
-3. ALL 4 OPTIONS IN THE SAME LANGUAGE.
-4. STRUCTURAL INVISIBILITY: All options must look similar in length and complexity.
-5. ONE BLANK ONLY if using blanks.
-6. NO COMMA LISTS.
-7. CATEGORY LOCK: All distractors must belong to the same semantic category as the answer.
-8. MAXIMUM VARIETY & RANDOMIZATION.
-9. PLAUSIBLE WRONG ANSWERS: Distractors must be common mistakes or similar-sounding words.
-10. NO META.
-11. JSON SYNTAX: Escape all quotes.
-12. EXPLANATION: Add a "why" field with a 1-sentence pedagogical explanation in English.
+1. Write each question prompt in {instruction_lang}.
+2. ALL 4 OPTIONS IN THE SAME LANGUAGE.
+3. STRUCTURAL INVISIBILITY: All options must look similar in length and complexity.
+4. NO COMMA LISTS.
+5. CATEGORY LOCK: All distractors must belong to the same semantic category.
+6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings).
+7. EXPLANATION: Add a 'why' field (1-sentence English explanation).
 {translation_rule}
+
 Return ONLY valid JSON:
 {{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."], "why": "..."}}]}}"""
 
@@ -171,16 +173,9 @@ Return ONLY valid JSON:
     prompt += f"\n\nSEED: {seed}"
     
     try:
-        # TRY PRIMARY MODEL
-        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.8)
+        # SINGLE ATTEMPT WITH PREMIUM MODEL
+        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.85)
         raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
-        
-        # TRY FALLBACK MODEL IF PRIMARY PRODUCED NOTHING
-        if not raw_list:
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Primary model failed, trying fallback model...\n")
-            res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_FALLBACK, max_tokens=8000, temperature=0.9)
-            raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
         def _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab):
             if not isinstance(item, dict): return None
@@ -236,35 +231,9 @@ Return ONLY valid JSON:
                 if len(final) >= c: break
 
         if not final:
-            msg = f"Generation failed for {topic_title} in {language}."
             with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FALLBACK] {msg}\n")
-            
-            clean_lang = language if language and language.lower() != "unknown" else "this language"
-
-            # Artificial delay to make fallback feel more 'real' and less 'instant error'
-            time.sleep(py_random.uniform(2.5, 4.5))
-            
-            # Create 'count' distinct fallbacks
-            placeholders = [
-                ("concept", "Definition A", "Definition B", "Definition C"),
-                ("usage", "Usage A", "Usage B", "Usage C"),
-                ("context", "Context A", "Context B", "Context C"),
-                ("term", "Synonym A", "Synonym B", "Synonym C"),
-                ("application", "Example A", "Example B", "Example C")
-            ]
-            
-            for i in range(c):
-                kind, w1, w2, w3 = placeholders[i % len(placeholders)]
-                ans = f"Correct {kind} of {topic_title} #{i+1}"
-                final.append({
-                    "id": _uid() + f"_{i}", "type": "mcq", 
-                    "prompt": f"({i+1}) Which of the following describes the {kind} of '{topic_title}' in {clean_lang}?",
-                    "answer": ans, 
-                    "distractors": [f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"],
-                    "options": py_random.sample([ans, f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"], 4),
-                    "why": f"This is a fallback explanation for '{topic_title}' while the AI is warming up."
-                })
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] No valid questions generated for {topic_title}\n")
+            return [] # No fallback questions as per user request
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={len(final)}\n")
