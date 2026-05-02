@@ -178,360 +178,89 @@ def get_indent_level(line):
 
 def parse_curriculum_text(text):
     """
-    Parse raw curriculum text into structured chapters.
-
-    Returns: list of chapter dicts matching the expected schema:
-        [{"title": "...", "page": N, "topics": [{"title": "...", "type": "...", "page": N}]}]
+    Parse curriculum text into structured units/chapters.
+    Rewritten for higher stability and fewer fragments.
     """
     if not text or not text.strip():
         return []
 
-    lines = text.split('\n')
-
-    # 1. Basic clean and noise removal
-    cleaned_lines = []
-    for raw_line in lines:
-        line = raw_line.rstrip()
-        if not line.strip():
-            continue
-
-        # Remove bullet markers but DO NOT strip hyphens that are attached to words
-        # (e.g. suffixes like -OBa- should not be stripped of their hyphen)
-        # We only strip standalone bullets or hyphens followed by space
-        stripped = re.sub(r'^[\u2022\u25E6\u25AA\u25CF\u25CB•◦▪●○◆◇►▸▹\*]\s*', '', line.strip())
-        stripped = re.sub(r'^-\s+', '', stripped).strip()
-
-        # Remove leading numbering like "1.", "1)", "a.", "a)", "1.1", "1.1."
-        sub_number_match = re.match(r'^(\d+\.)+\d*\s+', stripped)
-        if sub_number_match:
-            pass  # Keep it — the chapter detection handles "1." separately
-
-        if not stripped:
-            continue
-            
-        # Single short tokens or non-alphabetic fragments
-        if len(stripped) < 3 and not stripped.isdigit():
-            continue
-            
-        # Hard noise removal: broken symbols like "ee he", "es :", "С О"
-        if re.search(r'^[^\W\d_]\s[^\W\d_]$', stripped, re.IGNORECASE) or re.search(r'[^\W\d_]\s*:', stripped) and len(stripped) < 6:
-            continue
-            
-        # Non-alphabetic fragments (must contain at least one letter)
-        if not re.search(r'[^\W\d_]', stripped):
-            continue
-            
-        # Specific OCR artifacts
-        if stripped.startswith("ーー") or stripped == "ee he":
-            continue
-            
-        # Fake headers or generic all caps headings (e.g., "CASES.", "REVIEW")
-        if stripped.isupper() and len(stripped) < 15 and not re.search(r'\d', stripped):
-            continue
-            
-        # Ignore lines that are ONLY digits or digits with symbols (like "147", "1-20")
-        if re.match(r'^[\d\s\-\.\/]+$', stripped):
-            continue
-
-        cleaned_lines.append({'raw': stripped, 'indent': get_indent_level(line)})
-
-    # 2. Split mixed lines (pipe, tab, or 3+ spaces)
-    split_lines = []
-    for entry in cleaned_lines:
-        line_text = entry['raw']
-        # Split on | or tab or 3+ spaces, or period followed by space and Capital
-        # We split on spaces separating distinct sentences, but keep the period on the first sentence.
-        sub_parts = re.split(r'\s*\|\s*|\t+|\s{3,}', line_text)
-        
-        for sp in sub_parts:
-            # 1. Ultra-Aggressive Atomic Splitting (Rule 1 & 4)
-            # Split on all obvious separators: commas, slashes, "and", "&", "vs", "with"
-            atomic_split_pattern = (
-                r'\s+(?:and|y|und|et|и|&|vs\.?)\s+'                    # Conjunctions (excluding 'with')
-                r'|\s*[|/\\;]\s*'                                      # Slashes/Pipes/Semicolons
-                r'|(?<=[^\W\d_]{2})\s*,\s*(?=[^\W\d_]{2})'           # Commas between words
-                r'|(?<=[.?!])\s+(?=[^\W\d_])'                          # Sentences/Fragments
-                r'|(?<=[a-z])\s+(?=[А-Я])'                             # Transition English -> Russian
-                r'|(?<=[а-я])\s+(?=[A-Z])'                             # Transition Russian -> English
-            )
-            sp_parts = re.split(atomic_split_pattern, sp, flags=re.IGNORECASE)
-            
-            for p1 in sp_parts:
-                if not p1.strip(): continue
-                # 2. Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
-                sentence_parts = re.split(r'(?<=[^\W\d_][.?!])\s+(?=[^\W\d_])', p1)
-                for p2 in sentence_parts:
-                    p2_s = p2.strip()
-                    if p2_s:
-                        # Only mark as atomic if it was actually split from a larger line
-                        # to prevent the merge loop from joining unrelated topics back together.
-                        was_split = len(sp_parts) > 1 or len(sentence_parts) > 1
-                        split_lines.append({'raw': p2_s, 'indent': entry['indent'], 'is_atomic': was_split})
-
-    # 3. Merge broken lines (ONLY if they aren't atomic splits)
-    merged_lines = []
-    i = 0
-    while i < len(split_lines):
-        curr_entry = split_lines[i]
-        curr = curr_entry['raw']
-        
-        while i + 1 < len(split_lines):
-            nxt_entry = split_lines[i+1]
-            nxt = nxt_entry['raw']
-            
-            # nxt_is_continuation if it starts with a lowercase letter or hyphen
-            # [^\W\d_] matches any letter. We check if it is lowercase by getting the first letter.
-            nxt_is_continuation = False
-            if nxt.startswith('-'):
-                nxt_is_continuation = True
-            else:
-                m_letter = re.match(r'^([^\W\d_])', nxt)
-                if m_letter and m_letter.group(1).islower():
-                    nxt_is_continuation = True
-            is_comma = bool(re.search(r',\s*$', curr))
-            is_bracket = bool(re.match(r'^[\[({]', nxt))
-            
-            # Words that strongly imply the sentence is unfinished (connectors and category headers)
-            # Added common OCR typos (acausative, prepositionnl)
-            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller|verb|verbs|preposition|prepositions|adverb|adverbs|pronoun|pronouns|adjective|adjectives|noun|nouns|ordinal|number|numbers|gender|modal|conjugation|instrumental|genitive|dative|accusative|prepositional|nominative|acausative|prepositionnl)\s*$'
-            is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
-            
-            # If the next line is an atomic split from the SAME original line, DO NOT merge it back
-            # EXCEPT if the current line is 'hanging' (e.g. "The verb" split from "Говорить")
-            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic') and not is_hanging:
-                break
-
-            is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
-
-            # Force merge if the current line ends with a "hanging" word
-            if is_hanging or is_comma:
-                curr = curr + " " + nxt
-                i += 1
-                continue
-
-            # Merge if the next line is very likely a continuation (no capitalization and no period before)
-            if not is_terminal and not re.match(r'^[A-ZА-Я]', nxt):
-                curr = curr + " " + nxt
-                i += 1
-            else:
-                break
-                
-        merged_lines.append({'raw': curr, 'indent': curr_entry['indent']})
-        i += 1
-
-    # 4. Extract pages and detect headers
-    entries = []
-    for entry in merged_lines:
-        cleaned, page = extract_page_number(entry['raw'])
-        if cleaned and len(cleaned) > 1:
-            is_ch, ch_num = is_chapter_header(cleaned)
-            entries.append({
-                'raw': cleaned,
-                'page': page,
-                'indent': entry['indent'],
-                'is_header': is_ch,
-                'chapter_num': ch_num,
-            })
-
-    if not entries:
-        return []
-
-    # 5. Build structure
     chapters = []
     current_chapter = None
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
 
-    def is_valid_topic(text):
-        if not text or len(text.strip()) < 3:
-            return False
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         
-        # Rule 2: HARD noise removal (language-agnostic)
-        t_clean = text.strip().lower()
-        
-        # Drop standalone page numbers or numbers in brackets
-        if re.match(r'^(\d+|\[\d+\])$', t_clean):
-            return False
-        
-        # Topic density filter: ensure it's not mostly numbers or symbols
-        alnum_count = sum(1 for c in text if c.isalnum())
-        if len(text) > 0 and (alnum_count / len(text)) < 0.4:
-            return False
-            
-        # Skip lines that are mostly digits (e.g. "147 148 149")
-        digit_count = sum(1 for c in text if c.isdigit())
-        if len(text) > 5 and (digit_count / len(text)) > 0.5:
-            return False
-
-        # Skip specific book titles/artifacts if they appear standalone
-        if text.lower() in ("точкару а1", "точкару а2", "точка ру", "aula internacional", "aula 1", "aula 2"):
-            return False
-            
-        # Specific OCR artifacts and short tokens (Rule 2)
-        if t_clean in ("the", "of", "and", "in", "on", "with", "de", "y", "en", "con", "и", "в", "на", "с", "the verbs", "ofverbs"):
-            return False
-            
-        # OCR Garbage fragments (Rule 2)
-        if re.search(r'^(es|ee|he|cal|so|un|re|il|la|el|le|as|es|ee he|es :|ee he|py 1)\b', t_clean):
-            return False
-        if len(t_clean) < 3 and not t_clean.isdigit():
-            return False
-        if re.search(r'^[^\W\d_]\s*[:\.]\s*$', t_clean):
-            return False
-            
-        # Standalone numbers or page markers (Rule 2)
-        if re.match(r'^[\d\s\-\.\/]+$', text):
-            return False
-            
-        # Specific book metadata or section labels (Rule 3)
-        if is_meta_section(text):
-            return False
-            
-        # Fake headers (e.g. "CASES.", "REVIEW")
-        if text.isupper() and len(text) < 20 and not re.search(r'\d', text):
-            return False
-            
-        # Broken encoding or random symbols
-        if re.search(r'[^\w\s.,!?;:()\'\"\u00C0-\u00FF\u0400-\u04FF]', text):
-            # If it contains more than 2 consecutive weird symbols, drop it
-            if re.search(r'[^\w\s]{3,}', text):
-                return False
-                
-        return True
-
-    for entry in entries:
-        raw_t = entry['raw']
-        if is_meta_section(raw_t):
+        # 1. Detect Chapter/Unit Header
+        is_ch, ch_num = is_chapter_header(line)
+        if is_ch:
+            if current_chapter: chapters.append(current_chapter)
+            title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', line).strip()
+            current_chapter = {"title": title, "topics": []}
+            i += 1
             continue
 
-        # Clean topic/header titles: remove redundant [vocabulary]/[grammar] tags
-        # and Markdown symbols like ## or **
-        clean_title = re.sub(r'[\[\(]\s*(?:vocabulary|grammar|vocab|gramm|lexica?)\s*\.*[\]\)]', '', raw_t, flags=re.IGNORECASE).strip()
-        # Strip leading/trailing non-alphanumeric noise but keep valid sentence endings if any
-        clean_title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', clean_title).strip()
-
-        if entry['is_header']:
-            # Start a new chapter
-            if current_chapter:
-                chapters.append(current_chapter)
-            current_chapter = {
-                'title': clean_title,
-                'page': entry['page'],
-                'topics': []
-            }
-        elif current_chapter is not None:
-            # This is a topic under the current chapter
-            if is_valid_topic(clean_title):
-                current_chapter['topics'].append({
-                    'title': clean_title,
-                    'type': classify_topic(raw_t), # Use raw for better classification if needed
-                    'page': entry['page'],
-                })
-        else:
-            # No chapter started yet — treat as orphan topic
-            if not chapters:
-                current_chapter = {
-                    'title': 'Curriculum Topics',
-                    'page': entry['page'],
-                    'topics': []
-                }
-            if is_valid_topic(clean_title):
-                current_chapter['topics'].append({
-                    'title': clean_title,
-                    'type': classify_topic(raw_t),
-                    'page': entry['page'],
-                })
-
-    # Don't forget the last chapter
-    if current_chapter and (current_chapter.get('topics') or current_chapter.get('title')):
-        chapters.append(current_chapter)
-
-    # 6. If chapters have no topics (just headers), treat subsequent lines as topics
-    if chapters and all(len(ch.get('topics', [])) == 0 for ch in chapters):
-        rebuilt = []
-        for i, ch in enumerate(chapters):
-            if i == 0 or (i > 0 and ch.get('chapter_num')):
-                rebuilt.append(ch)
-            elif rebuilt:
-                rebuilt[-1]['topics'].append({
-                    'title': ch['title'],
-                    'type': classify_topic(ch['title']),
-                    'page': ch.get('page'),
-                })
-    # 7. Add arbitrary unit grouping for flat topic lists
-    # If there is only one chapter and it has > 12 topics, we group them into Unit 1, Unit 2...
-    if len(chapters) == 1 and len(chapters[0].get('topics', [])) > 12:
-        topics = chapters[0]['topics']
-        units = []
-        current_unit = []
+        # 2. Topic Discovery & Merging
+        # We look ahead to see if the next lines are continuations of this topic
+        # Topics usually end with [vocabulary] or [grammar] or are bullet points
+        content = line
+        topic_type = classify_topic(content)
         
-        for i, topic in enumerate(topics):
-            current_unit.append(topic)
-            
-            # Check if we should split
-            if len(current_unit) >= 8:
-                if i + 1 < len(topics):
-                    next_topic = topics[i+1]
-                    # Try to split on theme change
-                    if topic['type'] != next_topic['type']:
-                        units.append(current_unit)
-                        current_unit = []
-                    elif len(current_unit) >= 12:
-                        units.append(current_unit)
-                        current_unit = []
-                        
-        if current_unit:
-            units.append(current_unit)
-            
-        # Rebuild chapters
-        chapters = []
-        for i, u in enumerate(units):
-            chapters.append({
-                'title': f"Unit {i+1}",
-                'page': u[0].get('page'),
-                'topics': u
-            })
+        # If this line has a tag, use it immediately
+        tag_match = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I)
+        if tag_match:
+            topic_type = tag_match.group(1).lower()
+            content = content[:tag_match.start()].strip()
+        else:
+            # Look ahead: merge until we hit a new bullet, a new unit, or a tag
+            while i + 1 < len(lines):
+                nxt = lines[i+1]
+                if is_chapter_header(nxt)[0]: break
+                if nxt.startswith('-') or nxt.startswith('•') or nxt.startswith('*'): break
+                
+                nxt_tag = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', nxt, re.I)
+                if nxt_tag:
+                    topic_type = nxt_tag.group(1).lower()
+                    content += " " + nxt[:nxt_tag.start()].strip()
+                    i += 1
+                    break
+                
+                # Check if next line is a continuation (lowercase or starts with punctuation)
+                if nxt[0].islower() or not nxt[0].isalnum():
+                    content += " " + nxt
+                    i += 1
+                else:
+                    break
 
-    # 8. Final normalization (trim, deduplicate)
+        # Cleanup content
+        content = re.sub(r'^[#\*_\-\s.:/]+', '', content).strip()
+        if len(content) > 3 and not is_meta_section(content):
+            if not current_chapter:
+                current_chapter = {"title": "Unit 1", "topics": []}
+            
+            current_chapter["topics"].append({
+                "title": content,
+                "type": topic_type,
+                "page": None
+            })
+        
+        i += 1
+
+    if current_chapter: chapters.append(current_chapter)
+
+    # Final Deduplication & Normalization
     for ch in chapters:
         seen = set()
-        clean_topics = []
-        for t in ch.get('topics', []):
-            # Trim trailing punctuation like comma or dash if it's dangling at the end
-            title = re.sub(r'[\s,\-]+$', '', t['title']).strip()
-            # Title case for formatting? No, keep original case but ensure first letter is capital if possible
-            if title and title[0].islower():
-                title = title[0].upper() + title[1:]
-            
-            # Deduplicate within chapter
-            t_key = title.lower()
-            if t_key not in seen:
-                seen.add(t_key)
-                t['title'] = title
-                clean_topics.append(t)
-        ch['topics'] = clean_topics
-        ch['title'] = ch['title'].strip()
-
-    # 9. Unit Balancing
-    # Ensure each unit has a similar number of topics.
-    # If a unit has > 20 topics and others are small, we split it.
-    balanced_chapters = []
-    for ch in chapters:
-        topics = ch.get('topics', [])
-        if len(topics) > 20:
-            # Split into smaller units
-            chunk_size = 12
-            for i in range(0, len(topics), chunk_size):
-                chunk = topics[i:i + chunk_size]
-                if not chunk: continue
-                suffix = f" (Part {i//chunk_size + 1})" if i > 0 else ""
-                balanced_chapters.append({
-                    'title': ch['title'] + suffix,
-                    'page': chunk[0].get('page'),
-                    'topics': chunk
-                })
-        else:
-            balanced_chapters.append(ch)
+        unique_topics = []
+        for t in ch["topics"]:
+            key = t["title"].lower()
+            if key not in seen:
+                seen.add(key)
+                unique_topics.append(t)
+        ch["topics"] = unique_topics
     
-    return balanced_chapters
+    return chapters
 
 
 
