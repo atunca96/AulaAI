@@ -262,8 +262,13 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
                     return cached_data["chapters"]
         except: pass
 
-    system = "You are a curriculum architect. Create a structured syllabus in JSON."
-    user = f"Create a comprehensive {level} {language} course syllabus. {prompt_extra}\nReturn JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"
+    system = "You are a curriculum architect for a language learning platform. Create a highly structured and pedagogical syllabus in JSON."
+    user = f"""Create a comprehensive {level} {language} course syllabus. {prompt_extra}
+RULES:
+1. DO NOT use generic topic titles like 'Vocabulary', 'Grammar', 'Exercises', or 'Conversation'.
+2. Each topic MUST have a specific, descriptive name (e.g., 'Ordering at a Cafe', 'Regular -AR Verbs', 'Family Members').
+3. Ensure logical progression from basic to complex.
+Return JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=2000)
     return res.get("chapters", []) if res else []
 
@@ -280,9 +285,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: ALL instructional/explanatory text MUST be in English. The ACTUAL learning content (words, sentences) MUST remain in {language}."
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, explanations, and titles MUST be in English. All target language content (words, sentences, examples) MUST be in {language}."
     if is_beginner:
-        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners! ALL titles, explanations, grammar rules, and instructions MUST be in English."
+        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. Explain {language} concepts using English. DO NOT explain English grammar; explain {language} grammar using English as the medium."
 
     source_rule = ""
     if source_text:
@@ -290,14 +295,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     else:
         source_rule = "NO SOURCE TEXT: Use your internal knowledge."
 
-    primary_command = f"Write an English-instruction {level} lesson teaching {language} for: '{topic}' ({topic_type})."
+    primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
     
     prompt = f"""
     {primary_command}
     {source_rule}
     INSTRUCTIONS:
     1. {lang_guard}
-    2. REQUIREMENT: 2 to 4 high-quality pages.
+    2. SUBJECT FOCUS: The lesson must be about {language}. If teaching grammar, explain {language} rules.
+    3. REQUIREMENT: 2 to 4 high-quality pages.
     3. Return ONLY JSON:
     {{
       "pages": [
