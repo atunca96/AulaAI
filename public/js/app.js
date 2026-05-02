@@ -1977,7 +1977,8 @@ async function triggerDeepExtract() {
   const formData = new FormData();
   formData.append('pdf', fileInput.files[0]);
   formData.append('toc_range', document.getElementById('pdf-toc-range').value || '1-12');
-  formData.append('language', _selectedAiLanguage || 'Detecting...');
+  const pdfLang = document.getElementById('pdf-language-select') ? document.getElementById('pdf-language-select').value : 'Detecting...';
+  formData.append('language', pdfLang);
 
   try {
     const res = await fetch('/api/marker/extract', {

@@ -1,10 +1,9 @@
 [phases.setup]
 nixPkgs = ["python311"]
-aptPkgs = ["tesseract-ocr"]
+aptPkgs = ["tesseract-ocr", "tesseract-ocr-spa", "tesseract-ocr-deu", "tesseract-ocr-fra", "tesseract-ocr-ita", "tesseract-ocr-por", "tesseract-ocr-rus", "tesseract-ocr-chi-sim", "tesseract-ocr-jpn", "tesseract-ocr-ara", "tesseract-ocr-tur", "tesseract-ocr-nld", "tesseract-ocr-swe", "tesseract-ocr-kor", "tesseract-ocr-ell"]
 
 [phases.install]
 cmds = [
-    "apt-get update -qq && apt-get install -y -qq tesseract-ocr 2>/dev/null || true",
     "pip install --no-cache-dir --prefer-binary -r requirements.txt"
 ]
 cacheDirectories = ["/root/.cache/pip"]
