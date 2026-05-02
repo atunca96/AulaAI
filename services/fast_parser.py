@@ -61,8 +61,12 @@ META_SKIP = [
 
 
 def classify_topic(title):
-    """Classify a topic title as vocabulary or grammar."""
+    """Classify a topic title as vocabulary or grammar based on function."""
     t_lower = title.lower()
+    # Interrogative function is always Grammar
+    if '?' in title or '¿' in title:
+        return "grammar"
+    # Structural keywords across 15+ languages
     if any(k in t_lower for k in GRAMMAR_KEYS):
         return "grammar"
     return "vocabulary"
@@ -237,24 +241,29 @@ def parse_curriculum_text(text):
         sub_parts = re.split(r'\s*\|\s*|\t+|\s{3,}', line_text)
         
         for sp in sub_parts:
-            # 1. Split on commas/spaces followed by major structural keywords that imply a new concept
-            # Use a NON-CAPTURING group so re.split doesn't return the delimiters!
-            # Added more keywords and support for comma splitting
-            grammar_split_pattern = r'(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs|Prepositions|Articles|Conjugation|Vocabulary|Communicative)\b)'
-            sp_parts = re.split(grammar_split_pattern, sp)
+            # 1. Aggressive Atomic Splitting (Rule 1 & 4)
+            # Split on major conjunctions, slashes, or commas followed by space + Capital/Keyword
+            # We use a broad list of connectors: "and", "y", "und", "et", "with", "&", "/", "вместе с" etc.
+            atomic_split_pattern = (
+                r'\s+(?:and|y|und|et|with|con|avec|mit|и|&)\s+'  # Conjunctions
+                r'|\s*/\s*'                                      # Slashes
+                r'|(?<=(?:[^\W\d_]|[.,]))\s*,\s*(?=[^\W\d_])'     # Commas between words
+                r'|(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs|Prepositions|Articles|Conjugation|Vocabulary|Communicative)\b)'
+            )
+            sp_parts = re.split(atomic_split_pattern, sp, flags=re.IGNORECASE)
             
             for p1 in sp_parts:
                 if not p1.strip(): continue
                 # 2. Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
-                sentence_parts = re.split(r'(?<=[^\W\d_]\.)\s+(?=[^\W\d_])', p1)
+                # This handles multi-sentence topics in one line
+                sentence_parts = re.split(r'(?<=[^\W\d_][.?!])\s+(?=[^\W\d_])', p1)
                 for p2 in sentence_parts:
                     if p2.strip():
                         # Only split if the next word starts with a capital letter (or is capital-like)
-                        # We use a trick: check if the first character of p2 is upper
                         if p2.strip()[0].isupper():
                             split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
                         else:
-                            # Re-merge because it wasn't a capital letter (e.g. "т. д.")
+                            # Re-merge if it seems to be an abbreviation like "etc."
                             if split_lines:
                                 split_lines[-1]['raw'] += " " + p2.strip()
                             else:
@@ -323,17 +332,31 @@ def parse_curriculum_text(text):
     def is_valid_topic(text):
         if not text or len(text.strip()) < 3:
             return False
+        
+        # Rule 2: HARD noise removal (language-agnostic)
+        # Ratio check: if text is mostly digits/symbols, it's noise
+        alpha_count = len([c for c in text if c.isalpha()])
+        if alpha_count < len(text) * 0.4:
+            return False
+            
+        # Standalone numbers or page markers
         if re.match(r'^[\d\s\-\.\/]+$', text):
             return False
-        # Remove fake headers (e.g. "CASES.", "REVIEW")
-        if text.isupper() and len(text) < 20 and not re.search(r'\d', text):
-            return False
-        # Hard noise filter for broken OCR (random Latin/Cyrillic mix or single meaningless tokens)
-        if re.search(r'^[a-zа-яA-ZА-ЯёЁ]\s[a-zа-яA-ZА-ЯёЁ]$', text, re.IGNORECASE) or text.lower() in ("cal", "so", "un", "re", "il", "la", "el", "le", "as", "es"):
-            return False
-        # Remove meta sections
+            
+        # Specific book metadata or section labels (Rule 3)
         if is_meta_section(text):
             return False
+            
+        # Fake headers (e.g. "CASES.", "REVIEW")
+        if text.isupper() and len(text) < 20 and not re.search(r'\d', text):
+            return False
+            
+        # Broken encoding or random symbols
+        if re.search(r'[^\w\s.,!?;:()\'\"\u00C0-\u00FF\u0400-\u04FF]', text):
+            # If it contains more than 2 consecutive weird symbols, drop it
+            if re.search(r'[^\w\s]{3,}', text):
+                return False
+                
         return True
 
     for entry in entries:
