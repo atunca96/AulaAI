@@ -14,6 +14,9 @@ import time
 import logging
 import subprocess
 import random as py_random
+import re
+import traceback
+import concurrent.futures
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
@@ -1612,7 +1615,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _bg_generate_activities(self, course_id, topic_id, count):
         try:
-            import re
             
             def update_prog(p, status='generating'):
                 if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
@@ -1742,8 +1744,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     update_prog(20)
                     
-                    import concurrent.futures
-                    
                     def _fetch_batch(_b):
                         return ai_generate_activity_batch(
                             topic["title"], 
@@ -1847,12 +1847,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.commit()
                 
         except Exception as e:
-            file_log(f"BG Activity Error: {str(e)}")
-            import traceback
+            msg = f"BG Activity Error: {str(e)}"
+            print(f"[CRITICAL] {msg}")
+            file_log(msg)
             file_log(traceback.format_exc())
-            with db_connection() as db:
-                db.execute("UPDATE courses SET activity_status='error' WHERE id=?", (course_id,))
-                db.commit()
+            
+            # Ensure status is reset so UI doesn't freeze
+            update_prog(0, status='error')
 
     def _activity_progress(self, course_id):
         if not course_id:
