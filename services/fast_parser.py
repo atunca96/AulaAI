@@ -142,16 +142,17 @@ def is_chapter_header(line, prev_indent=0):
     Determines if a line is a chapter/unit header.
     Returns (True, chapter_number_str) or (False, None).
     """
-    stripped = line.strip()
-    if not stripped or len(stripped) < 3:
+    # Clean leading Markdown symbols and common decorations
+    clean_line = re.sub(r'^[#\*_\-\s]+', '', line.strip()).strip()
+    if not clean_line or len(clean_line) < 3:
         return False, None
 
     # Skip meta sections
-    if is_meta_section(stripped):
+    if is_meta_section(clean_line):
         return False, None
 
     # Check against unit patterns
-    m = UNIT_PATTERN.match(stripped)
+    m = UNIT_PATTERN.match(clean_line)
     if m:
         num = m.group(1) or m.group(2) or m.group(3)
         return True, num
