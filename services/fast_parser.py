@@ -169,8 +169,8 @@ def is_chapter_header(line):
 
 def parse_curriculum_text(text):
     """
-    Final robust version of curriculum parser.
-    Uses strict boundaries and multi-pass merging.
+    Language-agnostic, simple, and robust curriculum parser.
+    Built from scratch to preserve unit numbers and prevent over-merging.
     """
     if not text or not text.strip():
         return []
@@ -178,97 +178,105 @@ def parse_curriculum_text(text):
     chapters = []
     current_chapter = None
     
-    # 1. Cleaning & Pre-processing
+    # 1. Basic cleanup and split
     raw_lines = [l.strip() for l in text.split('\n') if l.strip()]
     lines = []
-    for rl in raw_lines:
-        # Split on internal bullets immediately to simplify logic
-        if '•' in rl:
-            lines.extend([p.strip() for p in rl.split('•') if p.strip()])
+    for line in raw_lines:
+        # Normalize bullets to simplify later checks
+        if '•' in line:
+            parts = [p.strip() for p in line.split('•') if p.strip()]
+            lines.extend(parts)
+        elif '·' in line:
+            parts = [p.strip() for p in line.split('·') if p.strip()]
+            lines.extend(parts)
         else:
-            lines.append(rl)
+            lines.append(line)
 
     i = 0
     while i < len(lines):
         line = lines[i]
         
-        # A. Detect Chapter/Unit Header
+        # 2. Header Detection
         is_ch, ch_num = is_chapter_header(line)
         
-        # B. Detect Topic Characteristics
-        is_topic_marker = line.startswith('-') or line.startswith('•') or line.startswith('*')
-        has_tag = bool(re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', line, re.I))
-        is_recursos = any(k in line.upper() for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS"])
-        
-        # Heuristic Header: No bullet, All Caps, not a 'Recursos' line, and followed by content
-        if not is_ch and not is_topic_marker and not is_recursos and line.isupper() and len(line) < 40:
-            if i + 1 < len(lines):
-                nxt = lines[i+1]
-                if nxt.startswith('-') or nxt.startswith('•') or "RECURSOS" in nxt.upper():
+        # Heuristic Header: ALL CAPS, not too long, not a known topic marker
+        if not is_ch and line.isupper() and len(line) < 60:
+            if not any(k in line for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
+                # Allow basic letters, numbers, spaces, and common Spanish punctuation
+                if re.match(r'^[A-Z0-9ÁÉÍÓÚÑÄËÏÖÜ\s\?\¿\!\¡\/\-\:\.]+$', line):
                     is_ch = True
                     ch_num = "H"
 
         if is_ch:
-            if current_chapter: chapters.append(current_chapter)
-            title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', line).strip()
-            title = re.sub(r'^\d+\s*[.:/\\\-–—]\s*', '', title).strip()
+            if current_chapter:
+                chapters.append(current_chapter)
+            
+            # Keep the raw line as the title to preserve numbers like "3/ "
+            title = re.sub(r'^#+\s*', '', line).strip()
+            
+            # Look ahead to reconstruct multi-line ALL CAPS titles
+            while i + 1 < len(lines):
+                nxt = lines[i+1]
+                # If next is also a header according to heuristic, merge it
+                if nxt.isupper() and len(nxt) < 60 and not any(k in nxt for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
+                    if re.match(r'^[A-Z0-9ÁÉÍÓÚÑÄËÏÖÜ\s\?\¿\!\¡\/\-\:\.]+$', nxt):
+                        title += " " + nxt.strip()
+                        i += 1
+                    else:
+                        break
+                else:
+                    break
+                    
             current_chapter = {"title": title, "topics": []}
             i += 1
             continue
 
-        # C. Topic Discovery & Merging
+        # 3. Topic Extraction
         content = line
-        # Start merging until we hit a clear new boundary
+        
+        # Look ahead for continuations
         while i + 1 < len(lines):
             nxt = lines[i+1]
             
-            # Boundaries:
+            # Stop conditions for merging
             if is_chapter_header(nxt)[0]: break
-            if nxt.startswith('-') or nxt.startswith('•'): break
+            if nxt.startswith('-') or nxt.startswith('*') or nxt.startswith('•'): break
             if any(k in nxt.upper() for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS"]): break
-            if re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I): break # Current already has tag
+            if re.search(r'\[(vocabulary|grammar)\]', content, re.I): break
             
-            # If current line is a 'hanging' line (no punctuation or ends with connector)
-            is_hanging = not re.search(r'[.!?\]\)]$', content)
-            if is_hanging or nxt[0].islower():
-                content += " " + nxt
-                i += 1
-            else:
-                break
-        
-        # D. Cleanup and Classify
+            # Additional heuristic: if next line is ALL CAPS, it might be a new header starting
+            if nxt.isupper() and len(nxt) < 60: break
+            
+            content += " " + nxt
+            i += 1
+
+        # 4. Process Topic
         topic_type = classify_topic(content)
-        tag_match = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I)
+        tag_match = re.search(r'\[(vocabulary|grammar)\]', content, re.I)
         if tag_match:
             topic_type = tag_match.group(1).lower()
-            content = content[:tag_match.start()].strip()
+            content = re.sub(r'\[(vocabulary|grammar)\]', '', content, flags=re.I).strip()
+            
+        # Clean leading markers
+        content = re.sub(r'^[\-\*\•\·]\s*', '', content).strip()
         
-        content = re.sub(r'^[#\*_\-\s.:/]+', '', content).strip()
         if len(content) > 3 and not is_meta_section(content):
             if not current_chapter:
                 current_chapter = {"title": "Unit 1", "topics": []}
             
-            current_chapter["topics"].append({
-                "title": content,
-                "type": topic_type,
-                "page": None
-            })
-        
+            # Add if unique within the current chapter
+            if not any(t["title"].lower() == content.lower() for t in current_chapter["topics"]):
+                current_chapter["topics"].append({
+                    "title": content,
+                    "type": topic_type,
+                    "page": None
+                })
+                
         i += 1
 
-    if current_chapter: chapters.append(current_chapter)
-
-    # Final Deduplication & Post-processing
-    for ch in chapters:
-        seen = set()
-        unique_topics = []
-        for t in ch.get("topics", []):
-            key = t["title"].lower()
-            if key not in seen:
-                seen.add(key)
-                unique_topics.append(t)
-        ch["topics"] = unique_topics
-    
+    if current_chapter:
+        chapters.append(current_chapter)
+        
     return chapters
 
 
