@@ -229,27 +229,53 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         # Phase 2: Enrichment
         _log(f"Phase 1 Complete for {course_id}. Starting Phase 2...")
         
-        # OCR FALLBACK: If no source markdown exists and the PDF is scanned,
-        # generate source markdown via OCR so Phase 2 has context for enrichment
+        # SURGICAL OCR: If no source markdown exists and the PDF is scanned,
+        # generate source markdown via OCR for ONLY the pages mentioned in the topics
         if not source_markdown_path and pdf_path and pdf_path != "NONE":
             try:
                 from services.ocr_fallback import is_image_based_pdf, ocr_pdf_pages
                 if is_image_based_pdf(pdf_path):
-                    _log("Image-based PDF detected — generating OCR source markdown...")
-                    from database import BOOKS_DIR
-                    ocr_md_path = os.path.join(BOOKS_DIR, f"ocr_{course_id}.md")
-                    ocr_text = ocr_pdf_pages(pdf_path)
-                    if ocr_text and len(ocr_text) > 100:
-                        with open(ocr_md_path, "w", encoding="utf-8") as f:
-                            f.write(ocr_text)
-                        source_markdown_path = ocr_md_path
-                        _log(f"OCR source markdown saved: {len(ocr_text)} chars -> {ocr_md_path}")
+                    _log("Image-based PDF detected — generating surgical OCR source markdown...")
+                    
+                    # 1. Collect all unique pages mentioned in topics
+                    all_pages = set()
+                    for ch in chapters_data:
+                        for t in ch.get("topics", []):
+                            p = t.get("page")
+                            if p:
+                                all_pages.add(p)
+                                # Always take +1 page for context spillover
+                                all_pages.add(p + 1)
+                    
+                    if all_pages:
+                        page_list = sorted(list(all_pages))
+                        _log(f"Phase 2: Target surgical OCR for {len(page_list)} unique pages")
+                        
+                        from database import BOOKS_DIR
+                        ocr_md_path = os.path.join(BOOKS_DIR, f"ocr_{course_id}.md")
+                        ocr_text = ocr_pdf_pages(pdf_path, page_list=page_list)
+                        
+                        if ocr_text and len(ocr_text) > 100:
+                            with open(ocr_md_path, "w", encoding="utf-8") as f:
+                                f.write(ocr_text)
+                            source_markdown_path = ocr_md_path
+                            _log(f"Surgical OCR source markdown saved: {len(ocr_text)} chars -> {ocr_md_path}")
+                        else:
+                            _log("Surgical OCR produced insufficient text.")
                     else:
-                        _log("OCR produced insufficient text, skipping.")
+                        _log("No page numbers found in topics, cannot perform surgical OCR.")
             except Exception as e:
                 _log(f"OCR fallback error (non-fatal): {e}")
         
         enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path)
+        
+        # ── FINAL STEP: Release UI Lock ──
+        # Only set is_building = 0 when EVERYTHING is finished (Lessons + Starter Questions)
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.commit()
+        _log(f"CRITICAL: Classroom {course_id} is now FULLY enriched and ready.")
+        bump_version()
 
     except Exception as e:
         _log(f"CRITICAL ERROR in Phase 1: {e}")
@@ -344,19 +370,25 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 except: pass
 
             # 1. Generate Textbook Content
-            pages = []
             lesson = generate_full_lesson(t_title, t_type, language, 6, level, source_text=source_text)
             pages = lesson.get("pages", [])
-            
-            step_up() # Halfway point
-
             content = {"pages": pages}
             
-            # 2. Skip initial question generation to save time & costs!
-            # Questions will be lazily generated on-the-fly by content_engine.py when users take quizzes.
-            questions = []
+            step_up() # Progress marker for Lesson
             
-            step_up() # Final point for this task
+            # 2. Generate a small starter set of questions in the background
+            questions = []
+            try:
+                if pages:
+                    # Generate 5 high-quality questions based on the new lesson content
+                    questions = ai_generate_questions(
+                        t_title, t_type, content, language, 
+                        count=5, level=level, is_pdf_source=True
+                    )
+            except: pass
+            
+            step_up() # Progress marker for Questions
+            
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:

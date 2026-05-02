@@ -30,7 +30,7 @@ GRAMMAR_KEYS = [
     "quien", "que", "donde", "cuando", "como", "cuanto", "por que", "cual",
     "isim", "fiil", "sıfat", "zarf", "zamir", "cümle", "gramer", "dilbilgisi",
     "werkwoord", "zelfstandig naamwoord", "bijvoeglijk", "bijwoord", "zin", "grammatica",
-    "substantiv", "adjektiv", "mening", "grammatik",
+    "substantiv", "adjektiv", "mening", "grammatik", "грамматика", "лексика", "навыки",
     "ρήμα", "ουσιαστικό", "επίθετο", "επίρρημα", "γραμματική", "πρόταση",
     "فعل", "اسم", "صفة", "ظرف", "جملة", "قواعد",
     "动词", "名词", "形容词", "副词", "句子", "语法",
@@ -404,8 +404,9 @@ def parse_curriculum_text(text):
 
         # Clean topic/header titles: remove redundant [vocabulary]/[grammar] tags
         # and Markdown symbols like ## or **
-        clean_title = re.sub(r'[\[\(](?:vocabulary|grammar)[\]\)]', '', raw_t, flags=re.IGNORECASE).strip()
-        clean_title = re.sub(r'^[#\*_\-\s]+|[#\*_\-\s]+$', '', clean_title).strip()
+        clean_title = re.sub(r'[\[\(]\s*(?:vocabulary|grammar|vocab|gramm|lexica?)\s*\.*[\]\)]', '', raw_t, flags=re.IGNORECASE).strip()
+        # Strip leading/trailing non-alphanumeric noise but keep valid sentence endings if any
+        clean_title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', clean_title).strip()
 
         if entry['is_header']:
             # Start a new chapter

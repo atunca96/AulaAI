@@ -243,7 +243,7 @@ def _resolve_ocr_language(language):
 
     return "eng"
 
-def ocr_page(page, page_num=0, dpi=300, language=None):
+def ocr_page(page, page_num=0, dpi=200, language=None):
     """
     OCR a single PyMuPDF page using pytesseract.
     
@@ -288,15 +288,16 @@ def ocr_page(page, page_num=0, dpi=300, language=None):
         return ""
 
 
-def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
+def ocr_pdf_pages(pdf_path, start_page=None, end_page=None, page_list=None):
     """
-    OCR a range of pages from an image-based PDF.
+    OCR a range or specific list of pages from an image-based PDF.
     Returns text in the same "Source Page X" format used by the existing pipeline.
 
     Args:
         pdf_path: Path to the PDF file
-        start_page: 1-indexed start page (inclusive). None = first page.
-        end_page: 1-indexed end page (inclusive). None = last page.
+        start_page: 1-indexed start page (inclusive).
+        end_page: 1-indexed end page (inclusive).
+        page_list: Explicit list of 1-indexed pages to OCR. Overrides range if provided.
 
     Returns:
         str: Combined text with "# Source Page X" markers
@@ -311,13 +312,25 @@ def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
         doc = fitz.open(pdf_path)
         total_pages = len(doc)
 
-        # Convert to 0-indexed
-        s = (start_page - 1) if start_page else 0
-        e = end_page if end_page else total_pages
-        s = max(0, s)
-        e = min(e, total_pages)
+        # Determine which pages to process
+        if page_list:
+            pages_to_ocr = []
+            for p in sorted(list(set(page_list))):
+                if 1 <= p <= total_pages:
+                    pages_to_ocr.append(p - 1) # 0-indexed
+        else:
+            # Range-based fallback
+            s = (start_page - 1) if start_page else 0
+            e = end_page if end_page else total_pages
+            s = max(0, s)
+            e = min(e, total_pages)
+            pages_to_ocr = list(range(s, e))
 
-        _log(f"Starting parallel OCR for pages {s+1}-{e} of {pdf_path} ({e - s} pages)")
+        if not pages_to_ocr:
+            doc.close()
+            return ""
+
+        _log(f"Starting parallel surgical OCR for {len(pages_to_ocr)} pages of {pdf_path}")
         
         results_map = {}
         lock = threading.Lock()
@@ -343,18 +356,18 @@ def ocr_pdf_pages(pdf_path, start_page=None, end_page=None):
 
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            executor.map(_process_page, range(s, e))
+            executor.map(_process_page, pages_to_ocr)
 
         doc.close()
 
         # Reconstruct in order
         result_parts = []
-        for p_idx in range(s, e):
+        for p_idx in sorted(pages_to_ocr):
             if p_idx in results_map:
                 result_parts.append(results_map[p_idx])
 
         combined = "\n\n".join(result_parts)
-        _log(f"OCR complete: {len(result_parts)} pages processed, {len(combined)} total chars")
+        _log(f"Surgical OCR complete: {len(result_parts)} pages processed")
         return combined
 
     except Exception as e:
