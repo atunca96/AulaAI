@@ -24,28 +24,16 @@ GRAMMAR_KEYS = [
     "adjective", "adverb", "plural", "singular", "declens", "conjug",
     "struktur", "regla", "regel", "règle", "satzbau", "satzstellung",
     "accord", "concordan", "case", "kasus", "fall", "casus", "cas",
-    "noun", "sentence", "phrase", "question", "вопрос", "существительн", 
+    "noun", "sentence", "phrase", "вопрос", "существительн", 
     "глагол", "наречие", "прилагательн", "местоимени", "падеж", "склонени",
-    "кто", "что", "чей", "как", "где", "когда", "куда", "откуда", "почему", "зачем", "сколько",
-    "where", "what", "who", "when", "why", "how", "whose", "whom",
-    "qual", "quien", "quién", "como", "cómo", "donde", "dónde", "quando", "cuándo", "porque", "por qué",
-    "quel", "qui", "comment", "où", "quand", "pourquoi",
-    "isim", "fiil", "sıfat", "zarf", "zamir", "cümle", "soru", "gramer", "dilbilgisi",
-    "ne", "kim", "nerede", "nereye", "nasıl", "neden", "niçin", "hangi", "kaç",
-    "werkwoord", "zelfstandig naamwoord", "bijvoeglijk", "bijwoord", "zin", "vraag", "grammatica",
-    "wie", "wat", "waar", "wanneer", "waarom", "hoe", "welke",
-    "substantiv", "adjektiv", "mening", "fråga", "grammatik",
-    "vem", "vad", "var", "när", "varför", "hur", "vilken", "vilket", "vilka",
-    "ρήμα", "ουσιαστικό", "επίθετο", "επίρρημα", "γραμματική", "πρόταση", "ερώτηση",
-    "τι", "ποιος", "πού", "πότε", "γιατί", "πώς", "ποιο",
-    "فعل", "اسم", "صفة", "ظرف", "جملة", "سؤال", "قواعد",
-    "من", "ماذا", "أين", "متى", "لماذا", "كيف", "أي",
-    "动词", "名词", "形容词", "副词", "句子", "问题", "语法",
-    "谁", "什么", "哪里", "何时", "为什么", "怎么", "哪",
-    "動詞", "名詞", "形容詞", "副詞", "文", "質問", "文法",
-    "誰", "何", "どこ", "いつ", "なぜ", "どう", "どれ",
-    "동사", "명사", "형용사", "부사", "문장", "질문", "문법",
-    "누구", "무엇", "어디", "언제", "왜", "어떻게", "어느"
+    "isim", "fiil", "sıfat", "zarf", "zamir", "cümle", "gramer", "dilbilgisi",
+    "werkwoord", "zelfstandig naamwoord", "bijvoeglijk", "bijwoord", "zin", "grammatica",
+    "substantiv", "adjektiv", "mening", "grammatik",
+    "ρήμα", "ουσιαστικό", "επίθετο", "επίρρημα", "γραμματική", "πρόταση",
+    "فعل", "اسم", "صفة", "ظرف", "جملة", "قواعد",
+    "动词", "名词", "形容词", "副词", "句子", "语法",
+    "動詞", "名詞", "形容詞", "副詞", "文", "文法",
+    "동사", "명사", "형용사", "부사", "문장", "문법"
 ]
 
 READING_KEYS = [
@@ -67,7 +55,8 @@ META_SKIP = [
     "sumário", "содержание", "оглавление", "içindekiler",
     "المحتويات", "目录", "目次", "extracted content", "source page",
     "приложение", "аудио", "page", "chapter", "unit", "lección", "leccion",
-    "урок", "задание", "упражнение"
+    "урок", "задание", "упражнение", "русский на каждый день", "review",
+    "appendix", "bibliography", "glossary", "index", "references"
 ]
 
 
@@ -250,7 +239,8 @@ def parse_curriculum_text(text):
         for sp in sub_parts:
             # 1. Split on commas/spaces followed by major structural keywords that imply a new concept
             # Use a NON-CAPTURING group so re.split doesn't return the delimiters!
-            grammar_split_pattern = r'(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs)\b)'
+            # Added more keywords and support for comma splitting
+            grammar_split_pattern = r'(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs|Prepositions|Articles|Conjugation|Vocabulary|Communicative)\b)'
             sp_parts = re.split(grammar_split_pattern, sp)
             
             for p1 in sp_parts:
@@ -331,10 +321,15 @@ def parse_curriculum_text(text):
     current_chapter = None
 
     def is_valid_topic(text):
-        if re.match(r'^[\d\s\-\.\/]+$', text) or len(text) < 3:
+        if not text or len(text.strip()) < 3:
+            return False
+        if re.match(r'^[\d\s\-\.\/]+$', text):
             return False
         # Remove fake headers (e.g. "CASES.", "REVIEW")
         if text.isupper() and len(text) < 20 and not re.search(r'\d', text):
+            return False
+        # Hard noise filter for broken OCR (random Latin/Cyrillic mix or single meaningless tokens)
+        if re.search(r'^[a-zа-яA-ZА-ЯёЁ]\s[a-zа-яA-ZА-ЯёЁ]$', text, re.IGNORECASE) or text.lower() in ("cal", "so", "un", "re", "il", "la", "el", "le", "as", "es"):
             return False
         # Remove meta sections
         if is_meta_section(text):
@@ -448,7 +443,28 @@ def parse_curriculum_text(text):
         ch['topics'] = clean_topics
         ch['title'] = ch['title'].strip()
 
-    return chapters
+    # 9. Unit Balancing
+    # Ensure each unit has a similar number of topics.
+    # If a unit has > 20 topics and others are small, we split it.
+    balanced_chapters = []
+    for ch in chapters:
+        topics = ch.get('topics', [])
+        if len(topics) > 20:
+            # Split into smaller units
+            chunk_size = 12
+            for i in range(0, len(topics), chunk_size):
+                chunk = topics[i:i + chunk_size]
+                if not chunk: continue
+                suffix = f" (Part {i//chunk_size + 1})" if i > 0 else ""
+                balanced_chapters.append({
+                    'title': ch['title'] + suffix,
+                    'page': chunk[0].get('page'),
+                    'topics': chunk
+                })
+        else:
+            balanced_chapters.append(ch)
+    
+    return balanced_chapters
 
 
 
