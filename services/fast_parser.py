@@ -48,12 +48,10 @@ META_SKIP = [
 
 
 def classify_topic(title):
-    """Classify a topic title as vocabulary, grammar, or reading."""
+    """Classify a topic title as vocabulary or grammar."""
     t_lower = title.lower()
     if any(k in t_lower for k in GRAMMAR_KEYS):
         return "grammar"
-    if any(k in t_lower for k in READING_KEYS):
-        return "reading"
     return "vocabulary"
 
 
@@ -219,16 +217,21 @@ def parse_curriculum_text(text):
 
         cleaned_lines.append({'raw': stripped, 'indent': get_indent_level(line)})
 
-    # 2. Split mixed lines
+    # 2. Split mixed lines (pipe, tab, or 3+ spaces)
     split_lines = []
     for entry in cleaned_lines:
         line_text = entry['raw']
-        if "|" in line_text:
-            parts = [p.strip() for p in line_text.split("|") if p.strip()]
-            for p in parts:
-                split_lines.append({'raw': p, 'indent': entry['indent']})
-        else:
-            split_lines.append(entry)
+        # Split on | or tab or 3+ spaces, or period followed by space and Capital
+        # We split on spaces separating distinct sentences, but keep the period on the first sentence.
+        sub_parts = re.split(r'\s*\|\s*|\t+|\s{3,}', line_text)
+        
+        for sp in sub_parts:
+            # Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
+            # Look behind for letter+period, match spaces, look ahead for Capital letter
+            sentence_parts = re.split(r'(?<=[a-zA-Zа-яА-ЯёЁ]\.)\s+(?=[A-ZА-ЯЁ])', sp)
+            for p in sentence_parts:
+                if p.strip():
+                    split_lines.append({'raw': p.strip(), 'indent': entry['indent']})
 
     # 3. Merge broken lines
     merged_lines = []
@@ -333,10 +336,39 @@ def parse_curriculum_text(text):
                     'type': classify_topic(ch['title']),
                     'page': ch.get('page'),
                 })
-        chapters = rebuilt
-
-    # Cleanup: remove empty chapters
-    chapters = [ch for ch in chapters if ch.get('topics') or ch.get('title')]
+    # 7. Add arbitrary unit grouping for flat topic lists
+    # If there is only one chapter and it has > 12 topics, we group them into Unit 1, Unit 2...
+    if len(chapters) == 1 and len(chapters[0].get('topics', [])) > 12:
+        topics = chapters[0]['topics']
+        units = []
+        current_unit = []
+        
+        for i, topic in enumerate(topics):
+            current_unit.append(topic)
+            
+            # Check if we should split
+            if len(current_unit) >= 8:
+                if i + 1 < len(topics):
+                    next_topic = topics[i+1]
+                    # Try to split on theme change
+                    if topic['type'] != next_topic['type']:
+                        units.append(current_unit)
+                        current_unit = []
+                    elif len(current_unit) >= 12:
+                        units.append(current_unit)
+                        current_unit = []
+                        
+        if current_unit:
+            units.append(current_unit)
+            
+        # Rebuild chapters
+        chapters = []
+        for i, u in enumerate(units):
+            chapters.append({
+                'title': f"Unit {i+1}",
+                'page': u[0].get('page'),
+                'topics': u
+            })
 
     return chapters
 
