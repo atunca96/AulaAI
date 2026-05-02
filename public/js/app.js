@@ -275,7 +275,7 @@ function refreshCurrentView() {
     loadStudentHome();
     loadQuizList();
     loadAssignmentList();
-    loadStudentProgress();
+    // loadStudentProgress(); // Disabled until further notice
     if (currentCourse) {
       api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`).then(messages => {
         if (messages && Array.isArray(messages)) {
