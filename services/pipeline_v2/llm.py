@@ -7,11 +7,11 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "your_openrouter_api_key")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 CHEAP_MODEL = "anthropic/claude-3-haiku"
-FALLBACK_MODEL = "anthropic/claude-3-sonnet"
+FALLBACK_MODEL = "anthropic/claude-3.5-sonnet"
 
-CACHE_NAMESPACE = "pipeline_v2_v3"
+CACHE_NAMESPACE = "pipeline_v2_v4"
 
 # In-memory cache for repeated chunks/prompts
 _llm_cache = {}
@@ -20,9 +20,15 @@ def get_cache_key(prompt: str) -> str:
     return hashlib.md5((CACHE_NAMESPACE + prompt).encode('utf-8')).hexdigest()
 
 def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
+    if not OPENROUTER_API_KEY:
+        logger.error("OPENROUTER_API_KEY is not set!")
+        return "[]"
+
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://aulaai.com",
+        "X-Title": "AulaAI"
     }
     
     prompt_str = json.dumps(messages)
@@ -48,7 +54,10 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
                 json=payload,
                 timeout=45
             )
-            response.raise_for_status()
+            if response.status_code != 200:
+                logger.error(f"OpenRouter Error {response.status_code}: {response.text}")
+                response.raise_for_status()
+                
             result = response.json()["choices"][0]["message"]["content"]
             
             # Basic validation that it contains JSON
