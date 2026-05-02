@@ -47,22 +47,19 @@ READING_KEYS = [
 ]
 
 META_SKIP = [
-    "about", "author", "license", "preface", "index",
-    "bibliography", "appendix", "glossary", "glosario",
-    "acknowledgment", "copyright", "introduction to the",
-    "table of contents", "answer key", "respuestas",
-    "credits", "maps", "map of", "scope and sequence",
-    "contents", "sommaire", "table des matières", "inhalt", 
-    "inhaltsverzeichnis", "indice", "índice", "sommario",
-    "sumário", "содержание", "оглавление", "içindekiler",
-    "المحتويات", "目录", "目次", "extracted content", "source page",
-    "приложение", "аудио", "page", "chapter", "unit", "lección", "leccion",
-    "урок", "задание", "упражнение", "русский на каждый день", "review",
-    "appendix", "bibliography", "glossary", "index", "references", "точкару", "точка ру",
-    "дополнительно", "тесты", "проверьте себя", "extra practice", "workbook", "cuaderno",
-    "arbeitsbuch", "exercice", "test yourself", "self-check", "audio scripts", "transcripts",
-    "интервью", "миграционной карты", "коммуникативные задания", "русский на каждый день",
-    "приложение", "аудиоприложение", "аудио", "проверь себя", "точкару", "точка ру"
+    "about", "author", "license", "preface", "index", "bibliography", "appendix", 
+    "glossary", "glosario", "acknowledgment", "copyright", "introduction to the",
+    "table of contents", "answer key", "respuestas", "credits", "maps", "map of", 
+    "scope and sequence", "contents", "sommaire", "table des matières", "inhalt", 
+    "inhaltsverzeichnis", "indice", "índice", "sommario", "sumário", "содержание", 
+    "оглавление", "içindekiler", "extracted content", "source page", "приложение", 
+    "аудио", "page", "chapter", "unit", "lección", "leccion", "урок", "задание", 
+    "упражнение", "русский на каждый день", "review", "references", "точкару", 
+    "точка ру", "дополнительно", "тесты", "проверьте себя", "extra practice", 
+    "workbook", "cuaderno", "arbeitsbuch", "exercice", "test yourself", "self-check", 
+    "audio scripts", "transcripts", "интервью", "миграционной карты", 
+    "коммуникативные задания", "аудиоприложение", "проверь себя", "ответы к заданиям",
+    "ссылки"
 ]
 
 
@@ -250,7 +247,7 @@ def parse_curriculum_text(text):
             # 1. Ultra-Aggressive Atomic Splitting (Rule 1 & 4)
             # Split on all obvious separators: commas, slashes, "and", "&", "vs", "with"
             atomic_split_pattern = (
-                r'\s+(?:and|y|und|et|with|con|avec|mit|и|&|vs\.?)\s+'  # Conjunctions
+                r'\s+(?:and|y|und|et|и|&|vs\.?)\s+'                    # Conjunctions (excluding 'with')
                 r'|\s*[|/\\;]\s*'                                      # Slashes/Pipes/Semicolons
                 r'|(?<=[^\W\d_]{2})\s*,\s*(?=[^\W\d_]{2})'           # Commas between words
                 r'|(?<=[.?!])\s+(?=[^\W\d_])'                          # Sentences/Fragments
@@ -295,7 +292,8 @@ def parse_curriculum_text(text):
             is_bracket = bool(re.match(r'^[\[({]', nxt))
             
             # Words that strongly imply the sentence is unfinished (connectors and category headers)
-            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller|verb|verbs|preposition|prepositions|adverb|adverbs|pronoun|pronouns|adjective|adjectives|noun|nouns|ordinal|number|numbers|gender|modal|conjugation|instrumental|genitive|dative|accusative|prepositional|nominative)\s*$'
+            # Added common OCR typos (acausative, prepositionnl)
+            hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller|verb|verbs|preposition|prepositions|adverb|adverbs|pronoun|pronouns|adjective|adjectives|noun|nouns|ordinal|number|numbers|gender|modal|conjugation|instrumental|genitive|dative|accusative|prepositional|nominative|acausative|prepositionnl)\s*$'
             is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
             
             # If the next line is an atomic split from the SAME original line, DO NOT merge it back
