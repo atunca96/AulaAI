@@ -72,7 +72,7 @@ if not os.environ.get("PORT") and not os.environ.get("RAILWAY_ENVIRONMENT"):
     threading.Thread(target=watch_files, daemon=True).start()
 
 _startup_t = time.time()
-print(f"--- AULA AI SERVER v{VERSION} STARTING ---")
+print(f"--- AULA AI SERVER v{VERSION} [FIX-STABILIZE-V2] STARTING ---")
 
 
 # Version tracking moved to services.state
@@ -1843,7 +1843,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             update_prog(100, status='done')
             with db_connection() as db:
                 db.execute("UPDATE courses SET activity_status='done', activity_result=? WHERE id=?", 
-                           (json.dumps(selected), course_id))
+                           (json.dumps(selected, ensure_ascii=False), course_id))
                 db.commit()
                 
         except Exception as e:

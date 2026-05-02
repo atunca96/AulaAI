@@ -6,6 +6,7 @@ import urllib.request
 import urllib.error
 import time
 import uuid
+import random as py_random
 from datetime import datetime
 
 print(f"--- AI_ENGINE LOADED AT {datetime.now()} ---")
@@ -340,8 +341,7 @@ RULES:
 Return ONLY valid JSON:
 {{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."]}}]}}"""
 
-    import random as _r
-    seed = _r.randint(1000, 9999)
+    seed = py_random.randint(1000, 9999)
     prompt += f"\n\nSEED: {seed}"
     
     try:
@@ -422,7 +422,7 @@ Return ONLY valid JSON:
             valid = _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab)
             if valid:
                 opts = [valid["answer"]] + valid["distractors"]
-                _r.shuffle(opts)
+                py_random.shuffle(opts)
                 valid["options"] = opts
                 final.append(valid)
                 seen_answers.add(re.sub(r'[^\w]', '', valid["answer"].lower()).strip())
