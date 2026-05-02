@@ -30,7 +30,7 @@ if os.path.exists(".env"):
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
 MODEL_STRUCTURAL = "anthropic/claude-3-haiku" # Lowest cost per output
 MODEL_NARRATIVE = "anthropic/claude-3-haiku"  # Legacy stable voice
-MODEL_FALLBACK = "google/gemini-2.0-flash-lite-preview-02-05:free"
+MODEL_FALLBACK = "anthropic/claude-3.5-sonnet" # High-quality fallback layer
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured."""
