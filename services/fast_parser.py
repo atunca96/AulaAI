@@ -151,43 +151,26 @@ def is_chapter_header(line):
     if is_meta_section(clean_line):
         return False, None
 
-    # 1. Standard Patterns
+    # Skip generic section titles that are NOT units
+    if clean_line.upper() in ["FONÉTICA", "MÁS EJERCICIOS", "MÁS GRAMÁTICA", "RESUMEN", "AUTOEVALUACIÓN", "REVIEW"]:
+        return False, None
+
+    # 1. Standard Patterns (Numbers are the most reliable)
     m = UNIT_PATTERN.match(clean_line)
     if m:
         num = m.group(1) or m.group(2) or m.group(3)
         return True, num
 
-    # 2. Heuristic: All-caps short lines that don't look like topics
-    # Topics in this book are often "RECURSOS ..." or start with lowercase.
-    # Unit headers are often "DIAADIA", "EL BARRIO", "NOSOTROS Y NOSOTRAS"
-    if clean_line.isupper() and len(clean_line) < 35:
-        # Exclude common noisy caps that are NOT units
-        if not any(k in clean_line for k in ["RECURSOS", "GRAMATICALES", "COMUNICATIVOS", "LÉXICOS", "VOCABULARIO"]):
-            return True, "H" # Heuristic header
-
+    # 2. Heuristic: Only if it's very likely a new unit (e.g. "Unidad ...")
+    # We removed the broad all-caps heuristic as it was fragmenting multi-line titles.
+    
     return False, None
 
-
-# ── Indentation Detection ────────────────────────────────────────────
-
-def get_indent_level(line):
-    """Returns the indentation level (number of leading spaces/tabs)."""
-    stripped = line.lstrip()
-    if not stripped:
-        return 0
-    indent = len(line) - len(stripped)
-    # Convert tabs to 4 spaces equivalent
-    tab_count = line[:indent].count('\t')
-    space_count = indent - tab_count
-    return tab_count * 4 + space_count
-
-
-# ── Main Parser ──────────────────────────────────────────────────────
 
 def parse_curriculum_text(text):
     """
     Parse curriculum text into structured units/chapters.
-    Rewritten for higher stability and fewer fragments.
+    Focuses on bullet-point boundaries and multi-line title reconstruction.
     """
     if not text or not text.strip():
         return []
@@ -200,37 +183,53 @@ def parse_curriculum_text(text):
     while i < len(lines):
         line = lines[i]
         
-        # 1. Internal Bullet Splitting: "Topic 1 • Topic 2 • Topic 3"
-        # We split the line and treat each part as a separate topic/line
+        # 1. Pre-Processing: Merge Fragments
+        # If this line and next line are both ALL CAPS and no bullets, merge them.
+        while i + 1 < len(lines):
+            nxt = lines[i+1]
+            if nxt.startswith('-') or nxt.startswith('•') or nxt.startswith('*'): break
+            if is_chapter_header(nxt)[0]: break
+            
+            # If both are ALL CAPS and short, or one is a continuation
+            if (line.isupper() and nxt.isupper()) or (not nxt[0].isalnum()):
+                line += " " + nxt
+                i += 1
+            else:
+                break
+
+        # 2. Internal Bullet Splitting
         if '•' in line:
             parts = [p.strip() for p in line.split('•') if p.strip()]
-            lines[i:i+1] = parts
-            line = lines[i]
+            lines[i+1:i+1] = parts[1:] # Insert remaining parts
+            line = parts[0]
 
-        # 2. Detect Chapter/Unit Header
+        # 3. Detect Chapter/Unit Header
         is_ch, ch_num = is_chapter_header(line)
+        # FORCE: If a line doesn't start with a bullet/dash and is followed by bullets, it's a header
+        if not is_ch and not (line.startswith('-') or line.startswith('•') or line.startswith('*')):
+            if i + 1 < len(lines) and (lines[i+1].startswith('-') or lines[i+1].startswith('•') or lines[i+1].startswith('*')):
+                is_ch = True
+                ch_num = "H"
+
         if is_ch:
             if current_chapter: chapters.append(current_chapter)
             title = re.sub(r'^[#\*_\-\s.:/]+|[#\*_\-\s.:/]+$', '', line).strip()
-            # Clean "3/ " from title if matched by UNIT_PATTERN
             title = re.sub(r'^\d+\s*[.:/\\\-–—]\s*', '', title).strip()
             current_chapter = {"title": title, "topics": []}
             i += 1
             continue
 
-        # 2. Topic Discovery & Merging
-        # We look ahead to see if the next lines are continuations of this topic
-        # Topics usually end with [vocabulary] or [grammar] or are bullet points
+        # 4. Topic Discovery & Merging
         content = line
         topic_type = classify_topic(content)
         
-        # If this line has a tag, use it immediately
+        # Find tag
         tag_match = re.search(r'[\[\(]\s*(vocabulary|grammar)\s*[\]\)]', content, re.I)
         if tag_match:
             topic_type = tag_match.group(1).lower()
             content = content[:tag_match.start()].strip()
         else:
-            # Look ahead: merge until we hit a new bullet, a new unit, or a tag
+            # Look ahead: merge until tag or boundary
             while i + 1 < len(lines):
                 nxt = lines[i+1]
                 if is_chapter_header(nxt)[0]: break
@@ -242,13 +241,8 @@ def parse_curriculum_text(text):
                     content += " " + nxt[:nxt_tag.start()].strip()
                     i += 1
                     break
-                
-                # Check if next line is a continuation (lowercase or starts with punctuation)
-                if nxt[0].islower() or not nxt[0].isalnum():
-                    content += " " + nxt
-                    i += 1
-                else:
-                    break
+                content += " " + nxt
+                i += 1
 
         # Cleanup content
         content = re.sub(r'^[#\*_\-\s.:/]+', '', content).strip()
@@ -270,7 +264,7 @@ def parse_curriculum_text(text):
     for ch in chapters:
         seen = set()
         unique_topics = []
-        for t in ch["topics"]:
+        for t in ch.get("topics", []):
             key = t["title"].lower()
             if key not in seen:
                 seen.add(key)
@@ -278,6 +272,7 @@ def parse_curriculum_text(text):
         ch["topics"] = unique_topics
     
     return chapters
+
 
 
 
