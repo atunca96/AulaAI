@@ -402,21 +402,26 @@ def parse_curriculum_text(text):
         if is_meta_section(raw_t):
             continue
 
+        # Clean topic/header titles: remove redundant [vocabulary]/[grammar] tags
+        # and Markdown symbols like ## or **
+        clean_title = re.sub(r'[\[\(](?:vocabulary|grammar)[\]\)]', '', raw_t, flags=re.IGNORECASE).strip()
+        clean_title = re.sub(r'^[#\*_\-\s]+|[#\*_\-\s]+$', '', clean_title).strip()
+
         if entry['is_header']:
             # Start a new chapter
             if current_chapter:
                 chapters.append(current_chapter)
             current_chapter = {
-                'title': raw_t,
+                'title': clean_title,
                 'page': entry['page'],
                 'topics': []
             }
         elif current_chapter is not None:
             # This is a topic under the current chapter
-            if is_valid_topic(raw_t):
+            if is_valid_topic(clean_title):
                 current_chapter['topics'].append({
-                    'title': raw_t,
-                    'type': classify_topic(raw_t),
+                    'title': clean_title,
+                    'type': classify_topic(raw_t), # Use raw for better classification if needed
                     'page': entry['page'],
                 })
         else:
@@ -427,9 +432,9 @@ def parse_curriculum_text(text):
                     'page': entry['page'],
                     'topics': []
                 }
-            if is_valid_topic(raw_t):
+            if is_valid_topic(clean_title):
                 current_chapter['topics'].append({
-                    'title': raw_t,
+                    'title': clean_title,
                     'type': classify_topic(raw_t),
                     'page': entry['page'],
                 })
