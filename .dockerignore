@@ -30,7 +30,8 @@ worker.log
 # Debug/scratch files
 server_debug*.txt
 scratch/
-*.txt
+# Don't ignore requirements.txt
+!requirements.txt
 
 # Local dev archives
 *.zip
