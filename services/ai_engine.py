@@ -124,7 +124,8 @@ def get_language_profile(language):
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', use_quality=True, existing_questions=None, is_pdf_source=False, is_quiz=False):
     with open("pipeline.log", "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count}\n")
+        api_status = "Available" if is_ai_available() else "MISSING KEY"
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
     request_count = max(c * 3, 20) 
@@ -144,33 +145,42 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if (is_beginner and not is_quiz) else ""
     translation_field = '"translation": "...", ' if (is_beginner and not is_quiz) else ""
 
-    prompt = f"""Generate {request_count} multiple-choice questions for a {language} lesson.
+    prompt = f"""Write {request_count} high-quality, creative multiple-choice questions for a {language} lesson.
 TOPIC: {topic_title} ({topic_type})
 LEVEL: {level}
 SOURCE MATERIAL: {content_str}
 {forbidden_clause}
 RULES:
-1. Write each question prompt in {instruction_lang}.
-2. ALL 4 OPTIONS IN THE SAME LANGUAGE.
-3. STRUCTURAL INVISIBILITY: All options must look similar.
-4. ONE BLANK ONLY.
-5. NO COMMA LISTS.
-6. CATEGORY LOCK.
-7. NO GIVEAWAYS.
+1. CREATIVITY: Do NOT use repetitive patterns. Vary the question styles (fill-in-the-blank, translation, context-based, grammar usage).
+2. Write each question prompt in {instruction_lang}.
+3. ALL 4 OPTIONS IN THE SAME LANGUAGE.
+4. STRUCTURAL INVISIBILITY: All options must look similar in length and complexity.
+5. ONE BLANK ONLY if using blanks.
+6. NO COMMA LISTS.
+7. CATEGORY LOCK: All distractors must belong to the same semantic category as the answer.
 8. MAXIMUM VARIETY & RANDOMIZATION.
-9. PLAUSIBLE WRONG ANSWERS.
+9. PLAUSIBLE WRONG ANSWERS: Distractors must be common mistakes or similar-sounding words.
 10. NO META.
-11. JSON SYNTAX: Escape quotes.
+11. JSON SYNTAX: Escape all quotes.
+12. EXPLANATION: Add a "why" field with a 1-sentence pedagogical explanation in English.
 {translation_rule}
 Return ONLY valid JSON:
-{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."]}}]}}"""
+{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."], "why": "..."}}]}}"""
 
     seed = py_random.randint(1000, 9999)
     prompt += f"\n\nSEED: {seed}"
     
     try:
-        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.7)
+        # TRY PRIMARY MODEL
+        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_STRUCTURAL, max_tokens=8000, temperature=0.8)
         raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
+        
+        # TRY FALLBACK MODEL IF PRIMARY PRODUCED NOTHING
+        if not raw_list:
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Primary model failed, trying fallback model...\n")
+            res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_FALLBACK, max_tokens=8000, temperature=0.9)
+            raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
         def _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab):
             if not isinstance(item, dict): return None
@@ -231,6 +241,9 @@ Return ONLY valid JSON:
                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FALLBACK] {msg}\n")
             
             clean_lang = language if language and language.lower() != "unknown" else "this language"
+
+            # Artificial delay to make fallback feel more 'real' and less 'instant error'
+            time.sleep(py_random.uniform(2.5, 4.5))
             
             # Create 'count' distinct fallbacks
             placeholders = [
@@ -249,7 +262,8 @@ Return ONLY valid JSON:
                     "prompt": f"({i+1}) Which of the following describes the {kind} of '{topic_title}' in {clean_lang}?",
                     "answer": ans, 
                     "distractors": [f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"],
-                    "options": py_random.sample([ans, f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"], 4)
+                    "options": py_random.sample([ans, f"{w1} {i+1}", f"{w2} {i+1}", f"{w3} {i+1}"], 4),
+                    "why": f"This is a fallback explanation for '{topic_title}' while the AI is warming up."
                 })
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
