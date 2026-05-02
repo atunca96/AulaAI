@@ -54,9 +54,9 @@ META_SKIP = [
     "inhaltsverzeichnis", "indice", "índice", "sommario",
     "sumário", "содержание", "оглавление", "içindekiler",
     "المحتويات", "目录", "目次", "extracted content", "source page",
-    "приложение", "аудио", "page", "chapter", "unit", "lección", "leccion",
+    "приложение", "аυдио", "page", "chapter", "unit", "lección", "leccion",
     "урок", "задание", "упражнение", "русский на каждый день", "review",
-    "appendix", "bibliography", "glossary", "index", "references"
+    "appendix", "bibliography", "glossary", "index", "references", "точкару", "точка ру"
 ]
 
 
@@ -241,35 +241,27 @@ def parse_curriculum_text(text):
         sub_parts = re.split(r'\s*\|\s*|\t+|\s{3,}', line_text)
         
         for sp in sub_parts:
-            # 1. Aggressive Atomic Splitting (Rule 1 & 4)
-            # Split on major conjunctions, slashes, or commas followed by space + Capital/Keyword
-            # We use a broad list of connectors: "and", "y", "und", "et", "with", "&", "/", "вместе с" etc.
+            # 1. Ultra-Aggressive Atomic Splitting (Rule 1 & 4)
+            # Split on all obvious separators: commas, slashes, "and", "&", "vs", "with"
             atomic_split_pattern = (
-                r'\s+(?:and|y|und|et|with|con|avec|mit|и|&)\s+'  # Conjunctions
-                r'|\s*/\s*'                                      # Slashes
-                r'|(?<=(?:[^\W\d_]|[.,]))\s*,\s*(?=[^\W\d_])'     # Commas between words
-                r'|(?<=(?:[^\W\d_]|[.,]))\s+(?=(?:The verbs?|The accusative|The dative|The genitive|The prepositional|The nominative|The instrumental|The modal|The imperative|Adjectives|Adverbs|Pronouns|Конструкции|Наречия|Verbs|Prepositions|Articles|Conjugation|Vocabulary|Communicative)\b)'
+                r'\s+(?:and|y|und|et|with|con|avec|mit|и|&|vs\.?)\s+'  # Conjunctions
+                r'|\s*[|/\\;]\s*'                                      # Slashes/Pipes/Semicolons
+                r'|(?<=[^\W\d_]{2})\s*,\s*(?=[^\W\d_]{2})'           # Commas between words (2+ letters to avoid abbreviations)
+                r'|(?<=[^\W\d_][.?!])\s+'                             # Sentences
             )
             sp_parts = re.split(atomic_split_pattern, sp, flags=re.IGNORECASE)
             
             for p1 in sp_parts:
                 if not p1.strip(): continue
                 # 2. Further split "The verb. Personal pronouns." -> ["The verb.", "Personal pronouns."]
-                # This handles multi-sentence topics in one line
                 sentence_parts = re.split(r'(?<=[^\W\d_][.?!])\s+(?=[^\W\d_])', p1)
                 for p2 in sentence_parts:
-                    if p2.strip():
-                        # Only split if the next word starts with a capital letter (or is capital-like)
-                        if p2.strip()[0].isupper():
-                            split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
-                        else:
-                            # Re-merge if it seems to be an abbreviation like "etc."
-                            if split_lines:
-                                split_lines[-1]['raw'] += " " + p2.strip()
-                            else:
-                                split_lines.append({'raw': p2.strip(), 'indent': entry['indent']})
+                    p2_s = p2.strip()
+                    if p2_s:
+                        # Tag as atomic split to prevent re-merging
+                        split_lines.append({'raw': p2_s, 'indent': entry['indent'], 'is_atomic': True})
 
-    # 3. Merge broken lines
+    # 3. Merge broken lines (ONLY if they aren't atomic splits)
     merged_lines = []
     i = 0
     while i < len(split_lines):
@@ -280,6 +272,12 @@ def parse_curriculum_text(text):
             nxt_entry = split_lines[i+1]
             nxt = nxt_entry['raw']
             
+            # If the next line is an atomic split from the SAME original line, DO NOT merge it back
+            # (In our case, the split loop happens before, so we don't easily know if they were from same line)
+            # But we can check if curr_entry['is_atomic'] is set.
+            if curr_entry.get('is_atomic') and nxt_entry.get('is_atomic'):
+                break
+
             # Condition to merge:
             is_terminal = bool(re.search(r'[.!?::;]\s*$', curr))
             
@@ -334,12 +332,24 @@ def parse_curriculum_text(text):
             return False
         
         # Rule 2: HARD noise removal (language-agnostic)
-        # Ratio check: if text is mostly digits/symbols, it's noise
+        t_clean = text.strip().lower()
+        
+        # Drop standalone page numbers or numbers in brackets
+        if re.match(r'^(\d+|\[\d+\])$', t_clean):
+            return False
+        
+        # Ratio check: if text is mostly digits/symbols/whitespace, it's noise
         alpha_count = len([c for c in text if c.isalpha()])
         if alpha_count < len(text) * 0.4:
             return False
             
-        # Standalone numbers or page markers
+        # Specific OCR artifacts and short tokens (Rule 2)
+        if re.search(r'\b(ee|he|es|cal|so|un|re|il|la|el|le|as|es)\b', t_clean):
+            # If it's JUST the token, drop it
+            if len(t_clean) < 4:
+                return False
+            
+        # Standalone numbers or page markers (Rule 2)
         if re.match(r'^[\d\s\-\.\/]+$', text):
             return False
             
