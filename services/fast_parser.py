@@ -60,7 +60,9 @@ META_SKIP = [
     "урок", "задание", "упражнение", "русский на каждый день", "review",
     "appendix", "bibliography", "glossary", "index", "references", "точкару", "точка ру",
     "дополнительно", "тесты", "проверьте себя", "extra practice", "workbook", "cuaderno",
-    "arbeitsbuch", "exercice", "test yourself", "self-check", "audio scripts", "transcripts"
+    "arbeitsbuch", "exercice", "test yourself", "self-check", "audio scripts", "transcripts",
+    "интервью", "миграционной карты", "коммуникативные задания", "русский на каждый день",
+    "приложение", "аудиоприложение", "аудио", "проверь себя", "точкару", "точка ру"
 ]
 
 
@@ -250,8 +252,10 @@ def parse_curriculum_text(text):
             atomic_split_pattern = (
                 r'\s+(?:and|y|und|et|with|con|avec|mit|и|&|vs\.?)\s+'  # Conjunctions
                 r'|\s*[|/\\;]\s*'                                      # Slashes/Pipes/Semicolons
-                r'|(?<=[^\W\d_]{2})\s*,\s*(?=[^\W\d_]{2})'           # Commas between words (2+ letters to avoid abbreviations)
-                r'|(?<=[^\W\d_][.?!])\s+'                             # Sentences
+                r'|(?<=[^\W\d_]{2})\s*,\s*(?=[^\W\d_]{2})'           # Commas between words
+                r'|(?<=[.?!])\s+(?=[^\W\d_])'                          # Sentences/Fragments
+                r'|(?<=[a-z])\s+(?=[А-Я])'                             # Transition English -> Russian
+                r'|(?<=[а-я])\s+(?=[A-Z])'                             # Transition Russian -> English
             )
             sp_parts = re.split(atomic_split_pattern, sp, flags=re.IGNORECASE)
             
@@ -300,8 +304,15 @@ def parse_curriculum_text(text):
             # Words that strongly imply the sentence is unfinished (connectors in all languages)
             hanging_words = r'\b(the|of|and|in|on|with|for|to|vs\.?|or|a|an|personal|case|suffixes|de|y|en|con|para|por|o|los|las|der|die|das|und|mit|für|von|oder|le|la|et|avec|pour|par|ou|les|il|di|e|per|da|os|as|и|в|на|с|для|от|или|по|ve|ile|için|veya|ya|het|of|och|av|eller)\s*$'
             is_hanging = bool(re.search(hanging_words, curr, re.IGNORECASE))
-            
-            if (not is_terminal and nxt_is_continuation) or is_comma or is_bracket or is_hanging:
+
+            # Force merge if the current line ends with a "hanging" word
+            if is_hanging or is_comma:
+                curr = curr + " " + nxt
+                i += 1
+                continue
+
+            # Merge if the next line is very likely a continuation (no capitalization and no period before)
+            if not is_terminal and not re.match(r'^[A-ZА-Я]', nxt):
                 curr = curr + " " + nxt
                 i += 1
             else:
@@ -357,10 +368,16 @@ def parse_curriculum_text(text):
             return False
             
         # Specific OCR artifacts and short tokens (Rule 2)
-        if re.search(r'\b(ee|he|es|cal|so|un|re|il|la|el|le|as|es)\b', t_clean):
-            # If it's JUST the token, drop it
-            if len(t_clean) < 4:
-                return False
+        if t_clean in ("the", "of", "and", "in", "on", "with", "de", "y", "en", "con", "и", "в", "на", "с", "the verbs"):
+            return False
+            
+        # OCR Garbage fragments (Rule 2)
+        if re.search(r'^(es|ee|he|cal|so|un|re|il|la|el|le|as|es|ee he|es :|ee he)\b', t_clean):
+            return False
+        if len(t_clean) < 3 and not t_clean.isdigit():
+            return False
+        if re.search(r'^[^\W\d_]\s*[:\.]\s*$', t_clean):
+            return False
             
         # Standalone numbers or page markers (Rule 2)
         if re.match(r'^[\d\s\-\.\/]+$', text):
