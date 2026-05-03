@@ -1525,18 +1525,37 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
 
-            # ── ALWAYS generate fresh questions via AI ──
-            # No forbidden pool — rely on random seed + temperature for variety each press
+            # ── ALWAYS generate fresh questions ──
             print(f"[BG] Topic '{topic['title']}': Generating FRESH questions")
             file_log(f"Fresh generation for {topic['title']}")
             
-            update_prog(5)
+            # ── START TICKER IMMEDIATELY ──
+            class ProgressState:
+                def __init__(self):
+                    self.is_done = False
+            
+            state = ProgressState()
+            def ticker_worker():
+                start_time = time.time()
+                while not state.is_done:
+                    time.sleep(1)
+                    elapsed = time.time() - start_time
+                    if elapsed < 10:
+                        p = 20 + (elapsed / 10.0) * 50
+                    else:
+                        p = 70 + ((elapsed - 10) / 10.0) * 20
+                        p = min(p, 94)
+                    update_prog(int(p))
+            
+            ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
+            ticker_thread.start()
+            
+            update_prog(20)
             
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
             
             # ── ON-THE-FLY ENRICHMENT ──
-            # ── AUTO-REGENERATE SHORT CONTENT ──
             pages = content.get("pages", []) if isinstance(content, dict) else []
             is_alphabet = any(x in topic.get("title", "").lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "sound", "phonetic"])
             
@@ -1546,7 +1565,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not pages:
                 needs_regen = True
             else:
-                # Check if any page is functionally empty (missing items, text, or list)
                 for p in pages:
                     has_data = p.get('items') or p.get('text') or p.get('list') or p.get('content') or p.get('vocabulary') or p.get('examples')
                     if not has_data:
@@ -1562,54 +1580,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 file_log(f"Enriching topic content for '{topic['title']}' (Target: {target_min} pages)...")
                 try:
                     from services.ai_engine import generate_full_lesson
-                    # Generate a comprehensive lesson to meet new standards
-                    lesson = generate_full_lesson(topic["title"], topic_type, language, count=6, level=topic.get("difficulty", "A1"))
+                    lesson = generate_full_lesson(topic["title"], topic_type, language, count=3, level=topic.get("difficulty", "A1"))
                     content = {"pages": lesson.get("pages", [])}
-                    
                     if content["pages"]:
                         with db_connection() as db_up:
                             db_up.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
                             db_up.commit()
                         file_log(f"Topic '{topic['title']}' enriched successfully with {len(content['pages'])} pages.")
                 except Exception as e:
-                    file_log(f"Auto-enrichment FAILED for '{topic['title']}': {e}")
+                    file_log(f"Auto-enrichment FAILED: {e}")
 
-            # PDF Detection: If topic has a pdf_url, it's a PDF classroom topic
+            # PDF Detection
             is_pdf_classroom = bool(topic.get("pdf_url"))
             if is_pdf_classroom:
-                count = 10 # Enforce 10 items for PDF classrooms
-                file_log(f"PDF Classroom detected via topic.pdf_url. Enforcing count={count}")
-            else:
-                file_log(f"Standard classroom detected. Count={count}")
-
+                count = 10
+            
             try:
                 raw_activities = []
-                # Latency Optimization: For 10 questions, 1 parallel batch is sufficient 
-                # because ai_engine now requests 20+ items internally.
-                total_batches = 1 if is_pdf_classroom or count <= 10 else 2
-                
-                class ProgressState:
-                    def __init__(self):
-                        self.is_done = False
-                
-                state = ProgressState()
-                def ticker_worker():
-                    start_time = time.time()
-                    while not state.is_done:
-                        time.sleep(1)
-                        elapsed = time.time() - start_time
-                        if elapsed < 10:
-                            p = 20 + (elapsed / 10.0) * 50
-                        else:
-                            p = 70 + ((elapsed - 10) / 10.0) * 20
-                            p = min(p, 94)
-                        update_prog(int(p))
-                
-                ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
-                ticker_thread.start()
-
                 try:
-                    update_prog(20)
                     
                     # SPEED OPTIMIZATION: Request smaller batches in parallel
                     batch_size = 5
