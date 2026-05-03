@@ -527,12 +527,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not is_building:
                 percentage = 100
             elif total <= 0:
-                percentage = 0
+                # PLANNING PHASE: Show 15% to signal 'thinking' rather than 0%
+                percentage = 15
             else:
-                # While building, we calculate progress but cap at 99%
-                # to prevent a 'finished' look before the flag is flipped.
+                # BUILDING PHASE: Start at 15% minimum and climb from there
                 raw_pct = int((progress / total) * 100)
-                percentage = min(99, max(0, raw_pct))
+                # We use max(15, ...) so it never snaps back to 0 when topics are first counted
+                percentage = min(99, max(15, raw_pct))
 
             return self._send_json({
                 "course_id": course_id,
