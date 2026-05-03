@@ -29,7 +29,7 @@ if os.path.exists(".env"):
 
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
 MODEL_STRUCTURAL = "anthropic/claude-3-haiku"     # For Curriculum & Tap-Translations
-MODEL_NARRATIVE = "deepseek/deepseek-v4-flash"    # For High-Quality Content (Lessons/Questions)
+MODEL_NARRATIVE = "anthropic/claude-3-haiku"     # For High-Quality Content (Lessons/Questions)
 MODEL_FALLBACK = None 
 
 def is_ai_available():
