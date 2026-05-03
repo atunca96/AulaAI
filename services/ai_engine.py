@@ -228,6 +228,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         else:
             raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
+        is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters", "pronunciation", "phonetic"])
+
         def _validate_question(item, seen_answers):
             if not isinstance(item, dict): return None
             ans = str(item.get("answer", "")).strip()
@@ -237,10 +239,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             if not ans or not prompt_text:
                 return None
             
-            # Prevent exact duplicates
+            # ── ALPHABET EXCEPTION ──
+            # For alphabet/phonetic topics, duplicate answers are expected and allowed.
+            # For other topics, we still prevent exact duplicates for variety.
             ans_key = re.sub(r'[^\w]', '', ans.lower()).strip()
-            if not ans_key or ans_key in seen_answers:
-                return None
+            if not ans_key: return None
+            
+            if not is_alphabet_topic:
+                if ans_key in seen_answers:
+                    return None
 
             clean_dist = []
             if isinstance(distractors, list):
