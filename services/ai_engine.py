@@ -29,7 +29,7 @@ if os.path.exists(".env"):
 
 # Triple-Threat Orchestration (V3.0-SUPER-THRIFT)
 MODEL_STRUCTURAL = "anthropic/claude-3-haiku"     # For Curriculum & Tap-Translations
-MODEL_NARRATIVE = "anthropic/claude-3-haiku"     # For High-Quality Content (Lessons/Questions)
+MODEL_NARRATIVE = "deepseek/deepseek-v4-flash"    # For High-Quality Content (Lessons/Classrooms)
 MODEL_FALLBACK = None 
 
 def is_ai_available():
@@ -204,7 +204,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     try:
         # SINGLE ATTEMPT WITH PREMIUM MODEL
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=8000, temperature=0.85)
+        # ACTIVITY OVERRIDE: Use Haiku for questions to ensure sub-5s response times
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model="anthropic/claude-3-haiku", max_tokens=8000, temperature=0.85)
         if isinstance(res, list):
             raw_list = res
         else:
