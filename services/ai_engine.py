@@ -59,55 +59,51 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                 "temperature": temperature
             }).encode("utf-8"), headers=headers)
             
-            with urllib.request.urlopen(req, timeout=45) as response:
-                res_body = response.read().decode("utf-8")
-                res_json = json.loads(res_body)
-                
-                if "choices" in res_json:
-                    content = res_json["choices"][0]["message"]["content"].strip()
-                    # LOGGING
-                    with open("pipeline.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-SPEED] Received {len(content)} chars from {target_model}\n")
-                    
-                    # ROBUST JSON EXTRACTION
-                    start_obj = content.find('{')
-                    start_list = content.find('[')
-                    start = -1
-                    end = -1
-                    if start_obj != -1 and (start_list == -1 or start_obj < start_list):
-                        start = start_obj
-                        end = content.rfind('}')
-                    elif start_list != -1:
-                        start = start_list
-                        end = content.rfind(']')
+            # RETRY LOOP for high-concurrency stability
+            for attempt in range(3):
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as response:
+                        res_body = response.read().decode("utf-8")
+                        res_json = json.loads(res_body)
                         
-                    if start != -1 and end != -1 and end > start:
-                        json_str = content[start:end+1]
-                        
-                        def _try_parse(s):
-                            try: return json.loads(s, strict=False)
-                            except:
-                                try:
-                                    import ast
-                                    c_s = s.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-                                    return ast.literal_eval(c_s)
-                                except: return None
-
-                        # Attempt 1: Raw
-                        data = _try_parse(json_str)
-                        if data: return data
-                        
-                        # Attempt 2: Repair unclosed JSON
-                        if '[' in json_str and ']' not in json_str:
-                            data = _try_parse(json_str + ']}')
-                            if data: return data
-                        if '{' in json_str and '}' not in json_str:
-                            data = _try_parse(json_str + '}')
-                            if data: return data
+                        if "choices" in res_json:
+                            content = res_json["choices"][0]["message"]["content"].strip()
+                            with open("pipeline.log", "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-SPEED] Received {len(content)} chars from {target_model}\n")
                             
-                        # Attempt 3: Log failure
-                        with open("pipeline.log", "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-JSON-FAIL] {target_model}: Failed to parse {len(json_str)} chars\n")
+                            # ROBUST JSON EXTRACTION
+                            start_obj = content.find('{')
+                            start_list = content.find('[')
+                            start = -1
+                            end = -1
+                            if start_obj != -1 and (start_list == -1 or start_obj < start_list):
+                                start = start_obj
+                                end = content.rfind('}')
+                            elif start_list != -1:
+                                start = start_list
+                                end = content.rfind(']')
+                                
+                            if start != -1 and end != -1 and end > start:
+                                json_str = content[start:end+1]
+                                
+                                def _try_parse(s):
+                                    try: return json.loads(s, strict=False)
+                                    except:
+                                        try:
+                                            import ast
+                                            c_s = s.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+                                            return ast.literal_eval(c_s)
+                                        except: return None
+
+                                data = _try_parse(json_str)
+                                if data: return data
+                    # If we got here but didn't return, it's a parse fail or missing choices
+                except Exception as e:
+                    with open("pipeline.log", "a", encoding="utf-8") as f:
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed: {e}\n")
+                    time.sleep(1 + attempt)
+            
+            return None
                     
                     if len(content) > 10 and '{' not in content:
                         return {"explanation": content}

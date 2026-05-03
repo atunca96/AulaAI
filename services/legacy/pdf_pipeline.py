@@ -371,7 +371,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         # ── EXECUTION ──
         MAX_TOTAL_TOPICS = 250
         topic_count = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
             future_to_topic = {}
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
