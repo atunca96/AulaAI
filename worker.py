@@ -28,6 +28,32 @@ def main():
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Process started with args: {sys.argv}\n")
     
+    # SINGLETON ENFORCEMENT: Kill any old workers for this course
+    course_id = None
+    if len(sys.argv) == 2: course_id = sys.argv[1]
+    elif len(sys.argv) >= 5: course_id = sys.argv[4]
+
+    if course_id:
+        pid_file = os.path.join("data", "workers", f"{course_id}.pid")
+        os.makedirs(os.path.dirname(pid_file), exist_ok=True)
+        
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    old_pid = int(f.read().strip())
+                import signal
+                if sys.platform == "win32":
+                    import subprocess
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(old_pid)], capture_output=True)
+                else:
+                    os.kill(old_pid, signal.SIGTERM)
+                with open("pipeline.log", "a", encoding="utf-8") as f:
+                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Terminated stale worker {old_pid} for course {course_id}\n")
+            except: pass
+            
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+    
     try:
         # Check if this is a REBUILD (1 argument) or a FULL PIPELINE (4+ arguments)
         if len(sys.argv) == 2:
