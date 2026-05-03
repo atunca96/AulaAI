@@ -170,10 +170,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     if model_override and "haiku" in model_override.lower():
         haiku_guard = f"""
         STRICT FORMATTING RULE FOR {model_override.upper()}:
-        1. NO INTRODUCTION. NO MARKDOWN.
-        2. START YOUR RESPONSE WITH '{{' AND END WITH '}}'.
-        3. EVERY 'prompt', 'answer', and 'distractor' MUST BE IN {language}.
-        4. YOU MUST PROVIDE EXACTLY {request_count} QUESTIONS.
+        1. YOU MUST OUTPUT VALID JSON ONLY.
+        2. NO PREAMBLE. NO POSTAMBLE. NO MARKDOWN CODE BLOCKS.
+        3. START WITH {{ AND END WITH }}.
+        4. ALL PROMPTS AND ANSWERS MUST BE IN {language}. NO ENGLISH IN THESE FIELDS.
+        5. PROVIDE EXACTLY {request_count} QUESTIONS.
         """
 
     user = f"""TASK: Generate {request_count} high-quality multiple-choice questions for: {topic_title} ({topic_type}).

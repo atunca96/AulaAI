@@ -1496,10 +1496,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             raw_activities = []
             executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-            # Shot 1: DeepSeek (Standard) | Shot 2: Claude 3.5 Haiku (Speed King)
+            # Shot 1: DeepSeek (Standard) | Shot 2: Claude 3 Haiku (Legacy Speed King)
             futures = {
                 executor.submit(_fetch_batch, None): "DeepSeek",
-                executor.submit(_fetch_batch, "anthropic/claude-3.5-haiku"): "Claude-3.5-Haiku"
+                executor.submit(_fetch_batch, "anthropic/claude-3-haiku"): "Claude-3-Haiku"
             }
             
             try:
