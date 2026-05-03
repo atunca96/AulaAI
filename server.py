@@ -155,6 +155,17 @@ def _uid():
 class APIHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler with REST API routing."""
 
+    def _verify_course_ownership(self, db, course_id):
+        """Returns True if the user is allowed to access this course."""
+        role = self._get_user_role()
+        user_id = self._get_user_id()
+        if role == 'student': return True # Students can access any course they join
+        if user_id == 'lecturer-demo-id': return True # Admin can see all
+        
+        row = db.execute("SELECT lecturer_id FROM courses WHERE id=?", (course_id,)).fetchone()
+        if not row: return False
+        return row["lecturer_id"] == user_id
+
     def log_message(self, format, *args):
         """Custom log format."""
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
@@ -1226,7 +1237,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         role = self._get_user_role()
         
         with db_connection() as db:
-            courses = db.execute("SELECT * FROM courses").fetchall()
+            # IDENTITY SEPARATION: Lecturers only see their own classrooms
+            # Admin (atunca96@gmail.com) can see everything for system management
+            if role == 'lecturer' and user_id != 'lecturer-demo-id':
+                courses = db.execute("SELECT * FROM courses WHERE lecturer_id = ?", (user_id,)).fetchall()
+            else:
+                # Students and the Primary Admin see all
+                courses = db.execute("SELECT * FROM courses").fetchall()
+            
             result = []
             for c in courses:
                 c_dict = dict(c)
@@ -1256,16 +1274,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _get_curriculum(self, course_id):
         """Fetch the full curriculum (chapters and topics) for a course."""
         with db_connection() as db:
-            # If no course_id provided, or if the provided ID doesn't exist, fallback to first course
-            exists = False
-            if course_id:
-                exists = db.execute("SELECT 1 FROM courses WHERE id=?", (course_id,)).fetchone()
+            if not course_id:
+                # For lecturers, no fallback. For students, fallback to first joined? 
+                # For now, just return empty if no ID.
+                return self._send_json([])
             
-            if not course_id or not exists:
-                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-                course_id = course["id"] if course else None
-            
-            if not course_id: return self._send_json([])
+            if not self._verify_course_ownership(db, course_id):
+                return self._send_error("Forbidden: You do not own this classroom", 403)
 
             chapters = db.execute(
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
@@ -1291,10 +1306,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json(result)
 
     def _get_students(self, course_id):
+        """Fetch all students enrolled in a classroom."""
         with db_connection() as db:
-            if not course_id:
-                course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
-                course_id = course["id"] if course else None
+            if not course_id: return self._send_json([])
+            
+            if not self._verify_course_ownership(db, course_id):
+                return self._send_error("Forbidden: You do not own this classroom", 403)
 
             students = db.execute("""
                 SELECT u.id, u.name, u.email, e.pin FROM users u
@@ -2610,6 +2627,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not course_id:
             return self._send_error("course_id required")
             
+        with db_connection() as db:
+            if not self._verify_course_ownership(db, course_id):
+                return self._send_error("Forbidden: You do not own this classroom", 403)
+        
         try:
             with db_connection() as db:
                 course = db.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
