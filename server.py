@@ -1492,30 +1492,43 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def _fetch_batch(model_override=None):
                 from services.ai_engine import ai_generate_activity_batch
-                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=model_override)
+                m_label = model_override if model_override else "DeepSeek"
+                
+                # IRONCLAD RETRY LOOP (Up to 3 Attempts)
+                for attempt in range(3):
+                    try:
+                        batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=model_override)
+                        if batch and len(batch) >= 5:
+                            print(f"[BG] Success for {m_label} on attempt {attempt+1}")
+                            return batch
+                    except Exception as e:
+                        print(f"[BG] Attempt {attempt+1} failed for {m_label}: {e}")
+                    
+                    if attempt < 2: time.sleep(1) # Small pause before retry
+                return []
 
             raw_activities = []
             executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-            # Shot 1: DeepSeek (Standard) | Shot 2: Claude 3 Haiku (Legacy Speed King)
+            # Parallel Race with internal retries
             futures = {
                 executor.submit(_fetch_batch, None): "DeepSeek",
                 executor.submit(_fetch_batch, "anthropic/claude-3-haiku"): "Claude-3-Haiku"
             }
             
             try:
-                # 60s patience: The first one to return results wins!
-                for future in concurrent.futures.as_completed(futures, timeout=60):
+                # 90s patience for the absolute result
+                for future in concurrent.futures.as_completed(futures, timeout=90):
                     m_name = futures[future]
                     try:
                         batch = future.result()
                         if batch and len(batch) >= 5:
                             raw_activities.extend(batch)
-                            print(f"[BG] Activity generation WON by {m_name} with {len(batch)} questions.")
+                            print(f"[BG] Activity generation WON by {m_name} (Unified).")
                             break
                     except Exception as e:
                         print(f"[BG] Redundancy Shot ({m_name}) failed: {e}")
             except concurrent.futures.TimeoutError:
-                print(f"[BG] AI timed out at 60s for {course_id}. Both models failed.")
+                print(f"[BG] AI timed out at 90s for {course_id}. Absolute failure.")
             
             executor.shutdown(wait=False)
             state.is_done = True

@@ -167,14 +167,25 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     # ── MODEL-SPECIFIC PROMPT TUNING ──
     haiku_guard = ""
-    if model_override and "haiku" in model_override.lower():
+    deepseek_guard = ""
+    target_model = model_override if model_override else MODEL_NARRATIVE
+    
+    if "haiku" in target_model.lower():
         haiku_guard = f"""
-        STRICT FORMATTING RULE FOR {model_override.upper()}:
+        STRICT FORMATTING RULE FOR HAIKU:
         1. YOU MUST OUTPUT VALID JSON ONLY.
-        2. NO PREAMBLE. NO POSTAMBLE. NO MARKDOWN CODE BLOCKS.
+        2. NO PREAMBLE. NO MARKDOWN CODE BLOCKS.
         3. START WITH {{ AND END WITH }}.
         4. ALL PROMPTS AND ANSWERS MUST BE IN {language}. NO ENGLISH IN THESE FIELDS.
         5. PROVIDE EXACTLY {request_count} QUESTIONS.
+        """
+    elif "deepseek" in target_model.lower():
+        deepseek_guard = f"""
+        HIGH-PRECISION RULE FOR DEEPSEEK:
+        - Your task is to generate EXACTLY {request_count} questions.
+        - You must use VALID JSON only.
+        - Ensure every prompt is in {language}.
+        - Do not stop until the JSON is complete and valid.
         """
 
     user = f"""TASK: Generate {request_count} high-quality multiple-choice questions for: {topic_title} ({topic_type}).
@@ -183,6 +194,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     {ref_data}
     {forbidden_clause}
     {haiku_guard}
+    {deepseek_guard}
 
     PEDAGOGICAL REQUIREMENTS:
     1. SCENARIO-BASED: Use real-world situations (e.g., 'At a cafe', 'Talking to a neighbor').
