@@ -175,10 +175,11 @@ RULES:
 2. ALL 4 OPTIONS IN THE SAME LANGUAGE.
 3. STRUCTURAL INVISIBILITY: All options must look similar in length and complexity.
 4. NO COMMA LISTS.
-5. CATEGORY LOCK: All distractors must belong to the same semantic category.
-6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings).
+5. CATEGORY LOCK (STRICT): All distractors must belong to the same semantic and syntactic category. If the answer is a verb, ALL distractors must be verbs (same tense/person if possible). If the answer is an adjective, ALL distractors must be adjectives. They should be 'near-misses' that are hard to distinguish without proper knowledge.
+6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings, similar-sounding words).
 7. EXPLANATION: Add a 'why' field (1-sentence English explanation).
 8. CONSISTENCY: The "answer" field MUST be the correct option, and the "why" explanation must explicitly justify it. NO CONTRADICTIONS.
+9. VERSATILITY: Maximize the variety of linguistic concepts tested (e.g., usage, culture, grammar, tone).
 {translation_rule}
 
 Return ONLY valid JSON:
