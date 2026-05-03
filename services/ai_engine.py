@@ -203,9 +203,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     user += f"\n\nSEED: {seed}"
     
     try:
-        # SINGLE ATTEMPT WITH PREMIUM MODEL
-        # ACTIVITY OVERRIDE: Use Haiku for questions to ensure sub-5s response times
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model="anthropic/claude-3-haiku", max_tokens=8000, temperature=0.85)
+        # ACTIVITY OVERRIDE: Use 3.5 Haiku for questions to ensure sub-5s response times
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model="anthropic/claude-3.5-haiku", max_tokens=8000, temperature=0.85)
         if isinstance(res, list):
             raw_list = res
         else:
