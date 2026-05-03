@@ -415,9 +415,19 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     min_pages = 4 if (is_primary_alphabet or is_sub_alphabet) else 3
 
+    # ── PHONETIC & PEDAGOGICAL GUARDRAILS ──
+    phonetic_rule = (
+        "\nPHONETIC APPROXIMATION RULE (CRITICAL): When explaining how letters or words sound, "
+        "NEVER use target language spellings to describe the sound (e.g., DO NOT say 'Ç sounds like çe'). "
+        "Instead, ALWAYS use English word approximations that an A1 student can understand "
+        "(e.g., 'Ç sounds like the ch in church', or 'Ş sounds like the sh in sheep'). "
+        "This rule is language-agnostic: always relate sounds to common English words."
+    )
+
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons.
-    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation). Focus on depth for the specific topic.
+    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation).
+    PHONETIC RULE: {phonetic_rule}
     NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
