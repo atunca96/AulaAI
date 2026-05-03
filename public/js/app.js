@@ -133,7 +133,7 @@ function startLiveSync() {
 
       // Continuous progress polling while building (independent of data version)
       if (currentCourse && currentCourse.is_building) {
-        api(`/classroom/progress?course_id=${currentCourse.id}`).then(prog => {
+        api(`/classroom/progress?course_id=${currentCourse.id}&v=${Date.now()}`).then(prog => {
           if (prog) {
             const isLecturer = currentUser.role === 'lecturer';
             const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
@@ -2847,6 +2847,17 @@ async function rebuildClassroom(force = false) {
     });
     if (res.status === 'success') {
       currentCourse.is_building = 1;
+      // HARD UI RESET
+      const bannerId = currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner';
+      const fillId = currentUser.role === 'lecturer' ? 'lecturer-progress-fill' : 'student-progress-fill';
+      const textId = currentUser.role === 'lecturer' ? 'lecturer-progress-text' : 'student-progress-text';
+      const b = document.getElementById(bannerId);
+      const f = document.getElementById(fillId);
+      const t = document.getElementById(textId);
+      if (b) b.classList.remove('hidden');
+      if (f) f.style.width = '0%';
+      if (t) t.textContent = '0%';
+      
       renderCurriculum();
     } else {
       showAlert("Error", res.error || "Failed to start build");

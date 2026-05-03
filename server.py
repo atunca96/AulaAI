@@ -465,14 +465,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             force = body.get("force", False)
             if course["is_building"] and not force: return self._send_error("Course is already building")
 
-            # Delete all existing questions/activities for this course to start fresh
-            db.execute("""
-                DELETE FROM questions WHERE topic_id IN (
-                    SELECT t.id FROM topics t
-                    JOIN chapters ch ON t.chapter_id = ch.id
-                    WHERE ch.course_id = ?
-                )
-            """, (course_id,))
+            # Delete all existing questions, topics, and chapters for this course to start fresh
+            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
+            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
             
             # Reset is_building flag to trigger worker
             db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0 WHERE id = ?", (course_id,))
