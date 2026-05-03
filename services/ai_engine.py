@@ -131,11 +131,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    request_count = c + 5 # Small buffer for validation fallout
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
-    
-    # IMMERSION POLICY: Always use the target language for prompts/instructions
-    instruction_lang = language
     
     # Use override if provided (for speed during build), else use topic_content
     if source_text_override:
@@ -157,9 +153,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
-    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
-    translation_field = '"translation": "...", ' if is_beginner else ""
-
     system = f"""You are the {language} Pedagogic Engine (V5). 
     Your mission is to generate 10 HIGH-QUALITY, CREATIVE questions based ONLY on the SOURCE MATERIAL.
     
@@ -176,11 +169,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
 
-    # ... (rest of user prompt remains the same as established in V4)
-    user = f"""TASK: Generate EXACTLY {count} unique {topic_type} questions.
+    user = f"""TASK: Generate EXACTLY {c} unique {topic_type} questions.
     TOPIC: {topic_title}
     LEVEL: {level}
     SOURCE MATERIAL: {content_str}
+    {ref_data}
+    {forbidden_clause}
+    
+    MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
     
     JSON STRUCTURE:
     {{
