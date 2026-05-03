@@ -42,6 +42,10 @@ def main():
                 row = db.execute("SELECT name, textbook FROM courses WHERE id=?", (course_id,)).fetchone()
                 course_name = row["name"] if row else "Unknown Course"
                 pdf_path = row["textbook"] if row else None
+                
+                # NUCLEAR RESET: Ensure we start at 0% even if previous build was dirty
+                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ?", (course_id,))
+                db.commit()
             
             try:
                 # Phase 2 Only - use the correct function name!
@@ -78,6 +82,12 @@ def main():
         if manual_toc_path and os.path.exists(manual_toc_path) and manual_toc_path != "NONE":
             with open(manual_toc_path, "r", encoding="utf-8") as f:
                 manual_toc = f.read()
+
+        # NUCLEAR RESET: Start fresh
+        from database import db_connection
+        with db_connection() as db:
+            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ?", (course_id,))
+            db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
         start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level)
