@@ -1599,14 +1599,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 raw_activities = []
                 try:
                     
-                    # SPEED OPTIMIZATION: Request smaller batches in parallel
+                    # HIGH-VELOCITY PARALLELISM: Use more threads for lightning speed
                     batch_size = 5
                     total_batches = (count + batch_size - 1) // batch_size
-                    # Cap parallel workers to prevent rate limiting, but stay fast
-                    max_workers = min(total_batches, 3) 
+                    # Boost to 5 workers (enough for 25 questions at once)
+                    max_workers = min(total_batches, 5) 
                     
                     def _fetch_batch(_idx):
-                        # Calculate how many questions this specific batch should request
                         this_batch_count = min(batch_size, count - (_idx * batch_size))
                         if this_batch_count <= 0: return []
                         
@@ -1621,7 +1620,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             is_pdf_source=is_pdf_classroom
                         )
                     
-                    # Run batches in parallel
+                    # Launch ALL batches in parallel immediately
                     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                         futures = [executor.submit(_fetch_batch, i) for i in range(total_batches)]
                         
@@ -1632,9 +1631,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                     raw_activities.extend(batch)
                             except Exception as e:
                                 print(f"[BG] Parallel batch failed: {e}")
-                                
-                            if len(raw_activities) >= count:
-                                break
                             
                 finally:
                     state.is_done = True
