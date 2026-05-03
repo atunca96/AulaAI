@@ -375,6 +375,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         ref_data = get_reference_prompt(language)
         # FORCE EXPLANATIONS FOR ALPHABET
         ref_data += (
+            f"\nSTRICT RULE: The FIRST page (index 0) MUST contain the ENTIRE alphabet list provided in the REFERENCE DATA. "
+            f"Do NOT split the alphabet across multiple pages; the first page must be a complete master reference. "
             f"\nINSTRUCTION: The alphabet alone is not enough. You MUST include at least one 'grammar' or 'text' page "
             f"explaining the pronunciation rules, phonetic nuances, and how {language} sounds differ from English. "
             f"PRONUNCIATION RULE: When explaining sounds, ALWAYS use English phonetics and English word approximations "
