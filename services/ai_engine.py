@@ -132,7 +132,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     c = int(count)
     request_count = c + 5 # Small buffer for validation fallout
-    # IMMERSION POLICY: Always use target language for prompts, even for A1/A2
+    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    
+    # IMMERSION POLICY: Always use the target language for prompts/instructions
     instruction_lang = language
     
     # Use override if provided (for speed during build), else use topic_content
