@@ -709,7 +709,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_error("Not found", 404)
 
     def _delete_blueprint(self):
-        """Deletes a single cached blueprint."""
+        """Deletes a single cached blueprint. Restricted to primary admin."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
         data = self._read_body()
         language = data.get("language", "")
         level = data.get("level", "")
@@ -720,7 +722,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return self._send_json({"success": True, "deleted": deleted})
 
     def _delete_all_blueprints(self):
-        """Deletes all cached blueprints."""
+        """Deletes all cached blueprints. Restricted to primary admin."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
         import os, glob
         cache_dir = os.path.join("services", "blueprints")
         count = 0
@@ -731,16 +735,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         print(f"[CACHE] Purged {count} blueprint(s).")
         return self._send_json({"success": True, "deleted_count": count})
 
-    def _admin_hard_reset(self):
-        """Hard delete everything. Restricted to admin emails."""
-        # Simple body read to get email if needed, but we check the session/user normally
-        # For simplicity in this standalone server, we'll check the provided email in the body
-        body = self._read_body()
-        email = body.get("email")
-        confirm = body.get("confirm")
+    def _is_admin(self):
+        """Returns true ONLY if the current user is the system administrator."""
+        # Check current session/body email
+        body = self._read_body_silent()
+        email = body.get("email") if body else None
+        return email == 'atunca96@gmail.com'
 
-        if email != 'atunca96@gmail.com':
+    def _read_body_silent(self):
+        """Reads body without crashing if empty."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length == 0: return None
+            return json.loads(self.rfile.read(length).decode('utf-8'))
+        except: return None
+
+    def _admin_hard_reset(self):
+        """Hard delete everything. Restricted to primary admin email."""
+        if not self._is_admin():
             return self._send_error("Unauthorized", 403)
+        
+        body = self._read_body()
+        confirm = body.get("confirm")
         if confirm != "HARD DELETE EVERYTHING":
             return self._send_error("Confirmation failed")
 
@@ -1005,9 +1021,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     # ── API Implementations ─────────────────────────────────
 
     def _admin_upload_db(self):
-        """Temporary admin endpoint: upload a DB file to the Railway volume."""
-        role = self._get_user_role()
-        if role != "lecturer":
+        """Temporary admin endpoint: upload a DB file. Restricted to primary admin."""
+        if not self._is_admin():
             return self._send_error("Unauthorized", 403)
         
         length = int(self.headers.get("Content-Length", 0))
