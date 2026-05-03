@@ -427,7 +427,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     2. TARGET LANGUAGE ENFORCEMENT: Every single 'term', 'text', 'prompt', and 'answer' field MUST be in {language}. Do NOT write exercises in English. Only 'grammar' text and 'why' fields should be in English.
     3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use culturally relevant, specific {language} sentences.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. PAGE MINIMUM: You MUST generate AT LEAST {min_pages} pages.
+    5. GENEROUS CONTENT: Do not limit yourself to a specific page count. Provide as many pages (vocabulary, grammar, examples, activities) as needed to fully and deeply teach this topic. Be generous with examples and cultural context.
     6. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
 
     RESPONSE FORMAT (VALID JSON ONLY):

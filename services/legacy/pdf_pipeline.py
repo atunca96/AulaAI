@@ -365,7 +365,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
             from services.ai_engine import generate_full_lesson
-            lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
+            # NO PAGE LIMIT: Let the AI decide based on topic depth
+            lesson = generate_full_lesson(t_title, t_type, language, None, level, source_text=source_text)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
 
         # ── EXECUTION ──
