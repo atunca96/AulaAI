@@ -38,41 +38,70 @@ def build_curriculum(structured_lines: List[Dict[str, str]], tagged_topics: List
     # Map topics to tags for quick lookup
     topic_tags = {item["text"]: item.get("tag", "vocabulary") for item in tagged_topics}
     
+    # Stop titles that are likely book noise, not units
+    STOP_TITLES = [
+        "AULA INTERNACIONAL", "AULA INTERNACIONAL PLUS", "AULA", 
+        "INTRODUCCIÓN", "PREFACIO", "BIENVENIDOS", "ÍNDICE",
+        "RECURSOS PARA ESTUDIANTES", "CAMPUS DIFUSIÓN"
+    ]
+    
     seen_text_in_current_unit = set()
     
     for item in structured_lines:
         item_type = item.get("type")
         text = item.get("text", "").strip()
         
-        # Check for explicit tags in the text like [grammar] or [vocabulary]
-        tag_match = re.search(r'\[(vocabulary|grammar|reading|culture)\]', text, re.IGNORECASE)
+        # 1. Clean and check for tags
+        tag_match = re.search(r'\[(vocabulary|grammar|reading|culture|communicative)\]', text, re.IGNORECASE)
         explicit_tag = tag_match.group(1).lower() if tag_match else None
-        
-        # Clean the text of the tag for the final title
         clean_text = re.sub(r'\[.*?\]', '', text).strip()
         
-        # HEURISTIC: If we see a line of text we've already seen in this unit,
-        # it's a strong signal of a new unit starting (e.g. repeating "RECURSOS...")
-        is_repeating_pattern = clean_text in seen_text_in_current_unit and len(clean_text) > 5
+        if not clean_text or len(clean_text) < 3:
+            continue
+
+        # 2. UNIT DETECTION
+        is_unit_trigger = False
         
-        if item_type == "UNIT_TITLE" or is_repeating_pattern:
-            # Create new unit. If it was a repeating pattern, use a generic name or the title if it's a UNIT_TITLE
-            new_title = clean_text if item_type == "UNIT_TITLE" else f"Unit {len(units) + 1}"
-            current_unit = {"title": new_title, "topics": []}
+        # Type A: LLM Explicitly called it a UNIT_TITLE
+        if item_type == "UNIT_TITLE":
+            is_unit_trigger = True
+            
+        # Type B: Numbered unit pattern (e.g., "1. ME LLAMO", "UNIDAD 2")
+        if re.match(r'^(?:\d+[\.\)]|UNIDAD\s*\d+)', clean_text.upper()):
+            is_unit_trigger = True
+            
+        # Type C: Repeating major pattern (RECURSOS...)
+        if clean_text in seen_text_in_current_unit and len(clean_text) > 10:
+            is_unit_trigger = True
+            
+        # FILTER: Prevent noise from becoming units
+        if is_unit_trigger:
+            upper_text = clean_text.upper()
+            if any(stop in upper_text for stop in STOP_TITLES):
+                is_unit_trigger = False
+
+        if is_unit_trigger:
+            # Avoid duplicate units if the title is exactly the same as the last one
+            if units and units[-1]["title"] == clean_text:
+                continue
+                
+            current_unit = {"title": clean_text, "topics": []}
             units.append(current_unit)
             seen_text_in_current_unit = set()
+            continue # Don't add the unit title as a topic
+
+        # 3. TOPIC ADDITION
+        if current_unit is None:
+            # Only start Unit 1 if we actually have a topic
+            current_unit = {"title": "Unit 1", "topics": []}
+            units.append(current_unit)
             
-        if item_type in ["TOPIC", "SECTION_TITLE"]:
-            if current_unit is None:
-                current_unit = {"title": "Unit 1", "topics": []}
-                units.append(current_unit)
+        # Add to current unit
+        tag = explicit_tag or topic_tags.get(text, "vocabulary")
+        current_unit["topics"].append({"text": clean_text, "tag": tag})
+        seen_text_in_current_unit.add(clean_text)
             
-            # Priority: Explicit tag in text > LLM tag > default
-            tag = explicit_tag or topic_tags.get(text, "vocabulary")
-            current_unit["topics"].append({"text": clean_text, "tag": tag})
-            seen_text_in_current_unit.add(clean_text)
-            
-    if not units:
-        units.append({"title": "Unit 1", "topics": []})
+    if not units or (len(units) == 1 and not units[0]["topics"]):
+        return {"units": []}
         
     return {"units": units}
