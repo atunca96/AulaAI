@@ -1471,10 +1471,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # ── REDUNDANT FRESHNESS POLICY ──
-            # (Double-Shot: Launch 2 parallel batches, take first success)
+            # ── HYBRID REDUNDANT POLICY ──
+            # (Race DeepSeek against Claude 3.5 Haiku - First success wins)
             count = 10
-            total_batches = 2
             
             class ProgressState:
                 def __init__(self): self.is_done = False
@@ -1485,32 +1484,38 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 1.2) if elapsed < 59 else 94
+                    p = 20 + (elapsed * 1.5) if elapsed < 50 else 94
                     update_prog(int(min(p, 94)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(20)
 
-            def _fetch_batch(_idx):
+            def _fetch_batch(model_override=None):
                 from services.ai_engine import ai_generate_activity_batch
-                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"))
+                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=model_override)
 
             raw_activities = []
             executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-            futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
+            # Shot 1: DeepSeek (Standard) | Shot 2: Claude 3.5 Haiku (Speed King)
+            futures = {
+                executor.submit(_fetch_batch, None): "DeepSeek",
+                executor.submit(_fetch_batch, "anthropic/claude-3.5-haiku"): "Claude-3.5-Haiku"
+            }
             
             try:
-                # 60s patience: The first one to return results wins
+                # 60s patience: The first one to return results wins!
                 for future in concurrent.futures.as_completed(futures, timeout=60):
+                    m_name = futures[future]
                     try:
                         batch = future.result()
                         if batch and len(batch) >= 5:
                             raw_activities.extend(batch)
-                            # FAST EXIT: We got a good batch!
+                            print(f"[BG] Activity generation WON by {m_name} with {len(batch)} questions.")
                             break
-                    except: pass
+                    except Exception as e:
+                        print(f"[BG] Redundancy Shot ({m_name}) failed: {e}")
             except concurrent.futures.TimeoutError:
-                print(f"[BG] AI timed out at 60s for {course_id}. Redundancy failed.")
+                print(f"[BG] AI timed out at 60s for {course_id}. Both models failed.")
             
             executor.shutdown(wait=False)
             state.is_done = True
