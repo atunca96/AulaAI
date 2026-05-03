@@ -388,7 +388,7 @@ const i18n = {
     // Quiz Management
     'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
     '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title',
-    Chapter: 'Chapter', 'All chapters': 'All chapters', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
+    Chapter: 'Select Topic', 'All chapters': 'All Topics', AllTopics: 'All Topics', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
     completed: 'Completed', 'Created': 'Created',
     // Assignments
     'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students',
@@ -871,7 +871,7 @@ const i18n = {
     // Quiz Management
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
     '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
-    Chapter: 'Ünite', 'All chapters': 'Tüm üniteler', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
+    Chapter: 'Konu Seçin', 'All chapters': 'Tüm Konular', AllTopics: 'Tüm Konular', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
     completed: 'Tamamlandı', 'Created': 'Oluşturulma',
     // Assignments
     'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
@@ -2935,9 +2935,9 @@ function populateSelects() {
     });
   });
   document.getElementById('activity-topic-select').innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
-  document.getElementById('quiz-chapter-select').innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
+  document.getElementById('quiz-chapter-select').innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
   const as = document.getElementById('assignment-chapter-select');
-  if (as) as.innerHTML = `<option value="">${t('AllChapters')}</option>` + chapterOpts;
+  if (as) as.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
 }
 
 let activityProgressInterval = null;

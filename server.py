@@ -1783,8 +1783,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 if course: course_id = course["id"]
                 
-            if chapter_id and chapter_id != "all":
-                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+            if chapter_id and chapter_id != "all" and chapter_id != "":
+                # Smart Lookup: Is this a Chapter or a Topic?
+                is_chapter = db.execute("SELECT id FROM chapters WHERE id = ?", (chapter_id,)).fetchone()
+                if is_chapter:
+                    topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                else:
+                    # Treat as a specific topic
+                    is_topic = db.execute("SELECT id FROM topics WHERE id = ?", (chapter_id,)).fetchone()
+                    if is_topic:
+                        topics = [{"id": chapter_id}]
+                    else:
+                        topics = []
             else:
                 topics = db.execute("""
                     SELECT t.id FROM topics t
