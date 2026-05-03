@@ -1281,20 +1281,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             result = []
             for s in students:
                 s_dict = dict(s)
-                # Get mastery scores
-                masteries = db.execute(
-                    "SELECT score FROM mastery_scores WHERE student_id = ?", (s["id"],)
-                ).fetchall()
+                # Get mastery scores FILTERED by course
+                masteries = db.execute("""
+                    SELECT ms.score FROM mastery_scores ms
+                    JOIN topics t ON ms.topic_id = t.id
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE ms.student_id = ? AND ch.course_id = ?
+                """, (s["id"], course_id)).fetchall()
+                
                 if masteries:
                     scores = [m["score"] for m in masteries]
                     s_dict["avg_mastery"] = round(sum(scores) / len(scores), 3)
                 else:
                     s_dict["avg_mastery"] = 0.0
 
-                # Response count
-                resp_count = db.execute(
-                    "SELECT COUNT(*) as cnt FROM responses WHERE student_id = ?", (s["id"],)
-                ).fetchone()["cnt"]
+                # Response count FILTERED by course
+                resp_count = db.execute("""
+                    SELECT COUNT(*) as cnt FROM responses r
+                    JOIN questions q ON r.question_id = q.id
+                    JOIN topics t ON q.topic_id = t.id
+                    JOIN chapters ch ON t.chapter_id = ch.id
+                    WHERE r.student_id = ? AND ch.course_id = ?
+                """, (s["id"], course_id)).fetchone()["cnt"]
                 s_dict["total_responses"] = resp_count
 
                 result.append(s_dict)
