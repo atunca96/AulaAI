@@ -6,6 +6,7 @@ let currentCourse = null;
 let currentLang = localStorage.getItem('aula_lang') || 'en';
 let aiStatus = null;
 let _lastVersion = -1;
+let _buildStartTime = 0;
 let _syncInterval = null;
 let _lastExtractedLanguage = null;
 let _buildingCourses = [];
@@ -144,9 +145,19 @@ function startLiveSync() {
             const progressFill = document.getElementById(fillId);
             const progressText = document.getElementById(textId);
 
+            const elapsed = Date.now() - _buildStartTime;
+            let displayPct = prog.percentage;
+            
+            // 7-SECOND SMOOTHING HACK: Stay low while starting
+            if (elapsed < 7000 && prog.is_building) {
+                // Smoothly climb to 10% over 7 seconds regardless of actual speed
+                const fakePct = Math.floor((elapsed / 7000) * 10);
+                displayPct = Math.min(fakePct, prog.percentage);
+            }
+
             if (buildBanner) buildBanner.classList.toggle('hidden', !prog.is_building);
-            if (progressFill) progressFill.style.width = prog.percentage + '%';
-            if (progressText) progressText.textContent = prog.percentage + '%';
+            if (progressFill) progressFill.style.width = displayPct + '%';
+            if (progressText) progressText.textContent = displayPct + '%';
 
             // Update local state if it finished building
             if (!prog.is_building && currentCourse.is_building) {
@@ -2858,6 +2869,7 @@ async function rebuildClassroom(force = false) {
       if (f) f.style.width = '0%';
       if (t) t.textContent = '0%';
       
+      _buildStartTime = Date.now();
       renderCurriculum();
     } else {
       showAlert("Error", res.error || "Failed to start build");
