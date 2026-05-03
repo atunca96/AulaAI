@@ -1471,10 +1471,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # ── STRICT FRESHNESS POLICY ──
-            # (Unified 10-Question Batch for maximum reliability)
+            # ── REDUNDANT FRESHNESS POLICY ──
+            # (Double-Shot: Launch 2 parallel batches, take first success)
             count = 10
-            total_batches = 1
+            total_batches = 2
             
             class ProgressState:
                 def __init__(self): self.is_done = False
@@ -1485,7 +1485,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    # Slower crawl to match 60s DeepSeek patience
                     p = 20 + (elapsed * 1.2) if elapsed < 59 else 94
                     update_prog(int(min(p, 94)))
             
@@ -1494,22 +1493,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def _fetch_batch(_idx):
                 from services.ai_engine import ai_generate_activity_batch
-                # Unified 10-question request
                 return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"))
 
             raw_activities = []
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
             futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
             
             try:
-                # 60s patience for high-quality DeepSeek generation
+                # 60s patience: The first one to return results wins
                 for future in concurrent.futures.as_completed(futures, timeout=60):
                     try:
                         batch = future.result()
-                        if batch: raw_activities.extend(batch)
+                        if batch and len(batch) >= 5:
+                            raw_activities.extend(batch)
+                            # FAST EXIT: We got a good batch!
+                            break
                     except: pass
             except concurrent.futures.TimeoutError:
-                print(f"[BG] AI timed out at 60s for {course_id}. DeepSeek was too slow.")
+                print(f"[BG] AI timed out at 60s for {course_id}. Redundancy failed.")
             
             executor.shutdown(wait=False)
             state.is_done = True
