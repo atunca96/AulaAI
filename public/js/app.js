@@ -2240,7 +2240,7 @@ function switchTab(btn, skipLoad = false) {
 
   // LOCK: If building, prevent switching to non-essential tabs
   if (currentUser.role === 'lecturer' && currentCourse && currentCourse.is_building === 1) {
-    const allowedTabs = ['overview', 'inbox']; // Overview shows progress, Inbox is fine
+    const allowedTabs = ['overview', 'inbox', 'students-tab']; // Overview shows progress, Inbox/Students are fine
     if (!allowedTabs.includes(tabId)) {
       triggerBuildingFocus();
       return; // Block navigation
