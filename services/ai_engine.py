@@ -169,43 +169,48 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
     translation_field = '"translation": "...", ' if is_beginner else ""
 
-    prompt = f"""You are a master {language} teacher known for extremely creative, engaging, and pedagogical questions.
-TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
-LEVEL: {level}
-SOURCE MATERIAL: {content_str}
-{ref_data}
-{forbidden_clause}
+    system = f"""You are a master {language} teacher and expert curriculum designer. 
+    STRICT IDENTITY: You always provide structured, pedagogical content without any conversational filler, intro, or outro. 
+    OUTPUT RULE: Your response must be EXCLUSIVELY a valid JSON object. No markdown code blocks unless requested, no preamble."""
 
-CREATIVITY GUIDELINES:
-1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a market in Madrid...', 'Your friend Elena says...').
-2. VARY FORMATS: Mix fill-in-the-blanks, dialogue completion, "Which word is the odd one out?", and "What is the best response?".
-3. NO REPETITION: Every question must feel unique. DO NOT use 'Which of the following...' repeatedly.
-4. PEDAGOGICAL DEPTH: Test nuance, not just literal translation.
+    user = f"""TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
+    LEVEL: {level}
+    SOURCE MATERIAL: {content_str}
+    {ref_data}
+    {forbidden_clause}
 
-RULES:
-1. Write each question prompt in {instruction_lang}.
-2. ALL 4 OPTIONS IN THE SAME LANGUAGE.
-3. STRUCTURAL INVISIBILITY: All options must look similar in length and complexity.
-4. NO COMMA LISTS.
-5. CATEGORY LOCK (STRICT): All distractors must belong to the same semantic and syntactic category. If the answer is a verb, ALL distractors must be verbs (same tense/person if possible). If the answer is an adjective, ALL distractors must be adjectives. They should be 'near-misses' that are hard to distinguish without proper knowledge.
-6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings, similar-sounding words).
-7. EXPLANATION: Add a 'why' field (1-sentence English explanation).
-8. CONSISTENCY: The "answer" field MUST be the correct option, and the "why" explanation must explicitly justify it. NO CONTRADICTIONS.
-9. SCRIPT CONSISTENCY: The correct answer and all distractors MUST use the same alphabet/script. 
-   - If the question involves non-Latin characters (Cyrillic, Arabic, etc.), ALL options must use that script.
-   - Do NOT mix Latin and target-language scripts in the options list.
-10. VERSATILITY: Maximize the variety of linguistic concepts tested (e.g., usage, culture, grammar, tone).
-{translation_rule}
+    PEDAGOGICAL REQUIREMENTS:
+    1. SCENARIO-BASED: Use real-world situations (e.g., 'At a cafe', 'Talking to a neighbor').
+    2. VARY FORMATS: Mix fill-in-the-blanks, dialogue completion, and semantic odd-one-out.
+    3. CATEGORY LOCK (STRICT): If the answer is a Verb, ALL 4 options must be Verbs. If an Adjective, ALL 4 must be Adjectives.
+    4. SCRIPT CONSISTENCY: The answer and all distractors MUST use the same script (Cyrillic, Arabic, or Latin).
+    5. SIMPLICITY & DEPTH: Questions should be clear but test actual nuance.
 
-Return ONLY valid JSON:
-{{"data": [{{"type": "mcq", "prompt": "...", {translation_field}"answer": "...", "distractors": ["...", "...", "..."], "why": "..."}}]}}"""
+    TECHNICAL SPECS:
+    - Language for prompts: {instruction_lang}
+    - Options: 4 total (1 answer, 3 distractors)
+    - Punctuation: Standard for {language}
+    {translation_rule}
+
+    RESPONSE FORMAT (JSON ONLY):
+    {{
+      "data": [
+        {{
+          "type": "mcq",
+          "prompt": "...",
+          {translation_field}"answer": "...",
+          "distractors": ["...", "...", "..."],
+          "why": "1-sentence English explanation"
+        }}
+      ]
+    }}"""
 
     seed = py_random.randint(1000, 9999)
-    prompt += f"\n\nSEED: {seed}"
+    user += f"\n\nSEED: {seed}"
     
     try:
         # SINGLE ATTEMPT WITH PREMIUM MODEL
-        res = _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=8000, temperature=0.85)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=8000, temperature=0.85)
         if isinstance(res, list):
             raw_list = res
         else:
@@ -407,36 +412,32 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         )
 
     min_pages = 4 if is_alphabet_topic else 3
-    primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
-    
-    prompt = f"""
-    {primary_command}
+    system = f"""You are a master {language} pedagogical designer. 
+    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons for {language} learners. 
+    NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
+
+    user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
     {source_rule}
     {ref_data}
 
-    INSTRUCTIONS:
+    TECHNICAL SPECS:
     1. {lang_guard}
-    2. VARIETY: Mix multiple choice, gap fill, and dialogue order.
-    3. SCRIPT CONSISTENCY: The correct answer and all distractors MUST use the same alphabet/script. 
-       - If the question is in Cyrillic, the answers must be in Cyrillic. 
-       - Do NOT mix Latin and target-language scripts in a single question's options.
-    4. QUALITY: Avoid obvious or silly distractors.
-    5. LEVEL: Match {level} difficulty.
-    6. REQUIREMENT: You MUST generate AT LEAST {min_pages} high-quality pages. 
-       - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 4+ pages.
-       - For others: Provide depth, context, and varied examples across 3+ pages.
-    7. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
-    8. Return ONLY JSON with this EXACT structure (Every page MUST contain content):
+    2. SCRIPT CONSISTENCY: The correct answer and all distractors in any activity MUST use the same alphabet/script.
+    3. PAGE MINIMUM: You MUST generate AT LEAST {min_pages} pages.
+    4. GROUND TRUTH: If REFERENCE DATA is provided, use those exact terms.
+    5. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
+
+    RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
-        {{ "type": "grammar", "title": "...", "text": "..." }},
-        {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
+        {{ "type": "grammar", "title": "...", "text": "Detailed English explanation of target grammar" }},
+        {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "A", "text": "Target language sentence" }}, {{ "speaker": "B", "text": "Target language response" }} ] }},
+        {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
       ]
-    }}
-    STRICT RULE: Do NOT leave pages empty. Every page must have one of: 'items' (array), 'text' (string), or 'list' (array).
-    """
-    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4) or {"pages": []}
+    }}"""
+
+    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4) or {"pages": []}
 
 def ai_explain_word(word, language, context=None):
     prompt = f"Explain '{word}' in {language}. Context: {context}. JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"
