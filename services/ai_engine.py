@@ -416,7 +416,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons.
     REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation).
     PHONETIC RULE: {phonetic_rule}
-    SPEED PRIORITY: Be generous with pedagogical depth, but extremely concise with word choice.
+    SPEED PRIORITY: Be surgically concise with word choice and JSON structure.
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation) to ensure maximum speed.
     NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
 
@@ -427,15 +427,24 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     TECHNICAL SPECS:
     1. {lang_guard}
-    2. TARGET LANGUAGE ENFORCEMENT: Every single 'term', 'text', 'prompt', and 'answer' field MUST be in {language}. Do NOT write exercises in English. Only 'grammar' text and 'why' fields should be in English.
-    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use culturally relevant, specific {language} sentences.
+    2. TARGET LANGUAGE ENFORCEMENT: Every single 'term', 'text', 'prompt', and 'answer' field MUST be in {language}.
+    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. QUALITY STANDARD (STRICT 3-PAGE LIMIT): You MUST generate exactly 3 RICH and DENSE pages. 
+    5. STRICT 3-PAGE CAP: You MUST generate EXACTLY 3 RICH and DENSE pages. 
        - Page 1: Vocabulary/Foundation.
        - Page 2: Grammar/Phonetic Deep-Dive.
        - Page 3: Real-world Examples or Dialogue.
-    6. NO THIN PAGES: Every page must be packed with content. NEVER provide a page with only 2-3 words. If a page has fewer than 5 items or 30 words of text, it is considered a failure.
+       DO NOT generate 4th or 5th pages. If you have extra content, pack it into Page 3.
+    6. NO THIN PAGES: Every page must be packed with content. NEVER provide a page with only 2-3 items.
     7. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
+    """
+
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
+    if res and "pages" in res:
+        # MANUAL TRIM: Physically prevent more than 3 pages
+        res["pages"] = res["pages"][:3]
+        return res
+    return {"pages": []}
 
     RESPONSE FORMAT (VALID JSON ONLY):
     {{

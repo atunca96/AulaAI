@@ -478,6 +478,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0 WHERE id = ?", (course_id,))
             db.commit()
 
+        # KILL OLD WORKER (Server-Side Executioner)
+        pid_file = os.path.join("data", "workers", f"{course_id}.pid")
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    old_pid = int(f.read().strip())
+                import signal
+                if sys.platform == "win32":
+                    import subprocess
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(old_pid)], capture_output=True)
+                else:
+                    os.kill(old_pid, signal.SIGTERM)
+                print(f"[SERVER] Terminated stale worker {old_pid} for course {course_id}")
+            except: pass
+
         # Start the background worker
         import subprocess
         try:
