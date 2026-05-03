@@ -382,6 +382,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     elif any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
 
+    min_pages = 5 if is_alphabet_topic else 4
     primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
     
     prompt = f"""
@@ -392,7 +393,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     INSTRUCTIONS:
     1. {lang_guard}
     2. SUBJECT FOCUS: The lesson must be about {language}. If teaching grammar, explain {language} rules.
-    3. REQUIREMENT: 2 to 4 high-quality pages.
+    3. REQUIREMENT: You MUST generate AT LEAST {min_pages} high-quality pages. 
+       - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 5+ pages.
+       - For others: Provide depth, context, and varied examples across 4+ pages.
     4. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
     5. Return ONLY JSON:
     {{
