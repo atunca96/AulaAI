@@ -2239,11 +2239,19 @@ function switchTab(btn, skipLoad = false) {
   if (!tabId) return;
 
   // LOCK: If building, prevent switching to non-essential tabs
-  if (currentUser.role === 'lecturer' && currentCourse && currentCourse.is_building === 1) {
-    const allowedTabs = ['overview', 'inbox', 'students-tab']; // Overview shows progress, Inbox/Students are fine
-    if (!allowedTabs.includes(tabId)) {
-      triggerBuildingFocus();
-      return; // Block navigation
+  if (currentCourse && currentCourse.is_building === 1) {
+    if (currentUser.role === 'lecturer') {
+      const allowedTabs = ['overview', 'inbox', 'students-tab']; 
+      if (!allowedTabs.includes(tabId)) {
+        triggerBuildingFocus();
+        return; 
+      }
+    } else if (currentUser.role === 'student') {
+      const allowedTabs = ['s-home', 's-messages'];
+      if (!allowedTabs.includes(tabId)) {
+        showAlert(t('info'), t('class.building_student_msg') || 'Classroom is being prepared. Please check back in a few minutes.', false);
+        return;
+      }
     }
   }
 
