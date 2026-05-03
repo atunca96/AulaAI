@@ -1615,8 +1615,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     is_pdf_source=is_pdf_classroom
                 )
             
-            # Launch 3 simultaneous workers
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Launch 3 simultaneous workers (ABANDONABLE: We don't wait for slow threads)
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
                 # Map with a 15-second timeout per batch
                 futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
                 
@@ -1633,10 +1633,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             print(f"[BG] Batch failed: {e}")
                 except concurrent.futures.TimeoutError:
                     print("[BG] Activity generation timed out at 15s. Proceeding with what we have.")
-                    
-            state.is_done = True
-            # FORCE PROGRESS: Signal we are moving to save phase
-            update_prog(95)
+                
+                # Shutdown executor in background without waiting
+                executor.shutdown(wait=False)
+                
+                state.is_done = True
+                # FORCE PROGRESS: Signal we are moving to save phase
+                update_prog(95)
                 
             # ── QUICK SAVE ──
             if not raw_activities:
