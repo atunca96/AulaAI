@@ -87,12 +87,22 @@ def main():
         from services.legacy.pdf_pipeline import enrich_classroom_phase2
         from database import db_connection
         
+        # RE-CALCULATE TOTAL STEPS (Now that curriculum exists)
+        with db_connection() as db:
+            db.execute("""
+                UPDATE courses SET total_steps = (
+                    SELECT COUNT(*) FROM topics t 
+                    JOIN chapters ch ON t.chapter_id = ch.id 
+                    WHERE ch.course_id = ?
+                ) WHERE id = ?
+            """, (course_id, course_id))
+            db.commit()
+
         try:
             enrich_classroom_phase2(course_id, pdf_path)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
-            # Even if enrichment fails, we want the classroom to be accessible (just empty)
             
         # Finalize
         with db_connection() as db:
