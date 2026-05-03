@@ -374,6 +374,23 @@ def init_db():
         c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
                   (str(uuid.uuid4()), "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
         
+        # ONE-TIME MIGRATION: Move Spanish Marmara to Ela
+        # We use a persistent check to ensure this only runs once successfully
+        c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
+        done = c.execute("SELECT 1 FROM migration_history WHERE key = 'move_spanish_marmara_to_ela'").fetchone()
+        
+        if not done:
+            # Find Ela's real ID (since we used uuid4() above)
+            ela_row = c.execute("SELECT id FROM users WHERE email = 'ela94216@gmail.com'").fetchone()
+            if ela_row:
+                ela_id = ela_row["id"]
+                # Look for the course (case-insensitive)
+                course = c.execute("SELECT id FROM courses WHERE name LIKE '%Spanish Marmara%' OR name LIKE '%İspanyolca Marmara%'").fetchone()
+                if course:
+                    c.execute("UPDATE courses SET lecturer_id = ? WHERE id = ?", (ela_id, course["id"]))
+                    c.execute("INSERT INTO migration_history (key) VALUES ('move_spanish_marmara_to_ela')")
+                    print(f"[MIGRATION] Successfully moved Spanish Marmara ({course['id']}) to Ela ({ela_id})")
+        
         db.commit()
 
         # Run demo course seeding ONLY if the DB is actually empty
