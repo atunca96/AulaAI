@@ -507,9 +507,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             is_building = row["is_building"]
             progress = row["progress"] or 0
-            total = row["total_steps"] or 1 # Avoid division by zero
+            total = row["total_steps"] or 0
             
-            percentage = min(100, int((progress / total) * 100)) if is_building else 100
+            # STABILITY: If building but total is 0 (curriculum planning), keep at 0%
+            if is_building and total == 0:
+                percentage = 0
+            elif is_building:
+                # Never show 100% until the building flag is actually flipped to 0
+                percentage = min(99, int((progress / total) * 100))
+            else:
+                percentage = 100
+
             return self._send_json({
                 "course_id": course_id,
                 "is_building": bool(is_building),

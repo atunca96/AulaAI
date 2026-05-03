@@ -424,10 +424,11 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     TECHNICAL SPECS:
     1. {lang_guard}
-    2. SCRIPT CONSISTENCY: The correct answer and all distractors in any activity MUST use the same alphabet/script.
-    3. PAGE MINIMUM: You MUST generate AT LEAST {min_pages} pages.
-    4. GROUND TRUTH: If REFERENCE DATA is provided, use those exact terms.
-    5. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
+    2. TARGET LANGUAGE ENFORCEMENT: Every single 'term', 'text', 'prompt', and 'answer' field MUST be in {language}. Do NOT write exercises in English. Only 'grammar' text and 'why' fields should be in English.
+    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use culturally relevant, specific {language} sentences.
+    4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
+    5. PAGE MINIMUM: You MUST generate AT LEAST {min_pages} pages.
+    6. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
 
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
