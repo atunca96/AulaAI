@@ -81,7 +81,25 @@ def main():
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
         start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc)
-        print(f"[PIPELINE] Worker finished FULL PIPELINE (V2) for Course {course_id}")
+        
+        # ── PHASE 2: ENRICHMENT ──
+        print(f"[PIPELINE] Worker starting ENRICHMENT (Phase 2) for Course {course_id}")
+        from services.legacy.pdf_pipeline import enrich_classroom_phase2
+        from database import db_connection
+        
+        try:
+            enrich_classroom_phase2(course_id, pdf_path)
+            print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
+        except Exception as e:
+            print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
+            # Even if enrichment fails, we want the classroom to be accessible (just empty)
+            
+        # Finalize
+        with db_connection() as db:
+            db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ?", (course_id,))
+            db.commit()
+            
+        print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")
 
     except Exception as e:
         print("[PIPELINE] FATAL ERROR in worker.py:", file=sys.stderr)

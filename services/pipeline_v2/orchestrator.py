@@ -70,8 +70,9 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None):
                         (topic_id, chapter_id, t_tag, t_text, "A1.1", json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
                     )
             
-            # Finalize: Set is_building = 0 and progress = 100
-            db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ?", (course_id,))
+            # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)
+            # Do NOT set is_building = 0 yet, as we need to run enrichment (Phase 2)
+            db.execute("UPDATE courses SET progress = 20 WHERE id = ?", (course_id,))
             db.commit()
             
         logger.info(f"V2 Orchestrator finished for Course {course_id}")
