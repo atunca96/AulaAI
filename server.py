@@ -1599,16 +1599,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 raw_activities = []
                 try:
                     
-                    # HIGH-VELOCITY PARALLELISM: Use more threads for lightning speed
+                    # ── 15 & FAST RULE ──
+                    count = 15 # Cap at 15 for maximum speed
                     batch_size = 5
                     total_batches = (count + batch_size - 1) // batch_size
-                    # Boost to 5 workers (enough for 25 questions at once)
-                    max_workers = min(total_batches, 5) 
+                    max_workers = total_batches
                     
                     def _fetch_batch(_idx):
-                        this_batch_count = min(batch_size, count - (_idx * batch_size))
-                        if this_batch_count <= 0: return []
-                        
+                        this_batch_count = batch_size
                         return ai_generate_activity_batch(
                             topic["title"], 
                             topic_type, 
@@ -1620,17 +1618,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             is_pdf_source=is_pdf_classroom
                         )
                     
-                    # Launch ALL batches in parallel immediately
+                    # Launch 3 simultaneous workers
                     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                        futures = [executor.submit(_fetch_batch, i) for i in range(total_batches)]
+                        # Map with a 15-second timeout per batch
+                        futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
                         
-                        for future in concurrent.futures.as_completed(futures):
-                            try:
-                                batch = future.result()
-                                if batch:
-                                    raw_activities.extend(batch)
-                            except Exception as e:
-                                print(f"[BG] Parallel batch failed: {e}")
+                        # FAST EXIT: Take the first 15 that arrive
+                        try:
+                            for future in concurrent.futures.as_completed(futures, timeout=15):
+                                try:
+                                    batch = future.result()
+                                    if batch:
+                                        raw_activities.extend(batch)
+                                    if len(raw_activities) >= count:
+                                        break # We have enough!
+                                except Exception as e:
+                                    print(f"[BG] Batch failed: {e}")
+                        except concurrent.futures.TimeoutError:
+                            print("[BG] Activity generation timed out at 15s. Proceeding with what we have.")
                             
                 finally:
                     state.is_done = True
