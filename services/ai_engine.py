@@ -328,7 +328,7 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': 
         # 2. Inject Unit 1 with comprehensive topics
         alphabet_unit = {
             "number": 1,
-            "title": "Unit 1: The Alphabet and Foundations",
+            "title": "The Alphabet and Foundations",
             "topics": [
                 {"title": "The Alphabet", "type": "vocabulary"},
                 {"title": "Vowels and Consonants", "type": "grammar"},

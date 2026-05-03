@@ -87,9 +87,9 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                 # Standardize Unit Numbering for A1 (especially after alphabet injection)
                 if level.upper().startswith("A1"):
                     import re
-                    # Remove any existing "Unit X" prefix to avoid "Unit 2: Unit 1: Greetings"
+                    # Remove any existing "Unit X" prefix to avoid "Unit 1: Unit 1: ..."
                     clean_title = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', unit_title, flags=re.IGNORECASE).strip()
-                    unit_title = f"Unit {unit_idx + 1}: {clean_title}"
+                    unit_title = clean_title # UI handles the numbering header
 
                 db.execute(
                     "INSERT INTO chapters (id, course_id, number, title, page_number) VALUES (?,?,?,?,?)",
