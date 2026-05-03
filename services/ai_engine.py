@@ -161,16 +161,17 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     translation_field = '"translation": "...", ' if is_beginner else ""
 
     system = f"""You are the {language} Pedagogic Engine (V5). 
-    Your mission is to generate 10 PERFECT questions based ONLY on the provided source material using the Gemini 2.5 High-Fidelity Protocol.
+    Your mission is to generate 10 HIGH-QUALITY, CREATIVE questions based ONLY on the SOURCE MATERIAL.
     
     PEDAGOGIC PROTOCOL:
     1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
-    2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure:
-       - Same part of speech (e.g., all nouns, or all verbs).
-       - Same complexity (e.g., all 1-word or all full sentences).
-    3. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
-    4. VARIETY: Do not repeat any distractors across the set of 10 questions.
-    5. ACCURACY: Logic must be 100% correct for {language}.
+    2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure and part-of-speech.
+    3. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or situation. 
+       - Bad: 'What is the word for headache?' 
+       - Good: 'Maria is holding her head and looking for an aspirin. What is she likely experiencing?'
+    4. TRICKY DISTRACTORS: Ensure distractors are plausible and related to the topic, making the answer NOT 'obvious'.
+    5. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
+    6. ACCURACY: Logic must be 100% correct for {language}.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
@@ -199,9 +200,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     user += f"\n\nSEED: {seed}"
     
     try:
-        # GEMINI 2.5 FLASH TUNING: Ultra-high precision
+        # GEMINI 2.5 FLASH TUNING: Creative yet precise
         target_model = model_override if model_override else "google/gemini-2.5-flash"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.2)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.4)
         
         raw_list = []
         if isinstance(res, list):
