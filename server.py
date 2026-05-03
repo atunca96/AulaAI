@@ -1565,10 +1565,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     while not state.is_done:
                         time.sleep(1)
                         elapsed = time.time() - start_time
-                        if elapsed < 15:
-                            p = 20 + (elapsed / 15.0) * 50
+                        if elapsed < 10:
+                            p = 20 + (elapsed / 10.0) * 50
                         else:
-                            p = 70 + ((elapsed - 15) / 10.0) * 20
+                            p = 70 + ((elapsed - 10) / 10.0) * 20
                             p = min(p, 94)
                         update_prog(int(p))
                 
@@ -1578,21 +1578,31 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     update_prog(20)
                     
-                    def _fetch_batch(_b):
+                    # SPEED OPTIMIZATION: Request smaller batches in parallel
+                    batch_size = 5
+                    total_batches = (count + batch_size - 1) // batch_size
+                    # Cap parallel workers to prevent rate limiting, but stay fast
+                    max_workers = min(total_batches, 3) 
+                    
+                    def _fetch_batch(_idx):
+                        # Calculate how many questions this specific batch should request
+                        this_batch_count = min(batch_size, count - (_idx * batch_size))
+                        if this_batch_count <= 0: return []
+                        
                         return ai_generate_activity_batch(
                             topic["title"], 
                             topic_type, 
                             content, 
                             language, 
-                            count=count, 
+                            count=this_batch_count, 
                             level=topic.get("difficulty", "A1"),
-                            existing_questions=None, # Fresh generation (user requested no memory of previous questions)
+                            existing_questions=None,
                             is_pdf_source=is_pdf_classroom
                         )
                     
                     # Run batches in parallel
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=total_batches) as executor:
-                        futures = [executor.submit(_fetch_batch, b) for b in range(total_batches)]
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = [executor.submit(_fetch_batch, i) for i in range(total_batches)]
                         
                         for future in concurrent.futures.as_completed(futures):
                             try:
