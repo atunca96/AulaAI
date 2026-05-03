@@ -315,7 +315,34 @@ RULES:
 
 Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_STRUCTURAL, max_tokens=2500)
-    return res.get("chapters", []) if res else []
+    chapters = res.get("chapters", []) if res else []
+    
+    # ── MANDATORY ALPHABET FOR A1 ROADMAPS ──
+    if level.upper().startswith("A1"):
+        # 1. Remove duplicates
+        for ch in chapters:
+            if "topics" in ch:
+                ch["topics"] = [t for t in ch["topics"] if "alphabet" not in t.get("title", "").lower()]
+        
+        # 2. Inject Unit 1
+        alphabet_unit = {
+            "number": 1,
+            "title": "Unit 1: The Alphabet and Foundations",
+            "topics": [
+                {"title": "The Alphabet", "type": "vocabulary"}
+            ]
+        }
+        chapters.insert(0, alphabet_unit)
+        
+        # 3. Re-index
+        for i, ch in enumerate(chapters):
+            ch["number"] = i + 1
+            # Fix titles if they say "Unit 1" but are now Unit 2
+            if i > 0 and "title" in ch:
+                import re
+                ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
+    
+    return chapters
 
 def ai_generate_report_insights(cohort_data):
     """Generates high-level pedagogical insights for teacher reports."""
