@@ -287,7 +287,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
 
 def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_markdown_path=None):
     """
-    Standalone entry point for Phase 2 enrichment.
+    Final optimized Phase 2 enrichment.
     """
     start_time = datetime.now()
     manual_toc = None
@@ -296,19 +296,15 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             manual_toc = f.read()
 
     source_markdown_content = None
-    page_chunks = {} # dictionary of page_num -> text
+    page_chunks = {} 
     if source_markdown_path and os.path.exists(source_markdown_path):
         try:
             with open(source_markdown_path, "r", encoding="utf-8") as f:
                 source_markdown_content = f.read()
             _log(f"Phase 2: Loaded external source markdown ({len(source_markdown_content)} chars)")
             
-            # Build Page Chunks for faster/better surgical context
             import re
-            # Catch both physical [Page X] and semantic # Source Page X markers
             parts = re.split(r'(?:\[Page\s*(\d+)\]|#\s*Source Page\s*(\d+))', source_markdown_content)
-            # re.split with 2 capturing groups will return [intro, p1, p2, text, p1, p2, text, ...]
-            # If [Page X] matches, p1 is X and p2 is None. If # Source Page X matches, p1 is None and p2 is X.
             for i in range(1, len(parts), 3):
                 try:
                     p1 = parts[i]
@@ -322,9 +318,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             _log(f"Phase 2 ERROR reading source markdown: {e}")
 
     try:
-        # Get language and structure from DB
         with db_connection() as db:
-            db.row_factory = lambda cursor, row: row # Standard tuple fallback
+            db.row_factory = lambda cursor, row: row 
             course = db.execute("SELECT language, level FROM courses WHERE id = ?", (course_id,)).fetchone()
             language = course[0] if course else "Unknown"
             level = course[1] if course and len(course) > 1 else "A1"
@@ -340,148 +335,66 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 })
         
         if not chapters_data:
-            _log(f"WARNING: No chapters/topics found for {course_id}. Retrying...")
-            time.sleep(2)
-            with db_connection() as db:
-                chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
-                for ch in chapters:
-                    topics = db.execute("SELECT id, title, type FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
-                    chapters_data.append({
-                        "id": ch[0],
-                        "title": ch[1],
-                        "topics": [{"id": t[0], "title": t[1], "type": t[2]} for t in topics]
-                    })
+            _log(f"WARNING: No chapters/topics found for {course_id}.")
+            return
 
-        _log(f"Phase 2: Loaded {len(chapters_data)} chapters. Starting enrichment...")
-        with db_connection() as db:
-            db.execute("PRAGMA journal_mode=WAL")
-            db.commit()
-
-        MAX_TOTAL_TOPICS = 250 
-        topic_count = 0
+        _log(f"Phase 2: Starting enrichment for {len(chapters_data)} chapters...")
         
+        # ── HELPER: SURGICAL CONTEXT ──
+        def get_surgical_context(page_num, full_text, topic_title=""):
+            if not full_text: return ""
+            if page_num and page_num in page_chunks:
+                context_chunk = ""
+                for p in range(page_num, page_num + 3):
+                    if p in page_chunks:
+                        context_chunk += f"\n[Page {p}]\n{page_chunks[p]}\n"
+                if len(context_chunk) > 100: return context_chunk
+            
+            if page_num:
+                p_marker = f"Page {page_num}"
+                idx = full_text.find(p_marker)
+                if idx != -1: return full_text[max(0, idx-200):idx+8000]
+            
+            if topic_title and len(topic_title) > 3:
+                import re
+                h_pattern = rf"(?:^|\n)#+\s*.*{re.escape(topic_title)}.*"
+                h_match = re.search(h_pattern, full_text, re.IGNORECASE)
+                if h_match: return full_text[max(0, h_match.start()-200):h_match.start()+8000]
+            
+            return full_text[:8000]
+
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
-            """Wrapper to generate ONLY lesson material. Optimized for 1-2 minute total build."""
             from services.ai_engine import generate_full_lesson
-            import time as py_time
-            
-            t_start = py_time.time()
-            def step_up(label):
-                try:
-                    elapsed = round(py_time.time() - t_start, 1)
-                    with db_connection() as db:
-                        db.execute("UPDATE courses SET progress = progress + 1 WHERE id = ?", (course_id,))
-                        db.commit()
-                    _log(f"Topic '{t_title}': {label} DONE in {elapsed}s.")
-                except Exception as e:
-                    _log(f"Topic '{t_title}': {label} progress update FAILED: {e}")
-
-            _log(f"Topic '{t_title}': Building Lesson...")
-            
-            # SPEED OPTIMIZATION: Generate 3 high-quality pages initially instead of 5
             lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
-            pages = lesson.get("pages", [])
-            content = {"pages": pages}
-            
-            step_up("Lesson")
-            return {"content": content, "questions": [], "t_id": t_id, "t_title": t_title}
+            return {"content": lesson, "t_id": t_id, "t_title": t_title}
 
-        # Increase parallelism to 15 workers for better throughput
+        # ── EXECUTION ──
+        MAX_TOTAL_TOPICS = 250
+        topic_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            # Map each future to its metadata
             future_to_topic = {}
-            # Context Surgery Helper: Extract relevant pages from source markdown
-            def get_surgical_context(page_num, full_text, topic_title=""):
-                if not full_text: return ""
-                
-                # Priority 1: Exact Normalized Page Chunk
-                if page_num and page_num in page_chunks:
-                    # Take the target page and 2 subsequent pages for full context
-                    context_chunk = ""
-                    for p in range(page_num, page_num + 3):
-                        if p in page_chunks:
-                            context_chunk += f"\n[Page {p}]\n{page_chunks[p]}\n"
-                    if len(context_chunk) > 100:
-                        return context_chunk
-                
-                # Priority 2: Page Marker Search (if not in indexed chunks)
-                if page_num:
-                    p_marker = f"Page {page_num}"
-                    idx = full_text.find(p_marker)
-                    if idx != -1:
-                        start = max(0, idx - 200)
-                        end = idx + 8000
-                        return full_text[start:end]
-                
-                # Priority 3: Heading Match (Markdown or literal match)
-                if topic_title and len(topic_title) > 3:
-                    import re
-                    h_pattern = rf"(?:^|\n)#+\s*.*{re.escape(topic_title)}.*"
-                    h_match = re.search(h_pattern, full_text, re.IGNORECASE)
-                    if h_match:
-                        start = max(0, h_match.start() - 200)
-                        end = h_match.start() + 8000
-                        return full_text[start:end]
-                    
-                    idx = full_text.lower().find(topic_title.lower())
-                    if idx != -1:
-                        start = max(0, idx - 500)
-                        end = idx + 6000
-                        return full_text[start:end]
-                
-                # Priority 4: Final broad fallback (first 8k chars)
-                return full_text[:8000]
-
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
-                    
-                    # Apply Context Surgery
-                    topic_page = topic.get("page")
-                    surgical_text = get_surgical_context(topic_page, source_markdown_content, topic_title=topic.get("title"))
-                    
-                    future = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=surgical_text)
-                    future_to_topic[future] = topic.get("title")
+                    stext = get_surgical_context(topic.get("page"), source_markdown_content, topic_title=topic.get("title"))
+                    f = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=stext)
+                    future_to_topic[f] = topic.get("title")
                     topic_count += 1
-            
-            total_queued = len(future_to_topic)
-            total_steps = total_queued * 2
-            
-            with db_connection() as db:
-                db.execute("UPDATE courses SET progress = 1, total_steps = ? WHERE id = ?", (total_steps, course_id))
-                db.commit()
 
-            completed_topics = 0
+            # ── PROGRESS & DB UPDATES (CENTRALIZED) ──
+            completed = 0
             for future in concurrent.futures.as_completed(future_to_topic):
-                t_title = future_to_topic[future]
+                completed += 1
                 try:
-                    result = future.result()
-                    t_id = result["t_id"]
-                    # Batch Optimization: Reduce request count to prevent 'length' truncation
-                    request_count = 12 
-                    content = result["content"]
-                    questions = result["questions"]
-                    
+                    res = future.result()
                     with db_connection() as db:
-                        if t_id:
-                            content_json = json.dumps(content, ensure_ascii=False)
-                            db.execute("UPDATE topics SET content = ? WHERE id = ?", (content_json, t_id))
-                            db.execute("DELETE FROM questions WHERE topic_id = ?", (t_id,))
-                            for q in questions:
-                                p_val = q.get("prompt", "")
-                                p_text = json.dumps(p_val, ensure_ascii=False) if isinstance(p_val, (list, dict)) else str(p_val)
-                                a_val = q.get("answer", "")
-                                a_text = json.dumps(a_val, ensure_ascii=False) if isinstance(a_val, (list, dict)) else str(a_val)
-                                d_list = q.get("distractors", [])
-                                if not isinstance(d_list, list): d_list = [d_list] if d_list else []
-                                db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, is_active) VALUES (?,?,?,?,?,?,?,1)",
-                                           (_uid(), t_id, q.get("type", "mcq"), p_text, a_text, json.dumps(d_list, ensure_ascii=False), "A1.1"))
+                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(res["content"]), res["t_id"]))
+                        db.execute("UPDATE courses SET progress = ? WHERE id = ?", (completed, course_id))
                         db.commit()
-                    completed_topics += 1
-                    _log(f"Topic {completed_topics}/{total_queued} fully finalized: {t_title}")
+                    _log(f"Enrichment: {completed}/{topic_count} DONE.")
                     bump_version()
                 except Exception as e:
-                    _log(f"ERROR finalizing topic '{t_title}': {e}")
+                    _log(f"Topic Error: {e}")
 
         _log(f"Phase 2 Complete for {course_id}.")
         with db_connection() as db:
@@ -490,11 +403,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         bump_version()
 
     except Exception as e:
-        _log(f"FATAL ERROR in Phase 2: {e}")
+        _log(f"FATAL Phase 2: {e}")
         traceback.print_exc()
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
+
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1"):
     import logging
