@@ -1442,295 +1442,77 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _bg_generate_activities(self, course_id, topic_id, count):
         import re
         import random as py_random
+        import time
+        import concurrent.futures
+        import threading
         try:
-            
             def update_prog(p, status='generating'):
                 if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
                 for retry in range(5):
                     try:
                         with db_connection() as db_c:
-                            db_c.execute("""
-                                UPDATE courses 
-                                SET activity_progress=?, activity_status=? 
-                                WHERE id=?
-                            """, (p, status, course_id))
+                            db_c.execute("UPDATE courses SET activity_progress=?, activity_status=? WHERE id=?", (p, status, course_id))
                             db_c.commit()
                         return
-                    except Exception as e:
-                        if retry == 4: print(f"[DB ERROR] {e}")
+                    except:
                         time.sleep(0.2)
 
-            def scrub(text):
-                if not isinstance(text, str): return text
-                return text.replace("\\'", "'").replace('\\"', '"').replace("\\", "").strip()
-
-            def normalize_mcq_punctuation(answer, distractors):
-                """Language-agnostic: strip leading/trailing punctuation from
-                ALL MCQ options if there is ANY structural disagreement (e.g. ¿Puede vs Hola)."""
-                if not answer or not distractors:
-                    return answer, distractors
-                all_opts = [str(answer).strip()] + [str(d).strip() for d in distractors]
-                
-                def _lp(s):
-                    i = 0
-                    while i < len(s) and not s[i].isalnum() and not s[i].isspace():
-                        i += 1
-                    return s[:i]
-                def _tp(s):
-                    i = len(s)
-                    while i > 0 and not s[i-1].isalnum() and not s[i-1].isspace():
-                        i -= 1
-                    return s[i:]
-                
-                leads = [_lp(o) for o in all_opts]
-                if len(set(leads)) > 1:
-                    for i in range(len(all_opts)):
-                        if leads[i]: all_opts[i] = all_opts[i][len(leads[i]):].strip()
-                        
-                trails = [_tp(o) for o in all_opts]
-                if len(set(trails)) > 1:
-                    for i in range(len(all_opts)):
-                        if trails[i]: all_opts[i] = all_opts[i][:-len(trails[i])].strip()
-                        
-                if not all_opts[0]:
-                    return str(answer).strip(), [str(d).strip() for d in distractors]
-                return all_opts[0], all_opts[1:]
-
             with db_connection() as db:
-                # 1. Fetch existing questions for THIS TOPIC from DB
-                topic_rows = db.execute("""
-                    SELECT q.id, q.topic_id, q.type, q.prompt, q.answer, q.distractors FROM questions q
-                    WHERE q.topic_id = ?
-                """, (topic_id,)).fetchall()
-                
-                topic_pool = []
-                for r in topic_rows:
-                    q = dict(r)
-                    q["prompt"] = scrub(q.get("prompt", ""))
-                    q["answer"] = scrub(q.get("answer", ""))
-                    try:
-                        q["distractors"] = json.loads(q["distractors"])
-                        q["distractors"] = [scrub(d) for d in q["distractors"]]
-                    except:
-                        q["distractors"] = []
-                    all_opts = [q["answer"]] + q["distractors"]
-                    py_random.shuffle(all_opts)
-                    q["options"] = all_opts
-                    topic_pool.append(q)
-                
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-                if not row:
-                    raise Exception(f"Topic {topic_id} not found")
+                if not row: raise Exception(f"Topic {topic_id} not found")
                 topic = dict(row)
                 row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
 
-            # ── ALWAYS generate fresh questions ──
-            print(f"[BG] Topic '{topic['title']}': Generating FRESH questions")
-            file_log(f"Fresh generation for {topic['title']}")
+            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
+            topic_type = topic.get("type", "vocabulary")
+
+            count = 15
+            batch_size = 5
+            total_batches = 3
             
-            # ── START TICKER IMMEDIATELY ──
             class ProgressState:
-                def __init__(self):
-                    self.is_done = False
-            
+                def __init__(self): self.is_done = False
             state = ProgressState()
+
             def ticker_worker():
                 start_time = time.time()
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    if elapsed < 10:
-                        p = 20 + (elapsed / 10.0) * 50
-                    else:
-                        p = 70 + ((elapsed - 10) / 10.0) * 20
-                        p = min(p, 94)
-                    update_prog(int(p))
+                    p = 20 + (elapsed * 5) if elapsed < 14 else 94
+                    update_prog(int(min(p, 94)))
             
-            ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
-            ticker_thread.start()
-            
+            threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(20)
-            
-            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
-            topic_type = topic.get("type", "vocabulary")
-            
-            # ── ON-THE-FLY ENRICHMENT ──
-            pages = content.get("pages", []) if isinstance(content, dict) else []
-            is_alphabet = any(x in topic.get("title", "").lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "sound", "phonetic"])
-            
-            target_min = 4 if is_alphabet else 3
-            needs_regen = False
-            
-            if not pages:
-                needs_regen = True
-            else:
-                for p in pages:
-                    has_data = p.get('items') or p.get('text') or p.get('list') or p.get('content') or p.get('vocabulary') or p.get('examples')
-                    if not has_data:
-                        file_log(f"Topic '{topic['title']}' has an empty page. Regenerating...")
-                        needs_regen = True
-                        break
-            
-            if not needs_regen and len(pages) < target_min:
-                file_log(f"Topic '{topic['title']}' has only {len(pages)} pages. Target is {target_min}. Regenerating...")
-                needs_regen = True
 
-            if needs_regen:
-                file_log(f"Enriching topic content for '{topic['title']}' (Target: {target_min} pages)...")
-                try:
-                    from services.ai_engine import generate_full_lesson
-                    lesson = generate_full_lesson(topic["title"], topic_type, language, count=3, level=topic.get("difficulty", "A1"))
-                    content = {"pages": lesson.get("pages", [])}
-                    if content["pages"]:
-                        with db_connection() as db_up:
-                            db_up.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
-                            db_up.commit()
-                        file_log(f"Topic '{topic['title']}' enriched successfully with {len(content['pages'])} pages.")
-                except Exception as e:
-                    file_log(f"Auto-enrichment FAILED: {e}")
-
-            # PDF Detection
-            is_pdf_classroom = bool(topic.get("pdf_url"))
-            if is_pdf_classroom:
-                count = 10
-            
-            raw_activities = []
-            # ── 15 & FAST RULE ──
-            count = 15 # Cap at 15 for maximum speed
-            batch_size = 5
-            total_batches = (count + batch_size - 1) // batch_size
-            max_workers = total_batches
-            
             def _fetch_batch(_idx):
-                this_batch_count = batch_size
-                return ai_generate_activity_batch(
-                    topic["title"], 
-                    topic_type, 
-                    content, 
-                    language, 
-                    count=this_batch_count, 
-                    level=topic.get("difficulty", "A1"),
-                    existing_questions=None,
-                    is_pdf_source=is_pdf_classroom
-                )
+                from services.ai_engine import ai_generate_activity_batch
+                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=5, level=topic.get("difficulty", "A1"))
+
+            raw_activities = []
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+            futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
             
-                # Launch 3 simultaneous workers (ABANDONABLE: We don't wait for slow threads)
-                executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
-                # Map with a 15-second timeout per batch
-                futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
-                
-                # FAST EXIT: Take the first 15 that arrive
-                try:
-                    for future in concurrent.futures.as_completed(futures, timeout=15):
-                        try:
-                            batch = future.result()
-                            if batch:
-                                raw_activities.extend(batch)
-                            if len(raw_activities) >= count:
-                                break # We have enough!
-                        except Exception as e:
-                            print(f"[BG] Batch failed: {e}")
-                except concurrent.futures.TimeoutError:
-                    print("[BG] Activity generation timed out at 15s. Proceeding with what we have.")
-                
-                # Shutdown executor in background without waiting
-                executor.shutdown(wait=False)
-                
-                state.is_done = True
-                # FORCE PROGRESS: Signal we are moving to save phase
-                update_prog(95)
-                
-            # ── QUICK SAVE ──
-            if not raw_activities:
-                update_prog(100, status='idle')
-                return
-
-            # ── Post-process & validate (High Speed) ──
-            final_fresh = []
-            file_log(f"Validating {len(raw_activities)} activities for '{topic['title']}'...")
-        
-            for act in raw_activities:
-                if not act or not isinstance(act, dict): continue
-                
-                ans = str(act.get("answer", "")).strip()
-                distractors = act.get("distractors", [])
-                if not isinstance(distractors, list): distractors = []
-                
-                # Syntactic validation
-                ans_words = ans.split()
-                if len(ans_words) >= 3 and "alphabet" not in topic.get("title", "").lower():
-                    has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
-                    if has_lazy: continue
-                
-                # SCRIPT CONSISTENCY GUARD: Reject if options mix different alphabets (e.g. Latin vs Cyrillic)
-                import re
-                all_opts = [ans] + distractors
-                has_cyrillic = any(re.search(r'[а-яА-ЯёЁ]', str(o)) for o in all_opts)
-                has_latin = any(re.search(r'[a-zA-Z]', str(o)) for o in all_opts)
-                if has_cyrillic and has_latin:
-                    # EXEMPTION: Alphabet topics often mix scripts for phonetic explanation (e.g. 'Ц' sounds like 'ts')
-                    if "alphabet" not in topic.get("title", "").lower():
-                        file_log(f"REJECTED: Script inconsistency in {all_opts}")
-                        continue 
-
-                # MCQ Normalization
-                atype = act.get("type", "mcq")
-                if atype == 'mcq':
-                    dist = [d for d in distractors if str(d).strip().lower() != str(ans).strip().lower()]
-                    ans, dist_clean = normalize_mcq_punctuation(ans, dist[:3])
-                    act["answer"] = ans
-                    act["distractors"] = dist_clean
-                    opts = [ans] + dist_clean
-                    py_random.shuffle(opts)
-                    act["options"] = opts
-                    if not act.get("options") or not act.get("prompt"): continue
-
-                # Dialogue Normalization
-                if atype == 'dialogue_order':
-                    if not act.get("scrambled_lines") and act.get("lines"):
-                        act["scrambled_lines"] = act.get("lines")
-                    if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list): continue
-                    if not act.get("correct_order"):
-                        if act.get("answer"):
-                            if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
-                                lines = act.get("scrambled_lines", [])
-                                act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
-                            else:
-                                act["correct_order"] = act.get("answer")
-                        else:
-                            act["correct_order"] = act.get("scrambled_lines")
-                
-                act["id"] = _uid()
-                act["prompt"] = scrub(act.get("prompt", ""))
-                act["answer"] = scrub(act.get("answer", ""))
-                if "distractors" in act and isinstance(act["distractors"], list):
-                    act["distractors"] = [scrub(d) for d in act["distractors"]]
-
-                # Dedup only within this batch (not against DB — we WANT fresh questions)
-                ans_key = re.sub(r'[^\w]', '', act["answer"].lower()).strip()
-                batch_keys = {re.sub(r'[^\w]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_fresh}
-                if False: continue
-                
-                final_fresh.append(act)
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=15):
+                    try:
+                        batch = future.result()
+                        if batch: raw_activities.extend(batch)
+                    except: pass
+            except concurrent.futures.TimeoutError:
+                print(f"[BG] Activity generation timed out at 15s for {course_id}")
             
-            # ── Serve fresh questions directly (ephemeral, not saved to DB) ──
-            selected = final_fresh[:count]
-            file_log(f"Serving {len(selected)} questions for topic '{topic['title']}' (Target was {count})")
-            
-            # ATOMIC UPDATE: Prevent race condition where UI sees 'done' before results are saved
+            executor.shutdown(wait=False)
+            state.is_done = True
+
+            selected = raw_activities[:count]
             with db_connection() as db:
-                db.execute("""
-                    UPDATE courses 
-                    SET activity_status='done', 
-                        activity_progress=100, 
-                        activity_result=? 
-                    WHERE id=?
-                """, (json.dumps(selected, ensure_ascii=False), course_id))
+                db.execute("UPDATE courses SET activity_status='done', activity_progress=100, activity_result=? WHERE id=?", (json.dumps(selected, ensure_ascii=False), course_id))
                 db.commit()
             
-            file_log(f"Atomic update complete for course {course_id}. Status: done, Results: {len(selected)}")
-                
+            print(f"[BG] Activity generation COMPLETED for {course_id} with {len(selected)} questions.")
+
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"
             print(f"[CRITICAL] {msg}")
