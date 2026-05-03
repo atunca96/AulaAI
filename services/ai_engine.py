@@ -371,6 +371,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     ref_data = ""
     if is_alphabet_topic:
         ref_data = get_reference_prompt(language)
+        # FORCE EXPLANATIONS FOR ALPHABET
+        ref_data += (
+            f"\nINSTRUCTION: The alphabet alone is not enough. You MUST include at least one 'grammar' or 'text' page "
+            f"explaining the pronunciation rules, phonetic nuances, and how {language} sounds differ from English. "
+            f"Explain the vowels and consonants in detail using English."
+        )
     elif any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
 
