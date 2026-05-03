@@ -62,8 +62,8 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
             # AGGRESSIVE RETRY LOOP for 'Straggler' prevention
             for attempt in range(3):
                 try:
-                    # Shortened 40s timeout to pivot quickly if a node is slow
-                    with urllib.request.urlopen(req, timeout=40) as response:
+                    # Increased 60s timeout for complex lesson generation
+                    with urllib.request.urlopen(req, timeout=60) as response:
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
                         
