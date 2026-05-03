@@ -3062,7 +3062,7 @@ function renderPromptHTML(a, isQuiz = false) {
   let p = formatActivityData(a.prompt);
   p = translatePrompt(p); // Preserve existing localization mechanism
   
-  if (a.translation && !isQuiz) {
+  if (a.translation) {
     return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
       onmouseenter="this.querySelector('.activity-translation').style.display='block'" 
       onmouseleave="this.querySelector('.activity-translation').style.display='none'">
