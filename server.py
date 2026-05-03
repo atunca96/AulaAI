@@ -1851,35 +1851,29 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             for q in questions:
                 q_dict = dict(q)
                 
-                # --- SYNTACTIC VALIDATOR ---
-                ans = str(q_dict.get("answer", "")).strip()
-                raw_dist = q_dict.get("distractors", [])
-                if isinstance(raw_dist, str):
-                    try: raw_dist = json.loads(raw_dist)
-                    except: raw_dist = []
+                # Parse distractors if they are JSON strings
+                dist = q_dict.get("distractors", [])
+                if isinstance(dist, str):
+                    try: dist = json.loads(dist)
+                    except: dist = []
                 
-                if not isinstance(raw_dist, list): raw_dist = []
-                
-                # Rule: Rejection if answer is a sentence but distractor is a word
-                ans_words = ans.split()
-                if len(ans_words) >= 3:
-                    has_lazy = any(len(str(d).split()) <= 1 for d in raw_dist)
-                    if has_lazy:
-                        file_log(f"QUIZ REJECTED lazy: {ans} vs {raw_dist}")
-                        continue
-                # ---------------------------
+                if not isinstance(dist, list): dist = []
+                q_dict["distractors"] = dist
 
-                if isinstance(q_dict.get("distractors"), str):
-                    try: q_dict["distractors"] = json.loads(q_dict["distractors"])
-                    except: q_dict["distractors"] = []
+                # --- V5 UNIFIED OPTIONS ASSEMBLY ---
+                # Ensure options field exists and is shuffled for the frontend
+                ans = q_dict.get("answer", "")
+                opts = [ans] + dist
+                import random as py_r
+                py_r.shuffle(opts)
+                q_dict["options"] = opts
                 
-                if isinstance(q_dict.get("distractors"), list):
-                    q_dict["distractors"] = [d for d in q_dict["distractors"] if isinstance(d, str) and d.strip()]
-                else: q_dict["distractors"] = []
+                # Keep everything else (id, prompt, translation, etc.)
                 result.append(q_dict)
 
             with db_connection() as db:
-                db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", (json.dumps(result), course_id))
+                db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 
+                           (json.dumps(result, ensure_ascii=False), course_id))
                 db.commit()
                 
         except Exception as e:
