@@ -437,15 +437,6 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
        DO NOT generate 4th or 5th pages. If you have extra content, pack it into Page 3.
     6. NO THIN PAGES: Every page must be packed with content. NEVER provide a page with only 2-3 items.
     7. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
-    """
-
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
-    if res and "pages" in res:
-        # MANUAL TRIM: Physically prevent more than 3 pages
-        res["pages"] = res["pages"][:3]
-        return res
-    return {"pages": []}
-
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
@@ -456,7 +447,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
       ]
     }}"""
 
-    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4) or {"pages": []}
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
+    if res and "pages" in res:
+        # MANUAL TRIM: Physically prevent more than 3 pages
+        res["pages"] = res["pages"][:3]
+        return res
+    return {"pages": []}
 
 def ai_explain_word(word, language, context=None):
     prompt = f"Explain '{word}' in {language}. Context: {context}. JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"
