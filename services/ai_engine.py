@@ -377,10 +377,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         ref_data += (
             f"\nINSTRUCTION: The alphabet alone is not enough. You MUST include at least one 'grammar' or 'text' page "
             f"explaining the pronunciation rules, phonetic nuances, and how {language} sounds differ from English. "
-            f"Explain the vowels and consonants in detail using English."
+            f"PRONUNCIATION RULE: When explaining sounds, ALWAYS use English phonetics and English word approximations "
+            f"(e.g., for Turkish 'ş', explain it sounds like 'sh' as in 'sheep', NOT 'şe'). "
+            f"Do NOT use target language spellings to describe sounds; use English-speaker-friendly approximations."
         )
     elif any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
+        ref_data += (
+            f"\nPRONUNCIATION RULE: Explain how these marks affect sound using English phonetics (e.g., 'sounds like the e in bed'). "
+            f"Do not use target language spelling to describe the sound."
+        )
 
     min_pages = 5 if is_alphabet_topic else 4
     primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
