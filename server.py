@@ -1407,6 +1407,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(str(e))
 
     def _bg_generate_activities(self, course_id, topic_id, count):
+        import re
+        import random as py_random
         try:
             
             def update_prog(p, status='generating'):
@@ -1492,8 +1494,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             # ── ALWAYS generate fresh questions via AI ──
             # No forbidden pool — rely on random seed + temperature for variety each press
-            import re
-            import random as py_random
             print(f"[BG] Topic '{topic['title']}': Generating FRESH questions")
             file_log(f"Fresh generation for {topic['title']}")
             
