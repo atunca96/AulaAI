@@ -44,34 +44,18 @@ def extract_text_pdfplumber(pdf_path: str, page_limit: int = None) -> List[str]:
 
 def process_text(lines: List[str]) -> dict:
     """
-    Core extraction logic that takes raw lines and returns a structured curriculum.
+    Core extraction logic using strict one-shot LLM generator.
     """
     if not lines:
         return {"units": []}
 
+    # Semantic pre-cleaning
     cleaned_lines = clean_lines(lines)
+    full_text = "\n".join(cleaned_lines)
     
-    chunks = chunk_lines(cleaned_lines, size=40)
+    from .llm import extract_curriculum
+    curriculum = extract_curriculum(full_text)
     
-    structured_lines = []
-    total_chunks = len(chunks)
-    for i, chunk in enumerate(chunks, 1):
-        logger.info(f"Processing chunk {i}/{total_chunks}")
-        structured_chunk = detect_structure(chunk)
-        structured_lines.extend(structured_chunk)
-
-    topics_to_tag = [item.get("text") for item in structured_lines if item.get("type") == "TOPIC" and item.get("text")]
-    
-    # Chunk topics for tagging to avoid huge requests
-    topic_chunks = chunk_lines(topics_to_tag, size=30)
-    tagged_topics = []
-    total_topic_chunks = len(topic_chunks)
-    for i, t_chunk in enumerate(topic_chunks, 1):
-        logger.info(f"Processing chunk {i}/{total_topic_chunks}")
-        tagged_chunk = tag_topics(t_chunk)
-        tagged_topics.extend(tagged_chunk)
-
-    curriculum = build_curriculum(structured_lines, tagged_topics)
     return curriculum
 
 def process_pdf(pdf_path: str, page_limit: int = None) -> dict:

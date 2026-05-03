@@ -93,66 +93,92 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
                 return "[]"
     return "[]"
 
-def detect_structure(chunk: List[str]) -> List[Dict[str, str]]:
-    if not chunk:
-        return []
-        
-    prompt = """Classify each line into exactly one of these types: UNIT_TITLE, SECTION_TITLE, TOPIC, NOISE.
+def extract_curriculum(text: str) -> Dict[str, Any]:
+    if not text:
+        return {"units": []}
 
-IMPORTANT RULES:
-1. UNIT_TITLE: Look for major pedagogical boundaries or numbered headers. 
-   - These are often numbered (1, 2, 3...) or prefixed with terms like Unit, Lektion, Unidad, Tema, Chapter, Module, etc.
-   - SEMANTIC FILTER: Ignore book titles, marketing blurbs, prefaces, or "About the Author" sections.
-2. TOPIC: Actual lessons, themes, or learning objectives. 
-3. NOISE: Page numbers, copyrights, marketing text, prefaces, and non-pedagogical introductory text.
-4. AGNOSTIC: Handle all 14 languages (Spanish, German, Russian, Chinese, etc.) with equal priority.
-5. Return purely a JSON array of objects: [{"text": "...", "type": "UNIT_TITLE"}]
-5. Remove NOISE lines entirely.
+    prompt = f"""You are a strict JSON generator.
 
-Lines to classify:
-""" + "\n".join(chunk)
+Your ONLY task is to transform input text into valid JSON.
 
+---
+
+🚨 CRITICAL RULES (ABSOLUTE)
+* You MUST return ONLY valid JSON
+* NO explanations
+* NO markdown
+* NO text before JSON
+* NO text after JSON
+* NO comments
+* NO trailing commas
+* NO partial output
+* If you are unsure → still return valid JSON
+
+---
+
+🧠 BEHAVIOR RULES
+* Ignore OCR noise
+* Ignore unreadable lines
+* Fix broken words if obvious
+* Merge split lines
+* Work in ANY language (language-agnostic)
+
+---
+
+📦 TASK
+1. Detect structure: UNIT_HEADER, TOPIC, NOISE (discard)
+2. Extract ONLY meaningful topics
+3. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
+4. Group into units
+5. Remove duplicates
+6. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
+7. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
+
+---
+
+📤 OUTPUT FORMAT (STRICT)
+{{
+"units": [
+{{
+"unit": 1,
+"topics": [
+{{
+"name": "string",
+"tag": "grammar | vocabulary | functional | phonetics | communication | mixed",
+"confidence": 0.0
+}}
+]
+}}
+],
+"qa_report": {{
+"level": "A1",
+"issues": [],
+"fixes_applied": []
+}}
+}}
+
+---
+
+INPUT:
+{text}
+"""
     messages = [{"role": "user", "content": prompt}]
-    logger.info("LLM: structure detection")
+    logger.info("LLM: Full Curriculum Extraction (Strict Mode)")
     result_text = call_llm(messages)
+    
     try:
         data = json.loads(result_text)
-        if isinstance(data, dict) and "lines" in data:
-            data = data["lines"]
-        elif isinstance(data, dict) and "output" in data:
-            data = data["output"]
-            
-        if isinstance(data, list):
-            return [item for item in data if item.get("type") != "NOISE"]
+        # Normalize keys for app compatibility
+        if "units" in data:
+            for u in data["units"]:
+                if "unit" in u and "title" not in u:
+                    u["title"] = f"Unit {u['unit']}"
+                if "topics" in u:
+                    for t in u["topics"]:
+                        if "name" in t:
+                            t["text"] = t["name"]
+        return data
     except Exception as e:
-        logger.error(f"Failed to parse structure JSON: {e}")
-    return []
-
-def tag_topics(topics: List[str]) -> List[Dict[str, str]]:
-    if not topics:
-        return []
-        
-    prompt = """Classify each topic into exactly one of these tags: grammar, vocabulary, communicative.
-grammar: rules, structures, conjugations.
-vocabulary: lexical items, themes.
-communicative: functions (asking, describing, interacting).
-Return purely a JSON array of objects.
-The output must be valid JSON like: [{"text": "...", "tag": "grammar"}]
-Topics to classify:
-""" + "\n".join(topics)
-
-    messages = [{"role": "user", "content": prompt}]
-    logger.info("LLM: semantic tagging")
-    result_text = call_llm(messages)
-    try:
-        data = json.loads(result_text)
-        if isinstance(data, dict) and "topics" in data:
-            data = data["topics"]
-        elif isinstance(data, dict) and "output" in data:
-            data = data["output"]
-            
-        if isinstance(data, list):
-            return data
-    except Exception as e:
-        logger.error(f"Failed to parse tags JSON: {e}")
-    return []
+        logger.error(f"Failed to parse strict JSON: {e}")
+    
+    return {"units": []}
