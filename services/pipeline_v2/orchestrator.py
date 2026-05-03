@@ -7,7 +7,7 @@ from .pdf_processor import process_pdf, process_text
 
 logger = logging.getLogger(__name__)
 
-def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None):
+def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1"):
     """
     V2 Pipeline Orchestrator that extracts data and populates the database.
     This is the modern replacement for start_pipeline_background.
@@ -42,6 +42,25 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None):
             # 1. Run the V2 extraction pipeline
             curriculum = process_pdf(pdf_path)
         
+        # ── MANDATORY ALPHABET FOR A1 ──
+        if level.upper().startswith("A1"):
+            logger.info(f"A1 Level detected. Ensuring mandatory Alphabet lesson for {language}.")
+            # 1. Remove any existing Alphabet topics to avoid duplicates
+            for unit in curriculum.get("units", []):
+                unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
+            
+            # 2. Ensure we have at least one unit
+            if not curriculum.get("units"):
+                curriculum["units"] = [{"title": "Unit 1", "topics": []}]
+            
+            # 3. Inject Alphabet as the first topic of the first unit
+            alphabet_topic = {
+                "text": "Alphabet and Pronunciation",
+                "tag": "phonetics",
+                "confidence": 1.0
+            }
+            curriculum["units"][0]["topics"].insert(0, alphabet_topic)
+
         # 2. Populate the Database
         with db_connection() as db:
             # We assume the course record already exists (created by server.py or main.py)
@@ -67,7 +86,7 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None):
                     # We use a default difficulty and empty content as V2 focus is structure
                     db.execute(
                         "INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (topic_id, chapter_id, t_tag, t_text, "A1.1", json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
+                        (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
                     )
             
             # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)

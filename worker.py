@@ -80,7 +80,7 @@ def main():
                 manual_toc = f.read()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
-        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc)
+        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level)
         
         # ── PHASE 2: ENRICHMENT ──
         print(f"[PIPELINE] Worker starting ENRICHMENT (Phase 2) for Course {course_id}")
