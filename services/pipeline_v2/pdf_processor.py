@@ -78,6 +78,9 @@ def process_text(lines: List[str]) -> dict:
                             final_curriculum["units"][-1]["topics"].append(t)
                 else:
                     final_curriculum["units"].append(new_unit)
+    # Final Polish Pass: Deduplicate, fix numbering, and normalize
+    from .llm import normalize_curriculum
+    final_curriculum = normalize_curriculum(final_curriculum)
                     
     return final_curriculum
 

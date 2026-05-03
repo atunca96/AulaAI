@@ -202,3 +202,82 @@ INPUT:
         logger.error(f"Failed to parse strict JSON: {e}")
     
     return {"units": []}
+
+def normalize_curriculum(curriculum_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Final polish pass to deduplicate topics, fix numbering, and normalize tags.
+    """
+    if not curriculum_data or not curriculum_data.get("units"):
+        return curriculum_data
+
+    prompt = f"""You are a STRICT curriculum normalizer and deduplication engine.
+
+You will receive a structured curriculum JSON that may contain:
+* duplicated units
+* duplicated topics
+* inconsistent unit numbering
+* mixed languages
+* repeated concepts with different wording
+
+Your job is to FIX the structure.
+
+---
+
+🚨 HARD RULES
+* Output ONLY valid JSON
+* Do NOT explain anything
+* Do NOT add text before or after JSON
+* Do NOT change topic meaning
+* Do NOT invent new topics
+
+---
+
+🧠 TASK
+1. FIX UNIT STRUCTURE: Units MUST be sequential (Unit 1, Unit 2...). Merge duplicates.
+2. DEDUPLICATE TOPICS: Keep ONLY ONE version of a topic, even if wording/language differs.
+3. REMOVE NOISE: Delete meaningless lines or broken OCR text.
+4. NORMALIZE TOPICS: Keep names SHORT and concise. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
+5. UNIT BALANCING: Distribute topics logically.
+6. FINAL CLEANUP: No empty units, no duplicate topics anywhere.
+
+---
+
+📤 OUTPUT FORMAT
+{{
+"units": [
+{{
+"unit": 1,
+"topics": [
+{{
+"name": "string",
+"tag": "..."
+}}
+]
+}}
+]
+}}
+
+---
+
+INPUT:
+{json.dumps(curriculum_data, indent=2)}
+"""
+    messages = [{"role": "user", "content": prompt}]
+    logger.info("LLM: Final Curriculum Normalization (Polish Pass)")
+    result_text = call_llm(messages)
+    
+    try:
+        data = json.loads(result_text)
+        # Normalize keys for app compatibility
+        if "units" in data:
+            for u in data["units"]:
+                if "unit" in u and "title" not in u:
+                    u["title"] = f"Unit {u['unit']}"
+                if "topics" in u:
+                    for t in u["topics"]:
+                        if "name" in t:
+                            t["text"] = t["name"]
+        return data
+    except Exception as e:
+        logger.error(f"Normalization failed, returning original data: {e}")
+        return curriculum_data
