@@ -1503,23 +1503,34 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             topic_type = topic.get("type", "vocabulary")
             
             # ── ON-THE-FLY ENRICHMENT ──
-            # If content is empty (common in V2 pipelines), we must enrich it before generating questions
-            if not content or (isinstance(content, dict) and not content.get("pages") and not content.get("words")):
-                file_log(f"Topic content for '{topic['title']}' is empty. Generating context on-the-fly...")
+            # ── AUTO-REGENERATE SHORT CONTENT ──
+            pages = content.get("pages", []) if isinstance(content, dict) else []
+            is_alphabet = any(x in topic.get("title", "").lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "sound", "phonetic"])
+            
+            target_min = 5 if is_alphabet else 4
+            needs_regen = False
+            
+            if not pages:
+                needs_regen = True
+            elif len(pages) < target_min:
+                file_log(f"Topic '{topic['title']}' has only {len(pages)} pages. Target is {target_min}. Regenerating...")
+                needs_regen = True
+
+            if needs_regen:
+                file_log(f"Enriching topic content for '{topic['title']}' (Target: {target_min} pages)...")
                 try:
                     from services.ai_engine import generate_full_lesson
-                    # Generate a quick 6-page context lesson
+                    # Generate a comprehensive lesson to meet new standards
                     lesson = generate_full_lesson(topic["title"], topic_type, language, count=6, level=topic.get("difficulty", "A1"))
                     content = {"pages": lesson.get("pages", [])}
                     
-                    # Persist this enrichment so it's only done once
-                    with db_connection() as db_up:
-                        db_up.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
-                        db_up.commit()
-                    file_log(f"On-the-fly enrichment successful for '{topic['title']}'")
+                    if content["pages"]:
+                        with db_connection() as db_up:
+                            db_up.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
+                            db_up.commit()
+                        file_log(f"Topic '{topic['title']}' enriched successfully with {len(content['pages'])} pages.")
                 except Exception as e:
-                    file_log(f"On-the-fly enrichment FAILED for '{topic['title']}': {e}")
-                    # Continue with empty content — ai_generate_questions might still work via title fallback
+                    file_log(f"Auto-enrichment FAILED for '{topic['title']}': {e}")
 
             # PDF Detection: If topic has a pdf_url, it's a PDF classroom topic
             is_pdf_classroom = bool(topic.get("pdf_url"))
