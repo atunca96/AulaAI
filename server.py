@@ -1616,6 +1616,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             # ── Post-process & validate fresh questions ──
             final_fresh = []
+            file_log(f"Validating {len(raw_activities)} activities for '{topic['title']}'...")
             
             for act in raw_activities:
                 if not act or not isinstance(act, dict): continue
@@ -1638,6 +1639,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if has_cyrillic and has_latin:
                     # EXEMPTION: Alphabet topics often mix scripts for phonetic explanation (e.g. 'Ц' sounds like 'ts')
                     if "alphabet" not in topic.get("title", "").lower():
+                        file_log(f"REJECTED: Script inconsistency in {all_opts}")
                         continue 
 
                 # MCQ Normalization
