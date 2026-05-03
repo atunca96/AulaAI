@@ -209,6 +209,14 @@ function refreshCurrentView() {
     }
     if (currentUser.role === 'student') {
       if (currentCourse) {
+        // Detect if our active course just finished building
+        if (_buildingCourses.includes(currentCourse.id) && !currentlyBuilding.includes(currentCourse.id)) {
+          showAlert(t('info'), t('class.ready_msg') || 'Classroom is ready! New content has been added.', false).then(() => {
+            location.reload();
+          });
+          return;
+        }
+
         const updated = courses.find(c => c.id === currentCourse.id);
         if (!updated || updated.enrollment_status === 'none') {
           // Kicked or course deleted
