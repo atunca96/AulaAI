@@ -168,15 +168,35 @@ INPUT:
     
     try:
         data = json.loads(result_text)
+        
+        # Force into a dictionary format if it's just a list
+        if isinstance(data, list):
+            data = {"units": [{"unit": 1, "topics": data}]}
+            
         # Normalize keys for app compatibility
-        if "units" in data:
+        if isinstance(data, dict) and "units" in data:
+            normalized_units = []
             for u in data["units"]:
+                if not isinstance(u, dict):
+                    continue
+                    
                 if "unit" in u and "title" not in u:
                     u["title"] = f"Unit {u['unit']}"
+                elif "title" not in u:
+                    u["title"] = f"Unit {len(normalized_units) + 1}"
+                    
                 if "topics" in u:
+                    normalized_topics = []
                     for t in u["topics"]:
-                        if "name" in t:
-                            t["text"] = t["name"]
+                        if isinstance(t, dict):
+                            if "name" in t:
+                                t["text"] = t["name"]
+                            normalized_topics.append(t)
+                        elif isinstance(t, str):
+                            normalized_topics.append({"text": t, "tag": "vocabulary"})
+                    u["topics"] = normalized_topics
+                normalized_units.append(u)
+            data["units"] = normalized_units
         return data
     except Exception as e:
         logger.error(f"Failed to parse strict JSON: {e}")

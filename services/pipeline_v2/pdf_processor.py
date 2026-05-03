@@ -65,12 +65,16 @@ def process_text(lines: List[str]) -> dict:
         # Merge units
         if "units" in chunk_data:
             for new_unit in chunk_data["units"]:
+                if not isinstance(new_unit, dict):
+                    continue
+                    
+                u_title = new_unit.get("title", "Unknown Unit")
                 # Check if we should merge with the last unit or create a new one
-                if final_curriculum["units"] and final_curriculum["units"][-1]["title"] == new_unit.get("title"):
+                if final_curriculum["units"] and final_curriculum["units"][-1]["title"] == u_title:
                     # Merge topics if it's the same unit title
                     seen_topics = {t["text"] for t in final_curriculum["units"][-1]["topics"]}
                     for t in new_unit.get("topics", []):
-                        if t["text"] not in seen_topics:
+                        if isinstance(t, dict) and t.get("text") and t["text"] not in seen_topics:
                             final_curriculum["units"][-1]["topics"].append(t)
                 else:
                     final_curriculum["units"].append(new_unit)
