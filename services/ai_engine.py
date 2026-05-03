@@ -165,7 +165,7 @@ LEVEL: {level}
 SOURCE MATERIAL: {content_str}
 
 CREATIVITY GUIDELINES:
-1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a train station in Moscow...', 'Your friend Sasha says...').
+1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a market in Madrid...', 'Your friend Elena says...').
 2. VARY FORMATS: Mix fill-in-the-blanks, dialogue completion, "Which word is the odd one out?", and "What is the best response?".
 3. NO REPETITION: Every question must feel unique. DO NOT use 'Which of the following...' repeatedly.
 4. PEDAGOGICAL DEPTH: Test nuance, not just literal translation.
@@ -178,6 +178,7 @@ RULES:
 5. CATEGORY LOCK: All distractors must belong to the same semantic category.
 6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings).
 7. EXPLANATION: Add a 'why' field (1-sentence English explanation).
+8. CONSISTENCY: The "answer" field MUST be the correct option, and the "why" explanation must explicitly justify it. NO CONTRADICTIONS.
 {translation_rule}
 
 Return ONLY valid JSON:
