@@ -208,58 +208,53 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         else:
             raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
-        def _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab):
+        def _validate_question(item, seen_answers):
             if not isinstance(item, dict): return None
             ans = str(item.get("answer", "")).strip()
             prompt_text = str(item.get("prompt", "")).strip()
             distractors = item.get("distractors", [])
-            if not isinstance(distractors, list) or len(distractors) < 3: return None
-            distractors = [str(d).strip() for d in distractors[:3] if str(d).strip()]
-            if len(distractors) < 3: return None
             
-            if not ans or not prompt_text or len(prompt_text) < 2: return None
-            ans_lower = ans.lower()
-            prompt_lower = prompt_text.lower()
-            # ALLOW answer in prompt (e.g. 'What does [word] mean?')
-            pass
+            if not ans or not prompt_text:
+                return None
             
-            ans_key = ans_lower.strip()
-            if ans_key in seen_answers: return None
+            # Prevent exact duplicates
+            ans_key = re.sub(r'[^\w]', '', ans.lower()).strip()
+            if not ans_key or ans_key in seen_answers:
+                return None
+
+            clean_dist = []
+            if isinstance(distractors, list):
+                for d in distractors:
+                    d_str = str(d).strip()
+                    if d_str and d_str.lower() != ans.lower():
+                        clean_dist.append(d_str)
             
-            # REMOVED dist_set check to allow more questions through
+            if len(clean_dist) < 3:
+                return None
 
             return {
                 "id": _uid(), "type": "mcq", "prompt": prompt_text, 
-                "answer": ans, "distractors": distractors,
+                "answer": ans, "distractors": clean_dist[:3],
                 "translation": item.get("translation")
             }
 
-        all_raw_words = set()
-        for item in raw_list:
-            if isinstance(item, dict):
-                for d in item.get("distractors", []):
-                    all_raw_words.add(str(d).lower().strip())
-        
-        has_rich_vocab = len(all_raw_words) >= 15
         final = []
         seen_answers = set()
-        used_dist_sets = []
         
         for item in raw_list:
-            valid = _validate_question(item, seen_answers, used_dist_sets, has_rich_vocab)
+            valid = _validate_question(item, seen_answers)
             if valid:
                 opts = [valid["answer"]] + valid["distractors"]
                 py_random.shuffle(opts)
                 valid["options"] = opts
                 final.append(valid)
                 seen_answers.add(re.sub(r'[^\w]', '', valid["answer"].lower()).strip())
-                used_dist_sets.append(frozenset(d.lower().strip() for d in valid["distractors"]))
                 if len(final) >= c: break
 
         if not final:
             with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] No valid questions generated for {topic_title}\n")
-            return [] # No fallback questions as per user request
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] RawLen={len(raw_list)} for {topic_title}\n")
+            return [] 
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={len(final)}\n")
