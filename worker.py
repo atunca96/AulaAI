@@ -56,8 +56,9 @@ def main():
     
     try:
         # Check if this is a REBUILD (1 argument) or a FULL PIPELINE (4+ arguments)
-        if len(sys.argv) == 2:
+        if len(sys.argv) == 2 or len(sys.argv) == 3:
             course_id = sys.argv[1]
+            gen_id = sys.argv[2] if len(sys.argv) == 3 else "LEGACY"
             from services.legacy.pdf_pipeline import enrich_classroom_phase2
             from database import db_connection
             
@@ -70,12 +71,12 @@ def main():
                 pdf_path = row["textbook"] if row else None
                 
                 # NUCLEAR RESET: Ensure we start at 0% even if previous build was dirty
-                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ?", (course_id,))
+                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                 db.commit()
             
             try:
                 # Phase 2 Only - use the correct function name!
-                enrich_classroom_phase2(course_id, pdf_path)
+                enrich_classroom_phase2(course_id, pdf_path, gen_id=gen_id)
             except Exception as e:
                 with open("pipeline.log", "a", encoding="utf-8") as f:
                     f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] ERROR during REGENERATE: {str(e)}\n")
@@ -83,7 +84,7 @@ def main():
                 raise e
             finally:
                 with db_connection() as db:
-                    db.execute("UPDATE courses SET is_building=0 WHERE id=?", (course_id,))
+                    db.execute("UPDATE courses SET is_building=0 WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                     db.commit()
 
             with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -103,6 +104,7 @@ def main():
         source_markdown_path = sys.argv[7] if len(sys.argv) > 7 else None
         language = sys.argv[8] if len(sys.argv) > 8 else "Detecting..."
         level = sys.argv[9] if len(sys.argv) > 9 else "A1"
+        gen_id = sys.argv[10] if len(sys.argv) > 10 else "LEGACY"
 
         manual_toc = None
         if manual_toc_path and os.path.exists(manual_toc_path) and manual_toc_path != "NONE":
@@ -112,11 +114,11 @@ def main():
         # NUCLEAR RESET: Start fresh
         from database import db_connection
         with db_connection() as db:
-            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
-        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level)
+        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level, gen_id=gen_id)
         
         # ── PHASE 2: ENRICHMENT ──
         print(f"[PIPELINE] Worker starting ENRICHMENT (Phase 2) for Course {course_id}")
@@ -130,19 +132,19 @@ def main():
                     SELECT COUNT(*) FROM topics t 
                     JOIN chapters ch ON t.chapter_id = ch.id 
                     WHERE ch.course_id = ?
-                ) WHERE id = ?
-            """, (course_id, course_id))
+                ) WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
+            """, (course_id, course_id, gen_id, gen_id))
             db.commit()
 
         try:
-            enrich_classroom_phase2(course_id, pdf_path)
+            enrich_classroom_phase2(course_id, pdf_path, gen_id=gen_id)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
             
         # Finalize
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
             
         print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")

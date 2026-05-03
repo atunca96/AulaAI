@@ -470,8 +470,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
             
+            # Generate a new generation_id to ignore updates from zombie workers
+            import uuid
+            gen_id = str(uuid.uuid4())
+
             # Reset is_building flag to trigger worker
-            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0, generation_id = ? WHERE id = ?", (gen_id, course_id))
             db.commit()
 
         # KILL OLD WORKER (Server-Side Executioner)
@@ -492,7 +496,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # Start the background worker
         import subprocess
         try:
-            cmd = [sys.executable, "worker.py", course_id]
+            cmd = [sys.executable, "worker.py", course_id, gen_id]
             log_file = open("pipeline.log", "a", encoding="utf-8")
             
             if sys.platform == "win32":

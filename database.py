@@ -392,6 +392,7 @@ def _run_migrations():
             ("courses", "activity_result", "TEXT"),
             ("courses", "language", "TEXT DEFAULT 'Turkish'"),
             ("courses", "level", "TEXT DEFAULT 'A1'"),
+            ("courses", "generation_id", "TEXT"),
             ("enrollments", "id", "TEXT"),
             ("enrollments", "pin", "TEXT"),
             ("enrollments", "enrolled_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),

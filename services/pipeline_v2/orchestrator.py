@@ -7,7 +7,7 @@ from .pdf_processor import process_pdf, process_text
 
 logger = logging.getLogger(__name__)
 
-def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1"):
+def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1", gen_id="LEGACY"):
     """
     V2 Pipeline Orchestrator that extracts data and populates the database.
     This is the modern replacement for start_pipeline_background.
@@ -108,8 +108,8 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                     )
             
             # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)
-            # Do NOT set is_building = 0 yet, as we need to run enrichment (Phase 2)
-            db.execute("UPDATE courses SET progress = 20 WHERE id = ?", (course_id,))
+            # Only update if our generation_id is still current
+            db.execute("UPDATE courses SET progress = 20 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
             
         logger.info(f"V2 Orchestrator finished for Course {course_id}")
@@ -118,6 +118,6 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
     except Exception as e:
         logger.error(f"V2 Orchestrator FATAL ERROR: {e}")
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
         raise e

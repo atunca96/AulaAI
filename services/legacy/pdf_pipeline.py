@@ -285,7 +285,7 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
             db.commit()
 
-def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_markdown_path=None):
+def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_markdown_path=None, gen_id="LEGACY"):
     """
     Final optimized Phase 2 enrichment.
     """
@@ -384,7 +384,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
             # ANNOUNCE TOTAL STEPS: So the progress bar knows its target
             with db_connection() as db:
-                db.execute("UPDATE courses SET total_steps = ? WHERE id = ?", (topic_count, course_id))
+                db.execute("UPDATE courses SET total_steps = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, course_id, gen_id, gen_id))
                 db.commit()
 
             # ── PROGRESS & DB UPDATES (CENTRALIZED) ──
@@ -395,7 +395,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     res = future.result()
                     with db_connection() as db:
                         db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(res["content"]), res["t_id"]))
-                        db.execute("UPDATE courses SET progress = ? WHERE id = ?", (completed, course_id))
+                        db.execute("UPDATE courses SET progress = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (completed, course_id, gen_id, gen_id))
                         db.commit()
                     _log(f"Enrichment: {completed}/{topic_count} DONE.")
                     bump_version()
@@ -404,7 +404,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
         _log(f"Phase 2 Complete for {course_id}.")
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET is_building = 0 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
         bump_version()
 
@@ -426,9 +426,11 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     code = generate_classroom_code()
     textbook_url = "/books/" + os.path.basename(pdf_path)
     
+    gen_id = _uid()
+    
     with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id) VALUES (?,?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id))
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id))
         db.commit()
     
     manual_toc_file = None
@@ -465,6 +467,8 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
         else:
             cmd.append("A1")
             
+        cmd.append(gen_id) # 11th Argument
+            
         if sys.platform == "win32":
             process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
                                      creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
@@ -481,21 +485,22 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
 
 
 def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None):
+    gen_id = _uid()
     if existing_course_id:
         course_id = existing_course_id
         # Preserve existing code, but update everything else
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated' WHERE id = ?",
-                       (course_name, language, level, f"{level} Level", course_id))
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0 WHERE id = ?",
+                       (course_name, language, level, f"{level} Level", gen_id, course_id))
             db.commit()
     else:
         course_id = _uid()
         code = generate_classroom_code()
         with db_connection() as db:
-            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level) VALUES (?,?,?,?,?,?,?,?,?)",
-                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level))
+            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id))
             db.commit()
 
     # Process the nested chapters into the worker's expected format
@@ -528,8 +533,8 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
     _log(f"Spawning AI Architect worker: Course {course_id} (Level: {level})")
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    # Args: 0:worker.py, 1:pdf_path, 2:toc_range, 3:lecturer_id, 4:course_id, 5:course_name, 6:manual_toc_file, 7:source_markdown, 8:language, 9:level
-    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file, "NONE", language, level]
+    # Args: 0:worker.py, 1:pdf_path, 2:toc_range, 3:lecturer_id, 4:course_id, 5:course_name, 6:manual_toc_file, 7:source_markdown, 8:language, 9:level, 10:gen_id
+    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file, "NONE", language, level, gen_id]
     
     log_file = open("pipeline.log", "a", encoding="utf-8")
     try:
