@@ -192,13 +192,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
       ]
     }}"""
 
-    seed = py_random.randint(1000, 9999)
-    user += f"\n\nSEED: {seed}"
+    # MAX VARIETY SEED: Uses high-precision timestamp to ensure Gemini never repeats
+    seed = int(time.time() * 1000) % 999999
+    user += f"\n\nUNIQUE_REQUEST_ID: {seed}"
     
     try:
-        # GEMINI 2.5 FLASH TUNING: Creative yet precise
+        # GEMINI 2.5 FLASH TUNING: High variety (0.5)
         target_model = model_override if model_override else "google/gemini-2.5-flash"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.4)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.5)
         
         raw_list = []
         if isinstance(res, list):
@@ -228,6 +229,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                     "prompt": p,
                     "translation": item.get("translation", ""),
                     "answer": a,
+                    "distractors": d[:3],
                     "options": opts,
                     "why": item.get("why", "Correct answer based on the material.")
                 })
