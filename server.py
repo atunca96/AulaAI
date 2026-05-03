@@ -1620,6 +1620,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if len(ans_words) >= 3 and "alphabet" not in topic.get("title", "").lower():
                     has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
                     if has_lazy: continue
+                
+                # SCRIPT CONSISTENCY GUARD: Reject if options mix different alphabets (e.g. Latin vs Cyrillic)
+                import re
+                all_opts = [ans] + distractors
+                has_cyrillic = any(re.search(r'[а-яА-ЯёЁ]', str(o)) for o in all_opts)
+                has_latin = any(re.search(r'[a-zA-Z]', str(o)) for o in all_opts)
+                if has_cyrillic and has_latin:
+                    continue # Bad question: correct answer is usually distinct by script
 
                 # MCQ Normalization
                 atype = act.get("type", "mcq")

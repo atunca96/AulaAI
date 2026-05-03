@@ -190,7 +190,10 @@ RULES:
 6. PLAUSIBLE WRONG ANSWERS: Use common learner mistakes (false friends, wrong case endings, similar-sounding words).
 7. EXPLANATION: Add a 'why' field (1-sentence English explanation).
 8. CONSISTENCY: The "answer" field MUST be the correct option, and the "why" explanation must explicitly justify it. NO CONTRADICTIONS.
-9. VERSATILITY: Maximize the variety of linguistic concepts tested (e.g., usage, culture, grammar, tone).
+9. SCRIPT CONSISTENCY: The correct answer and all distractors MUST use the same alphabet/script. 
+   - If the question involves non-Latin characters (Cyrillic, Arabic, etc.), ALL options must use that script.
+   - Do NOT mix Latin and target-language scripts in the options list.
+10. VERSATILITY: Maximize the variety of linguistic concepts tested (e.g., usage, culture, grammar, tone).
 {translation_rule}
 
 Return ONLY valid JSON:
@@ -400,12 +403,17 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     INSTRUCTIONS:
     1. {lang_guard}
-    2. SUBJECT FOCUS: The lesson must be about {language}. If teaching grammar, explain {language} rules.
-    3. REQUIREMENT: You MUST generate AT LEAST {min_pages} high-quality pages. 
+    2. VARIETY: Mix multiple choice, gap fill, and dialogue order.
+    3. SCRIPT CONSISTENCY: The correct answer and all distractors MUST use the same alphabet/script. 
+       - If the question is in Cyrillic, the answers must be in Cyrillic. 
+       - Do NOT mix Latin and target-language scripts in a single question's options.
+    4. QUALITY: Avoid obvious or silly distractors.
+    5. LEVEL: Match {level} difficulty.
+    6. REQUIREMENT: You MUST generate AT LEAST {min_pages} high-quality pages. 
        - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 5+ pages.
        - For others: Provide depth, context, and varied examples across 4+ pages.
-    4. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
-    5. Return ONLY JSON:
+    7. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
+    8. Return ONLY JSON:
     {{
       "pages": [
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
