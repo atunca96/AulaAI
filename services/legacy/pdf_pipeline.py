@@ -361,32 +361,36 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         topic_count = 0
         
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
-            """Wrapper to generate lesson and questions in parallel for speed."""
+            """Wrapper to generate lesson and questions sequentially but with better logging."""
             from services.ai_engine import generate_full_lesson, ai_generate_questions
-            def step_up():
+            def step_up(label):
                 try:
                     with db_connection() as db:
                         db.execute("UPDATE courses SET progress = progress + 1 WHERE id = ?", (course_id,))
                         db.commit()
-                except: pass
+                    _log(f"Topic '{t_title}': {label} DONE.")
+                except Exception as e:
+                    _log(f"Topic '{t_title}': {label} progress update FAILED: {e}")
 
-            # SPEED HACK: Generate Lesson and Questions in parallel using the same source context
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as topic_exec:
-                f_lesson = topic_exec.submit(generate_full_lesson, t_title, t_type, language, 5, level, source_text=source_text)
-                
-                # We can't pass 'content' yet, but we have 'source_text' which is the ground truth
-                # ai_generate_questions will use the textbook context directly
-                f_questions = topic_exec.submit(ai_generate_questions, t_title, t_type, {"pages": []}, language, count=5, level=level, is_pdf_source=True, source_text_override=source_text)
-                
-                lesson = f_lesson.result()
-                questions = f_questions.result()
-
+            _log(f"Topic '{t_title}': Starting enrichment...")
+            
+            # 1. Generate Lesson
+            lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text)
             pages = lesson.get("pages", [])
             content = {"pages": pages}
-            
-            # Progress markers for both sub-tasks
-            step_up() 
-            step_up()
+            step_up("Lesson")
+
+            # 2. Generate Questions
+            questions = []
+            try:
+                questions = ai_generate_questions(
+                    t_title, t_type, content, language, 
+                    count=5, level=level, is_pdf_source=True, source_text_override=source_text
+                )
+            except Exception as e:
+                _log(f"Topic '{t_title}': Question generation failed: {e}")
+                
+            step_up("Questions")
             
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
 
