@@ -1451,6 +1451,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 for retry in range(5):
                     try:
                         with db_connection() as db_c:
+                            # ONE-WAY VALVE: Don't overwrite 'done' with 'generating'
+                            current = db_c.execute("SELECT activity_status FROM courses WHERE id=?", (course_id,)).fetchone()
+                            if current and current[0] == 'done' and status != 'done':
+                                return
                             db_c.execute("UPDATE courses SET activity_progress=?, activity_status=? WHERE id=?", (p, status, course_id))
                             db_c.commit()
                         return
