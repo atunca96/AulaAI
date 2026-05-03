@@ -382,6 +382,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     future_to_topic[f] = topic.get("title")
                     topic_count += 1
 
+            # ANNOUNCE TOTAL STEPS: So the progress bar knows its target
+            with db_connection() as db:
+                db.execute("UPDATE courses SET total_steps = ? WHERE id = ?", (topic_count, course_id))
+                db.commit()
+
             # ── PROGRESS & DB UPDATES (CENTRALIZED) ──
             completed = 0
             for future in concurrent.futures.as_completed(future_to_topic):
