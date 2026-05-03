@@ -51,19 +51,18 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
             if "units" not in curriculum:
                 curriculum["units"] = []
                 
-            # 2. Remove any existing Alphabet topics from all units to avoid duplicates
+            # 2. Remove any existing Alphabet/Phonetic topics from all units to avoid duplicates
+            keywords = ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound", "alfabeto", "alfabe"]
             for unit in curriculum["units"]:
-                unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
+                unit["topics"] = [t for t in unit.get("topics", []) if not any(kw in t.get("text", "").lower() for kw in keywords)]
             
             # 3. Create the dedicated Alphabet Unit
             alphabet_unit = {
                 "title": "Unit 1: Alphabet and Foundations",
                 "topics": [
-                    {
-                        "text": "The Alphabet", # Manually requested name
-                        "tag": "phonetics",
-                        "confidence": 1.0
-                    }
+                    {"text": "The Alphabet", "tag": "phonetics", "confidence": 1.0},
+                    {"text": "Vowels and Consonants", "tag": "grammar", "confidence": 1.0},
+                    {"text": "Pronunciation and Phonetics", "tag": "grammar", "confidence": 1.0}
                 ]
             }
             
