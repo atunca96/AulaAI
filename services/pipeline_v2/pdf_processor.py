@@ -5,7 +5,7 @@ import threading
 from typing import List
 from .ocr import extract_text_ocr, check_ocr_available
 from .parser import clean_lines, chunk_lines, build_curriculum
-from .llm import detect_structure, tag_topics
+from .llm import extract_curriculum
 
 logger = logging.getLogger(__name__)
 
