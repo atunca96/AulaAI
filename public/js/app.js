@@ -135,8 +135,11 @@ function startLiveSync() {
       // Continuous progress polling while building (independent of data version)
       if (currentCourse && currentCourse.is_building) {
         api(`/classroom/progress?course_id=${currentCourse.id}&v=${Date.now()}`).then(prog => {
-          if (prog) {
-            const isLecturer = currentUser.role === 'lecturer';
+            if (prog) {
+              if (prog.is_building && _buildStartTime === 0) _buildStartTime = Date.now();
+              if (!prog.is_building) _buildStartTime = 0;
+
+              const isLecturer = currentUser.role === 'lecturer';
             const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
             const fillId = isLecturer ? 'lecturer-progress-fill' : 'student-progress-fill';
             const textId = isLecturer ? 'lecturer-progress-text' : 'student-progress-text';
@@ -162,6 +165,7 @@ function startLiveSync() {
             // Update local state if it finished building
             if (!prog.is_building && currentCourse.is_building) {
               currentCourse.is_building = 0;
+              _buildStartTime = 0;
               refreshCurrentView();
             }
           }

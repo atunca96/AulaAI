@@ -533,10 +533,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     percentage = 0 if progress == 0 else int(progress)
             else:
                 # BUILDING PHASE
-                raw_pct = int((progress / total) * 100)
+                raw_pct = int((progress / total) * 100) if total > 0 else 0
                 if is_building:
-                    # Clamp at 99 while still building
-                    percentage = min(99, max(15, raw_pct))
+                    # If we haven't even started (progress=0), stay at planning phase
+                    if progress <= 0:
+                        percentage = 15
+                    else:
+                        # Clamp at 99 while still building
+                        percentage = min(99, max(20, raw_pct))
                 else:
                     # Finished
                     percentage = 100 if raw_pct >= 95 else raw_pct
