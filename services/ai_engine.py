@@ -174,7 +174,6 @@ LEVEL: {level}
 SOURCE MATERIAL: {content_str}
 {ref_data}
 {forbidden_clause}
-{"\nSIMPLICITY RULE: Since this is for a beginner (A1/A2), keep the prompts and scenarios EXTREMELY simple. Use high-frequency vocabulary and straightforward sentence structures. Do NOT use complex grammar that hasn't been taught yet." if is_beginner else ""}
 
 CREATIVITY GUIDELINES:
 1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a market in Madrid...', 'Your friend Elena says...').
