@@ -154,16 +154,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
     system = f"""You are the {language} Pedagogic Engine (V5). 
-    Your mission is to generate 10 HIGH-QUALITY, CREATIVE questions based ONLY on the SOURCE MATERIAL.
+    Your mission: Using the provided textbook content as your source, generate questions that test genuine understanding of the material — use real examples from the text, plausible distractors drawn from related concepts, and varied formats. Never repeat the same question pattern twice in a single set.
     
     PEDAGOGIC PROTOCOL:
     1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
     2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure and part-of-speech.
     3. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or situation. 
     4. TRICKY DISTRACTORS: Ensure distractors are plausible and related to the topic, making the answer NOT 'obvious'.
-    5. VARIETY MANDATE: Vary format, difficulty, and context. Do not repeat the same logic across questions.
+    5. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
     6. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
-    7. ACCURACY: Logic must be 100% correct for {language}.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
