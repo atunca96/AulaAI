@@ -203,8 +203,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     user += f"\n\nSEED: {seed}"
     
     try:
-        # Use the standard narrative model (DeepSeek)
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=8000, temperature=0.85)
+        # ACTIVITY TUNING: Use 2000 tokens for speed
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=2000, temperature=0.85)
         if isinstance(res, list):
             raw_list = res
         else:

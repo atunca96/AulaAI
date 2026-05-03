@@ -1486,7 +1486,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 7) if elapsed < 12 else 94
+                    # Slower crawl to match 60s DeepSeek patience
+                    p = 20 + (elapsed * 1.2) if elapsed < 59 else 94
                     update_prog(int(min(p, 94)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
@@ -1501,14 +1502,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
             
             try:
-                # 20s hard limit for fresh generation
-                for future in concurrent.futures.as_completed(futures, timeout=20):
+                # 60s patience for high-quality DeepSeek generation
+                for future in concurrent.futures.as_completed(futures, timeout=60):
                     try:
                         batch = future.result()
                         if batch: raw_activities.extend(batch)
                     except: pass
             except concurrent.futures.TimeoutError:
-                print(f"[BG] AI timed out at 20s for {course_id}. Freshness policy: No fallback.")
+                print(f"[BG] AI timed out at 60s for {course_id}. DeepSeek was too slow.")
             
             executor.shutdown(wait=False)
             state.is_done = True
