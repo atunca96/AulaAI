@@ -165,24 +165,30 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     EXPLANATION RULE: All 'why' fields MUST be in English.
     OUTPUT RULE: Your response must be EXCLUSIVELY a valid JSON object. No markdown code blocks unless requested, no preamble."""
 
-    user = f"""TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
+    # ── MODEL-SPECIFIC PROMPT TUNING ──
+    haiku_guard = ""
+    if model_override and "haiku" in model_override.lower():
+        haiku_guard = f"""
+        STRICT FORMATTING RULE FOR {model_override.upper()}:
+        1. NO INTRODUCTION. NO MARKDOWN.
+        2. START YOUR RESPONSE WITH '{{' AND END WITH '}}'.
+        3. EVERY 'prompt', 'answer', and 'distractor' MUST BE IN {language}.
+        4. YOU MUST PROVIDE EXACTLY {request_count} QUESTIONS.
+        """
+
+    user = f"""TASK: Generate {request_count} high-quality multiple-choice questions for: {topic_title} ({topic_type}).
     LEVEL: {level}
     SOURCE MATERIAL: {content_str}
     {ref_data}
     {forbidden_clause}
+    {haiku_guard}
 
     PEDAGOGICAL REQUIREMENTS:
     1. SCENARIO-BASED: Use real-world situations (e.g., 'At a cafe', 'Talking to a neighbor').
-    2. VARY FORMATS: Mix fill-in-the-blanks, dialogue completion, and semantic odd-one-out.
-    3. CATEGORY LOCK (STRICT): If the answer is a Verb, ALL 4 options must be Verbs. If an Adjective, ALL 4 must be Adjectives.
-    4. SCRIPT CONSISTENCY: The answer and all distractors MUST use the same script (Cyrillic, Arabic, or Latin).
-    5. SIMPLICITY & DEPTH: Questions should be clear but test actual nuance.
-
-    TECHNICAL SPECS:
-    - Language for prompts: {instruction_lang}
-    - Options: 4 total (1 answer, 3 distractors)
-    - Punctuation: Standard for {language}
-    {translation_rule}
+    2. VARY FORMATS: Mix fill-in-the-blanks and dialogue completion.
+    3. CATEGORY LOCK: If the answer is a Verb, ALL options must be Verbs.
+    4. SCRIPT: Use the correct {language} script.
+    5. IMMERSION: Everything except the 'why' field MUST be in {language}.
 
     RESPONSE FORMAT (JSON ONLY):
     {{
@@ -192,7 +198,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
           "prompt": "...",
           {translation_field}"answer": "...",
           "distractors": ["...", "...", "..."],
-          "why": "1-sentence English explanation"
+          "why": "English explanation"
         }}
       ]
     }}"""
