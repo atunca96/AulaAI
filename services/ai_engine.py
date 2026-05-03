@@ -356,9 +356,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, explanations, and titles MUST be in English. All target language content (words, sentences, examples) MUST be in {language}."
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in English. All target language content (vocabulary, sentences, examples) MUST be in {language}."
     if is_beginner:
-        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. Explain {language} concepts using English. DO NOT explain English grammar; explain {language} grammar using English as the medium."
+        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. All titles, grammar explanations, and instructions MUST be in English. NEVER explain {language} concepts using {language}. Use English as the primary instructional medium."
 
     source_rule = ""
     if source_text:
@@ -409,7 +409,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     TECHNICAL SPECS:
     1. {lang_guard}
-    2. TARGET LANGUAGE ENFORCEMENT: Every single 'term', 'text', 'prompt', and 'answer' field MUST be in {language}.
+    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in English.
     3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
     5. STRICT 3-PAGE CAP: You MUST generate EXACTLY 3 RICH and DENSE pages. 
