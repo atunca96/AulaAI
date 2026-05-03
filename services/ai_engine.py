@@ -290,14 +290,31 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
                     return cached_data["chapters"]
         except: pass
 
-    system = "You are a curriculum architect for a language learning platform. Create a highly structured and pedagogical syllabus in JSON."
-    user = f"""Create a comprehensive {level} {language} course syllabus. {prompt_extra}
+    system = f"You are a master curriculum architect specializing in the CEFR framework (A1-C2) for {language}."
+    
+    level_guidelines = {
+        "A1": "Focus on absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, immediate survival vocabulary, and personal info.",
+        "A2": "Focus on routine tasks, past tenses (intro), describing surroundings, simple social exchanges, and common shopping/work scenarios.",
+        "B1": "Focus on traveling situations, expressing opinions/dreams/hopes, complex past tenses, future/conditional, and providing reasons for plans.",
+        "B2": "Focus on technical discussions, interacting with natives without strain, detailed text on diverse subjects, and introductory Subjunctive mood.",
+        "C1": "Focus on complex subjects, implicit meaning, flexible/effective language for academic/professional use, deep nuance, and advanced idiomatic usage.",
+        "C2": "Focus on near-native mastery, summarizing complex sources, precise expression of fine shades of meaning, and spontaneous academic reconstruction."
+    }
+    
+    # Determine the closest CEFR guideline
+    current_guideline = next((v for k, v in level_guidelines.items() if k in level.upper()), "Follow general CEFR progression.")
+
+    user = f"""Create a comprehensive {level} {language} course syllabus.
+LEVEL-SPECIFIC FOCUS: {current_guideline}
+
 RULES:
-1. DO NOT use generic topic titles like 'Vocabulary', 'Grammar', 'Exercises', or 'Conversation'.
-2. Each topic MUST have a specific, descriptive name (e.g., 'Ordering at a Cafe', 'Regular -AR Verbs', 'Family Members').
-3. Ensure logical progression from basic to complex.
-Return JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=2000)
+1. PEDAGOGICAL ACCURACY: The topics MUST strictly reflect the {level} level requirements.
+2. NO GENERIC TITLES: Do NOT use 'Vocabulary', 'Grammar', or 'Exercises'. Every topic must be descriptive (e.g., 'Navigating a Hospital', 'The Imperfect vs. Preterite', 'Debating Environmental Ethics').
+3. PROGRESSION: Ensure units move logically from foundational to complex within the {level} bracket.
+4. VARIETY: Mix functional language, grammar, and cultural context.
+
+Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_STRUCTURAL, max_tokens=2500)
     return res.get("chapters", []) if res else []
 
 def ai_generate_report_insights(cohort_data):
