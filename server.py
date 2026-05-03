@@ -1472,10 +1472,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             topic_type = topic.get("type", "vocabulary")
 
             # ── STRICT FRESHNESS POLICY ──
-            # (No Pool Fallback - Always 10 Fresh Questions)
+            # (Unified 10-Question Batch for maximum reliability)
             count = 10
-            batch_size = 5
-            total_batches = 2
+            total_batches = 1
             
             class ProgressState:
                 def __init__(self): self.is_done = False
@@ -1495,10 +1494,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def _fetch_batch(_idx):
                 from services.ai_engine import ai_generate_activity_batch
-                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=5, level=topic.get("difficulty", "A1"))
+                # Unified 10-question request
+                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"))
 
             raw_activities = []
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
             futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
             
             try:
