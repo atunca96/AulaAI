@@ -160,11 +160,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
     2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure and part-of-speech.
     3. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or situation. 
-       - Bad: 'What is the word for headache?' 
-       - Good: 'Maria is holding her head and looking for an aspirin. What is she likely experiencing?'
     4. TRICKY DISTRACTORS: Ensure distractors are plausible and related to the topic, making the answer NOT 'obvious'.
-    5. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
-    6. ACCURACY: Logic must be 100% correct for {language}.
+    5. VARIETY MANDATE: Vary format, difficulty, and context. Do not repeat the same logic across questions.
+    6. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
+    7. ACCURACY: Logic must be 100% correct for {language}.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
@@ -176,6 +175,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     {ref_data}
     {forbidden_clause}
     
+    VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question.
     MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
     
     JSON STRUCTURE:
@@ -194,12 +194,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure Gemini never repeats
     seed = int(time.time() * 1000) % 999999
-    user += f"\n\nUNIQUE_REQUEST_ID: {seed}"
+    user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
-        # GEMINI 2.5 FLASH TUNING: High variety (0.5)
+        # GEMINI 2.5 FLASH TUNING: High variety (0.7)
         target_model = model_override if model_override else "google/gemini-2.5-flash"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.5)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.7)
         
         raw_list = []
         if isinstance(res, list):
