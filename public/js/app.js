@@ -3468,7 +3468,7 @@ async function viewQuiz(quizId, title) {
     classAvg: t('assign.class_avg'),
     correct: t('assign.correct'),
     studentAnswer: t('assign.student_answer'),
-    correctAns: t('assign.correct_ans')
+    correctAns: t('assign.correct_answer')
   };
 
   document.getElementById('student-detail-body').innerHTML = `
@@ -3520,7 +3520,7 @@ async function viewQuiz(quizId, title) {
                           <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
                             <span><span data-i18n="assign.student_answer">${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span><span data-i18n="assign.correct_ans">${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            ${!isRight ? `<span><span data-i18n="assign.correct_answer">${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
                       </div>`;
