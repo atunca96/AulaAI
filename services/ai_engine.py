@@ -406,7 +406,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
       ]
     }}
     """
-    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.4) or {"pages": []}
+    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4) or {"pages": []}
 
 def ai_explain_word(word, language, context=None):
     prompt = f"Explain '{word}' in {language}. Context: {context}. JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"
