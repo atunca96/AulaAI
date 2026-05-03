@@ -59,10 +59,11 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                 "temperature": temperature
             }).encode("utf-8"), headers=headers)
             
-            # RETRY LOOP for high-concurrency stability
+            # AGGRESSIVE RETRY LOOP for 'Straggler' prevention
             for attempt in range(3):
                 try:
-                    with urllib.request.urlopen(req, timeout=60) as response:
+                    # Shortened 40s timeout to pivot quickly if a node is slow
+                    with urllib.request.urlopen(req, timeout=40) as response:
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
                         
@@ -97,11 +98,11 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
 
                                 data = _try_parse(json_str)
                                 if data: return data
-                    # If we got here but didn't return, it's a parse fail or missing choices
                 except Exception as e:
                     with open("pipeline.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed: {e}\n")
-                    time.sleep(1 + attempt)
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed/timed-out: {e}\n")
+                    # Immediate retry for speed (0.5s instead of 2s)
+                    time.sleep(0.5)
             
             return None
                         
@@ -415,6 +416,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons.
     REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation).
     PHONETIC RULE: {phonetic_rule}
+    SPEED PRIORITY: Be generous with pedagogical depth, but extremely concise with word choice.
+    JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation) to ensure maximum speed.
     NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
