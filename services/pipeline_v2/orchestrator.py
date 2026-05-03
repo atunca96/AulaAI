@@ -45,21 +45,31 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
         # ── MANDATORY ALPHABET FOR A1 ──
         if level.upper().startswith("A1"):
             logger.info(f"A1 Level detected. Ensuring mandatory Alphabet lesson for {language}.")
-            # 1. Remove any existing Alphabet topics to avoid duplicates
-            for unit in curriculum.get("units", []):
-                unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
+            # 1. Remove any existing Alphabet topics from all units to avoid duplicates
+            if "units" in curriculum:
+                for unit in curriculum["units"]:
+                    unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
             
-            # 2. Ensure we have at least one unit
-            if not curriculum.get("units"):
-                curriculum["units"] = [{"title": "Unit 1", "topics": []}]
-            
-            # 3. Inject Alphabet as the first topic of the first unit
-            alphabet_topic = {
-                "text": "Alphabet and Pronunciation",
-                "tag": "phonetics",
-                "confidence": 1.0
+            # 2. Create the dedicated Alphabet Unit
+            alphabet_unit = {
+                "title": "Unit 1: Alphabet and Foundations",
+                "topics": [
+                    {
+                        "text": "Alphabet and Pronunciation",
+                        "tag": "phonetics",
+                        "confidence": 1.0
+                    }
+                ]
             }
-            curriculum["units"][0]["topics"].insert(0, alphabet_topic)
+            
+            # 3. Prepend to curriculum and ensure no empty units were left behind
+            if not curriculum.get("units"):
+                curriculum["units"] = [alphabet_unit]
+            else:
+                # Insert at the very beginning
+                curriculum["units"].insert(0, alphabet_unit)
+                # Cleanup: remove any units that are now empty (except our new one)
+                curriculum["units"] = [u for i, u in enumerate(curriculum["units"]) if i == 0 or u.get("topics")]
 
         # 2. Populate the Database
         with db_connection() as db:
@@ -73,6 +83,13 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                 chapter_id = _uid()
                 unit_title = unit.get("title", f"Unit {unit_idx + 1}")
                 
+                # Standardize Unit Numbering for A1 (especially after alphabet injection)
+                if level.upper().startswith("A1"):
+                    import re
+                    # Remove any existing "Unit X" prefix to avoid "Unit 2: Unit 1: Greetings"
+                    clean_title = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', unit_title, flags=re.IGNORECASE).strip()
+                    unit_title = f"Unit {unit_idx + 1}: {clean_title}"
+
                 db.execute(
                     "INSERT INTO chapters (id, course_id, number, title, page_number) VALUES (?,?,?,?,?)",
                     (chapter_id, course_id, unit_idx + 1, unit_title, 0) # V2 currently lacks page numbers
