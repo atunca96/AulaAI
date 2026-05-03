@@ -1471,6 +1471,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
+            # 1. Fetch existing pool from DB
+            pool = []
+            with db_connection() as db:
+                rows = db.execute("SELECT type, prompt, answer, distractors FROM questions WHERE topic_id = ?", (topic_id,)).fetchall()
+                for r in rows:
+                    q = dict(r)
+                    try:
+                        q["distractors"] = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
+                    except: q["distractors"] = []
+                    opts = [q["answer"]] + q["distractors"]
+                    py_random.shuffle(opts)
+                    q["options"] = opts
+                    pool.append(q)
+            
+            py_random.shuffle(pool)
+
+            # ── 15 & FAST RULE (with 20s safety) ──
             count = 15
             batch_size = 5
             total_batches = 3
@@ -1484,7 +1501,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 5) if elapsed < 14 else 94
+                    p = 20 + (elapsed * 4) if elapsed < 19 else 94
                     update_prog(int(min(p, 94)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
@@ -1499,23 +1516,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             futures = {executor.submit(_fetch_batch, i): i for i in range(total_batches)}
             
             try:
-                for future in concurrent.futures.as_completed(futures, timeout=15):
+                # Give AI 20 seconds
+                for future in concurrent.futures.as_completed(futures, timeout=20):
                     try:
                         batch = future.result()
                         if batch: raw_activities.extend(batch)
                     except: pass
             except concurrent.futures.TimeoutError:
-                print(f"[BG] Activity generation timed out at 15s for {course_id}")
+                print(f"[BG] AI timed out at 20s for {course_id}. Using pool fallback.")
             
             executor.shutdown(wait=False)
             state.is_done = True
 
-            selected = raw_activities[:count]
+            # MERGE: Fresh AI questions + Fallback Pool
+            final_questions = raw_activities[:count]
+            if len(final_questions) < count:
+                needed = count - len(final_questions)
+                final_questions.extend(pool[:needed])
+            
+            # NUCLEAR FINISH
             with db_connection() as db:
-                db.execute("UPDATE courses SET activity_status='done', activity_progress=100, activity_result=? WHERE id=?", (json.dumps(selected, ensure_ascii=False), course_id))
+                db.execute("UPDATE courses SET activity_status='done', activity_progress=100, activity_result=? WHERE id=?", (json.dumps(final_questions, ensure_ascii=False), course_id))
                 db.commit()
             
-            print(f"[BG] Activity generation COMPLETED for {course_id} with {len(selected)} questions.")
+            print(f"[BG] Activity generation COMPLETED for {course_id} with {len(final_questions)} questions.")
 
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"
