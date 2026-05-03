@@ -38,11 +38,11 @@ def build_curriculum(structured_lines: List[Dict[str, str]], tagged_topics: List
     # Map topics to tags for quick lookup
     topic_tags = {item["text"]: item.get("tag", "vocabulary") for item in tagged_topics}
     
-    # Stop titles that are likely book noise, not units
-    STOP_TITLES = [
-        "AULA INTERNACIONAL", "AULA INTERNACIONAL PLUS", "AULA", 
-        "INTRODUCCIÓN", "PREFACIO", "BIENVENIDOS", "ÍNDICE",
-        "RECURSOS PARA ESTUDIANTES", "CAMPUS DIFUSIÓN"
+    # Universal Unit Markers (covering 14 languages)
+    UNIT_MARKERS = [
+        "UNIT", "UNIDAD", "LEKTION", "CHAPTER", "MODULO", "TEMA", "KAPITEL", 
+        "MODULE", "UNIDADE", "LEÇON", "CAPITOLO", "УРОК", "ГЛАВА", "单元", "第", 
+        "第", "課", "ユニット", "BÖLÜM"
     ]
     
     seen_text_in_current_unit = set()
@@ -59,26 +59,21 @@ def build_curriculum(structured_lines: List[Dict[str, str]], tagged_topics: List
         if not clean_text or len(clean_text) < 3:
             continue
 
-        # 2. UNIT DETECTION
+        # 2. UNIVERSAL UNIT DETECTION
         is_unit_trigger = False
+        upper_text = clean_text.upper()
         
         # Type A: LLM Explicitly called it a UNIT_TITLE
         if item_type == "UNIT_TITLE":
             is_unit_trigger = True
             
-        # Type B: Numbered unit pattern (e.g., "1. ME LLAMO", "UNIDAD 2")
-        if re.match(r'^(?:\d+[\.\)]|UNIDAD\s*\d+)', clean_text.upper()):
+        # Type B: Numbered unit pattern or Language-specific markers
+        if re.match(r'^(?:\d+[\.\)]|' + '|'.join(UNIT_MARKERS) + r')', upper_text):
             is_unit_trigger = True
             
         # Type C: Repeating major pattern (RECURSOS...)
         if clean_text in seen_text_in_current_unit and len(clean_text) > 10:
             is_unit_trigger = True
-            
-        # FILTER: Prevent noise from becoming units
-        if is_unit_trigger:
-            upper_text = clean_text.upper()
-            if any(stop in upper_text for stop in STOP_TITLES):
-                is_unit_trigger = False
 
         if is_unit_trigger:
             # Avoid duplicate units if the title is exactly the same as the last one

@@ -92,12 +92,13 @@ def detect_structure(chunk: List[str]) -> List[Dict[str, str]]:
     prompt = """Classify each line into exactly one of these types: UNIT_TITLE, SECTION_TITLE, TOPIC, NOISE.
 
 IMPORTANT RULES:
-1. UNIT_TITLE: Look for numbered headers (e.g., "1. ME LLAMO", "Unidad 2") or major pedagogical boundaries. 
-   - IGNORE: Book titles, prefaces, marketing text, or "Aula Internacional Plus". 
-   - If a line looks like an introduction to the book, mark it as NOISE.
-2. TOPIC: Actual lessons or themes. 
-3. NOISE: Stopwords, page headers, copyright lines, and marketing blurbs like "AULA nació con la ilusión...".
-4. Return purely a JSON array of objects: [{"text": "...", "type": "UNIT_TITLE"}]
+1. UNIT_TITLE: Look for major pedagogical boundaries or numbered headers. 
+   - These are often numbered (1, 2, 3...) or prefixed with terms like Unit, Lektion, Unidad, Tema, Chapter, Module, etc.
+   - SEMANTIC FILTER: Ignore book titles, marketing blurbs, prefaces, or "About the Author" sections.
+2. TOPIC: Actual lessons, themes, or learning objectives. 
+3. NOISE: Page numbers, copyrights, marketing text, prefaces, and non-pedagogical introductory text.
+4. AGNOSTIC: Handle all 14 languages (Spanish, German, Russian, Chinese, etc.) with equal priority.
+5. Return purely a JSON array of objects: [{"text": "...", "type": "UNIT_TITLE"}]
 5. Remove NOISE lines entirely.
 
 Lines to classify:
