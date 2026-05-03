@@ -393,7 +393,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             f"Do not use target language spelling to describe the sound."
         )
 
-    min_pages = 5 if is_alphabet_topic else 4
+    min_pages = 4 if is_alphabet_topic else 3
     primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
     
     prompt = f"""
@@ -410,8 +410,8 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     4. QUALITY: Avoid obvious or silly distractors.
     5. LEVEL: Match {level} difficulty.
     6. REQUIREMENT: You MUST generate AT LEAST {min_pages} high-quality pages. 
-       - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 5+ pages.
-       - For others: Provide depth, context, and varied examples across 4+ pages.
+       - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 4+ pages.
+       - For others: Provide depth, context, and varied examples across 3+ pages.
     7. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
     8. Return ONLY JSON:
     {{

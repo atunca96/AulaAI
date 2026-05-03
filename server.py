@@ -1507,7 +1507,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             pages = content.get("pages", []) if isinstance(content, dict) else []
             is_alphabet = any(x in topic.get("title", "").lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "sound", "phonetic"])
             
-            target_min = 5 if is_alphabet else 4
+            target_min = 4 if is_alphabet else 3
             needs_regen = False
             
             if not pages:
