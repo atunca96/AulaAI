@@ -1847,34 +1847,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
 
-            result = []
-            for q in questions:
-                q_dict = dict(q)
-                
-                # Parse distractors if they are JSON strings
-                dist = q_dict.get("distractors", [])
-                if isinstance(dist, str):
-                    try: dist = json.loads(dist)
-                    except: dist = []
-                
-                if not isinstance(dist, list): dist = []
-                q_dict["distractors"] = dist
-
-                # --- V5 UNIFIED OPTIONS ASSEMBLY ---
-                # Ensure options field exists and is shuffled for the frontend
-                ans = q_dict.get("answer", "")
-                opts = [ans] + dist
-                import random as py_r
-                py_r.shuffle(opts)
-                q_dict["options"] = opts
-                
-                # Keep everything else (id, prompt, translation, etc.)
-                result.append(q_dict)
+            # ── V5 UNIFIED PASS-THROUGH (MIRROR ACTIVITY LOGIC) ──
+            # We trust generate_quiz (which uses Gemini 2.5 V5) completely.
+            final_questions = questions[:count]
 
             with db_connection() as db:
                 db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 
-                           (json.dumps(result, ensure_ascii=False), course_id))
+                           (json.dumps(final_questions, ensure_ascii=False), course_id))
                 db.commit()
+            
+            print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
                 
         except Exception as e:
             file_log(f"BG Draft Error: {e}")
