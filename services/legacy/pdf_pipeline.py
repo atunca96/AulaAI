@@ -361,8 +361,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         topic_count = 0
         
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
-            """Wrapper to generate lesson and questions sequentially but with better logging."""
-            from services.ai_engine import generate_full_lesson, ai_generate_questions
+            """Wrapper to generate ONLY lesson material. Questions are generated fresh on-demand."""
+            from services.ai_engine import generate_full_lesson
             def step_up(label):
                 try:
                     with db_connection() as db:
@@ -372,27 +372,17 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 except Exception as e:
                     _log(f"Topic '{t_title}': {label} progress update FAILED: {e}")
 
-            _log(f"Topic '{t_title}': Starting enrichment...")
+            _log(f"Topic '{t_title}': Building Lesson...")
             
-            # 1. Generate Lesson
+            # Generate Lesson (5 pages for depth)
             lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text)
             pages = lesson.get("pages", [])
             content = {"pages": pages}
-            step_up("Lesson")
-
-            # 2. Generate Questions
-            questions = []
-            try:
-                questions = ai_generate_questions(
-                    t_title, t_type, content, language, 
-                    count=5, level=level, is_pdf_source=True, source_text_override=source_text
-                )
-            except Exception as e:
-                _log(f"Topic '{t_title}': Question generation failed: {e}")
-                
-            step_up("Questions")
             
-            return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
+            # Record completion
+            step_up("Lesson")
+            
+            return {"content": content, "questions": [], "t_id": t_id, "t_title": t_title}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             # Map each future to its metadata

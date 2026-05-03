@@ -475,8 +475,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             """, (course_id,))
             
             # Reset is_building flag to trigger worker
-            # We multiply by 2 because each topic performs 2 steps: Lesson + Questions
-            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = (SELECT COUNT(*) * 2 FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id=?)) WHERE id = ?", (course_id, course_id))
+            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = (SELECT COUNT(*) FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id=?)) WHERE id = ?", (course_id, course_id))
             db.commit()
 
         # Start the background worker
