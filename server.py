@@ -1471,7 +1471,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # ── V3 ACTIVITY ENGINE (STRICT HAIKU 3.0) ──
+            # ── V4 ACTIVITY ENGINE (GEMINI 2.0 FLASH) ──
             count = 10
             
             class ProgressState:
@@ -1483,27 +1483,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 2.5) if elapsed < 29 else 94
+                    p = 20 + (elapsed * 3) if elapsed < 25 else 94
                     update_prog(int(min(p, 94)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(20)
 
-            def _fetch_batch():
-                from services.ai_engine import ai_generate_activity_batch
-                # Strictly Haiku 3.0 as requested
-                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="anthropic/claude-3-haiku")
-
             raw_activities = []
             try:
-                # 30s Hard Limit for Fresh Generation
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(_fetch_batch)
-                    batch = future.result(timeout=30)
-                    if batch: raw_activities = batch
+                from services.ai_engine import ai_generate_activity_batch
+                # Zero-Filter Gemini 2.5 Strategy
+                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="google/gemini-2.5-flash")
+                if batch: raw_activities = batch
             except Exception as e:
-                print(f"[BG] Activity V3 Failed: {e}")
+                print(f"[BG] Activity V4 Failed: {e}")
             
             state.is_done = True
 

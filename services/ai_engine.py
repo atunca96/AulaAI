@@ -160,35 +160,34 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
     translation_field = '"translation": "...", ' if is_beginner else ""
 
-    system = f"""You are an Elite Curriculum Auditor for {language}.
-    Your goal is to generate high-accuracy, material-strictly pedagogical questions.
+    system = f"""You are the {language} Pedagogic Engine (V5). 
+    Your mission is to generate 10 PERFECT questions based ONLY on the provided source material using the Gemini 2.5 High-Fidelity Protocol.
     
-    CRITICAL LAWS:
-    1. SOURCE FIDELITY: Only use vocabulary, grammar, and facts present in the SOURCE MATERIAL. 
-    2. HOMOGENEITY: All 4 options (answer + distractors) MUST be in the same category. 
-       - If the answer is a Noun, all distractors MUST be Nouns.
-       - If the answer is a Sentence, all distractors MUST be Sentences of similar length.
-    3. NO TRIVIAL CLUES: The 'answer' string must NOT appear inside the 'prompt' text.
-    4. ACCURACY: Ensure logic is 100% correct for {language} (e.g., alphabet order, grammar rules).
-    5. JSON ONLY: Output a raw JSON object. No preamble, no markdown."""
+    PEDAGOGIC PROTOCOL:
+    1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
+    2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure:
+       - Same part of speech (e.g., all nouns, or all verbs).
+       - Same complexity (e.g., all 1-word or all full sentences).
+    3. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
+    4. VARIETY: Do not repeat any distractors across the set of 10 questions.
+    5. ACCURACY: Logic must be 100% correct for {language}.
+    
+    RESPONSE FORMAT:
+    Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
 
-    user = f"""TASK: Generate {request_count} unique questions for: {topic_title} ({topic_type}).
+    # ... (rest of user prompt remains the same as established in V4)
+    user = f"""TASK: Generate EXACTLY {count} unique {topic_type} questions.
+    TOPIC: {topic_title}
     LEVEL: {level}
     SOURCE MATERIAL: {content_str}
     
-    REQUIREMENTS:
-    - Language: Everything except 'why' and 'translation' MUST be in {language}.
-    - Distractor Variety: Do not reuse the same distractors across different questions.
-    - Randomness: Vary the types of questions (fill-in-the-blank, situational, etc.).
-    - Translation: Every prompt MUST have an English translation.
-    
-    RESPONSE FORMAT (JSON ONLY):
+    JSON STRUCTURE:
     {{
       "data": [
         {{
           "type": "mcq",
           "prompt": "...",
-          "translation": "English translation of the prompt",
+          "translation": "English translation",
           "answer": "...",
           "distractors": ["...", "...", "..."],
           "why": "English explanation"
@@ -200,72 +199,48 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     user += f"\n\nSEED: {seed}"
     
     try:
-        # HAIKU 3.0 TUNING: Low temperature for high precision
-        target_model = model_override if model_override else "anthropic/claude-3-haiku"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2500, temperature=0.3)
+        # GEMINI 2.5 FLASH TUNING: Ultra-high precision
+        target_model = model_override if model_override else "google/gemini-2.5-flash"
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.2)
+        
+        raw_list = []
         if isinstance(res, list):
             raw_list = res
         else:
             raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
-        is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters", "pronunciation", "phonetic"])
-
-        def _validate_question(item, seen_answers, seen_distractors):
-            if not isinstance(item, dict): return None
-            ans = str(item.get("answer", "")).strip()
-            prompt_text = str(item.get("prompt", "")).strip()
-            distractors = item.get("distractors", [])
-            
-            if not ans or not prompt_text:
-                return None
-            
-            # Answer should not be in prompt
-            if ans.lower() in prompt_text.lower():
-                return None
-
-            ans_key = re.sub(r'[^\w]', '', ans.lower()).strip()
-            if not ans_key: return None
-            
-            # Global Variety check
-            if not is_alphabet_topic and ans_key in seen_answers:
-                return None
-
-            clean_dist = []
-            if isinstance(distractors, list):
-                for d in distractors:
-                    d_str = str(d).strip()
-                    if d_str and d_str.lower() != ans.lower():
-                        # STRICT: No distractor repetition across the batch
-                        d_key = re.sub(r'[^\w]', '', d_str.lower()).strip()
-                        if d_key not in seen_distractors:
-                            clean_dist.append(d_str)
-            
-            if len(clean_dist) < 3:
-                return None
-
-            return {
-                "id": _uid(), "type": "mcq", "prompt": prompt_text, 
-                "answer": ans, "distractors": clean_dist[:3],
-                "translation": item.get("translation")
-            }
-
+        # ── V4 ZERO-FILTER CATASTROPHE GUARD ──
+        # We trust Gemini 2.0 Flash to follow the pedagogy. 
+        # We only check for missing keys to prevent UI crashes.
         final = []
-        seen_answers = set()
-        seen_distractors = set()
-        
-        for item in raw_list:
-            valid = _validate_question(item, seen_answers, seen_distractors)
-            if valid:
-                opts = [valid["answer"]] + valid["distractors"]
+        for item in raw_list[:count]:
+            if not isinstance(item, dict): continue
+            
+            p = str(item.get("prompt", "")).strip()
+            a = str(item.get("answer", "")).strip()
+            d = item.get("distractors", [])
+            
+            if p and a and len(d) >= 3:
+                # Basic shuffle and assembly
+                opts = [a] + [str(x).strip() for x in d[:3]]
                 py_random.shuffle(opts)
-                valid["options"] = opts
-                final.append(valid)
-                seen_answers.add(re.sub(r'[^\w]', '', valid["answer"].lower()).strip())
-                # Add used distractors to the forbidden set
-                for d in valid["distractors"]:
-                    seen_distractors.add(re.sub(r'[^\w]', '', d.lower()).strip())
                 
-                if len(final) >= c: break
+                final.append({
+                    "id": _uid(),
+                    "type": "mcq",
+                    "prompt": p,
+                    "translation": item.get("translation", ""),
+                    "answer": a,
+                    "options": opts,
+                    "why": item.get("why", "Correct answer based on the material.")
+                })
+        
+        if not final:
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] Gemini 2.0 returned no valid questions for {topic_title}\n")
+            return []
+            
+        return final
 
         if not final:
             with open("pipeline.log", "a", encoding="utf-8") as f:
