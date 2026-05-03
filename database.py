@@ -363,10 +363,17 @@ def init_db():
         
         # ALWAYS ensure the primary lecturer has the correct password on start
         import hashlib
+        # Primary Lecturer
         hashed_pwd = hashlib.sha256(("ALper2002@" + "AulaAI_Salt").encode('utf-8')).hexdigest()
         lecturer_id = "lecturer-demo-id"
         c.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
                   (lecturer_id, "Alper Tunca", "atunca96@gmail.com", hashed_pwd, "lecturer"))
+        
+        # Secondary Lecturer (Ela)
+        hashed_pwd_ela = hashlib.sha256(("auladersela" + "AulaAI_Salt").encode('utf-8')).hexdigest()
+        c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
+                  (str(uuid.uuid4()), "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
+        
         db.commit()
 
         # Run demo course seeding ONLY if the DB is actually empty
