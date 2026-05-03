@@ -323,10 +323,21 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': 
     # ── MANDATORY ALPHABET FOR A1 ROADMAPS ──
     if level.upper().startswith("A1"):
         # 1. Remove duplicates (including phonetics, vowels, etc. which are now merged into Unit 1)
-        keywords = ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound", "alfabeto", "alfabe"]
+        keywords = ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound", "alfabeto", "alfabe", "letters"]
+        
+        filtered_chapters = []
         for ch in chapters:
+            # Check if the CHAPTER TITLE itself is an alphabet unit
+            if any(kw in ch.get("title", "").lower() for kw in keywords):
+                continue
+            
             if "topics" in ch:
+                # Remove alphabet topics from other units
                 ch["topics"] = [t for t in ch["topics"] if not any(kw in t.get("title", "").lower() for kw in keywords)]
+            
+            # Only keep chapters that still have content
+            if ch.get("topics"):
+                filtered_chapters.append(ch)
         
         # 2. Inject Unit 1 with comprehensive topics
         alphabet_unit = {
@@ -338,14 +349,15 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': 
                 {"title": "Pronunciation and Phonetics", "type": "grammar"}
             ]
         }
-        chapters.insert(0, alphabet_unit)
+        filtered_chapters.insert(0, alphabet_unit)
         
-        # 3. Re-index
-        for i, ch in enumerate(chapters):
+        # 3. Re-index and Clean Titles
+        for i, ch in enumerate(filtered_chapters):
             ch["number"] = i + 1
             if i > 0 and "title" in ch:
-                import re
                 ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
+        
+        chapters = filtered_chapters
     
     return chapters
 
