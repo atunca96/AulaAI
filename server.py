@@ -1648,89 +1648,89 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return
 
                 # ── Post-process & validate (High Speed) ──
-            final_fresh = []
-            file_log(f"Validating {len(raw_activities)} activities for '{topic['title']}'...")
+                final_fresh = []
+                file_log(f"Validating {len(raw_activities)} activities for '{topic['title']}'...")
             
-            for act in raw_activities:
-                if not act or not isinstance(act, dict): continue
-                
-                ans = str(act.get("answer", "")).strip()
-                distractors = act.get("distractors", [])
-                if not isinstance(distractors, list): distractors = []
-                
-                # Syntactic validation
-                ans_words = ans.split()
-                if len(ans_words) >= 3 and "alphabet" not in topic.get("title", "").lower():
-                    has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
-                    if has_lazy: continue
-                
-                # SCRIPT CONSISTENCY GUARD: Reject if options mix different alphabets (e.g. Latin vs Cyrillic)
-                import re
-                all_opts = [ans] + distractors
-                has_cyrillic = any(re.search(r'[а-яА-ЯёЁ]', str(o)) for o in all_opts)
-                has_latin = any(re.search(r'[a-zA-Z]', str(o)) for o in all_opts)
-                if has_cyrillic and has_latin:
-                    # EXEMPTION: Alphabet topics often mix scripts for phonetic explanation (e.g. 'Ц' sounds like 'ts')
-                    if "alphabet" not in topic.get("title", "").lower():
-                        file_log(f"REJECTED: Script inconsistency in {all_opts}")
-                        continue 
+                for act in raw_activities:
+                    if not act or not isinstance(act, dict): continue
+                    
+                    ans = str(act.get("answer", "")).strip()
+                    distractors = act.get("distractors", [])
+                    if not isinstance(distractors, list): distractors = []
+                    
+                    # Syntactic validation
+                    ans_words = ans.split()
+                    if len(ans_words) >= 3 and "alphabet" not in topic.get("title", "").lower():
+                        has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
+                        if has_lazy: continue
+                    
+                    # SCRIPT CONSISTENCY GUARD: Reject if options mix different alphabets (e.g. Latin vs Cyrillic)
+                    import re
+                    all_opts = [ans] + distractors
+                    has_cyrillic = any(re.search(r'[а-яА-ЯёЁ]', str(o)) for o in all_opts)
+                    has_latin = any(re.search(r'[a-zA-Z]', str(o)) for o in all_opts)
+                    if has_cyrillic and has_latin:
+                        # EXEMPTION: Alphabet topics often mix scripts for phonetic explanation (e.g. 'Ц' sounds like 'ts')
+                        if "alphabet" not in topic.get("title", "").lower():
+                            file_log(f"REJECTED: Script inconsistency in {all_opts}")
+                            continue 
 
-                # MCQ Normalization
-                atype = act.get("type", "mcq")
-                if atype == 'mcq':
-                    dist = [d for d in distractors if str(d).strip().lower() != str(ans).strip().lower()]
-                    ans, dist_clean = normalize_mcq_punctuation(ans, dist[:3])
-                    act["answer"] = ans
-                    act["distractors"] = dist_clean
-                    opts = [ans] + dist_clean
-                    py_random.shuffle(opts)
-                    act["options"] = opts
-                    if not act.get("options") or not act.get("prompt"): continue
+                    # MCQ Normalization
+                    atype = act.get("type", "mcq")
+                    if atype == 'mcq':
+                        dist = [d for d in distractors if str(d).strip().lower() != str(ans).strip().lower()]
+                        ans, dist_clean = normalize_mcq_punctuation(ans, dist[:3])
+                        act["answer"] = ans
+                        act["distractors"] = dist_clean
+                        opts = [ans] + dist_clean
+                        py_random.shuffle(opts)
+                        act["options"] = opts
+                        if not act.get("options") or not act.get("prompt"): continue
 
-                # Dialogue Normalization
-                if atype == 'dialogue_order':
-                    if not act.get("scrambled_lines") and act.get("lines"):
-                        act["scrambled_lines"] = act.get("lines")
-                    if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list): continue
-                    if not act.get("correct_order"):
-                        if act.get("answer"):
-                            if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
-                                lines = act.get("scrambled_lines", [])
-                                act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
+                    # Dialogue Normalization
+                    if atype == 'dialogue_order':
+                        if not act.get("scrambled_lines") and act.get("lines"):
+                            act["scrambled_lines"] = act.get("lines")
+                        if not act.get("scrambled_lines") or not isinstance(act["scrambled_lines"], list): continue
+                        if not act.get("correct_order"):
+                            if act.get("answer"):
+                                if isinstance(act["answer"], list) and len(act["answer"]) > 0 and isinstance(act["answer"][0], int):
+                                    lines = act.get("scrambled_lines", [])
+                                    act["correct_order"] = [lines[i] for i in act["answer"] if i < len(lines)]
+                                else:
+                                    act["correct_order"] = act.get("answer")
                             else:
-                                act["correct_order"] = act.get("answer")
-                        else:
-                            act["correct_order"] = act.get("scrambled_lines")
-                
-                act["id"] = _uid()
-                act["prompt"] = scrub(act.get("prompt", ""))
-                act["answer"] = scrub(act.get("answer", ""))
-                if "distractors" in act and isinstance(act["distractors"], list):
-                    act["distractors"] = [scrub(d) for d in act["distractors"]]
+                                act["correct_order"] = act.get("scrambled_lines")
+                    
+                    act["id"] = _uid()
+                    act["prompt"] = scrub(act.get("prompt", ""))
+                    act["answer"] = scrub(act.get("answer", ""))
+                    if "distractors" in act and isinstance(act["distractors"], list):
+                        act["distractors"] = [scrub(d) for d in act["distractors"]]
 
-                # Dedup only within this batch (not against DB — we WANT fresh questions)
-                ans_key = re.sub(r'[^\w]', '', act["answer"].lower()).strip()
-                batch_keys = {re.sub(r'[^\w]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_fresh}
-                if False: continue
+                    # Dedup only within this batch (not against DB — we WANT fresh questions)
+                    ans_key = re.sub(r'[^\w]', '', act["answer"].lower()).strip()
+                    batch_keys = {re.sub(r'[^\w]', '', str(fa.get('answer', '')).lower()).strip() for fa in final_fresh}
+                    if False: continue
+                    
+                    final_fresh.append(act)
                 
-                final_fresh.append(act)
-            
-            # ── Serve fresh questions directly (ephemeral, not saved to DB) ──
-            selected = final_fresh[:count]
-            file_log(f"Serving {len(selected)} questions for topic '{topic['title']}' (Target was {count})")
-            
-            # ATOMIC UPDATE: Prevent race condition where UI sees 'done' before results are saved
-            with db_connection() as db:
-                db.execute("""
-                    UPDATE courses 
-                    SET activity_status='done', 
-                        activity_progress=100, 
-                        activity_result=? 
-                    WHERE id=?
-                """, (json.dumps(selected, ensure_ascii=False), course_id))
-                db.commit()
-            
-            file_log(f"Atomic update complete for course {course_id}. Status: done, Results: {len(selected)}")
+                # ── Serve fresh questions directly (ephemeral, not saved to DB) ──
+                selected = final_fresh[:count]
+                file_log(f"Serving {len(selected)} questions for topic '{topic['title']}' (Target was {count})")
+                
+                # ATOMIC UPDATE: Prevent race condition where UI sees 'done' before results are saved
+                with db_connection() as db:
+                    db.execute("""
+                        UPDATE courses 
+                        SET activity_status='done', 
+                            activity_progress=100, 
+                            activity_result=? 
+                        WHERE id=?
+                    """, (json.dumps(selected, ensure_ascii=False), course_id))
+                    db.commit()
+                
+                file_log(f"Atomic update complete for course {course_id}. Status: done, Results: {len(selected)}")
                 
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"
