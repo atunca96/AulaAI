@@ -13,6 +13,14 @@ def heartbeat():
         time.sleep(30)
 
 def main():
+    # Load environment variables for worker stability
+    if os.path.exists(".env"):
+        with open(".env", "r") as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v
+
     # Start heartbeat in background
     h_thread = threading.Thread(target=heartbeat, daemon=True)
     h_thread.start()

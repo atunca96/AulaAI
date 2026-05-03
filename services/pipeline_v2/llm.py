@@ -7,9 +7,17 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Manual .env loader for local and worker stability
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                os.environ[k] = v
+
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = "anthropic/claude-3-haiku"
-FALLBACK_MODEL = "openai/gpt-4o-mini"
+CHEAP_MODEL = "openai/gpt-4o-mini" # Switching default to GPT-4o Mini for better stability
+FALLBACK_MODEL = "anthropic/claude-3-haiku"
 
 CACHE_NAMESPACE = "pipeline_v2_v4"
 
