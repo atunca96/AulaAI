@@ -526,13 +526,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             if not is_building:
                 percentage = 100
+            elif progress == 0:
+                # Fresh start, absolute 0
+                percentage = 0
             elif total <= 0:
-                # PLANNING PHASE: Show 15% to signal 'thinking' rather than 0%
+                # PLANNING PHASE (Working but haven't counted topics yet)
                 percentage = 15
             else:
-                # BUILDING PHASE: Start at 15% minimum and climb from there
+                # BUILDING PHASE
                 raw_pct = int((progress / total) * 100)
-                # We use max(15, ...) so it never snaps back to 0 when topics are first counted
                 percentage = min(99, max(15, raw_pct))
 
             return self._send_json({
@@ -1445,6 +1447,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         import time
         import concurrent.futures
         import threading
+        # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
+        with db_connection() as db:
+            db.execute("UPDATE courses SET activity_progress=0, activity_status='generating', activity_result=NULL WHERE id=?", (course_id,))
+            db.commit()
         try:
             def update_prog(p, status='generating'):
                 if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
@@ -1793,6 +1799,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_json({"status": "success"})
 
     def _bg_generate_draft(self, course_id, topic_ids, count):
+        # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
+        with db_connection() as db:
+            db.execute("UPDATE courses SET draft_progress=0, draft_status='generating', draft_result=NULL WHERE id=?", (course_id,))
+            db.commit()
         try:
             from services.content_engine import generate_quiz
             
