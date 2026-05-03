@@ -361,7 +361,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         topic_count = 0
         
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
-            """Wrapper to ensure questions are generated FROM the textbook content."""
+            """Wrapper to generate lesson and questions in parallel for speed."""
             from services.ai_engine import generate_full_lesson, ai_generate_questions
             def step_up():
                 try:
@@ -370,25 +370,23 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                         db.commit()
                 except: pass
 
-            # 1. Generate Textbook Content
-            lesson = generate_full_lesson(t_title, t_type, language, 6, level, source_text=source_text)
+            # SPEED HACK: Generate Lesson and Questions in parallel using the same source context
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as topic_exec:
+                f_lesson = topic_exec.submit(generate_full_lesson, t_title, t_type, language, 5, level, source_text=source_text)
+                
+                # We can't pass 'content' yet, but we have 'source_text' which is the ground truth
+                # ai_generate_questions will use the textbook context directly
+                f_questions = topic_exec.submit(ai_generate_questions, t_title, t_type, {"pages": []}, language, count=5, level=level, is_pdf_source=True, source_text_override=source_text)
+                
+                lesson = f_lesson.result()
+                questions = f_questions.result()
+
             pages = lesson.get("pages", [])
             content = {"pages": pages}
             
-            step_up() # Progress marker for Lesson
-            
-            # 2. Generate a small starter set of questions in the background
-            questions = []
-            try:
-                if pages:
-                    # Generate 5 high-quality questions based on the new lesson content
-                    questions = ai_generate_questions(
-                        t_title, t_type, content, language, 
-                        count=5, level=level, is_pdf_source=True
-                    )
-            except: pass
-            
-            step_up() # Progress marker for Questions
+            # Progress markers for both sub-tasks
+            step_up() 
+            step_up()
             
             return {"content": content, "questions": questions, "t_id": t_id, "t_title": t_title}
 

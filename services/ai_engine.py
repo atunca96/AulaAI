@@ -137,7 +137,7 @@ def get_language_profile(language):
     if language in agglutinative: return "agglutinative"
     return "inflected"
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', use_quality=True, existing_questions=None, is_pdf_source=False, is_quiz=False):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None):
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
@@ -150,7 +150,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         instruction_lang = language
     else:
         instruction_lang = "English" if is_beginner else language
-    content_str = json.dumps(topic_content, ensure_ascii=False)
+    
+    # Use override if provided (for speed during build), else use topic_content
+    if source_text_override:
+        content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:10000]}"
+    else:
+        content_str = json.dumps(topic_content, ensure_ascii=False)
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt
     is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
@@ -171,6 +176,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 
     system = f"""You are a master {language} teacher and expert curriculum designer. 
     STRICT IDENTITY: You always provide structured, pedagogical content without any conversational filler, intro, or outro. 
+    EXPLANATION RULE: All 'why' fields MUST be in English.
     OUTPUT RULE: Your response must be EXCLUSIVELY a valid JSON object. No markdown code blocks unless requested, no preamble."""
 
     user = f"""TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
