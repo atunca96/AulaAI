@@ -1326,7 +1326,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     q_dict["distractors"] = dist
                     # Build the options field for the UI
                     opts = [q_dict["answer"]] + dist
-                    random.shuffle(opts)
+                    py_random.shuffle(opts)
                     q_dict["options"] = opts
                 except Exception:
                     q_dict["distractors"] = []
@@ -1492,6 +1492,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             # ── ALWAYS generate fresh questions via AI ──
             # No forbidden pool — rely on random seed + temperature for variety each press
+            import re
+            import random as py_random
             print(f"[BG] Topic '{topic['title']}': Generating FRESH questions")
             file_log(f"Fresh generation for {topic['title']}")
             
@@ -1500,6 +1502,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
             
+            # ── ON-THE-FLY ENRICHMENT ──
+            # If content is empty (common in V2 pipelines), we must enrich it before generating questions
+            if not content or (isinstance(content, dict) and not content.get("pages") and not content.get("words")):
+                file_log(f"Topic content for '{topic['title']}' is empty. Generating context on-the-fly...")
+                try:
+                    from services.ai_engine import generate_full_lesson
+                    # Generate a quick 6-page context lesson
+                    lesson = generate_full_lesson(topic["title"], topic_type, language, count=6, level=topic.get("difficulty", "A1"))
+                    content = {"pages": lesson.get("pages", [])}
+                    
+                    # Persist this enrichment so it's only done once
+                    with db_connection() as db_up:
+                        db_up.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(content, ensure_ascii=False), topic_id))
+                        db_up.commit()
+                    file_log(f"On-the-fly enrichment successful for '{topic['title']}'")
+                except Exception as e:
+                    file_log(f"On-the-fly enrichment FAILED for '{topic['title']}': {e}")
+                    # Continue with empty content — ai_generate_questions might still work via title fallback
+
             # PDF Detection: If topic has a pdf_url, it's a PDF classroom topic
             is_pdf_classroom = bool(topic.get("pdf_url"))
             if is_pdf_classroom:
@@ -1585,7 +1606,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
                 # Syntactic validation
                 ans_words = ans.split()
-                if len(ans_words) >= 3:
+                if len(ans_words) >= 3 and "alphabet" not in topic.get("title", "").lower():
                     has_lazy = any(len(str(d).split()) <= 1 for d in distractors)
                     if has_lazy: continue
 
@@ -1759,7 +1780,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         q_dict["distractors"] = dist
                         # Build options for UI
                         opts = [q_dict["answer"]] + dist
-                        random.shuffle(opts)
+                        py_random.shuffle(opts)
                         q_dict["options"] = opts
                     except Exception:
                         q_dict["distractors"] = []
