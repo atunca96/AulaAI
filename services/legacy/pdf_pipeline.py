@@ -361,30 +361,33 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         topic_count = 0
         
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
-            """Wrapper to generate ONLY lesson material. Questions are generated fresh on-demand."""
+            """Wrapper to generate ONLY lesson material. Optimized for 1-2 minute total build."""
             from services.ai_engine import generate_full_lesson
+            import time as py_time
+            
+            t_start = py_time.time()
             def step_up(label):
                 try:
+                    elapsed = round(py_time.time() - t_start, 1)
                     with db_connection() as db:
                         db.execute("UPDATE courses SET progress = progress + 1 WHERE id = ?", (course_id,))
                         db.commit()
-                    _log(f"Topic '{t_title}': {label} DONE.")
+                    _log(f"Topic '{t_title}': {label} DONE in {elapsed}s.")
                 except Exception as e:
                     _log(f"Topic '{t_title}': {label} progress update FAILED: {e}")
 
             _log(f"Topic '{t_title}': Building Lesson...")
             
-            # Generate Lesson (5 pages for depth)
-            lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text)
+            # SPEED OPTIMIZATION: Generate 3 high-quality pages initially instead of 5
+            lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
             pages = lesson.get("pages", [])
             content = {"pages": pages}
             
-            # Record completion
             step_up("Lesson")
-            
             return {"content": content, "questions": [], "t_id": t_id, "t_title": t_title}
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # Increase parallelism to 15 workers for better throughput
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
             # Map each future to its metadata
             future_to_topic = {}
             # Context Surgery Helper: Extract relevant pages from source markdown
