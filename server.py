@@ -524,18 +524,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             progress = row["progress"] or 0
             total = row["total_steps"] or 0
             
-            if not is_building:
-                percentage = 100
-            elif progress == 0:
-                # Fresh start, absolute 0
-                percentage = 0
-            elif total <= 0:
-                # PLANNING PHASE (Working but haven't counted topics yet)
-                percentage = 15
+            if total <= 0:
+                if is_building:
+                    # PLANNING PHASE (analyzing curriculum)
+                    percentage = 15
+                else:
+                    # IDLE / NOT STARTED
+                    percentage = 0 if progress == 0 else int(progress)
             else:
                 # BUILDING PHASE
                 raw_pct = int((progress / total) * 100)
-                percentage = min(99, max(15, raw_pct))
+                if is_building:
+                    # Clamp at 99 while still building
+                    percentage = min(99, max(15, raw_pct))
+                else:
+                    # Finished
+                    percentage = 100 if raw_pct >= 95 else raw_pct
 
             return self._send_json({
                 "course_id": course_id,
