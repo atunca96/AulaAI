@@ -1512,7 +1512,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             if not pages:
                 needs_regen = True
-            elif len(pages) < target_min:
+            else:
+                # Check if any page is functionally empty (missing items, text, or list)
+                for p in pages:
+                    has_data = p.get('items') or p.get('text') or p.get('list') or p.get('content') or p.get('vocabulary') or p.get('examples')
+                    if not has_data:
+                        file_log(f"Topic '{topic['title']}' has an empty page. Regenerating...")
+                        needs_regen = True
+                        break
+            
+            if not needs_regen and len(pages) < target_min:
                 file_log(f"Topic '{topic['title']}' has only {len(pages)} pages. Target is {target_min}. Regenerating...")
                 needs_regen = True
 
