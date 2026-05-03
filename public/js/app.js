@@ -2249,7 +2249,7 @@ function switchTab(btn, skipLoad = false) {
     } else if (currentUser.role === 'student') {
       const allowedTabs = ['s-home', 's-messages'];
       if (!allowedTabs.includes(tabId)) {
-        showAlert(t('info'), t('class.building_student_msg') || 'Classroom is being prepared. Please check back in a few minutes.', false);
+        triggerStudentBuildingFocus();
         return;
       }
     }
@@ -2305,6 +2305,23 @@ function triggerBuildingFocus() {
     setTimeout(() => {
       banner.classList.remove('glow-active');
       if (whisper) whisper.classList.remove('visible');
+    }, 1000);
+  }, 300);
+}
+
+function triggerStudentBuildingFocus() {
+  const banner = document.getElementById('student-building-banner');
+  if (!banner) return;
+
+  // Trigger animations
+  banner.classList.remove('hidden');
+  banner.classList.add('shake-active', 'glow-active');
+
+  // Clean up after 1s
+  setTimeout(() => {
+    banner.classList.remove('shake-active');
+    setTimeout(() => {
+      banner.classList.remove('glow-active');
     }, 1000);
   }, 300);
 }
