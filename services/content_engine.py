@@ -226,6 +226,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     except: q["distractors"] = []
                     if not q["distractors"]: continue
                     q["chapter_id"] = topic_to_chapter.get(tid, "unknown")
+                    # Assembly options for DB questions too
+                    opts = [q.get("answer", "")] + q["distractors"]
+                    random.shuffle(opts)
+                    q["options"] = opts
                     chapter_groups[q["chapter_id"]].append(q)
 
     # 2. Balanced Assembly
@@ -290,6 +294,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     tid = q.get("topic_id") or random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
+                    # Ensure options are assembled and shuffled for the UI
+                    options = [q.get("answer", "")] + distractors
+                    random.shuffle(options)
+                    
                     db_conn.execute(
                         "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
                         (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
@@ -298,7 +306,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     questions.append({
                         "id": q_id, "topic_id": tid,
                         "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
-                        "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
+                        "answer": q.get("answer", ""), "distractors": distractors, 
+                        "options": options, "difficulty": "A1.1"
                     })
                 db_conn.commit()
             from services.state import bump_version
@@ -338,6 +347,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     tid = q.get("topic_id") or random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
+                    # Ensure options are assembled and shuffled for the UI
+                    options = [q.get("answer", "")] + distractors
+                    random.shuffle(options)
+                    
                     db_conn.execute(
                         "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
                         (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
@@ -346,7 +359,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     questions.append({
                         "id": q_id, "topic_id": tid,
                         "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
-                        "answer": q.get("answer", ""), "distractors": distractors, "difficulty": "A1.1"
+                        "answer": q.get("answer", ""), "distractors": distractors, 
+                        "options": options, "difficulty": "A1.1"
                     })
                 db_conn.commit()
             from services.state import bump_version
