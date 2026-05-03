@@ -438,13 +438,13 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
 def ai_explain_word(word, language, context=None):
     prompt = f"Explain '{word}' in {language}. Context: {context}. JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"
-    return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=400)
+    return _call_ai([{"role": "user", "content": prompt}], model="google/gemini-2.5-flash", max_tokens=400)
 
 def ai_explain_activity(prompt, correct_answer, student_answer, language):
     clean_lang = language.split('(')[0].strip()
     system = f"You are a helpful {clean_lang} teacher. STRICT RULE: Your response MUST be in English. Do NOT use {clean_lang} for the explanation text."
     user = f"A student got a {clean_lang} question wrong. Explain the mistake and the correct logic in English.\nQ: {prompt}\nCorrect Answer: {correct_answer}\nStudent Answer: {student_answer}\n\nReturn JSON: {{'explanation': '...'}}"
-    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=250)
+    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model="google/gemini-2.5-flash", max_tokens=250)
 
 def _get_blueprint_path(language, level):
     cache_dir = os.path.join("services", "blueprints")
