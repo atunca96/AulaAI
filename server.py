@@ -841,6 +841,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         with db_connection() as db:
             if course_id:
+                # OWNERSHIP CHECK: Ensure the lecturer owns this classroom
+                if not self._verify_course_ownership(db, course_id):
+                    return self._send_error("Forbidden: You do not own this classroom", 403)
+
                 # CLASSROOM SPECIFIC RESET
                 db.execute("DELETE FROM responses WHERE question_id IN (SELECT id FROM questions WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)))", (course_id,))
                 db.execute("DELETE FROM mastery_scores WHERE topic_id IN (SELECT id FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?))", (course_id,))
@@ -851,10 +855,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("DELETE FROM enrollments WHERE course_id = ?", (course_id,))
                 db.execute("DELETE FROM messages WHERE course_id = ?", (course_id,))
                 db.execute("DELETE FROM weekly_reports WHERE course_id = ?", (course_id,))
-                db.execute("DELETE FROM sessions")
+                db.execute("DELETE FROM sessions WHERE course_id = ?", (course_id,))
             else:
                 # GLOBAL RESET DISABLED FOR SAFETY
-                print("[SAFETY] Global reset attempt blocked.")
                 return self._send_error("Global reset is disabled to prevent data loss.", 403)
 
             db.commit()
