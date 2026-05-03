@@ -44,19 +44,38 @@ def extract_text_pdfplumber(pdf_path: str, page_limit: int = None) -> List[str]:
 
 def process_text(lines: List[str]) -> dict:
     """
-    Core extraction logic using strict one-shot LLM generator.
+    Iterative extraction logic to handle large/dense PDFs without overwhelming the LLM.
     """
     if not lines:
         return {"units": []}
 
-    # Semantic pre-cleaning
     cleaned_lines = clean_lines(lines)
-    full_text = "\n".join(cleaned_lines)
     
+    # Split into chunks of ~100 lines (roughly 10 pages)
+    line_chunks = chunk_lines(cleaned_lines, size=100)
+    
+    final_curriculum = {"units": [], "qa_report": {"issues": [], "fixes_applied": []}}
     from .llm import extract_curriculum
-    curriculum = extract_curriculum(full_text)
     
-    return curriculum
+    for i, chunk in enumerate(line_chunks, 1):
+        logger.info(f"Processing chunk {i}/{len(line_chunks)}")
+        chunk_text = "\n".join(chunk)
+        chunk_data = extract_curriculum(chunk_text)
+        
+        # Merge units
+        if "units" in chunk_data:
+            for new_unit in chunk_data["units"]:
+                # Check if we should merge with the last unit or create a new one
+                if final_curriculum["units"] and final_curriculum["units"][-1]["title"] == new_unit.get("title"):
+                    # Merge topics if it's the same unit title
+                    seen_topics = {t["text"] for t in final_curriculum["units"][-1]["topics"]}
+                    for t in new_unit.get("topics", []):
+                        if t["text"] not in seen_topics:
+                            final_curriculum["units"][-1]["topics"].append(t)
+                else:
+                    final_curriculum["units"].append(new_unit)
+                    
+    return final_curriculum
 
 def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
     # 1. Generate file hash

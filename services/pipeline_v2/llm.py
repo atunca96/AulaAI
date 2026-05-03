@@ -60,7 +60,7 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=45
+                timeout=90
             )
             if response.status_code != 200:
                 logger.error(f"OpenRouter Error {response.status_code}: {response.text}")
