@@ -163,7 +163,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     4. TRICKY DISTRACTORS: Ensure distractors are plausible and related to the topic, making the answer NOT 'obvious'.
     5. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
     6. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
-    7. LANGUAGE MEDIUM: For A1-A2 levels, the 'prompt' (the question/scenario) MUST be in English. Only the 'answer' and 'distractors' should be in {language}.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
@@ -177,7 +176,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question.
     MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
-    STRICT ENGLISH PROMPT: Since this is {level}, you MUST write the 'prompt' field in English. The 'answer' and 'distractors' must be in {language}.
     
     JSON STRUCTURE:
     {{
@@ -192,6 +190,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         }}
       ]
     }}"""
+    
+    if is_quiz and is_beginner:
+        user += f"\n\nSTRICT ENGLISH PROMPT RULE: This is a QUIZ for {level} beginners. You MUST write the 'prompt' field in English. The 'answer' and 'distractors' MUST be in {language}."
+    else:
+        user += f"\n\nLANGUAGE MEDIUM: Write the 'prompt' field in {language} to immerse the student."
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure Gemini never repeats
     seed = int(time.time() * 1000) % 999999
