@@ -132,12 +132,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     c = int(count)
     request_count = c + 5 # Small buffer for validation fallout
-    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
-    
-    if is_pdf_source or is_quiz:
-        instruction_lang = language
-    else:
-        instruction_lang = "English" if is_beginner else language
+    # IMMERSION POLICY: Always use target language for prompts, even for A1/A2
+    instruction_lang = language
     
     # Use override if provided (for speed during build), else use topic_content
     if source_text_override:
