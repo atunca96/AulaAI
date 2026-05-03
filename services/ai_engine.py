@@ -397,33 +397,32 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         source_rule = "NO SOURCE TEXT: Use your internal knowledge."
 
     # ── ALPHABET & SPECIAL CHARACTER REINFORCEMENT ──
+    # Refined Alphabet Guard: Only force the full list for the PRIMARY alphabet topic.
+    is_primary_alphabet = any(x == topic.lower().strip() for x in ["the alphabet", "alphabet", "alfabeto", "alfabe"])
+    is_sub_alphabet = not is_primary_alphabet and any(x in topic.lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "letter"])
+    
+    alphabet_rule = ""
     ref_data = ""
-    if is_alphabet_topic:
-        ref_data = get_reference_prompt(language)
-        # FORCE EXPLANATIONS FOR ALPHABET
-        ref_data += (
-            f"\nSTRICT RULE: The FIRST page (index 0) MUST contain the ENTIRE alphabet list provided in the REFERENCE DATA. "
-            f"Do NOT split the alphabet across multiple pages; the first page must be a complete master reference. "
-            f"\nINSTRUCTION: The alphabet alone is not enough. You MUST include at least one 'grammar' or 'text' page "
-            f"explaining the pronunciation rules, phonetic nuances, and how {language} sounds differ from English. "
-            f"PRONUNCIATION RULE: When explaining sounds, ALWAYS use English phonetics and English word approximations "
-            f"(e.g., for Turkish 'ş', explain it sounds like 'sh' as in 'sheep', NOT 'şe'). "
-            f"Do NOT use target language spellings to describe sounds; use English-speaker-friendly approximations."
-        )
-    elif any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
-        ref_data = get_special_chars_prompt(language)
-        ref_data += (
-            f"\nPRONUNCIATION RULE: Explain how these marks affect sound using English phonetics (e.g., 'sounds like the e in bed'). "
-            f"Do not use target language spelling to describe the sound."
-        )
+    if is_primary_alphabet:
+        alphabet_list = get_reference_prompt(language)
+        alphabet_rule = f"\nSTRICT RULE: The FIRST page of this lesson MUST include the following complete list of characters for {language} to serve as the master reference:\n{alphabet_list}\n"
+    elif is_sub_alphabet:
+        alphabet_rule = f"\nCONTEXT: The user has already seen the full alphabet list in the previous topic. DO NOT provide a full character list here. Focus EXCLUSIVELY on the {topic} nuances."
 
-    min_pages = 4 if is_alphabet_topic else 3
+    if any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
+        ref_data = get_special_chars_prompt(language)
+        ref_data += f"\nPRONUNCIATION RULE: Explain how these marks affect sound using English phonetics."
+
+    min_pages = 4 if (is_primary_alphabet or is_sub_alphabet) else 3
+
     system = f"""You are a master {language} pedagogical designer. 
-    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons for {language} learners. 
+    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons.
+    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation). Focus on depth for the specific topic.
     NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
     {source_rule}
+    {alphabet_rule}
     {ref_data}
 
     TECHNICAL SPECS:
