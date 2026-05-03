@@ -1639,14 +1639,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             
                 finally:
                     state.is_done = True
-                    ticker_thread.join(timeout=1.0)
-                
-                update_prog(95)
-            except Exception as e:
-                file_log(f"Error during batched generation: {e}")
-                raise e
+                    # FORCE PROGRESS: Signal we are moving to save phase
+                    update_prog(95)
+                    
+                # ── QUICK SAVE ──
+                if not raw_activities:
+                    update_prog(100, status='idle')
+                    return
 
-            # ── Post-process & validate fresh questions ──
+                # ── Post-process & validate (High Speed) ──
             final_fresh = []
             file_log(f"Validating {len(raw_activities)} activities for '{topic['title']}'...")
             
