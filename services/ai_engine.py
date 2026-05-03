@@ -114,6 +114,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                 
                 if "error" in res_json:
                     last_error = res_json["error"].get("message", "API Error")
+                    print(f"[AI-DEBUG-ERROR] {target_model}: {last_error}")
                     with open("pipeline.log", "a", encoding="utf-8") as f:
                         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-ERROR] {target_model}: {last_error}\n")
                         

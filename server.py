@@ -1636,7 +1636,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 has_cyrillic = any(re.search(r'[а-яА-ЯёЁ]', str(o)) for o in all_opts)
                 has_latin = any(re.search(r'[a-zA-Z]', str(o)) for o in all_opts)
                 if has_cyrillic and has_latin:
-                    continue # Bad question: correct answer is usually distinct by script
+                    # EXEMPTION: Alphabet topics often mix scripts for phonetic explanation (e.g. 'Ц' sounds like 'ts')
+                    if "alphabet" not in topic.get("title", "").lower():
+                        continue 
 
                 # MCQ Normalization
                 atype = act.get("type", "mcq")
