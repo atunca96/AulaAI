@@ -102,10 +102,37 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                     t_text = topic.get("text", "Untitled Topic")
                     t_tag = topic.get("tag", "vocabulary")
                     
+                    # ── PRE-ENRICH ALPHABET TOPIC ──
+                    t_content = {}
+                    if t_text == "The Alphabet":
+                        from services.language_data import ALPHABETS
+                        lang_key = next((k for k in ALPHABETS.keys() if k.lower() in language.lower()), None)
+                        if lang_key:
+                            logger.info(f"[ALPHABET] Pre-enriching '{t_text}' with static data for {lang_key}")
+                            data = ALPHABETS[lang_key]
+                            items = []
+                            if "items" in data:
+                                items = data["items"]
+                            elif "sets" in data:
+                                # Flatten sets (e.g. for Chinese/Japanese)
+                                for s in data["sets"]:
+                                    items.extend(s.get("items", []))
+                            
+                            t_content = {
+                                "pages": [
+                                    {
+                                        "type": "vocabulary",
+                                        "title": f"The {lang_key} Alphabet",
+                                        "items": items
+                                    }
+                                ],
+                                "pre_enriched": True # Flag for Phase 2 to skip
+                            }
+
                     # We use a default difficulty and empty content as V2 focus is structure
                     db.execute(
                         "INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
+                        (topic_id, chapter_id, t_tag, t_text, level, json.dumps(t_content), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
                     )
             
             # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)

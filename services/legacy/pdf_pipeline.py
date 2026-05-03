@@ -371,9 +371,17 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 except: pass
 
             # 1. Generate Textbook Content
-            lesson = generate_full_lesson(t_title, t_type, language, 6, level, source_text=source_text)
-            pages = lesson.get("pages", [])
-            content = {"pages": pages}
+            with db_connection() as db:
+                row = db.execute("SELECT content FROM topics WHERE id = ?", (t_id,)).fetchone()
+                existing_content = json.loads(row[0]) if (row and row[0]) else {}
+
+            if existing_content.get("pre_enriched"):
+                _log(f"Topic '{t_title}' is pre-enriched. Using existing content.")
+                content = existing_content
+            else:
+                lesson = generate_full_lesson(t_title, t_type, language, 6, level, source_text=source_text)
+                pages = lesson.get("pages", [])
+                content = {"pages": pages}
             
             step_up() # Progress marker for Lesson
             
