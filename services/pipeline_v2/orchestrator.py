@@ -44,32 +44,34 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
         
         # ── MANDATORY ALPHABET FOR A1 ──
         if level.upper().startswith("A1"):
-            logger.info(f"A1 Level detected. Ensuring mandatory Alphabet lesson for {language}.")
-            # 1. Remove any existing Alphabet topics from all units to avoid duplicates
-            if "units" in curriculum:
-                for unit in curriculum["units"]:
-                    unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
+            logger.info(f"[ALPHABET] A1 Level detected for Course {course_id}. Prepending mandatory Alphabet unit.")
+            # 1. Ensure we have a dict with a 'units' list
+            if not isinstance(curriculum, dict):
+                curriculum = {"units": []}
+            if "units" not in curriculum:
+                curriculum["units"] = []
+                
+            # 2. Remove any existing Alphabet topics from all units to avoid duplicates
+            for unit in curriculum["units"]:
+                unit["topics"] = [t for t in unit.get("topics", []) if "alphabet" not in t.get("text", "").lower()]
             
-            # 2. Create the dedicated Alphabet Unit
+            # 3. Create the dedicated Alphabet Unit
             alphabet_unit = {
                 "title": "Unit 1: Alphabet and Foundations",
                 "topics": [
                     {
-                        "text": "Alphabet and Pronunciation",
+                        "text": "The Alphabet", # Manually requested name
                         "tag": "phonetics",
                         "confidence": 1.0
                     }
                 ]
             }
             
-            # 3. Prepend to curriculum and ensure no empty units were left behind
-            if not curriculum.get("units"):
-                curriculum["units"] = [alphabet_unit]
-            else:
-                # Insert at the very beginning
-                curriculum["units"].insert(0, alphabet_unit)
-                # Cleanup: remove any units that are now empty (except our new one)
-                curriculum["units"] = [u for i, u in enumerate(curriculum["units"]) if i == 0 or u.get("topics")]
+            # 4. Prepend to curriculum and ensure no empty units were left behind
+            curriculum["units"].insert(0, alphabet_unit)
+            # Cleanup: remove any units that are now empty (except our new one at index 0)
+            curriculum["units"] = [u for i, u in enumerate(curriculum["units"]) if i == 0 or u.get("topics")]
+            logger.info(f"[ALPHABET] Injection complete. Unit 1 is now: {curriculum['units'][0]['title']}")
 
         # 2. Populate the Database
         with db_connection() as db:

@@ -610,10 +610,11 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         json.dump(manual_toc_data, f)
         
     # Spawn worker to handle curriculum creation and enrichment
-    _log(f"Spawning AI Architect worker: Course {course_id}")
+    _log(f"Spawning AI Architect worker: Course {course_id} (Level: {level})")
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file]
+    # Args: 0:worker.py, 1:pdf_path, 2:toc_range, 3:lecturer_id, 4:course_id, 5:course_name, 6:manual_toc_file, 7:source_markdown, 8:language, 9:level
+    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file, "NONE", language, level]
     
     log_file = open("pipeline.log", "a", encoding="utf-8")
     try:
