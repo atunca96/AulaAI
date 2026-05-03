@@ -413,7 +413,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
        - For alphabet topics: Focus on pronunciation, vowel/consonant charts, and character examples across 4+ pages.
        - For others: Provide depth, context, and varied examples across 3+ pages.
     7. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
-    8. Return ONLY JSON:
+    8. Return ONLY JSON with this EXACT structure (Every page MUST contain content):
     {{
       "pages": [
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
@@ -421,6 +421,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "...", "text": "..." }} ] }}
       ]
     }}
+    STRICT RULE: Do NOT leave pages empty. Every page must have one of: 'items' (array), 'text' (string), or 'list' (array).
     """
     return _call_ai([{"role": "user", "content": prompt}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4) or {"pages": []}
 

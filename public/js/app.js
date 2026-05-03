@@ -4678,7 +4678,17 @@ function showStudyTopic(topicId, pageIdx = 0) {
           icon: icon,
           render: () => {
             // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)
-            const rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
+            let rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
+            
+            // CATCH-ALL: If rawData is empty, look for any array in the object
+            if (!Array.isArray(rawData) || rawData.length === 0) {
+              for (const key in p) {
+                if (Array.isArray(p[key]) && p[key].length > 0) {
+                  rawData = p[key];
+                  break;
+                }
+              }
+            }
 
             // A. If it's an array of strings (Alphabet/Simple Lists)
             if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'string') {
@@ -4718,6 +4728,17 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
             // C. If it's a string (Grammar or Intro)
             let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
+            
+            // CATCH-ALL: If text is empty, look for any long string in the object
+            if (!text) {
+              for (const key in p) {
+                if (typeof p[key] === 'string' && p[key].length > 15 && key !== 'title' && key !== 'type') {
+                  text = p[key];
+                  break;
+                }
+              }
+            }
+
             if (text) {
               if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
               return `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
