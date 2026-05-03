@@ -165,8 +165,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
-    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if (is_beginner and not is_quiz) else ""
-    translation_field = '"translation": "...", ' if (is_beginner and not is_quiz) else ""
+    translation_rule = '12. TRANSLATION: Add a "translation" field containing the English translation of the prompt.' if is_beginner else ""
+    translation_field = '"translation": "...", ' if is_beginner else ""
 
     prompt = f"""You are a master {language} teacher known for extremely creative, engaging, and pedagogical questions.
 TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
@@ -174,6 +174,7 @@ LEVEL: {level}
 SOURCE MATERIAL: {content_str}
 {ref_data}
 {forbidden_clause}
+{"\nSIMPLICITY RULE: Since this is for a beginner (A1/A2), keep the prompts and scenarios EXTREMELY simple. Use high-frequency vocabulary and straightforward sentence structures. Do NOT use complex grammar that hasn't been taught yet." if is_beginner else ""}
 
 CREATIVITY GUIDELINES:
 1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a market in Madrid...', 'Your friend Elena says...').
