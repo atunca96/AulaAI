@@ -1471,8 +1471,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # ── HYBRID REDUNDANT POLICY ──
-            # (Race DeepSeek against Claude 3.5 Haiku - First success wins)
+            # ── V3 ACTIVITY ENGINE (STRICT HAIKU 3.0) ──
             count = 10
             
             class ProgressState:
@@ -1484,53 +1483,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 while not state.is_done:
                     time.sleep(1)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 1.5) if elapsed < 50 else 94
+                    p = 20 + (elapsed * 2.5) if elapsed < 29 else 94
                     update_prog(int(min(p, 94)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(20)
 
-            def _fetch_batch(model_override=None):
+            def _fetch_batch():
                 from services.ai_engine import ai_generate_activity_batch
-                m_label = model_override if model_override else "DeepSeek"
-                
-                # IRONCLAD RETRY LOOP (Up to 3 Attempts)
-                for attempt in range(3):
-                    try:
-                        batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=model_override)
-                        if batch and len(batch) >= 5:
-                            print(f"[BG] Success for {m_label} on attempt {attempt+1}")
-                            return batch
-                    except Exception as e:
-                        print(f"[BG] Attempt {attempt+1} failed for {m_label}: {e}")
-                    
-                    if attempt < 2: time.sleep(1) # Small pause before retry
-                return []
+                # Strictly Haiku 3.0 as requested
+                return ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="anthropic/claude-3-haiku")
 
             raw_activities = []
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
-            # Parallel Race with internal retries
-            futures = {
-                executor.submit(_fetch_batch, None): "DeepSeek",
-                executor.submit(_fetch_batch, "anthropic/claude-3-haiku"): "Claude-3-Haiku"
-            }
-            
             try:
-                # 90s patience for the absolute result
-                for future in concurrent.futures.as_completed(futures, timeout=90):
-                    m_name = futures[future]
-                    try:
-                        batch = future.result()
-                        if batch and len(batch) >= 5:
-                            raw_activities.extend(batch)
-                            print(f"[BG] Activity generation WON by {m_name} (Unified).")
-                            break
-                    except Exception as e:
-                        print(f"[BG] Redundancy Shot ({m_name}) failed: {e}")
-            except concurrent.futures.TimeoutError:
-                print(f"[BG] AI timed out at 90s for {course_id}. Absolute failure.")
+                # 30s Hard Limit for Fresh Generation
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_fetch_batch)
+                    batch = future.result(timeout=30)
+                    if batch: raw_activities = batch
+            except Exception as e:
+                print(f"[BG] Activity V3 Failed: {e}")
             
-            executor.shutdown(wait=False)
             state.is_done = True
 
             # Use ONLY fresh activities
