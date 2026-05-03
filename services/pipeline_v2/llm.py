@@ -16,8 +16,8 @@ if os.path.exists(".env"):
                 os.environ[k] = v
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = "openai/gpt-4o-mini" # Switching default to GPT-4o Mini for better stability
-FALLBACK_MODEL = "anthropic/claude-3-haiku"
+CHEAP_MODEL = "anthropic/claude-3.5-haiku"
+FALLBACK_MODEL = "anthropic/claude-3.5-haiku"
 
 CACHE_NAMESPACE = "pipeline_v2_v4"
 
