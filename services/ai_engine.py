@@ -151,6 +151,15 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         instruction_lang = "English" if is_beginner else language
     content_str = json.dumps(topic_content, ensure_ascii=False)
     
+    from services.language_data import get_reference_prompt, get_special_chars_prompt
+    is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
+    
+    ref_data = ""
+    if is_alphabet_topic:
+        ref_data = get_reference_prompt(language)
+    elif any(x in topic_title.lower() for x in ["accent", "character", "mark", "diacritic"]):
+        ref_data = get_special_chars_prompt(language)
+
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
@@ -163,6 +172,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
 TASK: Generate {request_count} high-quality, creative multiple-choice questions for: {topic_title} ({topic_type}).
 LEVEL: {level}
 SOURCE MATERIAL: {content_str}
+{ref_data}
+{forbidden_clause}
 
 CREATIVITY GUIDELINES:
 1. SCENARIO-BASED: Place the student in a real-world situation (e.g., 'You are at a market in Madrid...', 'Your friend Elena says...').
@@ -297,7 +308,7 @@ def ai_generate_report_insights(cohort_data):
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
-    from services.language_data import get_reference_prompt, get_special_chars_prompt
+    from services.language_data import get_reference_prompt, get_special_chars_prompt, ALPHABETS
     
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
@@ -312,16 +323,26 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     else:
         source_rule = "NO SOURCE TEXT: Use your internal knowledge."
 
+    # ── ALPHABET & SPECIAL CHARACTER REINFORCEMENT ──
+    ref_data = ""
+    if is_alphabet_topic:
+        ref_data = get_reference_prompt(language)
+    elif any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
+        ref_data = get_special_chars_prompt(language)
+
     primary_command = f"Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type})."
     
     prompt = f"""
     {primary_command}
     {source_rule}
+    {ref_data}
+
     INSTRUCTIONS:
     1. {lang_guard}
     2. SUBJECT FOCUS: The lesson must be about {language}. If teaching grammar, explain {language} rules.
     3. REQUIREMENT: 2 to 4 high-quality pages.
-    3. Return ONLY JSON:
+    4. GROUND TRUTH: If REFERENCE DATA is provided above, you MUST use those exact terms/letters for your vocabulary items. Do not invent your own.
+    5. Return ONLY JSON:
     {{
       "pages": [
         {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
