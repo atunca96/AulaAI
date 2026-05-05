@@ -77,7 +77,7 @@ def main():
                 db.commit()
             
             try:
-                # Phase 2 Only - pass source_markdown_path!
+                # FIXED: Use keyword arguments to avoid positional mismatch (source_markdown_path is 4th, gen_id is 5th)
                 enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             except Exception as e:
                 with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -139,7 +139,7 @@ def main():
             db.commit()
 
         try:
-            # FIX: Pass source_markdown_path here too!
+            # FIXED: Use keyword arguments here too!
             enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:

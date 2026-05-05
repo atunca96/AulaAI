@@ -369,10 +369,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
 
-        # ── EXECUTION ──
-        MAX_TOTAL_TOPICS = 250
-        topic_count = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        # REDUCED CONCURRENCY: Higher density lessons take more time and tokens. 
+        # Using 5 workers instead of 30 to avoid OpenRouter rate limits.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_topic = {}
             for ch in chapters_data:
                 for topic in ch.get("topics", []):
