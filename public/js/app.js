@@ -4781,7 +4781,18 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
             if (text) {
               if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
-              return `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#e2e8f0; white-space:pre-wrap;">${fixDiacritics(text)}</div>`;
+              
+              // SMARTBOARD AUTO-FORMATTER: Convert paragraphs to bullet points
+              const fixDiacriticsText = fixDiacritics(text);
+              const lines = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
+              
+              if (lines.length > 1) {
+                return `<ul class="ai-explanation" style="font-size:22px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin: 0;">
+                  ${lines.map(line => `<li style="margin-bottom: 16px;">${line.trim().replace(/^[•\-\*]\s*/, "")}</li>`).join('')}
+                </ul>`;
+              }
+              
+              return `<div dir="auto" class="ai-explanation" style="font-size:22px; line-height:1.8; color:#ffffff; white-space:pre-wrap;">${fixDiacriticsText}</div>`;
             }
 
             return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;

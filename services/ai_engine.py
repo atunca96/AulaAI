@@ -402,8 +402,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. No walls of text.
+    SMARTBOARD RULE: Lessons are taught on large smartboards. You MUST break all paragraphs into clear, scannable bullet points so students can read them from the back of a classroom. 
     EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in English.
-    FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages.
+    FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
     PHONETIC RULE: {phonetic_rule}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
