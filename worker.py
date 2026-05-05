@@ -56,9 +56,11 @@ def main():
     
     try:
         # Check if this is a REBUILD (1 argument) or a FULL PIPELINE (4+ arguments)
-        if len(sys.argv) == 2 or len(sys.argv) == 3:
+        if len(sys.argv) == 2 or len(sys.argv) == 3 or len(sys.argv) == 4:
             course_id = sys.argv[1]
-            gen_id = sys.argv[2] if len(sys.argv) == 3 else "LEGACY"
+            gen_id = sys.argv[2] if len(sys.argv) >= 3 else "LEGACY"
+            source_markdown_path = sys.argv[3] if len(sys.argv) == 4 else None
+            
             from services.legacy.pdf_pipeline import enrich_classroom_phase2
             from database import db_connection
             
@@ -75,8 +77,8 @@ def main():
                 db.commit()
             
             try:
-                # Phase 2 Only - use the correct function name!
-                enrich_classroom_phase2(course_id, pdf_path, gen_id=gen_id)
+                # Phase 2 Only - pass source_markdown_path!
+                enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             except Exception as e:
                 with open("pipeline.log", "a", encoding="utf-8") as f:
                     f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] ERROR during REGENERATE: {str(e)}\n")
@@ -137,7 +139,8 @@ def main():
             db.commit()
 
         try:
-            enrich_classroom_phase2(course_id, pdf_path, gen_id=gen_id)
+            # FIX: Pass source_markdown_path here too!
+            enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")

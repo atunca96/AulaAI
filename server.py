@@ -476,10 +476,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             force = body.get("force", False)
             if course["is_building"] and not force: return self._send_error("Course is already building")
 
-            # Delete all existing questions, topics, and chapters for this course to start fresh
+            # IDENTITY PRESERVATION: Do NOT delete chapters or topics, as Phase 2 Enrichment needs them as a skeleton.
+            # We only clear the 'content' field and existing questions to ensure a fresh, deep generation.
             db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
-            db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
-            db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
+            db.execute("UPDATE topics SET content = NULL WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             
             # Generate a new generation_id to ignore updates from zombie workers
             import uuid
@@ -507,7 +507,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         # Start the background worker
         import subprocess
         try:
-            cmd = [sys.executable, "worker.py", course_id, gen_id]
+            # TRY TO FIND SOURCE MARKDOWN: Check if a matching .md exists for the textbook
+            source_markdown_path = "NONE"
+            with db_connection() as db:
+                row = db.execute("SELECT textbook FROM courses WHERE id=?", (course_id,)).fetchone()
+                if row and row["textbook"]:
+                    # textbook is like /books/course_UID.pdf -> guess /books/course_UID_source.md
+                    potential_md = row["textbook"].replace(".pdf", "_source.md")
+                    full_path = os.path.join(BOOKS_DIR, os.path.basename(potential_md))
+                    if os.path.exists(full_path):
+                        source_markdown_path = full_path
+                        print(f"[SERVER] Found source markdown for rebuild: {source_markdown_path}")
+
+            cmd = [sys.executable, "worker.py", course_id, gen_id, source_markdown_path]
             log_file = open("pipeline.log", "a", encoding="utf-8")
             
             if sys.platform == "win32":
@@ -2578,13 +2590,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not lecturer_id:
                 return self._send_error("lecturer_id required")
                 
+            # LINKED FILE NAMING: Use a shared UID for PDF and Markdown to ensure rebuild stability
+            shared_uid = _uid()
             pdf_path = "NONE"
             if files and "pdf" in files:
                 pdf_data = files["pdf"]["content"]
-                pdf_filename = files["pdf"]["filename"]
                 
                 # Save file persistently in data/books/
-                safe_filename = f"course_{_uid()}.pdf"
+                safe_filename = f"course_{shared_uid}.pdf"
                 os.makedirs(BOOKS_DIR, exist_ok=True)
                 pdf_path = os.path.join(BOOKS_DIR, safe_filename)
                 
@@ -2595,7 +2608,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Save External Markdown if provided
             source_md_path = None
             if external_markdown:
-                safe_md_name = f"course_{_uid()}_source.md"
+                safe_md_name = f"course_{shared_uid}_source.md"
                 source_md_path = os.path.join(BOOKS_DIR, safe_md_name)
                 with open(source_md_path, "w", encoding="utf-8") as f:
                     f.write(external_markdown)
