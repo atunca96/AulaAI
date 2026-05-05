@@ -400,12 +400,12 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     )
 
     system = f"""You are a master {language} pedagogical designer. 
-    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons.
-    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization (e.g. Vowels, Pronunciation).
+    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons that are RICH in detail and EXAMPLES.
+    PEDAGOGICAL GOAL: Provide deep contextual understanding. Never stick to the surface; explain nuances and provide varied usage examples for every concept.
+    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization.
     PHONETIC RULE: {phonetic_rule}
-    SPEED PRIORITY: Be surgically concise with word choice and JSON structure.
-    JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation) to ensure maximum speed.
-    NO CONVERSATION: Provide ONLY the JSON structure. No intro, no chat, no markdown blocks."""
+    JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
+    NO CONVERSATION: Provide ONLY the JSON structure."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
     {source_rule}
@@ -415,15 +415,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     TECHNICAL SPECS:
     1. {lang_guard}
     2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in English.
-    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences.
+    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences with rich context.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. STRICT 3-PAGE CAP: You MUST generate EXACTLY 3 RICH and DENSE pages. 
-       - Page 1: Vocabulary/Foundation.
-       - Page 2: Grammar/Phonetic Deep-Dive.
-       - Page 3: Real-world Examples or Dialogue.
-       DO NOT generate 4th or 5th pages. If you have extra content, pack it into Page 3.
-    6. NO THIN PAGES: Every page must be packed with content. NEVER provide a page with only 2-3 items.
+    5. STRICT 3-PAGE CAP: You MUST generate EXACTLY 3 RICH, DENSE, and PEDAGOGICALLY DEEP pages. 
+       - Page 1: Vocabulary/Foundation. MUST contain at least 10-12 key terms with varied usage.
+       - Page 2: Grammar/Phonetic Deep-Dive. Provide nuanced explanations with at least 3-4 side-by-side comparative examples.
+       - Page 3: Real-world Examples or Dialogue. Provide a long, natural dialogue or a list of at least 8-10 diverse example sentences.
+       DO NOT generate 4th or 5th pages. Pack the density into these 3.
+    6. DENSE CONTENT ONLY: Every page must be packed. Never provide a page with only a few items. If a list is short, expand it with context or usage notes.
     7. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
+    8. PEDAGOGICAL DEPTH: Explain 'why' and 'how' in the grammar section using English. Use practical, everyday scenarios for all examples.
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
