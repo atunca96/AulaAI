@@ -376,9 +376,14 @@ def init_db():
         
         # AUTOMATED DUPLICATION: Ensure Ela has her Spanish Marmara course
         c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
-        has_course = c.execute("SELECT 1 FROM courses WHERE lecturer_id = 'ela-lecturer-id' AND name LIKE '%Spanish%'").fetchone()
         
-        if not has_course:
+        # Dynamically find Ela's ID by email (works whether we just created her or she existed before)
+        ela_row = c.execute("SELECT id FROM users WHERE email = 'ela94216@gmail.com'").fetchone()
+        if ela_row:
+            ela_id = ela_row[0]
+            has_course = c.execute("SELECT 1 FROM courses WHERE lecturer_id = ? AND name LIKE '%Spanish%'", (ela_id,)).fetchone()
+            
+            if not has_course:
             # Find the source course (Turkish A1 which we use for Spanish)
             source = c.execute("SELECT id FROM courses WHERE name LIKE '%T_rk_e A1%' OR name LIKE '%Spanish%'").fetchone()
             if source:
