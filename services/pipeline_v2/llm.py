@@ -1,7 +1,8 @@
 import os
 import json
 import hashlib
-import requests
+import urllib.request
+import urllib.error
 import logging
 from typing import List, Dict, Any
 
@@ -32,6 +33,7 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
         logger.error("OPENROUTER_API_KEY is not set!")
         return "[]"
 
+    url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -54,23 +56,11 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
                 "model": model,
                 "messages": messages
             }
-            # Add response format for JSON if supported, or rely on prompt
             
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=90
-            )
-            if response.status_code != 200:
-                logger.error(f"OpenRouter Error {response.status_code}: {response.text}")
-                response.raise_for_status()
-                
-            try:
-                data = response.json()
-            except Exception as json_e:
-                logger.error(f"Failed to parse OpenRouter JSON. Raw response: {response.text[:500]}")
-                raise json_e
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+            with urllib.request.urlopen(req, timeout=90) as response:
+                res_body = response.read().decode("utf-8")
+                data = json.loads(res_body)
 
             result = data["choices"][0]["message"]["content"]
             
