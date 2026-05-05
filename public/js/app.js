@@ -4714,7 +4714,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
         else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "💬";
 
         pages.push({
-          title: p.title || t('Material'),
+          title: p.title || (topic.title || t('Material')),
           icon: icon,
           render: () => {
             // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)

@@ -401,10 +401,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons that are RICH in detail, EXAMPLES, and EXPLANATIONS.
-    FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. Never use long paragraphs.
-    QUALITY GUARD: Never provide thin, generic, or nonsense content. Every item must be purposeful and educational.
-    PEDAGOGICAL GOAL: Provide deep contextual understanding without overwhelming the student with walls of text.
-    REDUNDANCY GUARD: No 'filler' pages. No 'nonsense' pages. No pages with only 2-3 items.
+    FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS.
+    NEGATIVE CONSTRAINT: NEVER use the word "Material" as a page title. NEVER create "filler" or "thin" pages.
+    QUALITY GUARD: Every item must be purposeful. If you have few items, combine them into one dense page.
     JSON EFFICIENCY: Return MINIFIED JSON only."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
@@ -419,9 +418,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
     5. OPTIMAL LENGTH: Generate EXACTLY 4-5 RICH and PURPOSEFUL pages.
     6. EXPLANATION ON EVERY PAGE: Every page type must include an explanatory bullet-point list.
-    7. RICHNESS MANDATE (CRITICAL): Every page MUST be packed with content. Provide at least 10 vocabulary items or 8-10 example sentences per page. NEVER provide a page with only 2-3 short items.
-    8. NO GENERIC TITLES: DO NOT use titles like "Material", "Content", "Lesson", or "Examples". Use TOPIC-SPECIFIC titles (e.g., "Daily Routines & Time" instead of "Examples").
-    9. NO FILLER: If you don't have enough content for a new page, DO NOT create one. Pack everything into fewer, richer pages.
+    7. RICHNESS MANDATE: Every page MUST be packed with content (10+ items or 8-10 examples).
+    8. NO GENERIC TITLES (STRICT): NEVER use titles like "Material", "Lesson", or "Examples". Every page title must be UNIQUE and DESCRIPTIVE (e.g., "Advanced Time Nuances").
+    9. NO FILLER: If you don't have enough content for a new page, DO NOT create one.
     10. PEDAGOGICAL DEPTH: Explain 'why' using bullets.
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
