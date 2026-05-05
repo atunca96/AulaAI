@@ -400,8 +400,9 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     )
 
     system = f"""You are a master {language} pedagogical designer. 
-    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons that are RICH in detail and EXAMPLES.
-    PEDAGOGICAL GOAL: Provide deep contextual understanding. Never stick to the surface; explain nuances and provide varied usage examples for every concept.
+    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons that are RICH in detail, EXAMPLES, and EXPLANATIONS.
+    PEDAGOGICAL GOAL: Provide deep contextual and explanatory understanding. 
+    EXPLANATORY RULE: Every single page MUST include clear, helpful explanations in English that clarify the concepts, even on vocabulary or example pages.
     REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization.
     PHONETIC RULE: {phonetic_rule}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
@@ -417,28 +418,23 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in English.
     3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences with rich context.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. STRICT 3-PAGE CAP: You MUST generate EXACTLY 3 RICH, DENSE, and PEDAGOGICALLY DEEP pages. 
-       - Page 1: Vocabulary/Foundation. MUST contain at least 10-12 key terms with varied usage.
-       - Page 2: Grammar/Phonetic Deep-Dive. Provide nuanced explanations with at least 3-4 side-by-side comparative examples.
-       - Page 3: Real-world Examples or Dialogue. Provide a long, natural dialogue or a list of at least 8-10 diverse example sentences.
-       DO NOT generate 4th or 5th pages. Pack the density into these 3.
-    6. DENSE CONTENT ONLY: Every page must be packed. Never provide a page with only a few items. If a list is short, expand it with context or usage notes.
-    7. ALPHABET SPECIAL: If this is an alphabet topic, Page 1 MUST be the complete master list.
-    8. PEDAGOGICAL DEPTH: Explain 'why' and 'how' in the grammar section using English. Use practical, everyday scenarios for all examples.
+    5. UNLIMITED DEPTH: Remove all page limits. Generate as many RICH, DENSE, and EXPLANATORY pages as needed to thoroughly cover the topic (aim for 4-6 high-quality pages).
+    6. EXPLANATION ON EVERY PAGE: Every page type (vocabulary, examples, mcq) must include an explanatory field or context to help the student understand the 'why' and 'how'.
+    7. DENSE CONTENT ONLY: Every page must be packed. Never provide a page with only a few items. If a list is short, expand it with context or usage notes.
+    8. ALPHABET SPECIAL: If this is an alphabet topic, the first page MUST be the complete master list.
+    9. PEDAGOGICAL DEPTH: Explain concepts using English. Use practical, everyday scenarios for all examples.
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
-        {{ "type": "vocabulary", "title": "...", "items": [ {{ "term": "...", "translation": "..." }} ] }},
+        {{ "type": "vocabulary", "title": "...", "explanation": "English context for this list", "items": [ {{ "term": "...", "translation": "..." }} ] }},
         {{ "type": "grammar", "title": "...", "text": "Detailed English explanation of target grammar" }},
-        {{ "type": "examples", "title": "...", "list": [ {{ "speaker": "A", "text": "Target language sentence" }}, {{ "speaker": "B", "text": "Target language response" }} ] }},
-        {{ "type": "mcq", "prompt": "...", "answer": "...", "distractors": ["...", "...", "..."] }}
+        {{ "type": "examples", "title": "...", "explanation": "English context for these examples", "list": [ {{ "speaker": "A", "text": "Target language sentence" }}, {{ "speaker": "B", "text": "Target language response" }} ] }},
+        {{ "type": "mcq", "prompt": "...", "explanation": "Why this is the correct answer", "answer": "...", "distractors": ["...", "...", "..."] }}
       ]
     }}"""
 
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
     if res and "pages" in res:
-        # MANUAL TRIM: Physically prevent more than 3 pages
-        res["pages"] = res["pages"][:3]
         return res
     return {"pages": []}
 
