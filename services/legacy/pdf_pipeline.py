@@ -15,6 +15,8 @@ from database import db_connection, _uid
 from services.state import bump_version
 from services.ai_engine import detect_language, generate_full_lesson, _call_ai
 
+MAX_TOTAL_TOPICS = 1000
+
 def file_log(msg):
     try:
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -377,6 +379,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
         # REDUCED CONCURRENCY: Higher density lessons take more time and tokens. 
         # Using 5 workers instead of 30 to avoid OpenRouter rate limits.
+        topic_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_topic = {}
             for ch in chapters_data:
