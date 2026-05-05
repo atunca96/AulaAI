@@ -2722,26 +2722,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             db.commit()
         return self._send_json({"success": True})
 
-def _cleanup_stale_classrooms():
-    """Find and reset classrooms stuck in 'building' state for too long."""
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Cleaning up stale classroom tasks...")
-    try:
-        with db_connection() as db:
-            # Any classroom with is_building=1 that is stuck.
-            # CRITICAL FIX: Only target classrooms created VERY recently but still building (Phase 1 stuck).
-            # Rebuilds of old classrooms (created > 30m ago) should NOT be reset by this logic.
-            stale_threshold = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
-            stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at > ?", (stale_threshold,)).fetchall()
-            
-            for course in stale:
-                cid = course["id"]
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Resetting stalled classroom state: {course['name']} ({cid})")
-                db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE id = ?", (cid,))
-            
-            db.commit()
-    except Exception as e:
-        print(f"[ERROR] Maintenance cleanup failed: {e}")
-
 def _cleanup_orphaned_building_flags():
     """Reset building and activity flags for tasks that were interrupted by a server restart."""
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building and activity flags...")
@@ -2766,7 +2746,6 @@ def main():
             print("[FATAL] Volume unavailable at startup after retries. Exiting to force Railway restart.")
             sys.exit(1)
         init_db()
-        _cleanup_stale_classrooms()
         _cleanup_orphaned_building_flags()
         
         server = RobustServer(("0.0.0.0", PORT), APIHandler)
