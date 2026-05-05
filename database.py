@@ -384,31 +384,31 @@ def init_db():
             has_course = c.execute("SELECT 1 FROM courses WHERE lecturer_id = ? AND name LIKE '%Spanish%'", (ela_id,)).fetchone()
             
             if not has_course:
-            # Find the source course (Turkish A1 which we use for Spanish)
-            source = c.execute("SELECT id FROM courses WHERE name LIKE '%T_rk_e A1%' OR name LIKE '%Spanish%'").fetchone()
-            if source:
-                source_id = source[0]
-                new_course_id = "ela-spanish-marmara-id"
-                
-                # Copy course
-                c.execute("INSERT OR IGNORE INTO courses (id, name, lecturer_id, code, language, level) VALUES (?, 'Spanish Marmara', 'ela-lecturer-id', 'SPMAR', 'Spanish', 'A1')", (new_course_id,))
-                
-                # Copy chapters
-                chapters = c.execute("SELECT * FROM chapters WHERE course_id = ?", (source_id,)).fetchall()
-                for ch in chapters:
-                    old_ch_id = ch[0]
-                    new_ch_id = str(uuid.uuid4())
-                    c.execute("INSERT INTO chapters (id, course_id, title, number) VALUES (?,?,?,?)",
-                              (new_ch_id, new_course_id, ch["title"], ch["number"]))
+                # Find the source course (Turkish A1 which we use for Spanish)
+                source = c.execute("SELECT id FROM courses WHERE name LIKE '%T_rk_e A1%' OR name LIKE '%Spanish%'").fetchone()
+                if source:
+                    source_id = source[0]
+                    new_course_id = "ela-spanish-marmara-id"
                     
-                    # Copy topics
-                    topics = c.execute("SELECT * FROM topics WHERE chapter_id = ?", (old_ch_id,)).fetchall()
-                    for t in topics:
-                        new_t_id = str(uuid.uuid4())
-                        c.execute("INSERT INTO topics (id, chapter_id, title, type, content, difficulty) VALUES (?,?,?,?,?,?)",
-                                  (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"]))
-                
-                print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
+                    # Copy course
+                    c.execute("INSERT OR IGNORE INTO courses (id, name, lecturer_id, code, language, level) VALUES (?, 'Spanish Marmara', ?, 'SPMAR', 'Spanish', 'A1')", (new_course_id, ela_id))
+                    
+                    # Copy chapters
+                    chapters = c.execute("SELECT * FROM chapters WHERE course_id = ?", (source_id,)).fetchall()
+                    for ch in chapters:
+                        old_ch_id = ch[0]
+                        new_ch_id = str(uuid.uuid4())
+                        c.execute("INSERT INTO chapters (id, course_id, title, number) VALUES (?,?,?,?)",
+                                  (new_ch_id, new_course_id, ch["title"], ch["number"]))
+                        
+                        # Copy topics
+                        topics = c.execute("SELECT * FROM topics WHERE chapter_id = ?", (old_ch_id,)).fetchall()
+                        for t in topics:
+                            new_t_id = str(uuid.uuid4())
+                            c.execute("INSERT INTO topics (id, chapter_id, title, type, content, difficulty) VALUES (?,?,?,?,?,?)",
+                                      (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"]))
+                    
+                    print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
         
         db.commit()
 
