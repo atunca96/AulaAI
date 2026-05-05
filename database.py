@@ -372,24 +372,38 @@ def init_db():
         # Secondary Lecturer (Ela)
         hashed_pwd_ela = hashlib.sha256(("auladersela" + "AulaAI_Salt").encode('utf-8')).hexdigest()
         c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
-                  (str(uuid.uuid4()), "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
+                  ("ela-lecturer-id", "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
         
-        # ONE-TIME MIGRATION: Move Spanish Marmara to Ela
-        # We use a persistent check to ensure this only runs once successfully
+        # AUTOMATED DUPLICATION: Ensure Ela has her Spanish Marmara course
         c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
-        done = c.execute("SELECT 1 FROM migration_history WHERE key = 'move_spanish_marmara_to_ela'").fetchone()
+        has_course = c.execute("SELECT 1 FROM courses WHERE lecturer_id = 'ela-lecturer-id' AND name LIKE '%Spanish%'").fetchone()
         
-        if not done:
-            # Find Ela's real ID (since we used uuid4() above)
-            ela_row = c.execute("SELECT id FROM users WHERE email = 'ela94216@gmail.com'").fetchone()
-            if ela_row:
-                ela_id = ela_row["id"]
-                # Look for the course (case-insensitive)
-                course = c.execute("SELECT id FROM courses WHERE name LIKE '%Spanish Marmara%' OR name LIKE '%İspanyolca Marmara%'").fetchone()
-                if course:
-                    c.execute("UPDATE courses SET lecturer_id = ? WHERE id = ?", (ela_id, course["id"]))
-                    c.execute("INSERT INTO migration_history (key) VALUES ('move_spanish_marmara_to_ela')")
-                    print(f"[MIGRATION] Successfully moved Spanish Marmara ({course['id']}) to Ela ({ela_id})")
+        if not has_course:
+            # Find the source course (Turkish A1 which we use for Spanish)
+            source = c.execute("SELECT id FROM courses WHERE name LIKE '%T_rk_e A1%' OR name LIKE '%Spanish%'").fetchone()
+            if source:
+                source_id = source[0]
+                new_course_id = "ela-spanish-marmara-id"
+                
+                # Copy course
+                c.execute("INSERT OR IGNORE INTO courses (id, name, lecturer_id, code, language, level) VALUES (?, 'Spanish Marmara', 'ela-lecturer-id', 'SPMAR', 'Spanish', 'A1')", (new_course_id,))
+                
+                # Copy chapters
+                chapters = c.execute("SELECT * FROM chapters WHERE course_id = ?", (source_id,)).fetchall()
+                for ch in chapters:
+                    old_ch_id = ch[0]
+                    new_ch_id = str(uuid.uuid4())
+                    c.execute("INSERT INTO chapters (id, course_id, title, number) VALUES (?,?,?,?)",
+                              (new_ch_id, new_course_id, ch["title"], ch["number"]))
+                    
+                    # Copy topics
+                    topics = c.execute("SELECT * FROM topics WHERE chapter_id = ?", (old_ch_id,)).fetchall()
+                    for t in topics:
+                        new_t_id = str(uuid.uuid4())
+                        c.execute("INSERT INTO topics (id, chapter_id, title, type, content, difficulty) VALUES (?,?,?,?,?,?)",
+                                  (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"]))
+                
+                print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
         
         db.commit()
 
