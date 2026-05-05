@@ -1248,7 +1248,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
 
     def _get_courses(self):
-        _cleanup_stale_classrooms()
         user_id = self._get_user_id()
         role = self._get_user_role()
         
@@ -2728,9 +2727,11 @@ def _cleanup_stale_classrooms():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Cleaning up stale classroom tasks...")
     try:
         with db_connection() as db:
-            # Any classroom with is_building=1 created more than 30 minutes ago
-            stale_threshold = (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
-            stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at < ?", (stale_threshold,)).fetchall()
+            # Any classroom with is_building=1 that is stuck.
+            # CRITICAL FIX: Only target classrooms created VERY recently but still building (Phase 1 stuck).
+            # Rebuilds of old classrooms (created > 30m ago) should NOT be reset by this logic.
+            stale_threshold = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+            stale = db.execute("SELECT id, name FROM courses WHERE is_building = 1 AND created_at > ?", (stale_threshold,)).fetchall()
             
             for course in stale:
                 cid = course["id"]
