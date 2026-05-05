@@ -401,9 +401,10 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons that are RICH in detail, EXAMPLES, and EXPLANATIONS.
-    PEDAGOGICAL GOAL: Provide deep contextual and explanatory understanding. 
-    EXPLANATORY RULE: Every single page MUST include clear, helpful explanations in English that clarify the concepts, even on vocabulary or example pages.
-    REDUNDANCY GUARD: Do not repeat basic tables or lists if the topic is a sub-specialization.
+    FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. Never use long paragraphs.
+    PEDAGOGICAL GOAL: Provide deep contextual understanding without overwhelming the student with walls of text.
+    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in English.
+    REDUNDANCY GUARD: Do not repeat basic tables or lists. No 'filler' pages.
     PHONETIC RULE: {phonetic_rule}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
     NO CONVERSATION: Provide ONLY the JSON structure."""
@@ -416,20 +417,20 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     TECHNICAL SPECS:
     1. {lang_guard}
     2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in English.
-    3. NO PLACEHOLDERS: Do not use generic sentences like "I like sports". Use specific {language} sentences with rich context.
+    3. BULLET POINTS ONLY: Format all grammar and context 'text' or 'explanation' fields as a list of bullet points. NO LONG PARAGRAPHS.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. UNLIMITED DEPTH: Remove all page limits. Generate as many RICH, DENSE, and EXPLANATORY pages as needed to thoroughly cover the topic (aim for 4-6 high-quality pages).
-    6. EXPLANATION ON EVERY PAGE: Every page type (vocabulary, examples, mcq) must include an explanatory field or context to help the student understand the 'why' and 'how'.
-    7. DENSE CONTENT ONLY: Every page must be packed. Never provide a page with only a few items. If a list is short, expand it with context or usage notes.
+    5. OPTIMAL LENGTH: Generate EXACTLY 4-5 RICH and PURPOSEFUL pages. Avoid 'nonsense' or 'filler' pages (like pages with only 2-3 items).
+    6. EXPLANATION ON EVERY PAGE: Every page type (vocabulary, examples, mcq) must include an explanatory bullet-point list to help the student.
+    7. DENSE CONTENT ONLY: Every page must be packed. If you have few items, combine them into a single dense page rather than creating extra 'thin' pages.
     8. ALPHABET SPECIAL: If this is an alphabet topic, the first page MUST be the complete master list.
-    9. PEDAGOGICAL DEPTH: Explain concepts using English. Use practical, everyday scenarios for all examples.
+    9. PEDAGOGICAL DEPTH: Use practical, everyday scenarios. Explain 'why' using bullets.
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
-        {{ "type": "vocabulary", "title": "...", "explanation": "English context for this list", "items": [ {{ "term": "...", "translation": "..." }} ] }},
-        {{ "type": "grammar", "title": "...", "text": "Detailed English explanation of target grammar" }},
-        {{ "type": "examples", "title": "...", "explanation": "English context for these examples", "list": [ {{ "speaker": "A", "text": "Target language sentence" }}, {{ "speaker": "B", "text": "Target language response" }} ] }},
-        {{ "type": "mcq", "prompt": "...", "explanation": "Why this is the correct answer", "answer": "...", "distractors": ["...", "...", "..."] }}
+        {{ "type": "vocabulary", "title": "...", "explanation": "• Bullet 1\\n• Bullet 2", "items": [ {{ "term": "...", "translation": "..." }} ] }},
+        {{ "type": "grammar", "title": "...", "text": "• Rule 1\\n• Rule 2\\n• Example 1" }},
+        {{ "type": "examples", "title": "...", "explanation": "• Context 1\\n• Context 2", "list": [ {{ "speaker": "A", "text": "Target language sentence" }}, {{ "speaker": "B", "text": "Target language response" }} ] }},
+        {{ "type": "mcq", "prompt": "...", "explanation": "• Logic 1", "answer": "...", "distractors": ["...", "...", "..."] }}
       ]
     }}"""
 
