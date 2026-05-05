@@ -1,8 +1,14 @@
 import sys
+import os
 import traceback
 import threading
 import time
-import os
+
+# CRITICAL: Ensure project root is in path for imports before anything else
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from services.pipeline_v2.orchestrator import start_pipeline_v2
 
 def heartbeat():

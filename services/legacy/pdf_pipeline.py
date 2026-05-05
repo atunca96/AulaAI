@@ -324,21 +324,27 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             language = course[0] if course else "Unknown"
             level = course[1] if course and len(course) > 1 else "A1"
             
+            _log(f"Phase 2: Targeted Course={course_id}, Lang={language}, Level={level}")
+            
             chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
+            _log(f"Phase 2: DB returned {len(chapters)} chapters for this course.")
+            
             chapters_data = []
             for ch in chapters:
                 topics = db.execute("SELECT id, title, type, page_number FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch[0],)).fetchall()
+                _log(f"  - Chapter '{ch[1]}' ({ch[0]}): Found {len(topics)} topics.")
                 chapters_data.append({
                     "id": ch[0],
                     "title": ch[1],
                     "topics": [{"id": t[0], "title": t[1], "type": t[2], "page": t[3]} for t in topics]
                 })
         
-        if not chapters_data:
-            _log(f"WARNING: No chapters/topics found for {course_id}.")
+        total_topics = sum(len(c["topics"]) for c in chapters_data)
+        if total_topics == 0:
+            _log(f"WARNING: ZERO topics found for {course_id}. Build ending immediately.")
             return
 
-        _log(f"Phase 2: Starting enrichment for {len(chapters_data)} chapters...")
+        _log(f"Phase 2: Proceeding with enrichment for {total_topics} topics across {len(chapters_data)} chapters...")
         
         # ── HELPER: SURGICAL CONTEXT ──
         def get_surgical_context(page_num, full_text, topic_title=""):
