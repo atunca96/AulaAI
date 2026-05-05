@@ -445,7 +445,10 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     _log(f"Spawning worker for Classroom {course_id}")
     log_file = open("pipeline.log", "a", encoding="utf-8")
     try:
-        cmd = [sys.executable, "worker.py", pdf_path, toc_range or "0-0", str(lecturer_id), str(course_id), course_name]
+        # Calculate root relative to this file (services/legacy/pdf_pipeline.py)
+        ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        worker_path = os.path.join(ROOT_DIR, "worker.py")
+        cmd = [sys.executable, worker_path, pdf_path, toc_range or "0-0", str(lecturer_id), str(course_id), course_name]
         if manual_toc_file:
             cmd.append(manual_toc_file)
         else:
