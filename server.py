@@ -519,7 +519,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         source_markdown_path = full_path
                         print(f"[SERVER] Found source markdown for rebuild: {source_markdown_path}")
 
-            cmd = [sys.executable, "worker.py", course_id, gen_id, source_markdown_path]
+            worker_path = os.path.join(ROOT_DIR, "worker.py")
+            cmd = [sys.executable, worker_path, course_id, gen_id, source_markdown_path]
             log_file = open("pipeline.log", "a", encoding="utf-8")
             
             if sys.platform == "win32":

@@ -28,10 +28,13 @@ def main():
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Process started with args: {sys.argv}\n")
     
-    # SINGLETON ENFORCEMENT: Kill any old workers for this course
+    # SINGLETON ENFORCEMENT: Identify course_id for all modes
     course_id = None
-    if len(sys.argv) == 2: course_id = sys.argv[1]
-    elif len(sys.argv) >= 5: course_id = sys.argv[4]
+    if len(sys.argv) >= 2:
+        if len(sys.argv) < 5:
+            course_id = sys.argv[1] # REGENERATE mode
+        else:
+            course_id = sys.argv[4] # FULL PIPELINE mode
 
     if course_id:
         pid_file = os.path.join("data", "workers", f"{course_id}.pid")
@@ -41,25 +44,30 @@ def main():
             try:
                 with open(pid_file, "r") as f:
                     old_pid = int(f.read().strip())
-                import signal
-                if sys.platform == "win32":
-                    import subprocess
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(old_pid)], capture_output=True)
-                else:
-                    os.kill(old_pid, signal.SIGTERM)
-                with open("pipeline.log", "a", encoding="utf-8") as f:
-                    f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Terminated stale worker {old_pid} for course {course_id}\n")
+                if old_pid != os.getpid():
+                    import signal
+                    if sys.platform == "win32":
+                        import subprocess
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(old_pid)], capture_output=True)
+                    else:
+                        os.kill(old_pid, signal.SIGTERM)
+                    with open("pipeline.log", "a", encoding="utf-8") as f:
+                        f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Terminated stale worker {old_pid} for course {course_id}\n")
             except: pass
             
         with open(pid_file, "w") as f:
             f.write(str(os.getpid()))
     
     try:
-        # Check if this is a REBUILD (1 argument) or a FULL PIPELINE (4+ arguments)
-        if len(sys.argv) == 2 or len(sys.argv) == 3 or len(sys.argv) == 4:
+        # ROBUST ARG PARSING
+        # Mode 1: REGENERATE (1-3 args after worker.py)
+        if 2 <= len(sys.argv) <= 4:
             course_id = sys.argv[1]
             gen_id = sys.argv[2] if len(sys.argv) >= 3 else "LEGACY"
             source_markdown_path = sys.argv[3] if len(sys.argv) == 4 else None
+            
+            if source_markdown_path == "NONE":
+                source_markdown_path = None
             
             from services.legacy.pdf_pipeline import enrich_classroom_phase2
             from database import db_connection
