@@ -5121,8 +5121,8 @@ let activeDictWord = "";
 
 // 3. Single-Click / Tap Trigger for Dictionary
 window.addEventListener('click', async (e) => {
-  // English Guard: Ignore if clicking English text or already inside a popup
-  if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation') || e.target.closest('#aula-dict-popup')) {
+  // Guard: Ignore if already inside a popup or clicking specific ignore areas
+  if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation')) {
     return;
   }
 
