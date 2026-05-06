@@ -2628,30 +2628,6 @@ async function openChat(studentId, studentName, cid) {
     }
   }
 
-async function openChat(studentId, studentName, cid) {
-  currentChatStudentId = studentId;
-  currentChatStudentName = studentName;
-  const activeCourseId = cid || currentCourse?.id;
-  currentChatCourseId = activeCourseId;
-
-  const wrapper = document.querySelector('#tab-inbox .chat-wrapper');
-  const isTabActive = document.getElementById('tab-inbox')?.classList.contains('active');
-
-  if (wrapper && isTabActive) {
-    const mobileTitle = document.getElementById('mobile-inbox-title');
-    if (mobileTitle) mobileTitle.textContent = studentName;
-
-    if (window.innerWidth <= 768) {
-      setTimeout(() => {
-        wrapper.classList.add('is-active');
-        document.documentElement.classList.add('chat-open');
-        document.body.classList.add('chat-open');
-      }, 50);
-    } else {
-      wrapper.classList.add('is-active');
-    }
-  }
-
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
   document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
@@ -5424,11 +5400,4 @@ async function askAiAboutWord() {
     console.error("AI Dict error:", err);
     meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI connection lost.</div>`;
   }
-}
-
-
-
-
-
-
 }
