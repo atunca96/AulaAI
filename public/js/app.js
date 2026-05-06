@@ -5127,7 +5127,7 @@ const handleDictTrigger = async (e) => {
   // If popup is open and we tap OUTSIDE, just close it and stop
   if (isOpen && !popup.contains(e.target)) {
     closeDict();
-    if (e.type === 'touchstart') e.preventDefault(); // Prevent ghost click
+    if (e.type === 'touchstart') e.preventDefault();
     e.stopImmediatePropagation();
     return;
   }
@@ -5138,8 +5138,8 @@ const handleDictTrigger = async (e) => {
   const pageX = e.touches ? e.touches[0].pageX : e.pageX;
   const pageY = e.touches ? e.touches[0].pageY : e.pageY;
 
-  // Guard: Ignore if already inside a popup or clicking specific ignore areas
-  if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation')) {
+  // Guard: Ignore if clicking specific ignore areas
+  if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation') || e.target.closest('button') || e.target.closest('a')) {
     return;
   }
 
@@ -5152,46 +5152,53 @@ const handleDictTrigger = async (e) => {
   
   if (trigger) {
     word = trigger.innerText.trim();
-  } else if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
-    // MAGIC WORD SNATCHER: If not clicking a specific trigger, try to find the word under the tap/click
+    // Add temporary highlight
+    trigger.classList.add('tap-highlight');
+    setTimeout(() => trigger.classList.remove('tap-highlight'), 2000);
+  } else {
+    // MAGIC WORD SNATCHER: Try to find the word under the tap
     let range, textNode, offset;
     if (document.caretRangeFromPoint) {
         range = document.caretRangeFromPoint(clientX, clientY);
-        if (range) {
-          textNode = range.startContainer;
-          offset = range.startOffset;
-        }
     } else if (document.caretPositionFromPoint) {
-        range = document.caretPositionFromPoint(clientX, clientY);
-        if (range) {
-          textNode = range.offsetNode;
-          offset = range.offset;
-        }
+        const pos = document.caretPositionFromPoint(clientX, clientY);
+        if (pos) { range = { startContainer: pos.offsetNode, startOffset: pos.offset }; }
     }
 
-    if (textNode && textNode.nodeType === 3) {
+    if (range && range.startContainer && range.startContainer.nodeType === 3) {
+        textNode = range.startContainer;
+        offset = range.startOffset;
         const text = textNode.textContent;
-        // Find start of word
+        
+        // Find boundaries with improved regex for multi-language support
         let start = offset;
-        while (start > 0 && /\w|[\u00C0-\u017F]|[\u0600-\u06FF]|[\u4e00-\u9fa5]/.test(text[start - 1])) start--;
-        // Find end of word
+        while (start > 0 && /[\w\u00C0-\u017F\u0600-\u06FF\u4e00-\u9fa5]/.test(text[start - 1])) start--;
         let end = offset;
-        while (end < text.length && /\w|[\u00C0-\u017F]|[\u0600-\u06FF]|[\u4e00-\u9fa5]/.test(text[end])) end++;
+        while (end < text.length && /[\w\u00C0-\u017F\u0600-\u06FF\u4e00-\u9fa5]/.test(text[end])) end++;
+        
         word = text.substring(start, end).trim();
-    }
-  }
 
-  // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
-  if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
-    const parent = trigger || e.target;
-    const fullText = parent.innerText || "";
-    if (fullText.toLowerCase().includes('teşekkür ederim')) {
-      word = "teşekkür ederim";
+        if (word.length > 1) {
+            // VISUAL FEEDBACK: Temporarily wrap the snatched word in a highlight span
+            const before = text.substring(0, start);
+            const after = text.substring(end);
+            const highlighted = `<span class="tap-highlight">${word}</span>`;
+            
+            // Create a temporary element to hold the HTML
+            const temp = document.createElement('span');
+            temp.innerHTML = before + highlighted + after;
+            
+            // Replace text node content temporarily (or just add the class if possible)
+            // For now, we just use haptic feedback and show the popup
+        }
     }
   }
 
   if (word && word.length > 1 && word.length < 50) {
-    // Pass a fake event with the correct coordinates for showDict
+    // Haptic Feedback (Vibration)
+    if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(15); // Subtle click feel
+    }
     showDict(word, { pageX, pageY, clientX, clientY });
   }
 };

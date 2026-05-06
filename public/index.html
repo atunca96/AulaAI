@@ -34,6 +34,19 @@
             text-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
         }
 
+        .tap-highlight {
+            background: rgba(99, 102, 241, 0.2) !important;
+            border-radius: 4px;
+            transition: background 0.3s ease;
+            animation: pulse-highlight 1.5s infinite;
+        }
+
+        @keyframes pulse-highlight {
+            0% { background: rgba(99, 102, 241, 0.1); }
+            50% { background: rgba(99, 102, 241, 0.4); }
+            100% { background: rgba(99, 102, 241, 0.1); }
+        }
+
         /* Dictionary & List Title Snaps */
         #dict-word-title, .vocab-word-title, .study-word-title {
             display: inline-block !important;
