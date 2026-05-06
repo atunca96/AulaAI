@@ -5121,6 +5121,17 @@ let activeDictWord = "";
 
 // 3. Single-Click / Tap Trigger for Dictionary
 const handleDictTrigger = async (e) => {
+  const popup = document.getElementById('aula-dict-popup');
+  const isOpen = popup && popup.style.display === 'block';
+
+  // If popup is open and we tap OUTSIDE, just close it and stop
+  if (isOpen && !popup.contains(e.target)) {
+    closeDict();
+    if (e.type === 'touchstart') e.preventDefault(); // Prevent ghost click
+    e.stopImmediatePropagation();
+    return;
+  }
+
   // Use clientX/Y from either click or touch
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -5246,7 +5257,8 @@ async function showDict(word, e) {
     const source = res.source || "AulaAI Brain";
 
     content.innerHTML = `
-            <div style="margin-bottom:16px;">
+            <div style="position:relative; margin-bottom:16px;">
+                <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
                 <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-height:1.4; margin-bottom:8px; word-break:break-word;">${word}</div>
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
             </div>
@@ -5266,9 +5278,9 @@ async function showDict(word, e) {
                 </div>
             </div>
             
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); opacity:0.6;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); opacity:0.6; margin-top:16px;">
                 <span>POWERED BY ${source.toUpperCase()}</span>
-                <span style="cursor:pointer;" onclick="activeDictWord=''; document.getElementById('aula-dict-popup').style.display='none';">CLOSE</span>
+                <span style="cursor:pointer; font-weight:800; color:var(--accent-light);" onclick="closeDict()">DISMISS</span>
             </div>
         `;
   } catch (err) {
@@ -5276,8 +5288,14 @@ async function showDict(word, e) {
     // Show silent error in popup
     loading.style.display = 'none';
     content.style.display = 'block';
-    document.getElementById('dict-word').textContent = word;
-    document.getElementById('dict-meanings').innerHTML = `<div style="color:var(--danger); font-size:12px;">Dictionary service unavailable.</div>`;
+    content.innerHTML = `
+        <div style="position:relative; text-align:center; padding:20px;">
+            <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center;">&times;</button>
+            <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
+            <div style="color:var(--danger); font-size:14px;">Dictionary service unavailable.</div>
+            <button class="btn btn-sm btn-ghost" style="margin-top:12px;" onclick="closeDict()">Close</button>
+        </div>
+    `;
   }
 }
 
