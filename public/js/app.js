@@ -5170,8 +5170,19 @@ const handleDictTrigger = async (e) => {
 
 window.addEventListener('click', handleDictTrigger);
 
-// Targeted touchstart to bypass click delay without causing ghost taps
+// Targeted touchstart for instant open AND instant close
 window.addEventListener('touchstart', (e) => {
+    const popup = document.getElementById('aula-dict-popup');
+    const isOpen = popup && popup.style.display === 'block';
+
+    // 1. If open and tapping outside -> Close INSTANTLY
+    if (isOpen && !popup.contains(e.target)) {
+        closeDict();
+        // Do not return here if you want to allow tapping a NEW word immediately
+        // But for "tap anywhere to exit", this is perfect.
+    }
+    
+    // 2. If tapping a word -> Open INSTANTLY
     if (e.target.closest('.foreign-word') || e.target.closest('#aula-dict-popup')) {
         handleDictTrigger(e);
     }
