@@ -5170,21 +5170,33 @@ const handleDictTrigger = async (e) => {
 
 window.addEventListener('click', handleDictTrigger);
 
-// Targeted touchstart for instant open AND instant close
+// Tap-Detector to distinguish between scrolling and tapping
+let touchStartX = 0;
+let touchStartY = 0;
+
 window.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    
+    // Instant Open for words
+    if (e.target.closest('.foreign-word') || e.target.closest('#aula-dict-popup')) {
+        handleDictTrigger(e);
+    }
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    
+    // Calculate distance to determine if it was a scroll or a tap
+    const distance = Math.sqrt(Math.pow(touchEndX - touchStartX, 2) + Math.pow(touchEndY - touchStartY, 2));
+    
     const popup = document.getElementById('aula-dict-popup');
     const isOpen = popup && popup.style.display === 'block';
 
-    // 1. If open and tapping outside -> Close INSTANTLY
-    if (isOpen && !popup.contains(e.target)) {
+    // If it was a stationary tap (distance < 10px) outside the popup, close it
+    if (isOpen && distance < 10 && !popup.contains(e.target)) {
         closeDict();
-        // Do not return here if you want to allow tapping a NEW word immediately
-        // But for "tap anywhere to exit", this is perfect.
-    }
-    
-    // 2. If tapping a word -> Open INSTANTLY
-    if (e.target.closest('.foreign-word') || e.target.closest('#aula-dict-popup')) {
-        handleDictTrigger(e);
     }
 }, { passive: true });
 
