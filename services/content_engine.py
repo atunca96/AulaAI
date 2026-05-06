@@ -192,10 +192,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
     from database import db_connection, get_db
     import uuid
     
-    # 1. Discovery & Initial Pull
+    # 1. Discovery
     topic_to_chapter = {}
-    chapter_groups = {} # chapter_id -> [questions from DB]
     all_chapter_ids = set()
+    forbidden_questions = []
     
     with db_connection() as db_conn:
         c = db_conn.cursor()
@@ -204,51 +204,22 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             cid = row_ch["chapter_id"] if row_ch else "unknown"
             topic_to_chapter[tid] = cid
             all_chapter_ids.add(cid)
-            if cid not in chapter_groups: chapter_groups[cid] = []
+            
+            # LIVE-ONLY: Pull the last 20 questions generated for this topic to use as a "Forbidden List"
+            # This ensures the AI doesn't repeat itself even if we don't use these questions in the quiz.
+            recent = c.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
+            for r in recent:
+                forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
         
-        print(f"[DEBUG] generate_quiz: topic_ids count={len(topic_ids)}, unique chapters identified={len(all_chapter_ids)}: {all_chapter_ids}")
-        
-        # Pull existing approved questions to fill part of the quota
-        # Skip DB pull for quizzes — existing questions may be in English (A1/A2 practice)
-        # and quizzes must be strictly in the target language.
-        if not is_quiz:
-            for tid in topic_ids:
-                rows = c.execute(
-                    "SELECT * FROM questions WHERE topic_id = ? AND approved = 1 AND type = 'mcq' ORDER BY RANDOM()",
-                    (tid,)
-                ).fetchall()
-                
-                for row in rows:
-                    q = dict(row)
-                    try:
-                        raw_dist = json.loads(q["distractors"]) if isinstance(q["distractors"], str) else q["distractors"]
-                        q["distractors"] = [d for d in raw_dist if isinstance(d, str) and d.strip()]
-                    except: q["distractors"] = []
-                    if not q["distractors"]: continue
-                    q["chapter_id"] = topic_to_chapter.get(tid, "unknown")
-                    # Assembly options for DB questions too
-                    opts = [q.get("answer", "")] + q["distractors"]
-                    random.shuffle(opts)
-                    q["options"] = opts
-                    chapter_groups[q["chapter_id"]].append(q)
+        print(f"[LIVE-ONLY] Quiz generation started. Forbidden pool size: {len(forbidden_questions)}")
 
-    # 2. Balanced Assembly
+    # 2. Skip DB recycling - Always use AI for maximum variety
     questions = []
-    # Seed one from every chapter that has questions in DB
-    shuffled_chapters = list(all_chapter_ids)
-    random.shuffle(shuffled_chapters)
-    
-    for cid in shuffled_chapters:
-        group = chapter_groups.get(cid, [])
-        if group:
-            random.shuffle(group)
-            questions.append(group.pop())
-            if len(questions) >= count: break
 
-    # 3. BIG BATCH AI Generation for remaining gaps
-    if len(questions) < count and is_ai_available():
-        needed = count - len(questions)
-        print(f"[AI] Quiz Big Batch: Requesting {needed} questions for {len(topic_ids)} topics")
+    # 3. BIG BATCH AI Generation
+    if is_ai_available():
+        needed = count
+        print(f"[AI] Live-Only Batch: Requesting {needed} fresh questions for {len(topic_ids)} topics")
         
         # Build a consolidated prompt for multiple topics
         topics_summary = []
@@ -283,7 +254,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=needed,
-            existing_questions=questions,
+            existing_questions=forbidden_questions,
             is_quiz=is_quiz
         )
         if new_qs:
@@ -335,7 +306,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=still_needed,
-            existing_questions=questions,  # forbidden list grows each pass
+            existing_questions=forbidden_questions + questions,  # forbidden list grows each pass
             is_quiz=is_quiz
         )
 

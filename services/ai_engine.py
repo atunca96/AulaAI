@@ -203,7 +203,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     try:
         # GEMINI 2.5 FLASH TUNING: High variety (0.7)
         target_model = model_override if model_override else "google/gemini-2.5-flash"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.7)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.85)
         
         raw_list = []
         if isinstance(res, list):
