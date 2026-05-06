@@ -1526,7 +1526,12 @@ async function selectClassroom(id, isLecturer = true) {
   }
 
   let bookPath = course ? course.textbook : '';
-  const isAiGenerated = course && (course.textbook === 'AI Generated' || (course.textbook || '').toUpperCase().includes('AI GENERATED'));
+  const isAiGenerated = course && (
+    course.textbook === 'AI Generated' || 
+    course.textbook === 'AI Architect' ||
+    (course.textbook || '').toUpperCase().includes('AI GENERATED') ||
+    (course.textbook || '').toUpperCase().includes('AI ARCHITECT')
+  );
 
   const pdfViewerSrc = (!isAiGenerated && bookPath && bookPath.length > 7 && bookPath.startsWith('/books/')) ? bookPath : '';
 
@@ -1549,12 +1554,6 @@ async function selectClassroom(id, isLecturer = true) {
   document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
   
   // Dynamic Tab Visibility (Hide Textbook for AI Architect)
-  const isAiGenerated = course && (
-    course.textbook === 'AI Generated' || 
-    course.textbook === 'AI Architect' ||
-    (course.textbook || '').toUpperCase().includes('AI GENERATED') ||
-    (course.textbook || '').toUpperCase().includes('AI ARCHITECT')
-  );
 
   // Select all potential textbook triggers (sidebar, topnav, mobile quick links)
   const textbookElements = document.querySelectorAll(`
