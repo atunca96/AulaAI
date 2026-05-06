@@ -1219,20 +1219,44 @@ body {
 .mobile-only { display: none; }
 .pc-only { display: flex; }
 
-@media (max-width: 768px) {
-    .pdf-container {
-        height: 60vh;
-        overflow: auto;
-        -webkit-overflow-scrolling: touch;
-        margin-top: 10px;
+@media (max-width: 1024px) {
+    /* Completely remove Read Textbook from Mobile/Tablets */
+    [data-tab="book"], [data-tab="s-book"], 
+    #l-sidebar-book-tab, #s-sidebar-book-tab,
+    #lecturer-book-tab, .pdf-container, .mobile-preview {
+        display: none !important;
     }
+
+    .study-container {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100vh !important;
+    }
+    
+    /* Study Units Sidebar (now top) */
+    .study-container > div:first-child {
+        width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border) !important;
+        max-height: 250px !important;
+        background: var(--bg-secondary) !important;
+        padding: 15px !important;
+    }
+    
+    /* Study Content Area */
+    .study-container > div:last-child {
+        width: 100% !important;
+        padding: 24px 16px !important;
+        background: var(--bg-primary) !important;
+    }
+
+    #s-ai-book-content-area, #ai-book-content-area {
+        font-size: 17px !important;
+        line-height: 1.6 !important;
+    }
+    
     .mobile-only { display: block; }
     .pc-only { display: none !important; }
-    
-    .mobile-preview {
-        padding: 20px 0;
-        animation: fadeIn 0.5s ease;
-    }
 }
 
 .new-chat-item {
