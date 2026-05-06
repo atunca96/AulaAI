@@ -5119,30 +5119,61 @@ async function adminHardReset() {
 
 let activeDictWord = "";
 
-// 3. Single-Click Trigger for Dictionary
+// 3. Single-Click / Tap Trigger for Dictionary
 window.addEventListener('click', async (e) => {
-  // English Guard: Ignore if clicking English text
-  if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation')) {
+  // English Guard: Ignore if clicking English text or already inside a popup
+  if (e.target.closest('.english-translation') || e.target.closest('.ai-explanation') || e.target.closest('#aula-dict-popup')) {
     return;
   }
 
-  let trigger = e.target.closest('.foreign-word');
-  if (!trigger) return;
+  // Only trigger if we are inside a study area
+  const studyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
+  if (!studyArea) return;
 
-  let word = trigger.innerText.trim();
+  let word = "";
+  let trigger = e.target.closest('.foreign-word');
+  
+  if (trigger) {
+    word = trigger.innerText.trim();
+  } else if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') {
+    // MAGIC WORD SNATCHER: If not clicking a specific trigger, try to find the word under the tap/click
+    let range, textNode, offset;
+    if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (range) {
+          textNode = range.startContainer;
+          offset = range.startOffset;
+        }
+    } else if (document.caretPositionFromPoint) {
+        range = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (range) {
+          textNode = range.offsetNode;
+          offset = range.offset;
+        }
+    }
+
+    if (textNode && textNode.nodeType === 3) {
+        const text = textNode.textContent;
+        // Find start of word
+        let start = offset;
+        while (start > 0 && /\w|[\u00C0-\u017F]|[\u0600-\u06FF]|[\u4e00-\u9fa5]/.test(text[start - 1])) start--;
+        // Find end of word
+        let end = offset;
+        while (end < text.length && /\w|[\u00C0-\u017F]|[\u0600-\u06FF]|[\u4e00-\u9fa5]/.test(text[end])) end++;
+        word = text.substring(start, end).trim();
+    }
+  }
 
   // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
   if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
-    const fullText = trigger.parentElement.innerText || "";
+    const parent = trigger || e.target;
+    const fullText = parent.innerText || "";
     if (fullText.toLowerCase().includes('teşekkür ederim')) {
       word = "teşekkür ederim";
     }
   }
 
-  // Only trigger if we are inside a study area
-  const isStudyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
-
-  if (word && isStudyArea && word.length > 1 && word.length < 600) {
+  if (word && word.length > 1 && word.length < 50) {
     showDict(word, e);
   }
 });
@@ -5153,17 +5184,28 @@ async function showDict(word, e) {
   const loading = document.getElementById('dict-loading');
 
   activeDictWord = word;
+  const isMobile = window.innerWidth <= 768;
 
-  // Position popup using page coordinates so it scrolls with content
+  // Show and prepare for positioning
   popup.style.display = 'block';
-  // Support dynamic width calculation up to 520px max, with 16px margins
+  popup.style.position = isMobile ? 'fixed' : 'absolute';
+  
   const popupWidth = Math.min(520, window.innerWidth - 32);
 
-  let left = e.pageX - popupWidth / 2;
-  let top = e.pageY + 20;
-
-  if (left < 16) left = 16;
-  if (left + popupWidth > window.innerWidth - 16) left = window.innerWidth - popupWidth - 16;
+  let left, top;
+  if (isMobile) {
+    // Center on mobile
+    left = (window.innerWidth - popupWidth) / 2;
+    top = Math.max(80, window.innerHeight / 2 - 200); // Higher than center for better thumb access
+  } else {
+    // Position near click on PC
+    left = e.pageX - popupWidth / 2;
+    top = e.pageY + 20;
+    
+    // Bounds check
+    if (left < 16) left = 16;
+    if (left + popupWidth > window.innerWidth - 16) left = window.innerWidth - popupWidth - 16;
+  }
 
   popup.style.left = `${left}px`;
   popup.style.top = `${top}px`;
