@@ -140,7 +140,7 @@
   --danger: #ef4444;
   --danger-bg: rgba(239,68,68,0.12);
   --info: #3b82f6;
-  --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --gradient-1: linear-gradient(135deg, #0013de, #b566ff);
   --gradient-2: linear-gradient(135deg, #3b82f6, #6366f1);
   --gradient-3: linear-gradient(135deg, #f59e0b, #ef4444);
   --radius: 12px;
@@ -274,7 +274,7 @@ body {
 .hero-content { text-align: center; z-index: 1; }
 .logo-mark { font-size: 64px; margin-bottom: 16px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)); }
 .hero-content h1 { font-size: 48px; font-weight: 800; letter-spacing: -1px; color: #fff; }
-.hero-subtitle { font-size: 18px; color: rgba(255,255,255,0.8); margin-top: 8px; }
+.hero-subtitle { font-size: 18px; color: rgba(255,255,255,0.95); margin-top: 12px; font-family: 'Outfit', sans-serif; font-weight: 900; letter-spacing: -0.2px; }
 .hero-book {
   margin-top: 24px;
   padding: 8px 20px;
