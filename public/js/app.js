@@ -2242,6 +2242,9 @@ window.addEventListener('DOMContentLoaded', () => {
       warn.textContent = t('draft.lang_warning');
       assignBtn.parentNode.appendChild(warn);
     }
+
+    // Start Real-time Messaging Sync
+    startMessagePolling();
   } catch (err) {
     console.error('INIT ERROR:', err);
     alert('Critical Initialization Error: ' + err.message);
@@ -2435,9 +2438,8 @@ async function loadStudentChat() {
   if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
-
-  if (!messages || messages.length === 0) {
-    if (container) container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
+  renderStudentChat(messages);
+}
     return;
   }
 
@@ -2581,12 +2583,95 @@ async function openChat(studentId, studentName, cid) {
   if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
   const messages = await api(`/messages?student_id=${studentId}&course_id=${activeCourseId}`);
+  renderLecturerChat(messages);
 
-  if (container) {
-    container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
-      const isMe = m.sender === 'lecturer';
-      const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
-      return `
+  messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
+    api('/message/read', { method: 'POST', body: { message_id: m.id } });
+  });
+}
+
+async function sendReply() {
+  const text = document.getElementById('reply-text').value.trim();
+  if (!text || !currentChatStudentId) return;
+  document.getElementById('reply-text').value = '';
+  await api('/message/send', {
+    method: 'POST', body: {
+      student_id: currentChatStudentId,
+      course_id: currentChatCourseId,
+      sender: 'lecturer',
+      content: text
+    }
+  });
+  syncLecturerChat();
+}
+
+// ── Message Sync Engine ──
+let messagePollingInterval = null;
+
+function startMessagePolling() {
+  if (messagePollingInterval) return;
+  messagePollingInterval = setInterval(() => {
+    // 1. If student is on message tab, refresh chat
+    const sMessageTab = document.getElementById('tab-s-messages');
+    if (sMessageTab && sMessageTab.classList.contains('active')) {
+       syncStudentChat();
+    }
+    
+    // 2. If lecturer is on inbox tab, refresh inbox or open chat
+    const lInboxTab = document.getElementById('tab-inbox');
+    if (lInboxTab && lInboxTab.classList.contains('active')) {
+       if (currentChatStudentId) {
+         syncLecturerChat();
+       } else {
+         loadInbox();
+       }
+    }
+  }, 8000);
+}
+
+async function syncStudentChat() {
+  if (!currentCourse || !currentUser) return;
+  const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
+  renderStudentChat(messages);
+}
+
+async function syncLecturerChat() {
+  if (!currentChatStudentId || !currentChatCourseId) return;
+  const messages = await api(`/messages?student_id=${currentChatStudentId}&course_id=${currentChatCourseId}`);
+  renderLecturerChat(messages);
+}
+
+function renderStudentChat(messages) {
+  const container = document.getElementById('student-chat-history');
+  if (!container) return;
+  const currentCount = container.querySelectorAll('.chat-bubble').length;
+  if (messages.length === currentCount && currentCount > 0) return;
+
+  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
+    const isMe = m.sender === 'student';
+    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
+    return `
+        <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
+             style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
+          ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
+          ${esc(m.content)}
+          <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      `;
+  }).join('') + `</div>`;
+  container.scrollTop = container.scrollHeight;
+}
+
+function renderLecturerChat(messages) {
+  const container = document.getElementById('inbox-messages');
+  if (!container) return;
+  const currentCount = container.querySelectorAll('.chat-bubble').length;
+  if (messages.length === currentCount && currentCount > 0) return;
+
+  container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
+    const isMe = m.sender === 'lecturer';
+    const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
+    return `
         <div class="chat-bubble ${isMe ? 'sent' : 'received'}"
              style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
           ${isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
@@ -2594,8 +2679,21 @@ async function openChat(studentId, studentName, cid) {
           <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       `;
-    }).join('') + `</div>`;
-    container.scrollTop = container.scrollHeight;
+  }).join('') + `</div>`;
+  container.scrollTop = container.scrollHeight;
+}
+
+  document.getElementById('inbox-back-btn').classList.remove('hidden');
+  document.getElementById('inbox-reply-area').classList.remove('hidden');
+  document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
+
+  const container = document.getElementById('inbox-messages');
+  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
+
+  const messages = await api(`/messages?student_id=${studentId}&course_id=${activeCourseId}`);
+
+  if (container) {
+    renderLecturerChat(messages);
   }
 
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
