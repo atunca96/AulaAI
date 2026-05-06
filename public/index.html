@@ -106,9 +106,9 @@
     <div id="mobile-sidebar" class="mobile-only" style="position:fixed; inset:0; z-index:10000; pointer-events:none;">
         <div id="sidebar-overlay" onclick="toggleSidebar()" style="position:absolute; inset:0; background:rgba(0,0,0,0.4); backdrop-filter:blur(4px); opacity:0; transition:opacity 0.3s ease; pointer-events:none;"></div>
         <div id="sidebar-content" style="position:absolute; top:0; left:-220px; bottom:0; width:220px; background:rgba(20, 24, 40, 0.95); backdrop-filter:blur(20px); box-shadow:15px 0 40px rgba(0,0,0,0.6); transition:transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); pointer-events:auto; display:flex; flex-direction:column; border-right:1px solid rgba(255,255,255,0.1);">
-            <div style="padding:40px 24px 24px; background:linear-gradient(135deg, #6366f1, #8b5cf6); color:#fff; position:relative; overflow:hidden;">
-                <div style="position:absolute; top:-20px; right:-20px; width:80px; height:80px; background:rgba(255,255,255,0.1); border-radius:50%;"></div>
-                <button onclick="toggleSidebar()" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.2); border:none; color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;">&times;</button>
+            <div style="padding:calc(40px + env(safe-area-inset-top, 0)) 24px 24px; background:var(--gradient-1); color:#fff; position:relative; overflow:hidden;">
+                <div style="position:absolute; top:calc(-20px + env(safe-area-inset-top, 0)); right:-20px; width:80px; height:80px; background:rgba(255,255,255,0.1); border-radius:50%;"></div>
+                <button onclick="toggleSidebar()" style="position:absolute; top:calc(12px + env(safe-area-inset-top, 0)); right:12px; background:rgba(255,255,255,0.2); border:none; color:#fff; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; z-index:10;">&times;</button>
                 <div id="sidebar-user-name" style="font-size:18px; font-weight:800; margin-bottom:2px; text-shadow:0 2px 4px rgba(0,0,0,0.2);">Guest</div>
                 <div id="sidebar-user-role" style="font-size:11px; opacity:0.9; text-transform:uppercase; letter-spacing:1.5px; font-weight:600;">Role</div>
                 <div id="sidebar-course-info" class="mobile-only" style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.15);">
