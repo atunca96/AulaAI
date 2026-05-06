@@ -5119,7 +5119,7 @@ async function adminHardReset() {
 
 let activeDictWord = "";
 
-// 3. Single-Click / Tap Trigger for Dictionary
+// 3. Single-Click Trigger for Dictionary
 const handleDictTrigger = async (e) => {
   const popup = document.getElementById('aula-dict-popup');
   const isOpen = popup && popup.style.display === 'block';
@@ -5127,18 +5127,11 @@ const handleDictTrigger = async (e) => {
   // If popup is open and we tap OUTSIDE, just close it and stop
   if (isOpen && !popup.contains(e.target)) {
     closeDict();
-    if (e.type === 'touchstart') e.preventDefault();
     e.stopImmediatePropagation();
     return;
   }
 
-  // Use clientX/Y from either click or touch
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  const pageX = e.touches ? e.touches[0].pageX : e.pageX;
-  const pageY = e.touches ? e.touches[0].pageY : e.pageY;
-
-  // Guard: Ignore if clicking specific ignore areas
+  // Guard: Ignore if already inside a popup or clicking specific ignore areas
   if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation') || e.target.closest('button') || e.target.closest('a')) {
     return;
   }
@@ -5147,69 +5140,36 @@ const handleDictTrigger = async (e) => {
   const studyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
   if (!studyArea) return;
 
-  let word = "";
+  // EXPLICIT TRIGGER ONLY: Only handle elements with .foreign-word class
   let trigger = e.target.closest('.foreign-word');
-  
-  if (trigger) {
-    word = trigger.innerText.trim();
-    // Add temporary highlight
-    trigger.classList.add('tap-highlight');
-    setTimeout(() => trigger.classList.remove('tap-highlight'), 2000);
-  } else {
-    // MAGIC WORD SNATCHER: Try to find the word under the tap
-    let range, textNode, offset;
-    if (document.caretRangeFromPoint) {
-        range = document.caretRangeFromPoint(clientX, clientY);
-    } else if (document.caretPositionFromPoint) {
-        const pos = document.caretPositionFromPoint(clientX, clientY);
-        if (pos) { range = { startContainer: pos.offsetNode, startOffset: pos.offset }; }
-    }
+  if (!trigger) return;
 
-    if (range && range.startContainer && range.startContainer.nodeType === 3) {
-        textNode = range.startContainer;
-        offset = range.startOffset;
-        const text = textNode.textContent;
-        
-        // Find boundaries with improved regex for multi-language support
-        let start = offset;
-        while (start > 0 && /[\w\u00C0-\u017F\u0600-\u06FF\u4e00-\u9fa5]/.test(text[start - 1])) start--;
-        let end = offset;
-        while (end < text.length && /[\w\u00C0-\u017F\u0600-\u06FF\u4e00-\u9fa5]/.test(text[end])) end++;
-        
-        word = text.substring(start, end).trim();
+  let word = trigger.innerText.trim();
 
-        if (word.length > 1) {
-            // VISUAL FEEDBACK: Temporarily wrap the snatched word in a highlight span
-            const before = text.substring(0, start);
-            const after = text.substring(end);
-            const highlighted = `<span class="tap-highlight">${word}</span>`;
-            
-            // Create a temporary element to hold the HTML
-            const temp = document.createElement('span');
-            temp.innerHTML = before + highlighted + after;
-            
-            // Replace text node content temporarily (or just add the class if possible)
-            // For now, we just use haptic feedback and show the popup
-        }
+  // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
+  if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
+    const fullText = trigger.innerText || trigger.parentElement.innerText || "";
+    if (fullText.toLowerCase().includes('teşekkür ederim')) {
+      word = "teşekkür ederim";
     }
   }
 
-  if (word && word.length > 1 && word.length < 50) {
+  if (word && word.length > 1 && word.length < 100) {
+    // Visual Feedback
+    trigger.classList.add('tap-highlight');
+    setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
+
     // Haptic Feedback (Vibration)
     if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate(15); // Subtle click feel
+        window.navigator.vibrate(10);
     }
-    showDict(word, { pageX, pageY, clientX, clientY });
+    
+    showDict(word, e);
   }
 };
 
 window.addEventListener('click', handleDictTrigger);
-window.addEventListener('touchstart', (e) => {
-    // Only handle if it's a single touch
-    if (e.touches.length === 1) {
-        handleDictTrigger(e);
-    }
-}, { passive: true });
+// REMOVED touchstart to prevent ghost triggers
 
 async function showDict(word, e) {
   const popup = document.getElementById('aula-dict-popup');
