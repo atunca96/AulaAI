@@ -2440,31 +2440,6 @@ async function loadStudentChat() {
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
   renderStudentChat(messages);
 }
-    return;
-  }
-
-  if (container) {
-    container.innerHTML = `<div class="chat-container" style="display:flex; flex-direction:column; gap:12px; padding:10px;">` + messages.map(m => {
-      const isMe = m.sender === 'student';
-      const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
-      return `
-        <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
-             style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
-          ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
-          ${esc(m.content)}
-          <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-        </div>
-      `;
-    }).join('') + `</div>`;
-  }
-  container.scrollTop = container.scrollHeight;
-
-  messages.filter(m => m.sender === 'lecturer' && !m.is_read).forEach(m => {
-    api('/message/read', { method: 'POST', body: { message_id: m.id } });
-  });
-
-  container.scrollTop = container.scrollHeight;
-}
 
 async function sendMessage() {
   const text = document.getElementById('message-text').value.trim();
