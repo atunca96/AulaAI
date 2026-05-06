@@ -5126,6 +5126,10 @@ const handleDictTrigger = async (e) => {
 
   // If popup is open and we tap OUTSIDE, just close it and stop
   if (isOpen && !popup.contains(e.target)) {
+    // SCROLLBAR GUARD: Don't close if clicking a scrollbar
+    const isScrollbar = e.target.clientWidth > 0 && e.offsetX > e.target.clientWidth;
+    if (isScrollbar) return;
+
     closeDict();
     e.stopImmediatePropagation();
     return;
@@ -5297,17 +5301,15 @@ async function showDict(word, e) {
 
 function closeDict() {
   const popup = document.getElementById('aula-dict-popup');
-  if (popup) popup.style.display = 'none';
+  if (popup) {
+    popup.style.display = 'none';
+    activeDictWord = "";
+    // Remove highlights
+    document.querySelectorAll('.tap-highlight').forEach(el => el.classList.remove('tap-highlight'));
+  }
 }
 
-// Close on click outside
-window.addEventListener('mousedown', (e) => {
-  const popup = document.getElementById('aula-dict-popup');
-  if (popup && popup.style.display === 'block' && !popup.contains(e.target)) {
-    closeDict();
-  }
-});
-
+// Global click/touch listener handles everything now
 async function askAiAboutWord() {
   if (!activeDictWord) return;
   const wordToAsk = activeDictWord;
