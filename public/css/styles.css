@@ -1145,12 +1145,22 @@ body {
 
 /* Mobile Login Optimization */
 @media (max-width: 768px) {
+  .login-container {
+    grid-template-columns: 1fr;
+  }
   .login-form-section {
     padding: 24px 20px;
     min-height: 100vh;
     min-height: 100dvh;
     justify-content: flex-start;
     padding-top: 40px;
+  }
+  .login-hero {
+    min-height: 30vh;
+    padding: 40px 20px;
+  }
+  .login-hero .logo-mark {
+    height: 100px !important;
   }
   .login-form-section h2 { font-size: 24px; }
   .login-hint { font-size: 14px; margin-bottom: 24px; }
