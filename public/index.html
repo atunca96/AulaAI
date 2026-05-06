@@ -58,10 +58,10 @@
         
         /* Shield for Explanations - NO selection, NO plus cursor */
         .ai-explanation, .english-translation, .ai-explanation *, .english-translation * {
-            cursor: default !important;
-            user-select: none !important;
-            -webkit-user-select: none !important;
-            pointer-events: auto !important; /* Allow clicking, but override cursor below */
+            cursor: pointer !important;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            pointer-events: auto !important; 
         }
         
         /* The "Anti-Plus" Override: No cell cursor inside the shield */

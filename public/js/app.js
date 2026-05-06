@@ -5120,7 +5120,13 @@ async function adminHardReset() {
 let activeDictWord = "";
 
 // 3. Single-Click / Tap Trigger for Dictionary
-window.addEventListener('click', async (e) => {
+const handleDictTrigger = async (e) => {
+  // Use clientX/Y from either click or touch
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const pageX = e.touches ? e.touches[0].pageX : e.pageX;
+  const pageY = e.touches ? e.touches[0].pageY : e.pageY;
+
   // Guard: Ignore if already inside a popup or clicking specific ignore areas
   if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation')) {
     return;
@@ -5139,13 +5145,13 @@ window.addEventListener('click', async (e) => {
     // MAGIC WORD SNATCHER: If not clicking a specific trigger, try to find the word under the tap/click
     let range, textNode, offset;
     if (document.caretRangeFromPoint) {
-        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        range = document.caretRangeFromPoint(clientX, clientY);
         if (range) {
           textNode = range.startContainer;
           offset = range.startOffset;
         }
     } else if (document.caretPositionFromPoint) {
-        range = document.caretPositionFromPoint(e.clientX, e.clientY);
+        range = document.caretPositionFromPoint(clientX, clientY);
         if (range) {
           textNode = range.offsetNode;
           offset = range.offset;
@@ -5174,9 +5180,18 @@ window.addEventListener('click', async (e) => {
   }
 
   if (word && word.length > 1 && word.length < 50) {
-    showDict(word, e);
+    // Pass a fake event with the correct coordinates for showDict
+    showDict(word, { pageX, pageY, clientX, clientY });
   }
-});
+};
+
+window.addEventListener('click', handleDictTrigger);
+window.addEventListener('touchstart', (e) => {
+    // Only handle if it's a single touch
+    if (e.touches.length === 1) {
+        handleDictTrigger(e);
+    }
+}, { passive: true });
 
 async function showDict(word, e) {
   const popup = document.getElementById('aula-dict-popup');
