@@ -2682,36 +2682,7 @@ async function sendReply() {
   syncLecturerChat();
 }
 
-  container.scrollTop = container.scrollHeight;
-}
 
-  document.getElementById('inbox-back-btn').classList.remove('hidden');
-  document.getElementById('inbox-reply-area').classList.remove('hidden');
-  document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
-
-  const container = document.getElementById('inbox-messages');
-  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
-
-  const messages = await api(`/messages?student_id=${studentId}&course_id=${activeCourseId}`);
-
-  if (container) {
-    renderLecturerChat(messages);
-  }
-
-  messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
-    api('/message/read', { method: 'POST', body: { message_id: m.id } });
-  });
-
-  const badge = document.getElementById('inbox-badge');
-  if (badge) {
-    const remaining = Math.max(0, parseInt(badge.textContent || '0') - messages.filter(m => m.sender === 'student' && !m.is_read).length);
-    if (remaining > 0) {
-      badge.textContent = remaining;
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-}
 
 async function sendLecturerMessage() {
   const text = document.getElementById('inbox-reply-text').value.trim();
