@@ -249,16 +249,16 @@
             <div class="login-form-section">
                 <!-- Tab switcher -->
                 <div style="display:flex;gap:10px;margin-bottom:24px;border-bottom:1px solid var(--border)">
-                    <button id="tab-lecturer" class="nav-tab active" style="flex:1" onclick="switchLoginTab('lecturer')" data-i18n="👩‍🏫 Lecturer">
-                        👩‍🏫 Öğretmen
-                    </button>
-                    <button id="tab-student" class="nav-tab" style="flex:1" onclick="switchLoginTab('student')" data-i18n="🎓 Student">
+                    <button id="tab-student" class="nav-tab active" style="flex:1" onclick="switchLoginTab('student')" data-i18n="🎓 Student">
                         🎓 Öğrenci
+                    </button>
+                    <button id="tab-lecturer" class="nav-tab" style="flex:1" onclick="switchLoginTab('lecturer')" data-i18n="👩‍🏫 Lecturer">
+                        👩‍🏫 Öğretmen
                     </button>
                 </div>
 
                 <!-- Lecturer Login -->
-                <div id="lecturer-login-panel">
+                <div id="lecturer-login-panel" style="display:none">
                     <h2 style="margin-bottom:4px" data-i18n="Lecturer Login">Lecturer Login</h2>
                     <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şifrenizle giriş yapın</p>
                     <form id="login-form" onsubmit="handleLogin(event); return false;">
@@ -280,7 +280,7 @@
                 </div>
 
                 <!-- Student Login -->
-                <div id="student-login-panel" style="display:none">
+                <div id="student-login-panel">
                     <h2 style="margin-bottom:4px" data-i18n="Student Login">Student Login</h2>
                     <p class="login-hint" style="margin-bottom:20px" data-i18n="Log in with your student number">Öğrenci numaranızla giriş yapın</p>
                     <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
