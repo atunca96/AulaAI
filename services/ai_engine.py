@@ -402,6 +402,13 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     min_pages = 5
 
     # ── PHONETIC & PEDAGOGICAL GUARDRAILS ──
+    no_english_in_lists = """
+NO ENGLISH IN LISTS (CRITICAL): 
+- NEVER include English translations as separate items in a list of strings. 
+- All items in a 'list' or 'items' array MUST be in the target language if they are strings. 
+- If you want to provide a translation, use the OBJECT format: {'term': '...', 'translation': '...'} or {'text': '...', 'meaning': '...'}. 
+- DO NOT generate: ['Word', 'Translation', 'Word2', 'Translation2']. This is incorrect. 
+- ALWAYS generate: [{'term': 'Word', 'translation': 'Translation'}, ...] or ['Word', 'Word2', ...]."""
     density_mandate = """
 CONTENT DENSITY MANDATE (CRITICAL): 
 - VOCABULARY: Minimum 10 items per vocabulary page. Cover primary, secondary, and tertiary nuances.
@@ -456,6 +463,7 @@ PEDAGOGICAL ACCURACY RULE (CRITICAL):
     CONTRAST RULE: {contrast_rule}
     SIMPLICITY RULE: {simplicity_rule}
     DENSITY MANDATE: {density_mandate}
+    NO ENGLISH IN LISTS: {no_english_in_lists}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
     NO CONVERSATION: Provide ONLY the JSON structure."""
 
