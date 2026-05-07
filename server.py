@@ -134,10 +134,10 @@ def clear_cache():
         _cache.clear()
 
 MIME_TYPES = {
-    ".html": "text/html",
-    ".css": "text/css",
-    ".js": "application/javascript",
-    ".json": "application/json",
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".svg": "image/svg+xml",
@@ -563,8 +563,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if progress <= 0:
                         percentage = 15
                     else:
-                        # Clamp at 99 while still building
-                        percentage = min(99, max(20, raw_pct))
+                        # Cap at 92 while still building (avoids the '99% stuck' visual bug)
+                        percentage = min(92, max(20, raw_pct))
                 else:
                     # Finished
                     percentage = 100 if raw_pct >= 95 else raw_pct
@@ -761,10 +761,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _is_admin(self):
         """Returns true ONLY if the current user is the system administrator."""
-        # Check current session/body email
-        body = self._read_body_silent()
-        email = body.get("email") if body else None
-        return email == 'atunca96@gmail.com'
+        user_id = self._get_user_id()
+        if not user_id: return False
+        
+        # Hardcoded primary admin check for system management
+        if user_id == 'lecturer-demo-id': return True
+        
+        with db_connection() as db:
+            row = db.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone()
+            if row and row["email"] == 'atunca96@gmail.com':
+                return True
+        return False
 
     def _read_body_silent(self):
         """Reads body without crashing if empty."""
@@ -1540,12 +1547,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             state = ProgressState()
 
             def ticker_worker():
+                import math
                 start_time = time.time()
+                # AI generates ~10 questions in ~15-30s typically
+                est_time = 25.0
                 while not state.is_done:
-                    time.sleep(1)
+                    time.sleep(0.8)
                     elapsed = time.time() - start_time
-                    p = 20 + (elapsed * 3) if elapsed < 25 else 94
-                    update_prog(int(min(p, 94)))
+                    # Asymptotic curve: smoothly approaches 90% but never exceeds it
+                    k = 2.0 / est_time
+                    p = 90 * (1 - math.exp(-k * elapsed))
+                    update_prog(int(min(p, 90)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(20)

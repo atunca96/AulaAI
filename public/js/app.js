@@ -428,7 +428,7 @@ const i18n = {
     typeReply: 'Type a reply...',
     sendBtn: 'Send',
     Lecturer: 'Lecturer', Student: 'Student',
-    '👩‍🏫 Lecturer': '👩‍🏫 Lecturer', '🎓 Student': '🎓 Student',
+    '👩‍\ud83c\udfeb Lecturer': '👩‍\ud83c\udfeb Lecturer', '\ud83c\udf93 Student': '\ud83c\udf93 Student',
     select_study_topic: 'Select a topic to start studying',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -447,36 +447,36 @@ const i18n = {
     // Overview stats
     STUDENTS: 'STUDENTS', 'CLASS_MASTERY': 'CLASS MASTERY', 'AT_RISK': 'AT RISK', 'TOP_PERFORMERS': 'TOP PERFORMERS',
     'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
-    at_risk_students: '⚠️ At-Risk Students', topic_difficulty: '📊 Topic Difficulty',
+    at_risk_students: '\u26a0\ufe0f At-Risk Students', topic_difficulty: '\ud83d\udcc8 Topic Difficulty',
     'prac.dialogue_order': 'Reorder the dialogue correctly:',
     'prac.dialogue': 'Dialogue',
     'active_this_week': '{count} Active this week', 'avg_across_topics': 'Average across all topics',
     'students_needing_attention': 'Students needing attention', 'mastery_above_80': 'Mastery above 80%',
-    no_at_risk: 'No at-risk students 🎉', mastery: 'mastery',
+    no_at_risk: 'No at-risk students \ud83c\udf89', mastery: 'mastery',
     'welcomeBack': 'Welcome back, {name}',
     'Welcome back,': 'Welcome back,',
     // Data Management
-    data_mgmt: '🗑️ Data Management',
+    data_mgmt: '\ud83d\uddd1\ufe0f Data Management',
     erase_all_btn: 'Erase All Data',
     erase_all_desc: 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
     // Activities
     'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities',
-    '🚀 Launch Activity': '🚀 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
+    '\ud83d\ude80 Launch Activity': '\ud83d\ude80 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
     'Generate Activity': 'Generate Activity', 'Loading curriculum...': 'Loading curriculum...',
     // Quiz Management
     'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
-    '➕ Create New Quiz': '➕ Create New Quiz', 'Quiz Title': 'Quiz Title',
+    '\u2795 Create New Quiz': '\u2795 Create New Quiz', 'Quiz Title': 'Quiz Title',
     Chapter: 'Select Topic', 'All chapters': 'All Topics', AllTopics: 'All Topics', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
     completed: 'Completed', 'Created': 'Created',
     // Assignments
     'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students',
-    '➕ Create New Assignment': '➕ Create New Assignment', 'Assignment Title': 'Assignment Title',
+    '\u2795 Create New Assignment': '\u2795 Create New Assignment', 'Assignment Title': 'Assignment Title',
     'Create Assignment': 'Create Assignment', 'Your homework tasks': 'Your homework tasks',
     // Students
     'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress',
     Kick: 'Kick', 'Mastery:': 'Mastery:', responses: 'responses',
     // Reports
-    'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': '🔄 Report',
+    'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': '\ud83d\udd04 Report',
     'Content Map': 'Content Map', 'You': 'You',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — Content Map',
@@ -486,7 +486,7 @@ const i18n = {
     // Nav badge
     'AI ACTIVE': 'AI ACTIVE',
     // Student home
-    '📖 Current Chapter': '📖 Current Chapter',
+    '\ud83d\udcd6 Current Chapter': '\ud83d\udcd6 Current Chapter',
     Practice: 'Practice', Home: 'Home',
     // Settings
     'settings.title': 'Settings',
@@ -511,7 +511,7 @@ const i18n = {
     'draft.fill_blank': 'Fill in the gap',
     'draft.mcq': 'Multiple Choice',
     'draft.no_auto_gen': 'No questions could be automatically generated.',
-    'draft.click_add': 'Please click "➕ Add Question" to create them manually.',
+    'draft.click_add': 'Please click "\u2795 Add Question" to create them manually.',
     // Classroom Selection
     'class.selection': 'Classroom Selection',
     'class.subtitle': 'Select a classroom to manage or create a new one',
@@ -537,7 +537,7 @@ const i18n = {
     'ai.review_desc': 'AI suggested these topics. You can edit or remove them.',
     'class.add_topic': 'Add Topic',
     'class.topic_name_placeholder': 'New Topic Name',
-    'class.build_btn': 'Build Classroom 🚀',
+    'class.build_btn': 'Build Classroom \ud83d\ude80',
     'ai.add_unit': 'Add Custom Unit',
     'ai.new_unit_title': 'New Unit Title',
     'class.enter': 'Enter Classroom',
@@ -616,7 +616,7 @@ const i18n = {
     'study.preview_end': 'End of Lesson Material',
     'study.preview_msg': 'This is how the lesson appears to your students.',
     'study.ready_msg': "Now it's time to test your knowledge.",
-    'study.start_practice': '🚀 Start Practice Session',
+    'study.start_practice': '\ud83d\ude80 Start Practice Session',
     'SelectTopic': 'Select a topic...',
     'AllChapters': 'All chapters',
     'confirm.rebuild_title': 'Build Lessons?',
@@ -843,7 +843,7 @@ const i18n = {
     'study.preview_end': 'Ders Materyali Sonu',
     'study.preview_msg': 'Bu dersin öğrencileriniz için nasıl göründüğüdür.',
     'study.ready_msg': 'Şimdi bilgini test etme zamanı.',
-    'study.start_practice': '🚀 Alıştırma Seansını Başlat',
+    'study.start_practice': '\ud83d\ude80 Alıştırma Seansını Başlat',
     'confirm.rebuild_title': 'Dersleri Oluştur?',
     'confirm.rebuild_msg': 'Bu işlem müfredattaki her konu için yapay zeka kullanarak ders içerikleri ve alıştırma soruları oluşturacaktır. Bu işlem 2-3 dakika sürebilir. Devam edilsin mi?',
     'confirm.rebuild_ok': 'Evet, Her Şeyi Oluştur',
@@ -916,7 +916,7 @@ const i18n = {
     typeReply: 'Mesajınızı yazın...',
     sendBtn: 'Gönder',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
-    '👩‍🏫 Lecturer': '👩‍🏫 Öğretmen', '🎓 Student': '🎓 Öğrenci',
+    '👩‍\ud83c\udfeb Lecturer': '👩‍\ud83c\udfeb Öğretmen', '\ud83c\udf93 Student': '\ud83c\udf93 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
     keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite',
@@ -932,10 +932,10 @@ const i18n = {
     // Overview stats
     STUDENTS: 'ÖĞRENCİLER', 'CLASS_MASTERY': 'SINIF BAŞARISI', 'AT_RISK': 'RİSKLİ', 'TOP_PERFORMERS': 'EN İYİLER',
     'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler',
-    at_risk_students: '⚠️ Riskli Öğrenciler', topic_difficulty: '📊 Konu Zorluğu',
+    at_risk_students: '\u26a0\ufe0f Riskli Öğrenciler', topic_difficulty: '\ud83d\udcc8 Konu Zorluğu',
     'active_this_week': '{count} Bu hafta aktif', 'avg_across_topics': 'Tüm konularda ortalama',
     'students_needing_attention': 'Dikkat gerektiren öğrenciler', 'mastery_above_80': '%80 üzeri başarı',
-    no_at_risk: 'Riskli öğrenci yok 🎉', mastery: 'başarı',
+    no_at_risk: 'Riskli öğrenci yok \ud83c\udf89', mastery: 'başarı',
     'welcomeBack': 'Tekrar Hoş Geldin, {name}',
     'Welcome back,': 'Tekrar Hoş Geldin,',
     // Data Management
@@ -944,23 +944,23 @@ const i18n = {
     erase_all_desc: 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
     // Activities
     'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat',
-    '🚀 Launch Activity': '🚀 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
+    '\ud83d\ude80 Launch Activity': '\ud83d\ude80 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
     'Generate Activity': 'Etkinlik Oluştur', 'Loading curriculum...': 'Müfredat yükleniyor...',
     // Quiz Management
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
-    '➕ Create New Quiz': '➕ Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
+    '\u2795 Create New Quiz': '\u2795 Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
     Chapter: 'Konu Seçin', 'All chapters': 'Tüm Konular', AllTopics: 'Tüm Konular', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
     completed: 'Tamamlandı', 'Created': 'Oluşturulma',
     // Assignments
     'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
-    '➕ Create New Assignment': '➕ Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
+    '\u2795 Create New Assignment': '\u2795 Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
     'Create Assignment': 'Ödev Oluştur', 'Your homework tasks': 'Ödev görevleriniz',
     // Students
     'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle',
     Kick: 'At', 'Mastery:': 'Başarı:', responses: 'yanıt',
     // Reports
     'report.title': 'Haftalık Rapor', 'report.subtitle': 'Yapay zeka destekli sınıf performans analizi',
-    'report.generate': '🔄 Rapor Oluştur',
+    'report.generate': '\ud83d\udd04 Rapor Oluştur',
     'Content Map': 'İçerik Haritası', 'You': 'Siz', 'Curriculum': 'Müfredat',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — İçerik Haritası',
@@ -970,7 +970,7 @@ const i18n = {
     // Nav badge
     'AI ACTIVE': 'AI AKTİF',
     // Student home
-    '📖 Current Chapter': '📖 Mevcut Ünite',
+    '\ud83d\udcd6 Current Chapter': '\ud83d\udcd6 Mevcut Ünite',
     Practice: 'Alıştırma', Home: 'Ana Sayfa',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     settings: 'Ayarlar', language: 'Dil',
@@ -1002,7 +1002,7 @@ const i18n = {
     'draft.fill_blank': 'Boşluk Doldurma',
     'draft.mcq': 'Çoktan Seçmeli',
     'draft.no_auto_gen': 'Otomatik olarak soru oluşturulamadı.',
-    'draft.click_add': 'Lütfen manuel olarak oluşturmak için "➕ Soru Ekle" butonuna tıklayın.',
+    'draft.click_add': 'Lütfen manuel olarak oluşturmak için "\u2795 Soru Ekle" butonuna tıklayın.',
     // Classroom Selection
     'class.selection': 'Sınıf Seçimi',
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
@@ -1028,7 +1028,7 @@ const i18n = {
     'ai.review_desc': 'Yapay zeka bu konuları önerdi. Bunları düzenleyebilir veya kaldırabilirsiniz.',
     'class.add_topic': 'Konu Ekle',
     'class.topic_name_placeholder': 'Yeni Konu Adı',
-    'class.build_btn': 'Sınıfı Oluştur 🚀',
+    'class.build_btn': 'Sınıfı Oluştur \ud83d\ude80',
     'ai.add_unit': 'Yeni Ünite Ekle',
     'ai.new_unit_title': 'Yeni Ünite Başlığı',
     'class.enter': 'Sınıfa Gir',
@@ -1495,7 +1495,7 @@ function renderClassroomSelection(courses) {
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
-                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', '${esc(c.name)}')" style="color:var(--danger); padding:4px;">🗑️</button>
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', ${escJS(c.name)})" style="color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
@@ -1555,7 +1555,7 @@ async function selectClassroom(id, isLecturer = true) {
   const inboxReplyArea = document.getElementById('inbox-reply-area');
   if (inboxReplyArea) inboxReplyArea.classList.add('hidden');
   const inboxTitle = document.getElementById('inbox-title');
-  if (inboxTitle) inboxTitle.innerHTML = `💬 <span data-i18n="inbox">${t('inbox')}</span>`;
+  if (inboxTitle) inboxTitle.innerHTML = `\ud83d\udcac <span data-i18n="inbox">${t('inbox')}</span>`;
 
   // 2. Fetch course data
   const courses = await api('/courses');
@@ -1881,7 +1881,7 @@ function renderAiSyllabusEditor(syllabus) {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">Unit ${i + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">\ud83d\uddd1\ufe0f</button>
       </div>
       <input type="text" class="text-input syllabus-title" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
@@ -1889,7 +1889,7 @@ function renderAiSyllabusEditor(syllabus) {
     const title = typeof topic === 'string' ? topic : (topic.title || '');
     return `
             <div class="topic-item" data-type="${topic.type || 'vocabulary'}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '⚙️' : '•'}</span>
+              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '\u2699\ufe0f' : '•'}</span>
               <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
@@ -1910,7 +1910,7 @@ function addUnitToAiArchitect() {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">\ud83d\uddd1\ufe0f</button>
       </div>
       <input type="text" class="text-input syllabus-title" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
@@ -1946,7 +1946,7 @@ function toggleTopicType(span) {
   const current = item.getAttribute('data-type') || 'vocabulary';
   const next = current === 'vocabulary' ? 'grammar' : 'vocabulary';
   item.setAttribute('data-type', next);
-  span.textContent = next === 'grammar' ? '⚙️' : '•';
+  span.textContent = next === 'grammar' ? '\u2699\ufe0f' : '•';
 }
 
 async function buildAiClassroom() {
@@ -2140,7 +2140,7 @@ async function triggerDeepExtract() {
   } finally {
     btn.disabled = false;
     btn.style.opacity = '1';
-    btn.innerHTML = '⚡ ' + (t('class.deep_extract') || 'Deep Extract');
+    btn.innerHTML = '\u26a1 ' + (t('class.deep_extract') || 'Deep Extract');
   }
 }
 
@@ -2543,7 +2543,7 @@ async function loadInbox() {
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
-  document.getElementById('inbox-title').innerHTML = `💬 <span data-i18n="inbox">${t('inbox')}</span>`;
+  document.getElementById('inbox-title').innerHTML = `\ud83d\udcac <span data-i18n="inbox">${t('inbox')}</span>`;
 
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
   const badge = document.getElementById('inbox-badge');
@@ -2585,7 +2585,7 @@ async function loadInbox() {
   const threadList = Object.entries(threads).sort((a, b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
 
   container.innerHTML = threadList.map(([key, data]) => `
-    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${data.student_id}', '${esc(data.student_name).replace(/'/g, "\\'")}', '${data.course_id}')">
+    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${data.student_id}', ${escJS(data.student_name).replace(/'/g, "\\'")}, '${data.course_id}')">
       <div style="flex:1; min-width:0; margin-right:12px;">
         <div style="display:flex; align-items:center; gap:8px;">
            <div style="width:10px; height:10px; border-radius:50%; background:${data.unread > 0 ? 'var(--accent)' : 'transparent'};"></div>
@@ -2630,7 +2630,7 @@ async function openChat(studentId, studentName, cid) {
 
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
-  document.getElementById('inbox-title').innerHTML = `💬 ${esc(studentName)}`;
+  document.getElementById('inbox-title').innerHTML = `\ud83d\udcac ${esc(studentName)}`;
 
   const container = document.getElementById('inbox-messages');
   if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
@@ -2715,7 +2715,7 @@ function renderNewChatStudents() {
   }
 
   list.innerHTML = filtered.map(s => `
-        <div class="new-chat-item" style="display:flex; align-items:center; justify-content:space-between; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg-input); cursor:pointer; margin-bottom:8px; transition:var(--transition);" onclick="startNewChat('${s.id}', '${esc(s.name).replace(/'/g, "\\'")}')" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div class="new-chat-item" style="display:flex; align-items:center; justify-content:space-between; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg-input); cursor:pointer; margin-bottom:8px; transition:var(--transition);" onclick="startNewChat('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
             <div style="font-weight:600; color:var(--text-primary);">${esc(s.name)}</div>
             <button class="btn btn-ghost btn-sm" style="color:var(--accent); font-size:12px;" data-i18n="startChat">${t('startChat')}</button>
         </div>
@@ -2812,7 +2812,7 @@ function renderOverview(report) {
   const atRisk = report.at_risk_students || [];
   const atRiskList = document.getElementById('at-risk-list');
   if (atRisk.length === 0) {
-    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students 🎉</p>`;
+    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students \ud83c\udf89</p>`;
   } else {
     atRiskList.innerHTML = atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% <span data-i18n="mastery">mastery</span></span>${s.flags.map(f => `<span class="risk-badge low" data-i18n="${f}">${t(f)}</span>`).join('')}</div></div>`).join('');
   }
@@ -2864,7 +2864,7 @@ function renderCurriculum() {
           <div style="display:flex;align-items:center;gap:12px;">
             <span class="chapter-num">${displayNum}</span>
             <span class="chapter-title">${esc(cleanTitle)}</span>
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', '${esc(ch.title)}')" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">🗑️</button>
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', ${escJS(ch.title)})" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">\ud83d\uddd1\ufe0f</button>
           </div>
           <span class="chapter-toggle">▸</span>
         </div>
@@ -2877,8 +2877,8 @@ function renderCurriculum() {
               <span class="topic-name">${esc(cleanTopicTitle)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
-              ${t_obj.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${t_obj.pdf_url}', '_blank')">📖</button>` : ''}
-              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', '${esc(t_obj.title)}')" style="color:var(--danger); padding:4px;">🗑️</button>
+              ${t_obj.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${t_obj.pdf_url}', '_blank')">\ud83d\udcd6</button>` : ''}
+              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', ${escJS(t_obj.title)})" style="color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
               <div class="topic-meta">
                 <span>${t_obj.difficulty}</span>
                 <span>${t_obj.question_count || 0} ${t('questions')}</span>
@@ -3175,17 +3175,17 @@ function renderActivityCard(a, idx, ctx) {
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const editBtns = isLecturer ? `
     <div style="position:absolute; top:12px; right:12px; display:flex; gap:6px; z-index:10;">
-        <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion('${esc(a.id)}', '${ctx}-${idx}', '${esc(a.type)}')" style="background:rgba(255,255,255,0.1); padding:4px;">✏️</button>
-        <button class="btn btn-ghost btn-xs" onclick="deleteActivityQuestion('${esc(a.id)}', '${ctx}-${idx}')" style="background:rgba(255,59,48,0.1); color:var(--danger); padding:4px;">🗑️</button>
+        <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}', ${escJS(a.type)})" style="background:rgba(255,255,255,0.1); padding:4px;">✏️</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}')" style="background:rgba(255,59,48,0.1); color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
     </div>
   ` : '';
 
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this,'${escJS(a.answer)}','${ctx}-${idx}','${escJS(a.id)}')">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}','${escJS(a.answer)}','${escJS(a.id)}')"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}','${escJS(a.answer)}','${escJS(a.id)}')" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">\ud83d\udca1 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label">🗣️ <span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}','${esc(JSON.stringify(a.correct_order))}')">✓ <span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label">🗣️ <span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})">✓ <span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
 }
@@ -3289,8 +3289,10 @@ function esc(s) {
 }
 
 function escJS(s) {
-  if (!s) return "";
-  return String(s).replace(/'/g, "\\'");
+  if (s === null || s === undefined) return "''";
+  const json = JSON.stringify(String(s));
+  // Replace double quotes with HTML entities so it can live inside onclick="..."
+  return json.replace(/"/g, '&quot;');
 }
 
 function formatActivityData(val) {
@@ -3495,14 +3497,14 @@ function renderQuizList(quizzes) {
       if (currentUser.role === 'lecturer') {
         return `<div class="card" style="margin-bottom:12px">
             <div class="card-body flex-between">
-              <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}','${esc(q.title)}')">
+              <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}',${escJS(q.title)})">
                 <strong>${q.title}</strong>
                 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}','${esc(q.title)}')">👁️ ${t('viewBtn')}</button>
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}','${esc(q.title)}')">📊 ${t('view')}</button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}','${esc(q.title)}')">🗑️ ${t('confirm.delete_quiz')}</button>
+                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}',${escJS(q.title)})">👁️ ${t('viewBtn')}</button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">\ud83d\udcc8 ${t('view')}</button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">\ud83d\uddd1\ufe0f ${t('confirm.delete_quiz')}</button>
               </div>
             </div>
           </div>`;
@@ -3550,7 +3552,7 @@ async function viewQuiz(quizId, title) {
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
       <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📄 <span data-i18n="answer">${t('answer')}</span></button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">👥 <span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">\ud83d\udc65 <span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
     </div>
 
     <div id="qv-questions">
@@ -3636,7 +3638,7 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
-    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,'${escJS(q.id)}','${escJS(o)}')">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,'${escJS(q.id)}',this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,'${escJS(q.id)}',document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -3671,7 +3673,7 @@ async function loadStudentRoster() {
             </div>
             <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
               <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ <span data-i18n="ok">${t('ok')}</span></button>
-              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name)}')">❌ <span data-i18n="cancel">${t('cancel')}</span></button>
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name)})">❌ <span data-i18n="cancel">${t('cancel')}</span></button>
             </div>
           </div>
         `).join('')}
@@ -3686,14 +3688,14 @@ async function loadStudentRoster() {
     const pct = Math.round(s.avg_mastery * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}','${esc(s.name)}', '${schoolNum}')">
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}')">
       <div class="flex-between" style="margin-bottom:8px; gap:12px">
         <div class="student-name" style="margin-bottom:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}','${esc(s.name).replace(/'/g, "\\'")}')"><span data-i18n="Kick">${t('Kick')}</span></button>
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">\ud83d\udcac <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
+          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>
         </div>
       </div>
       <div class="student-mastery-bar">
@@ -3855,8 +3857,8 @@ async function showStudentDetail(sid, name, studentId = '') {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}','${esc(name).replace(/'/g, "\\'")}')">💬 <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}','${esc(name).replace(/'/g, "\\'")}')">🚫 <span data-i18n="Kick">${t('Kick')}</span></button>
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}',${escJS(name).replace(/'/g, "\\'")})">\ud83d\udcac <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
+        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}',${escJS(name).replace(/'/g, "\\'")})">🚫 <span data-i18n="Kick">${t('Kick')}</span></button>
       </div>
     </div>
 
@@ -3943,12 +3945,12 @@ function renderReport(report) {
         </div>
 
         <div style="margin-bottom:32px; padding:24px; background:var(--bg-input); border-radius:20px; border:1px solid var(--border);">
-          <h3 style="margin:0 0 12px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>📝</span> ${lang === 'tr' ? 'Yönetici Özeti' : 'Executive Summary'}</h3>
+          <h3 style="margin:0 0 12px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udcdd</span> ${lang === 'tr' ? 'Yönetici Özeti' : 'Executive Summary'}</h3>
           <div style="font-size:14.5px; line-height:1.7; color:var(--text-secondary);">${data.summary}</div>
         </div>
 
         <div style="margin-bottom:32px;">
-          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>📉</span> ${lang === 'tr' ? 'Hatalı Konular ve Analiz' : 'Flawed Topics & Analysis'}</h3>
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udcc9</span> ${lang === 'tr' ? 'Hatalı Konular ve Analiz' : 'Flawed Topics & Analysis'}</h3>
           <div style="display:flex; flex-direction:column; gap:12px;">
             ${(data.topic_breakdown || []).map(topic => `
               <div style="background:var(--bg-input); border:1px solid var(--border); padding:20px; border-radius:20px;">
@@ -3964,7 +3966,7 @@ function renderReport(report) {
         </div>
 
         <div style="margin-bottom:32px;">
-          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>👤</span> ${lang === 'tr' ? 'Öğrenci Spotlight' : 'Student Spotlights'}</h3>
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udc64</span> ${lang === 'tr' ? 'Öğrenci Spotlight' : 'Student Spotlights'}</h3>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
             ${(data.at_risk_commentaries || []).map(sc => `
               <div style="background:var(--bg-input); border:1px solid var(--border); padding:16px; border-radius:16px; border-left:4px solid var(--danger);">
@@ -3976,7 +3978,7 @@ function renderReport(report) {
         </div>
 
         <div style="padding:24px; background:var(--gradient-2); border-radius:20px; color:white;">
-          <h3 style="margin:0 0 10px; font-size:18px; font-weight:700;">💡 ${lang === 'tr' ? 'Genel Tavsiye' : 'General Advice'}</h3>
+          <h3 style="margin:0 0 10px; font-size:18px; font-weight:700;">\ud83d\udca1 ${lang === 'tr' ? 'Genel Tavsiye' : 'General Advice'}</h3>
           <div style="font-size:14px; line-height:1.6; opacity:0.9;">${data.general_advice}</div>
         </div>
       </div>
@@ -4053,7 +4055,7 @@ function renderStudentHome(data) {
 
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
-    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">📖 ${t('currentChapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">\ud83d\udcd6 ${t('currentChapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
   }
 }
 
@@ -4107,7 +4109,7 @@ async function startPractice(tid, title) {
     console.error("Practice Start Error:", err);
     if (area) {
       area.innerHTML = `<div style="padding:40px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
-          <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+          <div style="font-size:48px; margin-bottom:16px;">\u26a0\ufe0f</div>
           <h3 style="margin-bottom:8px;">${t('assign.retry')}</h3>
           <p style="color:var(--text-muted); margin-bottom:24px;">${err.message || 'Generation failed'}</p>
           <button class="btn btn-primary" onclick="cancelPractice()">Back to Topics</button>
@@ -4172,14 +4174,14 @@ function renderAssignmentList(assignments) {
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
-            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}','${esc(a.title)}')">
+            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}',${escJS(a.title)})">
               👁️ ${t('viewBtn')}
             </button>
-            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}','${esc(a.title)}')">
-              📊 ${t('view')}
+            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">
+              \ud83d\udcc8 ${t('view')}
             </button>
-            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}','${esc(a.title)}')">
-              🗑️ ${t('confirm.delete_assignment')}
+            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">
+              \ud83d\uddd1\ufe0f ${t('confirm.delete_assignment')}
             </button>
           </div>
         </div>
@@ -4267,7 +4269,7 @@ async function viewAssignment(assignmentId, title) {
         <div style="margin-bottom:6px">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
             <span style="font-weight:500">
-              ${i === 0 ? '🏆 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : ''}
+              ${i === 0 ? '🏆 ' : i === 1 ? '\ud83e\udd48 ' : i === 2 ? '🥉 ' : ''}
               ${esc(sr.student_name)}
             </span>
             <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
@@ -4433,7 +4435,7 @@ function renderDraftList() {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
       <h2 style="margin:0"><span data-i18n="draft.review">${t('draft.review')}</span> - ${esc(currentDraft.title)}</h2>
       <div>
-        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">➕ <span data-i18n="draft.add_question">${t('draft.add_question')}</span></button>
+        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">\u2795 <span data-i18n="draft.add_question">${t('draft.add_question')}</span></button>
         <button class="btn btn-primary btn-sm" onclick="publishDraft()">✅ <span data-i18n="draft.publish">${t('draft.publish')}</span></button>
       </div>
     </div>
@@ -4485,7 +4487,7 @@ function renderDraftList() {
 
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
-        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">🗑️ <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
+        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">\ud83d\uddd1\ufe0f <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
         <div class="card-body">
           <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${typeLabel}</div>
           <div style="font-weight:600; margin-bottom:8px;">${esc(formattedPrompt)}</div>
@@ -4615,7 +4617,7 @@ function showAssignmentQuestion(area) {
   if (q.type === 'mcq') {
     const options = (q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5);
     answerHTML = `<div class="options-grid" style="margin-top:16px">
-      ${options.map(o => `<button class="option-btn" onclick="assignmentAnswer('${escJS(o)}')"
+      ${options.map(o => `<button class="option-btn" onclick="assignmentAnswer(${escJS(o)})"
         style="text-align:left;padding:14px 18px;font-size:14px">${translateOption(o)}</button>`).join('')}
     </div>`;
   } else {
@@ -4626,7 +4628,7 @@ function showAssignmentQuestion(area) {
         ${t('submit')} →
       </button>
     </div>
-    ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">💡 ${q.hint}</div>` : ''}`;
+    ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">\ud83d\udca1 ${q.hint}</div>` : ''}`;
   }
 
   area.innerHTML = `
@@ -4680,7 +4682,7 @@ async function submitAssignment(area) {
     const pct = Math.round((result.average || 0) * 100);
     area.innerHTML = `
       <div style="padding:40px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">${pct >= 70 ? '🎉' : '📚'}</div>
+        <div style="font-size:48px;margin-bottom:16px">${pct >= 70 ? '\ud83c\udf89' : '\ud83d\udcda'}</div>
         <h2 style="margin-bottom:8px">${t('assign.complete')}</h2>
         <div style="font-size:36px;font-weight:700;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'};margin:16px 0">${pct}%</div>
         <p style="color:var(--text-muted);margin-bottom:24px">${t('assign.recorded')}</p>
@@ -4768,7 +4770,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   try {
     const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
-
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
@@ -4778,124 +4779,84 @@ function showStudyTopic(topicId, pageIdx = 0) {
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach(p => {
         const type = (p.type || '').toLowerCase();
-        let icon = "📄";
-        if (type.includes('vocab')) icon = "📙";
-        else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "⚙️";
-        else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "💬";
+        let icon = "\ud83d\udcd6";
+        if (type.includes('vocab')) icon = "\ud83d\udcc7";
+        else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "\u2699\ufe0f";
+        else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "\ud83d\udcac";
 
         pages.push({
           title: p.title || (topic.title || t('Material')),
           icon: icon,
           render: () => {
-            // 1. DYNAMIC CONTENT DETECTION (Including 'content' as a data source)
-            let rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.content || [];
-            
-            // CATCH-ALL: If rawData is empty, look for any array in the object
+            let html = "";
+            let text_content = (p.type === "mcq" || p.prompt) ? (p.text || p.content || p.rule || p.intro || "") : (p.text || p.content || p.explanation || p.rule || p.intro || "");
+            if (text_content && typeof text_content === "string") {
+              const linesArr = fixDiacritics(text_content).split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
+              if (linesArr.length > 1) {
+                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin-bottom: 24px;">${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+/, "").trim()}</li>`).join("")}</ul>`;
+              } else {
+                html += `<div class="ai-explanation" style="font-size:20px; line-height:1.8; color:#ffffff; white-space:pre-wrap; margin-bottom: 24px;">${fixDiacritics(text_content)}</div>`;
+              }
+            }
+            let rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
             if (!Array.isArray(rawData) || rawData.length === 0) {
               for (const key in p) {
-                if (Array.isArray(p[key]) && p[key].length > 0) {
-                  rawData = p[key];
-                  break;
+                if (Array.isArray(p[key]) && p[key].length > 0 && key !== 'pages' && key !== 'options' && key !== 'choices' && key !== 'distractors' && key !== 'answer') {
+                  rawData = p[key]; break;
                 }
               }
             }
-
-            // A. If it's an array of strings (Alphabet/Simple Lists)
-            if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'string') {
-              return `<div style="display:flex; flex-direction:column; gap:16px; font-size:20px; line-height:1.8; color:#e2e8f0;">
-                ${rawData.map(str => `<div dir="auto" class="foreign-word" role="button" tabindex="0" style="cursor:pointer; display:inline-block;">${fixDiacritics(str)}</div>`).join('')}
-              </div>`;
-            }
-
-            // B. If it's an array of objects (Vocabulary, Examples, or mislabeled content)
-            if (Array.isArray(rawData) && rawData.length > 0 && typeof rawData[0] === 'object') {
-              return `<div style="display:flex; flex-direction:column; gap:12px;">
-                ${rawData.map(it => {
-                // Agnostic Key Detection
-                const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
-                const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
-
-                // Smarter Example Detection: Only hide the 'term' side if 'v' is empty or speaker exists
-                const isExplicitExample = !!it.speaker;
-                const isLongSentence = typeof k === 'string' && k.length > 40 && (!v || v === k);
-
-                if (isExplicitExample || isLongSentence) {
-                  return `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
-                      ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ''}
-                      <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(v || k)}"</div>
-                    </div>`;
+            // Prevent MCQs from double-rendering their options as vocab cards
+            const isMcq = (p.type === 'mcq' || p.prompt);
+            if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
+              html += `<div style="display:flex; flex-direction:column; gap:12px;">`;
+              rawData.forEach(it => {
+                if (typeof it === "string") {
+                  html += `<div class="foreign-word" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; font-size:20px; color:#ffffff;">${fixDiacritics(it)}</div>`;
+                } else if (typeof it === "object") {
+                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || Object.values(it)[0] || "";
+                  const v = it.translation || it.meaning || it.text || it.english || Object.values(it)[1] || "";
+                  if (it.speaker || (typeof k === "string" && k.length > 50)) {
+                    html += `<div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);"><div class="foreign-word" style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div></div>`;
+                  } else {
+                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;"><div style="flex:1;"><div class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div></div><div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div></div>`;
+                  }
                 }
-
-                // Regular Vocab/Phrase Card
-                return `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
-                    <div style="flex:1; display:flex; justify-content:flex-start;">
-                        <div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(k)}</div>
-                    </div>
-                    <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
-                  </div>`;
-              }).join('')}</div>`;
+              });
+              html += `</div>`;
             }
-
-            // C. If it's a string (Grammar or Intro)
-            let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
-            
-            // CATCH-ALL: If text is empty, look for any long string in the object
-            if (!text) {
-              for (const key in p) {
-                if (typeof p[key] === 'string' && p[key].length > 15 && key !== 'title' && key !== 'type') {
-                  text = p[key];
-                  break;
-                }
-              }
+            // 3. MCQ Support
+            if (p.type === 'mcq' || p.prompt) {
+               html += `<div style="margin-top:24px; background:rgba(255,255,255,0.02); padding:24px; border-radius:20px; border:1px solid var(--border);">
+                 <div style="font-size:20px; font-weight:700; margin-bottom:20px; color:#ffffff;">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
+                 <div style="display:flex; flex-direction:column; gap:12px;">
+                   ${(p.distractors || []).concat(p.answer).sort().map(opt => `
+                     <button class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(opt)}</button>
+                   `).join('')}
+                 </div>
+               </div>`;
             }
-
-            if (text) {
-              if (typeof text !== 'string') text = JSON.stringify(text, null, 2);
-              
-              // SMARTBOARD AUTO-FORMATTER: Convert paragraphs to bullet points
-              const fixDiacriticsText = fixDiacritics(text);
-              const lines = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
-              
-              if (lines.length > 1) {
-                return `<ul class="ai-explanation" style="font-size:22px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin: 0;">
-                  ${lines.map(line => `<li style="margin-bottom: 16px;">${line.trim().replace(/^[•\-\*]\s*/, "")}</li>`).join('')}
-                </ul>`;
-              }
-              
-              return `<div dir="auto" class="ai-explanation" style="font-size:22px; line-height:1.8; color:#ffffff; white-space:pre-wrap;">${fixDiacriticsText}</div>`;
-            }
-
-            return `<div style="color:var(--text-muted); font-style:italic; text-align:center; padding:40px;">No content found for this section.</div>`;
+            return html || `<div style="text-align:center; padding:40px; color:var(--text-muted);">...</div>`;
           }
         });
       });
     }
-  } catch (e) { console.error("Renderer Failure:", e); }
 
-  if (pages.length === 0) {
     pages.push({
-      title: t('gen.preparing_content') || 'Under Construction',
-      icon: "🚧",
-      render: () => `<div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
-        <div style="font-size:60px; margin-bottom:24px;">🚧</div>
-        <h2 style="color:var(--text-main);">${t('gen.preparing_content') || 'Content Still Building'}</h2>
-        <p>${t('gen.preparing_desc') || 'The AI is currently architecting this lesson. Please wait a few moments.'}</p>
-        <button class="btn btn-primary" style="margin-top:24px;" onclick="location.reload()">Refresh Page</button>
-        ${!isStudent ? `<button class="btn btn-outline" style="margin-top:12px; border-color:var(--accent); color:var(--accent-light);" onclick="rebuildClassroom(true)">🔄 Rebuild All Lessons (Force)</button>` : ''}
-      </div>`
-    });
-  }
-
-  pages.push({
-    title: isStudent ? t('study.complete') : t('study.preview'),
-    icon: "🏁",
-    render: () => `<div style="text-align:center; padding:60px 20px;">
-      <div style="font-size:64px; margin-bottom:24px;">🎯</div>
+      title: isStudent ? t('study.complete') : t('study.preview'),
+      icon: "\ud83c\udfc1",
+      render: () => `<div style="text-align:center; padding:60px 20px;">
+      <div style="font-size:64px; margin-bottom:24px;">\ud83c\udfaf</div>
       <h2 style="font-size:28px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
       <p style="color:var(--text-muted); font-size:18px; margin:20px 0 40px;">${isStudent ? t('study.ready_msg') : t('study.preview_msg')}</p>
-      ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', '${esc(topic.title)}')">${t('study.start_practice')}</button>` : ''}
+      ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', ${escJS(topic.title)})">${t('study.start_practice')}</button>` : ''}
     </div>`
-  });
+    });
+
+  } catch (e) {
+    console.error("Lesson Render Error:", e);
+    pages.push({ title: "Error", icon: "⚠️", render: () => `<p>Failed to parse lesson content.</p>` });
+  }
 
   const page = pages[pageIdx] || pages[0];
 
@@ -4919,6 +4880,46 @@ function showStudyTopic(topicId, pageIdx = 0) {
       </div>
     </div>
   `;
+}
+
+
+function checkStudyMCQ(btn, selected, correct, explanation) {
+    const parent = btn.parentElement;
+    const buttons = parent.querySelectorAll('button');
+    buttons.forEach(b => {
+        b.disabled = true;
+        b.style.opacity = '0.7';
+    });
+
+    if (selected === correct) {
+        btn.style.background = 'rgba(34, 197, 94, 0.2)';
+        btn.style.borderColor = '#22c55e';
+        btn.innerHTML += ' \u2705'; // Checkmark
+    } else {
+        btn.style.background = 'rgba(239, 68, 68, 0.2)';
+        btn.style.borderColor = '#ef4444';
+        btn.innerHTML += ' \u274c'; // Cross
+        
+        // Highlight correct one
+        buttons.forEach(b => {
+            if (b.innerText.includes(correct)) {
+                b.style.background = 'rgba(34, 197, 129, 0.1)';
+                b.style.borderColor = '#10b981';
+            }
+        });
+    }
+    
+    if (explanation) {
+        const expDiv = document.createElement('div');
+        expDiv.style.marginTop = '16px';
+        expDiv.style.padding = '12px';
+        expDiv.style.background = 'rgba(255,255,255,0.05)';
+        expDiv.style.borderRadius = '12px';
+        expDiv.style.fontSize = '14px';
+        expDiv.style.color = 'var(--accent-light)';
+        expDiv.innerHTML = `\ud83d\udca1 <b>Note:</b> ${explanation}`;
+        parent.appendChild(expDiv);
+    }
 }
 
 function launchStudyActivity(topicId, topicTitle) {
@@ -4955,7 +4956,7 @@ function renderStudentPortal() {
   if (currentStudentEnrollments.length === 0) {
     grid.innerHTML = `
       <div style="grid-column:1/-1; text-align:center; padding:60px; background:var(--bg-card); border-radius:16px; border:1px dashed var(--border);">
-        <div style="font-size:48px; margin-bottom:16px;">🏫</div>
+        <div style="font-size:48px; margin-bottom:16px;">\ud83c\udfeb</div>
         <h2 data-i18n="no_classrooms_found">${t('no_classrooms_found')}</h2>
         <p style="color:var(--text-muted); margin-top:8px;">${t('student.enter_code')}</p>
       </div>
@@ -4967,7 +4968,7 @@ function renderStudentPortal() {
     <div class="classroom-card" style="position:relative">
       <div onclick="enterStudentClassroom('${enr.course_id}')" style="cursor:pointer">
         <div class="classroom-card-header">
-          <div class="classroom-icon">🎓</div>
+          <div class="classroom-icon">\ud83c\udf93</div>
           <div class="classroom-status ${enr.status}">${enr.status === 'approved' ? '✓ ' + t('approved') : '⏳ ' + t('pending')}</div>
         </div>
         <div class="classroom-card-body">
@@ -4977,7 +4978,7 @@ function renderStudentPortal() {
         <div class="classroom-card-footer">
           <div class="classroom-code">#${enr.course_code}</div>
           <div style="display:flex; gap:8px; align-items:center">
-             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', '${esc(enr.course_name)}')" style="background:#ff3b30; color:white; border:none; font-size:11px; padding:4px 12px; border-radius:6px; opacity:1; font-weight:700; box-shadow: 0 2px 8px rgba(255,59,48,0.3);" data-i18n="student.leave">${t('student.leave')}</button>
+             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', ${escJS(enr.course_name)})" style="background:#ff3b30; color:white; border:none; font-size:11px; padding:4px 12px; border-radius:6px; opacity:1; font-weight:700; box-shadow: 0 2px 8px rgba(255,59,48,0.3);" data-i18n="student.leave">${t('student.leave')}</button>
              <div class="classroom-arrow">→</div>
           </div>
         </div>
@@ -5338,7 +5339,7 @@ async function showDict(word, e) {
     content.innerHTML = `
         <div style="position:relative; text-align:center; padding:20px;">
             <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center;">&times;</button>
-            <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
+            <div style="font-size:40px; margin-bottom:12px;">\u26a0\ufe0f</div>
             <div style="color:var(--danger); font-size:14px;">Dictionary service unavailable.</div>
             <button class="btn btn-sm btn-ghost" style="margin-top:12px;" onclick="closeDict()">Close</button>
         </div>

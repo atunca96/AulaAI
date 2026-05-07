@@ -13,9 +13,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260426_v2">
+    <link rel="stylesheet" href="/css/styles.css?v=20260507_final">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/app.js?v=20260426_v2" defer></script>
+    <script src="/js/app.js?v=20260507_final_escaped" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -266,17 +266,17 @@
                 <!-- Tab switcher -->
                 <div style="display:flex;gap:10px;margin-bottom:24px;border-bottom:1px solid var(--border)">
                     <button id="tab-student" class="nav-tab active" style="flex:1" onclick="switchLoginTab('student')" data-i18n="🎓 Student">
-                        🎓 Öğrenci
+                        🎓 ÖğÖğrenci
                     </button>
                     <button id="tab-lecturer" class="nav-tab" style="flex:1" onclick="switchLoginTab('lecturer')" data-i18n="👩‍🏫 Lecturer">
-                        👩‍🏫 Öğretmen
+                        👩‍🏫 ÖğÖğretmen
                     </button>
                 </div>
 
                 <!-- Lecturer Login -->
                 <div id="lecturer-login-panel" style="display:none">
                     <h2 style="margin-bottom:4px" data-i18n="Lecturer Login">Lecturer Login</h2>
-                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şifrenizle giriş yapın</p>
+                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Sign in with your email and password">E-posta ve şŞifrenizle giriş yapın</p>
                     <form id="login-form" onsubmit="handleLogin(event); return false;">
                         <div class="form-group">
                             <label for="login-email" data-i18n="Email">Email</label>
@@ -298,7 +298,7 @@
                 <!-- Student Login -->
                 <div id="student-login-panel">
                     <h2 style="margin-bottom:4px" data-i18n="Student Login">Student Login</h2>
-                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Log in with your student number">Öğrenci numaranızla giriş yapın</p>
+                    <p class="login-hint" style="margin-bottom:20px" data-i18n="Log in with your student number">ÖğÖğrenci numaranızla giriş yapın</p>
                     <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
                         <div class="form-group" style="margin-bottom:16px;">
                             <label data-i18n="student_number">Student Number</label>
