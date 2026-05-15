@@ -171,10 +171,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
     def _get_user_id(self):
-        """Extract user_id from query parameters."""
+        """Extract user_id from query parameters and update last_seen activity."""
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
-        return params.get("user_id", [None])[0]
+        uid = params.get("user_id", [None])[0]
+        
+        if uid:
+            try:
+                # Fire and forget update (throttled)
+                with db_connection() as db:
+                    db.execute("""
+                        UPDATE users SET last_seen = CURRENT_TIMESTAMP 
+                        WHERE id = ? AND (last_seen IS NULL OR (strftime('%s','now') - strftime('%s',last_seen) > 60))
+                    """, (uid,))
+                    db.commit()
+            except: pass
+        return uid
 
     def _get_user_role(self):
         """Extract user_id from query parameters and look up role in DB to prevent spoofing."""
@@ -791,7 +803,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._send_error("Unauthorized", 403)
         with db_connection() as db:
             students = db.execute("""
-                SELECT u.id, u.name, u.email, u.status, u.created_at,
+                SELECT u.id, u.name, u.email, u.status, u.created_at, u.last_seen,
                        GROUP_CONCAT(DISTINCT c.name) as enrolled_in,
                        COUNT(DISTINCT e.course_id) as course_count,
                        COALESCE((SELECT COUNT(*) FROM responses r WHERE r.student_id = u.id), 0) as total_responses

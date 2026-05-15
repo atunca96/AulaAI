@@ -1292,7 +1292,10 @@ function toggleLanguage() {
   if (currentUser) {
     if (currentUser.role === 'lecturer') {
       if (currentCourse) renderLecturerSync();
-      else if (_lastClassroomsData) renderClassroomSelection(_lastClassroomsData);
+      else if (_lastClassroomsData) {
+        renderClassroomSelection(_lastClassroomsData);
+        loadAdminStudentPanel();
+      }
     } else {
       if (currentCourse) renderStudentSync();
       else renderStudentPortal();
@@ -5317,9 +5320,19 @@ async function loadAdminStudentPanel() {
 
     const rows = students.map(s => {
       const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
-      const statusBadge = s.status === 'approved' 
-        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.active')}</span>`
-        : `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`;
+      
+      // Real-time Online Status Logic
+      let isOnline = false;
+      if (s.last_seen) {
+        const lastSeen = new Date(s.last_seen + ' UTC').getTime();
+        const now = new Date().getTime();
+        // If active in last 5 minutes (allowing for clock skew and sync interval)
+        if (now - lastSeen < 5 * 60 * 1000) isOnline = true;
+      }
+
+      const statusBadge = isOnline 
+        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">\u2022 ${t('admin.active')}</span>`
+        : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`;
       
       // Prettify comma-separated list from SQL
       const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';

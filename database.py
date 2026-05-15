@@ -250,6 +250,10 @@ def init_db():
         try:
             c.execute("ALTER TABLE questions ADD COLUMN approved INTEGER DEFAULT 1")
         except: pass
+        
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
+        except: pass
 
         # Student Performance & Mastery
         c.execute('''CREATE TABLE IF NOT EXISTS mastery_scores (
