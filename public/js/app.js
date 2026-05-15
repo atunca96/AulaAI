@@ -768,6 +768,23 @@ const i18n = {
     'student.delete_account_title': 'Delete Account',
     'student.delete_account_msg': 'Are you sure you want to permanently delete your account? All your progress and data will be lost forever.',
     'student.delete_confirm_btn': 'Yes, Delete My Account',
+    // Admin Student Panel
+    'admin.all_students': 'All Students',
+    'admin.reset_all_students': 'Reset All Students',
+    'admin.reset_students_confirm': 'This will delete ALL student accounts and their data across ALL classrooms. This cannot be undone.',
+    'admin.reset_students_type': 'Type RESET ALL STUDENTS to confirm:',
+    'admin.no_students': 'No student accounts found.',
+    'admin.student_name': 'Name',
+    'admin.student_id': 'ID / Email',
+    'admin.enrolled_in': 'Enrolled In',
+    'admin.responses': 'Responses',
+    'admin.status': 'Status',
+    'admin.action': 'Action',
+    'admin.remove': 'Remove',
+    'admin.active': 'Active',
+    'admin.pending': 'Pending',
+    'admin.students_removed': '{count} student account(s) have been removed.',
+    'student.pin_must_be_4': 'PIN must be exactly 4 digits',
   },
   tr: {
     'ai.select_lang': '1. Dil Seçin',
@@ -1143,6 +1160,23 @@ const i18n = {
     'student.delete_account_title': 'Hesabı Sil',
     'student.delete_account_msg': 'Hesabınızı kalıcı olarak silmek istediğinizden emin misiniz? Tüm ilerlemeniz ve verileriniz sonsuza dek kaybolacak.',
     'student.delete_confirm_btn': 'Evet, Hesabımı Sil',
+    // Admin Student Panel
+    'admin.all_students': 'Tüm Öğrenciler',
+    'admin.reset_all_students': 'Tüm Öğrencileri Sıfırla',
+    'admin.reset_students_confirm': 'Bu işlem TÜM sınıflardaki TÜM öğrenci hesaplarını ve verilerini silecektir. Bu işlem geri alınamaz.',
+    'admin.reset_students_type': 'Onaylamak için RESET ALL STUDENTS yazın:',
+    'admin.no_students': 'Öğrenci hesabı bulunamadı.',
+    'admin.student_name': 'İsim',
+    'admin.student_id': 'Numara / E-posta',
+    'admin.enrolled_in': 'Kayıtlı Sınıf',
+    'admin.responses': 'Yanıtlar',
+    'admin.status': 'Durum',
+    'admin.action': 'İşlem',
+    'admin.remove': 'Kaldır',
+    'admin.active': 'Aktif',
+    'admin.pending': 'Bekliyor',
+    'admin.students_removed': '{count} öğrenci hesabı silindi.',
+    'student.pin_must_be_4': 'PIN tam olarak 4 rakam olmalıdır',
   }
 };
 
@@ -5254,7 +5288,7 @@ async function loadAdminStudentPanel() {
   const panel = document.getElementById('admin-students-panel');
   if (!panel) return;
   panel.classList.remove('hidden');
-  panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">Loading students...</div>`;
+  panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${t('loading')}</div>`;
   
   try {
     const students = await api('/admin/all-students');
@@ -5262,9 +5296,9 @@ async function loadAdminStudentPanel() {
       panel.innerHTML = `
         <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h3 style="margin:0; font-size:18px;">👥 All Students</h3>
+            <h3 style="margin:0; font-size:18px;">👥 ${t('admin.all_students')}</h3>
           </div>
-          <p style="color:var(--text-muted); text-align:center; padding:20px;">No student accounts found.</p>
+          <p style="color:var(--text-muted); text-align:center; padding:20px;">${t('admin.no_students')}</p>
         </div>`;
       return;
     }
@@ -5272,8 +5306,8 @@ async function loadAdminStudentPanel() {
     const rows = students.map(s => {
       const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
       const statusBadge = s.status === 'approved' 
-        ? '<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">Active</span>'
-        : '<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">Pending</span>';
+        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.active')}</span>`
+        : `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`;
       return `
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
@@ -5282,7 +5316,7 @@ async function loadAdminStudentPanel() {
           <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
           <td style="padding:12px 16px; text-align:right;">
-            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:12px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">Remove</button>
+            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:12px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
           </td>
         </tr>`;
     }).join('');
@@ -5290,19 +5324,19 @@ async function loadAdminStudentPanel() {
     panel.innerHTML = `
       <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-          <h3 style="margin:0; font-size:18px;">👥 All Students <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
-          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;" onclick="adminResetStudents()">🗑️ Reset All Students</button>
+          <h3 style="margin:0; font-size:18px;">👥 ${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
+          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;" onclick="adminResetStudents()">🗑️ ${t('admin.reset_all_students')}</button>
         </div>
         <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
           <table style="width:100%; border-collapse:collapse; font-size:14px;">
             <thead>
               <tr style="background:rgba(255,255,255,0.03); border-bottom:2px solid var(--border);">
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Name</th>
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">ID / Email</th>
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Enrolled In</th>
-                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Responses</th>
-                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Status</th>
-                <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Action</th>
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_name')}</th>
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_id')}</th>
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.enrolled_in')}</th>
+                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.responses')}</th>
+                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.status')}</th>
+                <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.action')}</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -5310,7 +5344,7 @@ async function loadAdminStudentPanel() {
         </div>
       </div>`;
   } catch (e) {
-    panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">Failed to load student data.</div>`;
+    panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${t('error')}</div>`;
   }
 }
 
@@ -5323,10 +5357,10 @@ async function adminKickStudent(sid, name) {
 }
 
 async function adminResetStudents() {
-  const confirmed1 = await showConfirmModal('confirm.erase_all_title', 'This will delete ALL student accounts and their data across ALL classrooms. This cannot be undone.', true);
+  const confirmed1 = await showConfirmModal('confirm.erase_all_title', 'admin.reset_students_confirm', true);
   if (!confirmed1) return;
 
-  const typed = await showConfirmModal('confirm.erase_all_title', 'Type RESET ALL STUDENTS to confirm:', true, 'RESET ALL STUDENTS');
+  const typed = await showConfirmModal('confirm.erase_all_title', 'admin.reset_students_type', true, 'RESET ALL STUDENTS');
   if (typed !== 'RESET ALL STUDENTS') return;
 
   try {
@@ -5336,7 +5370,7 @@ async function adminResetStudents() {
     });
 
     if (res.success) {
-      await showAlert('success', `${res.deleted} student account(s) have been removed.`);
+      await showAlert('success', t('admin.students_removed', { count: res.deleted }));
       loadAdminStudentPanel();
     } else {
       showAlert(t('error'), res.error || 'Reset failed.', true);
