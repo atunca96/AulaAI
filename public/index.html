@@ -626,7 +626,7 @@
                 <p id="pin-modal-desc" style="color:var(--text-muted); font-size:14px;" data-i18n="student.pin_desc">Please enter your 4-digit PIN for this classroom.</p>
             </div>
             <div class="form-group" style="margin-bottom:24px;">
-                <input type="password" id="student-pin-input" class="text-input" maxlength="4" placeholder="••••" style="text-align:center; font-size:32px; letter-spacing:12px; font-weight:700;">
+                <input type="password" id="student-pin-input" class="text-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center; font-size:32px; letter-spacing:12px; font-weight:700;" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)">
             </div>
             <div id="pin-error" class="error-box hidden" style="margin-bottom:16px;"></div>
             <button id="pin-submit-btn" class="btn btn-primary btn-full btn-lg" data-i18n="submit">Verify & Enter</button>

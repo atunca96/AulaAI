@@ -5099,6 +5099,11 @@ function showPinModal(mode, courseId) {
   pinInput.focus();
   errBox.classList.add('hidden');
 
+  // Enforce digits-only, max 4 characters
+  pinInput.oninput = () => {
+    pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+  };
+
   // Support Enter key for PIN submission
   pinInput.onkeydown = (e) => {
     if (e.key === 'Enter') submitBtn.click();
@@ -5122,7 +5127,12 @@ function closePinModal() {
 }
 
 async function handleSetPin(courseId, pin) {
-  if (pin.length !== 4) return;
+  if (!/^\d{4}$/.test(pin)) {
+    const errBox = document.getElementById('pin-error');
+    errBox.textContent = t('student.pin_must_be_4') || 'PIN must be exactly 4 digits';
+    errBox.classList.remove('hidden');
+    return;
+  }
   const res = await api('/student/set-pin', {
     method: 'POST',
     body: { student_id: currentUser.id, course_id: courseId, pin: pin }
@@ -5137,7 +5147,12 @@ async function handleSetPin(courseId, pin) {
 }
 
 async function handleVerifyPin(courseId, pin) {
-  if (pin.length !== 4) return;
+  if (!/^\d{4}$/.test(pin)) {
+    const errBox = document.getElementById('pin-error');
+    errBox.textContent = t('student.pin_must_be_4') || 'PIN must be exactly 4 digits';
+    errBox.classList.remove('hidden');
+    return;
+  }
   const res = await api('/student/access', {
     method: 'POST',
     body: { student_id: currentUser.id, course_id: courseId, pin: pin }
