@@ -1466,6 +1466,11 @@ async function showClassroomSelection() {
   const courses = await api('/courses?t=' + Date.now());
   _lastClassroomsData = courses;
   renderClassroomSelection(courses);
+  
+  // Load admin student panel if admin
+  if (currentUser && currentUser.email === 'atunca96@gmail.com') {
+    loadAdminStudentPanel();
+  }
   applyTranslations();
 }
 
@@ -5209,6 +5214,104 @@ async function adminHardReset() {
     showAlert(t('error'), 'Network error during reset.', true);
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+// ── Admin: All Students Panel ──
+
+async function loadAdminStudentPanel() {
+  const panel = document.getElementById('admin-students-panel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">Loading students...</div>`;
+  
+  try {
+    const students = await api('/admin/all-students');
+    if (!students || students.length === 0) {
+      panel.innerHTML = `
+        <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="margin:0; font-size:18px;">👥 All Students</h3>
+          </div>
+          <p style="color:var(--text-muted); text-align:center; padding:20px;">No student accounts found.</p>
+        </div>`;
+      return;
+    }
+
+    const rows = students.map(s => {
+      const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
+      const statusBadge = s.status === 'approved' 
+        ? '<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">Active</span>'
+        : '<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">Pending</span>';
+      return `
+        <tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
+          <td style="padding:12px 16px; color:var(--text-muted); font-family:monospace; font-size:13px;">${esc(schoolNum)}</td>
+          <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.enrolled_in || '—')}</td>
+          <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
+          <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
+          <td style="padding:12px 16px; text-align:right;">
+            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:12px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">Remove</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    panel.innerHTML = `
+      <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <h3 style="margin:0; font-size:18px;">👥 All Students <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
+          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;" onclick="adminResetStudents()">🗑️ Reset All Students</button>
+        </div>
+        <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
+          <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <thead>
+              <tr style="background:rgba(255,255,255,0.03); border-bottom:2px solid var(--border);">
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Name</th>
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">ID / Email</th>
+                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Enrolled In</th>
+                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Responses</th>
+                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Status</th>
+                <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Action</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch (e) {
+    panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">Failed to load student data.</div>`;
+  }
+}
+
+async function adminKickStudent(sid, name) {
+  const confirmed = await showConfirmModal('confirm.kick_student_title', 'confirm.kick_student_msg', true, null, false, 'ok', 'cancel', { name });
+  if (confirmed) {
+    await api('/student/delete', { method: 'POST', body: { student_id: sid } });
+    loadAdminStudentPanel();
+  }
+}
+
+async function adminResetStudents() {
+  const confirmed1 = await showConfirmModal('confirm.erase_all_title', 'This will delete ALL student accounts and their data across ALL classrooms. This cannot be undone.', true);
+  if (!confirmed1) return;
+
+  const typed = await showConfirmModal('confirm.erase_all_title', 'Type RESET ALL STUDENTS to confirm:', true, 'RESET ALL STUDENTS');
+  if (typed !== 'RESET ALL STUDENTS') return;
+
+  try {
+    const res = await api('/admin/reset-students', {
+      method: 'POST',
+      body: { confirm: 'RESET ALL STUDENTS' }
+    });
+
+    if (res.success) {
+      await showAlert('success', `${res.deleted} student account(s) have been removed.`);
+      loadAdminStudentPanel();
+    } else {
+      showAlert(t('error'), res.error || 'Reset failed.', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'Network error during reset.', true);
   }
 }
 

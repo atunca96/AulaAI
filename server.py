@@ -376,6 +376,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._get_ai_status()
         elif path == "/api/students/pending":
             return self._get_pending_students()
+        elif path == "/api/admin/all-students":
+            return self._admin_get_all_students()
         elif path == "/api/user/status":
             user_id = params.get("user_id", [None])[0]
             return self._get_user_status(user_id)
@@ -725,6 +727,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._question_delete()
         elif path == "/api/admin/hard-reset":
             return self._admin_hard_reset()
+        elif path == "/api/admin/reset-students":
+            return self._admin_reset_students()
         elif path == "/api/blueprint/delete":
             return self._delete_blueprint()
         elif path == "/api/blueprint/delete-all":
@@ -780,6 +784,54 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if length == 0: return None
             return json.loads(self.rfile.read(length).decode('utf-8'))
         except: return None
+
+    def _admin_get_all_students(self):
+        """Returns all student accounts across the entire system. Admin only."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
+        with db_connection() as db:
+            students = db.execute("""
+                SELECT u.id, u.name, u.email, u.status, u.created_at,
+                       GROUP_CONCAT(c.name, ', ') as enrolled_in,
+                       COUNT(DISTINCT e.course_id) as course_count,
+                       COUNT(DISTINCT r.id) as total_responses
+                FROM users u
+                LEFT JOIN enrollments e ON u.id = e.student_id
+                LEFT JOIN courses c ON e.course_id = c.id
+                LEFT JOIN responses r ON u.id = r.student_id
+                WHERE u.role = 'student'
+                GROUP BY u.id
+                ORDER BY u.created_at DESC
+            """).fetchall()
+            return self._send_json([dict(s) for s in students])
+
+    def _admin_reset_students(self):
+        """Deletes ALL student accounts and their associated data. Admin only."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
+        body = self._read_body()
+        confirm = body.get("confirm")
+        if confirm != "RESET ALL STUDENTS":
+            return self._send_error("Confirmation failed")
+        try:
+            with db_connection() as db:
+                # Get all student IDs
+                student_ids = [r[0] for r in db.execute("SELECT id FROM users WHERE role = 'student'").fetchall()]
+                if not student_ids:
+                    return self._send_json({"success": True, "deleted": 0})
+                placeholders = ','.join('?' * len(student_ids))
+                # Delete student data
+                db.execute(f"DELETE FROM responses WHERE student_id IN ({placeholders})", student_ids)
+                db.execute(f"DELETE FROM mastery_scores WHERE student_id IN ({placeholders})", student_ids)
+                db.execute(f"DELETE FROM messages WHERE student_id IN ({placeholders})", student_ids)
+                db.execute(f"DELETE FROM enrollments WHERE student_id IN ({placeholders})", student_ids)
+                db.execute(f"DELETE FROM sessions WHERE user_id IN ({placeholders})", student_ids)
+                # Delete student accounts
+                db.execute(f"DELETE FROM users WHERE id IN ({placeholders})", student_ids)
+                db.commit()
+                return self._send_json({"success": True, "deleted": len(student_ids)})
+        except Exception as e:
+            return self._send_error(f"Reset failed: {str(e)}")
 
     def _admin_hard_reset(self):
         """Hard delete everything. Restricted to primary admin email."""
