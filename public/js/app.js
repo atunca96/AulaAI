@@ -2332,7 +2332,13 @@ async function handleLogin(e) {
   return false;
 }
 
-function logout() {
+async function logout() {
+  if (currentUser && currentUser.id) {
+    try {
+      // Notify server to clear 'last_seen' timestamp immediately
+      await api('/user/logout', { method: 'POST', body: { user_id: currentUser.id } });
+    } catch (e) { console.error('Logout error:', e); }
+  }
   localStorage.removeItem('aula_user');
   sessionStorage.removeItem('aula_user');
   localStorage.removeItem('aula_last_course');

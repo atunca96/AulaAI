@@ -693,6 +693,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._student_leave_classroom()
         elif path == "/api/register":
             return self._register()
+        elif path == "/api/user/logout":
+            return self._logout()
         elif path == "/api/user/delete":
             return self._delete_user_account()
         elif path == "/api/students/pending":
@@ -873,6 +875,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_json({"success": True, "message": "All classroom data has been wiped. Fresh start ready."})
         except Exception as e:
             self._send_error(f"Reset failed: {str(e)}")
+
+    def _logout(self):
+        body = self._read_body_silent()
+        user_id = body.get("user_id")
+        if user_id:
+            with db_connection() as db:
+                db.execute("UPDATE users SET last_seen = NULL WHERE id = ?", (user_id,))
+                db.commit()
+            bump_version()
+        return self._send_json({"success": True})
 
     def _delete_user_account(self):
         user_id = self._get_user_id()
