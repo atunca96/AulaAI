@@ -791,6 +791,7 @@ const i18n = {
     'admin.remove': 'Remove',
     'admin.active': 'Active',
     'admin.pending': 'Pending',
+    'admin.inactive': 'Inactive',
     'admin.students_removed': '{count} student account(s) have been removed.',
     'student.pin_must_be_4': 'PIN must be exactly 4 digits',
   },
@@ -1183,6 +1184,7 @@ const i18n = {
     'admin.remove': 'Kaldır',
     'admin.active': 'Aktif',
     'admin.pending': 'Bekliyor',
+    'admin.inactive': 'İnaktif',
     'admin.students_removed': '{count} öğrenci hesabı silindi.',
     'student.pin_must_be_4': 'PIN tam olarak 4 rakam olmalıdır',
   }
@@ -5349,7 +5351,9 @@ async function loadAdminStudentPanel(isRefresh = false) {
 
       const statusBadge = isOnline 
         ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">\u2022 ${t('admin.active')}</span>`
-        : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`;
+        : (s.status === 'pending'
+           ? `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`
+           : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.inactive')}</span>`);
       
       // Prettify comma-separated list from SQL
       const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
