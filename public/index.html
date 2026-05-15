@@ -302,11 +302,11 @@
                     <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
                         <div class="form-group" style="margin-bottom:16px;">
                             <label data-i18n="student_number">Student Number</label>
-                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="username">
+                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="off" spellcheck="false">
                         </div>
                         <div class="form-group" style="margin-bottom:24px;">
                             <label data-i18n="full_name">Full Name</label>
-                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" data-i18n="full_name_placeholder" autocomplete="name">
+                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" data-i18n="full_name_placeholder" autocomplete="off" spellcheck="false">
                         </div>
                         <div id="student-login-error" class="error-box hidden" style="margin-bottom:16px;"></div>
                         <button type="submit" class="btn btn-primary btn-full btn-lg" id="student-login-btn" data-i18n="signIn">Sign In</button>
