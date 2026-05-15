@@ -345,9 +345,19 @@ function refreshCurrentView() {
     if (document.getElementById('classroom-selection-screen').classList.contains('active')) {
       showClassroomSelection();
     }
-    loadOverview();
-    loadQuizList();
-    loadAssignmentList();
+
+    // Only refresh the ACTIVE tab's data to prevent UI flicker
+    const activeTab = document.querySelector('.nav-tab.active');
+    const tabId = activeTab ? activeTab.dataset.tab : '';
+    
+    if (tabId === 'overview') loadOverview();
+    if (tabId === 'curriculum') { loadCurriculumAsync(); renderStudyBook(); }
+    if (tabId === 'quizzes-mgmt') loadQuizList();
+    if (tabId === 'assignments-mgmt') loadAssignmentList();
+    if (tabId === 'students') loadStudentRoster();
+    if (tabId === 'book' || tabId === 'study-materials') renderStudyBook();
+
+    // Always refresh roster + inbox badge in background
     loadStudentRoster();
     if (currentCourse) {
       api('/messages?course_id=' + currentCourse.id).then(messages => {
@@ -374,9 +384,15 @@ function refreshCurrentView() {
     }
   } else {
     loadStudentHome();
-    loadQuizList();
-    loadAssignmentList();
-    // loadStudentProgress(); // Disabled until further notice
+    loadStudentStats();
+    
+    // Only refresh active tab's data
+    const activeTab = document.querySelector('.nav-tab.active');
+    const tabId = activeTab ? activeTab.dataset.tab : '';
+    if (tabId === 'book' || tabId === 's-study-tab' || tabId === 'study-materials') renderStudyBook();
+    if (tabId === 'quizzes') loadQuizList();
+    if (tabId === 'assignments') loadAssignmentList();
+    
     if (currentCourse) {
       api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`).then(messages => {
         if (messages && Array.isArray(messages)) {
