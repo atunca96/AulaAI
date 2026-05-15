@@ -793,45 +793,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         try:
             with db_connection() as db:
-                # Drop and recreate tables is the cleanest way to 'hard delete'
-                db.execute("DROP TABLE IF EXISTS messages")
-                db.execute("DROP TABLE IF EXISTS student_mastery")
-                db.execute("DROP TABLE IF EXISTS mastery_scores")
-                db.execute("DROP TABLE IF EXISTS response_history")
-                db.execute("DROP TABLE IF EXISTS responses")
-                db.execute("DROP TABLE IF EXISTS quiz_questions")
-                db.execute("DROP TABLE IF EXISTS quiz_results")
-                db.execute("DROP TABLE IF EXISTS quizzes")
-                db.execute("DROP TABLE IF EXISTS assignment_questions")
-                db.execute("DROP TABLE IF EXISTS assignment_submissions")
-                db.execute("DROP TABLE IF EXISTS assignments")
-                db.execute("DROP TABLE IF EXISTS questions")
-                db.execute("DROP TABLE IF EXISTS activities")
-                db.execute("DROP TABLE IF EXISTS topics")
-                db.execute("DROP TABLE IF EXISTS chapters")
-                db.execute("DROP TABLE IF EXISTS enrollments")
-                db.execute("DROP TABLE IF EXISTS course_enrollments")
-                db.execute("DROP TABLE IF EXISTS weekly_reports")
-                db.execute("DROP TABLE IF EXISTS sessions")
-                db.execute("DROP TABLE IF EXISTS courses")
-                db.execute("DROP TABLE IF EXISTS users")
+                tables = [
+                    'weekly_reports', 'assignment_questions', 'assignment_submissions', 'assignments',
+                    'quiz_questions', 'quiz_results', 'quizzes', 'responses', 'response_history',
+                    'questions', 'activities', 'topics', 'chapters', 'enrollments', 'mastery_scores',
+                    'student_mastery', 'messages', 'courses', 'sessions'
+                ]
+                for table in tables:
+                    db.execute(f"DROP TABLE IF EXISTS {table}")
                 db.commit()
             
-            # Re-initialize the database schema
+            # Re-initialize DB to create fresh tables
+            from database import init_db
             init_db()
             
-            # Re-insert the admin user with the STABLE ID used in seed data ('lecturer-demo-id')
-            # This ensures they remain the owner of the default '11111' class.
-            with db_connection() as db:
-                admin_id = "lecturer-demo-id"
-                hashed_pwd = hash_password('ALper2002@')
-                db.execute("INSERT OR REPLACE INTO users (id, name, email, password, role, status) VALUES (?, ?, ?, ?, ?, ?)",
-                          (admin_id, 'Alper Tunca', 'atunca96@gmail.com', hashed_pwd, 'lecturer', 'approved'))
-                
-            return self._send_json({"success": True, "message": "Database reset. Admin account preserved."})
+            self._send_json({"success": True, "message": "All classroom data has been wiped. Fresh start ready."})
         except Exception as e:
-            file_log(f"HARD RESET ERROR: {e}")
-            return self._send_error(f"Reset failed: {str(e)}", 500)
+            self._send_error(f"Reset failed: {str(e)}")
 
     def _delete_user_account(self):
         user_id = self._get_user_id()
