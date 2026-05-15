@@ -5320,11 +5320,15 @@ async function loadAdminStudentPanel() {
       const statusBadge = s.status === 'approved' 
         ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.active')}</span>`
         : `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`;
+      
+      // Prettify comma-separated list from SQL
+      const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
+      
       return `
         <tr style="border-bottom:1px solid var(--border);">
           <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
           <td style="padding:12px 16px; color:var(--text-muted); font-family:monospace; font-size:13px;">${esc(schoolNum)}</td>
-          <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.enrolled_in || '—')}</td>
+          <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(enrollmentList)}</td>
           <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
           <td style="padding:12px 16px; text-align:right;">
@@ -5356,6 +5360,7 @@ async function loadAdminStudentPanel() {
         </div>
       </div>`;
   } catch (e) {
+    console.error("Admin Panel Error:", e);
     panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${t('error')}</div>`;
   }
 }
