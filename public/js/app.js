@@ -4822,6 +4822,31 @@ function showStudyTopic(topicId, pageIdx = 0) {
               }
             }
 
+            // Safe string extractor: drills into nested objects to find a displayable string
+            const safeStr = (val) => {
+              if (val === null || val === undefined) return "";
+              if (typeof val === "string") return val;
+              if (typeof val === "number" || typeof val === "boolean") return String(val);
+              if (Array.isArray(val)) return val.map(v => safeStr(v)).filter(Boolean).join(", ");
+              if (typeof val === "object") {
+                // Try common display keys first
+                const displayKeys = ['text','name','value','label','character','hiragana','katakana','letter','symbol','word','term','phrase','romaji','pinyin','reading'];
+                for (const dk of displayKeys) {
+                  if (val[dk] && typeof val[dk] === "string") return val[dk];
+                }
+                // Fallback: grab first string value
+                const vals = Object.values(val);
+                for (const v of vals) {
+                  if (typeof v === "string" && v.length > 0) return v;
+                }
+                // Last resort: concatenate all string values
+                const strs = vals.filter(v => typeof v === "string" && v.length > 0);
+                if (strs.length > 0) return strs.join(" — ");
+                return JSON.stringify(val);
+              }
+              return String(val);
+            };
+
             // Prevent MCQs from double-rendering their options as vocab cards
             const isMcq = (p.type === 'mcq' || p.prompt);
             if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
@@ -4829,19 +4854,19 @@ function showStudyTopic(topicId, pageIdx = 0) {
               rawData.forEach(it => {
                 if (typeof it === "string") {
                   html += `<div dir="auto" class="foreign-word" role="button" tabindex="0" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; cursor:pointer; font-size:20px; color:#ffffff;">${fixDiacritics(it)}</div>`;
-                } else if (typeof it === "object") {
-                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
-                  const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
+                } else if (typeof it === "object" && it !== null) {
+                  const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
+                  const v = safeStr(it.translation || it.meaning || it.reading || it.romaji || it.pinyin || it.pronunciation || it.text || it.content || it.english || it.value || Object.values(it)[1]);
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
                     html += `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
-                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ""}
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(v || k)}"</div>
+                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${safeStr(k)}</div>` : ""}
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(safeStr(v || k))}"</div>
                       </div>`;
                   } else {
                     html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
-                        <div style="flex:1; display:flex; justify-content:flex-start;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(k)}</div></div>
-                        <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
+                        <div style="flex:1; display:flex; justify-content:flex-start;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(safeStr(k))}</div></div>
+                        <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${safeStr(v)}</div>
                       </div>`;
                   }
                 }
