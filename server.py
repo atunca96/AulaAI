@@ -792,7 +792,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             students = db.execute("""
                 SELECT u.id, u.name, u.email, u.status, u.created_at,
-                       GROUP_CONCAT(DISTINCT c.name, ', ') as enrolled_in,
+                       GROUP_CONCAT(DISTINCT c.name) as enrolled_in,
                        COUNT(DISTINCT e.course_id) as course_count,
                        COALESCE((SELECT COUNT(*) FROM responses r WHERE r.student_id = u.id), 0) as total_responses
                 FROM users u
