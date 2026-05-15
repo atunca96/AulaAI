@@ -610,7 +610,7 @@
                 <p style="color:var(--text-muted); font-size:14px;" data-i18n="student.enter_code">Enter the 5-digit code provided by your teacher</p>
             </div>
             <div class="form-group" style="margin-bottom:24px;">
-                <input type="text" id="join-class-code" class="text-input" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;">
+                <input type="text" id="join-class-code" class="text-input" maxlength="5" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 5)">
             </div>
             <button class="btn btn-primary btn-full btn-lg" onclick="handleJoinClassroom()" data-i18n="student.join_btn">Join Classroom</button>
         </div>

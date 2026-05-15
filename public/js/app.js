@@ -374,7 +374,7 @@ function refreshCurrentView() {
           }
           if (document.getElementById('tab-inbox') && document.getElementById('tab-inbox').classList.contains('active')) {
             if (currentChatStudentId && currentChatStudentName) {
-              openChat(currentChatStudentId, currentChatStudentName, currentChatCourseId);
+              openChat(currentChatStudentId, currentChatStudentName, currentChatCourseId, true);
             } else {
               loadInbox();
             }
@@ -407,7 +407,7 @@ function refreshCurrentView() {
             }
           }
           if (document.getElementById('tab-s-messages') && document.getElementById('tab-s-messages').classList.contains('active')) {
-            loadStudentChat();
+            loadStudentChat(true);
           }
         }
       });
@@ -2543,7 +2543,7 @@ let currentChatStudentId = null;
 let currentChatStudentName = null;
 let currentChatCourseId = null;
 
-async function loadStudentChat() {
+async function loadStudentChat(isRefresh = false) {
   if (!currentCourse) return;
   const wrapper = document.querySelector('#tab-s-messages .chat-wrapper');
   const isTabActive = document.getElementById('tab-s-messages')?.classList.contains('active');
@@ -2568,10 +2568,15 @@ async function loadStudentChat() {
   }
 
   const container = document.getElementById('student-chat-history');
-  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
+  if (container && !isRefresh) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
   const messages = await api(`/messages?student_id=${currentUser.id}&course_id=${currentCourse.id}`);
-  renderStudentChat(messages);
+  
+  // Only re-render if message count changed (basic check)
+  const existingCount = container ? container.querySelectorAll('.chat-bubble').length : 0;
+  if (messages && messages.length !== existingCount) {
+    renderStudentChat(messages);
+  }
 }
 
 async function sendMessage() {
@@ -2659,7 +2664,7 @@ async function loadInbox() {
   `).join('');
 }
 
-async function openChat(studentId, studentName, cid) {
+async function openChat(studentId, studentName, cid, isRefresh = false) {
   currentChatStudentId = studentId;
   currentChatStudentName = studentName;
   const activeCourseId = cid || currentCourse?.id;
@@ -2688,10 +2693,14 @@ async function openChat(studentId, studentName, cid) {
   document.getElementById('inbox-title').innerHTML = `\ud83d\udcac ${esc(studentName)}`;
 
   const container = document.getElementById('inbox-messages');
-  if (container) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
+  if (container && !isRefresh) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
 
   const messages = await api(`/messages?student_id=${studentId}&course_id=${activeCourseId}`);
-  renderLecturerChat(messages);
+  
+  const existingCount = container ? container.querySelectorAll('.chat-bubble').length : 0;
+  if (messages && messages.length !== existingCount) {
+    renderLecturerChat(messages);
+  }
 
   messages.filter(m => m.sender === 'student' && !m.is_read).forEach(m => {
     api('/message/read', { method: 'POST', body: { message_id: m.id } });
@@ -5104,7 +5113,10 @@ function closeJoinClassroomModal() {
 
 async function handleJoinClassroom() {
   const code = document.getElementById('join-class-code').value.trim();
-  if (code.length < 5) return;
+  if (code.length < 5) {
+    showAlert(t('missing_info'), t('student.enter_code'), true);
+    return;
+  }
 
   const res = await api('/student/join', {
     method: 'POST',
