@@ -4789,15 +4789,30 @@ function showStudyTopic(topicId, pageIdx = 0) {
           icon: icon,
           render: () => {
             let html = "";
-            let text_content = (p.type === "mcq" || p.prompt) ? (p.text || p.content || p.rule || p.intro || "") : (p.text || p.content || p.explanation || p.rule || p.intro || "");
-            if (text_content && typeof text_content === "string") {
-              const linesArr = fixDiacritics(text_content).split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
+            
+            // 1. Text/Explanation Detection
+            let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
+            if (!text || (typeof text === "object" && !Array.isArray(text))) {
+               for(let key in p) {
+                 if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "type") {
+                   text = p[key]; break;
+                 }
+               }
+            }
+
+            if (text && typeof text === "string") {
+              const fixDiacriticsText = fixDiacritics(text);
+              const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
               if (linesArr.length > 1) {
-                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin-bottom: 24px;">${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+/, "").trim()}</li>`).join("")}</ul>`;
+                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin: 0 0 32px 0;">
+                  ${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim()}</li>`).join("")}
+                </ul>`;
               } else {
-                html += `<div class="ai-explanation" style="font-size:20px; line-height:1.8; color:#ffffff; white-space:pre-wrap; margin-bottom: 24px;">${fixDiacritics(text_content)}</div>`;
+                html += `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#ffffff; white-space:pre-wrap; margin-bottom:32px;">${fixDiacriticsText}</div>`;
               }
             }
+
+            // 2. Data List Detection
             let rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
             if (!Array.isArray(rawData) || rawData.length === 0) {
               for (const key in p) {
@@ -4806,29 +4821,38 @@ function showStudyTopic(topicId, pageIdx = 0) {
                 }
               }
             }
+
             // Prevent MCQs from double-rendering their options as vocab cards
             const isMcq = (p.type === 'mcq' || p.prompt);
             if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
-              html += `<div style="display:flex; flex-direction:column; gap:12px;">`;
+              html += `<div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">`;
               rawData.forEach(it => {
                 if (typeof it === "string") {
-                  html += `<div class="foreign-word" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; font-size:20px; color:#ffffff;">${fixDiacritics(it)}</div>`;
+                  html += `<div dir="auto" class="foreign-word" role="button" tabindex="0" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; cursor:pointer; font-size:20px; color:#ffffff;">${fixDiacritics(it)}</div>`;
                 } else if (typeof it === "object") {
-                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || Object.values(it)[0] || "";
-                  const v = it.translation || it.meaning || it.text || it.english || Object.values(it)[1] || "";
+                  const k = it.term || it.word || it.phrase || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.key || Object.values(it)[0] || "";
+                  const v = it.translation || it.meaning || it.text || it.content || it.english || it.value || Object.values(it)[1] || "";
+                  
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
-                    html += `<div style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);"><div class="foreign-word" style="font-style:italic; font-size:20px; color:#ffffff;">"${fixDiacritics(v || k)}"</div></div>`;
+                    html += `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
+                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${k}</div>` : ""}
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(v || k)}"</div>
+                      </div>`;
                   } else {
-                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;"><div style="flex:1;"><div class="foreign-word" style="font-size:22px; font-weight:800; color:#ffffff;">${fixDiacritics(k)}</div></div><div style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div></div>`;
+                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                        <div style="flex:1; display:flex; justify-content:flex-start;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(k)}</div></div>
+                        <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${v}</div>
+                      </div>`;
                   }
                 }
               });
               html += `</div>`;
             }
+
             // 3. MCQ Support
             if (p.type === 'mcq' || p.prompt) {
                html += `<div style="margin-top:24px; background:rgba(255,255,255,0.02); padding:24px; border-radius:20px; border:1px solid var(--border);">
-                 <div style="font-size:20px; font-weight:700; margin-bottom:20px; color:#ffffff;">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
+                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:#ffffff;">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
                  <div style="display:flex; flex-direction:column; gap:12px;">
                    ${(p.distractors || []).concat(p.answer).sort().map(opt => `
                      <button class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(opt)}</button>
@@ -4836,7 +4860,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                  </div>
                </div>`;
             }
-            return html || `<div style="text-align:center; padding:40px; color:var(--text-muted);">...</div>`;
+            return html || `<div style="text-align:center; padding:40px; color:var(--text-muted);">No detailed material provided for this page.</div>`;
           }
         });
       });
