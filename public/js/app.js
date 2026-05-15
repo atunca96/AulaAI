@@ -249,6 +249,14 @@ function startLiveSync() {
           }
         });
       }
+
+      // Continuous background polling for Admin Students Panel to update status LIVE without refreshing
+      if (currentUser && currentUser.role === 'lecturer' && document.getElementById('classroom-selection-screen').classList.contains('active')) {
+        const pnl = document.getElementById('admin-students-panel');
+        if (pnl && !pnl.classList.contains('hidden')) {
+          loadAdminStudentPanel(true);
+        }
+      }
     } catch (e) { /* ignore network errors */ }
   }, 1000);
 }
@@ -5299,14 +5307,23 @@ async function adminHardReset() {
 
 // ── Admin: All Students Panel ──
 
-async function loadAdminStudentPanel() {
+async function loadAdminStudentPanel(isRefresh = false) {
   const panel = document.getElementById('admin-students-panel');
   if (!panel) return;
   panel.classList.remove('hidden');
-  panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${t('loading')}</div>`;
+  
+  // Skip loading spinner if this is a background refresh or if already loaded
+  if (!isRefresh && !panel.innerHTML.trim()) {
+    panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${t('loading')}</div>`;
+  }
   
   try {
     const students = await api('/admin/all-students');
+    const currentLang = localStorage.getItem('aula_lang') || 'en';
+    const dataHash = JSON.stringify(students || []) + currentLang;
+    if (panel.dataset.hash === dataHash) return; // Skip re-render if nothing changed
+    panel.dataset.hash = dataHash;
+
     if (!students || students.length === 0) {
       panel.innerHTML = `
         <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
