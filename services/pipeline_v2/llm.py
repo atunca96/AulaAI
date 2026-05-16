@@ -55,6 +55,7 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
         try:
             payload = {
                 "model": model,
+                "max_tokens": 16000,
                 "messages": messages
             }
             
