@@ -2831,6 +2831,45 @@ def _cleanup_orphaned_building_flags():
         
         db.commit()
 
+def _repair_german_corruption():
+    """Surgical repair for German OCR artifacts (e.g. Arabic characters replacing 'ß')"""
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] [MAINTENANCE] Checking for German character corruption...")
+    with db_connection() as db:
+        # Patterns to fix
+        replacements = [
+            ("hei ى t", "heißt"),
+            ("hei ىt", "heißt"),
+            ("hei ى", "heißt"),
+            (" ى ", " ß "),
+            ("ى", "ß")
+        ]
+        
+        # Repair Topics
+        topics = db.execute("SELECT id, title FROM topics WHERE title LIKE '%ى%'").fetchall()
+        for t in topics:
+            old_title = t["title"]
+            new_title = old_title
+            for search, replace in replacements:
+                new_title = new_title.replace(search, replace)
+            
+            if old_title != new_title:
+                print(f"[REPAIR] Fixing Topic: '{old_title}' -> '{new_title}'")
+                db.execute("UPDATE topics SET title = ? WHERE id = ?", (new_title, t["id"]))
+
+        # Repair Chapters
+        chapters = db.execute("SELECT id, title FROM chapters WHERE title LIKE '%ى%'").fetchall()
+        for c in chapters:
+            old_title = c["title"]
+            new_title = old_title
+            for search, replace in replacements:
+                new_title = new_title.replace(search, replace)
+            
+            if old_title != new_title:
+                print(f"[REPAIR] Fixing Chapter: '{old_title}' -> '{new_title}'")
+                db.execute("UPDATE chapters SET title = ? WHERE id = ?", (new_title, c["id"]))
+
+        db.commit()
+
 class RobustServer(http.server.ThreadingHTTPServer):
     allow_reuse_address = True
 
@@ -2843,6 +2882,7 @@ def main():
             sys.exit(1)
         init_db()
         _cleanup_orphaned_building_flags()
+        _repair_german_corruption()
         
         server = RobustServer(("0.0.0.0", PORT), APIHandler)
         server.daemon_threads = True
