@@ -301,6 +301,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 * Fix broken words if obvious
 * Work in ANY language (language-agnostic)
 * PRESERVE ORIGINAL NAMES: Use the EXACT topic/lesson titles as written in the PDF. Do NOT translate, rename, summarize, or genericize them. If the PDF says "Wie heißt du?" output "Wie heißt du?", NOT "Hellos and Goodbyes". If it says "Freizeit" output "Freizeit", NOT "Sports and Activities".
+* GERMAN ENCODING SAFETY: German PDFs often contain special characters like ß, ä, ö, ü. OCR engines sometimes misinterpret these as Arabic characters (e.g. 'ى' instead of 'ßt'). You MUST detect and CORRECT these back to valid German spelling based on context.
 
 ---
 
@@ -486,7 +487,17 @@ INPUT:
                 
                 for t in topics:
                     if isinstance(t, dict) and "name" in t:
-                        t["text"] = t["name"]
+                        name = t["name"]
+                        # Post-processing fix for common German OCR/Mojibake errors
+                        # Specifically fixing the 'ى' (Arabic) instead of 'ß' or 'ßt' issue
+                        if "ى" in name:
+                            logger.info(f"Fixing possible German OCR corruption in: {name}")
+                            name = name.replace("hei ى t", "heißt")
+                            name = name.replace("hei ىt", "heißt")
+                            name = name.replace("hei ى", "heißt")
+                            name = name.replace(" ى ", " ß ")
+                            name = name.replace("ى", "ß")         # general case
+                        t["text"] = name
                 
                 cleaned_units.append(u)
             data["units"] = cleaned_units
