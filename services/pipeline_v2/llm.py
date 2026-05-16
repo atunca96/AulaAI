@@ -311,6 +311,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 7. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
 8. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
 9. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit. Do NOT output empty units.
+10. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
 
 ---
 
@@ -423,7 +424,8 @@ Your job is to FIX the structure.
 4. NORMALIZE TOPICS: Keep names SHORT and concise. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
 5. UNIT BALANCING: Distribute topics logically.
 6. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit.
-7. FINAL CLEANUP: No empty units, no duplicate topics anywhere.
+7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
+8. FINAL CLEANUP: No empty units, no duplicate topics anywhere.
 
 ---
 
