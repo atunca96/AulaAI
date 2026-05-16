@@ -130,6 +130,7 @@ def call_llm_with_pdf(pdf_path: str, prompt: str, retries: int = 1) -> str:
         try:
             payload = {
                 "model": model,
+                "max_tokens": 16000,
                 "messages": messages,
                 "plugins": [
                     {
@@ -301,11 +302,11 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 ---
 
 📦 TASK
-1. Read the PDF content.
-2. Detect structure: UNIT_HEADER, TOPIC, NOISE (discard)
-3. Extract ONLY meaningful topics
+1. Read the PDF content, focusing specifically on the Table of Contents or chapter breakdowns.
+2. Detect structure: UNIT_HEADER (e.g., Unit 1, Lektion 2, Chapter 3), TOPIC, NOISE (discard).
+3. Extract EVERY SINGLE UNIT and EVERY SINGLE TOPIC found in the document. Do not summarize or skip any units.
 4. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
-5. Group into units
+5. Group them correctly into their respective units as shown in the book.
 6. Remove duplicates
 7. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
 8. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
@@ -317,6 +318,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 "units": [
 {
 "unit": 1,
+"title": "Unit 1: Introduction",
 "topics": [
 {
 "name": "string",
@@ -324,7 +326,18 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 "confidence": 0.0
 }
 ]
+},
+{
+"unit": 2,
+"title": "Unit 2: Family",
+"topics": [
+{
+"name": "string",
+"tag": "vocabulary"
 }
+]
+}
+// Generate ALL units found in the document!
 ],
 "qa_report": {
 "level": "A1",
@@ -417,6 +430,17 @@ Your job is to FIX the structure.
 "units": [
 {{
 "unit": 1,
+"title": "Unit 1: Introduction",
+"topics": [
+{{
+"name": "string",
+"tag": "..."
+}}
+]
+}},
+{{
+"unit": 2,
+"title": "Unit 2: Family",
 "topics": [
 {{
 "name": "string",
@@ -424,6 +448,7 @@ Your job is to FIX the structure.
 }}
 ]
 }}
+// Keep all units from the input!
 ]
 }}
 
