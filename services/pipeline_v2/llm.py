@@ -18,8 +18,8 @@ if os.path.exists(".env"):
                 os.environ[k] = v
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = "anthropic/claude-3-haiku"
-FALLBACK_MODEL = "anthropic/claude-3-haiku"
+CHEAP_MODEL = "openai/gpt-4o-mini"
+FALLBACK_MODEL = "openai/gpt-4o-mini"
 
 CACHE_NAMESPACE = "pipeline_v2_v4"
 
@@ -114,9 +114,10 @@ def call_llm_with_pdf(pdf_path: str, prompt: str, retries: int = 1) -> str:
                     "text": prompt
                 },
                 {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:application/pdf;base64,{pdf_b64}"
+                    "type": "file",
+                    "file": {
+                        "filename": "document.pdf",
+                        "file_data": f"data:application/pdf;base64,{pdf_b64}"
                     }
                 }
             ]
