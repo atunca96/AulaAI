@@ -307,14 +307,14 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 📦 TASK
 1. Read the PDF content, focusing specifically on the Table of Contents or chapter breakdowns.
 2. Detect structure: UNIT_HEADER (e.g., Unit 1, Lektion 2, Chapter 3), TOPIC, NOISE (discard).
-3. Extract EVERY SINGLE UNIT and EVERY SINGLE TOPIC found in the document. Do not summarize or skip any units.
+3. Extract ONLY the units and topics physically present in the document. Do NOT infer, predict, or add "future" levels (e.g., do not add Level 4 if only 3 levels are present). 
 4. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
 5. Group them correctly into their respective units as shown in the book.
 6. Remove duplicates
 7. Perform QA: check logical order, detect noise. Do NOT invent missing basics (e.g. alphabet) or foundational units. Strictly stick to the PDF.
 8. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
-9. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit. Do NOT output empty units.
-10. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
+9. STRICT NO-EMPTY-UNITS RULE: If a unit has no valid lessons/topics after noise removal, it MUST NOT be included in the JSON. Never output an empty "topics": [] array.
+10. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation). Skip anything that says "Review", "Test", "Exam", or "Cultural Note".
 
 ---
 
@@ -426,9 +426,10 @@ Your job is to FIX the structure.
 3. REMOVE NOISE: Delete meaningless lines or broken OCR text.
 4. PRESERVE ORIGINAL NAMES: Do NOT translate, rename, summarize, or genericize topic titles. Keep the EXACT original names from the input. Only fix obvious OCR errors. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
 5. PRESERVE UNIT STRUCTURE: Do NOT merge, split, rebalance, or remove units. Keep the EXACT same number of units as the input. A unit with only 2-3 topics is fine — do NOT merge it into another unit.
-6. DROPPING EMPTY/UNDEVELOPED UNITS: Only drop units that have ZERO valid topics. Units with real lesson content (even just 2-3 topics) MUST be kept.
-7. CULTURAL \u0026 REVIEW FILTER: Do NOT extract generic \"Review\" chapters, test sections, or purely geographical/cultural notes (e.g., \"Berlin, Germany\"). Only extract actionable language lessons (grammar, vocabulary, conversation).
-8. FINAL CLEANUP: No duplicate topics anywhere. Do NOT drop any units that have real content.
+6. PRUNING EMPTY UNITS: If a unit has NO valid topics, it MUST be removed. A "Unit" with zero lessons is useless.
+7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation). Skip anything that says "Review", "Test", "Exam", or "Cultural Note".
+8. NO HALLUCINATIONS: Do NOT add units that were not in the input. If the input ends at Level 3, the output MUST end at Level 3.
+9. FINAL CLEANUP: No duplicate topics anywhere. No empty units. No hallucinated levels.
 
 ---
 
@@ -472,13 +473,23 @@ INPUT:
         data = json.loads(result_text)
         # Normalize keys for app compatibility
         if "units" in data:
+            cleaned_units = []
             for u in data["units"]:
+                # Python-level Safety Filter: Prune units with 0 valid topics
+                topics = u.get("topics", [])
+                if not topics or not isinstance(topics, list) or len(topics) == 0:
+                    logger.warning(f"Pruning empty unit during normalization: {u.get('title', 'Untitled')}")
+                    continue
+                
                 if "unit" in u and "title" not in u:
                     u["title"] = f"Unit {u['unit']}"
-                if "topics" in u:
-                    for t in u["topics"]:
-                        if "name" in t:
-                            t["text"] = t["name"]
+                
+                for t in topics:
+                    if isinstance(t, dict) and "name" in t:
+                        t["text"] = t["name"]
+                
+                cleaned_units.append(u)
+            data["units"] = cleaned_units
         return data
     except Exception as e:
         logger.error(f"Normalization failed, returning original data: {e}")
