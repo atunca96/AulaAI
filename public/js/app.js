@@ -2198,8 +2198,33 @@ async function triggerDeepExtract() {
     const lineCount = data.markdown.split('\n').filter(l => l.trim()).length;
     summaryEl.textContent = `${data.language || 'Unknown'} detected • ${lineCount} content lines extracted`;
     
-    // Auto-expand advanced section so user can see/edit the content
-    // document.getElementById('advanced-section').open = true;
+    // Render extracted curriculum preview
+    const previewEl = document.getElementById('extract-preview');
+    if (previewEl && data.markdown) {
+      const lines = data.markdown.split('\n');
+      let html = '';
+      const tagColors = {
+        'grammar': '#a78bfa', 'vocabulary': '#38bdf8', 'mixed': '#fb923c',
+        'communication': '#34d399', 'functional': '#f472b6', 'phonetics': '#facc15'
+      };
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('##')) {
+          const title = trimmed.replace(/^#+\s*/, '');
+          html += `<div style="font-weight:700; font-size:14px; color:var(--accent-light, #a78bfa); margin-top:14px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06);">${title}</div>`;
+        } else if (trimmed.startsWith('- ')) {
+          const tagMatch = trimmed.match(/\[(\w+)\]\s*$/);
+          const tag = tagMatch ? tagMatch[1] : '';
+          const topicText = trimmed.replace(/^-\s*/, '').replace(/\s*\[\w+\]\s*$/, '');
+          const tagColor = tagColors[tag] || '#94a3b8';
+          const tagBadge = tag ? `<span style="display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:4px; background:${tagColor}22; color:${tagColor}; margin-left:8px;">${tag}</span>` : '';
+          html += `<div style="padding:3px 0 3px 12px; color:var(--text-secondary, #cbd5e1);">• ${topicText}${tagBadge}</div>`;
+        }
+      }
+      previewEl.innerHTML = html || '<div style="color:var(--text-muted);">No structured content found.</div>';
+      previewEl.classList.remove('hidden');
+    }
     
   } catch (err) {
     console.error('Extraction Error:', err);
