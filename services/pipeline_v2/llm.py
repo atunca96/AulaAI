@@ -201,7 +201,7 @@ Your ONLY task is to transform input text into valid JSON.
 3. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
 4. Group into units
 5. Remove duplicates
-6. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
+6. Perform QA: check logical order, detect noise. Do NOT invent missing basics or foundational units. Strictly stick to the text.
 7. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
 
 ---
@@ -308,7 +308,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 4. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
 5. Group them correctly into their respective units as shown in the book.
 6. Remove duplicates
-7. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
+7. Perform QA: check logical order, detect noise. Do NOT invent missing basics (e.g. alphabet) or foundational units. Strictly stick to the PDF.
 8. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
 9. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit. Do NOT output empty units.
 10. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
