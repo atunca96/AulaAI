@@ -318,10 +318,10 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 "units": [
 {
 "unit": 1,
-"title": "Unit 1: Introduction",
+"title": "[Exact name of the first unit as written in the book]",
 "topics": [
 {
-"name": "string",
+"name": "[Topic name from book]",
 "tag": "grammar | vocabulary | functional | phonetics | communication | mixed",
 "confidence": 0.0
 }
@@ -329,15 +329,15 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 },
 {
 "unit": 2,
-"title": "Unit 2: Family",
+"title": "[Exact name of the second unit as written in the book]",
 "topics": [
 {
-"name": "string",
+"name": "[Topic name from book]",
 "tag": "vocabulary"
 }
 ]
 }
-// Generate ALL units found in the document!
+// Generate ALL units exactly as they appear in the document! DO NOT invent titles!
 ],
 "qa_report": {
 "level": "A1",
@@ -430,7 +430,7 @@ Your job is to FIX the structure.
 "units": [
 {{
 "unit": 1,
-"title": "Unit 1: Introduction",
+"title": "[Exact name of the first unit]",
 "topics": [
 {{
 "name": "string",
@@ -440,7 +440,7 @@ Your job is to FIX the structure.
 }},
 {{
 "unit": 2,
-"title": "Unit 2: Family",
+"title": "[Exact name of the second unit]",
 "topics": [
 {{
 "name": "string",
@@ -448,7 +448,7 @@ Your job is to FIX the structure.
 }}
 ]
 }}
-// Keep all units from the input!
+// Keep all units from the input! Do NOT use example titles!
 ]
 }}
 
