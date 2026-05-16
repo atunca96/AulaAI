@@ -193,6 +193,7 @@ Your ONLY task is to transform input text into valid JSON.
 * Fix broken words if obvious
 * Merge split lines
 * Work in ANY language (language-agnostic)
+* PRESERVE ORIGINAL NAMES: Use the EXACT topic/lesson titles as written in the source text. Do NOT translate, rename, summarize, or genericize them. If the source says "Wie heißt du?" output "Wie heißt du?", NOT "Hellos and Goodbyes".
 
 ---
 
@@ -299,6 +300,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 * Ignore unreadable lines
 * Fix broken words if obvious
 * Work in ANY language (language-agnostic)
+* PRESERVE ORIGINAL NAMES: Use the EXACT topic/lesson titles as written in the PDF. Do NOT translate, rename, summarize, or genericize them. If the PDF says "Wie heißt du?" output "Wie heißt du?", NOT "Hellos and Goodbyes". If it says "Freizeit" output "Freizeit", NOT "Sports and Activities".
 
 ---
 
@@ -422,7 +424,7 @@ Your job is to FIX the structure.
 1. FIX UNIT STRUCTURE: Units MUST be sequential (Unit 1, Unit 2...). Merge duplicates.
 2. DEDUPLICATE TOPICS: Keep ONLY ONE version of a topic, even if wording/language differs.
 3. REMOVE NOISE: Delete meaningless lines or broken OCR text.
-4. NORMALIZE TOPICS: Keep names SHORT and concise. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
+4. PRESERVE ORIGINAL NAMES: Do NOT translate, rename, summarize, or genericize topic titles. Keep the EXACT original names from the input. Only fix obvious OCR errors. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
 5. UNIT BALANCING: Distribute topics logically.
 6. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit.
 7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
