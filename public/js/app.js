@@ -793,6 +793,14 @@ const i18n = {
     'admin.pending': 'Pending',
     'admin.inactive': 'Inactive',
     'admin.students_removed': '{count} student account(s) have been removed.',
+    'admin.reset_pin': 'Reset PIN',
+    'admin.reset_progress': 'Reset Progress',
+    'confirm.reset_pin_title': 'Reset Student PIN',
+    'confirm.reset_pin_msg': 'Are you sure you want to reset the PIN for {name}? They will be asked to set a new PIN when they next access their classrooms.',
+    'confirm.reset_progress_title': 'Reset Student Progress',
+    'confirm.reset_progress_msg': 'Are you sure you want to wipe ALL quiz and assignment history for {name}? This cannot be undone.',
+    'alert.pin_reset_success': 'Student PIN has been reset.',
+    'alert.progress_reset_success': 'Student progress has been wiped.',
     'student.pin_must_be_4': 'PIN must be exactly 4 digits',
   },
   tr: {
@@ -1186,6 +1194,14 @@ const i18n = {
     'admin.pending': 'Bekliyor',
     'admin.inactive': 'İnaktif',
     'admin.students_removed': '{count} öğrenci hesabı silindi.',
+    'admin.reset_pin': 'PIN Sıfırla',
+    'admin.reset_progress': 'İlerlemeyi Sıfırla',
+    'confirm.reset_pin_title': 'Öğrenci PIN\'ini Sıfırla',
+    'confirm.reset_pin_msg': '{name} isimli öğrencinin PIN kodunu sıfırlamak istediğinize emin misiniz? Bir sonraki girişlerinde yeni bir PIN belirlemeleri istenecektir.',
+    'confirm.reset_progress_title': 'Öğrenci İlerlemesini Sıfırla',
+    'confirm.reset_progress_msg': '{name} isimli öğrencinin TÜM sınav ve ödev geçmişini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.',
+    'alert.pin_reset_success': 'Öğrenci PIN\'i sıfırlandı.',
+    'alert.progress_reset_success': 'Öğrenci ilerlemesi silindi.',
     'student.pin_must_be_4': 'PIN tam olarak 4 rakam olmalıdır',
   }
 };
@@ -5396,8 +5412,10 @@ async function loadAdminStudentPanel(isRefresh = false) {
           <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(enrollmentList)}</td>
           <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
-          <td style="padding:12px 16px; text-align:right;">
-            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:12px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
+          <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
+            <button class="btn btn-sm" style="background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminResetStudentPIN('${s.id}', ${escJS(s.name)})">${t('admin.reset_pin')}</button>
+            <button class="btn btn-sm" style="background:rgba(251,146,60,0.1); color:#fb923c; border:1px solid rgba(251,146,60,0.3); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
+            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
           </td>
         </tr>`;
     }).join('');
@@ -5427,6 +5445,24 @@ async function loadAdminStudentPanel(isRefresh = false) {
   } catch (e) {
     console.error("Admin Panel Error:", e);
     panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${t('error')}</div>`;
+  }
+}
+
+async function adminResetStudentPIN(sid, name) {
+  const confirmed = await showConfirmModal('confirm.reset_pin_title', 'confirm.reset_pin_msg', true, null, false, 'ok', 'cancel', { name });
+  if (confirmed) {
+    await api('/admin/reset-student-pin', { method: 'POST', body: { student_id: sid } });
+    showAlert('success', 'alert.pin_reset_success', false);
+    loadAdminStudentPanel(true);
+  }
+}
+
+async function adminResetStudentProgress(sid, name) {
+  const confirmed = await showConfirmModal('confirm.reset_progress_title', 'confirm.reset_progress_msg', true, null, false, 'ok', 'cancel', { name });
+  if (confirmed) {
+    await api('/admin/reset-student-progress', { method: 'POST', body: { student_id: sid } });
+    showAlert('success', 'alert.progress_reset_success', false);
+    loadAdminStudentPanel(true);
   }
 }
 
