@@ -425,10 +425,10 @@ Your job is to FIX the structure.
 2. DEDUPLICATE TOPICS: Keep ONLY ONE version of a topic, even if wording/language differs.
 3. REMOVE NOISE: Delete meaningless lines or broken OCR text.
 4. PRESERVE ORIGINAL NAMES: Do NOT translate, rename, summarize, or genericize topic titles. Keep the EXACT original names from the input. Only fix obvious OCR errors. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
-5. UNIT BALANCING: Distribute topics logically.
-6. DROPPING EMPTY/UNDEVELOPED UNITS: Do not include topics that represent missing, blank, or undeveloped content (e.g., "Undeveloped", "Blank", "TBD"). If a unit has no valid topics after dropping these, REMOVE the entire unit.
-7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or purely geographical/cultural notes (e.g., "Berlin, Germany"). Only extract actionable language lessons (grammar, vocabulary, conversation).
-8. FINAL CLEANUP: No empty units, no duplicate topics anywhere.
+5. PRESERVE UNIT STRUCTURE: Do NOT merge, split, rebalance, or remove units. Keep the EXACT same number of units as the input. A unit with only 2-3 topics is fine — do NOT merge it into another unit.
+6. DROPPING EMPTY/UNDEVELOPED UNITS: Only drop units that have ZERO valid topics. Units with real lesson content (even just 2-3 topics) MUST be kept.
+7. CULTURAL \u0026 REVIEW FILTER: Do NOT extract generic \"Review\" chapters, test sections, or purely geographical/cultural notes (e.g., \"Berlin, Germany\"). Only extract actionable language lessons (grammar, vocabulary, conversation).
+8. FINAL CLEANUP: No duplicate topics anywhere. Do NOT drop any units that have real content.
 
 ---
 
