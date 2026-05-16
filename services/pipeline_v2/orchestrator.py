@@ -42,8 +42,9 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
             # 1. Run the V2 extraction pipeline
             curriculum = process_pdf(pdf_path)
         
-        # ── MANDATORY ALPHABET FOR A1 ──
-        if level.upper().startswith("A1"):
+        # ── MANDATORY ALPHABET FOR A1 (AI Architect only, NOT PDF extraction) ──
+        is_ai_architect = manual_toc and (pdf_path == "NONE" or not pdf_path)
+        if level.upper().startswith("A1") and is_ai_architect:
             logger.info(f"[ALPHABET] A1 Level detected for Course {course_id}. Prepending mandatory Alphabet unit.")
             # 1. Ensure we have a dict with a 'units' list
             if not isinstance(curriculum, dict):
