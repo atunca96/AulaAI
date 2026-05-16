@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import base64
 import urllib.request
 import urllib.error
 import logging
@@ -80,6 +81,83 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
             logger.warning(f"LLM call failed with model {model} (Attempt {attempt+1}/{len(models_to_try)}): {e}")
             if attempt == len(models_to_try) - 1:
                 logger.error("All LLM attempts failed")
+                return "[]"
+    return "[]"
+
+def call_llm_with_pdf(pdf_path: str, prompt: str, retries: int = 1) -> str:
+    if not OPENROUTER_API_KEY:
+        logger.error("OPENROUTER_API_KEY is not set!")
+        return "[]"
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://aulaai.com",
+        "X-Title": "AulaAI"
+    }
+
+    try:
+        with open(pdf_path, "rb") as f:
+            pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+    except Exception as e:
+        logger.error(f"Failed to read PDF for LLM: {e}")
+        return "[]"
+
+    # OpenRouter format for PDF input
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:application/pdf;base64,{pdf_b64}"
+                    }
+                }
+            ]
+        }
+    ]
+
+    models_to_try = [CHEAP_MODEL] + [FALLBACK_MODEL] * retries
+    
+    for attempt, model in enumerate(models_to_try):
+        try:
+            payload = {
+                "model": model,
+                "messages": messages,
+                "plugins": [
+                    {
+                        "id": "file-parser",
+                        "pdf": {
+                            "engine": "cloudflare-ai"
+                        }
+                    }
+                ]
+            }
+            
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+            with urllib.request.urlopen(req, timeout=120) as response:
+                res_body = response.read().decode("utf-8")
+                data = json.loads(res_body)
+
+            result = data["choices"][0]["message"]["content"]
+            
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+                
+            json.loads(result)
+            return result
+        except Exception as e:
+            logger.warning(f"PDF LLM call failed with model {model} (Attempt {attempt+1}/{len(models_to_try)}): {e}")
+            if attempt == len(models_to_try) - 1:
+                logger.error("All PDF LLM attempts failed")
                 return "[]"
     return "[]"
 
@@ -190,6 +268,107 @@ INPUT:
         return data
     except Exception as e:
         logger.error(f"Failed to parse strict JSON: {e}")
+    
+    return {"units": []}
+
+def extract_curriculum_from_pdf_direct(pdf_path: str) -> Dict[str, Any]:
+    prompt = """You are a strict JSON generator.
+
+Your ONLY task is to transform the attached PDF document into a structured curriculum in valid JSON format.
+
+---
+
+🚨 CRITICAL RULES (ABSOLUTE)
+* You MUST return ONLY valid JSON
+* NO explanations
+* NO markdown
+* NO text before JSON
+* NO text after JSON
+* NO comments
+* NO trailing commas
+* NO partial output
+* If you are unsure → still return valid JSON
+
+---
+
+🧠 BEHAVIOR RULES
+* Ignore OCR noise or formatting artifacts
+* Ignore unreadable lines
+* Fix broken words if obvious
+* Work in ANY language (language-agnostic)
+
+---
+
+📦 TASK
+1. Read the PDF content.
+2. Detect structure: UNIT_HEADER, TOPIC, NOISE (discard)
+3. Extract ONLY meaningful topics
+4. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed
+5. Group into units
+6. Remove duplicates
+7. Perform QA: check logical order, detect noise, detect missing basics, detect advanced topics
+8. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review"
+
+---
+
+📤 OUTPUT FORMAT (STRICT)
+{
+"units": [
+{
+"unit": 1,
+"topics": [
+{
+"name": "string",
+"tag": "grammar | vocabulary | functional | phonetics | communication | mixed",
+"confidence": 0.0
+}
+]
+}
+],
+"qa_report": {
+"level": "A1",
+"issues": [],
+"fixes_applied": []
+}
+}
+"""
+    logger.info("LLM: Direct PDF Curriculum Extraction (OpenRouter Cloudflare AI)")
+    result_text = call_llm_with_pdf(pdf_path, prompt)
+    
+    try:
+        data = json.loads(result_text)
+        
+        # Force into a dictionary format if it's just a list
+        if isinstance(data, list):
+            data = {"units": [{"unit": 1, "topics": data}]}
+            
+        # Normalize keys for app compatibility
+        if isinstance(data, dict) and "units" in data:
+            normalized_units = []
+            for u in data["units"]:
+                if not isinstance(u, dict):
+                    continue
+                    
+                if "unit" in u and "title" not in u:
+                    u["title"] = f"Unit {u['unit']}"
+                elif "title" not in u:
+                    u["title"] = f"Unit {len(normalized_units) + 1}"
+                    
+                if "topics" in u:
+                    normalized_topics = []
+                    for t in u["topics"]:
+                        if isinstance(t, dict):
+                            if "name" in t:
+                                t["text"] = t["name"]
+                            normalized_topics.append(t)
+                        elif isinstance(t, str):
+                            normalized_topics.append({"text": t, "tag": "vocabulary"})
+                    u["topics"] = normalized_topics
+                normalized_units.append(u)
+            data["units"] = normalized_units
+        return data
+    except Exception as e:
+        logger.error(f"Failed to parse strict JSON from PDF: {e}")
     
     return {"units": []}
 

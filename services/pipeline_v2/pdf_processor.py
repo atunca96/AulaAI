@@ -96,19 +96,12 @@ def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
             logger.info("CACHE HIT")
             return processed_files_v2[file_hash]
 
-    if is_text_pdf(pdf_path):
-        lines = extract_text_pdfplumber(pdf_path, page_limit=page_limit)
-    else:
-        if not check_ocr_available():
-            raise RuntimeError("OCR is required for this PDF, but Tesseract is not installed.")
-        logger.info("OCR USED")
-        from .ocr import extract_text_ocr
-        lines = extract_text_ocr(pdf_path, page_limit=page_limit)
-
-    if not lines:
-        raise ValueError("Failed to extract any text from the PDF.")
-
-    curriculum = process_text(lines)
+    # Directly pass to OpenRouter using cloudflare-ai engine (via llm.py)
+    logger.info(f"Delegating PDF parsing to OpenRouter (cloudflare-ai) for {pdf_path}")
+    from .llm import extract_curriculum_from_pdf_direct, normalize_curriculum
+    
+    curriculum = extract_curriculum_from_pdf_direct(pdf_path)
+    curriculum = normalize_curriculum(curriculum)
     
     # 4. Store result
     with _process_lock:
