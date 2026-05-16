@@ -743,6 +743,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._admin_hard_reset()
         elif path == "/api/admin/reset-students":
             return self._admin_reset_students()
+        elif path == "/api/admin/reset-student-pin":
+            return self._admin_reset_student_pin()
+        elif path == "/api/admin/reset-student-progress":
+            return self._admin_reset_student_progress()
         elif path == "/api/blueprint/delete":
             return self._delete_blueprint()
         elif path == "/api/blueprint/delete-all":
@@ -817,6 +821,33 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 ORDER BY u.created_at DESC
             """).fetchall()
             return self._send_json([dict(s) for s in students])
+
+    def _admin_reset_student_pin(self):
+        """Resets the PIN for a specific student across all their enrollments. Admin only."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
+        body = self._read_body()
+        student_id = body.get("student_id")
+        if not student_id:
+            return self._send_error("student_id required")
+        with db_connection() as db:
+            db.execute("UPDATE enrollments SET pin = NULL WHERE student_id = ?", (student_id,))
+            db.commit()
+        return self._send_json({"success": True})
+
+    def _admin_reset_student_progress(self):
+        """Wipes all quiz results, assignment responses, and mastery scores for a student. Admin only."""
+        if not self._is_admin():
+            return self._send_error("Unauthorized", 403)
+        body = self._read_body()
+        student_id = body.get("student_id")
+        if not student_id:
+            return self._send_error("student_id required")
+        with db_connection() as db:
+            db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
+            db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
+            db.commit()
+        return self._send_json({"success": True})
 
     def _admin_reset_students(self):
         """Deletes ALL student accounts and their associated data. Admin only."""
