@@ -134,7 +134,7 @@ def call_llm_with_pdf(pdf_path: str, prompt: str, retries: int = 1) -> str:
                     {
                         "id": "file-parser",
                         "pdf": {
-                            "engine": "cloudflare-ai"
+                            "engine": "mistral-ocr"
                         }
                     }
                 ]
@@ -332,7 +332,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 }
 }
 """
-    logger.info("LLM: Direct PDF Curriculum Extraction (OpenRouter Cloudflare AI)")
+    logger.info("LLM: Direct PDF Curriculum Extraction (OpenRouter Mistral OCR)")
     result_text = call_llm_with_pdf(pdf_path, prompt)
     
     try:

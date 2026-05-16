@@ -96,8 +96,8 @@ def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
             logger.info("CACHE HIT")
             return processed_files_v2[file_hash]
 
-    # Directly pass to OpenRouter using cloudflare-ai engine (via llm.py)
-    logger.info(f"Delegating PDF parsing to OpenRouter (cloudflare-ai) for {pdf_path}")
+    # Directly pass to OpenRouter using mistral-ocr engine (via llm.py)
+    logger.info(f"Delegating PDF parsing to OpenRouter (mistral-ocr) for {pdf_path}")
     from .llm import extract_curriculum_from_pdf_direct, normalize_curriculum
     
     curriculum = extract_curriculum_from_pdf_direct(pdf_path)
