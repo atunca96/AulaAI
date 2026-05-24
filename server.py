@@ -447,9 +447,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._serve_static(path)
 
     def _tts_speak(self):
-        """Proxy TTS request to OpenRouter's audio/speech endpoint. Returns raw MP3."""
+        """TTS via Google Translate — fast, free, correct language."""
         try:
-            # Parse query params directly from self.path
             parsed_url = urlparse(self.path)
             qp = parse_qs(parsed_url.query)
             
@@ -459,10 +458,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not text or len(text.strip()) == 0:
                 return self._send_error("text required")
             
-            text = text.strip()[:200]  # Safety limit
+            text = text.strip()[:200]
 
-            # Check TTS cache first
-            cache_key = f"tts_{lang}_{text.lower()}"
+            # Map language names to ISO codes for Google TTS
+            lang_codes = {
+                'german': 'de', 'deutsch': 'de',
+                'spanish': 'es', 'español': 'es',
+                'french': 'fr', 'français': 'fr',
+                'turkish': 'tr', 'türkçe': 'tr',
+                'italian': 'it', 'italiano': 'it',
+                'portuguese': 'pt', 'português': 'pt',
+                'arabic': 'ar', 'japanese': 'ja',
+                'chinese': 'zh', 'korean': 'ko',
+                'russian': 'ru', 'english': 'en',
+                'dutch': 'nl', 'polish': 'pl',
+                'swedish': 'sv', 'norwegian': 'no',
+                'danish': 'da', 'finnish': 'fi',
+                'greek': 'el', 'czech': 'cs',
+                'hungarian': 'hu', 'romanian': 'ro',
+                'hindi': 'hi', 'thai': 'th',
+                'vietnamese': 'vi', 'indonesian': 'id',
+                'hebrew': 'he', 'persian': 'fa',
+                'ukrainian': 'uk', 'croatian': 'hr',
+                'serbian': 'sr', 'bulgarian': 'bg',
+                'malay': 'ms', 'swahili': 'sw',
+            }
+            lang_key = lang.split('(')[0].strip().lower() if lang else 'en'
+            tl = lang_codes.get(lang_key, lang_key[:2].lower())
+
+            # Check cache
+            cache_key = f"tts_{tl}_{text.lower()}"
             cached_audio = get_tts_cache(cache_key)
             if cached_audio:
                 self.send_response(200)
@@ -474,42 +499,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(cached_audio)
                 return
 
-            # Call OpenRouter TTS API
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            if not api_key:
-                return self._send_error("TTS not configured (no API key)")
-
-            tts_url = "https://openrouter.ai/api/v1/audio/speech"
-            tts_headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://aulaai.com",
-                "X-Title": "AulaAI"
-            }
+            # Google Translate TTS
+            from urllib.parse import quote
+            tts_url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={quote(text)}&tl={tl}&client=tw-ob"
             
-            # gpt-4o-mini-tts is instruction-following: it reads instructions from
-            # the input text itself and follows them without speaking them aloud.
-            lang_hint = lang.split('(')[0].strip() if lang else "English"
-            tts_input = f"Say the following in {lang_hint}, as a native {lang_hint} speaker would. Only speak the word/phrase, nothing else: {text}"
+            req = urllib.request.Request(tts_url)
+            req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            req.add_header("Referer", "https://translate.google.com/")
             
-            tts_payload = json.dumps({
-                "model": "openai/gpt-4o-mini-tts-2025-12-15",
-                "input": tts_input,
-                "voice": "nova",
-                "response_format": "mp3"
-            }).encode("utf-8")
-
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Requesting speech for: '{text[:40]}...' lang={lang}")
-            req = urllib.request.Request(tts_url, data=tts_payload, headers=tts_headers)
-            with urllib.request.urlopen(req, timeout=15) as response:
+            with urllib.request.urlopen(req, timeout=8) as response:
                 audio_bytes = response.read()
 
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Received {len(audio_bytes)} bytes of audio")
-            
-            # Cache the result
             set_tts_cache(cache_key, audio_bytes)
 
-            # Send raw audio back to client
             self.send_response(200)
             self.send_header("Content-Type", "audio/mpeg")
             self.send_header("Content-Length", str(len(audio_bytes)))
