@@ -486,9 +486,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "HTTP-Referer": "https://aulaai.com",
                 "X-Title": "AulaAI"
             }
+            
+            # Prepend language context so the model pronounces in the correct language
+            # For short text (single words/letters), the model often defaults to English without this
+            lang_hint = lang.split('(')[0].strip() if lang else "English"
+            tts_input = f"[{lang_hint}] {text}"
+            
             tts_payload = json.dumps({
-                "model": "openai/gpt-4o-mini-tts-2025-12-15",
-                "input": text,
+                "model": "openai/tts-1",
+                "input": tts_input,
                 "voice": "nova",
                 "response_format": "mp3"
             }).encode("utf-8")
