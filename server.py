@@ -20,6 +20,7 @@ import concurrent.futures
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
+import urllib.request
 from datetime import datetime, timedelta, timezone
 
 def file_log(msg):
