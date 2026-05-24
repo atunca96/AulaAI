@@ -25,58 +25,22 @@ let currentStudentLessons = [];
 let currentStudentQuizzes = [];
 let currentStudentAssignments = [];
 
-// ── TTS Audio Engine (Hybrid: Instant Browser + Premium AI) ──
+// ── TTS Audio Engine (Pure AI — OpenAI GPT-4o Mini TTS) ──
 const _ttsAudioCache = new Map();
 let _ttsPlaying = false;
-
-// Language name → BCP-47 code mapping for browser speechSynthesis
-const _langCodes = {
-  'german': 'de-DE', 'deutsch': 'de-DE',
-  'spanish': 'es-ES', 'español': 'es-ES',
-  'french': 'fr-FR', 'français': 'fr-FR',
-  'turkish': 'tr-TR', 'türkçe': 'tr-TR',
-  'italian': 'it-IT', 'italiano': 'it-IT',
-  'portuguese': 'pt-BR', 'português': 'pt-BR',
-  'arabic': 'ar-SA', 'japanese': 'ja-JP',
-  'chinese': 'zh-CN', 'korean': 'ko-KR',
-  'russian': 'ru-RU', 'english': 'en-US',
-  'dutch': 'nl-NL', 'polish': 'pl-PL',
-  'swedish': 'sv-SE', 'norwegian': 'nb-NO',
-  'danish': 'da-DK', 'finnish': 'fi-FI',
-  'greek': 'el-GR', 'czech': 'cs-CZ',
-  'hungarian': 'hu-HU', 'romanian': 'ro-RO',
-  'hindi': 'hi-IN', 'thai': 'th-TH',
-  'vietnamese': 'vi-VN', 'indonesian': 'id-ID',
-  'hebrew': 'he-IL'
-};
-
-function _getBcp47(lang) {
-  if (!lang) return 'en-US';
-  const key = lang.toLowerCase().trim();
-  return _langCodes[key] || 'en-US';
-}
-
-// Instant browser TTS (no network)
-function _browserSpeak(text, lang) {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = _getBcp47(lang);
-  utter.rate = 0.9;
-  utter.pitch = 1.0;
-  window.speechSynthesis.speak(utter);
-}
+let _ttsPrefetchQueue = [];
+let _ttsPrefetching = false;
 
 // Prefetch AI TTS in background (no playback)
 function _prefetchAiTTS(text, lang) {
   const cacheKey = `${lang}_${text.toLowerCase()}`;
-  if (_ttsAudioCache.has(cacheKey)) return;
+  if (_ttsAudioCache.has(cacheKey)) return Promise.resolve();
   
-  fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`)
+  return fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`)
     .then(r => r.ok ? r.blob() : null)
     .then(blob => {
       if (blob && blob.size > 100) {
-        if (_ttsAudioCache.size >= 100) {
+        if (_ttsAudioCache.size >= 150) {
           _ttsAudioCache.delete(_ttsAudioCache.keys().next().value);
         }
         _ttsAudioCache.set(cacheKey, blob);
@@ -85,10 +49,28 @@ function _prefetchAiTTS(text, lang) {
     .catch(() => {});
 }
 
+// Batch preloader: call this when a study page renders
+function preloadTTS(words, lang) {
+  if (!lang && currentCourse && currentCourse.language) {
+    lang = currentCourse.language.split('(')[0].trim();
+  }
+  lang = lang || 'English';
+  
+  // Deduplicate and filter already-cached
+  const unique = [...new Set(words.map(w => w.trim()).filter(w => w.length > 0 && w.length < 100))];
+  const toFetch = unique.filter(w => !_ttsAudioCache.has(`${lang}_${w.toLowerCase()}`));
+  
+  if (toFetch.length === 0) return;
+  
+  // Stagger requests to avoid flooding (150ms apart)
+  toFetch.forEach((word, i) => {
+    setTimeout(() => _prefetchAiTTS(word, lang), i * 150);
+  });
+}
+
 async function speakText(text, lang) {
   if (!text || _ttsPlaying) return;
   
-  // Determine language from course if not provided
   if (!lang && currentCourse && currentCourse.language) {
     lang = currentCourse.language.split('(')[0].trim();
   }
@@ -99,7 +81,7 @@ async function speakText(text, lang) {
   try {
     _ttsPlaying = true;
 
-    // FAST PATH: If AI audio is cached, play it immediately
+    // FAST PATH: Play from cache (instant)
     if (_ttsAudioCache.has(cacheKey)) {
       const audioBlob = _ttsAudioCache.get(cacheKey);
       const audioUrl = URL.createObjectURL(audioBlob);
@@ -110,14 +92,23 @@ async function speakText(text, lang) {
       return;
     }
 
-    // INSTANT PATH: Play browser TTS immediately (zero latency)
-    _browserSpeak(text, lang);
-
-    // BACKGROUND: Fetch premium AI audio for next tap
-    _prefetchAiTTS(text, lang);
+    // FETCH PATH: Get audio now (first tap on uncached word)
+    const response = await fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`);
+    if (!response.ok) throw new Error(`TTS error ${response.status}`);
+    const audioBlob = await response.blob();
     
-    // Release lock after browser speech finishes (estimate ~1.5s for short text)
-    setTimeout(() => { _ttsPlaying = false; }, Math.min(text.length * 120, 3000));
+    // Cache it
+    if (_ttsAudioCache.size >= 150) {
+      _ttsAudioCache.delete(_ttsAudioCache.keys().next().value);
+    }
+    _ttsAudioCache.set(cacheKey, audioBlob);
+
+    // Play it
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    await audio.play();
   } catch (e) {
     console.error('TTS Error:', e);
     _ttsPlaying = false;
@@ -5220,6 +5211,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
       </div>
     </div>
   `;
+
+  // Preload TTS for all visible foreign words on this page
+  setTimeout(() => {
+    const words = [];
+    container.querySelectorAll('.foreign-word').forEach(el => {
+      const w = el.textContent.trim().replace(/^"|"$/g, '');
+      if (w.length > 0 && w.length < 80) words.push(w);
+    });
+    if (words.length > 0) preloadTTS(words);
+  }, 300);
 }
 
 
