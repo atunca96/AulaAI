@@ -448,14 +448,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _tts_speak(self):
         """Proxy TTS request to OpenRouter's audio/speech endpoint. Returns raw MP3."""
         try:
-            # Accept both GET (query params) and POST (JSON body)
-            if self.command == 'GET':
-                text = params.get("text", [None])[0]
-                lang = params.get("lang", ["en"])[0]
-            else:
-                data = self._read_body()
-                text = data.get("text")
-                lang = data.get("language", "en")
+            # Parse query params directly from self.path
+            parsed_url = urlparse(self.path)
+            qp = parse_qs(parsed_url.query)
+            
+            text = qp.get("text", [None])[0]
+            lang = qp.get("lang", ["en"])[0]
 
             if not text or len(text.strip()) == 0:
                 return self._send_error("text required")
@@ -488,7 +486,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "X-Title": "AulaAI"
             }
             tts_payload = json.dumps({
-                "model": "openai/gpt-4o-mini-tts",
+                "model": "openai/gpt-4o-mini-tts-2025-12-17",
                 "input": text,
                 "voice": "nova",
                 "response_format": "mp3"
