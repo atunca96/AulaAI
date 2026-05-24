@@ -769,14 +769,9 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createQuiz()" data-i18n="Create Quiz">Create Quiz</button>
-                        <div id="quiz-gen-progress" class="hidden" style="margin-top:16px;">
-                            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                                <span data-i18n="gen.generating">Generating questions...</span>
-                                <span id="quiz-gen-pct">0%</span>
-                            </div>
-                            <div class="progress-bar-container" style="margin:0; height:8px;">
-                                <div id="quiz-gen-fill" class="progress-bar-fill" style="width: 0%;"></div>
-                            </div>
+                        <div id="quiz-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:10px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2);">
+                            <div class="spinner-small"></div>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Generating questions...</span>
                         </div>
                     </div>
                 </div>
@@ -809,14 +804,9 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createAssignment()" data-i18n="Create Assignment">Create Assignment</button>
-                        <div id="assignment-gen-progress" class="hidden" style="margin-top:16px;">
-                            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-                                <span data-i18n="gen.generating">Generating questions...</span>
-                                <span id="assignment-gen-pct">0%</span>
-                            </div>
-                            <div class="progress-bar-container" style="margin:0; height:8px;">
-                                <div id="assignment-gen-fill" class="progress-bar-fill" style="width: 0%;"></div>
-                            </div>
+                        <div id="assignment-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:10px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.2);">
+                            <div class="spinner-small"></div>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Generating questions...</span>
                         </div>
                     </div>
                 </div>

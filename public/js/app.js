@@ -3301,11 +3301,7 @@ function showGenerationLoading(el) {
   el.innerHTML = `
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
       <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
-      <h3 style="margin-bottom:12px;" data-i18n="gen.loading">${t('gen.loading')}</h3>
-      <div class="progress-container" style="background:rgba(255,255,255,0.05); height:10px; border-radius:5px; max-width:320px; margin:0 auto; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.1);">
-        <div id="activity-progress-fill" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
-      </div>
-      <p style="color:var(--accent); font-size:14px; font-weight:700; margin-top:12px;" id="activity-progress-text">0%</p>
+      <h3 style="margin-bottom:12px;" data-i18n="gen.generating">${t('gen.generating')}</h3>
       <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
     <style>
