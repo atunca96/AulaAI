@@ -25,9 +25,65 @@ let currentStudentLessons = [];
 let currentStudentQuizzes = [];
 let currentStudentAssignments = [];
 
-// ── TTS Audio Engine ──
+// ── TTS Audio Engine (Hybrid: Instant Browser + Premium AI) ──
 const _ttsAudioCache = new Map();
 let _ttsPlaying = false;
+
+// Language name → BCP-47 code mapping for browser speechSynthesis
+const _langCodes = {
+  'german': 'de-DE', 'deutsch': 'de-DE',
+  'spanish': 'es-ES', 'español': 'es-ES',
+  'french': 'fr-FR', 'français': 'fr-FR',
+  'turkish': 'tr-TR', 'türkçe': 'tr-TR',
+  'italian': 'it-IT', 'italiano': 'it-IT',
+  'portuguese': 'pt-BR', 'português': 'pt-BR',
+  'arabic': 'ar-SA', 'japanese': 'ja-JP',
+  'chinese': 'zh-CN', 'korean': 'ko-KR',
+  'russian': 'ru-RU', 'english': 'en-US',
+  'dutch': 'nl-NL', 'polish': 'pl-PL',
+  'swedish': 'sv-SE', 'norwegian': 'nb-NO',
+  'danish': 'da-DK', 'finnish': 'fi-FI',
+  'greek': 'el-GR', 'czech': 'cs-CZ',
+  'hungarian': 'hu-HU', 'romanian': 'ro-RO',
+  'hindi': 'hi-IN', 'thai': 'th-TH',
+  'vietnamese': 'vi-VN', 'indonesian': 'id-ID',
+  'hebrew': 'he-IL'
+};
+
+function _getBcp47(lang) {
+  if (!lang) return 'en-US';
+  const key = lang.toLowerCase().trim();
+  return _langCodes[key] || 'en-US';
+}
+
+// Instant browser TTS (no network)
+function _browserSpeak(text, lang) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = _getBcp47(lang);
+  utter.rate = 0.9;
+  utter.pitch = 1.0;
+  window.speechSynthesis.speak(utter);
+}
+
+// Prefetch AI TTS in background (no playback)
+function _prefetchAiTTS(text, lang) {
+  const cacheKey = `${lang}_${text.toLowerCase()}`;
+  if (_ttsAudioCache.has(cacheKey)) return;
+  
+  fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`)
+    .then(r => r.ok ? r.blob() : null)
+    .then(blob => {
+      if (blob && blob.size > 100) {
+        if (_ttsAudioCache.size >= 100) {
+          _ttsAudioCache.delete(_ttsAudioCache.keys().next().value);
+        }
+        _ttsAudioCache.set(cacheKey, blob);
+      }
+    })
+    .catch(() => {});
+}
 
 async function speakText(text, lang) {
   if (!text || _ttsPlaying) return;
@@ -42,42 +98,26 @@ async function speakText(text, lang) {
   
   try {
     _ttsPlaying = true;
-    let audioBlob;
 
-    // Check client cache
+    // FAST PATH: If AI audio is cached, play it immediately
     if (_ttsAudioCache.has(cacheKey)) {
-      audioBlob = _ttsAudioCache.get(cacheKey);
-    } else {
-      const response = await fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`);
-      if (!response.ok) {
-        // Try to read error message from JSON body
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('json')) {
-          const err = await response.json();
-          throw new Error(err.error || `TTS error ${response.status}`);
-        }
-        throw new Error(`TTS request failed: ${response.status}`);
-      }
-      audioBlob = await response.blob();
-      
-      // Verify we got actual audio (not an error page)
-      if (audioBlob.size < 100) {
-        console.warn('TTS: Received suspiciously small response:', audioBlob.size, 'bytes');
-      }
-      
-      // Cache locally (limit to 100 entries)
-      if (_ttsAudioCache.size >= 100) {
-        const firstKey = _ttsAudioCache.keys().next().value;
-        _ttsAudioCache.delete(firstKey);
-      }
-      _ttsAudioCache.set(cacheKey, audioBlob);
+      const audioBlob = _ttsAudioCache.get(cacheKey);
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+      audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+      await audio.play();
+      return;
     }
 
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-    audio.onerror = (e) => { console.error('Audio playback error:', e); _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-    await audio.play();
+    // INSTANT PATH: Play browser TTS immediately (zero latency)
+    _browserSpeak(text, lang);
+
+    // BACKGROUND: Fetch premium AI audio for next tap
+    _prefetchAiTTS(text, lang);
+    
+    // Release lock after browser speech finishes (estimate ~1.5s for short text)
+    setTimeout(() => { _ttsPlaying = false; }, Math.min(text.length * 120, 3000));
   } catch (e) {
     console.error('TTS Error:', e);
     _ttsPlaying = false;
