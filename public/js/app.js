@@ -51,7 +51,7 @@ function _getLangCode(lang) {
 
 function _getTTSUrl(text, lang) {
   const tl = _getLangCode(lang);
-  return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`;
+  return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${tl}&client=tw-ob`;
 }
 
 // Preload: create Audio objects that start buffering immediately
