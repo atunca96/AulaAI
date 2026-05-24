@@ -487,16 +487,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "X-Title": "AulaAI"
             }
             
-            # Prepend language context so the model pronounces in the correct language
-            # For short text (single words/letters), the model often defaults to English without this
+            # Use instructions parameter to control pronunciation language
+            # gpt-4o-mini-tts supports this as a hidden prompt (not read aloud)
             lang_hint = lang.split('(')[0].strip() if lang else "English"
-            tts_input = f"[{lang_hint}] {text}"
             
             tts_payload = json.dumps({
-                "model": "openai/tts-1",
-                "input": tts_input,
+                "model": "openai/gpt-4o-mini-tts-2025-12-15",
+                "input": text,
                 "voice": "nova",
-                "response_format": "mp3"
+                "response_format": "mp3",
+                "instructions": f"Speak in {lang_hint}. Pronounce this as a native {lang_hint} speaker would. Do not speak in English."
             }).encode("utf-8")
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Requesting speech for: '{text[:40]}...' lang={lang}")
