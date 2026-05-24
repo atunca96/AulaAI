@@ -49,8 +49,22 @@ async function speakText(text, lang) {
       audioBlob = _ttsAudioCache.get(cacheKey);
     } else {
       const response = await fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`);
-      if (!response.ok) throw new Error('TTS request failed');
+      if (!response.ok) {
+        // Try to read error message from JSON body
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('json')) {
+          const err = await response.json();
+          throw new Error(err.error || `TTS error ${response.status}`);
+        }
+        throw new Error(`TTS request failed: ${response.status}`);
+      }
       audioBlob = await response.blob();
+      
+      // Verify we got actual audio (not an error page)
+      if (audioBlob.size < 100) {
+        console.warn('TTS: Received suspiciously small response:', audioBlob.size, 'bytes');
+      }
+      
       // Cache locally (limit to 100 entries)
       if (_ttsAudioCache.size >= 100) {
         const firstKey = _ttsAudioCache.keys().next().value;
@@ -62,7 +76,7 @@ async function speakText(text, lang) {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-    audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    audio.onerror = (e) => { console.error('Audio playback error:', e); _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
     await audio.play();
   } catch (e) {
     console.error('TTS Error:', e);

@@ -486,16 +486,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "X-Title": "AulaAI"
             }
             tts_payload = json.dumps({
-                "model": "openai/gpt-4o-mini-tts-2025-12-17",
+                "model": "openai/gpt-4o-mini-tts-2025-12-15",
                 "input": text,
                 "voice": "nova",
                 "response_format": "mp3"
             }).encode("utf-8")
 
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Requesting speech for: '{text[:40]}...' lang={lang}")
             req = urllib.request.Request(tts_url, data=tts_payload, headers=tts_headers)
             with urllib.request.urlopen(req, timeout=15) as response:
                 audio_bytes = response.read()
 
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Received {len(audio_bytes)} bytes of audio")
+            
             # Cache the result
             set_tts_cache(cache_key, audio_bytes)
 
@@ -508,7 +511,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(audio_bytes)
         except Exception as e:
+            import traceback
             print(f"[TTS ERROR] {e}")
+            traceback.print_exc()
             return self._send_error(f"TTS failed: {str(e)}")
 
     def _wipe_curriculum(self):
