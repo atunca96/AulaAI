@@ -73,8 +73,17 @@ function preloadTTS(words, lang) {
   });
 }
 
+let _ttsCurrentAudio = null;
+
 async function speakText(text, lang) {
-  if (!text || _ttsPlaying) return;
+  if (!text) return;
+  
+  // Stop current audio if playing
+  if (_ttsCurrentAudio) {
+    _ttsCurrentAudio.pause();
+    _ttsCurrentAudio.currentTime = 0;
+    _ttsCurrentAudio = null;
+  }
   
   if (!lang && currentCourse && currentCourse.language) {
     lang = currentCourse.language.split('(')[0].trim();
@@ -94,9 +103,10 @@ async function speakText(text, lang) {
       _ttsAudioCache.set(cacheKey, audio);
     }
 
-    audio.onended = () => { _ttsPlaying = false; };
-    audio.onerror = () => { _ttsPlaying = false; };
+    audio.onended = () => { _ttsPlaying = false; _ttsCurrentAudio = null; };
+    audio.onerror = () => { _ttsPlaying = false; _ttsCurrentAudio = null; };
     audio.currentTime = 0;
+    _ttsCurrentAudio = audio;
     await audio.play();
   } catch (e) {
     console.error('TTS Error:', e);
@@ -149,17 +159,21 @@ async function speakText(text, lang) {
 
 function handleTTSClick(btn, text, lang, event) {
   if (event) { event.stopPropagation(); event.preventDefault(); }
-  if (btn.classList.contains('playing')) return;
+  
+  // Reset all other playing buttons
+  document.querySelectorAll('.tts-btn.playing').forEach(b => {
+    b.classList.remove('playing');
+    b.textContent = '🔈';
+  });
+  document.querySelectorAll('.tts-speaking').forEach(c => c.classList.remove('tts-speaking'));
   
   btn.classList.add('playing');
   btn.textContent = '🔊';
   
-  // Also add pulse to the parent card
   const card = btn.closest('[style*="border-radius"]');
   if (card) card.classList.add('tts-speaking');
   
   speakText(text, lang).then(() => {
-    // Wait for audio to finish — poll _ttsPlaying
     const checkDone = setInterval(() => {
       if (!_ttsPlaying) {
         clearInterval(checkDone);
