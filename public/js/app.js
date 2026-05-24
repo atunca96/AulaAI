@@ -25,31 +25,36 @@ let currentStudentLessons = [];
 let currentStudentQuizzes = [];
 let currentStudentAssignments = [];
 
-// ── TTS Audio Engine (Pure AI — OpenAI GPT-4o Mini TTS) ──
+// ── TTS Audio Engine (Google Translate TTS — Direct, no server proxy) ──
 const _ttsAudioCache = new Map();
 let _ttsPlaying = false;
-let _ttsPrefetchQueue = [];
-let _ttsPrefetching = false;
 
-// Prefetch AI TTS in background (no playback)
-function _prefetchAiTTS(text, lang) {
-  const cacheKey = `${lang}_${text.toLowerCase()}`;
-  if (_ttsAudioCache.has(cacheKey)) return Promise.resolve();
-  
-  return fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`)
-    .then(r => r.ok ? r.blob() : null)
-    .then(blob => {
-      if (blob && blob.size > 100) {
-        if (_ttsAudioCache.size >= 150) {
-          _ttsAudioCache.delete(_ttsAudioCache.keys().next().value);
-        }
-        _ttsAudioCache.set(cacheKey, blob);
-      }
-    })
-    .catch(() => {});
+// Language name → ISO code for Google TTS
+const _langCodes = {
+  'german': 'de', 'deutsch': 'de', 'spanish': 'es', 'español': 'es',
+  'french': 'fr', 'français': 'fr', 'turkish': 'tr', 'türkçe': 'tr',
+  'italian': 'it', 'italiano': 'it', 'portuguese': 'pt', 'português': 'pt',
+  'arabic': 'ar', 'japanese': 'ja', 'chinese': 'zh', 'korean': 'ko',
+  'russian': 'ru', 'english': 'en', 'dutch': 'nl', 'polish': 'pl',
+  'swedish': 'sv', 'norwegian': 'no', 'danish': 'da', 'finnish': 'fi',
+  'greek': 'el', 'czech': 'cs', 'hungarian': 'hu', 'romanian': 'ro',
+  'hindi': 'hi', 'thai': 'th', 'vietnamese': 'vi', 'indonesian': 'id',
+  'hebrew': 'he', 'persian': 'fa', 'ukrainian': 'uk', 'croatian': 'hr',
+  'serbian': 'sr', 'bulgarian': 'bg', 'malay': 'ms', 'swahili': 'sw'
+};
+
+function _getLangCode(lang) {
+  if (!lang) return 'en';
+  const key = lang.split('(')[0].trim().toLowerCase();
+  return _langCodes[key] || key.substring(0, 2).toLowerCase();
 }
 
-// Batch preloader: fire ALL requests in parallel for instant availability
+function _getTTSUrl(text, lang) {
+  const tl = _getLangCode(lang);
+  return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`;
+}
+
+// Preload: create Audio objects that start buffering immediately
 function preloadTTS(words, lang) {
   if (!lang && currentCourse && currentCourse.language) {
     lang = currentCourse.language.split('(')[0].trim();
@@ -57,12 +62,15 @@ function preloadTTS(words, lang) {
   lang = lang || 'English';
   
   const unique = [...new Set(words.map(w => w.trim()).filter(w => w.length > 0 && w.length < 100))];
-  const toFetch = unique.filter(w => !_ttsAudioCache.has(`${lang}_${w.toLowerCase()}`));
-  
-  if (toFetch.length === 0) return;
-  
-  // Fire ALL in parallel — no staggering
-  toFetch.forEach(word => _prefetchAiTTS(word, lang));
+  unique.forEach(word => {
+    const cacheKey = `${lang}_${word.toLowerCase()}`;
+    if (_ttsAudioCache.has(cacheKey)) return;
+    
+    const audio = new Audio(_getTTSUrl(word, lang));
+    audio.preload = 'auto';
+    audio.load();
+    _ttsAudioCache.set(cacheKey, audio);
+  });
 }
 
 async function speakText(text, lang) {
@@ -78,33 +86,17 @@ async function speakText(text, lang) {
   try {
     _ttsPlaying = true;
 
-    // FAST PATH: Play from cache (instant)
+    let audio;
     if (_ttsAudioCache.has(cacheKey)) {
-      const audioBlob = _ttsAudioCache.get(cacheKey);
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-      audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-      await audio.play();
-      return;
+      audio = _ttsAudioCache.get(cacheKey);
+    } else {
+      audio = new Audio(_getTTSUrl(text, lang));
+      _ttsAudioCache.set(cacheKey, audio);
     }
 
-    // FETCH PATH: Get audio now (first tap on uncached word)
-    const response = await fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`);
-    if (!response.ok) throw new Error(`TTS error ${response.status}`);
-    const audioBlob = await response.blob();
-    
-    // Cache it
-    if (_ttsAudioCache.size >= 150) {
-      _ttsAudioCache.delete(_ttsAudioCache.keys().next().value);
-    }
-    _ttsAudioCache.set(cacheKey, audioBlob);
-
-    // Play it
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
-    audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    audio.onended = () => { _ttsPlaying = false; };
+    audio.onerror = () => { _ttsPlaying = false; };
+    audio.currentTime = 0;
     await audio.play();
   } catch (e) {
     console.error('TTS Error:', e);
