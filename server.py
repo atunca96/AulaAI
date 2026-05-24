@@ -133,6 +133,23 @@ def clear_cache():
     with _cache_lock:
         _cache.clear()
 
+# ── TTS Audio Cache (LRU, stores raw MP3 bytes) ──
+_tts_cache = {}
+_tts_cache_lock = threading.Lock()
+_TTS_CACHE_MAX = 200
+
+def get_tts_cache(key):
+    with _tts_cache_lock:
+        return _tts_cache.get(key)
+
+def set_tts_cache(key, audio_bytes):
+    with _tts_cache_lock:
+        if len(_tts_cache) >= _TTS_CACHE_MAX:
+            # Evict oldest entry
+            oldest_key = next(iter(_tts_cache))
+            del _tts_cache[oldest_key]
+        _tts_cache[key] = audio_bytes
+
 MIME_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -419,12 +436,82 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             result = ai_explain_word(word, lang or "English")
             return self._send_json(result)
+        elif path == "/api/tts":
+            return self._tts_speak()
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
         elif path.startswith("/api/"):
             return self._send_error("Not found", 404)
         else:
             return self._serve_static(path)
+
+    def _tts_speak(self):
+        """Proxy TTS request to OpenRouter's audio/speech endpoint. Returns raw MP3."""
+        try:
+            # Accept both GET (query params) and POST (JSON body)
+            if self.command == 'GET':
+                text = params.get("text", [None])[0]
+                lang = params.get("lang", ["en"])[0]
+            else:
+                data = self._read_body()
+                text = data.get("text")
+                lang = data.get("language", "en")
+
+            if not text or len(text.strip()) == 0:
+                return self._send_error("text required")
+            
+            text = text.strip()[:200]  # Safety limit
+
+            # Check TTS cache first
+            cache_key = f"tts_{lang}_{text.lower()}"
+            cached_audio = get_tts_cache(cache_key)
+            if cached_audio:
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(cached_audio)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(cached_audio)
+                return
+
+            # Call OpenRouter TTS API
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                return self._send_error("TTS not configured (no API key)")
+
+            tts_url = "https://openrouter.ai/api/v1/audio/speech"
+            tts_headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://aulaai.com",
+                "X-Title": "AulaAI"
+            }
+            tts_payload = json.dumps({
+                "model": "openai/gpt-4o-mini-tts",
+                "input": text,
+                "voice": "nova",
+                "response_format": "mp3"
+            }).encode("utf-8")
+
+            req = urllib.request.Request(tts_url, data=tts_payload, headers=tts_headers)
+            with urllib.request.urlopen(req, timeout=15) as response:
+                audio_bytes = response.read()
+
+            # Cache the result
+            set_tts_cache(cache_key, audio_bytes)
+
+            # Send raw audio back to client
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/mpeg")
+            self.send_header("Content-Length", str(len(audio_bytes)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.end_headers()
+            self.wfile.write(audio_bytes)
+        except Exception as e:
+            print(f"[TTS ERROR] {e}")
+            return self._send_error(f"TTS failed: {str(e)}")
 
     def _wipe_curriculum(self):
         """Delete all chapters and topics for a classroom to start fresh."""

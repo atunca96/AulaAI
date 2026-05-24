@@ -25,6 +25,118 @@ let currentStudentLessons = [];
 let currentStudentQuizzes = [];
 let currentStudentAssignments = [];
 
+// ── TTS Audio Engine ──
+const _ttsAudioCache = new Map();
+let _ttsPlaying = false;
+
+async function speakText(text, lang) {
+  if (!text || _ttsPlaying) return;
+  
+  // Determine language from course if not provided
+  if (!lang && currentCourse && currentCourse.language) {
+    lang = currentCourse.language.split('(')[0].trim();
+  }
+  lang = lang || 'English';
+
+  const cacheKey = `${lang}_${text.toLowerCase()}`;
+  
+  try {
+    _ttsPlaying = true;
+    let audioBlob;
+
+    // Check client cache
+    if (_ttsAudioCache.has(cacheKey)) {
+      audioBlob = _ttsAudioCache.get(cacheKey);
+    } else {
+      const response = await fetch(`/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}`);
+      if (!response.ok) throw new Error('TTS request failed');
+      audioBlob = await response.blob();
+      // Cache locally (limit to 100 entries)
+      if (_ttsAudioCache.size >= 100) {
+        const firstKey = _ttsAudioCache.keys().next().value;
+        _ttsAudioCache.delete(firstKey);
+      }
+      _ttsAudioCache.set(cacheKey, audioBlob);
+    }
+
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.onended = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    audio.onerror = () => { _ttsPlaying = false; URL.revokeObjectURL(audioUrl); };
+    await audio.play();
+  } catch (e) {
+    console.error('TTS Error:', e);
+    _ttsPlaying = false;
+  }
+}
+
+// Inject TTS pulse animation CSS
+(function() {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes ttsPulse {
+      0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+      70% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
+      100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+    }
+    .tts-speaking {
+      animation: ttsPulse 0.8s ease-out;
+    }
+    .tts-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+      color: var(--accent-light, #818cf8);
+      font-size: 18px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+    }
+    .tts-btn:hover {
+      background: rgba(99,102,241,0.15);
+      transform: scale(1.15);
+    }
+    .tts-btn:active {
+      transform: scale(0.9);
+    }
+    .tts-btn.playing {
+      animation: ttsPulse 0.8s ease-out infinite;
+      color: #a5b4fc;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
+function handleTTSClick(btn, text, lang, event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  if (btn.classList.contains('playing')) return;
+  
+  btn.classList.add('playing');
+  btn.textContent = '🔊';
+  
+  // Also add pulse to the parent card
+  const card = btn.closest('[style*="border-radius"]');
+  if (card) card.classList.add('tts-speaking');
+  
+  speakText(text, lang).then(() => {
+    // Wait for audio to finish — poll _ttsPlaying
+    const checkDone = setInterval(() => {
+      if (!_ttsPlaying) {
+        clearInterval(checkDone);
+        btn.classList.remove('playing');
+        btn.textContent = '🔈';
+        if (card) card.classList.remove('tts-speaking');
+      }
+    }, 200);
+  });
+}
+
 // ── Message Sync Engine ──
 let messagePollingInterval = null;
 
@@ -4977,7 +5089,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
               html += `<div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">`;
               rawData.forEach(it => {
                 if (typeof it === "string") {
-                  html += `<div dir="auto" class="foreign-word" role="button" tabindex="0" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; cursor:pointer; font-size:20px; color:#ffffff;">${fixDiacritics(it)}</div>`;
+                  html += `<div dir="auto" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; display:flex; align-items:center; gap:12px;"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:#ffffff; flex:1;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
                 } else if (typeof it === "object" && it !== null) {
                   const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
                   const v = safeStr(it.translation || it.meaning || it.reading || it.romaji || it.pinyin || it.pronunciation || it.text || it.content || it.english || it.value || Object.values(it)[1]);
@@ -4988,7 +5100,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
                         <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(safeStr(v || k))}"</div>
                       </div>`;
                   } else {
-                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                        <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
                         <div style="flex:1; display:flex; justify-content:flex-start;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(safeStr(k))}</div></div>
                         <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${safeStr(v)}</div>
                       </div>`;
@@ -5565,8 +5678,8 @@ window.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
     
-    // Instant Open for words
-    if (e.target.closest('.foreign-word') || e.target.closest('#aula-dict-popup')) {
+    // Instant Open for words (but NOT for TTS buttons)
+    if (!e.target.closest('.tts-btn') && (e.target.closest('.foreign-word') || e.target.closest('#aula-dict-popup'))) {
         handleDictTrigger(e);
     }
 }, { passive: true });
@@ -5642,7 +5755,7 @@ async function showDict(word, e) {
     content.innerHTML = `
             <div style="position:relative; margin-bottom:16px;">
                 <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
-                <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-height:1.4; margin-bottom:8px; word-break:break-word;">${word}</div>
+                <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-height:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)" style="font-size:20px;">🔈</button></div>
                 <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
             </div>
             
