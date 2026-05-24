@@ -49,23 +49,20 @@ function _prefetchAiTTS(text, lang) {
     .catch(() => {});
 }
 
-// Batch preloader: call this when a study page renders
+// Batch preloader: fire ALL requests in parallel for instant availability
 function preloadTTS(words, lang) {
   if (!lang && currentCourse && currentCourse.language) {
     lang = currentCourse.language.split('(')[0].trim();
   }
   lang = lang || 'English';
   
-  // Deduplicate and filter already-cached
   const unique = [...new Set(words.map(w => w.trim()).filter(w => w.length > 0 && w.length < 100))];
   const toFetch = unique.filter(w => !_ttsAudioCache.has(`${lang}_${w.toLowerCase()}`));
   
   if (toFetch.length === 0) return;
   
-  // Stagger requests to avoid flooding (150ms apart)
-  toFetch.forEach((word, i) => {
-    setTimeout(() => _prefetchAiTTS(word, lang), i * 150);
-  });
+  // Fire ALL in parallel — no staggering
+  toFetch.forEach(word => _prefetchAiTTS(word, lang));
 }
 
 async function speakText(text, lang) {
@@ -5212,15 +5209,13 @@ function showStudyTopic(topicId, pageIdx = 0) {
     </div>
   `;
 
-  // Preload TTS for all visible foreign words on this page
-  setTimeout(() => {
-    const words = [];
-    container.querySelectorAll('.foreign-word').forEach(el => {
-      const w = el.textContent.trim().replace(/^"|"$/g, '');
-      if (w.length > 0 && w.length < 80) words.push(w);
-    });
-    if (words.length > 0) preloadTTS(words);
-  }, 300);
+  // Preload TTS immediately for all foreign words on this page
+  const _ttsWords = [];
+  container.querySelectorAll('.foreign-word').forEach(el => {
+    const w = el.textContent.trim().replace(/^"|"$/g, '');
+    if (w.length > 0 && w.length < 80) _ttsWords.push(w);
+  });
+  if (_ttsWords.length > 0) preloadTTS(_ttsWords);
 }
 
 
