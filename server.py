@@ -487,16 +487,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "X-Title": "AulaAI"
             }
             
-            # Use instructions parameter to control pronunciation language
-            # gpt-4o-mini-tts supports this as a hidden prompt (not read aloud)
+            # gpt-4o-mini-tts is instruction-following: it reads instructions from
+            # the input text itself and follows them without speaking them aloud.
             lang_hint = lang.split('(')[0].strip() if lang else "English"
+            tts_input = f"Say the following in {lang_hint}, as a native {lang_hint} speaker would. Only speak the word/phrase, nothing else: {text}"
             
             tts_payload = json.dumps({
                 "model": "openai/gpt-4o-mini-tts-2025-12-15",
-                "input": text,
+                "input": tts_input,
                 "voice": "nova",
-                "response_format": "mp3",
-                "instructions": f"Speak in {lang_hint}. Pronounce this as a native {lang_hint} speaker would. Do not speak in English."
+                "response_format": "mp3"
             }).encode("utf-8")
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] [TTS] Requesting speech for: '{text[:40]}...' lang={lang}")
