@@ -460,31 +460,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             text = text.strip()[:200]
 
-            # Map language names to ISO codes for Google TTS
+            # Frontend now sends ISO codes directly (de, es, tr, etc.)
+            # Fall back to mapping only if a full language name is sent
             lang_codes = {
-                'german': 'de', 'deutsch': 'de',
-                'spanish': 'es', 'español': 'es',
-                'french': 'fr', 'français': 'fr',
-                'turkish': 'tr', 'türkçe': 'tr',
-                'italian': 'it', 'italiano': 'it',
-                'portuguese': 'pt', 'português': 'pt',
-                'arabic': 'ar', 'japanese': 'ja',
-                'chinese': 'zh', 'korean': 'ko',
-                'russian': 'ru', 'english': 'en',
-                'dutch': 'nl', 'polish': 'pl',
-                'swedish': 'sv', 'norwegian': 'no',
-                'danish': 'da', 'finnish': 'fi',
-                'greek': 'el', 'czech': 'cs',
-                'hungarian': 'hu', 'romanian': 'ro',
-                'hindi': 'hi', 'thai': 'th',
-                'vietnamese': 'vi', 'indonesian': 'id',
-                'hebrew': 'he', 'persian': 'fa',
-                'ukrainian': 'uk', 'croatian': 'hr',
-                'serbian': 'sr', 'bulgarian': 'bg',
-                'malay': 'ms', 'swahili': 'sw',
+                'german': 'de', 'deutsch': 'de', 'spanish': 'es', 'español': 'es',
+                'french': 'fr', 'turkish': 'tr', 'italian': 'it', 'portuguese': 'pt',
+                'arabic': 'ar', 'japanese': 'ja', 'chinese': 'zh', 'korean': 'ko',
+                'russian': 'ru', 'english': 'en', 'dutch': 'nl', 'polish': 'pl',
+                'greek': 'el', 'hindi': 'hi', 'hebrew': 'he', 'persian': 'fa',
             }
-            lang_key = lang.split('(')[0].strip().lower() if lang else 'en'
-            tl = lang_codes.get(lang_key, lang_key[:2].lower())
+            lang_clean = lang.split('(')[0].strip().lower() if lang else 'en'
+            # If already a 2-3 letter code, use directly
+            tl = lang_clean if len(lang_clean) <= 3 else lang_codes.get(lang_clean, lang_clean[:2])
 
             # Check cache
             cache_key = f"tts_{tl}_{text.lower()}"
