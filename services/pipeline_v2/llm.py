@@ -21,7 +21,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 CHEAP_MODEL = "openai/gpt-4o-mini"
 FALLBACK_MODEL = "openai/gpt-4o-mini"
 
-CACHE_NAMESPACE = "pipeline_v2_v7"
+CACHE_NAMESPACE = "pipeline_v2_v10"
 
 # In-memory cache for repeated chunks/prompts
 _llm_cache = {}
@@ -178,7 +178,7 @@ def extract_curriculum(text: str) -> Dict[str, Any]:
 
     prompt = f"""You are a strict JSON generator.
 
-Your ONLY task is to transform input text into valid JSON.
+Your ONLY task is to transform input text into valid JSON representing the curriculum structure.
 
 ---
 
@@ -195,78 +195,139 @@ Your ONLY task is to transform input text into valid JSON.
 
 ---
 
-🧠 BEHAVIOR RULES
-* Ignore OCR noise
-* Ignore unreadable lines
-* Fix broken words if obvious
-* Merge split lines
-* Work in ANY language (language-agnostic)
-* PRESERVE ORIGINAL NAMES: Use the EXACT topic/lesson titles as written in the source text. Do NOT translate, rename, summarize, or genericize them. If the source says "Wie heißt du?" output "Wie heißt du?", NOT "Hellos and Goodbyes".
-
----
-
-📦 TASK & QUALITY RESTRICTIONS (ABSOLUTE)
-1. FILTER OUT METADATA & FRONT MATTER: Absolutely do NOT extract introductory chapters, preface, foreword, textbook level overviews (e.g., "Beginning German Level I", "Basic German Level II"), general instructions, "How to Study German Using This Textbook", "Layout of Lessons", "Pronunciation Guide", or descriptions of the student manual. Only extract actual curriculum topics for lessons.
-2. GROUP MICRO-GRAMMAR & EXAMPLES: Do NOT extract raw syntax snippets, conjugation forms, or short sentence examples as individual topics (e.g., do NOT extract "er -t", "sie -t", "ich spiele", "was machst du?", "to conjugate", "ich mache Hausaufgaben", "er macht Hausaufgaben" as separate topics). Instead, group these conjugations and examples into their parent grammar or vocabulary topic (e.g., group them into a single comprehensive topic like "Verb Conjugation: spielen & machen" or "Present Tense Conjugations").
-3. DEDUPLICATION & MERGING: Ensure no redundant, identical, or overlapping topics exist. For example, do not extract "Wie heißt du?" twice. Merge duplicates.
+🧠 BEHAVIOR & EXTRACTION RULES
+1. FILTER OUT METADATA, BOOK STRUCTURE GUIDES & INTRODUCTIONS: Absolutely do NOT extract introductory chapters, preface, foreword, textbook level overviews, general instructions, or guide pages explaining how the book or units are organized (e.g. "Así son las unidades", "Para entender el manual", "Layout of Lessons", "Pronunciation Guide", "How to use this manual"). Ignore these guide pages, their section titles, and any example items shown on them. Only extract actual curriculum topics for lessons from the real body chapters or Table of Contents.
+2. GROUP MICRO-GRAMMAR & EXAMPLES: Do NOT extract raw syntax snippets, conjugation forms, or short sentence examples as individual topics. Group them into their parent grammar or vocabulary topic (e.g. group "er -t", "sie -t" into "Present Tense Conjugations").
+3. DEDUPLICATION & MERGING: Ensure no redundant, identical, or overlapping topics exist. Merge duplicates.
 4. Detect structure: UNIT_HEADER, TOPIC, NOISE (discard).
 5. Extract ONLY the units and topics physically present in the document.
-6. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed. You MUST assign the most specific tag to each topic based on its title and what it teaches:
-   - 'grammar' -> if it covers grammar structures, cases, tenses, syntax (e.g., 'Das Fest' covering Dative case, or modals, separable verbs, conjugation).
-   - 'vocabulary' -> if it focuses on thematic word lists, nouns, adjectives (e.g., 'Freizeit' covering sports, 'Essen' covering food, 'Kleidung' covering clothes, 'Das Haus' covering furniture, 'Schule' covering subjects).
-   - 'phonetics' -> if it covers pronunciation, spelling, alphabets, or sounds.
-   - 'communication' -> if it focuses on conversation, greetings, hellos/goodbyes, expressions, dialogues, or speaking practice (e.g., 'Wie heißt du?').
-   - 'mixed' -> ONLY as a last resort if a topic has absolutely no dominant theme. Do NOT use 'mixed' if the topic clearly matches one of the other categories. For example, topics about 'Essen' (food), 'Schule' (school), 'Wetter' (weather), or 'Das Haus' (furniture/house) are strictly 'vocabulary'. Topics about 'Privileg und Verantwortung' (modal verbs, rules) are strictly 'grammar'. Avoid 'mixed' at all costs unless there is zero clear language focus!
-    🚨 CRITICAL TAGGING RULE: You MUST evaluate and decide the 'tag' based on the FULL original lesson line (including numbering and description/details after the '~' or ':') BEFORE you remove the numbering and description to produce the final 'name'! For example:
-    * "Lesson 1.03 • Essen ~ Introduction to food, food-related verbs, intro to modals & möchten..." -> Even though this has modals, verbs, and polite conversation, its primary thematic core is food, so the tag is strictly "vocabulary" (NOT "mixed"), even though the final name is "Essen".
-    * "Lesson 1.09 • Schule ~ School subjects..." -> Description has "School subjects", so the tag is strictly "vocabulary", even though the final name is "Schule".
-    * "Lesson 1.12 • Wetter ~ Weather vocabulary..." -> Description has "Weather", so the tag is strictly "vocabulary", even though the final name is "Wetter".
-    * "Lesson 1.08 • Das Haus ~ Rooms, furniture..." -> Description has "furniture, rooms", so the tag is strictly "vocabulary", even though the final name is "Das Haus".
-    * "Lesson 1.07 • Privileg und Verantwortung ~ Modal verbs, rules..." -> Description has "Modal verbs", so the tag is strictly "grammar", even though the final name is "Privileg und Verantwortung".
-    NEVER default to "mixed" when the description or lesson focus clearly indicates vocabulary, grammar, phonetics, or communication!
-7. Group them correctly into their respective units.
-
-8. Perform QA: check logical order, detect noise. Do NOT invent missing basics (e.g. alphabet) or foundational units. Strictly stick to the text.
-9. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review".
-10. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION, CHAPTER, or UNIT header which acts as the UNIT, and individual LESSONS or sub-chapters within it which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
-11. REVIEW FILTER: Do NOT extract "Review" lessons, test sections, quizzes, or exam pages. These are noise. However, do NOT discard main unit/section titles that happen to contain city or country names — these are valid unit/section titles and must be preserved!
-12. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name into multiple sub-topics based on its descriptions or sub-points. Discard description text after separators like '~', '•', or ':' when extracting the final topic name, but NEVER split one lesson into multiple topics.
-13. UNIVERSAL TEXTBOOK PATTERN (STRICT): The number of units and topics MUST match EXACTLY what is physically present in the input text. Do NOT assume any fixed number of units or topics. Do NOT import, hallucinate, or copy unit titles or topic names from any other document or your training data. ONLY use what you can directly read in the INPUT text below!
-
+6. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed. Assign the most specific tag.
+7. Group topics correctly into their respective units.
+8. TOPIC NAME CLEANING & NO SUB-DETAILS: When extracting a topic name, discard description text after separators like '~', ':', or similar details that are just a sentence explaining what the topic is. Keep the core name of the topic. However, do NOT confuse sub-details with lists of distinct lesson subjects. If a line or section lists multiple distinct language subjects/lessons (e.g., separated by '•', ',', ';', or newlines), you MUST split and extract each item in that list as a separate individual topic.
+9. EXTRACT BULLETED/LISTED TOPICS UNDER CATEGORY HEADERS: Do NOT extract generic structural labels or grouping headers (e.g., 'RECURSOS COMUNICATIVOS', 'RECURSOS GRAMATICALES', 'RECURSOS LÉXICOS', 'FONÉTICA', 'Grammar', 'Vocabulary', 'Skills', 'Exercises', 'Pronunciation', 'Communication', 'Léxico') as topic names. Instead, you MUST extract the actual, specific topics listed under or next to these headers. If there are multiple items listed (e.g., separated by dots '•', commas ',', semicolons ';', or newlines), each item is a separate topic and must be extracted individually.
+10. IGNORE UNIT GOALS / SUMMARY SENTENCES: Many units have a high-level subtitle or summary sentence explaining the goal of the unit (e.g., 'APRENDER A PRESENTARNOS...', 'CONOCER LOS HÁBITOS...', 'CONOCER MEJOR A LAS OTRAS PERSONAS...', 'IMAGINAR Y DESCRIBIR UN BARRIO IDEAL'). Do NOT extract these summary sentences as topics. Skip them. Instead, extract the actual specific lessons/topics (vocabulary, grammar, communication, phonetics) listed underneath them.
 
 ---
 
-📤 OUTPUT FORMAT (STRICT)
+📖 FEW-SHOT EXAMPLES (MATERIAL-AGNOSTIC)
+
+Example 1: Book guide page (Should be skipped)
+Input:
+---
+ASÍ SON LAS UNIDADES DE ESTE MANUAL
+• Empezar: En esta primera doble página de la unidad...
+Example Lesson:
+1. CIUDADES QUE SE LLAMAN SANTIAGO
+• Comprender: En esta doble página encontramos textos...
+---
+Output:
 {{
-"units": [
-{{
-"unit": 1,
-"title": "[Exact name of the first unit/chapter as written in the book/text]",
-"topics": [
-{{
-"name": "[Topic/lesson name from book/text]",
-"tag": "grammar | vocabulary | functional | phonetics | communication | mixed",
-"confidence": 0.0
+  "units": []
 }}
-]
-}},
+
+Example 2: Real Curriculum Unit with Goal and Category headers
+Input:
+---
+PÁG. 12
+UNIT 1: AT THE CAFE
+GOAL: ORDERING FOOD AND DRINKS AND TALKING TO THE WAITER
+COMMUNICATIVE RESOURCES
+order a coffee • ask for the menu • pay the bill
+GRAMMATICAL RESOURCES
+present tense of verbs like to want and to like • singular and plural nouns
+LEXICAL RESOURCES
+food and drinks • numbers 1-20
+PRONUNCIATION
+word stress
+---
+Output:
 {{
-"unit": 2,
-"title": "[Exact name of the second unit/chapter as written in the book/text]",
-"topics": [
+  "units": [
+    {{
+      "unit": 1,
+      "title": "AT THE CAFE",
+      "topics": [
+        {{
+          "name": "order a coffee",
+          "tag": "communication"
+        }},
+        {{
+          "name": "ask for the menu",
+          "tag": "communication"
+        }},
+        {{
+          "name": "pay the bill",
+          "tag": "communication"
+        }},
+        {{
+          "name": "present tense of verbs like to want and to like",
+          "tag": "grammar"
+        }},
+        {{
+          "name": "singular and plural nouns",
+          "tag": "grammar"
+        }},
+        {{
+          "name": "food and drinks",
+          "tag": "vocabulary"
+        }},
+        {{
+          "name": "numbers 1-20",
+          "tag": "vocabulary"
+        }},
+        {{
+          "name": "word stress",
+          "tag": "phonetics"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Example 3: Real Curriculum Unit with simple bullet list and no category headers
+Input:
+---
+PÁG. 10
+0/ EN EL AULA
+APRENDER A PRESENTARNOS, A PREGUNTAR COSAS EN CLASE Y A SALUDAR Y DESPEDIRNOS
+saludos y despedidas • las cosas de la clase • los números del 1 al 10 • el abecedario • recursos para desenvolverse en la clase de español
+FONÉTICA
+entonación de preguntas parciales y su respuesta
+---
+Output:
 {{
-"name": "[Topic/lesson name from book/text]",
-"tag": "vocabulary"
-}}
-]
-}}
-// Generate ALL units/chapters exactly as they appear in the text! DO NOT invent titles!
-],
-"qa_report": {{
-"level": "A1",
-"issues": [],
-"fixes_applied": []
-}}
+  "units": [
+    {{
+      "unit": 1,
+      "title": "EN EL AULA",
+      "topics": [
+        {{
+          "name": "saludos y despedidas",
+          "tag": "communication"
+        }},
+        {{
+          "name": "las cosas de la clase",
+          "tag": "vocabulary"
+        }},
+        {{
+          "name": "los números del 1 al 10",
+          "tag": "vocabulary"
+        }},
+        {{
+          "name": "el abecedario",
+          "tag": "phonetics"
+        }},
+        {{
+          "name": "recursos para desenvolverse en la clase de español",
+          "tag": "communication"
+        }},
+        {{
+          "name": "entonación de preguntas parciales y su respuesta",
+          "tag": "phonetics"
+        }}
+      ]
+    }}
+  ]
 }}
 
 ---
@@ -335,50 +396,149 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 
 ---
 
-🧠 BEHAVIOR RULES
-* Ignore OCR noise or formatting artifacts
-* Ignore unreadable lines
-* Fix broken words if obvious
-* Work in ANY language (language-agnostic)
-* PRESERVE ORIGINAL NAMES: Use the EXACT topic/lesson titles as written in the PDF. Do NOT translate, rename, summarize, or genericize them. If the PDF says "Wie heißt du?" output "Wie heißt du?", NOT "Hellos and Goodbyes". If it says "Freizeit" output "Freizeit", NOT "Sports and Activities".
-* GERMAN ENCODING SAFETY: German PDFs often contain special characters like ß, ä, ö, ü. OCR engines sometimes misinterpret these as Arabic characters (e.g. 'ى' instead of 'ßt'). You MUST detect and CORRECT these back to valid German spelling based on context.
-
----
-
-📦 TASK & QUALITY RESTRICTIONS (ABSOLUTE)
-1. FILTER OUT METADATA & FRONT MATTER: Absolutely do NOT extract introductory chapters, preface, foreword, textbook level overviews (e.g., "Beginning German Level I", "Basic German Level II"), general instructions, "How to Study German Using This Textbook", "Layout of Lessons", "Pronunciation Guide", or descriptions of the student manual. Only extract actual curriculum topics for lessons.
-2. GROUP MICRO-GRAMMAR & EXAMPLES: Do NOT extract raw syntax snippets, conjugation forms, or short sentence examples as individual topics (e.g., do NOT extract "er -t", "sie -t", "ich spiele", "was machst du?", "to conjugate", "ich mache Hausaufgaben", "er macht Hausaufgaben" as separate topics). Instead, group these conjugations and examples into their parent grammar or vocabulary topic (e.g., group them into a single comprehensive topic like "Verb Conjugation: spielen & machen" or "Present Tense Conjugations").
-3. DEDUPLICATION & MERGING: Ensure no redundant, identical, or overlapping topics exist. For example, do not extract "Wie heißt du?" twice. Merge duplicates.
+🧠 BEHAVIOR & EXTRACTION RULES
+1. FILTER OUT METADATA, BOOK STRUCTURE GUIDES & INTRODUCTIONS: Absolutely do NOT extract introductory chapters, preface, foreword, textbook level overviews, general instructions, or guide pages explaining how the book or units are organized (e.g. "Así son las unidades", "Para entender el manual", "Layout of Lessons", "Pronunciation Guide", "How to use this manual"). Ignore these guide pages, their section titles, and any example items shown on them. Only extract actual curriculum topics for lessons from the real body chapters or Table of Contents.
+2. GROUP MICRO-GRAMMAR & EXAMPLES: Do NOT extract raw syntax snippets, conjugation forms, or short sentence examples as individual topics. Group them into their parent grammar or vocabulary topic.
+3. DEDUPLICATION & MERGING: Ensure no redundant, identical, or overlapping topics exist. Merge duplicates.
 4. Read the PDF content, focusing specifically on the Table of Contents or chapter breakdowns.
-5. Detect structure: UNIT_HEADER (e.g., Unit 1, Lektion 2, Chapter 3), TOPIC, NOISE (discard).
+5. Detect structure: UNIT_HEADER (e.g. Unit 1, Lektion 2, Chapter 3), TOPIC, NOISE (discard).
 6. Extract ONLY the units and topics physically present in the document. Do NOT infer, predict, or add "future" levels.
-7. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed. You MUST assign the most specific tag to each topic based on its title and what it teaches:
-   - 'grammar' -> if it covers grammar structures, cases, tenses, syntax (e.g., 'Das Fest' covering Dative case, or modals, separable verbs, conjugation).
-   - 'vocabulary' -> if it focuses on thematic word lists, nouns, adjectives (e.g., 'Freizeit' covering sports, 'Essen' covering food, 'Kleidung' covering clothes, 'Das Haus' covering furniture, 'Schule' covering subjects).
-   - 'phonetics' -> if it covers pronunciation, spelling, alphabets, or sounds.
-   - 'communication' -> if it focuses on conversation, greetings, hellos/goodbyes, expressions, dialogues, or speaking practice (e.g., 'Wie heißt du?').
-   - 'mixed' -> ONLY as a last resort if a topic has absolutely no dominant theme. Do NOT use 'mixed' if the topic clearly matches one of the other categories. For example, topics about 'Essen' (food), 'Schule' (school), 'Wetter' (weather), or 'Das Haus' (furniture/house) are strictly 'vocabulary'. Topics about 'Privileg und Verantwortung' (modal verbs, rules) are strictly 'grammar'. Avoid 'mixed' at all costs unless there is zero clear language focus!
-   🚨 CRITICAL TAGGING RULE: You MUST evaluate and decide the 'tag' based on the FULL original lesson line (including numbering and description/details after the '~' or ':') BEFORE you remove the numbering and description to produce the final 'name'! For example:
-   * "Lesson 1.03 • Essen ~ Introduction to food, food-related verbs, intro to modals & möchten..." -> Even though this has modals, verbs, and polite conversation, its primary thematic core is food, so the tag is strictly "vocabulary" (NOT "mixed" and NOT "communication"), even though the final name is "Essen".
-   * "Lesson 1.09 • Schule ~ School subjects..." -> Description has "School subjects", so the tag is strictly "vocabulary", even though the final name is "Schule".
-   * "Lesson 1.12 • Wetter ~ Weather vocabulary..." -> Description has "Weather", so the tag is strictly "vocabulary", even though the final name is "Wetter".
-   * "Lesson 1.08 • Das Haus ~ Rooms, furniture..." -> Description has "furniture, rooms", so the tag is strictly "vocabulary", even though the final name is "Das Haus".
-   * "Lesson 1.07 • Privileg und Verantwortung ~ Modal verbs, rules..." -> Description has "Modal verbs", so the tag is strictly "grammar", even though the final name is "Privileg und Verantwortung".
-   NEVER default to "mixed" when the description or lesson focus clearly indicates vocabulary, grammar, phonetics, or communication!
-8. Group them correctly into their respective units as shown in the book.
-
-9. Perform QA: check logical order, detect noise. Do NOT invent missing basics (e.g. alphabet) or foundational units. Strictly stick to the PDF.
-10. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review".
-11. STRICT NO-EMPTY-UNITS RULE: If a unit has no valid lessons/topics after noise removal, it MUST NOT be included in the JSON. Never output an empty "topics": [] array.
-12. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or exam pages (e.g. "Review 1.01 • Review of Lessons 1-3"). These are noise. However, do NOT discard main unit/section titles or lessons that happen to contain city or country names (e.g., "Berlin, Germany", "Vienna, Austria", "Berne, Switzerland") — these are valid unit/section titles and must be preserved!
-13. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION, CHAPTER, or UNIT header which acts as the UNIT, and individual LESSONS or sub-chapters within it which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
-14. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name into multiple sub-topics based on its descriptions or sub-points. Discard description text after separators like '~', '•', or ':' when extracting the final topic name, but NEVER split one lesson into multiple topics.
+7. Tag each topic: grammar, vocabulary, functional, phonetics, communication, mixed. Assign the most specific tag.
+8. Group topics correctly into their respective units as shown in the book.
+9. TOPIC NAME CLEANING & NO SUB-DETAILS: When extracting a topic name, discard description text after separators like '~', ':', or similar details that are just a sentence explaining what the topic is. Keep the core name of the topic. However, do NOT confuse sub-details with lists of distinct lesson subjects. If a line or section lists multiple distinct language subjects/lessons (e.g., separated by '•', ',', ';', or newlines), you MUST split and extract each item in that list as a separate individual topic.
+10. EXTRACT BULLETED/LISTED TOPICS UNDER CATEGORY HEADERS: Do NOT extract generic structural labels or grouping headers (e.g., 'RECURSOS COMUNICATIVOS', 'RECURSOS GRAMATICALES', 'RECURSOS LÉXICOS', 'FONÉTICA', 'Grammar', 'Vocabulary', 'Skills', 'Exercises', 'Pronunciation', 'Communication', 'Léxico') as topic names. Instead, you MUST extract the actual, specific topics listed under or next to these headers. If there are multiple items listed (e.g., separated by dots '•', commas ',', semicolons ';', or newlines), each item is a separate topic and must be extracted individually.
+11. IGNORE UNIT GOALS / SUMMARY SENTENCES: Many units have a high-level subtitle or summary sentence explaining the goal of the unit (e.g., 'APRENDER A PRESENTARNOS...', 'CONOCER LOS HÁBITOS...', 'CONOCER MEJOR A LAS OTRAS PERSONAS...', 'IMAGINAR Y DESCRIBIR UN BARRIO IDEAL'). Do NOT extract these summary sentences as topics. Skip them. Instead, extract the actual specific lessons/topics (vocabulary, grammar, communication, phonetics) listed underneath them.
+12. GERMAN ENCODING SAFETY: German PDFs often contain special characters like ß, ä, ö, ü. OCR engines sometimes misinterpret these as Arabic characters (e.g. 'ы' instead of 'ßt'). You MUST detect and CORRECT these back to valid German spelling based on context.
+13. STRICT NO-EMPTY-UNITS RULE: If a unit has no valid lessons/topics after noise removal, it MUST NOT be included in the JSON. Never output an empty "topics": [] array.
+14. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or exam pages. These are noise. However, do NOT discard main unit/section titles or lessons that happen to contain city or country names — these are valid unit/section titles and must be preserved!
 15. UNIVERSAL TEXTBOOK PATTERN (STRICT): The number of units and topics MUST match EXACTLY what is physically present in the PDF. Do NOT assume any fixed number of units or topics. Do NOT import, hallucinate, or copy unit titles or topic names from any other document or your training data. ONLY use what you can directly read in the attached PDF!
 
+---
+
+📖 FEW-SHOT EXAMPLES (MATERIAL-AGNOSTIC)
+
+Example 1: Book guide page (Should be skipped)
+Input:
+---
+ASÍ SON LAS UNIDADES DE ESTE MANUAL
+• Empezar: En esta primera doble página de la unidad...
+Example Lesson:
+1. CIUDADES QUE SE LLAMAN SANTIAGO
+• Comprender: En esta doble página encontramos textos...
+---
+Output:
+{
+  "units": []
+}
+
+Example 2: Real Curriculum Unit with Goal and Category headers
+Input:
+---
+PÁG. 12
+UNIT 1: AT THE CAFE
+GOAL: ORDERING FOOD AND DRINKS AND TALKING TO THE WAITER
+COMMUNICATIVE RESOURCES
+order a coffee • ask for the menu • pay the bill
+GRAMMATICAL RESOURCES
+present tense of verbs like to want and to like • singular and plural nouns
+LEXICAL RESOURCES
+food and drinks • numbers 1-20
+PRONUNCIATION
+word stress
+---
+Output:
+{
+  "units": [
+    {
+      "unit": 1,
+      "title": "AT THE CAFE",
+      "topics": [
+        {
+          "name": "order a coffee",
+          "tag": "communication"
+        },
+        {
+          "name": "ask for the menu",
+          "tag": "communication"
+        },
+        {
+          "name": "pay the bill",
+          "tag": "communication"
+        },
+        {
+          "name": "present tense of verbs like to want and to like",
+          "tag": "grammar"
+        },
+        {
+          "name": "singular and plural nouns",
+          "tag": "grammar"
+        },
+        {
+          "name": "food and drinks",
+          "tag": "vocabulary"
+        },
+        {
+          "name": "numbers 1-20",
+          "tag": "vocabulary"
+        },
+        {
+          "name": "word stress",
+          "tag": "phonetics"
+        }
+      ]
+    }
+  ]
+}
+
+Example 3: Real Curriculum Unit with simple bullet list and no category headers
+Input:
+---
+PÁG. 10
+0/ EN EL AULA
+APRENDER A PRESENTARNOS, A PREGUNTAR COSAS EN CLASE Y A SALUDAR Y DESPEDIRNOS
+saludos y despedidas • las cosas de la clase • los números del 1 al 10 • el abecedario • recursos para desenvolverse en la clase de español
+FONÉTICA
+entonación de preguntas parciales y su respuesta
+---
+Output:
+{
+  "units": [
+    {
+      "unit": 1,
+      "title": "EN EL AULA",
+      "topics": [
+        {
+          "name": "saludos y despedidas",
+          "tag": "communication"
+        },
+        {
+          "name": "las cosas de la clase",
+          "tag": "vocabulary"
+        },
+        {
+          "name": "los números del 1 al 10",
+          "tag": "vocabulary"
+        },
+        {
+          "name": "el abecedario",
+          "tag": "phonetics"
+        },
+        {
+          "name": "recursos para desenvolverse en la clase de español",
+          "tag": "communication"
+        },
+        {
+          "name": "entonación de preguntas parciales y su respuesta",
+          "tag": "phonetics"
+        }
+      ]
+    }
+  ]
+}
 
 ---
 
-📤 OUTPUT FORMAT (STRICT)
+OUTPUT FORMAT (STRICT)
 {
 "units": [
 {
@@ -391,24 +551,8 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 "confidence": 0.0
 }
 ]
-},
-{
-"unit": 2,
-"title": "[Exact name of the second unit as written in the book]",
-"topics": [
-{
-"name": "[Topic name from book]",
-"tag": "vocabulary"
 }
 ]
-}
-// Generate ALL units exactly as they appear in the document! DO NOT invent titles!
-],
-"qa_report": {
-"level": "A1",
-"issues": [],
-"fixes_applied": []
-}
 }
 """
     logger.info("LLM: Direct PDF Curriculum Extraction (OpenRouter Mistral OCR)")

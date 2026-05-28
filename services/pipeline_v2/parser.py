@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 
 def clean_lines(lines: List[str]) -> List[str]:
     cleaned = []
-    seen = set()
+    prev = None
     for line in lines:
         if not line:
             continue
@@ -23,9 +23,10 @@ def clean_lines(lines: List[str]) -> List[str]:
         if line.isdigit():
             continue
             
-        if line not in seen:
-            seen.add(line)
+        # Deduplicate consecutive identical lines only to preserve repeating section headers
+        if line != prev:
             cleaned.append(line)
+            prev = line
     return cleaned
 
 def chunk_lines(lines: List[str], size: int = 40) -> List[List[str]]:
