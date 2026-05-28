@@ -119,20 +119,20 @@ async function speakText(text, lang) {
   const style = document.createElement('style');
   style.textContent = `
     @keyframes ttsPulse {
-      0% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
-      70% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
-      100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+      0% { background: transparent; }
+      50% { background: var(--accent-glow); }
+      100% { background: transparent; }
     }
     .tts-speaking {
-      animation: ttsPulse 0.8s ease-out;
+      animation: ttsPulse 1s ease-out;
     }
     .tts-btn {
       background: none;
       border: none;
       cursor: pointer;
       padding: 6px;
-      border-radius: 50%;
-      color: var(--accent-light, #818cf8);
+      border-radius: var(--radius-sm);
+      color: var(--accent);
       font-size: 18px;
       transition: all 0.2s ease;
       flex-shrink: 0;
@@ -143,15 +143,14 @@ async function speakText(text, lang) {
       height: 36px;
     }
     .tts-btn:hover {
-      background: rgba(99,102,241,0.15);
-      transform: scale(1.15);
+      background: var(--accent-glow);
     }
     .tts-btn:active {
-      transform: scale(0.9);
+      transform: scale(0.95);
     }
     .tts-btn.playing {
-      animation: ttsPulse 0.8s ease-out infinite;
-      color: #a5b4fc;
+      background: var(--accent-glow);
+      color: var(--accent);
     }
   `;
   document.head.appendChild(style);
@@ -163,12 +162,16 @@ function handleTTSClick(btn, text, lang, event) {
   // Reset all other playing buttons
   document.querySelectorAll('.tts-btn.playing').forEach(b => {
     b.classList.remove('playing');
-    b.textContent = '🔈';
+    if (!b.querySelector('svg')) {
+      b.textContent = '🔈';
+    }
   });
   document.querySelectorAll('.tts-speaking').forEach(c => c.classList.remove('tts-speaking'));
   
   btn.classList.add('playing');
-  btn.textContent = '🔊';
+  if (!btn.querySelector('svg')) {
+    btn.textContent = '🔊';
+  }
   
   const card = btn.closest('[style*="border-radius"]');
   if (card) card.classList.add('tts-speaking');
@@ -178,7 +181,9 @@ function handleTTSClick(btn, text, lang, event) {
       if (!_ttsPlaying) {
         clearInterval(checkDone);
         btn.classList.remove('playing');
-        btn.textContent = '🔈';
+        if (!btn.querySelector('svg')) {
+          btn.textContent = '🔈';
+        }
         if (card) card.classList.remove('tts-speaking');
       }
     }, 200);
@@ -495,17 +500,24 @@ function refreshCurrentView() {
   });
 
   if (document.getElementById('waiting-room-screen').classList.contains('active')) {
-    api('/user/status?user_id=' + currentUser.id + '&course_id=' + (currentUser.course_id || currentCourse?.id)).then(async status => {
-      if (status && status.status === 'approved') {
-        window.location.reload();
-      } else if (status && (status.error === 'enrollment_removed' || status.error === 'course_deleted')) {
-        if (window._waitingPoll) clearInterval(window._waitingPoll);
-        await showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
-        localStorage.removeItem('aula_last_course');
-        localStorage.removeItem('aula_last_tab');
-        window.location.reload();
-      }
-    });
+    // Only check status when we know which course the student is waiting for.
+    // Omitting course_id would fall back to user-level status which is always
+    // 'approved' (set at registration), causing a spurious reload loop.
+    const waitCourseId = localStorage.getItem('aula_last_course');
+    if (waitCourseId) {
+      api('/user/status?user_id=' + currentUser.id + '&course_id=' + waitCourseId).then(async status => {
+        if (status && status.status === 'approved') {
+          if (window._waitingPoll) clearInterval(window._waitingPoll);
+          window.location.reload();
+        } else if (status && (status.error === 'enrollment_removed' || status.error === 'course_deleted')) {
+          if (window._waitingPoll) clearInterval(window._waitingPoll);
+          await showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
+          localStorage.removeItem('aula_last_course');
+          localStorage.removeItem('aula_last_tab');
+          window.location.reload();
+        }
+      });
+    }
     applyTranslations();
     return;
   }
@@ -586,6 +598,27 @@ function refreshCurrentView() {
 const i18n = {
   en: {
     langBtn: 'Language: EN',
+    // New login showcase translations
+    'hero.value_title': 'Marmara University Language Portal',
+    'hero.value_subtitle': 'Curriculum-based interactive practices and resource management system for the School of Foreign Languages.',
+    'hero.widget_title': 'INTERACTIVE STUDY MATERIAL',
+    'hero.demo_es_trans': 'Hello, how are you today?',
+    'hero.demo_de_trans': 'Hello, how are you today?',
+    'hero.demo_fr_trans': 'Hello, how are you today?',
+    'hero.demo_tip': 'Note: Click any word for instant dictionary translation',
+    Translation: 'Translation',
+    // Privacy policy
+    'login.agree_prefix': 'By signing in, you agree to our ',
+    'login.privacy_policy': 'Privacy Policy',
+    'login.agree_suffix': '.',
+    'privacy.title': 'Privacy Policy',
+    'privacy.intro': 'AulaAI processes minimal student and lecturer data solely to provide customized language learning materials.',
+    'privacy.h1': '1. Data Collection',
+    'privacy.p1': 'We collect student names, school numbers, classroom join codes, dialogue audio files, and uploaded educational PDFs. This data is used by AI models to generate personalized worksheets and flashcards.',
+    'privacy.h2': '2. Local Processing & Security',
+    'privacy.p2': 'All records are stored securely on local database servers. We comply with standard KVKK and GDPR data minimization requirements. Your data is never sold or used for advertisement targeting.',
+    'privacy.h3': '3. Your Rights',
+    'privacy.p3': 'Students and lecturers have full rights to request PIN resets, retrieve their overall curriculum history, or request permanent deletion of their account databases. For inquiries, email atunca96@gmail.com.',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     loginTitle: 'Student Login',
@@ -631,16 +664,16 @@ const i18n = {
     // Overview stats
     STUDENTS: 'STUDENTS', 'CLASS_MASTERY': 'CLASS MASTERY', 'AT_RISK': 'AT RISK', 'TOP_PERFORMERS': 'TOP PERFORMERS',
     'Class Mastery': 'Class Mastery', 'At Risk': 'At Risk', 'Top Performers': 'Top Performers',
-    at_risk_students: '\u26a0\ufe0f At-Risk Students', topic_difficulty: '\ud83d\udcc8 Topic Difficulty',
+    at_risk_students: 'At-Risk Students', topic_difficulty: 'Topic Difficulty',
     'prac.dialogue_order': 'Reorder the dialogue correctly:',
     'prac.dialogue': 'Dialogue',
     'active_this_week': '{count} Active this week', 'avg_across_topics': 'Average across all topics',
     'students_needing_attention': 'Students needing attention', 'mastery_above_80': 'Mastery above 80%',
-    no_at_risk: 'No at-risk students \ud83c\udf89', mastery: 'mastery',
+    no_at_risk: 'No at-risk students', mastery: 'mastery',
     'welcomeBack': 'Welcome back, {name}',
     'Welcome back,': 'Welcome back,',
     // Data Management
-    data_mgmt: '\ud83d\uddd1\ufe0f Data Management',
+    data_mgmt: 'Data Management',
     erase_all_btn: 'Erase All Data',
     erase_all_desc: 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
     // Activities
@@ -701,7 +734,7 @@ const i18n = {
     'class.subtitle': 'Select a classroom to manage or create a new one',
     'class.create': 'Create New Classroom from PDF',
     'class.create_generic': 'Create New Classroom',
-    'class.create_title': '🛠️ Classroom Creation',
+    'class.create_title': 'Classroom Creation',
     'class.choose_method': 'Choose how you want to build your course',
     'class.magic_pdf': 'Magic PDF',
     'class.magic_pdf_desc': 'Upload a textbook PDF and let AI build the course from it.',
@@ -712,7 +745,7 @@ const i18n = {
     'ai.target_level': '2. Target Level',
     'ai.course_name': '3. Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
-    'ai.gen_curriculum': 'Generate Curriculum ✨',
+    'ai.gen_curriculum': 'Generate Curriculum',
     'ai.clear_cache': 'Clear Cached Blueprints',
     'ai.regenerate': 'Regenerate',
     'ai.cache_cleared': 'All cached blueprints have been deleted. Next generation will create fresh curricula.',
@@ -740,7 +773,7 @@ const i18n = {
     'ai.target_level': '2. Target Level',
     'ai.course_name': '3. Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
-    'ai.gen_curriculum': 'Generate Curriculum ✨',
+    'ai.gen_curriculum': 'Generate Curriculum',
     'loading': 'Loading...',
     'lang.Spanish': 'Spanish',
     'lang.German': 'German',
@@ -814,11 +847,11 @@ const i18n = {
     'ok': 'OK',
     'cancel': 'Cancel',
     'no_messages': 'No messages.',
-    'tap_explain': '🧠 Tap to explain',
-    'explain_ai': 'Explain with AI 🤖',
-    'ai_error': 'AI was unable to explain this word right now.',
+    'tap_explain': 'Tap to explain',
+    'explain_ai': 'Explain with Assistant',
+    'ai_error': 'Assistant was unable to explain this word right now.',
     'explain_more': 'Click \'Explain\' again for more details.',
-    'ai_analyzing': 'AI is analyzing your answer...',
+    'ai_analyzing': 'Analyzing your answer...',
     'prac.dialogue': 'Dialogue',
     'confirm.delete_classroom': 'Delete Classroom',
     'confirm.delete_classroom_msg': 'Are you sure you want to delete the classroom "{name}"?',
@@ -833,6 +866,9 @@ const i18n = {
     'confirm.erase_all_title': 'ERASE ALL DATA',
     'confirm.erase_all_msg1': 'This will permanently remove all student accounts, results, and mastery data. The curriculum will stay. Are you sure?',
     'confirm.erase_all_msg2': 'LAST WARNING: Type "ERASE ALL DATA" to confirm absolute deletion.',
+    'confirm.hard_delete_msg': 'LAST WARNING: Type "HARD DELETE EVERYTHING" to confirm absolute deletion.',
+    'theme.dark': 'Theme: Dark',
+    'theme.light': 'Theme: Light',
     'confirm.start_quiz_title': 'Start Quiz',
     'confirm.start_quiz_msg': 'Are you sure you want to start the quiz? Once started, you should finish it.',
     'confirm.start_assignment_title': 'Start Assignment',
@@ -964,11 +1000,32 @@ const i18n = {
     'student.pin_must_be_4': 'PIN must be exactly 4 digits',
   },
   tr: {
+    // New login showcase translations
+    'hero.value_title': 'Marmara Üniversitesi Dil Eğitim Portalı',
+    'hero.value_subtitle': 'Yabancı Diller Yüksekokulu müfredatına dayalı interaktif dil alıştırmaları ve kaynak yönetim sistemi.',
+    'hero.widget_title': 'ETKİLEŞİMLİ ÇALIŞMA MATERYALİ',
+    'hero.demo_es_trans': 'Merhaba, bugün nasılsın?',
+    'hero.demo_de_trans': 'Merhaba, bugün nasılsın?',
+    'hero.demo_fr_trans': 'Merhaba, bugün nasılsın?',
+    'hero.demo_tip': 'Not: Anında sözlük çevirisi için kelimelerin üzerine tıklayabilirsiniz.',
+    Translation: 'Çeviri',
+    // Privacy policy
+    'login.agree_prefix': 'Giriş yaparak ',
+    'login.privacy_policy': 'Gizlilik Politikası',
+    'login.agree_suffix': '\'mızı kabul etmiş olursunuz.',
+    'privacy.title': 'Gizlilik Politikası',
+    'privacy.intro': 'AulaAI, öğrencilere ve öğretmenlere kişiselleştirilmiş dil öğrenim materyalleri sunabilmek amacıyla yalnızca asgari düzeyde veri işlemektedir.',
+    'privacy.h1': '1. Veri Toplama',
+    'privacy.p1': 'Öğrenci isimlerini, okul numaralarını, sınıf katılım kodlarını, diyalog ses dosyalarını ve yüklenen eğitim PDF\'lerini topluyoruz. Bu veriler yapay zeka modelleri tarafından kişiselleştirilmiş çalışma sayfaları ve kelime kartları oluşturmak için kullanılır.',
+    'privacy.h2': '2. Yerel İşleme ve Güvenlik',
+    'privacy.p2': 'Tüm kayıtlar yerel veri tabanı sunucularında güvenli bir şekilde saklanır. Standart KVKK ve GDPR veri minimizasyonu gerekliliklerine uyuyoruz. Verileriniz asla satılmaz veya reklam hedeflemesi amacıyla kullanılmaz.',
+    'privacy.h3': '3. Haklarınız',
+    'privacy.p3': 'Öğrenciler ve öğretim elemanları, PIN kodlarının sıfırlanmasını talep etme, müfredat geçmişlerini görüntüleme veya hesap veri tabanlarının kalıcı olarak silinmesini isteme hakkına sahiptir. Sorularınız için atunca96@gmail.com adresine e-posta gönderebilirsiniz.',
     'ai.select_lang': '1. Dil Seçin',
     'ai.target_level': '2. Hedef Seviye',
     'ai.course_name': '3. Kurs Adı',
     'ai.name_placeholder': 'ör. Yoğun İspanyolca Yaz Kursu',
-    'ai.gen_curriculum': 'Müfredat Oluştur ✨',
+    'ai.gen_curriculum': 'Müfredat Oluştur',
     'loading': 'yükleniyor',
     'lang.Spanish': 'İspanyolca',
     'lang.German': 'Almanca',
@@ -1000,6 +1057,9 @@ const i18n = {
     'confirm.erase_all_title': 'TÜM VERİLERİ SİL',
     'confirm.erase_all_msg1': 'Bu işlem tüm öğrenci hesaplarını, sonuçlarını ve başarı verilerini kalıcı olarak silecektir. Müfredat kalacaktır. Emin misiniz?',
     'confirm.erase_all_msg2': 'SON UYARI: Kesin silme işlemini onaylamak için "ERASE ALL DATA" yazın.',
+    'confirm.hard_delete_msg': 'SON UYARI: Kesin silme işlemini onaylamak için "HARD DELETE EVERYTHING" yazın.',
+    'theme.dark': 'Tema: Karanlık',
+    'theme.light': 'Tema: Aydınlık',
     'View Classrooms': 'Sınıfları Gör',
     'View': 'Görüntüle',
     'alert.session_ended': 'Oturum Kapatıldı',
@@ -1142,10 +1202,10 @@ const i18n = {
     // Overview stats
     STUDENTS: 'ÖĞRENCİLER', 'CLASS_MASTERY': 'SINIF BAŞARISI', 'AT_RISK': 'RİSKLİ', 'TOP_PERFORMERS': 'EN İYİLER',
     'Class Mastery': 'Sınıf Başarısı', 'At Risk': 'Riskli', 'Top Performers': 'En İyiler',
-    at_risk_students: '\u26a0\ufe0f Riskli Öğrenciler', topic_difficulty: '\ud83d\udcc8 Konu Zorluğu',
+    at_risk_students: 'Riskli Öğrenciler', topic_difficulty: 'Konu Zorluğu',
     'active_this_week': '{count} Bu hafta aktif', 'avg_across_topics': 'Tüm konularda ortalama',
     'students_needing_attention': 'Dikkat gerektiren öğrenciler', 'mastery_above_80': '%80 üzeri başarı',
-    no_at_risk: 'Riskli öğrenci yok \ud83c\udf89', mastery: 'başarı',
+    no_at_risk: 'Riskli öğrenci yok', mastery: 'başarı',
     'welcomeBack': 'Tekrar Hoş Geldin, {name}',
     'Welcome back,': 'Tekrar Hoş Geldin,',
     // Data Management
@@ -1218,7 +1278,7 @@ const i18n = {
     'class.subtitle': 'Yönetmek için bir sınıf seçin veya yeni bir tane oluşturun',
     'class.create': 'PDF\'den Yeni Sınıf Oluştur',
     'class.create_generic': 'Yeni Sınıf Oluştur',
-    'class.create_title': '🛠️ Yeni Sınıf Yöntemi',
+    'class.create_title': 'Yeni Sınıf Yöntemi',
     'class.choose_method': 'Kursunuzu nasıl oluşturmak istediğinizi seçin',
     'class.magic_pdf': 'Sihirli PDF',
     'class.magic_pdf_desc': 'Bir PDF ders kitabı yükleyin ve yapay zekanın kursu oluşturmasına izin verin.',
@@ -1229,7 +1289,7 @@ const i18n = {
     'ai.target_level': '2. Hedef Seviye',
     'ai.course_name': '3. Kurs Adı',
     'ai.name_placeholder': 'Örn: Yoğun İspanyolca Yaz Kursu',
-    'ai.gen_curriculum': 'Müfredatı Oluştur ✨',
+    'ai.gen_curriculum': 'Müfredatı Oluştur',
     'ai.clear_cache': 'Önbellekteki Taslakları Temizle',
     'ai.regenerate': 'Yeniden Oluştur',
     'ai.cache_cleared': 'Tüm önbellekteki müfredat taslakları silindi. Bir sonraki oluşturma yeni müfredat üretecektir.',
@@ -1295,11 +1355,11 @@ const i18n = {
     'prac.dialogue_order': 'Diyaloğu doğru sıraya dizin:',
     'prac.dialogue': 'Diyalog',
     'no_messages': 'Mesaj yok.',
-    'tap_explain': '🧠 Açıklamak için dokun',
-    'explain_ai': 'Yapay Zeka ile Açıkla 🤖',
-    'ai_error': 'Yapay zeka şu anda bu kelimeyi açıklayamadı.',
+    'tap_explain': 'Açıklamak için dokun',
+    'explain_ai': 'Asistan ile Açıkla',
+    'ai_error': 'Asistan şu anda bu kelimeyi açıklayamadı.',
     'explain_more': 'Daha fazla detay için \'Açıkla\'ya tekrar tıklayın.',
-    'ai_analyzing': 'Yapay zeka cevabınızı analiz ediyor...',
+    'ai_analyzing': 'Cevabınız analiz ediliyor...',
     'No assignments yet.': 'Henüz ödev yok.',
     'No quizzes yet.': 'Henüz sınav yok.',
     'prac.dialogue': 'Diyalog',
@@ -1735,7 +1795,7 @@ function renderClassroomSelection(courses) {
     const isPhase1 = c.language === "Detecting...";
 
     return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isPhase1 ? '0.65' : '1'}; transition: opacity 0.3s ease;">
-        ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:4px; background:linear-gradient(90deg, #6366f1, #a855f7); animation: slide 2s linear infinite;"></div>' : ''}
+        ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:3px; background:var(--gradient-2); animation: slide 2s linear infinite;"></div>' : ''}
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
@@ -1814,6 +1874,9 @@ async function selectClassroom(id, isLecturer = true) {
   courseId = id;
   if (course) {
     if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
+      // Persist the courseId so that after approval+reload the student is taken
+      // directly into the classroom rather than landing on the portal.
+      localStorage.setItem('aula_last_course', courseId);
       showScreen('waiting-room-screen');
       startWaitingRoomPoll(courseId);
       return;
@@ -2254,7 +2317,7 @@ async function openCreateClassroomModal() {
     dropZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropZone.style.borderColor = 'var(--accent)';
-      dropZone.style.background = 'rgba(139,92,246,0.06)';
+      dropZone.style.background = 'var(--accent-glow)';
     });
     dropZone.addEventListener('dragleave', () => {
       dropZone.style.borderColor = 'var(--border)';
@@ -2380,21 +2443,21 @@ async function triggerDeepExtract() {
       const lines = data.markdown.split('\n');
       let html = '';
       const tagColors = {
-        'grammar': '#a78bfa', 'vocabulary': '#38bdf8', 'mixed': '#fb923c',
-        'communication': '#34d399', 'functional': '#f472b6', 'phonetics': '#facc15'
+        'grammar': 'var(--accent)', 'vocabulary': 'var(--accent-light)', 'mixed': '#d97706',
+        'communication': '#059669', 'functional': '#b89047', 'phonetics': '#c5a059'
       };
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         if (trimmed.startsWith('##')) {
           const title = trimmed.replace(/^#+\s*/, '');
-          html += `<div style="font-weight:700; font-size:14px; color:var(--accent-light, #a78bfa); margin-top:14px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06);">${title}</div>`;
+          html += `<div style="font-weight:700; font-size:14px; color:var(--accent-light); margin-top:14px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.06);">${title}</div>`;
         } else if (trimmed.startsWith('- ')) {
           const tagMatch = trimmed.match(/\[(\w+)\]\s*$/);
           const tag = tagMatch ? tagMatch[1] : '';
           const topicText = trimmed.replace(/^-\s*/, '').replace(/\s*\[\w+\]\s*$/, '');
           const tagColor = tagColors[tag] || '#94a3b8';
-          const tagBadge = tag ? `<span style="display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:4px; background:${tagColor}22; color:${tagColor}; margin-left:8px;">${tag}</span>` : '';
+          const tagBadge = tag ? `<span style="display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:var(--radius-sm); background:${tagColor}22; color:${tagColor}; margin-left:8px;">${tag}</span>` : '';
           html += `<div style="padding:3px 0 3px 12px; color:var(--text-secondary, #cbd5e1);">• ${topicText}${tagBadge}</div>`;
         }
       }
@@ -2669,6 +2732,13 @@ function switchTab(btn, skipLoad = false) {
       else t.classList.remove('active');
     });
   }
+  const sidebarNav = document.getElementById('sidebar-nav');
+  if (sidebarNav) {
+    sidebarNav.querySelectorAll('.sidebar-item').forEach(t => {
+      if (t.dataset.tab === tabId) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+  }
 
   // Update tab-panel active state
   const panels = screen.querySelectorAll('.tab-panel');
@@ -2865,12 +2935,12 @@ async function loadInbox() {
   const threadList = Object.entries(threads).sort((a, b) => new Date(b[1].latest.created_at) - new Date(a[1].latest.created_at));
 
   container.innerHTML = threadList.map(([key, data]) => `
-    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:16px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:var(--shadow-sm);" onclick="openChat('${data.student_id}', ${escJS(data.student_name).replace(/'/g, "\\'")}, '${data.course_id}')">
+    <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:var(--transition); margin-bottom:8px; box-shadow:none;" onclick="openChat('${data.student_id}', ${escJS(data.student_name).replace(/'/g, "\\'")}, '${data.course_id}')">
       <div style="flex:1; min-width:0; margin-right:12px;">
         <div style="display:flex; align-items:center; gap:8px;">
            <div style="width:10px; height:10px; border-radius:50%; background:${data.unread > 0 ? 'var(--accent)' : 'transparent'};"></div>
            <strong style="font-size:16px; color:var(--text-primary); font-weight:700;">${esc(data.student_name)}</strong>
-           <span style="font-size:10px; font-weight:700; color:var(--accent); background:rgba(99,102,241,0.1); padding:2px 8px; border-radius:6px; border:1px solid rgba(99,102,241,0.2);">${esc(data.course_name)}</span>
+           <span style="font-size:10px; font-weight:700; color:var(--accent); background:var(--accent-glow); padding:2px 8px; border-radius:var(--radius-sm); border:1px solid var(--border);">${esc(data.course_name)}</span>
         </div>
         <div style="font-size:13px; color:var(--text-muted); margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-left:18px;">
           ${data.latest.sender === 'lecturer' ? '<span style="color:var(--accent-light); font-weight:600;">' + t('You') + ':</span> ' : ''}${esc(data.latest.content)}
@@ -3024,12 +3094,25 @@ function toggleTheme() {
 
 function setTheme(theme) {
   const btns = [document.getElementById('theme-toggle-btn'), document.getElementById('student-theme-toggle-btn')];
+  const globalIcon = document.getElementById('global-theme-toggle-icon');
+  const globalText = document.getElementById('global-theme-toggle-text');
+
   if (theme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
     btns.forEach(btn => { if (btn) btn.textContent = '☀️'; });
+    if (globalIcon) globalIcon.textContent = '☀️';
+    if (globalText) {
+      globalText.setAttribute('data-i18n', 'theme.light');
+      globalText.textContent = t('theme.light');
+    }
   } else {
     document.documentElement.removeAttribute('data-theme');
     btns.forEach(btn => { if (btn) btn.textContent = '🌙'; });
+    if (globalIcon) globalIcon.textContent = '🌙';
+    if (globalText) {
+      globalText.setAttribute('data-i18n', 'theme.dark');
+      globalText.textContent = t('theme.dark');
+    }
   }
   localStorage.setItem('aula_theme', theme);
 }
@@ -3058,12 +3141,12 @@ async function initLecturer() {
     const badge = document.querySelector('.nav-badge');
     if (badge && aiStatus.ai_enabled) {
       if (!document.getElementById('ai-active-badge')) {
-        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;margin-left:6px;animation:pulse-glow 2s ease-in-out infinite;padding:3px 6px;">🤖</span>');
+        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--border);border-radius:var(--radius-sm);margin-left:6px;padding:3px 6px;font-size:10px;font-weight:700;animation:pulse-glow 2s ease-in-out infinite;">Assistant Active</span>');
       }
       if (!document.getElementById('ai-pulse-style')) {
         const style = document.createElement('style');
         style.id = 'ai-pulse-style';
-        style.textContent = '@keyframes pulse-glow{0%,100%{box-shadow:0 0 4px rgba(99,102,241,0.4)}50%{box-shadow:0 0 12px rgba(139,92,246,0.7)}}';
+        style.textContent = '@keyframes pulse-glow{0%,100%{opacity:0.8}50%{opacity:1}}';
         document.head.appendChild(style);
       }
     }
@@ -3943,17 +4026,17 @@ async function loadStudentRoster() {
   const pendingEl = document.getElementById('pending-roster');
   if (pendingEl) {
     if (pending && pending.length > 0) {
-      pendingEl.innerHTML = `<div style="background:linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.05));padding:20px;border-radius:16px;border:1px solid rgba(139,92,246,0.3);margin-bottom:24px">
-        <h3 style="color:#8b5cf6;margin:0 0 16px 0;font-size:1.1rem">⏳ <span data-i18n="Account Pending Approval">${t('Account Pending Approval')}</span> (${pending.length})</h3>
+      pendingEl.innerHTML = `<div style="background:var(--accent-glow);padding:20px;border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:24px">
+        <h3 style="color:var(--accent);margin:0 0 16px 0;font-size:1.1rem"><span data-i18n="Account Pending Approval">${t('Account Pending Approval')}</span> (${pending.length})</h3>
         ${pending.map(s => `
-          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:14px 20px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:14px 20px;border-radius:var(--radius);margin-bottom:8px;border:1px solid var(--border)">
             <div style="min-width:0;flex:1;overflow:hidden">
               <div style="font-weight:600;color:var(--text-primary);font-size:0.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
               <div style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px">${s.email}</div>
             </div>
             <div style="display:flex;gap:8px;margin-left:16px;flex-shrink:0">
-              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')">✅ <span data-i18n="ok">${t('ok')}</span></button>
-              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name)})">❌ <span data-i18n="cancel">${t('cancel')}</span></button>
+              <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); approveStudent('${s.id}')"><span data-i18n="ok">${t('ok')}</span></button>
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name)})"><span data-i18n="cancel">${t('cancel')}</span></button>
             </div>
           </div>
         `).join('')}
@@ -5007,7 +5090,7 @@ function renderStudyBook() {
       <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">${t('Unit')} ${ch.number || (i + 1)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
         ${(ch.topics || []).map(t => `
-          <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:10px; line-height:1.3; height:auto; transition:0.2s ease;">
+          <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
             ${esc(t.title)}
           </button>
         `).join('')}
@@ -5058,15 +5141,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach(p => {
-        const type = (p.type || '').toLowerCase();
-        let icon = "\ud83d\udcd6";
-        if (type.includes('vocab')) icon = "\ud83d\udcc7";
-        else if (type.includes('gramm') || type.includes('intro') || type.includes('expla')) icon = "\u2699\ufe0f";
-        else if (type.includes('examp') || type.includes('dialog') || type.includes('conv')) icon = "\ud83d\udcac";
-
         pages.push({
           title: p.title || (topic.title || t('Material')),
-          icon: icon,
+          icon: "",
           render: () => {
             let html = "";
             
@@ -5084,11 +5161,11 @@ function showStudyTopic(topicId, pageIdx = 0) {
               const fixDiacriticsText = fixDiacritics(text);
               const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
               if (linesArr.length > 1) {
-                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:#ffffff; list-style-type: disc; padding-left: 24px; margin: 0 0 32px 0;">
+                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:var(--text-primary); list-style-type: disc; padding-left: 24px; margin: 0 0 32px 0;">
                   ${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim()}</li>`).join("")}
                 </ul>`;
               } else {
-                html += `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:#ffffff; white-space:pre-wrap; margin-bottom:32px;">${fixDiacriticsText}</div>`;
+                html += `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:var(--text-primary); white-space:pre-wrap; margin-bottom:32px;">${fixDiacriticsText}</div>`;
               }
             }
 
@@ -5130,24 +5207,41 @@ function showStudyTopic(topicId, pageIdx = 0) {
             // Prevent MCQs from double-rendering their options as vocab cards
             const isMcq = (p.type === 'mcq' || p.prompt);
             if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
-              html += `<div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">`;
+              html += `<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">`;
               rawData.forEach(it => {
                 if (typeof it === "string") {
-                  html += `<div dir="auto" style="background:rgba(255,255,255,0.03); padding:12px 18px; border-radius:12px; display:flex; align-items:center; gap:12px;"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:#ffffff; flex:1;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
+                  const isLetter = it.trim().length <= 2;
+                  if (isLetter) {
+                    // Single letter — no dict lookup, no translation
+                    html += `<div dir="auto" style="background:var(--bg-input); padding:12px 18px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;"><div style="font-size:20px; font-weight:700; color:var(--text-primary); flex:1;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
+                  } else {
+                    // Multi-char word — dict-clickable, but only over the word text itself
+                    html += `<div dir="auto" style="background:var(--bg-input); padding:12px 18px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
+                  }
                 } else if (typeof it === "object" && it !== null) {
                   const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
                   const v = safeStr(it.translation || it.meaning || it.reading || it.romaji || it.pinyin || it.pronunciation || it.text || it.content || it.english || it.value || Object.values(it)[1]);
+                  const isLetter = typeof k === "string" && k.trim().length <= 2;
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
-                    html += `<div dir="auto" style="background:rgba(255,255,255,0.02); padding:18px; border-radius:16px; border-left:4px solid var(--accent);">
-                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent-light); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${safeStr(k)}</div>` : ""}
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:#ffffff; cursor:pointer; display:inline-block;">"${fixDiacritics(safeStr(v || k))}"</div>
+                    // Dialogue/long-sentence card — cursor:default on card, pointer only on word
+                    html += `<div dir="auto" style="background:var(--bg-input); padding:18px; border-radius:var(--radius-sm); border:1px solid var(--border); border-left:3px solid var(--accent); cursor:default;">
+                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${safeStr(k)}</div>` : ""}
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
+                      </div>`;
+                  } else if (isLetter) {
+                    // Single letter — render without translation, without dict interaction
+                    html += `<div style="background:var(--bg-input); padding:14px 20px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;">
+                        <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
+                        <div style="flex:1;"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
+                        ${v ? `<div style="color:var(--text-muted); font-size:14px; font-style:italic;">${safeStr(v)}</div>` : ''}
                       </div>`;
                   } else {
-                    html += `<div style="background:rgba(255,255,255,0.03); padding:16px 20px; border-radius:14px; border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    // Regular word+translation — cursor:default on row, pointer only on the word text itself
+                    html += `<div style="background:var(--bg-input); padding:14px 20px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:default;">
                         <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
-                        <div style="flex:1; display:flex; justify-content:flex-start;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:22px; font-weight:800; color:#ffffff; cursor:pointer;">${fixDiacritics(safeStr(k))}</div></div>
-                        <div class="english-translation" style="color:var(--accent-light); font-weight:500; font-size:15px; text-align:right; flex:1;">${safeStr(v)}</div>
+                        <div style="flex:1; padding:0 4px;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:20px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
+                        <div class="english-translation" style="color:var(--text-secondary); font-weight:500; font-size:15px; text-align:right; flex-shrink:0; min-width:80px;">${safeStr(v)}</div>
                       </div>`;
                   }
                 }
@@ -5157,8 +5251,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
             // 3. MCQ Support
             if (p.type === 'mcq' || p.prompt) {
-               html += `<div style="margin-top:24px; background:rgba(255,255,255,0.02); padding:24px; border-radius:20px; border:1px solid var(--border);">
-                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:#ffffff;">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
+               html += `<div style="margin-top:24px; background:var(--bg-input); padding:24px; border-radius:var(--radius-lg); border:1px solid var(--border);">
+                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:var(--text-primary);">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
                  <div style="display:flex; flex-direction:column; gap:12px;">
                    ${(p.distractors || []).concat(p.answer).sort().map(opt => `
                      <button class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(opt)}</button>
@@ -5174,9 +5268,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
     pages.push({
       title: isStudent ? t('study.complete') : t('study.preview'),
-      icon: "\ud83c\udfc1",
+      icon: "",
       render: () => `<div style="text-align:center; padding:60px 20px;">
-      <div style="font-size:64px; margin-bottom:24px;">\ud83c\udfaf</div>
       <h2 style="font-size:28px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
       <p style="color:var(--text-muted); font-size:18px; margin:20px 0 40px;">${isStudent ? t('study.ready_msg') : t('study.preview_msg')}</p>
       ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', ${escJS(topic.title)})">${t('study.start_practice')}</button>` : ''}
@@ -5185,7 +5278,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   } catch (e) {
     console.error("Lesson Render Error:", e);
-    pages.push({ title: "Error", icon: "⚠️", render: () => `<p>Failed to parse lesson content.</p>` });
+    pages.push({ title: "Error", icon: "", render: () => `<p>Failed to parse lesson content.</p>` });
   }
 
   const page = pages[pageIdx] || pages[0];
@@ -5195,18 +5288,18 @@ function showStudyTopic(topicId, pageIdx = 0) {
       <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:32px; border-bottom:1px solid var(--border); padding-bottom:24px;">
         <div>
           <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${topic.title} • PAGE ${pageIdx + 1}/${pages.length}</div>
-          <h1 style="font-size:36px; font-weight:800; letter-spacing:-1px;">${page.icon} ${page.title}</h1>
+          <h1 style="font-size:36px; font-weight:800; letter-spacing:-1px;">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
         <div style="display:flex; gap:12px;">
           ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
           ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
       </div>
-      <div class="study-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:24px; padding:40px; min-height:500px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+      <div class="study-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:40px; min-height:500px; box-shadow:none;">
         ${page.render()}
       </div>
       <div style="margin-top:24px; display:flex; justify-content:center; gap:8px;">
-        ${pages.map((_, i) => `<div style="width:${i === pageIdx ? '24px' : '8px'}; height:8px; border-radius:4px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:0.3s ease;"></div>`).join('')}
+        ${pages.map((_, i) => `<div style="width:${i === pageIdx ? '24px' : '12px'}; height:3px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:0.3s ease;"></div>`).join('')}
       </div>
     </div>
   `;
@@ -5457,15 +5550,30 @@ async function handleVerifyPin(courseId, pin) {
 
 function startWaitingRoomPoll(courseId) {
   if (window._waitingPoll) clearInterval(window._waitingPoll);
+  // Persist the target course so that after the approval-triggered reload the
+  // student is automatically taken into the classroom (not left at the portal).
+  if (courseId) localStorage.setItem('aula_last_course', courseId);
   window._waitingPoll = setInterval(async () => {
-    const check = await api('/user/status?user_id=' + currentUser.id + '&course_id=' + courseId);
-    if (check && check.status === 'approved') {
-      clearInterval(window._waitingPoll);
-      currentUser.status = 'approved';
-      localStorage.setItem('aula_user', JSON.stringify(currentUser));
-      sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
-      window.location.reload();
-    }
+    try {
+      const check = await api('/user/status?user_id=' + currentUser.id + '&course_id=' + courseId);
+      if (check && check.status === 'approved') {
+        clearInterval(window._waitingPoll);
+        window._waitingPoll = null;
+        currentUser.status = 'approved';
+        localStorage.setItem('aula_user', JSON.stringify(currentUser));
+        sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
+        // aula_last_course already set above — reload will send the student
+        // straight into the classroom via selectClassroom().
+        window.location.reload();
+      } else if (check && (check.error === 'enrollment_removed' || check.error === 'course_deleted')) {
+        clearInterval(window._waitingPoll);
+        window._waitingPoll = null;
+        localStorage.removeItem('aula_last_course');
+        await showAlert(t('alert.classroom_reset'), t('alert.classroom_reset_msg'), true);
+        showScreen('student-portal-screen');
+        refreshStudentEnrollments();
+      }
+    } catch (e) { /* ignore network errors */ }
   }, 2000);
 }
 
@@ -5494,7 +5602,7 @@ async function adminHardReset() {
   const email = currentUser ? currentUser.email : '';
   if (!email) return;
 
-  const confirmed = await showConfirmModal('confirm.erase_all_title', 'confirm.erase_all_msg2', true, 'HARD DELETE EVERYTHING');
+  const confirmed = await showConfirmModal('confirm.erase_all_title', 'confirm.hard_delete_msg', true, 'HARD DELETE EVERYTHING');
   if (confirmed !== 'HARD DELETE EVERYTHING') return;
 
   const btn = document.querySelector('#admin-panel button');
@@ -5542,7 +5650,7 @@ async function loadAdminStudentPanel(isRefresh = false) {
       panel.innerHTML = `
         <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h3 style="margin:0; font-size:18px;">👥 ${t('admin.all_students')}</h3>
+            <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')}</h3>
           </div>
           <p style="color:var(--text-muted); text-align:center; padding:20px;">${t('admin.no_students')}</p>
         </div>`;
@@ -5578,9 +5686,9 @@ async function loadAdminStudentPanel(isRefresh = false) {
           <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
           <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
-            <button class="btn btn-sm" style="background:rgba(99,102,241,0.1); color:#818cf8; border:1px solid rgba(99,102,241,0.3); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminResetStudentPIN('${s.id}', ${escJS(s.name)})">${t('admin.reset_pin')}</button>
-            <button class="btn btn-sm" style="background:rgba(251,146,60,0.1); color:#fb923c; border:1px solid rgba(251,146,60,0.3); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
-            <button class="btn btn-sm" style="background:var(--danger-bg,rgba(239,68,68,0.1)); color:var(--danger,#ef4444); border:1px solid var(--danger,#ef4444); padding:4px 10px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
+            <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentPIN('${s.id}', ${escJS(s.name)})">${t('admin.reset_pin')}</button>
+            <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
+            <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
           </td>
         </tr>`;
     }).join('');
@@ -5588,8 +5696,8 @@ async function loadAdminStudentPanel(isRefresh = false) {
     panel.innerHTML = `
       <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-          <h3 style="margin:0; font-size:18px;">👥 ${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
-          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;" onclick="adminResetStudents()">🗑️ ${t('admin.reset_all_students')}</button>
+          <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
+          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminResetStudents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>${t('admin.reset_all_students')}</button>
         </div>
         <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
           <table style="width:100%; border-collapse:collapse; font-size:14px;">
@@ -5688,8 +5796,8 @@ const handleDictTrigger = async (e) => {
     return;
   }
 
-  // Only trigger if we are inside a study area
-  const studyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area');
+  // Only trigger if we are inside a study area or the login hero showcase
+  const studyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area') || e.target.closest('.hero-minimal-showcase');
   if (!studyArea) return;
 
   // EXPLICIT TRIGGER ONLY: Only handle elements with .foreign-word class
@@ -5788,7 +5896,15 @@ async function showDict(word, e) {
   loading.style.display = 'block';
 
   try {
-    const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
+    let lang = 'English';
+    if (currentCourse && currentCourse.language) {
+      lang = currentCourse.language;
+    } else {
+      const loginScreen = document.getElementById('login-screen');
+      if (loginScreen && !loginScreen.classList.contains('hidden')) {
+        lang = window.currentDemoLang || 'Spanish';
+      }
+    }
     // Pass the current study topic as context so the AI doesn't contradict lesson material
     const topicTitle = localStorage.getItem('aula_last_topic_title') || '';
     let dictUrl = `/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`;
@@ -5866,11 +5982,11 @@ async function askAiAboutWord() {
   const loading = document.getElementById('dict-loading');
   const meanings = document.getElementById('dict-meanings');
 
-  // Show AI Loading State in the popup
+  // Show Assistant Loading State in the popup
   meanings.innerHTML = `
-        <div style="text-align:center; padding:20px; animation:pulse 1.5s infinite;">
-            <div style="font-size:32px; margin-bottom:12px;">🧠</div>
-            <div style="font-size:10px; color:var(--accent-light); text-transform:uppercase; letter-spacing:2px; font-weight:800;">AI is thinking...</div>
+        <div style="text-align:center; padding:20px;">
+            <div class="spinner-small" style="margin:0 auto 12px; border-top-color:var(--accent);"></div>
+            <div style="font-size:10px; color:var(--accent); text-transform:uppercase; letter-spacing:2px; font-weight:800;">Searching explanation...</div>
         </div>
     `;
 
@@ -5880,17 +5996,17 @@ async function askAiAboutWord() {
 
     if (res.explanation) {
       meanings.innerHTML = `
-                <div style="background:rgba(99,102,241,0.1); padding:16px; border-radius:16px; border:1px solid rgba(99,102,241,0.2);">
-                    <div style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                        <span>🤖</span> AI Explanation
+                <div style="background:var(--accent-glow); padding:16px; border-radius:var(--radius); border:1px solid var(--border);">
+                    <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                        <span>📖</span> Explanation
                     </div>
-                    <div style="font-size:14px; color:#fff; line-height:1.5; margin-bottom:12px;">${res.explanation}</div>
+                    <div style="font-size:14px; color:var(--text-primary); line-height:1.5; margin-bottom:12px;">${res.explanation}</div>
                     
                     <div style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; opacity:0.7;">Usage</div>
-                    <div style="font-size:13px; color:#e2e8f0; line-height:1.4; margin-bottom:12px; font-style:italic;">"${res.usage}"</div>
+                    <div style="font-size:13px; color:var(--text-secondary); line-height:1.4; margin-bottom:12px; font-style:italic;">"${res.usage}"</div>
                     
-                    <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:10px; font-size:12px; color:var(--text-muted);">
-                        <span style="color:var(--accent-light); font-weight:700;">PRO-TIP:</span> ${res.tip}
+                    <div style="background:rgba(255,255,255,0.05); padding:8px 12px; border-radius:var(--radius-sm); font-size:12px; color:var(--text-muted);">
+                        <span style="color:var(--accent); font-weight:700;">Academic Note:</span> ${res.tip}
                     </div>
                 </div>
             `;
@@ -5902,3 +6018,45 @@ async function askAiAboutWord() {
     meanings.innerHTML = `<div style="color:var(--danger); font-size:12px;">AI connection lost.</div>`;
   }
 }
+
+// ── Interactive Demo Card Switcher and TTS handler ─────────────────
+window.currentDemoLang = 'Spanish';
+
+window.switchDemoLang = function(lang) {
+  window.currentDemoLang = lang;
+  
+  document.querySelectorAll('.sheet-toggle-btn').forEach(btn => {
+    btn.classList.remove('active');
+    const i18nKey = btn.getAttribute('data-i18n');
+    if (i18nKey === 'lang.' + lang) {
+      btn.classList.add('active');
+    }
+  });
+
+  const sentenceEl = document.getElementById('demo-spanish-sentence');
+  const transEl = document.getElementById('demo-translated-text');
+  
+  if (!sentenceEl || !transEl) return;
+
+  if (lang === 'Spanish') {
+    sentenceEl.innerHTML = `<span class="foreign-word">Hola</span>, ¿<span class="foreign-word">cómo</span> <span class="foreign-word">estás</span> <span class="foreign-word">hoy</span>?`;
+    transEl.setAttribute('data-i18n', 'hero.demo_es_trans');
+    transEl.textContent = t('hero.demo_es_trans');
+  } else if (lang === 'German') {
+    sentenceEl.innerHTML = `<span class="foreign-word">Hallo</span>, <span class="foreign-word">wie</span> <span class="foreign-word">geht</span> <span class="foreign-word">es</span> <span class="foreign-word">dir</span> <span class="foreign-word">heute</span>?`;
+    transEl.setAttribute('data-i18n', 'hero.demo_de_trans');
+    transEl.textContent = t('hero.demo_de_trans');
+  } else if (lang === 'French') {
+    sentenceEl.innerHTML = `<span class="foreign-word">Bonjour</span>, <span class="foreign-word">comment</span> <span class="foreign-word">ça</span> <span class="foreign-word">va</span> <span class="foreign-word">aujourd'hui</span>?`;
+    transEl.setAttribute('data-i18n', 'hero.demo_fr_trans');
+    transEl.textContent = t('hero.demo_fr_trans');
+  }
+};
+
+window.handleDemoTTS = function(btn) {
+  const sentenceEl = document.getElementById('demo-spanish-sentence');
+  if (!sentenceEl) return;
+  const text = sentenceEl.innerText.trim();
+  const lang = window.currentDemoLang || 'Spanish';
+  handleTTSClick(btn, text, lang);
+};

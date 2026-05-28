@@ -44,45 +44,29 @@ def extract_text_pdfplumber(pdf_path: str, page_limit: int = None) -> List[str]:
 
 def process_text(lines: List[str]) -> dict:
     """
-    Iterative extraction logic to handle large/dense PDFs without overwhelming the LLM.
+    Highly cost-optimized single-pass extraction logic that avoids chunking slowness
+    and enables the LLM to perform global deduplication and clean, consolidated grouping.
     """
     if not lines:
         return {"units": []}
 
     cleaned_lines = clean_lines(lines)
+    full_text = "\n".join(cleaned_lines)
     
-    # Split into chunks of ~100 lines (roughly 10 pages)
-    line_chunks = chunk_lines(cleaned_lines, size=100)
+    # Debug: log the first 2000 chars of what we're sending to the LLM
+    import logging as _logging
+    _root_log = _logging.getLogger("pipeline_debug")
+    try:
+        with open("pipeline.log", "a", encoding="utf-8") as _f:
+            _f.write(f"[PDF-TEXT-SAMPLE] First 2000 chars of extracted text:\n{full_text[:2000]}\n[END-SAMPLE]\n")
+    except Exception:
+        pass
     
-    final_curriculum = {"units": [], "qa_report": {"issues": [], "fixes_applied": []}}
+    logger.info("Processing entire curriculum text in a single pass (super fast).")
     from .llm import extract_curriculum
+    curriculum = extract_curriculum(full_text)
     
-    for i, chunk in enumerate(line_chunks, 1):
-        logger.info(f"Processing chunk {i}/{len(line_chunks)}")
-        chunk_text = "\n".join(chunk)
-        chunk_data = extract_curriculum(chunk_text)
-        
-        # Merge units
-        if "units" in chunk_data:
-            for new_unit in chunk_data["units"]:
-                if not isinstance(new_unit, dict):
-                    continue
-                    
-                u_title = new_unit.get("title", "Unknown Unit")
-                # Check if we should merge with the last unit or create a new one
-                if final_curriculum["units"] and final_curriculum["units"][-1]["title"] == u_title:
-                    # Merge topics if it's the same unit title
-                    seen_topics = {t["text"] for t in final_curriculum["units"][-1]["topics"]}
-                    for t in new_unit.get("topics", []):
-                        if isinstance(t, dict) and t.get("text") and t["text"] not in seen_topics:
-                            final_curriculum["units"][-1]["topics"].append(t)
-                else:
-                    final_curriculum["units"].append(new_unit)
-    # Final Polish Pass: Deduplicate, fix numbering, and normalize
-    from .llm import normalize_curriculum
-    final_curriculum = normalize_curriculum(final_curriculum)
-                    
-    return final_curriculum
+    return curriculum
 
 def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
     # 1. Generate file hash
@@ -90,21 +74,31 @@ def process_pdf(pdf_path: str, page_limit: int = None) -> dict:
         file_bytes = f.read()
     file_hash = hashlib.md5(file_bytes).hexdigest()
 
-    # 3. Check cache
+    # 2. Check cache
     with _process_lock:
         if file_hash in processed_files_v2:
             logger.info("CACHE HIT")
             return processed_files_v2[file_hash]
 
-    # Directly pass to OpenRouter using mistral-ocr engine (via llm.py)
-    logger.info(f"Delegating PDF parsing to OpenRouter (mistral-ocr) for {pdf_path}")
-    from .llm import extract_curriculum_from_pdf_direct, normalize_curriculum
+    # 3. Intelligent dual-pipeline selection
+    if is_text_pdf(pdf_path):
+        logger.info(f"PDF {pdf_path} identified as TEXT PDF. Using local pdfplumber (FREE).")
+        lines = extract_text_pdfplumber(pdf_path, page_limit=page_limit)
+        curriculum = process_text(lines)
+    elif check_ocr_available():
+        logger.info(f"PDF {pdf_path} is SCANNED. Local Tesseract OCR is available. Running local OCR (FREE).")
+        lines = extract_text_ocr(pdf_path, page_limit=page_limit)
+        curriculum = process_text(lines)
+    else:
+        # Fallback to OpenRouter Mistral OCR (Expensive last resort)
+        logger.warning(f"PDF {pdf_path} is SCANNED and no local OCR is available. Falling back to OpenRouter Mistral OCR (EXPENSIVE).")
+        from .llm import extract_curriculum_from_pdf_direct, normalize_curriculum
+        curriculum = extract_curriculum_from_pdf_direct(pdf_path)
+        curriculum = normalize_curriculum(curriculum)
     
-    curriculum = extract_curriculum_from_pdf_direct(pdf_path)
-    curriculum = normalize_curriculum(curriculum)
-    
-    # 4. Store result
+    # 4. Store result in cache
     with _process_lock:
         processed_files_v2[file_hash] = curriculum
         
     return curriculum
+

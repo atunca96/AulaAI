@@ -78,5 +78,60 @@
     "explanation": "The phrase '‎ben ... liyim.' is used to introduce oneself and state your occupation or profession in Turkish. The structure is:\n\n'ben' - meaning 'I' \n'...' - the specific occupation or profession\n'liyim' - the verb ending that indicates 'I am'\n\nSo the full phrase would be 'I am a/an [occupation].' For example:\n\n'ben öğretmenliyim.' - 'I am a teacher.'\n'ben mühendisliyim.' - 'I am an engineer.'\n\nThis phrase is very useful for the 'Introducing Oneself and Others' lesson, as it allows you to directly state who you are and what you do.",
     "usage": "Use this phrase to introduce yourself and state your occupation or profession. It can be used in both formal and informal contexts.",
     "tip": "Remember to replace the '...' with the specific occupation or profession you want to state. This is a simple but important way to introduce yourself in Turkish."
+  },
+  "Turkish_‎arı": {
+    "explanation": "'arı' is a Turkish word meaning 'bee'. In terms of phonetics and Turkish language, it is important to understand how vowels and consonants work in the word. Turkish is a phonetic language, meaning that words are pronounced as they are spelled. In 'arı', there are two vowels and one consonant. The vowels are 'a' and 'ı', and the consonant is 'r'. In Turkish, vowels are categorized into two groups: front vowels (e, i, ö, ü) and back vowels (a, ı, o, u). 'Arı' contains back vowels. The harmony of vowels in Turkish words is important for suffixation and pronunciation.",
+    "usage": "The word 'arı' is used to refer to a bee, an insect known for producing honey and playing a crucial role in pollination. It can be used in various contexts, such as in nature documentaries, beekeeping discussions, or when talking about insects in general.",
+    "tip": "When learning Turkish, pay attention to vowel harmony rules. Turkish vowels often dictate the suffixes that can be added to a word. Since 'arı' has back vowels, any suffixes added to it should also contain back vowels to maintain vowel harmony."
+  },
+  "Turkish_‎c": {
+    "explanation": "Türk alfabesindeki 'c' harfi, Latin alfabesindeki 'c' harfine benzer şekilde yazılır ancak farklı bir şekilde telaffuz edilir. Türkçede 'c' harfi, İngilizce'deki 'j' sesine benzer bir sesle, yani 'ce' olarak telaffuz edilir. Örneğin, 'ceket' kelimesindeki 'c' harfi bu şekilde okunur.",
+    "usage": "'C' harfi Türkçede genellikle kelimelerin başında, ortasında veya sonunda kullanılabilir. Örnek kelimeler arasında 'ceviz', 'acı', ve 'sözcük' bulunur. Türkçede 'c' harfi, ince sesli harflerle birlikte kullanılabilir ve genellikle yumuşak bir geçiş sağlar.",
+    "tip": "'C' harfini doğru telaffuz etmek için İngilizce'deki 'j' sesine benzer şekilde söylemeye çalışın. Türkçede 'c' harfinden sonra gelen harfe dikkat ederek doğru telaffuzu yakalayabilirsiniz. Ayrıca, 'c' harfi ile 'ç' harfini karıştırmamak önemlidir; çünkü 'ç' harfi daha keskin bir ses çıkarır."
+  },
+  "Turkish_\"‎kitap (book)\"": {
+    "explanation": "The word 'kitap' in Turkish consists of two syllables: 'ki' and 'tap'. In terms of vowels and consonants, 'kitap' contains two vowels 'i' and 'a', and three consonants 'k', 't', and 'p'. Turkish vowels are categorized as either front ('e', 'i', 'ö', 'ü') or back ('a', 'ı', 'o', 'u'), and 'kitap' includes one front vowel ('i') and one back vowel ('a'). Consonants in Turkish can be voiced or voiceless, and in 'kitap', 'k' and 't' are voiceless, while 'p' can be voiceless or voiced depending on its position in a word.",
+    "usage": "In Turkish, the word 'kitap' is commonly used to refer to a book. It can be used in various contexts, such as reading, writing, or discussing literature. For example, 'Bu kitap çok ilginç.' means 'This book is very interesting.'",
+    "tip": "When pronouncing 'kitap', ensure clarity between the vowels and consonants. The 'k' and 't' should be crisp and voiceless. Pay attention to vowel harmony rules in Turkish, where suffixes often change to match the vowels in the root word. Since 'kitap' ends with a back vowel 'a', any suffix will generally start with a back vowel as well."
+  },
+  "Turkish_‎merhaba": {
+    "explanation": "'Merhaba' is a common greeting in Turkish, used to say 'hello' to someone.",
+    "usage": "Use 'merhaba' when you meet someone in person or start a conversation in a friendly manner.",
+    "tip": "Unlike some greetings, 'merhaba' can be used at any time of the day and is appropriate in both formal and informal contexts."
+  },
+  "Spanish_estás": {
+    "explanation": "'Estás' is the second person singular (tú) present tense form of the verb 'estar', which means 'to be'. It is used to describe temporary states or locations.",
+    "usage": "'Estás' is used when asking someone about their current condition or whereabouts, such as in the question, '¿Cómo estás?' which means 'How are you?'",
+    "tip": "Remember that 'estar' is used for temporary states or conditions, while 'ser' is used for permanent states or characteristics."
+  },
+  "Spanish_cómo": {
+    "explanation": "'Cómo' is an interrogative pronoun used to ask questions about manner or method, meaning 'how' in English.",
+    "usage": "In the context of verbs, 'cómo' might be used to ask 'how' to conjugate a regular -AR verb, e.g., '¿Cómo se conjuga el verbo amar?'",
+    "tip": "Remember, 'cómo' is not directly related to conjugation itself; it simply asks about the process or method."
+  },
+  "Spanish_‎consonantes": {
+    "explanation": "'Consonantes' are the letters in the alphabet that are not vowels. In Spanish, these include letters like 'b', 'c', 'd', etc.",
+    "usage": "In Spanish, consonants can be combined with vowels to form syllables and words, such as 'casa' or 'perro'.",
+    "tip": "Remember that the Spanish alphabet includes some consonants not found in English, like 'ñ'."
+  },
+  "French_bonjour": {
+    "explanation": "'Bonjour' is a French greeting meaning 'hello' or 'good morning'. It is composed of two syllables with the vowels 'o' and 'u', and the consonants 'b', 'n', 'j', and 'r'.",
+    "usage": "Use 'bonjour' when greeting someone in the morning or early afternoon.",
+    "tip": "Pronounce 'bonjour' with a soft 'j' sound, similar to the English 'zh' in 'measure'."
+  },
+  "French_va": {
+    "explanation": "'va' is the third person singular form of the verb 'aller,' which means 'to go.' It is used with pronouns like 'il,' 'elle,' or 'on.'",
+    "usage": "'Il va au marché.' translates to 'He goes to the market.'",
+    "tip": "Remember that 'va' is pronounced with a short 'a' sound, similar to 'cat' in English."
+  },
+  "German_es": {
+    "explanation": "'es' is a German pronoun used for neuter nouns or to refer to a general condition or state.",
+    "usage": "'es' can be used as the subject of a sentence, e.g., 'Es regnet' (It is raining).",
+    "tip": "Remember that 'es' can act as a placeholder subject in impersonal expressions."
+  },
+  "German_‎d": {
+    "explanation": "'d' is the fourth letter of the German alphabet and is pronounced similarly to the English 'd'.",
+    "usage": "It is used in words like 'der' (the), 'drei' (three), and 'danke' (thank you).",
+    "tip": "When pronouncing 'd' in German, ensure it is voiced and placed at the front of the mouth, similar to English."
   }
 }

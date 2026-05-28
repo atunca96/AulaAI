@@ -71,7 +71,7 @@ def watch_files():
                             mtime = os.path.getmtime(path)
                             if path in last_mtime and mtime > last_mtime[path]:
                                 print(f"[RELOAD] Change detected in {f}, restarting...")
-                                os.execv(sys.executable, ['python'] + sys.argv)
+                                os.execv(sys.executable, [sys.executable] + sys.argv)
                             last_mtime[path] = mtime
                         except: pass
         except: pass
