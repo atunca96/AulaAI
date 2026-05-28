@@ -816,6 +816,26 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   border-color: var(--border-light);
   transform: translateY(-2px);
 }
+/* Floating Actions & Switchers */
+.floating-actions {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+}
+.action-pill-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px !important;
+}
+.action-separator {
+  color: var(--border);
+  font-size: 14px;
+  opacity: 0.4;
+  pointer-events: none;
+  user-select: none;
+}
 .btn-lang {
   display: flex;
   align-items: center;
@@ -1881,7 +1901,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   }
   .login-hero {
     min-height: auto;
-    padding: 48px 20px 48px 20px;
+    padding: 48px 20px 80px 20px; /* Extra bottom padding for floating actions overlay */
     border-right: none;
     border-top: 1px solid var(--border);
     border-bottom: none;
@@ -1945,6 +1965,14 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   .btn-full { padding: 16px; font-size: 16px; }
   .demo-btn { padding: 14px 16px; }
   .nav-logo-img { height: 28px; width: auto; }
+  .floating-actions {
+    bottom: 16px;
+    right: 16px;
+  }
+  .btn-lang {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 }
 
 /* Landscape phone */
