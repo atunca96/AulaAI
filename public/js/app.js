@@ -2680,16 +2680,6 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(id);
   if (target) target.classList.add('active');
-
-  // Show/hide floating action pill only on the login screen to prevent overlapping dashboards
-  const floatingActions = document.querySelector('.floating-actions');
-  if (floatingActions) {
-    if (id === 'login-screen') {
-      floatingActions.style.display = 'flex';
-    } else {
-      floatingActions.style.display = 'none';
-    }
-  }
 }
 document.addEventListener('focusin', (e) => {
   if (e.target.id === 'inbox-reply-text' || e.target.id === 'message-text') {
