@@ -5213,10 +5213,20 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   const isLetter = it.trim().length <= 2;
                   if (isLetter) {
                     // Single letter — no dict lookup, no translation
-                    html += `<div dir="auto" style="background:var(--bg-input); padding:12px 18px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;"><div style="font-size:20px; font-weight:700; color:var(--text-primary); flex:1;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
+                    html += `<div class="study-vocab-card">
+                        <div class="vocab-term-wrapper">
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button>
+                          <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                        </div>
+                      </div>`;
                   } else {
                     // Multi-char word — dict-clickable, but only over the word text itself
-                    html += `<div dir="auto" style="background:var(--bg-input); padding:12px 18px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div><button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button></div>`;
+                    html += `<div class="study-vocab-card">
+                        <div class="vocab-term-wrapper">
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button>
+                          <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                        </div>
+                      </div>`;
                   }
                 } else if (typeof it === "object" && it !== null) {
                   const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
@@ -5231,17 +5241,21 @@ function showStudyTopic(topicId, pageIdx = 0) {
                       </div>`;
                   } else if (isLetter) {
                     // Single letter — render without translation, without dict interaction
-                    html += `<div style="background:var(--bg-input); padding:14px 20px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; align-items:center; gap:12px; cursor:default;">
-                        <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
-                        <div style="flex:1;"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
-                        ${v ? `<div style="color:var(--text-muted); font-size:14px; font-style:italic;">${safeStr(v)}</div>` : ''}
+                    html += `<div class="study-vocab-card">
+                        <div class="vocab-term-wrapper">
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
+                          <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
+                        </div>
+                        ${v ? `<div class="english-translation" style="font-style:italic;">${safeStr(v)}</div>` : ''}
                       </div>`;
                   } else {
                     // Regular word+translation — cursor:default on row, pointer only on the word text itself
-                    html += `<div style="background:var(--bg-input); padding:14px 20px; border-radius:var(--radius-sm); border:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; cursor:default;">
-                        <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
-                        <div style="flex:1; padding:0 4px;"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:20px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
-                        <div class="english-translation" style="color:var(--text-secondary); font-weight:500; font-size:15px; text-align:right; flex-shrink:0; min-width:80px;">${safeStr(v)}</div>
+                    html += `<div class="study-vocab-card">
+                        <div class="vocab-term-wrapper">
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
+                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:20px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
+                        </div>
+                        <div class="english-translation">${safeStr(v)}</div>
                       </div>`;
                   }
                 }
