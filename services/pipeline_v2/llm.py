@@ -21,7 +21,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 CHEAP_MODEL = "openai/gpt-4o-mini"
 FALLBACK_MODEL = "openai/gpt-4o-mini"
 
-CACHE_NAMESPACE = "pipeline_v2_v6"
+CACHE_NAMESPACE = "pipeline_v2_v7"
 
 # In-memory cache for repeated chunks/prompts
 _llm_cache = {}
@@ -228,23 +228,10 @@ Your ONLY task is to transform input text into valid JSON.
 
 8. Perform QA: check logical order, detect noise. Do NOT invent missing basics (e.g. alphabet) or foundational units. Strictly stick to the text.
 9. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review".
-10. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION or CHAPTER header (e.g. "Section 1.01 ~ Starting Point", "Section 1.02 ~ Berlin, Germany", "Unit 3") which acts as the UNIT, and individual LESSONS or sub-chapters within it (e.g. "Lesson 1.01 • Wie heißt du?", "Lesson 1.02 • Freizeit") which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
-11. REVIEW FILTER: Do NOT extract "Review" lessons, test sections, quizzes, or exam pages (e.g. "Review 1.01 • Review of Lessons 1-3"). These are noise. However, do NOT discard main unit/section titles or lessons that happen to contain city or country names (e.g., "Berlin, Germany", "Vienna, Austria", "Berne, Switzerland") — these are valid unit/section titles and must be preserved!
-12. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name (e.g., 'Lesson 1.01 • Wie heißt du?') into multiple sub-topics based on its descriptions, comma-separated details, or sub-points. Discard the '~ description text' when extracting the topic name, or keep it in the name as a whole, but NEVER split it into separate topics.
-13. GERMAN TEXTBOOK TOC PATTERN (STRICT):
-  * The document has exactly 4 sections acting as units:
-    - Unit 1: Section 1.01 ~ Starting Point
-    - Unit 2: Section 1.02 ~ Berlin, Germany
-    - Unit 3: Section 1.03 ~ Vienna, Austria
-    - Unit 4: Section 1.04 ~ Berne, Switzerland
-  * You MUST create exactly 4 units corresponding to these 4 sections! Do NOT group everything under a single unit or use any other header as a unit.
-  * Each section contains exactly 3 lessons acting as topics.
-  * For each lesson, the topic name MUST be ONLY the lesson title itself, with the numbering (e.g. 'Lesson 1.01 •') and the description text after the '~' or ':' completely removed!
-    - Example: For 'Lesson 1.01 • Wie heißt du? ~ Hellos/Goodbyes...' -> the topic name MUST be exactly 'Wie heißt du?'.
-    - Example: For 'Lesson 1.02 • Freizeit ~ Sports and...' -> the topic name MUST be exactly 'Freizeit'.
-    - Example: For 'Lesson 1.10 : Zu Hause Essen ~ Food...' -> the topic name MUST be exactly 'Zu Hause Essen'.
-
-
+10. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION, CHAPTER, or UNIT header which acts as the UNIT, and individual LESSONS or sub-chapters within it which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
+11. REVIEW FILTER: Do NOT extract "Review" lessons, test sections, quizzes, or exam pages. These are noise. However, do NOT discard main unit/section titles that happen to contain city or country names — these are valid unit/section titles and must be preserved!
+12. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name into multiple sub-topics based on its descriptions or sub-points. Discard description text after separators like '~', '•', or ':' when extracting the final topic name, but NEVER split one lesson into multiple topics.
+13. UNIVERSAL TEXTBOOK PATTERN (STRICT): The number of units and topics MUST match EXACTLY what is physically present in the input text. Do NOT assume any fixed number of units or topics. Do NOT import, hallucinate, or copy unit titles or topic names from any other document or your training data. ONLY use what you can directly read in the INPUT text below!
 
 
 ---
@@ -384,22 +371,9 @@ Your ONLY task is to transform the attached PDF document into a structured curri
 10. Auto-fix: remove garbage, fix wrong tags, mark unclear items as "needs_review".
 11. STRICT NO-EMPTY-UNITS RULE: If a unit has no valid lessons/topics after noise removal, it MUST NOT be included in the JSON. Never output an empty "topics": [] array.
 12. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or exam pages (e.g. "Review 1.01 • Review of Lessons 1-3"). These are noise. However, do NOT discard main unit/section titles or lessons that happen to contain city or country names (e.g., "Berlin, Germany", "Vienna, Austria", "Berne, Switzerland") — these are valid unit/section titles and must be preserved!
-13. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION or CHAPTER header (e.g. "Section 1.01 ~ Starting Point", "Section 1.02 ~ Berlin, Germany", "Unit 3") which acts as the UNIT, and individual LESSONS or sub-chapters within it (e.g. "Lesson 1.01 • Wie heißt du?", "Lesson 1.02 • Freizeit") which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
-14. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name (e.g., 'Lesson 1.01 • Wie heißt du?') into multiple sub-topics based on its descriptions, comma-separated details, or sub-points. Discard the '~ description text' when extracting the topic name, or keep it in the name as a whole, but NEVER split it into separate topics.
-15. GERMAN TEXTBOOK TOC PATTERN (STRICT):
-  * The document has exactly 4 sections acting as units:
-    - Unit 1: Section 1.01 ~ Starting Point
-    - Unit 2: Section 1.02 ~ Berlin, Germany
-    - Unit 3: Section 1.03 ~ Vienna, Austria
-    - Unit 4: Section 1.04 ~ Berne, Switzerland
-  * You MUST create exactly 4 units corresponding to these 4 sections! Do NOT group everything under a single unit or use any other header as a unit.
-  * Each section contains exactly 3 lessons acting as topics.
-  * For each lesson, the topic name MUST be ONLY the lesson title itself, with the numbering (e.g. 'Lesson 1.01 •') and the description text after the '~' or ':' completely removed!
-    - Example: For 'Lesson 1.01 • Wie heißt du? ~ Hellos/Goodbyes...' -> the topic name MUST be exactly 'Wie heißt du?'.
-    - Example: For 'Lesson 1.02 • Freizeit ~ Sports and...' -> the topic name MUST be exactly 'Freizeit'.
-    - Example: For 'Lesson 1.10 : Zu Hause Essen ~ Food...' -> the topic name MUST be exactly 'Zu Hause Essen'.
-
-
+13. SECTION/LESSON PATTERN: Many textbooks structure content as: a higher-level SECTION, CHAPTER, or UNIT header which acts as the UNIT, and individual LESSONS or sub-chapters within it which act as the TOPICS. Always group lessons/sub-chapters as topics INSIDE their parent section/chapter unit. Do NOT promote individual lesson names to become unit titles.
+14. NO TOPIC SUBDIVISION (ABSOLUTE): Each lesson or chapter name is ONE topic. Do NOT split a lesson/chapter name into multiple sub-topics based on its descriptions or sub-points. Discard description text after separators like '~', '•', or ':' when extracting the final topic name, but NEVER split one lesson into multiple topics.
+15. UNIVERSAL TEXTBOOK PATTERN (STRICT): The number of units and topics MUST match EXACTLY what is physically present in the PDF. Do NOT assume any fixed number of units or topics. Do NOT import, hallucinate, or copy unit titles or topic names from any other document or your training data. ONLY use what you can directly read in the attached PDF!
 
 
 ---
