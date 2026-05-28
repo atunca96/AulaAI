@@ -159,11 +159,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     PEDAGOGIC PROTOCOL:
     1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
-    2. HOMOGENEITY: All 4 options (answer + distractors) MUST share the same structure and part-of-speech.
+    2. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
+       - If the correct answer is a QUESTION (e.g. "¿Cuánto cuesta?"), then ALL 3 distractors MUST ALSO be questions (e.g. "¿Dónde está?", "¿Cómo se llama?", "¿Qué hora es?").
+       - If the correct answer is a STATEMENT, all distractors must also be statements.
+       - If the correct answer is a VERB FORM, all distractors must also be verb forms.
+       - If the correct answer is a NOUN, all distractors must also be nouns.
+       - NEVER mix questions with statements, nouns with verbs, or phrases with single words. The student must NOT be able to identify the correct answer just by looking at the format.
     3. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or situation. 
-    4. TRICKY DISTRACTORS: Ensure distractors are plausible and related to the topic, making the answer NOT 'obvious'.
+    4. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
     5. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
-    6. NO CLUES: The correct answer MUST NOT be visible or hinted at in the prompt text.
+    6. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
