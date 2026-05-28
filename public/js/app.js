@@ -5854,8 +5854,8 @@ window.addEventListener('touchend', (e) => {
     const popup = document.getElementById('aula-dict-popup');
     const isOpen = popup && popup.style.display === 'block';
 
-    // If it was a stationary tap (distance < 10px) outside the popup, close it
-    if (isOpen && distance < 10 && !popup.contains(e.target)) {
+    // If it was a stationary tap (distance < 10px) outside the popup and not on the trigger word, close it
+    if (isOpen && distance < 10 && !popup.contains(e.target) && !e.target.closest('.foreign-word')) {
         closeDict();
     }
 }, { passive: true });
