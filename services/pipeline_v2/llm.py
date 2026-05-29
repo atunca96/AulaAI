@@ -19,8 +19,8 @@ if os.path.exists(".env"):
                 os.environ[k] = v
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = os.getenv("CHEAP_MODEL", "meta-llama/llama-3.3-70b-instruct")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct")
+CHEAP_MODEL = os.getenv("CHEAP_MODEL", "openai/gpt-4o-mini")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "openai/gpt-4o-mini")
 
 CACHE_NAMESPACE = "pipeline_v2_v10"
 
