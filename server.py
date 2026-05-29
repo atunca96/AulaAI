@@ -726,8 +726,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             try:
                 from services.pipeline_v2.pdf_processor import process_pdf
-                # Limit to first 30 pages for TOC preview to avoid overwhelming the LLM with 36MB+ books
-                curriculum = process_pdf(temp_pdf, page_limit=30)
+                toc_range = fields.get("toc_range")
+                if not toc_range or toc_range.strip() == "" or toc_range == "0-0":
+                    toc_range = None
+                
+                if toc_range:
+                    file_log(f"MARKER: Extracting curriculum using user range: {toc_range}")
+                    curriculum = process_pdf(temp_pdf, toc_range=toc_range)
+                else:
+                    file_log("MARKER: Extracting curriculum using default page limit (30)")
+                    curriculum = process_pdf(temp_pdf, page_limit=30)
                 
                 # Convert V2 JSON to the Markdown format the Architect frontend expects
                 final_details = []
