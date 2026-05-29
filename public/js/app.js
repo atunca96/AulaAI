@@ -2276,6 +2276,8 @@ async function buildAiClassroom() {
   btn.innerHTML = '<div class="spinner-small" style="display:inline-block"></div> ' + t('loading');
 
   try {
+    const materialLangSelect = document.getElementById('ai-material-language-select');
+    const materialLanguage = materialLangSelect ? materialLangSelect.value : 'en';
     const res = await api('/classroom/create-from-scratch', {
       method: 'POST',
       body: {
@@ -2284,7 +2286,8 @@ async function buildAiClassroom() {
         level: _selectedAiLevel,
         chapters,
         lecturer_id: currentUser.id,
-        course_id: localStorage.getItem('aula_rearchitecting_id')
+        course_id: localStorage.getItem('aula_rearchitecting_id'),
+        material_language: materialLanguage
       }
     });
     localStorage.removeItem('aula_rearchitecting_id');
@@ -2519,6 +2522,10 @@ async function handleCreateClassroom(e) {
   formData.append('lecturer_id', currentUser.id);
   if (_lastExtractedLanguage) {
     formData.append('language', _lastExtractedLanguage);
+  }
+  const materialLangSelect = document.getElementById('pdf-material-language-select');
+  if (materialLangSelect) {
+    formData.append('material_language', materialLangSelect.value);
   }
 
   statusEl.classList.remove('hidden');
@@ -3738,9 +3745,10 @@ async function explainMistake(cardId, correct_answer, student_answer) {
   const language = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
   
   try {
+    const courseId = currentCourse ? currentCourse.id : '';
     const res = await api('/activity/explain', {
       method: 'POST',
-      body: { prompt, correct_answer, student_answer, language }
+      body: { prompt, correct_answer, student_answer, language, course_id: courseId }
     });
     
     if (res.explanation) {
@@ -6006,7 +6014,8 @@ async function askAiAboutWord() {
 
   try {
     const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
-    const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}`);
+    const courseId = currentCourse ? currentCourse.id : '';
+    const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}&course_id=${courseId}`);
 
     if (res.explanation) {
       meanings.innerHTML = `

@@ -322,11 +322,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
     try:
         with db_connection() as db:
             db.row_factory = lambda cursor, row: row 
-            course = db.execute("SELECT language, level FROM courses WHERE id = ?", (course_id,)).fetchone()
+            course = db.execute("SELECT language, level, material_language FROM courses WHERE id = ?", (course_id,)).fetchone()
             language = course[0] if course else "Unknown"
             level = course[1] if course and len(course) > 1 else "A1"
+            material_language = course[2] if course and len(course) > 2 else "en"
             
-            _log(f"Phase 2: Targeted Course={course_id}, Lang={language}, Level={level}")
+            _log(f"Phase 2: Targeted Course={course_id}, Lang={language}, Level={level}, Material Lang={material_language}")
             
             chapters = db.execute("SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)).fetchall()
             _log(f"Phase 2: DB returned {len(chapters)} chapters for this course.")
@@ -345,7 +346,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         if total_topics == 0:
             _log(f"WARNING: ZERO topics found for {course_id}. Build ending immediately.")
             return
-
+ 
         _log(f"Phase 2: Proceeding with enrichment for {total_topics} topics across {len(chapters_data)} chapters...")
         
         # ── HELPER: SURGICAL CONTEXT ──
@@ -370,13 +371,13 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 if h_match: return full_text[max(0, h_match.start()-200):h_match.start()+8000]
             
             return full_text[:8000]
-
-        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None):
+ 
+        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en"):
             from services.ai_engine import generate_full_lesson
             # PREMIUM 3-PAGE BUILD: Guaranteed quality, no fluff.
-            lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
+            lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text, material_language=material_language)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
-
+ 
         # Configurable concurrency (default to 25 workers for maximum lesson generation speed)
         max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "25"))
         topic_count = 0
@@ -386,7 +387,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 for topic in ch.get("topics", []):
                     if topic_count >= MAX_TOTAL_TOPICS: break
                     stext = get_surgical_context(topic.get("page"), source_markdown_content, topic_title=topic.get("title"))
-                    f = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=stext)
+                    f = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=stext, material_language=material_language)
                     future_to_topic[f] = topic.get("title")
                     topic_count += 1
 
@@ -424,7 +425,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             db.commit()
 
 
-def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1"):
+def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="en"):
     import logging
     logging.getLogger(__name__).warning("LEGACY PIPELINE IN USE")
     if not course_name or course_name.strip() == "":
@@ -437,8 +438,8 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     gen_id = _uid()
     
     with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id))
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id, material_language) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id, material_language))
         db.commit()
     
     manual_toc_file = None
@@ -494,7 +495,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
 
 
-def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None):
+def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None, material_language="en"):
     gen_id = _uid()
     if existing_course_id:
         course_id = existing_course_id
@@ -502,15 +503,15 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0 WHERE id = ?",
-                       (course_name, language, level, f"{level} Level", gen_id, course_id))
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ? WHERE id = ?",
+                       (course_name, language, level, f"{level} Level", gen_id, material_language, course_id))
             db.commit()
     else:
         course_id = _uid()
         code = generate_classroom_code()
         with db_connection() as db:
-            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id))
+            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id, material_language) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language))
             db.commit()
 
     # Process the nested chapters into the worker's expected format

@@ -87,22 +87,54 @@ print(f"--- AULA AI SERVER v{VERSION} [FIX-STABILIZE-V2] STARTING ---")
 
 # ── DISK CLEANUP ──────────────────────────────────────────
 def cleanup_storage():
-    """Purges old PDF and Markdown artifacts to prevent disk exhaustion."""
+    """Purges temporary extraction files and orphaned textbooks to prevent disk leaks."""
     try:
         if not os.path.exists(BOOKS_DIR): return
         now = time.time()
         count = 0
+        
+        # Get active course IDs from DB to prevent deleting valid textbooks
+        active_course_ids = set()
+        try:
+            with db_connection() as db:
+                rows = db.execute("SELECT id FROM courses").fetchall()
+                for r in rows:
+                    active_course_ids.add(r["id"])
+        except Exception as e:
+            print(f"[CLEANUP] Warning: Could not read active courses from DB: {e}")
+            # If DB is malformed/unreachable, do NOT run cleanup to be safe
+            return
+
         for f in os.listdir(BOOKS_DIR):
             fpath = os.path.join(BOOKS_DIR, f)
-            # Delete anything older than 6 hours or all temporary extract files
-            if f.startswith("extract_") or (now - os.path.getmtime(fpath) > 6 * 3600):
-                try:
-                    if os.path.isfile(fpath):
+            if not os.path.isfile(fpath):
+                continue
+            
+            # Case 1: Temporary files generated during extraction/OCR
+            if f.startswith("extract_") or f.startswith("ocr_") or f.startswith("toc_") or f.startswith("marker_"):
+                if now - os.path.getmtime(fpath) > 2 * 3600: # 2 hours
+                    try:
                         os.remove(fpath)
                         count += 1
-                except: pass
+                    except: pass
+            
+            # Case 2: Uploaded textbooks or source files
+            elif f.startswith("course_"):
+                # Extract course ID from filename (e.g. course_UID.pdf, course_UID_source.md, course_UID_toc.txt)
+                # Filename pattern: course_[shared_uid]...
+                import re
+                match = re.match(r"^course_([a-zA-Z0-9\-]+)(?:_source\.md|_toc\.txt|_toc\.json|\.pdf)$", f)
+                if match:
+                    course_id = match.group(1)
+                    if course_id not in active_course_ids:
+                        # File is orphaned (its course was deleted or creation aborted)
+                        if now - os.path.getmtime(fpath) > 2 * 3600: # 2 hours
+                            try:
+                                os.remove(fpath)
+                                count += 1
+                            except: pass
         if count > 0:
-            print(f"[CLEANUP] Purged {count} temporary/old files from {BOOKS_DIR}")
+            print(f"[CLEANUP] Purged {count} orphaned/temporary files from {BOOKS_DIR}")
     except Exception as e:
         print(f"[CLEANUP] Error: {e}")
 
@@ -433,9 +465,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/dictionary/ai-explain":
             word = params.get("word", [None])[0]
             lang = params.get("lang", [None])[0]
+            course_id = params.get("course_id", [None])[0]
             if not word: return self._send_error("word required")
             
-            result = ai_explain_word(word, lang or "English")
+            material_language = "en"
+            if course_id:
+                try:
+                    with db_connection() as db:
+                        row = db.execute("SELECT material_language FROM courses WHERE id=?", (course_id,)).fetchone()
+                        if row and row["material_language"]:
+                            material_language = row["material_language"]
+                except Exception as e:
+                    print(f"[ERROR] Failed to query material_language for dictionary explain: {e}")
+            
+            result = ai_explain_word(word, lang or "English", material_language=material_language)
             return self._send_json(result)
         elif path == "/api/tts":
             return self._tts_speak()
@@ -1713,8 +1756,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 if not row: raise Exception(f"Topic {topic_id} not found")
                 topic = dict(row)
-                row_c = db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
+                row_c = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
+                material_language = row_c["material_language"] if row_c and "material_language" in row_c.keys() else "en"
 
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
@@ -1746,7 +1790,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             try:
                 from services.ai_engine import ai_generate_activity_batch
                 # Zero-Filter Gemini 2.5 Strategy
-                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="google/gemini-2.5-flash")
+                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="google/gemini-2.5-flash", material_language=material_language)
                 if batch: raw_activities = batch
             except Exception as e:
                 print(f"[BG] Activity V4 Failed: {e}")
@@ -2246,11 +2290,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         correct_answer = body.get("correct_answer")
         student_answer = body.get("student_answer")
         language = body.get("language", "English")
+        course_id = body.get("course_id")
         
         if not all([prompt, correct_answer, student_answer]):
             return self._send_error("Missing required fields for explanation", 400)
             
-        result = ai_explain_activity(prompt, correct_answer, student_answer, language)
+        material_language = "en"
+        if course_id:
+            try:
+                with db_connection() as db:
+                    row = db.execute("SELECT material_language FROM courses WHERE id=?", (course_id,)).fetchone()
+                    if row and row["material_language"]:
+                        material_language = row["material_language"]
+            except Exception as e:
+                print(f"[ERROR] Failed to query material_language for activity explain: {e}")
+                
+        result = ai_explain_activity(prompt, correct_answer, student_answer, language, material_language=material_language)
         return self._send_json(result)
 
     def _submit_activity_response(self):
@@ -2369,13 +2424,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if topic_id:
                 topic = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 row = db.execute("""
-                    SELECT co.language FROM courses co
+                    SELECT co.language, co.material_language FROM courses co
                     JOIN chapters ch ON co.id = ch.course_id
                     JOIN topics t ON ch.id = t.chapter_id
                     WHERE t.id = ?
                 """, (topic_id,)).fetchone()
                 language = row["language"] if row and row["language"] else "Unknown"
-                activities = generate_activity(dict(topic), count=8, language=language) if topic else []
+                material_language = row["material_language"] if row and "material_language" in row.keys() else "en"
+                activities = generate_activity(dict(topic), count=8, language=language, material_language=material_language) if topic else []
             else:
                 activities = []
 
@@ -2679,6 +2735,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_name = data.get("course_name")
         chapters = data.get("chapters") 
         lecturer_id = data.get("lecturer_id")
+        material_language = data.get("material_language", "en")
         
         cid = data.get("course_id")
         # Ensure we treat falsy/null values as None
@@ -2697,7 +2754,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             save_blueprint_cache(language, level, cache_chapters)
         
         from services.legacy.pdf_pipeline import process_manual_to_classroom
-        result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id)
+        result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id, material_language=material_language)
         return self._send_json(result)
 
     def _read_multipart(self):
@@ -2776,8 +2833,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             lecturer_id = fields.get("lecturer_id")
             language = fields.get("language")
             level = fields.get("level", "A1")
+            material_language = fields.get("material_language", "en")
             
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing Request for {lecturer_id} | Name: {course_name} | Language: {language}")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] [DEBUG] Processing Request for {lecturer_id} | Name: {course_name} | Language: {language} | Material Lang: {material_language}")
             
             if not lecturer_id:
                 return self._send_error("lecturer_id required")
@@ -2815,7 +2873,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 manual_toc=manual_toc,
                 source_markdown_path=source_md_path,
                 language=language,
-                level=level
+                level=level,
+                material_language=material_language
             )
             
             file_log(f"[DEBUG] Pipeline result: {result}")

@@ -15,23 +15,31 @@ def _uid():
 # We use absolute paths to ensure the Railway volume remains mounted correctly.
 IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None
 if IS_RAILWAY:
-    # On Railway, we prioritize /data (as seen in dashboard) or /app/data
-    if os.path.exists("/data"):
-        DATA_DIR = "/data"
-    else:
-        DATA_DIR = "/app/data"
+    # Volume Mount Wait FIRST (for safety) to ensure persistence is up
+    if not os.path.exists("/data"):
+        print("[DB] Waiting for Railway volume mount...")
+        for attempt in range(5):
+            if os.path.exists("/data"): break
+            time.sleep(1)
+        else:
+            print("[FATAL ERROR] Persistent volume /data NOT FOUND.")
+            import sys
+            sys.exit(1)
+
+    DATA_DIR = "/data"
+    DB_PATH = "/data/aula.db"
 
     # Debug directory contents to verify mount
     try:
         if os.path.exists('/data'):
             print(f"[DEBUG] /data contents: {os.listdir('/data')}")
-        if os.path.exists('/app/data'):
-            print(f"[DEBUG] /app/data contents: {os.listdir('/app/data')}")
     except: pass
 else:
     DATA_DIR = os.path.join(os.getcwd(), "data")
+    DB_PATH = os.path.join(DATA_DIR, "aula.db")
 
 BOOKS_DIR = os.path.join(DATA_DIR, "books")
+
 # Universal discovery: Look for ANY existing database to prevent data loss
 potential_paths = [
     "/data/aula.db",
@@ -47,7 +55,6 @@ potential_paths = [
 IS_GHOST_DB = False
 if IS_RAILWAY:
     print("[DB] === RAILWAY DATABASE DISCOVERY ===")
-    DB_PATH = "/data/aula.db"
     
     # Self-Healing: If the database is malformed (corrupted), delete it to allow a fresh start.
     if os.path.exists(DB_PATH):
@@ -75,21 +82,9 @@ if IS_RAILWAY:
     else:
         IS_GHOST_DB = True
         print(f"[DB] No database found at {DB_PATH}. Will create fresh.")
-
-    # Volume Mount Wait (for safety)
-    if not os.path.exists("/data"):
-        print("[DB] Waiting for Railway volume mount...")
-        for attempt in range(5):
-            if os.path.exists("/data"): break
-            time.sleep(1)
-        else:
-            print("[FATAL ERROR] Persistent volume /data NOT FOUND.")
-            import sys
-            sys.exit(1)
             
     print(f"[DB] === FINAL: DB_PATH={DB_PATH}, IS_GHOST_DB={IS_GHOST_DB} ===")
 else:
-    DB_PATH = os.path.join(os.getcwd(), "data", "aula.db")
     IS_GHOST_DB = not os.path.exists(DB_PATH)
 
 # Thread-safe locks for background tasks
@@ -200,6 +195,7 @@ def init_db():
             activity_progress INTEGER DEFAULT 0,
             activity_total INTEGER DEFAULT 0,
             activity_result TEXT,
+            material_language TEXT DEFAULT 'en',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(lecturer_id) REFERENCES users(id)
         )''')
@@ -253,6 +249,11 @@ def init_db():
         
         try:
             c.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
+        except: pass
+
+        # MIGRATION: Ensure material_language column exists
+        try:
+            c.execute("ALTER TABLE courses ADD COLUMN material_language TEXT DEFAULT 'en'")
         except: pass
 
         # Student Performance & Mastery

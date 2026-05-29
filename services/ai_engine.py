@@ -128,13 +128,14 @@ def get_language_profile(language):
     if language in agglutinative: return "agglutinative"
     return "inflected"
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en"):
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
     # Use override if provided (for speed during build), else use topic_content
     if source_text_override:
@@ -150,12 +151,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         ref_data = get_reference_prompt(language)
     elif any(x in topic_title.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
-
+ 
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
-
+ 
     system = f"""You are the {language} Pedagogic Engine (V5). 
     Your mission: Using the provided textbook content as your source, generate questions that test genuine understanding of the material — use real examples from the text, plausible distractors drawn from related concepts, and varied formats. Never repeat the same question pattern twice in a single set.
     
@@ -173,8 +174,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     6. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
     
     RESPONSE FORMAT:
-    Output EXCLUSIVELY a JSON object. Every prompt MUST have an English 'translation'."""
-
+    Output EXCLUSIVELY a JSON object. Every prompt MUST have a {instruction_lang_name} 'translation' in the 'translation' field."""
+ 
     user = f"""TASK: Generate EXACTLY {c} unique {topic_type} questions.
     TOPIC: {topic_title}
     LEVEL: {level}
@@ -191,16 +192,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         {{
           "type": "mcq",
           "prompt": "...",
-          "translation": "English translation",
+          "translation": "{instruction_lang_name} translation",
           "answer": "...",
           "distractors": ["...", "...", "..."],
-          "why": "English explanation"
+          "why": "{instruction_lang_name} explanation"
         }}
       ]
     }}"""
     
     if is_quiz and is_beginner:
-        user += f"\n\nSTRICT ENGLISH PROMPT RULE: This is a QUIZ for {level} beginners. You MUST write the 'prompt' field in English. The 'answer' and 'distractors' MUST be in {language}."
+        user += f"\n\nSTRICT {instruction_lang_name.upper()} PROMPT RULE: This is a QUIZ for {level} beginners. You MUST write the 'prompt' field in {instruction_lang_name}. The 'answer' and 'distractors' MUST be in {language}."
     else:
         user += f"\n\nLANGUAGE MEDIUM: Write the 'prompt' field in {language} to immerse the student."
 
@@ -266,11 +267,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n")
         return []
 
-def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, model_override=model_override)
+def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None, material_language="en"):
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, model_override=model_override, material_language=material_language)
 
-def ai_generate_activity(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False):
-    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source)
+def ai_generate_activity(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, material_language="en"):
+    return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, material_language=material_language)
 
 def ai_grade_open_response(question, student_answer, correct_answer):
     prompt = f"Grade: Q:{question}, C:{correct_answer}, S:{student_answer}. JSON: {{'score': 0..1, 'feedback': '...'}}"
@@ -365,23 +366,23 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': 
         save_blueprint_cache(language, level, chapters)
     
     return chapters
-
 def ai_generate_report_insights(cohort_data):
     """Generates high-level pedagogical insights for teacher reports."""
     prompt = f"Analyze student performance and provide 3 actionable teaching insights: {json.dumps(cohort_data)}"
     res = _call_ai([{"role": "user", "content": prompt}], max_tokens=600)
     return res.get("explanation", "Insufficient data for insights.") if res else "Connection Error."
 
-def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None):
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="en"):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
     from services.language_data import get_reference_prompt, get_special_chars_prompt, ALPHABETS
     
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
+    instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in English. All target language content (vocabulary, sentences, examples) MUST be in {language}."
+    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in {instruction_lang_name}. All target language content (vocabulary, sentences, examples) MUST be in {language}."
     if is_beginner:
-        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. All titles, grammar explanations, and instructions MUST be in English. NEVER explain {language} concepts using {language}. Use English as the primary instructional medium."
+        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. All titles, grammar explanations, and instructions MUST be in {instruction_lang_name}. NEVER explain {language} concepts using {language}. Use {instruction_lang_name} as the primary instructional medium."
 
     source_rule = ""
     if source_text:
@@ -404,29 +405,28 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     if any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
-        ref_data += f"\nPRONUNCIATION RULE: Explain how these marks affect sound using English phonetics."
+        ref_data += f"\nPRONUNCIATION RULE: Explain how these marks affect sound using {instruction_lang_name} phonetics."
 
     min_pages = 5
 
     # ── PHONETIC & PEDAGOGICAL GUARDRAILS ──
-    no_english_in_lists = """
-NO ENGLISH IN LISTS (CRITICAL): 
-- NEVER include English translations as separate items in a list of strings. 
+    no_english_in_lists = f"""
+NO {instruction_lang_name.upper()} IN LISTS (CRITICAL): 
+- NEVER include {instruction_lang_name} translations as separate items in a list of strings. 
 - All items in a 'list' or 'items' array MUST be in the target language if they are strings. 
-- If you want to provide a translation, use the OBJECT format: {'term': '...', 'translation': '...'} or {'text': '...', 'meaning': '...'}. 
-- DO NOT generate: ['Word', 'Translation', 'Word2', 'Translation2']. This is incorrect. 
-- ALWAYS generate: [{'term': 'Word', 'translation': 'Translation'}, ...] or ['Word', 'Word2', ...]."""
+- If you want to provide a translation, use the OBJECT format: {{'term': '...', 'translation': '...'}} or {{'text': '...', 'meaning': '...'}}. 
+- ALWAYS generate: [{{'term': 'Word', 'translation': 'Translation'}}, ...] or ['Word', 'Word2', ...]."""
     density_mandate = """
 CONTENT DENSITY MANDATE (CRITICAL): 
 - VOCABULARY: Minimum 10 items per vocabulary page. Cover primary, secondary, and tertiary nuances.
 - EXAMPLES: Minimum 10 example sentences or dialogue lines. Show the words in varied social contexts.
 - EXPLANATIONS: Every 'explanation' or 'text' field MUST contain at least 5-8 detailed bullet points. Explain usage, cultural context, common learner mistakes, and pronunciation tips.
 - NO THIN PAGES: If a page feels light, combine it or expand it. Every page must be packed with educational value. Aim for 'Smartboard Density' — enough to fill a large screen with useful info."""
-    simplicity_rule = """
+    simplicity_rule = f"""
 BEGINNER SIMPLICITY RULE (A1-A2): 
 1. NO TECHNICAL JARGON: Avoid linguistics terms like 'voiced/voiceless', 'front/back vowels', or 'agglutinative' unless you explain them with simple physical metaphors (e.g., instead of 'voiceless', say 'a soft breathy sound').
-2. PHYSICAL CUES: For sounds with no English equivalent (like Turkish 'ı', German 'ü', or French 'r'), provide physical instructions. Example for 'ı': 'Keep your mouth slightly open and teeth together, like the sound you make when you see something gross (ugh!) but shorter.'
-3. RELATABILITY: Always relate foreign concepts to something a native English speaker does naturally. Every single letter or grammar rule must have a 'Student-Friendly Tip' that makes it feel easy, not academic."""
+2. PHYSICAL CUES: For sounds with no English/Turkish equivalent (like Turkish 'ı', German 'ü', or French 'r'), provide physical instructions. Example for 'ı': 'Keep your mouth slightly open and teeth together, like the sound you make when you see something gross (ugh!) but shorter.'
+3. RELATABILITY: Always relate foreign concepts to something a native {instruction_lang_name} speaker does naturally. Every single letter or grammar rule must have a '{instruction_lang_name}-Friendly Tip' that makes it feel easy, not academic."""
     contrast_rule = """
 TOPIC CONTRAST RULE (MANDATORY): 
 - If the topic is 'Alphabet', focus EXCLUSIVELY on letter names and sequences. DO NOT ask about pronunciation or phonetics.
@@ -436,31 +436,30 @@ TOPIC CONTRAST RULE (MANDATORY):
     differentiation_rule = """
 TOPIC DIFFERENTIATION RULE (CRITICAL): 
 - UNIQUE QUESTIONS: NEVER reuse generic questions across related topics. Questions must be 'Laser-Focused' on the specific title of the topic.
-- NUANCE: For 'Alphabet' topics, focus on letter names, recognition, and alphabetical order. For 'Pronunciation' topics, focus strictly on phonetic sounds, vowel length, oral stress, and English-related sound comparisons.
-- VARIETY: Use clever, varied scenarios. For pronunciation, use 'Which word sounds like the English word X?' or 'Which letter is silent in word Y?'. For alphabet, use 'Which letter comes after Z?' or 'Identify the uppercase version of letter A'."""
-    depth_rule = """
+- NUANCE: For 'Alphabet' topics, focus on letter names, recognition, and alphabetical order. For 'Pronunciation' topics, focus strictly on phonetic sounds, vowel length, oral stress, and sound comparisons.
+- VARIETY: Use clever, varied scenarios. For pronunciation, use sound comparisons or silent letters. For alphabet, use letter sequencing or uppercase/lowercase matching."""
+    depth_rule = f"""
 MCQ EXPLANATION DEPTH (CRITICAL): 
 - NEVER restate the question or the answer (e.g., DO NOT say 'Choose the correct greeting').
 - ALWAYS provide a 'Linguistic Reasoning': Explain WHY the correct answer fits the context and briefly WHY the distractors are incorrect for that specific context.
-- Example: Instead of 'Choose the name phrase', say '• Benim adım... literally means My name is... and is the standard way to introduce yourself. • Nasılsınız? is used to ask How are you? and is not an introduction.'"""
+- Example: Instead of 'Choose the name phrase', explain the correct choice and why alternatives do not fit in {instruction_lang_name}."""
     accuracy_rule = """
 PEDAGOGICAL ACCURACY RULE (CRITICAL): 
 1. NO AMBIGUITY: When creating MCQs, ensure distractors are CLEARLY incorrect. Avoid 'trick' questions where multiple answers could be technically correct (e.g., don't mark a neutral greeting wrong in a formal context unless a strictly formal option is the ONLY correct choice).
 2. CONTEXT-RICH PROMPTS: Questions must provide enough context (time of day, social setting, relationship) to make the correct answer the ONLY logical choice.
 3. LANGUAGE-AGNOSTIC PRECISION: This rule applies to all languages. Do not use generic greetings as distractors for specific questions if they could be used correctly in that scenario."""
-    phonetic_rule = (
-        "\nPHONETIC APPROXIMATION RULE (CRITICAL): When explaining how letters or words sound, "
-        "NEVER use target language spellings to describe the sound (e.g., DO NOT say 'Ç sounds like çe'). "
-        "Instead, ALWAYS use English word approximations that an A1 student can understand "
-        "(e.g., 'Ç sounds like the ch in church', or 'Ş sounds like the sh in sheep'). "
-        "This rule is language-agnostic: always relate sounds to common English words."
-    )
+    phonetic_rule = f"""
+PHONETIC APPROXIMATION RULE (CRITICAL): When explaining how letters or words sound, 
+NEVER use target language spellings to describe the sound (e.g., DO NOT say 'Ç sounds like çe'). 
+Instead, ALWAYS use common {instruction_lang_name} word approximations that a student can understand 
+(e.g., 'Ç sounds like the ch in church', or 'Ş sounds like the sh in sheep' for English-speakers; or Turkish equivalents for Turkish-speakers). 
+This rule is language-agnostic: always relate sounds to common, accessible words in {instruction_lang_name}."""
 
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. No walls of text.
     SMARTBOARD RULE: Lessons are taught on large smartboards. You MUST break all paragraphs into clear, scannable bullet points so students can read them from the back of a classroom. 
-    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in English.
+    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in {instruction_lang_name}.
     FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
     PHONETIC RULE: {phonetic_rule}
@@ -470,7 +469,7 @@ PEDAGOGICAL ACCURACY RULE (CRITICAL):
     CONTRAST RULE: {contrast_rule}
     SIMPLICITY RULE: {simplicity_rule}
     DENSITY MANDATE: {density_mandate}
-    NO ENGLISH IN LISTS: {no_english_in_lists}
+    NO {instruction_lang_name.upper()} IN LISTS: {no_english_in_lists}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
     NO CONVERSATION: Provide ONLY the JSON structure."""
 
@@ -481,12 +480,12 @@ PEDAGOGICAL ACCURACY RULE (CRITICAL):
 
     TECHNICAL SPECS:
     1. {lang_guard}
-    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in English.
+    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in {instruction_lang_name}.
     3. BULLET POINTS ONLY: Format all grammar and context 'text' or 'explanation' fields as a list of bullet points. NO LONG PARAGRAPHS.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
     5. MEANINGFUL LENGTH: Generate ONLY as many pages as are naturally required. For most topics, 3-4 pages are sufficient. Aim for 4-6 high-density pages. Prioritize quality and density over quantity.
     6. NO FILLER: Do not create nonsense or thin pages. Every page must be essential.
-    7. ENGLISH-ONLY EXPLANATIONS: ALL instructional text, tips, and explanations MUST be in English. NEVER use {language} to explain {language}.
+    7. {instruction_lang_name.upper()}-ONLY EXPLANATIONS: ALL instructional text, tips, and explanations MUST be in {instruction_lang_name}. NEVER use {language} to explain {language}.
     8. ALPHABET SPECIAL: If this is an alphabet topic, the first page MUST be the complete master list.
     9. PEDAGOGICAL DEPTH: Use practical, everyday scenarios. Explain 'why' using bullets.
     RESPONSE FORMAT (VALID JSON ONLY):
@@ -529,25 +528,27 @@ PEDAGOGICAL ACCURACY RULE (CRITICAL):
             return res2
     return {"pages": []}
 
-def ai_explain_word(word, language, context=None):
-    system = f"You are a helpful {language} language teacher. Explain terms to students clearly and concisely."
+def ai_explain_word(word, language, context=None, material_language="en"):
+    instruction_lang_name = "Turkish" if material_language == "tr" else "English"
+    system = f"You are a helpful {language} language teacher. Explain terms to students clearly and concisely in {instruction_lang_name}."
     user = f"""Explain the {language} term: '{word}'. 
     CONTEXT: {context}
     
     STRICT RULES:
-    1. The 'explanation', 'usage', and 'tip' fields MUST be written in English.
+    1. The 'explanation', 'usage', and 'tip' fields MUST be written in {instruction_lang_name}.
     2. Only the target word itself can be in {language}.
     3. Keep it brief and pedagogical.
     
     Return ONLY valid JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"""
     return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=600)
 
-def ai_explain_activity(prompt, correct_answer, student_answer, language):
+def ai_explain_activity(prompt, correct_answer, student_answer, language, material_language="en"):
     clean_lang = language.split('(')[0].strip()
+    instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     system = f"""You are a helpful {clean_lang} language teacher explaining mistakes to students.
 CRITICAL LANGUAGE RULES:
-1. Your explanation text MUST be written ENTIRELY in English.
-2. You may quote specific {clean_lang} words (e.g., the answer or question terms) but ALL explanatory sentences MUST be in English.
+1. Your explanation text MUST be written ENTIRELY in {instruction_lang_name}.
+2. You may quote specific {clean_lang} words (e.g., the answer or question terms) but ALL explanatory sentences MUST be in {instruction_lang_name}.
 3. NEVER write full sentences in {clean_lang}.
 4. Keep the explanation concise (2-3 sentences max)."""
     user = f"""A student got a {clean_lang} question wrong. Explain the mistake and the correct logic.
@@ -556,7 +557,7 @@ Question: {prompt}
 Correct Answer: {correct_answer}
 Student's Answer: {student_answer}
 
-Return ONLY valid JSON: {{"explanation": "Your English explanation here"}}"""
+Return ONLY valid JSON: {{"explanation": "Your {instruction_lang_name} explanation here"}}"""
     return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=300)
 
 def _get_blueprint_path(language, level):
