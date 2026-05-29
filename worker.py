@@ -3,6 +3,14 @@ import os
 import traceback
 import threading
 import time
+import logging
+
+# Configure basic logging to sys.stdout so that logs are captured in pipeline.log (Windows) or container output (Linux)
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 # CRITICAL: Ensure project root is in path for imports before anything else
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

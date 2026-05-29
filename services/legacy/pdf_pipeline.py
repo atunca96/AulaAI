@@ -452,7 +452,6 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     
     # Spawn worker to handle curriculum creation and enrichment
     _log(f"Spawning worker for Classroom {course_id}")
-    log_file = open("pipeline.log", "a", encoding="utf-8")
     try:
         # Calculate root relative to this file (services/legacy/pdf_pipeline.py)
         ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -481,12 +480,12 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
         cmd.append(gen_id) # 11th Argument
             
         if sys.platform == "win32":
+            log_file = open("pipeline.log", "a", encoding="utf-8")
             process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
                                      creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+            log_file.close() # Child keeps its copy
         else:
-            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
-            
-        log_file.close() # Child keeps its copy
+            process = subprocess.Popen(cmd, env=env, close_fds=True)
             
         _log(f"Worker spawned successfully with PID {process.pid}")
     except Exception as e:
@@ -544,18 +543,20 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
     _log(f"Spawning AI Architect worker: Course {course_id} (Level: {level})")
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
-    # Args: 0:worker.py, 1:pdf_path, 2:toc_range, 3:lecturer_id, 4:course_id, 5:course_name, 6:manual_toc_file, 7:source_markdown, 8:language, 9:level, 10:gen_id
-    cmd = [sys.executable, "worker.py", "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file, "NONE", language, level, gen_id]
     
-    log_file = open("pipeline.log", "a", encoding="utf-8")
+    ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    worker_path = os.path.join(ROOT_DIR, "worker.py")
+    # Args: 0:worker.py, 1:pdf_path, 2:toc_range, 3:lecturer_id, 4:course_id, 5:course_name, 6:manual_toc_file, 7:source_markdown, 8:language, 9:level, 10:gen_id
+    cmd = [sys.executable, worker_path, "NONE", "0-0", str(lecturer_id), str(course_id), course_name, manual_toc_file, "NONE", language, level, gen_id]
+    
     try:
         if sys.platform == "win32":
+            log_file = open("pipeline.log", "a", encoding="utf-8")
             process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
                                      creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+            log_file.close() # Child keeps its copy
         else:
-            process = subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
-        
-        log_file.close() # Child keeps its copy
+            process = subprocess.Popen(cmd, env=env, close_fds=True)
         _log(f"Worker process started with PID {process.pid}")
     except Exception as e:
         _log(f"CRITICAL: Failed to spawn AI Architect worker: {e}")

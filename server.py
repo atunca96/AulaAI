@@ -621,15 +621,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             worker_path = os.path.join(ROOT_DIR, "worker.py")
             cmd = [sys.executable, worker_path, course_id, gen_id, source_markdown_path]
-            log_file = open("pipeline.log", "a", encoding="utf-8")
+            
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
             
             if sys.platform == "win32":
-                subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, 
+                log_file = open("pipeline.log", "a", encoding="utf-8")
+                subprocess.Popen(cmd, env=env, stdout=log_file, stderr=subprocess.STDOUT, 
                                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP)
+                log_file.close()
             else:
-                subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
-            
-            log_file.close()
+                subprocess.Popen(cmd, env=env, close_fds=True)
             self._send_json({"status": "success", "message": "Rebuild started"})
         except Exception as e:
             self._send_error(f"Failed to start worker: {e}")
