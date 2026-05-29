@@ -87,19 +87,49 @@ def get_temp_pdf_for_range(pdf_path: str, toc_range: str) -> str:
         return pdf_path
 
 def extract_text_pdfplumber(pdf_path: str, toc_range: str = None) -> List[str]:
-    logger.info(f"Extracting text via pdfplumber for {pdf_path} (range: {toc_range})")
+    logger.info(f"Extracting text via column-aware PyMuPDF for {pdf_path} (range: {toc_range})")
     lines = []
+    import fitz
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            total_pages = len(pdf.pages)
-            page_indices = parse_toc_range(toc_range, total_pages)
-            for idx in page_indices:
-                page = pdf.pages[idx]
-                text = page.extract_text()
-                if text:
-                    lines.extend(text.splitlines())
+        doc = fitz.open(pdf_path)
+        total_pages = len(doc)
+        page_indices = parse_toc_range(toc_range, total_pages)
+        for idx in page_indices:
+            page = doc[idx]
+            rect = page.rect
+            width = rect.width
+            
+            # Get text blocks: (x0, y0, x1, y1, "text", block_no, block_type)
+            blocks = page.get_text("blocks")
+            text_blocks = [b for b in blocks if b[6] == 0] # type 0 is text
+            
+            # Sort into 3 columns by horizontal midpoint relative to page width
+            col1, col2, col3 = [], [], []
+            for b in text_blocks:
+                x0, y0, x1, y1, text, block_no, block_type = b
+                mid_x = (x0 + x1) / 2
+                if mid_x < width * 0.35:
+                    col1.append(b)
+                elif mid_x < width * 0.68:
+                    col2.append(b)
+                else:
+                    col3.append(b)
+                    
+            # Sort each column vertically by y0 coordinate
+            col1.sort(key=lambda x: x[1])
+            col2.sort(key=lambda x: x[1])
+            col3.sort(key=lambda x: x[1])
+            
+            # Merge columns sequentially: Left -> Middle -> Right
+            for col in [col1, col2, col3]:
+                for b in col:
+                    text_lines = b[4].strip().splitlines()
+                    for line in text_lines:
+                        if line.strip():
+                            lines.append(line.strip())
+        doc.close()
     except Exception as e:
-        logger.error(f"Failed to extract text with pdfplumber: {e}")
+        logger.error(f"Failed to extract text with PyMuPDF: {e}")
     return lines
 
 def process_text(lines: List[str]) -> dict:

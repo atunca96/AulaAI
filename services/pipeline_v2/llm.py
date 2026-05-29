@@ -195,6 +195,7 @@ Your ONLY task is to transform input text into valid JSON representing the curri
    Each actual curriculum unit/chapter is characterized by:
    - A unit/chapter number (e.g. 0, 1, 2, 3, 4, 5, 6, 7, 8, 9... or OCR variants like O/, 1/, 2/, 3/, 4/, 5/, 6/, 7/, 8/, 9/).
    - A unit title (e.g., "EN EL AULA", "NOSOTROS Y NOSOTRAS", "QUIERO APRENDER ESPAÑOL", "¿DÓNDE ESTÁ SANTIAGO?", etc.). If the title is split across consecutive lines in the raw text, you must combine them.
+   🚨 CRITICAL FILTER: Supplementary chapters, workbook practice sections, or review sections (such as "MÁS EJERCICIOS", "MÁS GRAMÁTICA", "EJERCICIOS", "GRAMÁTICA", "INDEX", "BIBLIOGRAPHY", "GLOSARIO") are NOT teaching units. You MUST completely skip and ignore them.
 3. IGNORE UNIT GOALS / SUMMARY SENTENCES:
    Under the unit title, there is often a high-level goal or summary sentence explaining what the student will learn (e.g., "APRENDER A PRESENTARNOS...", "CONOCER LOS HÁBITOS...", "CONOCER MEJOR A LAS OTRAS PERSONAS...", "IMAGINAR Y DESCRIBIR..."). Do NOT extract these summary sentences/goals as topic names. Skip them.
 4. EXTRACT LESSON TOPICS UNDER CATEGORIES:
@@ -205,6 +206,7 @@ Your ONLY task is to transform input text into valid JSON representing the curri
    Because Table of Contents pages are often formatted in multiple columns, the extracted raw text lines can be interleaved (e.g. reading across columns, placing Unit 0 topics followed by Unit 6 topics, then Unit 1, then Unit 7...).
    You MUST:
    - Group all extracted topics under their correct unit number.
+   - De-scramble the mixed lines. Use your linguistic and academic domain knowledge of the textbook's language curriculum to correctly associate each topic with its actual logical unit (e.g., "el género en nacionalidades y profesiones" belongs to Unit 1 "NOSOTROS Y NOSOTRAS", not Unit 2 "QUIERO APRENDER ESPAÑOL").
    - SORT the final units list in ascending numerical order by their unit number (e.g., Unit 0, Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 6, Unit 7, Unit 8, Unit 9).
    - Ensure NO units are skipped. You must extract all units present in the real Table of Contents.
 6. TAGGING TOPICS:
@@ -398,6 +400,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
    Each actual curriculum unit/chapter is characterized by:
    - A unit/chapter number (e.g. 0, 1, 2, 3, 4, 5, 6, 7, 8, 9... or OCR variants like O/, 1/, 2/, 3/, 4/, 5/, 6/, 7/, 8/, 9/).
    - A unit title (e.g., "EN EL AULA", "NOSOTROS Y NOSOTRAS", "QUIERO APRENDER ESPAÑOL", "¿DÓNDE ESTÁ SANTIAGO?", etc.). If the title is split across consecutive lines in the raw text, you must combine them.
+   🚨 CRITICAL FILTER: Supplementary chapters, workbook practice sections, or review sections (such as "MÁS EJERCICIOS", "MÁS GRAMÁTICA", "EJERCICIOS", "GRAMÁTICA", "INDEX", "BIBLIOGRAPHY", "GLOSARIO") are NOT teaching units. You MUST completely skip and ignore them.
 3. IGNORE UNIT GOALS / SUMMARY SENTENCES:
    Under the unit title, there is often a high-level goal or summary sentence explaining what the student will learn (e.g., "APRENDER A PRESENTARNOS...", "CONOCER LOS HÁBITOS...", "CONOCER MEJOR A LAS OTRAS PERSONAS...", "IMAGINAR Y DESCRIBIR..."). Do NOT extract these summary sentences/goals as topic names. Skip them.
 4. EXTRACT LESSON TOPICS UNDER CATEGORIES:
@@ -408,6 +411,7 @@ Your ONLY task is to transform the attached PDF document into a structured curri
    Because Table of Contents pages are often formatted in multiple columns, the extracted raw text lines can be interleaved (e.g. reading across columns, placing Unit 0 topics followed by Unit 6 topics, then Unit 1, then Unit 7...).
    You MUST:
    - Group all extracted topics under their correct unit number.
+   - De-scramble the mixed lines. Use your linguistic and academic domain knowledge of the textbook's language curriculum to correctly associate each topic with its actual logical unit (e.g., "el género en nacionalidades y profesiones" belongs to Unit 1 "NOSOTROS Y NOSOTRAS", not Unit 2 "QUIERO APRENDER ESPAÑOL").
    - SORT the final units list in ascending numerical order by their unit number (e.g., Unit 0, Unit 1, Unit 2, Unit 3, Unit 4, Unit 5, Unit 6, Unit 7, Unit 8, Unit 9).
    - Ensure NO units are skipped. You must extract all units present in the real Table of Contents.
 6. TAGGING TOPICS:
@@ -633,10 +637,12 @@ Your job is to FIX the structure.
 4. PRESERVE ORIGINAL NAMES: Do NOT translate, rename, summarize, or genericize topic titles. Keep the EXACT original names from the input. Only fix obvious OCR errors. Tag each as grammar, vocabulary, functional, phonetics, communication, or mixed.
 5. PRESERVE UNIT STRUCTURE: Do NOT merge, split, rebalance, or remove units. Keep the EXACT same number of units as the input. A unit with only 2-3 topics is fine — do NOT merge it into another unit.
 6. PRUNING EMPTY UNITS: If a unit has NO valid topics, it MUST be removed. A "Unit" with zero lessons is useless.
-7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, or exam pages. Only extract actionable language lessons (grammar, vocabulary, conversation). Skip anything that says "Review", "Test", or "Exam". However, do NOT discard main unit/section titles or lessons that happen to contain city or country names (e.g., "Berlin, Germany", "Vienna, Austria", "Berne, Switzerland") — these are valid unit/section titles and must be preserved!
+7. CULTURAL & REVIEW FILTER: Do NOT extract generic "Review" chapters, test sections, workbook practice sections, or exam pages (e.g. skip "MÁS EJERCICIOS", "MÁS GRAMÁTICA", "EJERCICIOS", "GRAMÁTICA", "Review", "Test", "Exam"). These are noise and should not be teaching units. However, do NOT discard main unit/section titles or lessons that happen to contain city or country names (e.g., "Berlin, Germany", "Vienna, Austria", "Berne, Switzerland") — these are valid unit/section titles and must be preserved!
 8. NO HALLUCINATIONS: Do NOT add units that were not in the input. If the input ends at Level 3, the output MUST end at Level 3.
 9. FINAL CLEANUP: No duplicate topics anywhere. No empty units. No hallucinated levels.
 10. PRESERVE EXISTING TOPIC BOUNDARIES: Keep the topics exactly as they are structured in the input. Do not split them further, and do not merge distinct topics together.
+11. RESOLVE COLUMN-SCRAMBLED MAPPING: If any units or topics are cross-associated or jumbled because they were read horizontally across columns, correctly re-group and associate them with their actual units using logical curriculum structure (e.g. ensure Unit 1 "NOSOTROS Y NOSOTRAS" gets its correct topics and does not spill into Unit 2). Ensure Unit titles are correctly matched to their index (Unit 0 through Unit 9).
+
 
 
 ---
