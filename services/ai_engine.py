@@ -28,9 +28,9 @@ if os.path.exists(".env"):
     except: pass
 
 # Triple-Threat Orchestration (V5.0-OPENAI-POWERED)
-MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "meta-llama/llama-3.3-70b-instruct")          # Paid Llama-3.3-70B structural model
-MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "meta-llama/llama-3.3-70b-instruct")               # Paid Llama-3.3-70B narrative lesson model
-MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "meta-llama/llama-3.3-70b-instruct")                 # Paid Llama-3.3-70B fallback model
+MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "openai/gpt-4o-mini")          # Default to gpt-4o-mini for speed & cost
+MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "openai/gpt-4o-mini")               # Default to gpt-4o-mini for speed & cost
+MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "openai/gpt-4o-mini")                 # Default to gpt-4o-mini for speed & cost
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured."""
