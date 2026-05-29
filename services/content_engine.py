@@ -236,15 +236,19 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         
         # Use first topic's language as base
         base_lang = "Unknown"
+        material_language = "en"
         if topics_summary:
             with db_connection() as db_conn:
                 l_row = db_conn.execute("""
-                    SELECT co.language FROM courses co
+                    SELECT co.language, co.material_language FROM courses co
                     JOIN chapters ch ON co.id = ch.course_id
                     JOIN topics t ON ch.id = t.chapter_id
                     WHERE t.id = ?
                 """, (topics_summary[0]["id"],)).fetchone()
-                base_lang = l_row["language"] if l_row else "Unknown"
+                if l_row:
+                    base_lang = l_row["language"] if l_row["language"] else "Unknown"
+                    if "material_language" in l_row.keys() and l_row["material_language"]:
+                        material_language = l_row["material_language"]
 
         # Call the unified engine
         from services.ai_engine import ai_generate_questions
@@ -255,7 +259,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             language=base_lang,
             count=needed,
             existing_questions=forbidden_questions,
-            is_quiz=is_quiz
+            is_quiz=is_quiz,
+            material_language=material_language
         )
         if new_qs:
             with db_connection() as db_conn:
@@ -307,7 +312,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             language=base_lang,
             count=still_needed,
             existing_questions=forbidden_questions + questions,  # forbidden list grows each pass
-            is_quiz=is_quiz
+            is_quiz=is_quiz,
+            material_language=material_language
         )
 
         if extra_qs:
