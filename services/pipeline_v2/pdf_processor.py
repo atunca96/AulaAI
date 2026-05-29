@@ -128,7 +128,10 @@ def process_text(lines: List[str]) -> dict:
     
     return curriculum
 
-def process_pdf(pdf_path: str, toc_range: str = None) -> dict:
+def process_pdf(pdf_path: str, toc_range: str = None, page_limit: int = None) -> dict:
+    if page_limit and not toc_range:
+        toc_range = f"1-{page_limit}"
+
     # 1. Generate file hash
     with open(pdf_path, "rb") as f:
         file_bytes = f.read()
