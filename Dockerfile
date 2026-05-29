@@ -3,7 +3,7 @@ FROM python:3.11-slim
 # Set unbuffered output for logging
 ENV PYTHONUNBUFFERED=1
 
-# Install Tesseract and language packs
+# Install Tesseract, language packs, and Poppler (for pdf2image)
 RUN apt-get update -qq && apt-get install -y -qq \
     tesseract-ocr \
     tesseract-ocr-spa \
@@ -20,6 +20,7 @@ RUN apt-get update -qq && apt-get install -y -qq \
     tesseract-ocr-swe \
     tesseract-ocr-kor \
     tesseract-ocr-ell \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
