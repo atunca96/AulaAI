@@ -7,7 +7,7 @@ from .pdf_processor import process_pdf, process_text
 
 logger = logging.getLogger(__name__)
 
-def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1", gen_id="LEGACY"):
+def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1", gen_id="LEGACY", toc_range=None):
     """
     V2 Pipeline Orchestrator that extracts data and populates the database.
     This is the modern replacement for start_pipeline_background.
@@ -40,7 +40,7 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                 curriculum = process_text(lines)
         else:
             # 1. Run the V2 extraction pipeline
-            curriculum = process_pdf(pdf_path)
+            curriculum = process_pdf(pdf_path, toc_range=toc_range)
         
         # ── MANDATORY ALPHABET FOR A1 (AI Architect only, NOT PDF extraction) ──
         is_ai_architect = manual_toc and (pdf_path == "NONE" or not pdf_path)

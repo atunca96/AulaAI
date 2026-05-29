@@ -26,12 +26,28 @@ def process_page_image(image) -> List[str]:
         logger.error(f"OCR failed for a page: {e}")
         return []
 
-def extract_text_ocr(pdf_path: str, max_workers: int = 4, page_limit: int = None) -> List[str]:
-    logger.info(f"Extracting text via OCR for {pdf_path}")
+def parse_ocr_toc_range(toc_range_str: str):
+    if not toc_range_str or toc_range_str == "0-0":
+        return 1, None
     try:
-        # Pass page range to convert_from_path (1-indexed)
-        last_page = page_limit if page_limit else None
-        images = convert_from_path(pdf_path, first_page=1, last_page=last_page)
+        if "-" in toc_range_str:
+            sp, ep = toc_range_str.split("-")
+            first = max(1, int(sp.strip()))
+            last = int(ep.strip())
+            return first, last
+        elif toc_range_str.strip().isdigit():
+            p = int(toc_range_str.strip())
+            if p >= 1:
+                return p, p
+    except Exception as e:
+        logger.error(f"Error parsing ocr toc_range '{toc_range_str}': {e}")
+    return 1, None
+
+def extract_text_ocr(pdf_path: str, max_workers: int = 4, toc_range: str = None) -> List[str]:
+    logger.info(f"Extracting text via OCR for {pdf_path} (range: {toc_range})")
+    try:
+        first_page, last_page = parse_ocr_toc_range(toc_range)
+        images = convert_from_path(pdf_path, first_page=first_page, last_page=last_page)
     except Exception as e:
         logger.error(f"Failed to convert PDF to images: {e}")
         return []

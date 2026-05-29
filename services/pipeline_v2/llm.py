@@ -209,6 +209,8 @@ Your ONLY task is to transform input text into valid JSON representing the curri
    - Ensure NO units are skipped. You must extract all units present in the real Table of Contents.
 6. TAGGING TOPICS:
    Tag each topic as one of: grammar, vocabulary, functional, phonetics, communication, mixed. Assign the most specific tag.
+7. RECONSTRUCT CORRUPTED CHARACTERS & ACCENTS:
+   Text extraction or OCR can produce corrupted letters, spelling, or Unicode replacement characters (like the black diamond question mark symbol \uFFFD or similar glyphs, or 'nmeros' instead of 'números'). You MUST reconstruct and correct these back to clean, valid spelling and proper punctuation in the target language (e.g. reconstruct "n\uFFFDmeros" or "nmeros" to "números", "espa\uFFFDol" or "espaol" to "español", "entonaci\uFFFDn" or "entonacin" to "entonación", "\uFFFDd\uFFFDnde est\uFFFD santiago?" or "DNDE EST SANTIAGO?" to "¿DÓNDE ESTÁ SANTIAGO?"). Never output raw \uFFFD or corrupt letters.
 
 ---
 
@@ -367,6 +369,9 @@ INPUT:
                     u["topics"] = normalized_topics
                 normalized_units.append(u)
             data["units"] = normalized_units
+        
+        # Post-process to fix unicode spelling corruption
+        data = clean_curriculum_spelling(data)
         return data
     except Exception as e:
         logger.error(f"Failed to parse strict JSON: {e}")
@@ -407,8 +412,8 @@ Your ONLY task is to transform the attached PDF document into a structured curri
    - Ensure NO units are skipped. You must extract all units present in the real Table of Contents.
 6. TAGGING TOPICS:
    Tag each topic as one of: grammar, vocabulary, functional, phonetics, communication, mixed. Assign the most specific tag.
-7. GERMAN ENCODING SAFETY:
-   German PDFs often contain special characters like ß, ä, ö, ü. OCR engines sometimes misinterpret these as Arabic characters (e.g. 'ы' instead of 'ßt'). You MUST detect and CORRECT these back to valid German spelling based on context.
+7. RECONSTRUCT CORRUPTED CHARACTERS & ACCENTS:
+   Text extraction or OCR can produce corrupted letters, spelling, or Unicode replacement characters (like the black diamond question mark symbol \uFFFD or similar glyphs, or 'nmeros' instead of 'números'). You MUST reconstruct and correct these back to clean, valid spelling and proper punctuation in the target language (e.g. reconstruct "n\uFFFDmeros" or "nmeros" to "números", "espa\uFFFDol" or "espaol" to "español", "entonaci\uFFFDn" or "entonacin" to "entonación", "\uFFFDd\uFFFDnde est\uFFFD santiago?" or "DNDE EST SANTIAGO?" to "¿DÓNDE ESTÁ SANTIAGO?"). Never output raw \uFFFD or corrupt letters.
 8. STRICT NO-EMPTY-UNITS RULE:
    If a unit has no valid lessons/topics after noise removal, it MUST NOT be included in the JSON. Never output an empty "topics": [] array.
 9. CULTURAL & REVIEW FILTER:
@@ -703,7 +708,57 @@ INPUT:
                 
                 cleaned_units.append(u)
             data["units"] = cleaned_units
+        
+        # Post-process to fix unicode spelling corruption
+        data = clean_curriculum_spelling(data)
         return data
     except Exception as e:
         logger.error(f"Normalization failed, returning original data: {e}")
-        return curriculum_data
+        return clean_curriculum_spelling(curriculum_data)
+
+
+def clean_curriculum_spelling(curriculum: dict) -> dict:
+    if not curriculum or not curriculum.get("units"):
+        return curriculum
+        
+    # Serialize to JSON string
+    json_str = json.dumps(curriculum, ensure_ascii=False)
+    
+    # Check if there are any replacement characters (like \uFFFD)
+    if "\uFFFD" not in json_str:
+        return curriculum # no corruption detected, skip API call to save cost
+        
+    logger.info("Unicode replacement character (\\uFFFD) detected in curriculum. Launching post-processing spelling fixer LLM.")
+    
+    prompt = f"""You are a curriculum spelling and accent corrector.
+Your only task is to take a JSON curriculum structure that contains Unicode replacement characters (like \\uFFFD) due to PDF text extraction errors, and reconstruct the correct spelling, tildes, and punctuation in the target language (e.g. Spanish).
+
+🚨 CRITICAL RULES:
+1. Reconstruct all words with correct letters, accents, and punctuation (e.g. reconstruct "n\\uFFFDmeros" to "números", "espa\\uFFFDol" to "español", "entonaci\\uFFFDn" to "entonación", "relaci\\uFFFDn" to "relación", "g\\uFFFDnero" to "género", "art\\uFFFDculos" to "artículos", "d\\uFFFDa" to "día", "m\\uFFFDs" to "más", "pretr\\uFFFDrito" to "pretérito", "informaci\\uFFFDn" to "información", "car\\uFFFDcter" to "carácter", "\\uFFFDd\\uFFFDnde est\\uFFFD santiago?" to "¿DÓNDE ESTÁ SANTIAGO?", "\\uFFFDcu\\uFFFDl prefieres?" to "¿CUÁL PREFIERES?", "\\uFFFD a comer!" to "¡A COMER!").
+2. Maintain the exact JSON structure. Do NOT change key names, do NOT change the number of units or topics. Only correct the spelling of string values.
+3. Return ONLY valid JSON. Do NOT wrap in ```json or ```, do NOT add any markdown, do NOT add any text before or after the JSON.
+
+Input JSON:
+{json_str}
+"""
+    messages = [{"role": "user", "content": prompt}]
+    result = call_llm(messages)
+    
+    try:
+        cleaned_data = json.loads(result)
+        # Verify the structure has not changed drastically
+        if isinstance(cleaned_data, dict) and "units" in cleaned_data:
+            # Sync back text to name or name to text to preserve normalization
+            for u in cleaned_data["units"]:
+                for t in u.get("topics", []):
+                    if isinstance(t, dict):
+                        if "name" in t:
+                            t["text"] = t["name"]
+                        elif "text" in t:
+                            t["name"] = t["text"]
+            return cleaned_data
+    except Exception as e:
+        logger.error(f"Spelling fixer failed to parse JSON response: {e}. Returning original.")
+    
+    return curriculum
+

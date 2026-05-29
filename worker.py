@@ -134,7 +134,7 @@ def main():
             db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
-        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level, gen_id=gen_id)
+        start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level, gen_id=gen_id, toc_range=toc_range)
         
         # ── PHASE 2: ENRICHMENT ──
         print(f"[PIPELINE] Worker starting ENRICHMENT (Phase 2) for Course {course_id}")
