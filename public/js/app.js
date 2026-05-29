@@ -3512,7 +3512,7 @@ async function launchActivity() {
     // 1. Kick off the background task
     await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: topicId, course_id: courseId, count: 10 }
+      body: { topic_id: topicId, course_id: courseId, count: 10, ui_lang: currentLang }
     });
     // 2. Start polling AFTER the task is successfully initiated
     startActivityPolling('activity-preview', '📋 ' + (t('Content Map') || 'Content Map'));
@@ -3748,7 +3748,7 @@ async function explainMistake(cardId, correct_answer, student_answer) {
     const courseId = currentCourse ? currentCourse.id : '';
     const res = await api('/activity/explain', {
       method: 'POST',
-      body: { prompt, correct_answer, student_answer, language, course_id: courseId }
+      body: { prompt, correct_answer, student_answer, language, course_id: courseId, ui_lang: currentLang }
     });
     
     if (res.explanation) {
@@ -3834,7 +3834,7 @@ async function createQuiz() {
   const count = parseInt(document.getElementById('quiz-count').value) || 10;
 
   try {
-    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count, ui_lang: currentLang } });
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('quiz', btn, originalText, (questions) => {
@@ -4470,7 +4470,7 @@ async function startPractice(tid, title) {
     // 1. Kick off the background task
     const res = await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: tid, course_id: courseId, count: 10 }
+      body: { topic_id: tid, course_id: courseId, count: 10, ui_lang: currentLang }
     });
     if (res.error) throw new Error(res.error);
 
@@ -4767,7 +4767,7 @@ async function createAssignment() {
   const count = parseInt(document.getElementById('assignment-count').value) || 10;
 
   try {
-    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count } });
+    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count, ui_lang: currentLang } });
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('assignment', btn, originalText, (questions) => {
@@ -6015,7 +6015,7 @@ async function askAiAboutWord() {
   try {
     const lang = (currentCourse && currentCourse.language) ? currentCourse.language : 'English';
     const courseId = currentCourse ? currentCourse.id : '';
-    const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}&course_id=${courseId}`);
+    const res = await api(`/dictionary/ai-explain?word=${encodeURIComponent(wordToAsk)}&lang=${lang}&course_id=${courseId}&ui_lang=${currentLang}`);
 
     if (res.explanation) {
       meanings.innerHTML = `

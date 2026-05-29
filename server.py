@@ -466,6 +466,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             word = params.get("word", [None])[0]
             lang = params.get("lang", [None])[0]
             course_id = params.get("course_id", [None])[0]
+            ui_lang = params.get("ui_lang", ["en"])[0]
             if not word: return self._send_error("word required")
             
             material_language = "en"
@@ -478,6 +479,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"[ERROR] Failed to query material_language for dictionary explain: {e}")
             
+            if material_language == "en" and ui_lang in ["tr", "en"]:
+                material_language = ui_lang
+                
             result = ai_explain_word(word, lang or "English", material_language=material_language)
             return self._send_json(result)
         elif path == "/api/tts":
@@ -1693,6 +1697,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             post_data = json.loads(self.rfile.read(content_len).decode("utf-8"))
             topic_id = post_data.get("topic_id")
             course_id = post_data.get("course_id")
+            ui_lang = post_data.get("ui_lang", "en")
             # Default to 10 for safety, though frontend will now send 10
             count = int(post_data.get("count", 10))
             
@@ -1711,7 +1716,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Start background thread
             import threading
             file_log(f"Starting background generation for course {course_id}, topic {topic_id}")
-            thread = threading.Thread(target=self._bg_generate_activities, args=(course_id, topic_id, count))
+            thread = threading.Thread(target=self._bg_generate_activities, args=(course_id, topic_id, count, ui_lang))
             thread.daemon = True
             thread.start()
             
@@ -1726,7 +1731,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send_error(str(e))
 
-    def _bg_generate_activities(self, course_id, topic_id, count):
+    def _bg_generate_activities(self, course_id, topic_id, count, ui_lang="en"):
         import re
         import random as py_random
         import time
@@ -1759,6 +1764,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row_c = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
                 material_language = row_c["material_language"] if row_c and "material_language" in row_c.keys() else "en"
+                if material_language == "en" and ui_lang in ["tr", "en"]:
+                    material_language = ui_lang
 
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
@@ -2056,6 +2063,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         body = self._read_body()
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
+        ui_lang = body.get("ui_lang", "en")
         try:
             count = int(body.get("count", 10))
         except (ValueError, TypeError):
@@ -2093,13 +2101,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
                 db.commit()
                 
-            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count))
+            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang))
             thread.daemon = True
             thread.start()
             
             self._send_json({"status": "success"})
 
-    def _bg_generate_draft(self, course_id, topic_ids, count):
+    def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en"):
         # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
         with db_connection() as db:
             db.execute("UPDATE courses SET draft_progress=0, draft_status='generating', draft_result=NULL WHERE id=?", (course_id,))
@@ -2153,7 +2161,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
                     db.commit()
                 
-                questions = generate_quiz(topic_ids, count=count, is_quiz=True)
+                questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang)
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
@@ -2291,6 +2299,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         student_answer = body.get("student_answer")
         language = body.get("language", "English")
         course_id = body.get("course_id")
+        ui_lang = body.get("ui_lang", "en")
         
         if not all([prompt, correct_answer, student_answer]):
             return self._send_error("Missing required fields for explanation", 400)
@@ -2305,6 +2314,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Failed to query material_language for activity explain: {e}")
                 
+        if material_language == "en" and ui_lang in ["tr", "en"]:
+            material_language = ui_lang
+            
         result = ai_explain_activity(prompt, correct_answer, student_answer, language, material_language=material_language)
         return self._send_json(result)
 

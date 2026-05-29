@@ -184,7 +184,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=False):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=False, ui_lang="en"):
     """
     Generate a quiz pulling questions from given topics.
     If student_mastery is provided, adjusts difficulty.
@@ -249,6 +249,9 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     base_lang = l_row["language"] if l_row["language"] else "Unknown"
                     if "material_language" in l_row.keys() and l_row["material_language"]:
                         material_language = l_row["material_language"]
+        
+        if material_language == "en" and ui_lang in ["tr", "en"]:
+            material_language = ui_lang
 
         # Call the unified engine
         from services.ai_engine import ai_generate_questions
