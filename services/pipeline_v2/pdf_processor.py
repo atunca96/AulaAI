@@ -16,9 +16,9 @@ def is_text_pdf(pdf_path: str, threshold: int = 50) -> bool:
     try:
         with pdfplumber.open(pdf_path) as pdf:
             text_length = 0
-            # Check up to 3 pages to be safe
+            # Check up to 15 pages to bypass cover/intro images
             for i, page in enumerate(pdf.pages):
-                if i > 2:
+                if i > 14:
                     break
                 text = page.extract_text()
                 if text:

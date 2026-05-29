@@ -1,7 +1,7 @@
 import logging
 import pytesseract
 from typing import List
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from pdf2image import convert_from_path
 
 logger = logging.getLogger(__name__)
@@ -56,8 +56,8 @@ def extract_text_ocr(pdf_path: str, max_workers: int = 4, toc_range: str = None)
         return []
 
     texts = []
-    # Use ProcessPoolExecutor for parallel OCR processing
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    # Use ThreadPoolExecutor for parallel OCR processing to avoid fork deadlock issues in threaded servers
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = executor.map(process_page_image, images)
         for page_lines in results:
             if page_lines:
