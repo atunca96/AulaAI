@@ -377,10 +377,10 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
 
-        # REDUCED CONCURRENCY: Higher density lessons take more time and tokens. 
-        # Using 5 workers instead of 30 to avoid OpenRouter rate limits.
+        # Configurable concurrency (default to 10 workers for gpt-4o-mini speed)
+        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "10"))
         topic_count = 0
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_topic = {}
             for ch in chapters_data:
                 for topic in ch.get("topics", []):

@@ -5,6 +5,7 @@ import base64
 import urllib.request
 import urllib.error
 import logging
+import time
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,8 @@ if os.path.exists(".env"):
                 os.environ[k] = v
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = "openai/gpt-4o-mini"
-FALLBACK_MODEL = "openai/gpt-4o-mini"
+CHEAP_MODEL = os.getenv("CHEAP_MODEL", "meta-llama/llama-3.3-70b-instruct")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "meta-llama/llama-3.3-70b-instruct")
 
 CACHE_NAMESPACE = "pipeline_v2_v10"
 
@@ -87,6 +88,9 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
             if attempt == len(models_to_try) - 1:
                 logger.error("All LLM attempts failed")
                 return "[]"
+            sleep_time = 3 * (attempt + 1)
+            logger.info(f"Sleeping {sleep_time}s before retrying due to error: {e}")
+            time.sleep(sleep_time)
     return "[]"
 
 def call_llm_with_pdf(pdf_path: str, prompt: str, retries: int = 1) -> str:

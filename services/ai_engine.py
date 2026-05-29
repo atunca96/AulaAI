@@ -28,9 +28,9 @@ if os.path.exists(".env"):
     except: pass
 
 # Triple-Threat Orchestration (V5.0-OPENAI-POWERED)
-MODEL_STRUCTURAL = "openai/gpt-4o-mini"          # Fast & Reliable for Curriculum/UI
-MODEL_NARRATIVE = "openai/gpt-4o"               # Premium Quality for Lessons & Language Content
-MODEL_FALLBACK = "anthropic/claude-3.5-sonnet"  # Elite Fallback for complex reasoning
+MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "meta-llama/llama-3.3-70b-instruct")          # Paid Llama-3.3-70B structural model
+MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "meta-llama/llama-3.3-70b-instruct")               # Paid Llama-3.3-70B narrative lesson model
+MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "meta-llama/llama-3.3-70b-instruct")                 # Paid Llama-3.3-70B fallback model
 
 def is_ai_available():
     """Checks if the system has AI capabilities configured."""
@@ -100,10 +100,12 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                 data = _try_parse(json_str)
                                 if data: return data
                 except Exception as e:
+                    sleep_time = 3 * (attempt + 1)
+                    if "429" in str(e):
+                        sleep_time = 5 * (attempt + 1)
                     with open("pipeline.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed/timed-out: {e}\n")
-                    # Immediate retry for speed (0.5s instead of 2s)
-                    time.sleep(0.5)
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed/timed-out: {e}. Sleeping {sleep_time}s\n")
+                    time.sleep(sleep_time)
             
             return None
                         
