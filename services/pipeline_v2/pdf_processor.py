@@ -1,5 +1,4 @@
 import logging
-import pdfplumber
 import hashlib
 import threading
 from typing import List
@@ -14,18 +13,20 @@ _process_lock = threading.Lock()
 
 def is_text_pdf(pdf_path: str, threshold: int = 50) -> bool:
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            text_length = 0
-            # Check up to 15 pages to bypass cover/intro images
-            for i, page in enumerate(pdf.pages):
-                if i > 14:
-                    break
-                text = page.extract_text()
-                if text:
-                    text_length += len(text.strip())
-            return text_length > threshold
+        import fitz
+        doc = fitz.open(pdf_path)
+        text_length = 0
+        total_pages = len(doc)
+        # Check up to 15 pages via PyMuPDF to bypass cover/intro images
+        for i in range(min(15, total_pages)):
+            page = doc[i]
+            text = page.get_text()
+            if text:
+                text_length += len(text.strip())
+        doc.close()
+        return text_length > threshold
     except Exception as e:
-        logger.error(f"Failed to check PDF type: {e}")
+        logger.error(f"Failed to check PDF type via PyMuPDF: {e}")
         return False
 
 def parse_toc_range(toc_range_str: str, total_pages: int):
