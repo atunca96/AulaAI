@@ -7,6 +7,55 @@ from .pdf_processor import process_pdf, process_text
 
 logger = logging.getLogger(__name__)
 
+def parse_markdown_toc(text: str) -> dict:
+    import re
+    units = []
+    current_unit = None
+    
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Detect unit title (starts with #)
+        if line.startswith("#"):
+            title = line.lstrip("#").strip()
+            current_unit = {"title": title, "topics": []}
+            units.append(current_unit)
+            continue
+            
+        # Check if it is a bullet point
+        is_bullet = False
+        clean_line = line
+        if line.startswith(("-", "*", "+")):
+            is_bullet = True
+            clean_line = line.lstrip("-*+ ").strip()
+        elif re.match(r'^\d+[\.\)]\s+', line):
+            is_bullet = True
+            clean_line = re.sub(r'^\d+[\.\)]\s+', '', line).strip()
+            
+        if is_bullet:
+            tag_match = re.search(r'\[(vocabulary|grammar|reading|culture|communication|phonetics|mixed|communicative)\]', clean_line, re.IGNORECASE)
+            tag = "vocabulary"
+            if tag_match:
+                tag = tag_match.group(1).lower()
+                if tag == "communicative":
+                    tag = "communication"
+                clean_line = re.sub(r'\[.*?\]', '', clean_line).strip()
+                
+            if current_unit is None:
+                current_unit = {"title": "Unit 1", "topics": []}
+                units.append(current_unit)
+                
+            current_unit["topics"].append({"text": clean_line, "tag": tag})
+        else:
+            # Check if it matches a Unit pattern
+            if re.match(r'^(?:Unit|Unidad|Lektion|Chapter|Kapitel|Tema)\s*\d+', line, re.IGNORECASE):
+                current_unit = {"title": line, "topics": []}
+                units.append(current_unit)
+                
+    return {"units": units}
+
 def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, language="Detecting...", level="A1", gen_id="LEGACY", toc_range=None):
     """
     V2 Pipeline Orchestrator that extracts data and populates the database.
@@ -15,7 +64,7 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
     try:
         logger.info(f"V2 Orchestrator starting for Course {course_id}")
         
-        if manual_toc and (pdf_path == "NONE" or not pdf_path):
+        if manual_toc:
             logger.info("Manual TOC detected, skipping PDF extraction.")
             try:
                 # Try JSON first (Legacy support)
@@ -34,10 +83,18 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                         units.append(unit)
                     curriculum = {"units": units}
             except json.JSONDecodeError:
-                # It's raw text! Use the V2 pipeline logic on the text itself
-                logger.info("Manual TOC is raw text, running V2 extraction logic on text.")
-                lines = manual_toc.splitlines()
-                curriculum = process_text(lines)
+                # Try structured markdown parsing first to avoid LLM calls
+                logger.info("Parsing manual TOC as structured markdown...")
+                curriculum = parse_markdown_toc(manual_toc)
+                
+                # Fallback to LLM extraction if markdown parsing yields zero topics
+                total_parsed_topics = sum(len(u.get("topics", [])) for u in curriculum.get("units", []))
+                if total_parsed_topics == 0:
+                    logger.info("Structured markdown parsing yielded 0 topics. Falling back to LLM extraction.")
+                    lines = manual_toc.splitlines()
+                    curriculum = process_text(lines)
+                else:
+                    logger.info(f"Successfully parsed {total_parsed_topics} topics from structured markdown (0 LLM calls used).")
         else:
             # 1. Run the V2 extraction pipeline
             curriculum = process_pdf(pdf_path, toc_range=toc_range)

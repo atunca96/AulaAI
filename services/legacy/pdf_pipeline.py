@@ -377,8 +377,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
 
-        # Configurable concurrency (default to 15 workers for faster lesson generation)
-        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "15"))
+        # Configurable concurrency (default to 25 workers for maximum lesson generation speed)
+        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "25"))
         topic_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_topic = {}

@@ -88,7 +88,7 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
             if attempt == len(models_to_try) - 1:
                 logger.error("All LLM attempts failed")
                 return "[]"
-            sleep_time = 3 * (attempt + 1)
+            sleep_time = 1.5 * (attempt + 1)
             logger.info(f"Sleeping {sleep_time}s before retrying due to error: {e}")
             time.sleep(sleep_time)
     return "[]"

@@ -63,7 +63,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
             for attempt in range(3):
                 try:
                     # Dynamic timeout: larger for high-token requests (lesson gen), shorter for structural
-                    _timeout = 75 if max_tokens > 3000 else 45
+                    _timeout = 45 if max_tokens > 3000 else 30
                     with urllib.request.urlopen(req, timeout=_timeout) as response:
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
@@ -100,9 +100,9 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                 data = _try_parse(json_str)
                                 if data: return data
                 except Exception as e:
-                    sleep_time = 3 * (attempt + 1)
+                    sleep_time = 1.5 * (attempt + 1)
                     if "429" in str(e):
-                        sleep_time = 5 * (attempt + 1)
+                        sleep_time = 3 * (attempt + 1)
                     with open("pipeline.log", "a", encoding="utf-8") as f:
                         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed/timed-out: {e}. Sleeping {sleep_time}s\n")
                     time.sleep(sleep_time)
@@ -519,23 +519,12 @@ PEDAGOGICAL ACCURACY RULE (CRITICAL):
       ]
     }}"""
 
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=8000, temperature=0.4)
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
     if res and "pages" in res:
-        pages = res["pages"]
-        # QUALITY GATE: If the AI returned fewer than 2 real pages, retry with fallback model
-        real_pages = [p for p in pages if p.get("type") in ("vocabulary", "grammar", "examples", "mcq") and (p.get("items") or p.get("text") or p.get("list") or p.get("prompt"))]
-        if len(real_pages) < 2 and MODEL_FALLBACK:
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RETRY] Only {len(real_pages)} real pages for '{topic}', retrying with fallback...\n")
-            res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=8000, temperature=0.4)
-            if res2 and "pages" in res2:
-                fallback_real = [p for p in res2["pages"] if p.get("type") in ("vocabulary", "grammar", "examples", "mcq") and (p.get("items") or p.get("text") or p.get("list") or p.get("prompt"))]
-                if len(fallback_real) > len(real_pages):
-                    return res2
         return res
-    # If primary model failed entirely, try fallback
+    # If primary model failed entirely, try fallback once
     if MODEL_FALLBACK:
-        res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=8000, temperature=0.4)
+        res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4000, temperature=0.4)
         if res2 and "pages" in res2:
             return res2
     return {"pages": []}
