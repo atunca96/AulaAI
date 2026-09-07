@@ -21,10 +21,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260907_progressbar_v1">
+    <link rel="stylesheet" href="/css/styles.css?v=20260907_cleanemojis_v1">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/bilingual_materials.js?v=20260907_progressbar_v1" defer></script>
-    <script src="/js/app.js?v=20260907_progressbar_v1" defer></script>
+    <script src="/js/bilingual_materials.js?v=20260907_cleanemojis_v1" defer></script>
+    <script src="/js/app.js?v=20260907_cleanemojis_v1" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -1008,7 +1008,7 @@
             <!-- Messages Tab (formerly Inbox) -->
             <section id="tab-inbox" class="tab-panel">
                 <div class="page-header" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-                    <h1 id="inbox-title">💬 <span data-i18n="inbox">Messages</span></h1>
+                    <h1 id="inbox-title"><span data-i18n="inbox">Messages</span></h1>
                     <button class="btn btn-primary" onclick="openNewChatModal()" style="display:flex; align-items:center; gap:8px;">
                         <span>+</span> <span data-i18n="newChat">New Chat</span>
                     </button>
@@ -1030,7 +1030,7 @@
             <!-- Book Tab -->
             <section id="tab-book" class="tab-panel">
                 <div class="page-header">
-                    <h1 id="book-tab-main-title">📖 <span data-i18n="book">Book</span></h1>
+                    <h1 id="book-tab-main-title"><span data-i18n="book">Book</span></h1>
                     <p class="subtitle book-subtitle">Course Textbook</p>
                 </div>
                 <div class="pdf-container pc-only" style="position:relative;">
@@ -1051,14 +1051,14 @@
                         </div>
                         <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
                         <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
-                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">📖 Read Textbook</a>
+                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">Read Textbook</a>
                     </div>
                 </div>
             </section>
             <!-- AI Study Materials Tab (Lecturer) -->
             <section id="tab-study-materials" class="tab-panel">
                 <div class="page-header">
-                    <h1>📑 <span data-i18n="Material">Material</span></h1>
+                    <h1><span data-i18n="Material">Material</span></h1>
                     <p class="subtitle book-subtitle">Course Materials</p>
                 </div>
                 <!-- Digital Study Container -->
@@ -1143,7 +1143,7 @@
 
                 <div class="stats-grid" id="student-stats"></div>
                 <div class="card">
-                    <div class="card-header"><h3 data-i18n="currentChapter">📖 Current Chapter</h3></div>
+                    <div class="card-header"><h3 data-i18n="currentChapter">Current Chapter</h3></div>
                     <div class="card-body" id="student-current-chapter"></div>
                 </div>
             </section>
@@ -1180,7 +1180,7 @@
             
             <section id="tab-s-messages" class="tab-panel">
                 <div class="page-header" style="margin-bottom:16px;">
-                    <h1>💬 <span data-i18n="messageTeacher">Message Teacher</span></h1>
+                    <h1><span data-i18n="messageTeacher">Message Teacher</span></h1>
                 </div>
                 <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
                     <div class="chat-header mobile-only">
@@ -1237,7 +1237,7 @@
             <!-- Student Textbook Tab (PDF) -->
             <section id="tab-s-book" class="tab-panel hidden">
                 <div class="page-header">
-                    <h1>📖 <span data-i18n="Read Textbook">Textbook</span></h1>
+                    <h1><span data-i18n="Read Textbook">Textbook</span></h1>
                     <p class="subtitle book-subtitle">Course Materials</p>
                 </div>
                 <div class="pdf-container pc-only" style="position:relative; height:calc(100vh - 200px); background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">

@@ -2948,7 +2948,7 @@ async function selectClassroom(id, isLecturer = true) {
   const inboxReplyArea = document.getElementById('inbox-reply-area');
   if (inboxReplyArea) inboxReplyArea.classList.add('hidden');
   const inboxTitle = document.getElementById('inbox-title');
-  if (inboxTitle) inboxTitle.innerHTML = `\ud83d\udcac <span data-i18n="inbox">${t('inbox')}</span>`;
+  if (inboxTitle) inboxTitle.innerHTML = `<span data-i18n="inbox">${t('inbox')}</span>`;
 
   // 2. Fetch course data
   const courses = await api('/courses');
@@ -4018,7 +4018,7 @@ async function loadInbox() {
   const container = document.getElementById('inbox-messages');
   document.getElementById('inbox-back-btn').classList.add('hidden');
   document.getElementById('inbox-reply-area').classList.add('hidden');
-  document.getElementById('inbox-title').innerHTML = `\ud83d\udcac <span data-i18n="inbox">${t('inbox')}</span>`;
+  document.getElementById('inbox-title').innerHTML = `<span data-i18n="inbox">${t('inbox')}</span>`;
 
   const unreadCount = messages.filter(m => m.sender === 'student' && !m.is_read).length;
   const badge = document.getElementById('inbox-badge');
@@ -4105,7 +4105,7 @@ async function openChat(studentId, studentName, cid, isRefresh = false) {
 
   document.getElementById('inbox-back-btn').classList.remove('hidden');
   document.getElementById('inbox-reply-area').classList.remove('hidden');
-  document.getElementById('inbox-title').innerHTML = `\ud83d\udcac ${esc(studentName)}`;
+  document.getElementById('inbox-title').innerHTML = `${esc(studentName)}`;
 
   const container = document.getElementById('inbox-messages');
   if (container && !isRefresh) container.innerHTML = '<div style="display:flex; justify-content:center; padding:40px;"><div class="spinner"></div></div>';
@@ -5718,7 +5718,7 @@ function renderStudentHome(data) {
       const ch0 = curriculum[0];
       const rawChTitle = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : (ch0.title || '');
       const ch0Title = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
-      chapterEl.innerHTML = `<h4 style="margin-bottom:12px">📖 <span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(ch0Title)}</h4>${(ch0.topics || []).map(tp => {
+      chapterEl.innerHTML = `<h4 style="margin-bottom:12px"><span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(ch0Title)}</h4>${(ch0.topics || []).map(tp => {
         const rawTpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : (tp.title || '');
         const tpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(rawTpTitle, currentLang);
         return `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${esc(tpTitle)}</span></div></div>`;
@@ -6441,9 +6441,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
   // Save topic title for dictionary context (prevents AI contradicting lesson material)
   localStorage.setItem('aula_last_topic_title', topic.title || '');
 
-  // Highlight active sidebar item
+  // Highlight active sidebar item strictly by unique topic ID
   document.querySelectorAll('.study-topic-btn').forEach(b => {
-    const isActive = b.getAttribute('data-topic-id') === topicId || b.textContent.trim() === topic.title || (topic.title_tr && b.textContent.trim() === topic.title_tr) || b.textContent.trim() === translateCurriculumTitle(topic.title);
+    const isActive = b.getAttribute('data-topic-id') === topicId;
     b.classList.toggle('active', isActive);
     b.style.background = isActive ? 'var(--accent-glow)' : '';
   });

@@ -113,9 +113,16 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                 curriculum["units"] = []
                 
             # 2. Remove any existing Alphabet/Phonetic topics from all units to avoid duplicates
-            keywords = ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound", "alfabeto", "alfabe"]
+            keywords = [
+                "alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound",
+                "alfabeto", "alfabe", "sesli", "sessiz", "harf", "telaffuz", "fonetik"
+            ]
             for unit in curriculum["units"]:
-                unit["topics"] = [t for t in unit.get("topics", []) if not any(kw in t.get("text", "").lower() for kw in keywords)]
+                unit_title_l = unit.get("title", "").lower()
+                if any(kw in unit_title_l for kw in ["alphabet", "alfabe", "alfabeto"]):
+                    unit["topics"] = []
+                else:
+                    unit["topics"] = [t for t in unit.get("topics", []) if not any(kw in t.get("text", "").lower() for kw in keywords)]
             
             # 3. Create the dedicated Alphabet Unit
             alphabet_unit = {
