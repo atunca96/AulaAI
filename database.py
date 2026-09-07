@@ -414,43 +414,42 @@ def init_db():
                     # Copy chapters
                     chapters = c.execute("SELECT * FROM chapters WHERE course_id = ?", (source_id,)).fetchall()
                     for ch in chapters:
-                        old_ch_id = ch[0]
+                        old_ch_id = ch["id"]
                         new_ch_id = str(uuid.uuid4())
-                        c.execute("INSERT INTO chapters (id, course_id, title, number) VALUES (?,?,?,?)",
-                                  (new_ch_id, new_course_id, ch["title"], ch["number"]))
+                        c.execute("INSERT INTO chapters (id, course_id, title, number, title_tr) VALUES (?,?,?,?,?)",
+                                  (new_ch_id, new_course_id, ch["title"], ch["number"], ch["title_tr"]))
                         
                         # Copy topics
                         topics = c.execute("SELECT * FROM topics WHERE chapter_id = ?", (old_ch_id,)).fetchall()
                         for t in topics:
                             new_t_id = str(uuid.uuid4())
-                            c.execute("INSERT INTO topics (id, chapter_id, title, type, content, difficulty) VALUES (?,?,?,?,?,?)",
-                                      (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"]))
+                            c.execute("INSERT INTO topics (id, chapter_id, title, type, content, difficulty, title_tr, sort_order, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
+                                      (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"], t["title_tr"], t["sort_order"], t["pdf_url"]))
                     
                     print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
-        # AUTOMATED MIGRATION: Ensure all existing courses have title_tr populated and pdf_url cleaned
-        mig_row = c.execute("SELECT 1 FROM migration_history WHERE key = 'populate_bilingual_titles_v1'").fetchone()
-        if not mig_row:
-            try:
-                bm_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
-                if os.path.exists(bm_path):
-                    with open(bm_path, "r", encoding="utf-8") as f:
-                        bm_data = json.load(f)
-                    title_map = bm_data.get("title_pairs", {})
-                    # Chapters
-                    for row in c.execute("SELECT id, title FROM chapters WHERE title_tr IS NULL OR title_tr = ''").fetchall():
-                        t_clean = row["title"].strip()
-                        if t_clean in title_map:
-                            c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
-                    # Topics
-                    for row in c.execute("SELECT id, title FROM topics WHERE title_tr IS NULL OR title_tr = ''").fetchall():
-                        t_clean = row["title"].strip()
-                        if t_clean in title_map:
-                            c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
-                c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
-                c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v1')")
-                print("[MIGRATION] Populated title_tr and cleaned pdf_url.")
-            except Exception as e:
-                print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")
+
+        # AUTOMATED RESILIENCE: Ensure all courses in DB have title_tr populated and pdf_url cleaned
+        try:
+            bm_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
+            if os.path.exists(bm_path):
+                with open(bm_path, "r", encoding="utf-8") as f:
+                    bm_data = json.load(f)
+                title_map = bm_data.get("title_pairs", {})
+                # Chapters
+                for row in c.execute("SELECT id, title FROM chapters WHERE title_tr IS NULL OR title_tr = ''").fetchall():
+                    t_clean = row["title"].strip()
+                    if t_clean in title_map:
+                        c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+                # Topics
+                for row in c.execute("SELECT id, title FROM topics WHERE title_tr IS NULL OR title_tr = ''").fetchall():
+                    t_clean = row["title"].strip()
+                    if t_clean in title_map:
+                        c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+            c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
+            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v2')")
+            print("[MIGRATION] Verified title_tr and cleaned pdf_url for all courses.")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")
 
         db.commit()
 

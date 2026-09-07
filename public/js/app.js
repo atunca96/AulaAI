@@ -1831,40 +1831,63 @@ const CURRICULUM_PAIRS = [
 function translateCurriculumTitle(title, lang = currentLang) {
   if (!title) return '';
   const trimmed = title.trim();
-  const lower = trimmed.toLowerCase();
+  const clean = trimmed.replace(/^(unit|chapter|topic|tema|lektion|item|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
+  const lowerTrimmed = trimmed.toLowerCase();
+  const lowerClean = clean.toLowerCase();
 
-  // 1. Check window.PAGE_TITLE_PAIRS
+  // 1. Direct dictionary lookup in EDUCATIONAL_SENTENCE_MAP if available
+  if (lang === 'tr') {
+    if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR) {
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed];
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean];
+    }
+  } else if (lang === 'en') {
+    if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN) {
+      if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed];
+      if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean];
+    }
+  }
+
+  // 2. Check window.PAGE_TITLE_PAIRS
   if (Array.isArray(window.PAGE_TITLE_PAIRS)) {
     for (const [en, tr] of window.PAGE_TITLE_PAIRS) {
-      if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
+      if (!en || !tr) continue;
+      const enLow = en.toLowerCase();
+      const trLow = tr.toLowerCase();
+      if (lowerTrimmed === enLow || lowerTrimmed === trLow || lowerClean === enLow || lowerClean === trLow) {
         return lang === 'tr' ? tr : en;
       }
     }
   }
 
-  // 2. Check CURRICULUM_PAIRS
-  for (const [en, tr] of CURRICULUM_PAIRS) {
-    if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
-      return lang === 'tr' ? tr : en;
+  // 3. Check CURRICULUM_PAIRS
+  if (Array.isArray(CURRICULUM_PAIRS)) {
+    for (const [en, tr] of CURRICULUM_PAIRS) {
+      if (!en || !tr) continue;
+      const enLow = en.toLowerCase();
+      const trLow = tr.toLowerCase();
+      if (lowerTrimmed === enLow || lowerTrimmed === trLow || lowerClean === enLow || lowerClean === trLow) {
+        return lang === 'tr' ? tr : en;
+      }
     }
   }
 
-  // 3. Fallback common synonyms for page titles
+  // 4. Fallback common synonyms for page titles
   if (lang === 'tr') {
-    if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed)) return 'Temel Kelimeler';
-    if (/^structural\s+focus$/i.test(trimmed)) return 'Yapısal Odak';
-    if (/^practical\s+application$/i.test(trimmed)) return 'Pratik Uygulama';
-    if (/^sound\s+practice$/i.test(trimmed)) return 'Ses Pratiği';
-    if (/^spanish\s+alphabet$/i.test(trimmed)) return 'İspanyol Alfabesi';
-    if (/^quick\s+check$/i.test(trimmed)) return 'Hızlı Kontrol';
+    if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed) || /^(essential|basic|key)\s+vocabulary$/i.test(clean)) return 'Temel Kelimeler';
+    if (/^structural\s+focus$/i.test(trimmed) || /^structural\s+focus$/i.test(clean)) return 'Yapısal Odak';
+    if (/^practical\s+application$/i.test(trimmed) || /^practical\s+application$/i.test(clean)) return 'Pratik Uygulama';
+    if (/^sound\s+practice$/i.test(trimmed) || /^sound\s+practice$/i.test(clean)) return 'Ses Pratiği';
+    if (/^spanish\s+alphabet$/i.test(trimmed) || /^spanish\s+alphabet$/i.test(clean)) return 'İspanyol Alfabesi';
+    if (/^quick\s+check$/i.test(trimmed) || /^quick\s+check$/i.test(clean)) return 'Hızlı Kontrol';
   } else {
-    if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed)) return 'Essential Vocabulary';
-    if (/^yapısal\s+odak$/i.test(trimmed)) return 'Structural Focus';
-    if (/^pratik\s+uygulama$/i.test(trimmed)) return 'Practical Application';
-    if (/^hızlı\s+kontrol$/i.test(trimmed)) return 'Quick Check';
+    if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';
+    if (/^yapısal\s+odak$/i.test(trimmed) || /^yapısal\s+odak$/i.test(clean)) return 'Structural Focus';
+    if (/^pratik\s+uygulama$/i.test(trimmed) || /^pratik\s+uygulama$/i.test(clean)) return 'Practical Application';
+    if (/^hızlı\s+kontrol$/i.test(trimmed) || /^hızlı\s+kontrol$/i.test(clean)) return 'Quick Check';
   }
 
-  return trimmed;
+  return clean || trimmed;
 }
 
 const VOCAB_PAIRS = [
@@ -6165,15 +6188,17 @@ function renderStudyBook() {
 
   // Clear existing content and render
   toc.innerHTML = curriculum.map((ch, i) => {
-    const chTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(ch.title);
+    const rawChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : (ch.title || '');
+    const chTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
     return `
     <div class="study-ch-group" style="margin-bottom:16px;">
       <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number || (i + 1)}: ${esc(chTitle)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
-        ${(ch.topics || []).map(t => {
-          const tTitle = (currentLang === 'tr' && t.title_tr) ? t.title_tr : translateCurriculumTitle(t.title);
+        ${(ch.topics || []).map(topicObj => {
+          const rawTopicTitle = (currentLang === 'tr' && topicObj.title_tr) ? topicObj.title_tr : (topicObj.title || '');
+          const tTitle = (currentLang === 'tr' && topicObj.title_tr) ? topicObj.title_tr : translateCurriculumTitle(rawTopicTitle, currentLang);
           return `
-          <button class="btn btn-ghost study-topic-btn" data-topic-id="${t.id}" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
+          <button class="btn btn-ghost study-topic-btn" data-topic-id="${topicObj.id}" onclick="showStudyTopic('${topicObj.id}')" title="${esc(tTitle)}" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
             ${esc(tTitle)}
           </button>
         `;}).join('')}
