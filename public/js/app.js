@@ -156,22 +156,38 @@ async function speakText(text, lang) {
   document.head.appendChild(style);
 })();
 
+const TTS_SVG_IDLE = '<svg style="width:16px;height:16px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+const TTS_SVG_PLAYING = '<svg style="width:16px;height:16px;display:inline-block;vertical-align:middle;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+const SVG_TRASH = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+const SVG_EDIT = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const SVG_GEAR = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+const SVG_BOOK = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+const SVG_SUN = '<svg style="width:18px;height:18px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+const SVG_MOON = '<svg style="width:18px;height:18px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+const SVG_EYE = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const SVG_KEY = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9m-4-4l-6.5 6.5a4.95 4.95 0 0 0 7 7L17 12V9h-3V6h-3V3z"/></svg>';
+const SVG_CHAT = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+const SVG_BAN = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+const SVG_PLUS = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+const SVG_CHECK = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const SVG_CROSS = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const SVG_ACADEMIC = '<svg style="width:18px;height:18px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg>';
+const SVG_SEARCH = '<svg style="width:40px;height:40px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
+const SVG_SCHOOL = '<svg style="width:48px;height:48px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg>';
+const SVG_WARNING = '<svg style="width:36px;height:36px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
 function handleTTSClick(btn, text, lang, event) {
   if (event) { event.stopPropagation(); event.preventDefault(); }
   
   // Reset all other playing buttons
   document.querySelectorAll('.tts-btn.playing').forEach(b => {
     b.classList.remove('playing');
-    if (!b.querySelector('svg')) {
-      b.textContent = '🔈';
-    }
+    b.innerHTML = TTS_SVG_IDLE;
   });
   document.querySelectorAll('.tts-speaking').forEach(c => c.classList.remove('tts-speaking'));
   
   btn.classList.add('playing');
-  if (!btn.querySelector('svg')) {
-    btn.textContent = '🔊';
-  }
+  btn.innerHTML = TTS_SVG_PLAYING;
   
   const card = btn.closest('[style*="border-radius"]');
   if (card) card.classList.add('tts-speaking');
@@ -181,9 +197,7 @@ function handleTTSClick(btn, text, lang, event) {
       if (!_ttsPlaying) {
         clearInterval(checkDone);
         btn.classList.remove('playing');
-        if (!btn.querySelector('svg')) {
-          btn.textContent = '🔈';
-        }
+        btn.innerHTML = TTS_SVG_IDLE;
         if (card) card.classList.remove('tts-speaking');
       }
     }, 200);
@@ -674,7 +688,7 @@ const i18n = {
     typeReply: 'Type a reply...',
     sendBtn: 'Send',
     Lecturer: 'Lecturer', Student: 'Student',
-    '👩‍\ud83c\udfeb Lecturer': '👩‍\ud83c\udfeb Lecturer', '\ud83c\udf93 Student': '\ud83c\udf93 Student',
+    'Lecturer': 'Lecturer', 'Student': 'Student',
     select_study_topic: 'Select a topic to start studying',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -682,7 +696,7 @@ const i18n = {
     selectPractice: 'Select a topic to practice', availableQuizzes: 'Available quizzes', trackMastery: 'Track your mastery across topics', noQuizzes: 'No quizzes yet.',
     takeQuiz: 'Take Quiz', view: 'View', close: 'Close', done: 'Done', submit: 'Submit', check: 'Check',
     yourScore: 'Your Score', questions: 'questions', correct: 'correct',
-    incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: 'Correct! ✓',
+    incorrectAns: 'Incorrect. The answer is:', correctAns: 'The correct answer is:', correctMsg: 'Correct!',
     takeQuizBtn: 'Take Quiz', viewBtn: 'View',
     noQuizzes: 'No quizzes yet.', noAssignments: 'No assignments yet.',
     // Lecturer nav & tabs
@@ -707,7 +721,7 @@ const i18n = {
     erase_all_desc: 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
     // Activities
     'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities',
-    '\ud83d\ude80 Launch Activity': '\ud83d\ude80 Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
+    'Launch Activity': 'Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
     'Generate Activity': 'Generate Activity', 'Loading curriculum...': 'Loading curriculum...',
     // Quiz Management
     'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
@@ -722,7 +736,7 @@ const i18n = {
     'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress',
     Kick: 'Kick', 'Mastery:': 'Mastery:', responses: 'responses',
     // Reports
-    'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': '\ud83d\udd04 Report',
+    'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': 'Report',
     'Content Map': 'Content Map', 'You': 'You',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — Content Map',
@@ -732,7 +746,7 @@ const i18n = {
     // Nav badge
     'AI ACTIVE': 'AI ACTIVE',
     // Student home
-    '\ud83d\udcd6 Current Chapter': '\ud83d\udcd6 Current Chapter',
+    'Current Chapter': 'Current Chapter',
     Practice: 'Practice', Home: 'Home',
     // Settings
     'settings.title': 'Settings',
@@ -783,7 +797,7 @@ const i18n = {
     'ai.review_desc': 'AI suggested these topics. You can edit or remove them.',
     'class.add_topic': 'Add Topic',
     'class.topic_name_placeholder': 'New Topic Name',
-    'class.build_btn': 'Build Classroom \ud83d\ude80',
+    'class.build_btn': 'Build Classroom',
     'ai.add_unit': 'Add Custom Unit',
     'ai.new_unit_title': 'New Unit Title',
     'class.enter': 'Enter Classroom',
@@ -880,7 +894,7 @@ const i18n = {
     'study.preview_end': 'End of Lesson Material',
     'study.preview_msg': 'This is how the lesson appears to your students.',
     'study.ready_msg': "Now it's time to test your knowledge.",
-    'study.start_practice': '\ud83d\ude80 Start Practice Session',
+    'study.start_practice': 'Start Practice Session',
     'SelectTopic': 'Select a topic...',
     'AllChapters': 'All chapters',
     'confirm.rebuild_title': 'Build Lessons?',
@@ -1002,7 +1016,7 @@ const i18n = {
     'UNKNOWN': 'Unknown',
     'class.join_code': 'Join Code',
     'class.unknown': 'Unknown',
-    'class.pdf_status_title': '📄 PDF Status Confirmation',
+    'class.pdf_status_title': 'PDF Status Confirmation',
     'class.pdf_status_msg': 'Is the PDF you are about to upload a digital file with selectable text, or a flat scan (scanned image)? Flat scans can lead to distorted outcomes. Are you sure your file has selectable/searchable text?',
     'class.pdf_status_ok': 'Yes, it is searchable',
     'class.pdf_status_cancel': 'No, let me check',
@@ -1177,7 +1191,7 @@ const i18n = {
     'study.preview_end': 'Ders Materyali Sonu',
     'study.preview_msg': 'Bu dersin öğrencileriniz için nasıl göründüğüdür.',
     'study.ready_msg': 'Şimdi bilgini test etme zamanı.',
-    'study.start_practice': '\ud83d\ude80 Alıştırma Seansını Başlat',
+    'study.start_practice': 'Alıştırma Seansını Başlat',
     'confirm.rebuild_title': 'Dersleri Oluştur?',
     'confirm.rebuild_msg': 'Bu işlem müfredattaki her konu için yapay zeka kullanarak ders içerikleri ve alıştırma soruları oluşturacaktır. Bu işlem 2-3 dakika sürebilir. Devam edilsin mi?',
     'confirm.rebuild_ok': 'Evet, Her Şeyi Oluştur',
@@ -1260,14 +1274,14 @@ const i18n = {
     sendBtn: 'Gönder',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     'study.sidebar_guide': 'Üniteler arasında gezinmek için soldaki kenar çubuğunu kullanın.',
-    '👩‍\ud83c\udfeb Lecturer': '👩‍\ud83c\udfeb Öğretmen', '\ud83c\udf93 Student': '\ud83c\udf93 Öğrenci',
+    'Lecturer': 'Öğretmen', 'Student': 'Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
     keepUp: 'Harika gidiyorsun, devam et!', overallMastery: 'Genel Başarı', strongTopics: 'İyi Olduğum Konular', needsWork: 'Eksiğim Olan Konular', topicsStudied: 'Çalışılan Konular', currentChapter: 'Mevcut Ünite',
     selectPractice: 'Alıştırma yapmak için bir konu seçin', availableQuizzes: 'Mevcut Sınavlar', trackMastery: 'Konulardaki başarı durumunuzu takip edin',
     takeQuiz: 'Sınava Başla', view: 'Görüntüle', close: 'Kapat', done: 'Bitti', submit: 'Gönder', check: 'Kontrol Et',
     yourScore: 'Puanınız', questions: 'soru', correct: 'doğru',
-    incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru! ✓',
+    incorrectAns: 'Yanlış. Doğru cevap:', correctAns: 'Doğru cevap:', correctMsg: 'Doğru!',
     takeQuizBtn: 'Sınavı Başlat', viewBtn: 'Görüntüle',
     noQuizzes: 'Henüz sınav yok.', noAssignments: 'Henüz ödev yok.',
     // Lecturer nav & tabs
@@ -1288,7 +1302,7 @@ const i18n = {
     erase_all_desc: 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
     // Activities
     'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat',
-    '\ud83d\ude80 Launch Activity': '\ud83d\ude80 Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
+    'Launch Activity': 'Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
     'Generate Activity': 'Etkinlik Oluştur', 'Loading curriculum...': 'Müfredat yükleniyor...',
     // Quiz Management
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
@@ -1304,7 +1318,7 @@ const i18n = {
     Kick: 'At', 'Mastery:': 'Başarı:', responses: 'yanıt',
     // Reports
     'report.title': 'Haftalık Rapor', 'report.subtitle': 'Yapay zeka destekli sınıf performans analizi',
-    'report.generate': '\ud83d\udd04 Rapor Oluştur',
+    'report.generate': 'Rapor Oluştur',
     'Content Map': 'İçerik Haritası', 'You': 'Siz', 'Curriculum': 'Müfredat',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — İçerik Haritası',
@@ -1314,7 +1328,7 @@ const i18n = {
     // Nav badge
     'AI ACTIVE': 'AI AKTİF',
     // Student home
-    '\ud83d\udcd6 Current Chapter': '\ud83d\udcd6 Mevcut Ünite',
+    'Current Chapter': 'Mevcut Ünite',
     Practice: 'Alıştırma', Home: 'Ana Sayfa',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
     settings: 'Ayarlar', language: 'Dil',
@@ -1372,7 +1386,7 @@ const i18n = {
     'ai.review_desc': 'Yapay zeka bu konuları önerdi. Bunları düzenleyebilir veya kaldırabilirsiniz.',
     'class.add_topic': 'Konu Ekle',
     'class.topic_name_placeholder': 'Yeni Konu Adı',
-    'class.build_btn': 'Sınıfı Oluştur \ud83d\ude80',
+    'class.build_btn': 'Sınıfı Oluştur',
     'ai.add_unit': 'Yeni Ünite Ekle',
     'ai.new_unit_title': 'Yeni Ünite Başlığı',
     'class.enter': 'Sınıfa Gir',
@@ -1421,7 +1435,7 @@ const i18n = {
     'Read Textbook': 'Kitabı Oku',
     'class.join_code': 'Sınıf Kodu',
     'class.unknown': 'Bilinmiyor',
-    'class.pdf_status_title': '📄 PDF Durumu Onayı',
+    'class.pdf_status_title': 'PDF Durumu Onayı',
     'class.pdf_status_msg': 'Yükleyeceğeniz PDF dosyası taranmış bir resim (flat scan) mi yoksa seçilebilir metin içeren dijital bir dosya mı? Taranmış resimler hatalı sonuçlara neden olabilir. Dosyanızın metin araması yapılabilir/seçilebilir olduğundan emin misiniz?',
     'class.pdf_status_ok': 'Evet, metin seçilebiliyor',
     'Tebrikler!': 'Tebrikler!',
@@ -1682,7 +1696,7 @@ function toggleLanguage() {
   // 6. Practice preview if visible
   const preview = document.getElementById('activity-preview');
   if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
-    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+    preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
   }
 
   // 7. Active quiz or assignment if in progress
@@ -2904,7 +2918,7 @@ function renderClassroomSelection(courses) {
         <div class="card-body">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
                 <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
-                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', ${escJS(c.name)})" style="color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', ${escJS(c.name)})" style="color:var(--danger); padding:4px;">${SVG_TRASH}</button>
             </div>
             <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
             <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
@@ -2918,7 +2932,7 @@ function renderClassroomSelection(courses) {
                 <div class="spinner-small" style="border-top-color:var(--accent);"></div>
               </div>
               <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite; display:flex; align-items:center; justify-content:center; gap:6px;">
-                ⏳ <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? t('gen.preparing') : t('gen.building')}</span>
+                <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? t('gen.preparing') : t('gen.building')}</span>
               </p>
             ` : ''}
         </div>
@@ -3229,25 +3243,25 @@ function renderAiLanguages() {
   const grid = document.getElementById('ai-language-grid');
   if (!grid) return;
   const langs = [
-    { id: 'Spanish', icon: '🇪🇸' },
-    { id: 'German', icon: '🇩🇪' },
-    { id: 'French', icon: '🇫🇷' },
-    { id: 'Italian', icon: '🇮🇹' },
-    { id: 'Portuguese', icon: '🇵🇹' },
-    { id: 'Russian', icon: '🇷🇺' },
-    { id: 'Chinese', icon: '🇨🇳' },
-    { id: 'Japanese', icon: '🇯🇵' },
-    { id: 'Arabic', icon: '🇸🇦' },
-    { id: 'Turkish', icon: '🇹🇷' },
-    { id: 'Dutch', icon: '🇳🇱' },
-    { id: 'Swedish', icon: '🇸🇪' },
-    { id: 'Korean', icon: '🇰🇷' },
-    { id: 'Greek', icon: '🇬🇷' }
+    { id: 'Spanish', code: 'ES' },
+    { id: 'German', code: 'DE' },
+    { id: 'French', code: 'FR' },
+    { id: 'Italian', code: 'IT' },
+    { id: 'Portuguese', code: 'PT' },
+    { id: 'Russian', code: 'RU' },
+    { id: 'Chinese', code: 'ZH' },
+    { id: 'Japanese', code: 'JA' },
+    { id: 'Arabic', code: 'AR' },
+    { id: 'Turkish', code: 'TR' },
+    { id: 'Dutch', code: 'NL' },
+    { id: 'Swedish', code: 'SV' },
+    { id: 'Korean', code: 'KO' },
+    { id: 'Greek', code: 'EL' }
   ];
   grid.innerHTML = langs.map(l => `
-    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:16px; border:2px solid ${_selectedAiLanguage === l.id ? 'var(--accent)' : 'var(--border)'}; border-radius:12px; height:auto; min-width:0;">
-      <span style="font-size:24px;">${l.icon}</span>
-      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${t('lang.' + l.id)}</span>
+    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:14px; border:2px solid ${_selectedAiLanguage === l.id ? 'var(--accent)' : 'var(--border)'}; border-radius:12px; height:auto; min-width:0; align-items:center;">
+      <span style="font-size:13px; font-weight:800; letter-spacing:0.5px; padding:4px 8px; border-radius:6px; background:rgba(99,102,241,0.12); color:var(--accent);">${l.code}</span>
+      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; text-align:center;">${t('lang.' + l.id)}</span>
     </button>
   `).join('');
 }
@@ -3307,7 +3321,7 @@ function renderAiSyllabusEditor(syllabus) {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${i + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger);">${SVG_TRASH}</button>
       </div>
       <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
@@ -3317,7 +3331,7 @@ function renderAiSyllabusEditor(syllabus) {
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
             <div class="topic-item" data-type="${type}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? '⚙️' : '•'}</span>
+              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? SVG_GEAR : '•'}</span>
               <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
@@ -3338,7 +3352,7 @@ function addUnitToAiArchitect() {
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">\ud83d\uddd1\ufe0f</button>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">${SVG_TRASH}</button>
       </div>
       <input type="text" class="text-input syllabus-title" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
@@ -3374,7 +3388,7 @@ function toggleTopicType(span) {
   const current = item.getAttribute('data-type') || 'vocabulary';
   const next = current === 'vocabulary' ? 'grammar' : 'vocabulary';
   item.setAttribute('data-type', next);
-  span.textContent = next === 'grammar' ? '\u2699\ufe0f' : '•';
+  span.innerHTML = next === 'grammar' ? SVG_GEAR : '•';
 }
 
 async function buildAiClassroom() {
@@ -3525,7 +3539,7 @@ async function triggerDeepExtract() {
   successEl.classList.add('hidden');
   btn.disabled = true;
   btn.style.opacity = '0.5';
-  btn.textContent = '⏳ ' + (t('class.extracting') || 'Extracting...');
+  btn.textContent = (t('class.extracting') || 'Extracting...');
 
   const formData = new FormData();
   formData.append('pdf', fileInput.files[0]);
@@ -4247,16 +4261,16 @@ function setTheme(theme) {
 
   if (theme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
-    btns.forEach(btn => { if (btn) btn.textContent = '☀️'; });
-    if (globalIcon) globalIcon.textContent = '☀️';
+    btns.forEach(btn => { if (btn) btn.innerHTML = SVG_SUN; });
+    if (globalIcon) globalIcon.innerHTML = SVG_SUN;
     if (globalText) {
       globalText.setAttribute('data-i18n', 'theme.light');
       globalText.textContent = t('theme.light');
     }
   } else {
     document.documentElement.removeAttribute('data-theme');
-    btns.forEach(btn => { if (btn) btn.textContent = '🌙'; });
-    if (globalIcon) globalIcon.textContent = '🌙';
+    btns.forEach(btn => { if (btn) btn.innerHTML = SVG_MOON; });
+    if (globalIcon) globalIcon.innerHTML = SVG_MOON;
     if (globalText) {
       globalText.setAttribute('data-i18n', 'theme.dark');
       globalText.textContent = t('theme.dark');
@@ -4327,7 +4341,7 @@ function renderOverview(report) {
   const atRisk = report.at_risk_students || [];
   const atRiskList = document.getElementById('at-risk-list');
   if (atRisk.length === 0) {
-    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students \ud83c\udf89</p>`;
+    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students</p>`;
   } else {
     atRiskList.innerHTML = atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% <span data-i18n="mastery">mastery</span></span>${s.flags.map(f => `<span class="risk-badge low" data-i18n="${f}">${t(f)}</span>`).join('')}</div></div>`).join('');
   }
@@ -4378,7 +4392,7 @@ function renderCurriculum() {
           <div style="display:flex;align-items:center;gap:12px;">
             <span class="chapter-num">${displayNum}</span>
             <span class="chapter-title">${esc(translatedChTitle)}</span>
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', ${escJS(ch.title)})" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">🗑️</button>
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', ${escJS(ch.title)})" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">${SVG_TRASH}</button>
           </div>
           <span class="chapter-toggle">▸</span>
         </div>
@@ -4392,8 +4406,8 @@ function renderCurriculum() {
               <span class="topic-name">${esc(translatedTTitle)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
-              <button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px; cursor:pointer;" title="${t('Material') || 'Study Material'}" onclick="event.stopPropagation(); openTopicMaterial('${t_obj.id}', '${t_obj.pdf_url || ''}')">📖</button>
-              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', ${escJS(t_obj.title)})" style="color:var(--danger); padding:4px;">🗑️</button>
+              <button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px; cursor:pointer;" title="${t('Material') || 'Study Material'}" onclick="event.stopPropagation(); openTopicMaterial('${t_obj.id}', '${t_obj.pdf_url || ''}')">${SVG_BOOK}</button>
+              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', ${escJS(t_obj.title)})" style="color:var(--danger); padding:4px;">${SVG_TRASH}</button>
               <div class="topic-meta">
                 <span>${translateDifficulty(t_obj.difficulty)}</span>
                 <span>${t_obj.question_count || 0} ${t('questions')}</span>
@@ -4665,7 +4679,7 @@ function showGenerationLoading(el) {
   if (activityProgressInterval) clearInterval(activityProgressInterval);
   el.innerHTML = `
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
-      <div class="bot-animation" style="font-size:32px; margin-bottom:16px;">🤖</div>
+      <div class="bot-animation" style="margin-bottom:16px;"><div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 20px var(--accent-glow);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div></div>
       <h3 style="margin-bottom:12px;" data-i18n="gen.generating">${t('gen.generating')}</h3>
       <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
@@ -4710,7 +4724,7 @@ function startActivityPolling(targetId, title) {
             if (window._retryEmptyPoll > 10) {
                 clearInterval(activityProgressInterval);
                 document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
-                    <div style="font-size:48px; margin-bottom:16px;">🔍</div>
+                    <div style="margin-bottom:16px;">${SVG_SEARCH}</div>
                     <div style="font-weight:700; margin-bottom:8px;">No questions found</div>
                     <div style="font-size:14px;">The AI couldn't generate valid questions for this specific topic content. Try a different topic or build the curriculum again.</div>
                 </div>`;
@@ -4790,7 +4804,7 @@ async function launchActivity() {
       body: { topic_id: topicId, course_id: courseId, count: 10, ui_lang: currentLang }
     });
     // 2. Start polling AFTER the task is successfully initiated
-    startActivityPolling('activity-preview', '📋 ' + (t('Content Map') || 'Content Map'));
+    startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'));
   } catch (err) {
     preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
       ${t('assign.retry')}
@@ -4827,17 +4841,17 @@ function renderActivityCard(a, idx, ctx) {
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const editBtns = isLecturer ? `
     <div style="position:absolute; top:12px; right:12px; display:flex; gap:6px; z-index:10;">
-        <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}', ${escJS(a.type)})" style="background:rgba(255,255,255,0.1); padding:4px;">✏️</button>
-        <button class="btn btn-ghost btn-xs" onclick="deleteActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}')" style="background:rgba(255,59,48,0.1); color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
+        <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}', ${escJS(a.type)})" style="background:rgba(255,255,255,0.1); padding:4px;">${SVG_EDIT}</button>
+        <button class="btn btn-ghost btn-xs" onclick="deleteActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}')" style="background:rgba(255,59,48,0.1); color:var(--danger); padding:4px;">${SVG_TRASH}</button>
     </div>
   ` : '';
 
   if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">\ud83d\udca1 ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label">🗣️ <span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})">✓ <span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})"><span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
 }
@@ -5020,7 +5034,7 @@ async function explainMistake(cardId, correct_answer, student_answer) {
   fb.dataset.explaining = "true";
   
   const originalHtml = fb.innerHTML;
-  fb.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span>🧠</span> <span style="font-size:12px; animation:pulse 1.5s infinite;">${t('ai_analyzing')}</span></div>`;
+  fb.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><span class="ai-badge">AI</span> <span style="font-size:12px; animation:pulse 1.5s infinite;">${t('ai_analyzing')}</span></div>`;
   
   const card = document.getElementById(cardId);
   const prompt = card.querySelector('.activity-prompt').innerText;
@@ -5037,7 +5051,7 @@ async function explainMistake(cardId, correct_answer, student_answer) {
       fb.innerHTML = `
         <div style="font-weight:600; margin-bottom:6px;">${t('incorrectAns')} ${correct_answer}</div>
         <div style="background:rgba(255,255,255,0.1); padding:10px; border-radius:8px; font-size:13.5px; line-height:1.45;">
-          <span style="font-size:16px; margin-right:4px;">🤖</span> ${res.explanation}
+          <span class="ai-badge" style="margin-right:6px;">AI</span> ${res.explanation}
         </div>
       `;
       fb.onclick = null;
@@ -5155,15 +5169,15 @@ function renderQuizList(quizzes) {
                 <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}',${escJS(q.title)})">👁️ ${t('viewBtn')}</button>
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">\ud83d\udcc8 ${t('view')}</button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">\ud83d\uddd1\ufe0f ${t('confirm.delete_quiz')}</button>
+                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})"><span>${t('view')}</span></button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">${SVG_TRASH} <span>${t('confirm.delete_quiz')}</span></button>
               </div>
             </div>
           </div>`;
       } else {
         const isCompleted = q.is_completed;
-        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
+        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
       }
     }).join('');
 }
@@ -5204,8 +5218,8 @@ async function viewQuiz(quizId, title) {
     </div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px">📄 <span data-i18n="answer">${t('answer')}</span></button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px">\ud83d\udc65 <span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px"><span data-i18n="answer">${t('answer')}</span></button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px"><span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
     </div>
 
     <div id="qv-questions">
@@ -5240,7 +5254,7 @@ async function viewQuiz(quizId, title) {
           const isRight = a.is_correct;
           return `
                       <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
-                        <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? '✓' : '✗'}</span>
+                        <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? SVG_CHECK : SVG_CROSS}</span>
                         <div style="flex:1">
                           <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
@@ -5347,8 +5361,8 @@ async function loadStudentRoster() {
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 8px; border-radius:6px; font-size:12px" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})">🔑 <span data-i18n="admin.set_password">${t('admin.set_password')}</span></button>
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">\ud83d\udcac <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
+          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 8px; border-radius:6px; font-size:12px" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})">${SVG_KEY} <span data-i18n="admin.set_password">${t('admin.set_password')}</span></button>
+          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
           <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>
         </div>
       </div>
@@ -5538,8 +5552,8 @@ async function showStudentDetail(sid, name, studentId = '') {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px">
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}',${escJS(name).replace(/'/g, "\\'")})">\ud83d\udcac <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}',${escJS(name).replace(/'/g, "\\'")})">🚫 <span data-i18n="Kick">${t('Kick')}</span></button>
+        <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}',${escJS(name).replace(/'/g, "\\'")})">${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
+        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}',${escJS(name).replace(/'/g, "\\'")})">${SVG_BAN} <span data-i18n="Kick">${t('Kick')}</span></button>
       </div>
     </div>
 
@@ -5626,12 +5640,12 @@ function renderReport(report) {
         </div>
 
         <div style="margin-bottom:32px; padding:24px; background:var(--bg-input); border-radius:20px; border:1px solid var(--border);">
-          <h3 style="margin:0 0 12px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udcdd</span> ${lang === 'tr' ? 'Yönetici Özeti' : 'Executive Summary'}</h3>
+          <h3 style="margin:0 0 12px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;">${lang === 'tr' ? 'Yönetici Özeti' : 'Executive Summary'}</h3>
           <div style="font-size:14.5px; line-height:1.7; color:var(--text-secondary);">${data.summary}</div>
         </div>
 
         <div style="margin-bottom:32px;">
-          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udcc9</span> ${lang === 'tr' ? 'Hatalı Konular ve Analiz' : 'Flawed Topics & Analysis'}</h3>
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;">${lang === 'tr' ? 'Hatalı Konular ve Analiz' : 'Flawed Topics & Analysis'}</h3>
           <div style="display:flex; flex-direction:column; gap:12px;">
             ${(data.topic_breakdown || []).map(topic => `
               <div style="background:var(--bg-input); border:1px solid var(--border); padding:20px; border-radius:20px;">
@@ -5647,7 +5661,7 @@ function renderReport(report) {
         </div>
 
         <div style="margin-bottom:32px;">
-          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;"><span>\ud83d\udc64</span> ${lang === 'tr' ? 'Öğrenci Spotlight' : 'Student Spotlights'}</h3>
+          <h3 style="margin:0 0 16px; font-size:18px; font-weight:700; display:flex; align-items:center; gap:10px;">${lang === 'tr' ? 'Öğrenci Spotlight' : 'Student Spotlights'}</h3>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px;">
             ${(data.at_risk_commentaries || []).map(sc => `
               <div style="background:var(--bg-input); border:1px solid var(--border); padding:16px; border-radius:16px; border-left:4px solid var(--danger);">
@@ -5659,7 +5673,7 @@ function renderReport(report) {
         </div>
 
         <div style="padding:24px; background:var(--gradient-2); border-radius:20px; color:white;">
-          <h3 style="margin:0 0 10px; font-size:18px; font-weight:700;">\ud83d\udca1 ${lang === 'tr' ? 'Genel Tavsiye' : 'General Advice'}</h3>
+          <h3 style="margin:0 0 10px; font-size:18px; font-weight:700;">${lang === 'tr' ? 'Genel Tavsiye' : 'General Advice'}</h3>
           <div style="font-size:14px; line-height:1.6; opacity:0.9;">${data.general_advice}</div>
         </div>
       </div>
@@ -5875,15 +5889,9 @@ function renderAssignmentList(assignments) {
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
-            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}',${escJS(a.title)})">
-              👁️ ${t('viewBtn')}
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">
-              \ud83d\udcc8 ${t('view')}
-            </button>
-            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">
-              \ud83d\uddd1\ufe0f ${t('confirm.delete_assignment')}
-            </button>
+            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
+            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})"><span>${t('view')}</span></button>
+            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">${SVG_TRASH} <span>${t('confirm.delete_assignment')}</span></button>
           </div>
         </div>
       </div>`).join('');
@@ -5896,7 +5904,7 @@ function renderAssignmentList(assignments) {
             <div>
               <strong style="font-size:15px">${esc(a.title)}</strong>
               <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-                ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()} ${done ? ` · <span style="color:var(--success)">✓ ${t('completed')}</span>` : ''}
+                ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()} ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}
               </div>
             </div>
             <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? t('completed') : t('takeQuizBtn')}</span>
@@ -5938,7 +5946,7 @@ async function viewAssignment(assignmentId, title) {
   };
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">📋 ${title}</h2>
+    <h2 style="margin-bottom:4px">${title}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
       ${data.total_questions} <span data-i18n="questions">${t('questions')}</span> &nbsp;·&nbsp;
       ${results.length} <span data-i18n="assign.submitted">${L.submitted}</span>
@@ -5970,7 +5978,7 @@ async function viewAssignment(assignmentId, title) {
         <div style="margin-bottom:6px">
           <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
             <span style="font-weight:500">
-              ${i === 0 ? '🏆 ' : i === 1 ? '\ud83e\udd48 ' : i === 2 ? '🥉 ' : ''}
+              ${i < 3 ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
               ${esc(sr.student_name)}
             </span>
             <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
@@ -5988,7 +5996,7 @@ async function viewAssignment(assignmentId, title) {
           </div>
           ${sr.answers.map((a, qi) => `
             <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
-              <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? '✓' : '✗'}</span>
+              <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? SVG_CHECK : SVG_CROSS}</span>
               <div style="flex:1;font-size:13px">
                 <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${a.prompt}</div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap">
@@ -6016,7 +6024,7 @@ async function previewAssignment(aid, title) {
   const qs = data.questions || [];
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">👁️ ${title} - ${t('Preview')}</h2>
+    <h2 style="margin-bottom:4px">${title} - ${t('Preview')}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
       ${qs.length} ${t('questions')}
     </div>
@@ -6031,13 +6039,13 @@ async function previewAssignment(aid, title) {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               ${(q.distractors || []).concat([q.answer]).map(o => `
                 <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                  ${o === q.answer ? '✓ ' : ''}${translateOption(o)}
+                  ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
                 </div>
               `).join('')}
             </div>
           ` : `
             <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
-              ✓ ${q.answer}
+              ${SVG_CHECK} ${q.answer}
             </div>
           `}
         </div>
@@ -6056,7 +6064,7 @@ async function previewQuiz(qid, title) {
   const qs = data.questions || [];
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">👁️ ${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
+    <h2 style="margin-bottom:4px">${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
       ${qs.length} ${isTr ? 'soru' : 'questions'}
     </div>
@@ -6071,13 +6079,13 @@ async function previewQuiz(qid, title) {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               ${(q.distractors || []).concat([q.answer]).map(o => `
                 <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                  ${o === q.answer ? '✓ ' : ''}${translateOption(o)}
+                  ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
                 </div>
               `).join('')}
             </div>
           ` : `
             <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
-              ✓ ${q.answer}
+              ${SVG_CHECK} ${q.answer}
             </div>
           `}
         </div>
@@ -6136,8 +6144,8 @@ function renderDraftList() {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
       <h2 style="margin:0"><span data-i18n="draft.review">${t('draft.review')}</span> - ${esc(currentDraft.title)}</h2>
       <div>
-        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">\u2795 <span data-i18n="draft.add_question">${t('draft.add_question')}</span></button>
-        <button class="btn btn-primary btn-sm" onclick="publishDraft()">✅ <span data-i18n="draft.publish">${t('draft.publish')}</span></button>
+        <button class="btn btn-outline btn-sm" onclick="showAddCustomQuestionForm()">${SVG_PLUS} <span data-i18n="draft.add_question">${t('draft.add_question')}</span></button>
+        <button class="btn btn-primary btn-sm" onclick="publishDraft()"><span data-i18n="draft.publish">${t('draft.publish')}</span></button>
       </div>
     </div>
     <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px;" data-i18n="draft.lang_warning">${t('draft.lang_warning')}</div>
@@ -6188,12 +6196,12 @@ function renderDraftList() {
 
     html += `
       <div class="card" style="margin-bottom:12px; position:relative;">
-        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">\ud83d\uddd1\ufe0f <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
+        <button class="btn btn-ghost btn-sm" style="position:absolute; top:8px; right:8px; color:var(--danger);" onclick="removeDraftQuestion(${i})">${SVG_TRASH} <span data-i18n="draft.remove">${t('draft.remove')}</span></button>
         <div class="card-body">
           <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${i + 1}. ${typeLabel}</div>
           <div style="font-weight:600; margin-bottom:8px;">${esc(formattedPrompt)}</div>
-          <div style="color:var(--success); font-size:14px; margin-bottom:4px;">✓ ${esc(formattedAnswer)}</div>
-          ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? q.distractors.map(d => `<div style="color:var(--danger); font-size:13px;">✗ ${esc(d)}</div>`).join('') : ''}
+          <div style="color:var(--success); font-size:14px; margin-bottom:4px;">${SVG_CHECK} ${esc(formattedAnswer)}</div>
+          ${q.type === 'mcq' && q.distractors && q.distractors.length > 0 ? q.distractors.map(d => `<div style="color:var(--danger); font-size:13px;">${SVG_CROSS} ${esc(d)}</div>`).join('') : ''}
         </div>
       </div>
     `;
@@ -6329,7 +6337,7 @@ function showAssignmentQuestion(area) {
         ${t('submit')} →
       </button>
     </div>
-    ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)">\ud83d\udca1 ${q.hint}</div>` : ''}`;
+    ${q.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${q.hint}</div>` : ''}`;
   }
 
   area.innerHTML = `
@@ -6383,7 +6391,7 @@ async function submitAssignment(area) {
     const pct = Math.round((result.average || 0) * 100);
     area.innerHTML = `
       <div style="padding:40px;text-align:center">
-        <div style="font-size:48px;margin-bottom:16px">${pct >= 70 ? '\ud83c\udf89' : '\ud83d\udcda'}</div>
+        <div style="margin-bottom:16px">${pct >= 70 ? SVG_CHECK : SVG_BOOK}</div>
         <h2 style="margin-bottom:8px">${t('assign.complete')}</h2>
         <div style="font-size:36px;font-weight:700;color:${pct >= 70 ? 'var(--success)' : 'var(--warning)'};margin:16px 0">${pct}%</div>
         <p style="color:var(--text-muted);margin-bottom:24px">${t('assign.recorded')}</p>
@@ -6576,7 +6584,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     // Single letter — no dict lookup, no translation
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
                         </div>
                       </div>`;
@@ -6584,7 +6592,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     // Multi-char word — dict-clickable, but only over the word text itself
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">🔈</button>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
                         </div>
                       </div>`;
@@ -6614,7 +6622,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     const isRedundant = !vStr || ['she', 'he', 'ben'].includes(vStr.toLowerCase());
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
                         ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:18px; color:var(--accent-light);">${vStr}</div>` : ''}
@@ -6623,7 +6631,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     // Regular word+translation — cursor:default on row, pointer only on the word text itself
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:20px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
                         <div class="english-translation">${safeStr(v)}</div>
@@ -6740,12 +6748,12 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
         btn.style.background = 'rgba(34, 197, 94, 0.2)';
         btn.style.borderColor = '#22c55e';
         btn.style.opacity = '1';
-        btn.innerHTML += ' ✅';
+        btn.innerHTML += ' ' + SVG_CHECK;
     } else {
         btn.style.background = 'rgba(239, 68, 68, 0.2)';
         btn.style.borderColor = '#ef4444';
         btn.style.opacity = '1';
-        btn.innerHTML += ' ❌';
+        btn.innerHTML += ' ' + SVG_CROSS;
         
         // Highlight correct one
         buttons.forEach(b => {
@@ -6769,7 +6777,7 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
         expDiv.style.whiteSpace = 'pre-wrap';
         expDiv.style.color = 'var(--text-primary)';
         const translatedExplanation = translateEducationalText(explanation);
-        expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;">💡 <span>${t('Explanation') || 'Explanation'}</span></div>${fixDiacritics(translatedExplanation)}`;
+        expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${t('Explanation') || 'Explanation'}</span></div>${fixDiacritics(translatedExplanation)}`;
         (parent.parentElement || parent).appendChild(expDiv);
     }
 }
@@ -6805,7 +6813,7 @@ function renderStudentPortal() {
   if (currentStudentEnrollments.length === 0) {
     grid.innerHTML = `
       <div style="grid-column:1/-1; text-align:center; padding:60px; background:var(--bg-card); border-radius:16px; border:1px dashed var(--border);">
-        <div style="font-size:48px; margin-bottom:16px;">🏫</div>
+        <div style="margin-bottom:16px;">${SVG_SCHOOL}</div>
         <h2 data-i18n="no_classrooms_found">${t('no_classrooms_found')}</h2>
         <p style="color:var(--text-muted); margin-top:8px;">${t('student.enter_code')}</p>
       </div>
@@ -6817,8 +6825,8 @@ function renderStudentPortal() {
     <div class="classroom-card" style="position:relative">
       <div onclick="enterStudentClassroom('${enr.course_id}')" style="cursor:pointer">
         <div class="classroom-card-header">
-          <div class="classroom-icon">🎓</div>
-          <div class="classroom-status ${enr.status}">${enr.status === 'approved' ? '✓ ' + t('approved') : '⏳ ' + t('pending')}</div>
+          <div class="classroom-icon">${SVG_ACADEMIC}</div>
+          <div class="classroom-status ${enr.status}">${enr.status === 'approved' ? t('approved') : t('pending')}</div>
         </div>
         <div class="classroom-card-body">
           <h3 class="classroom-name">${esc(enr.course_name)}</h3>
@@ -7399,7 +7407,7 @@ async function showDict(word, e) {
     content.innerHTML = `
         <div style="position:relative; text-align:center; padding:20px;">
             <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center;">&times;</button>
-            <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
+            <div style="margin-bottom:12px;">${SVG_WARNING}</div>
             <div style="color:var(--danger); font-size:14px;">${currentLang === 'tr' ? 'Sözlük servisine erişilemiyor.' : 'Dictionary service unavailable.'}</div>
             <button class="btn btn-sm btn-ghost" style="margin-top:12px;" onclick="closeDict()">${currentLang === 'tr' ? 'Kapat' : 'Close'}</button>
         </div>
@@ -7422,13 +7430,13 @@ function renderDictContent(word, lang, res) {
   content.innerHTML = `
     <div style="position:relative; margin-bottom:16px;">
         <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
-        <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-line:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)" style="font-size:20px;">🔈</button></div>
+        <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-line:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)">${TTS_SVG_IDLE}</button></div>
         <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${displayLang})</div>
     </div>
     
     <div class="ai-card">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-            <span style="font-size:18px;">🤖</span>
+            <span class="ai-badge" style="font-size:11px;">AI</span>
             <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">${isTr ? 'Dilbilimsel Zeka' : 'Linguistic Intelligence'}</span>
         </div>
         <div class="ai-explanation" style="font-size:16px; color:#ffffff; line-height:1.6; margin-bottom:14px;">${explanation}</div>
@@ -7485,7 +7493,7 @@ async function askAiAboutWord() {
       meanings.innerHTML = `
                 <div style="background:var(--accent-glow); padding:16px; border-radius:var(--radius); border:1px solid var(--border);">
                     <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                        <span>📖</span> Explanation
+                        <span>Explanation</span>
                     </div>
                     <div style="font-size:14px; color:var(--text-primary); line-height:1.5; margin-bottom:12px;">${res.explanation}</div>
                     

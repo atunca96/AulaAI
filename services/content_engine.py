@@ -6,7 +6,7 @@ import random
 import json
 import uuid
 from datetime import datetime
-from services.ai_engine import is_ai_available, ai_generate_activity, ai_generate_questions, ai_grade_open_response
+from services.ai_engine import is_ai_available, ai_generate_activity, ai_generate_questions, ai_grade_open_response, is_transparent_cognate
 
 
 def _uid():
@@ -71,6 +71,11 @@ def _generate_vocab_activity(content, difficulty, count, language):
     items = list(words.items()) # List of (target_word, source_word)
     random.shuffle(items)
 
+    # ANTI-COGNATE STRATEGY: Prioritize non-cognates so questions are challenging and not obvious giveaways
+    non_cognates = [it for it in items if not is_transparent_cognate(it[0], it[1])]
+    cognates = [it for it in items if is_transparent_cognate(it[0], it[1])]
+    selected_items = (non_cognates + cognates)[:count]
+
     # Simple semantic categorizer for smart distractors
     def _categorize_words(words_dict):
         categories = {"short": [], "medium": [], "long": []}
@@ -87,7 +92,8 @@ def _generate_vocab_activity(content, difficulty, count, language):
     categories = _categorize_words(words)
 
     activities = []
-    for target_word, source_word in items[:count]:
+    for target_word, source_word in selected_items:
+        is_cognate = is_transparent_cognate(target_word, source_word)
         is_reverse = random.choice([True, False])
 
         # Find this word's category
@@ -113,10 +119,15 @@ def _generate_vocab_activity(content, difficulty, count, language):
             options = distractors + [source_word]
             random.shuffle(options)
 
+            if is_cognate:
+                prompt_text = f"In authentic {language} discourse, identify the proper definition context for '{target_word}':"
+            else:
+                prompt_text = f"What does '{target_word}' mean?" if language == "English" else f"What does the {language} word '{target_word}' mean?"
+
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"What does '{target_word}' mean?" if language == "English" else f"What does the {language} word '{target_word}' mean?",
+                "prompt": prompt_text,
                 "options": options,
                 "answer": source_word,
                 "difficulty": difficulty,
@@ -137,10 +148,15 @@ def _generate_vocab_activity(content, difficulty, count, language):
             options_t = distractors_t + [target_word]
             random.shuffle(options_t)
 
+            if is_cognate:
+                prompt_text = f"In a formal {language} communicative scenario, select the correct term representing '{source_word}':"
+            else:
+                prompt_text = f"How do you say '{source_word}' in {language}?"
+
             activities.append({
                 "id": _uid(),
                 "type": "mcq",
-                "prompt": f"How do you say '{source_word}' in {language}?",
+                "prompt": prompt_text,
                 "options": options_t,
                 "answer": target_word,
                 "difficulty": difficulty,

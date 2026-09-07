@@ -121,7 +121,7 @@
     <div class="floating-actions">
         <div class="lang-switcher action-pill-container">
             <button class="btn-lang" onclick="toggleTheme()" id="global-theme-toggle-btn" title="Toggle Theme">
-                <span id="global-theme-toggle-icon" style="font-size:14px;">🌙</span>
+                <span id="global-theme-toggle-icon" style="display:inline-flex; align-items:center; justify-content:center;"><svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
                 <span id="global-theme-toggle-text" data-i18n="theme.dark">Theme: Dark</span>
             </button>
             <span class="action-separator">|</span>
@@ -209,13 +209,13 @@
                 <div style="margin-top:auto; padding:24px 8px 8px; border-top:1px solid rgba(255,255,255,0.05);">
                     <div style="margin-bottom:12px; font-size:10px; color:var(--text-muted); font-weight:800; text-transform:uppercase; letter-spacing:1px; padding-left:8px;" data-i18n="language">Language</div>
                     <button class="btn btn-outline btn-full" onclick="toggleLanguage()" id="sidebar-lang-btn" style="justify-content:space-between; padding:10px 14px; border-radius:10px; background:rgba(255,255,255,0.03); font-size:13px;">
-                        <span>🌐</span> <span id="sidebar-lang-label">EN</span>
+                        <span style="display:inline-flex; align-items:center;"><svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span> <span id="sidebar-lang-label">EN</span>
                     </button>
                 </div>
             </div>
             <div style="padding:16px; border-top:1px solid rgba(255,255,255,0.05);">
                 <button class="btn btn-ghost btn-full" onclick="toggleSidebar(); logout()" style="color:#ff4d4d; justify-content:flex-start; gap:12px; padding:12px 16px; border-radius:10px; background:rgba(255,77,77,0.05);">
-                    <span style="font-size:18px;">🚪</span> <span data-i18n="signOut" style="font-weight:600;">Sign Out</span>
+                    <span style="display:inline-flex; align-items:center;"><svg style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></span> <span data-i18n="signOut" style="font-weight:600;">Sign Out</span>
                 </button>
             </div>
         </div>
@@ -413,9 +413,13 @@
 
     <!-- Waiting Room Screen -->
     <div id="waiting-room-screen" class="screen flex-center">
-        <div style="position:fixed; inset:0; background:var(--bg-primary); z-index:-1;"></div>
         <div class="card" style="max-width:500px; width:100%; text-align:center; padding:48px 32px; border:2px solid var(--accent); background:var(--bg-card); box-shadow:var(--shadow-lg); position:relative;">
-            <div style="font-size:80px; margin-bottom:32px; filter:drop-shadow(0 0 20px var(--accent-glow));">⏳</div>
+            <div style="margin-bottom:32px; display:flex; justify-content:center;">
+                <svg style="width:72px; height:72px; color:var(--accent); filter:drop-shadow(0 0 20px var(--accent-glow));" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
             <h2 style="font-size:2rem; margin-bottom:16px;" data-i18n="Account Pending Approval">Account Pending Approval</h2>
             <p style="color:var(--text-secondary); margin-top:16px; line-height:1.6; font-size:1.1rem" data-i18n="Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.">
                 Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.
@@ -640,7 +644,7 @@
                                 <div id="pdf-file-name" style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">—</div>
                                 <div id="pdf-file-size" style="font-size:12px; color:var(--text-muted);">—</div>
                             </div>
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); clearPdfUpload()" style="color:var(--danger); font-size:16px; padding:4px 8px;">✕</button>
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); clearPdfUpload()" style="color:var(--danger); font-size:16px; padding:4px 8px;">&times;</button>
                         </div>
                     </div>
                 </div>
@@ -717,7 +721,7 @@
                     <div class="spinner"></div>
                     <span id="creation-status-text" data-i18n="class.building_msg">Building your classroom… This may take a minute.</span>
                 </div>
-                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" style="padding:14px; font-size:15px;" data-i18n="class.start_pipeline">🚀 Launch Architect</button>
+                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" style="padding:14px; font-size:15px;" data-i18n="class.start_pipeline">Launch Architect</button>
             </form>
         </div>
     </div>
@@ -730,8 +734,9 @@
                     <h1 style="font-size:32px; font-weight:800;" data-i18n="student.welcome">Welcome to AulaAI</h1>
                     <p style="color:var(--text-muted); margin-top:4px;" data-i18n="student.select_class">Select a classroom to continue learning</p>
                 </div>
-                <button class="btn btn-primary" onclick="openJoinClassroomModal()" style="padding:12px 24px; border-radius:12px; box-shadow:var(--accent-glow);">
-                    <span>➕</span> <span data-i18n="student.join_new">Join New Classroom</span>
+                <button class="btn btn-primary" onclick="openJoinClassroomModal()" style="padding:12px 24px; border-radius:12px; box-shadow:var(--accent-glow); display:inline-flex; align-items:center;">
+                    <svg style="width:14px;height:14px;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span data-i18n="student.join_new">Join New Classroom</span>
                 </button>
             </div>
             <div id="student-classrooms-grid" class="classroom-grid">
@@ -749,7 +754,7 @@
         <div class="modal-content" style="max-width:400px;">
             <button class="modal-close" onclick="closeJoinClassroomModal()">&times;</button>
             <div style="text-align:center; margin-bottom:24px;">
-                <div style="font-size:40px; margin-bottom:16px;">🏫</div>
+                <div style="margin-bottom:16px; display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9v2M15 9v2M9 15v2M15 15v2"></path></svg></div>
                 <h2 data-i18n="student.join_title">Join Classroom</h2>
                 <p style="color:var(--text-muted); font-size:14px;" data-i18n="student.enter_code">Enter the 5-digit code provided by your teacher</p>
             </div>
@@ -765,7 +770,7 @@
         <div class="modal-content" style="max-width:360px;">
             <button class="modal-close" onclick="closePinModal()">&times;</button>
             <div style="text-align:center; margin-bottom:24px;">
-                <div style="font-size:40px; margin-bottom:16px;">🔐</div>
+                <div style="margin-bottom:16px; display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
                 <h2 id="pin-modal-title" data-i18n="student.pin_required">Security PIN Required</h2>
                 <p id="pin-modal-desc" style="color:var(--text-muted); font-size:14px;" data-i18n="student.pin_desc">Please enter your 4-digit PIN for this classroom.</p>
             </div>
@@ -780,7 +785,7 @@
     <!-- Lecturer Dashboard -->
     <div id="lecturer-dashboard" class="screen">
         <nav class="topnav">
-            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); font-size:24px; padding:8px; cursor:pointer; margin-right:8px;">☰</button>
+            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); padding:8px; cursor:pointer; margin-right:8px; display:inline-flex; align-items:center;"><svg style="width:20px;height:20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/aula_ai_logo.png" alt="AulaAI" class="nav-logo-img" style="height:32px; width:auto;">
                 <span class="nav-badge" data-i18n="Lecturer" style="font-size:10px; padding:2px 6px;">Lecturer</span>
@@ -800,7 +805,7 @@
                 <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
-                <button class="btn btn-ghost" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
+                <button class="btn btn-ghost mobile-only" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme" style="margin-right:8px;"><svg class="theme-svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>
@@ -894,7 +899,7 @@
                 </div>
                 <div class="activity-launcher">
                     <div class="card">
-                        <div class="card-header"><h3 data-i18n="🚀 Launch Activity">🚀 Launch Activity</h3></div>
+                        <div class="card-header"><h3 data-i18n="Launch Activity">Launch Activity</h3></div>
                         <div class="card-body">
                             <div class="form-group">
                                 <label data-i18n="Select Chapter & Topic">Select Chapter & Topic</label>
@@ -916,7 +921,7 @@
                     <p class="subtitle" data-i18n="Create and manage quizzes">Create and manage quizzes</p>
                 </div>
                 <div class="card">
-                    <div class="card-header"><h3 data-i18n="➕ Create New Quiz">➕ Create New Quiz</h3></div>
+                    <div class="card-header"><h3 data-i18n="Create New Quiz">Create New Quiz</h3></div>
                     <div class="card-body">
                         <div class="form-row">
                             <div class="form-group">
@@ -998,7 +1003,7 @@
                         <p class="subtitle" data-i18n="report.subtitle">AI-generated class performance analysis</p>
                     </div>
                     <button class="btn btn-primary" onclick="generateReport()" data-i18n="report.generate">
-                        🔄 Report
+                        Report
                     </button>
                 </div>
                 <div id="report-content"></div>
@@ -1036,7 +1041,7 @@
                 <div class="pdf-container pc-only" style="position:relative;">
                     <iframe src="about:blank" class="pdf-viewer" loading="lazy"></iframe>
                     <div class="pdf-empty-state hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:var(--bg-card); z-index:10;">
-                        <span style="font-size:64px; margin-bottom:20px;">📚</span>
+                        <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
                         <h2 data-i18n="class.no_curriculum">No curriculum data available</h2>
                         <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
                     </div>
@@ -1046,7 +1051,7 @@
                     <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
                         <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
                             <div style="position:absolute; top:0; left:0; width:40px; height:40px; background:var(--accent); clip-path: polygon(0 0, 0% 100%, 100% 0);"></div>
-                            <span style="font-size:48px;">📄</span>
+                            <div style="display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></div>
                             <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
                         </div>
                         <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
@@ -1072,7 +1077,7 @@
                     <div id="ai-book-content" class="study-content-panel">
                         <div id="ai-book-content-area" class="study-content-area">
                             <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
-                                <div style="font-size: 54px; margin-bottom: 20px;">📖</div>
+                                <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:54px;height:54px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
                                 <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
                                 <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
                             </div>
@@ -1086,7 +1091,7 @@
     <!-- Student Dashboard -->
     <div id="student-dashboard" class="screen">
         <nav class="topnav student-nav">
-            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); font-size:24px; padding:8px; cursor:pointer; margin-right:8px;">☰</button>
+            <button class="mobile-only" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text-primary); padding:8px; cursor:pointer; margin-right:8px; display:inline-flex; align-items:center;"><svg style="width:20px;height:20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
             <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
                 <img src="/img/aula_ai_logo.png" alt="AulaAI" class="nav-logo-img" style="height:32px; width:auto;">
                 <span class="nav-badge" data-i18n="Student" style="font-size:10px; padding:2px 6px;">Student</span>
@@ -1104,7 +1109,7 @@
             </div>
             <div class="nav-user">
                 <button class="btn btn-ghost btn-lang" onclick="toggleLanguage()" id="student-lang-btn" style="font-weight:700; font-size:13px; margin-right:8px; border:1px solid var(--border); padding:4px 10px; border-radius:8px;">TR</button>
-                <button class="btn btn-ghost" onclick="toggleTheme()" id="student-theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
+                <button class="btn btn-ghost mobile-only" onclick="toggleTheme()" id="student-theme-toggle-btn" title="Toggle Theme" style="margin-right:8px;"><svg class="theme-svg-icon" style="width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
         </nav>
@@ -1218,7 +1223,7 @@
                         </div>
                         <div id="s-ai-book-content-area" class="study-content-area">
                             <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
-                                <div style="font-size: 54px; margin-bottom: 20px;">📖</div>
+                                <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:54px;height:54px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
                                 <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
                                 <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
                             </div>
@@ -1227,7 +1232,7 @@
                 </div>
                 <!-- Fallback for PDF-only courses -->
                 <div id="s-ai-book-fallback" class="hidden" style="text-align:center; padding:100px 20px; background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border);">
-                    <div style="font-size:64px; margin-bottom:24px;">📚</div>
+                    <div style="margin-bottom:24px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
                     <h2 data-i18n="class.pdf_only_msg">Traditional Classroom</h2>
                     <p style="color:var(--text-secondary); margin-top:16px; font-size:18px;">This course uses a PDF textbook. Please use the <b>Textbook</b> tab to study.</p>
                     <button class="btn btn-primary" style="margin-top:32px; padding:12px 32px;" onclick="document.querySelector('[data-tab=s-book]').click()" data-i18n="Read Textbook">Go to Textbook</button>
@@ -1243,7 +1248,7 @@
                 <div class="pdf-container pc-only" style="position:relative; height:calc(100vh - 200px); background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">
                     <iframe src="about:blank" class="pdf-viewer" style="width:100%; height:100%; border:none;" loading="lazy"></iframe>
                     <div class="pdf-empty-state hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:var(--bg-card); z-index:10;">
-                        <span style="font-size:64px; margin-bottom:20px;">📚</span>
+                        <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
                         <h2 data-i18n="class.no_textbook">No Textbook Available</h2>
                         <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
                     </div>
@@ -1252,12 +1257,12 @@
                     <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
                         <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
                             <div style="position:absolute; top:0; left:0; width:40px; height:40px; background:var(--accent); clip-path: polygon(0 0, 0% 100%, 100% 0);"></div>
-                            <span style="font-size:48px;">📄</span>
+                            <div style="display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></div>
                             <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
                         </div>
                         <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
                         <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
-                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">📖 Read Textbook</a>
+                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">Read Textbook</a>
                     </div>
                 </div>
             </section>
@@ -1334,7 +1339,7 @@
         <div class="loader-container" style="margin-bottom:32px; position:relative;">
             <div class="loader-ring" style="width:100px; height:100px; border-radius:50%; border:4px solid rgba(255,255,255,0.05); border-top-color:var(--accent); animation:spin 1s linear infinite;"></div>
             <div class="loader-glow" style="position:absolute; inset:0; background:var(--accent); filter:blur(40px); opacity:0.15; border-radius:50%;"></div>
-            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px;">🧠</div>
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;"><svg style="width:36px;height:36px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg></div>
         </div>
         <h2 style="font-size:28px; font-weight:800; margin-bottom:12px; background:linear-gradient(135deg, #fff, rgba(255,255,255,0.7)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;" class="building-label" data-i18n="gen.building">Building your classroom...</h2>
         <p style="color:var(--text-secondary); max-width:300px; font-size:16px;" data-i18n="gen.ai_architecting">Our AI is architecting your curriculum and generating study materials. Please wait a moment.</p>

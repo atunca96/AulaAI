@@ -12,10 +12,59 @@ from datetime import datetime
 print(f"--- AI_ENGINE LOADED AT {datetime.now()} ---")
 with open("pipeline.log", "a", encoding="utf-8") as f:
     f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [INIT] ai_engine.py loaded\n")
+import unicodedata
+import difflib
 from typing import List, Dict, Any, Optional
 
 def _uid():
     return str(uuid.uuid4())
+
+def normalize_text_for_cognate(text: str) -> str:
+    """Strip diacritics and non-alphanumeric chars for cognate comparison."""
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', str(text).lower())
+    clean = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r'[^a-z0-9]', '', clean)
+
+def is_transparent_cognate(word1: str, word2: str, threshold: float = 0.65) -> bool:
+    """Check if two words are transparent cognates (too similar to test directly)."""
+    w1 = normalize_text_for_cognate(word1)
+    w2 = normalize_text_for_cognate(word2)
+    if not w1 or not w2:
+        return False
+    if len(w1) >= 4 and len(w2) >= 4:
+        if w1 in w2 or w2 in w1:
+            return True
+    min_len = min(len(w1), len(w2))
+    if min_len >= 5:
+        shared_prefix = 0
+        while shared_prefix < min_len and w1[shared_prefix] == w2[shared_prefix]:
+            shared_prefix += 1
+        if shared_prefix >= 5 or (min_len <= 5 and shared_prefix >= 4):
+            return True
+    return difflib.SequenceMatcher(None, w1, w2).ratio() >= threshold
+
+def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) -> bool:
+    """Detect if the prompt or translation contains an obvious cognate giveaway of the target answer."""
+    clean_a = normalize_text_for_cognate(answer)
+    if len(clean_a) < 4:
+        return False
+    ans_words = [normalize_text_for_cognate(w) for w in answer.split() if len(normalize_text_for_cognate(w)) >= 4]
+    if not ans_words:
+        ans_words = [clean_a]
+
+    text_to_check = f"{prompt} {translation}"
+    cand_words = re.findall(r'[a-zA-Z\u00C0-\u017F]{4,}', text_to_check)
+    stopwords = {"what", "does", "mean", "which", "word", "sentence", "following", "translate", "choose", "correct",
+                 "nasil", "nedir", "hangisi", "anlami", "asagidaki", "cumle", "dogru", "kelime", "ifade"}
+    for cw in cand_words:
+        if normalize_text_for_cognate(cw) in stopwords:
+            continue
+        for aw in ans_words:
+            if is_transparent_cognate(cw, aw, threshold=0.65):
+                return True
+    return False
 
 # LOCAL DEV: Load .env if it exists
 if os.path.exists(".env"):
@@ -170,17 +219,21 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
        - The prompt MUST NEVER contain the correct answer or any stem/part of the correct answer.
        - NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling of characters (e.g., NEVER ask 'Which letter name has the word X in it?', 'Which word ends in Y?', 'Which of these is a letter?').
        - For alphabet and pronunciation topics, test genuine sound-to-letter correspondences in authentic words, silent letters, or minimal pairs. NEVER ask about the spelling of a letter's name.
-    2. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
-    3. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
+    2. STRICT ANTI-COGNATE & REAL-CHALLENGE MANDATE (CRITICAL):
+       - NEVER ask questions where the target answer is an obvious transparent cognate or nearly identical to its English/Turkish counterpart (e.g., asking for 'multiplicación' when the prompt or translation says 'multiplication', or asking for 'doctor' from 'doctor', or 'música' from 'music', or 'información' from 'information'). Such questions are obvious giveaways and fail to assess genuine language learning!
+       - For concepts that share common roots across languages (such as mathematics, science, technology, academic terms), frame questions through realistic communicative situations, procedural scenarios, or word problems (e.g., 'Si compras 3 libros de 4 euros cada uno, ¿qué operación matemática realizas?').
+       - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain (e.g., all 4 must be arithmetic operations: suma, resta, multiplicación, división) so the student cannot deduce the answer merely by recognizing English/Turkish spelling similarities.
+    3. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
+    4. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
        - If the correct answer is a QUESTION (e.g. "¿Cuánto cuesta?"), then ALL 3 distractors MUST ALSO be questions (e.g. "¿Dónde está?", "¿Cómo se llama?", "¿Qué hora es?").
        - If the correct answer is a STATEMENT, all distractors must also be statements.
        - If the correct answer is a VERB FORM, all distractors must also be verb forms.
        - If the correct answer is a NOUN, all distractors must also be nouns.
        - NEVER mix questions with statements, nouns with verbs, or phrases with single words. The student must NOT be able to identify the correct answer just by looking at the format.
-    4. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or communicative situation. 
-    5. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
-    6. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
-    7. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
+    5. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or communicative situation. 
+    6. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
+    7. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
+    8. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have a {instruction_lang_name} 'translation' in the 'translation' field."""
@@ -266,6 +319,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             ]
             if any(t in clean_p for t in trivia_indicators):
                 is_giveaway = True
+
+            # Reject transparent cognate giveaways (e.g. multiplication -> multiplicación)
+            trans_text = str(item.get("translation", "")).strip()
+            if is_transparent_cognate_giveaway(p, trans_text, a):
+                is_giveaway = True
+                print(f"[REJECTED COGNATE GIVEAWAY] Prompt: '{p}' | Translation: '{trans_text}' | Answer: '{a}'")
                 
             if is_giveaway:
                 print(f"[REJECTED GIVEAWAY/TRIVIA QUESTION] Prompt: '{p}' | Answer: '{a}'")
@@ -577,6 +636,8 @@ This rule is language-agnostic: always relate sounds to common, accessible words
                 clean_a = re.sub(r'[^\w\s]', ' ', ans_txt).strip()
                 if len(clean_a) > 2 and f" {clean_a} " in f" {clean_p} ":
                     continue  # Skip giveaway
+                if is_transparent_cognate_giveaway(prompt_txt, "", ans_txt):
+                    continue  # Skip transparent cognate giveaway
                 trivia_indicators = ["nombre que incluye", "se llama", "name includes", "includes the word", "harfinin adı", "kelimesini içerir", "cuál de estas letras tiene un nombre"]
                 if any(x in clean_p for x in trivia_indicators):
                     continue  # Skip trivia

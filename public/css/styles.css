@@ -2208,8 +2208,37 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   gap: 6px;
 }
 
-.mobile-only { display: none; }
+.mobile-only { display: none !important; }
 .pc-only { display: flex; }
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-right: 6px;
+}
+.rank-badge.rank-1 { background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.4); }
+.rank-badge.rank-2 { background: rgba(192, 192, 192, 0.15); color: #c0c0c0; border: 1px solid rgba(192, 192, 192, 0.4); }
+.rank-badge.rank-3 { background: rgba(205, 127, 50, 0.15); color: #cd7f32; border: 1px solid rgba(205, 127, 50, 0.4); }
 
 @media (max-width: 1024px) {
     /* Completely remove Read Textbook from Mobile/Tablets */
@@ -2275,7 +2304,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
         line-height: 1.6 !important;
     }
     
-    .mobile-only { display: block; }
+    .mobile-only { display: inline-flex !important; }
     .pc-only { display: none !important; }
 }
 
