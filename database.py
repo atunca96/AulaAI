@@ -196,6 +196,9 @@ def init_db():
             activity_total INTEGER DEFAULT 0,
             activity_result TEXT,
             material_language TEXT DEFAULT 'en',
+            build_stage TEXT DEFAULT 'idle',
+            build_message TEXT DEFAULT '',
+            build_started_at REAL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(lecturer_id) REFERENCES users(id)
         )''')
@@ -510,6 +513,9 @@ def _run_migrations():
             ("courses", "language", "TEXT DEFAULT 'Turkish'"),
             ("courses", "level", "TEXT DEFAULT 'A1'"),
             ("courses", "generation_id", "TEXT"),
+            ("courses", "build_stage", "TEXT DEFAULT 'idle'"),
+            ("courses", "build_message", "TEXT DEFAULT ''"),
+            ("courses", "build_started_at", "REAL DEFAULT 0"),
             ("enrollments", "id", "TEXT"),
             ("enrollments", "pin", "TEXT"),
             ("enrollments", "enrolled_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),

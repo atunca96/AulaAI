@@ -391,9 +391,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     future_to_topic[f] = topic.get("title")
                     topic_count += 1
 
-            # ANNOUNCE TOTAL STEPS: So the progress bar knows its target
+            # ANNOUNCE TOTAL STEPS & STAGE: So the progress bar knows its target
             with db_connection() as db:
-                db.execute("UPDATE courses SET total_steps = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, course_id, gen_id, gen_id))
+                db.execute("UPDATE courses SET total_steps = ?, progress = 0, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, f"Generating lesson materials (0/{topic_count})...", course_id, gen_id, gen_id))
                 db.commit()
 
             # ── PROGRESS & DB UPDATES (CENTRALIZED) ──
@@ -402,23 +402,28 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 completed += 1
                 try:
                     res = future.result()
+                    t_title = res.get("t_title", "Topic")
+                    build_msg = f"Generating lessons ({completed}/{topic_count}): {t_title}"
                     with db_connection() as db:
                         db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(res["content"]), res["t_id"]))
-                        db.execute("UPDATE courses SET progress = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (completed, course_id, gen_id, gen_id))
+                        db.execute("UPDATE courses SET progress = ?, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (completed, build_msg, course_id, gen_id, gen_id))
                         db.commit()
-                    _log(f"Enrichment: {completed}/{topic_count} DONE.")
+                    _log(f"Enrichment: {completed}/{topic_count} DONE ({t_title}).")
                     bump_version()
                 except Exception as e:
                     _log(f"Topic Error: {e}")
 
         _log(f"Phase 2 Complete for {course_id}.")
         try:
+            with db_connection() as db:
+                db.execute("UPDATE courses SET build_stage = 'finalizing', build_message = 'Finalizing bilingual translations...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+                db.commit()
             from services.bilingual_finisher import finalize_course_bilingual_data
             finalize_course_bilingual_data(course_id)
         except Exception as b_err:
             _log(f"Warning: finalize_course_bilingual_data failed: {b_err}")
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = ?, total_steps = ?, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, topic_count, course_id, gen_id, gen_id))
             db.commit()
         bump_version()
 
@@ -426,7 +431,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         _log(f"FATAL Phase 2: {e}")
         traceback.print_exc()
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0 WHERE id = ?", (course_id,))
+            db.execute("UPDATE courses SET is_building = 0, build_stage = 'failed', build_message = ? WHERE id = ?", (f"Build error: {str(e)[:120]}", course_id))
             db.commit()
 
 
@@ -443,8 +448,8 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     gen_id = _uid()
     
     with db_connection() as db:
-        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id, material_language) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id, material_language))
+        db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id, material_language, build_stage, build_message, build_started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id, material_language, "analyzing", "Analyzing textbook syllabus...", time.time()))
         db.commit()
     
     manual_toc_file = None
@@ -508,15 +513,15 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ? WHERE id = ?",
-                       (course_name, language, level, f"{level} Level", gen_id, material_language, course_id))
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ?, build_stage = 'structuring', build_message = 'Building curriculum structure...', build_started_at = ? WHERE id = ?",
+                       (course_name, language, level, f"{level} Level", gen_id, material_language, time.time(), course_id))
             db.commit()
     else:
         course_id = _uid()
         code = generate_classroom_code()
         with db_connection() as db:
-            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id, material_language) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language))
+            db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id, material_language, build_stage, build_message, build_started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language, "structuring", "Building curriculum structure...", time.time()))
             db.commit()
 
     # Process the nested chapters into the worker's expected format

@@ -63,7 +63,10 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
     """
     try:
         logger.info(f"V2 Orchestrator starting for Course {course_id}")
-        
+        with db_connection() as db:
+            db.execute("UPDATE courses SET build_stage = 'analyzing', build_message = 'Analyzing syllabus and chapters...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.commit()
+
         if manual_toc:
             logger.info("Manual TOC detected, skipping PDF extraction.")
             try:
@@ -132,7 +135,8 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
 
         # 2. Populate the Database
         with db_connection() as db:
-            # We assume the course record already exists (created by server.py or main.py)
+            db.execute("UPDATE courses SET build_stage = 'structuring', build_message = 'Structuring chapters and topics...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.commit()
             
             # Clean up any existing structure for this course if we are re-running
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
@@ -166,8 +170,7 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                     )
             
             # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)
-            # Only update if our generation_id is still current
-            db.execute("UPDATE courses SET progress = 20 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET progress = 20, build_stage = 'enriching', build_message = 'Curriculum ready. Preparing lesson generation...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
             
         logger.info(f"V2 Orchestrator finished for Course {course_id}")
@@ -176,6 +179,6 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
     except Exception as e:
         logger.error(f"V2 Orchestrator FATAL ERROR: {e}")
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET is_building = 0, build_stage = 'failed', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (f"Structure error: {str(e)[:120]}", course_id, gen_id, gen_id))
             db.commit()
         raise e

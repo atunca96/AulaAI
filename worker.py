@@ -95,7 +95,7 @@ def main():
                 pdf_path = row["textbook"] if row else None
                 
                 # NUCLEAR RESET: Ensure we start at 0% even if previous build was dirty
-                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'enriching', build_message = 'Starting lesson rebuild...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
                 db.commit()
             
             try:
@@ -113,7 +113,7 @@ def main():
                 except Exception as b_err:
                     print(f"[WORKER] Warning: finalize_course_bilingual_data failed: {b_err}")
                 with db_connection() as db:
-                    db.execute("UPDATE courses SET is_building=0 WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+                    db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', build_message = 'Classroom is ready!' WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                     db.commit()
 
             with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -143,7 +143,7 @@ def main():
         # NUCLEAR RESET: Start fresh
         from database import db_connection
         with db_connection() as db:
-            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Analyzing textbook syllabus...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
             db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
@@ -161,7 +161,7 @@ def main():
                     SELECT COUNT(*) FROM topics t 
                     JOIN chapters ch ON t.chapter_id = ch.id 
                     WHERE ch.course_id = ?
-                ) WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
+                ), build_stage = 'enriching', build_message = 'Preparing lesson generation...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
             """, (course_id, course_id, gen_id, gen_id))
             db.commit()
 
@@ -171,6 +171,9 @@ def main():
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
+            with db_connection() as db:
+                db.execute("UPDATE courses SET is_building = 0, build_stage = 'failed', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (f"Enrichment error: {str(e)[:120]}", course_id, gen_id, gen_id))
+                db.commit()
             
         # Finalize bilingual data before releasing course build
         try:
@@ -181,7 +184,7 @@ def main():
 
         # Finalize
         with db_connection() as db:
-            db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
             
         print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")

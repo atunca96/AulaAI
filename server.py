@@ -397,7 +397,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             quiz_id = params.get("quiz_id", [None])[0]
             student_id = params.get("student_id", [None])[0]
             return self._get_quiz(quiz_id, student_id)
-        elif path == "/api/classroom/progress":
+        elif path in ("/api/classroom/progress", "/api/curriculum/status"):
             return self._get_classroom_progress()
         elif path == "/api/quizzes":
             course_id = params.get("course_id", [None])[0]
@@ -638,7 +638,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             gen_id = str(uuid.uuid4())
 
             # Reset is_building flag to trigger worker
-            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0, generation_id = ? WHERE id = ?", (gen_id, course_id))
+            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0, generation_id = ?, build_stage = 'starting', build_message = 'Restarting build process...', build_started_at = ? WHERE id = ?", (gen_id, time.time(), course_id))
             db.commit()
 
         # KILL OLD WORKER (Server-Side Executioner)
@@ -695,40 +695,77 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not course_id: return self._send_error("course_id required")
 
         with db_connection() as db:
-            row = db.execute("SELECT is_building, progress, total_steps FROM courses WHERE id=?", (course_id,)).fetchone()
+            row = db.execute("""
+                SELECT is_building, progress, total_steps, build_stage, build_message, build_started_at 
+                FROM courses WHERE id=?
+            """, (course_id,)).fetchone()
             if not row: return self._send_error("Course not found")
             
-            is_building = row["is_building"]
+            is_building = bool(row["is_building"])
             progress = row["progress"] or 0
             total = row["total_steps"] or 0
-            
-            if total <= 0:
-                if is_building:
-                    # PLANNING PHASE (analyzing curriculum)
-                    percentage = 15
+            stage = row["build_stage"] or ("enriching" if is_building else "idle")
+            message = row["build_message"] or ""
+            started_at = row["build_started_at"] or 0
+            elapsed = (time.time() - started_at) if started_at > 0 else 0
+
+            # STALE/TIMEOUT PROTECTION: If building has run > 15 minutes, auto-recover
+            if is_building and started_at > 0 and elapsed > 900:
+                print(f"[SERVER] Stale build detected for {course_id} (elapsed {elapsed:.0f}s). Auto-recovering...")
+                db.execute("UPDATE courses SET is_building = 0, build_stage = 'timeout', build_message = 'Build timed out. Please click Force Restart.' WHERE id = ?", (course_id,))
+                db.commit()
+                is_building = False
+                stage = "timeout"
+                message = "Build timed out. Please click Force Restart."
+
+            if not is_building:
+                if stage == "failed":
+                    percentage = 0
+                    if not message: message = "Build encountered an error."
+                elif stage == "timeout":
+                    percentage = 0
                 else:
-                    # IDLE / NOT STARTED
-                    percentage = 0 if progress == 0 else int(progress)
+                    percentage = 100
+                    if not message: message = "Classroom is ready!"
             else:
-                # BUILDING PHASE
-                raw_pct = int((progress / total) * 100) if total > 0 else 0
-                if is_building:
-                    # If we haven't even started (progress=0), stay at planning phase
-                    if progress <= 0:
-                        percentage = 15
+                # Calculate accurate, monotonic progress based on granular pipeline stages
+                if stage == "starting":
+                    percentage = 5
+                    if not message: message = "Starting build process..."
+                elif stage == "analyzing":
+                    percentage = 12
+                    if not message: message = "Analyzing textbook syllabus..."
+                elif stage == "structuring":
+                    percentage = 20
+                    if not message: message = "Structuring course chapters and topics..."
+                elif stage == "enriching":
+                    if total > 0:
+                        topic_ratio = min(1.0, max(0.0, progress / total))
+                        percentage = 25 + int(topic_ratio * 65)
                     else:
-                        # Cap at 92 while still building (avoids the '99% stuck' visual bug)
-                        percentage = min(92, max(20, raw_pct))
+                        percentage = 25
+                    if not message:
+                        message = f"Generating lesson materials ({progress}/{total})..." if total > 0 else "Generating lesson materials..."
+                elif stage == "finalizing":
+                    percentage = 94
+                    if not message: message = "Finalizing bilingual translations..."
                 else:
-                    # Finished
-                    percentage = 100 if raw_pct >= 95 else raw_pct
+                    raw = int((progress / total) * 100) if total > 0 else 15
+                    percentage = min(92, max(15, raw))
+                    if not message: message = "Building classroom content..."
+
+                # Ensure it never claims 100% while still building
+                percentage = min(98, max(5, percentage))
 
             return self._send_json({
                 "course_id": course_id,
-                "is_building": bool(is_building),
+                "is_building": is_building,
+                "stage": stage,
+                "message": message,
                 "progress": progress,
                 "total": total,
-                "percentage": percentage
+                "percentage": percentage,
+                "elapsed_seconds": int(elapsed) if is_building and started_at > 0 else 0
             })
 
     def do_POST(self):
@@ -757,7 +794,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._admin_upload_db()
         elif path == "/api/classroom/delete":
             return self._delete_classroom()
-        elif path == "/api/classroom/rebuild":
+        elif path in ("/api/classroom/rebuild", "/api/curriculum/rebuild"):
             return self._classroom_rebuild()
         elif path == "/api/classroom/wipe-curriculum":
             return self._wipe_curriculum()
@@ -3231,8 +3268,10 @@ def _cleanup_orphaned_building_flags():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building and activity flags...")
     with db_connection() as db:
         # 1. Reset Classroom Building flags (interrupted builds)
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
-        db.execute("UPDATE courses SET is_building = 0, progress = 0 WHERE is_building = 1 AND created_at < ?", (cutoff,))
+        db.execute("""
+            UPDATE courses SET is_building = 0, build_stage = 'interrupted', build_message = 'Build interrupted by server restart'
+            WHERE is_building = 1
+        """)
         
         # 2. Reset Activity Generation flags (Always reset on startup since threads are gone)
         db.execute("UPDATE courses SET activity_status = 'idle', activity_progress = 0 WHERE activity_status = 'generating'")

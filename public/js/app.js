@@ -378,37 +378,66 @@ function startLiveSync() {
       // Continuous progress polling while building (independent of data version)
       if (currentCourse && currentCourse.is_building) {
         api(`/classroom/progress?course_id=${currentCourse.id}&v=${Date.now()}`).then(prog => {
-            if (prog) {
-              if (prog.is_building && _buildStartTime === 0) _buildStartTime = Date.now();
-              if (!prog.is_building) _buildStartTime = 0;
-
-              const isLecturer = currentUser.role === 'lecturer';
+          if (prog) {
+            const isLecturer = currentUser.role === 'lecturer';
             const bannerId = isLecturer ? 'lecturer-building-banner' : 'student-building-banner';
             const fillId = isLecturer ? 'lecturer-progress-fill' : 'student-progress-fill';
             const textId = isLecturer ? 'lecturer-progress-text' : 'student-progress-text';
+            const detailId = isLecturer ? 'lecturer-progress-detail' : 'student-progress-detail';
+            const badgeId = isLecturer ? 'lecturer-stage-badge' : 'student-stage-badge';
 
             const buildBanner = document.getElementById(bannerId);
             const progressFill = document.getElementById(fillId);
             const progressText = document.getElementById(textId);
+            const progressDetail = document.getElementById(detailId);
+            const stageBadge = document.getElementById(badgeId);
 
-            const elapsed = Date.now() - _buildStartTime;
-            let displayPct = prog.percentage;
-            
-            // 7-SECOND SMOOTHING HACK: Stay low while starting
-            if (elapsed < 7000 && prog.is_building) {
-                // Smoothly climb to 10% over 7 seconds regardless of actual speed
-                const fakePct = Math.floor((elapsed / 7000) * 10);
-                displayPct = Math.min(fakePct, prog.percentage);
+            if (buildBanner) {
+              buildBanner.classList.toggle('hidden', !prog.is_building);
+              if (prog.stage === 'failed' || prog.stage === 'timeout') {
+                buildBanner.classList.add('build-failed');
+              } else {
+                buildBanner.classList.remove('build-failed');
+              }
             }
 
-            if (buildBanner) buildBanner.classList.toggle('hidden', !prog.is_building);
-            if (progressFill) progressFill.style.width = displayPct + '%';
-            if (progressText) progressText.textContent = displayPct + '%';
+            const pct = Math.max(0, Math.min(100, Math.round(prog.percentage || 0)));
+            if (progressFill) progressFill.style.width = pct + '%';
+            if (progressText) progressText.textContent = pct + '%';
+
+            if (stageBadge && prog.stage) {
+              stageBadge.textContent = prog.stage.toUpperCase();
+            }
+
+            if (progressDetail && prog.message) {
+              progressDetail.textContent = prog.message;
+            }
+
+            // Update step nodes on lecturer banner
+            if (isLecturer) {
+              const stepsTrack = document.getElementById('lecturer-steps-track');
+              if (stepsTrack) {
+                const stageOrder = ['analyzing', 'structuring', 'enriching', 'finalizing'];
+                const currentStageIdx = stageOrder.indexOf(prog.stage);
+                stepsTrack.querySelectorAll('.build-step-node').forEach(node => {
+                  const nodeStep = node.getAttribute('data-step');
+                  const nodeIdx = stageOrder.indexOf(nodeStep);
+                  node.classList.remove('active', 'done');
+                  if (nodeIdx !== -1) {
+                    if (nodeIdx < currentStageIdx) {
+                      node.classList.add('done');
+                    } else if (nodeIdx === currentStageIdx) {
+                      node.classList.add('active');
+                    }
+                  }
+                });
+              }
+            }
 
             // Update local state if it finished building
             if (!prog.is_building && currentCourse.is_building) {
               currentCourse.is_building = 0;
-              _buildStartTime = 0;
+              showToast(t('Classroom is ready!'), "success");
               refreshCurrentView();
             }
           }
@@ -813,6 +842,13 @@ const i18n = {
     'class.share_msg': 'Share the Join Code with your students to start the lesson.',
     'class.create_success_full': 'Classroom created successfully! \n\nJoin Code: {code}\n\nShare the Join Code with your students to start the lesson.',
     'class.building_msg_student': 'The lecturer is rebuilding the classroom structure...',
+    'class.building_title': 'Classroom Content Generation',
+    'class.building_title_student': 'Course Content Update in Progress',
+    'class.force_restart': 'Force Restart',
+    'step.analysis': '1. Analysis',
+    'step.curriculum': '2. Curriculum',
+    'step.lessons': '3. Lessons',
+    'step.finalize': '4. Finalize',
     'answer': 'Answer',
     'responses': 'Responses',
     'gen.loading': 'Questions are being generated...',
@@ -1091,6 +1127,13 @@ const i18n = {
     'gen.building': 'İçerik Oluşturuluyor...',
     'gen.please_wait': 'Lütfen Bekleyin',
     'class.building_msg_student': 'Öğretmen sınıf yapısını yeniden oluşturuyor...',
+    'class.building_title': 'Sınıf İçeriği Hazırlanıyor',
+    'class.building_title_student': 'Ders İçerikleri Güncelleniyor',
+    'class.force_restart': 'Yeniden Başlat',
+    'step.analysis': '1. Analiz',
+    'step.curriculum': '2. Müfredat',
+    'step.lessons': '3. Dersler',
+    'step.finalize': '4. Tamamlama',
     'Build All Lessons': 'Dersleri Oluştur',
     'Building...': 'Hazırlanıyor...',
     'Go Back to Classrooms': 'Sınıflara Geri Dön',
@@ -4421,24 +4464,34 @@ async function rebuildClassroom(force = false) {
   }
 
   const rebuildBtn = document.getElementById('rebuild-curriculum-btn');
+  const forceRestartBtn = document.getElementById('lecturer-force-restart-btn');
   if (rebuildBtn) {
     rebuildBtn.disabled = true;
     rebuildBtn.style.opacity = '0.5';
     const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
     if (btnText) btnText.textContent = t('Building...');
   }
+  if (forceRestartBtn) {
+    forceRestartBtn.disabled = true;
+    forceRestartBtn.style.opacity = '0.5';
+    forceRestartBtn.textContent = '...';
+  }
 
   showToast(t('gen.preparing_content'), "info");
   
   try {
-    const res = await api('/curriculum/rebuild', {
+    const res = await api('/classroom/rebuild', {
       method: 'POST',
-      body: { course_id: currentCourse.id }
+      body: { course_id: currentCourse.id, force: true }
     });
-    if (res.success) {
+    if (res.status === 'success' || res.success) {
       currentCourse.is_building = 1;
       showToast(t('gen.building'), "success");
-      // Poll progress until completion
+      const banner = document.getElementById('lecturer-building-banner');
+      if (banner) {
+        banner.classList.remove('hidden');
+        banner.classList.remove('build-failed');
+      }
       pollRebuildProgress(currentCourse.id);
     } else {
       showToast(res.error || "Failed to start lesson building", "error");
@@ -4458,6 +4511,14 @@ async function rebuildClassroom(force = false) {
       const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
       if (btnText) btnText.textContent = t('Build All Lessons');
     }
+  } finally {
+    if (forceRestartBtn) {
+      forceRestartBtn.disabled = false;
+      forceRestartBtn.style.opacity = '1';
+      const forceTxt = forceRestartBtn.querySelector('span');
+      if (forceTxt) forceTxt.textContent = t('class.force_restart') || 'Force Restart';
+      else forceRestartBtn.textContent = t('class.force_restart') || 'Force Restart';
+    }
   }
 }
 
@@ -4465,11 +4526,14 @@ function pollRebuildProgress(cid) {
   const banner = document.getElementById('lecturer-building-banner');
   const fill = document.getElementById('lecturer-progress-fill');
   const txt = document.getElementById('lecturer-progress-text');
+  const detail = document.getElementById('lecturer-progress-detail');
+  const badge = document.getElementById('lecturer-stage-badge');
+  const stepsTrack = document.getElementById('lecturer-steps-track');
   if (banner) banner.classList.remove('hidden');
 
   const timer = setInterval(async () => {
     try {
-      const st = await api(`/curriculum/status?course_id=${cid}`);
+      const st = await api(`/classroom/progress?course_id=${cid}&v=${Date.now()}`);
       if (!st.is_building) {
         clearInterval(timer);
         if (banner) banner.classList.add('hidden');
@@ -4481,17 +4545,32 @@ function pollRebuildProgress(cid) {
           const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
           if (btnText) btnText.textContent = t('Build All Lessons');
         }
-        showToast(t('is ready!'), "success");
+        showToast(t('Classroom is ready!'), "success");
         await loadCurriculumAsync();
       } else {
-        const pct = Math.min(95, Math.round((st.progress || 0) * 100));
+        const pct = Math.max(0, Math.min(100, Math.round(st.percentage || 0)));
         if (fill) fill.style.width = pct + '%';
         if (txt) txt.textContent = pct + '%';
+        if (detail && st.message) detail.textContent = st.message;
+        if (badge && st.stage) badge.textContent = st.stage.toUpperCase();
+        if (stepsTrack && st.stage) {
+          const stageOrder = ['analyzing', 'structuring', 'enriching', 'finalizing'];
+          const currentStageIdx = stageOrder.indexOf(st.stage);
+          stepsTrack.querySelectorAll('.build-step-node').forEach(node => {
+            const nodeStep = node.getAttribute('data-step');
+            const nodeIdx = stageOrder.indexOf(nodeStep);
+            node.classList.remove('active', 'done');
+            if (nodeIdx !== -1) {
+              if (nodeIdx < currentStageIdx) node.classList.add('done');
+              else if (nodeIdx === currentStageIdx) node.classList.add('active');
+            }
+          });
+        }
       }
     } catch(e) {
       console.warn("Poll status error:", e);
     }
-  }, 3000);
+  }, 1000);
 }
 
 async function reArchitectCurriculum() {

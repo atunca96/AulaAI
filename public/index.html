@@ -21,10 +21,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260907_unittr_fix3">
+    <link rel="stylesheet" href="/css/styles.css?v=20260907_progressbar_v1">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/bilingual_materials.js?v=20260907_unittr_fix3" defer></script>
-    <script src="/js/app.js?v=20260907_unittr_fix3" defer></script>
+    <script src="/js/bilingual_materials.js?v=20260907_progressbar_v1" defer></script>
+    <script src="/js/app.js?v=20260907_progressbar_v1" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -814,19 +814,36 @@
                 </div>
                 <div class="stats-grid" id="overview-stats"></div>
                 
-                <!-- Building Banner -->
-                <div id="lecturer-building-banner" class="hidden" style="position:relative; background:var(--bg-card); border:1px solid var(--accent); color:var(--text-primary); padding:16px; border-radius:var(--radius); margin-bottom:24px; font-weight:500; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow); transition: border-color 0.3s ease;">
+                <!-- Modern Rebuilt Lecturer Building Banner -->
+                <div id="lecturer-building-banner" class="build-banner-card hidden">
                     <div id="architect-whisper" class="architect-whisper">The Architect is busy...</div>
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>
-                        <div style="flex:1;">
-                            <span data-i18n="class.building_msg">Your content is being built...</span>
-                            <button class="btn btn-ghost btn-xs" onclick="rebuildClassroom(true)" style="margin-left:8px; font-size:10px; color:var(--accent-light); border:1px solid var(--border); padding:2px 8px; vertical-align:middle;">Force Restart</button>
-                            <span id="lecturer-progress-text" style="float:right; font-size:14px; color:var(--accent); font-weight:700;">0%</span>
+                    <div class="build-banner-top">
+                        <div class="build-banner-left">
+                            <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                            <div>
+                                <div class="build-banner-title">
+                                    <span data-i18n="class.building_title">Classroom Content Generation</span>
+                                    <span id="lecturer-stage-badge" class="build-stage-badge">ANALYZING</span>
+                                </div>
+                                <div id="lecturer-progress-detail" class="build-banner-detail" data-i18n="class.building_msg">Your content is being built from the textbook...</div>
+                            </div>
+                        </div>
+                        <div class="build-banner-right">
+                            <button id="lecturer-force-restart-btn" class="btn btn-ghost btn-xs" onclick="rebuildClassroom(true)" style="font-size:11px; color:var(--accent-light); border:1px solid var(--border); padding:4px 10px; border-radius:6px; cursor:pointer;">
+                                <span data-i18n="class.force_restart">Force Restart</span>
+                            </button>
+                            <span id="lecturer-progress-text" class="build-pct-pill">0%</span>
                         </div>
                     </div>
-                    <div class="progress-bar-container" style="margin:0;">
-                        <div id="lecturer-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    <!-- Step tracker -->
+                    <div class="build-steps-track" id="lecturer-steps-track">
+                        <div class="build-step-node" data-step="analyzing"><span class="build-step-dot"></span><span data-i18n="step.analysis">1. Analysis</span></div>
+                        <div class="build-step-node" data-step="structuring"><span class="build-step-dot"></span><span data-i18n="step.curriculum">2. Curriculum</span></div>
+                        <div class="build-step-node" data-step="enriching"><span class="build-step-dot"></span><span data-i18n="step.lessons">3. Lessons</span></div>
+                        <div class="build-step-node" data-step="finalizing"><span class="build-step-dot"></span><span data-i18n="step.finalize">4. Finalize</span></div>
+                    </div>
+                    <div class="build-banner-bar">
+                        <div id="lecturer-progress-fill" class="build-banner-fill" style="width: 0%;"></div>
                     </div>
                 </div>
 
@@ -1102,17 +1119,25 @@
                     <p class="subtitle" data-i18n="keepUp">Keep up the great work!</p>
                 </div>
                 
-                <!-- Building Banner -->
-                <div id="student-building-banner" class="hidden" style="background:var(--bg-card); border:1px solid var(--accent); color:var(--text-primary); padding:16px; border-radius:12px; margin-bottom:24px; font-weight:500; display:flex; flex-direction:column; gap:8px; box-shadow:var(--shadow-lg);">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="spinner-small" style="border-top-color:var(--accent);"></div>
-                        <div style="flex:1;">
-                            <span data-i18n="class.building_msg_student">The lecturer is rebuilding the classroom structure...</span>
-                            <span id="student-progress-text" style="float:right; font-size:14px; color:var(--accent); font-weight:700;">0%</span>
+                <!-- Modern Rebuilt Student Building Banner -->
+                <div id="student-building-banner" class="build-banner-card hidden">
+                    <div class="build-banner-top">
+                        <div class="build-banner-left">
+                            <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                            <div>
+                                <div class="build-banner-title">
+                                    <span data-i18n="class.building_title_student">Course Content Update in Progress</span>
+                                    <span id="student-stage-badge" class="build-stage-badge">UPDATING</span>
+                                </div>
+                                <div id="student-progress-detail" class="build-banner-detail" data-i18n="class.building_msg_student">The lecturer is updating course materials...</div>
+                            </div>
+                        </div>
+                        <div class="build-banner-right">
+                            <span id="student-progress-text" class="build-pct-pill">0%</span>
                         </div>
                     </div>
-                    <div class="progress-bar-container" style="margin:0;">
-                        <div id="student-progress-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                    <div class="build-banner-bar">
+                        <div id="student-progress-fill" class="build-banner-fill" style="width: 0%;"></div>
                     </div>
                 </div>
 
