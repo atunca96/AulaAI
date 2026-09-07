@@ -669,119 +669,601 @@ LANGUAGE_NAMES_TR = {
     "swedish": "İsveççede",
 }
 
-def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
-    """Translates educational curriculum titles (chapters/topics) into natural, grammatically correct Turkish."""
-    if current_tr and current_tr.strip() and current_tr != "Alfabeyi" and current_tr != title:
-        # If current_tr is already translated and doesn't contain un-translated English fragments, keep it
-        bad_fragments = ["Building Blocks", "Formal vs", "Math Operations", "Prices and Time", "Personal Information", "Everyday Situations", "100'ye"]
-        if not any(bf in current_tr for bf in bad_fragments):
-            return current_tr
+class UniversalCurriculumTranslator:
+    """
+    Universal Pedagogical Curriculum Title Translator.
+    Decomposes and translates ANY educational curriculum title (units, chapters, topics)
+    into natural, professional, grammatically correct Turkish.
+    Supports German, Spanish, French, Italian, English, Russian, Japanese, Chinese,
+    Korean, Arabic, Portuguese, Dutch, Greek, Swedish, Turkish, and arbitrary pedagogical terms.
+    """
 
-    if not title:
-        return current_tr or ""
+    LANGUAGES = {
+        "german": ("Almanca", "Alman", "Almancada"),
+        "spanish": ("İspanyolca", "İspanyol", "İspanyolcada"),
+        "french": ("Fransızca", "Fransız", "Fransızcada"),
+        "italian": ("İtalyanca", "İtalyan", "İtalyancada"),
+        "english": ("İngilizce", "İngiliz", "İngilizcede"),
+        "russian": ("Rusça", "Rus", "Rusçada"),
+        "chinese": ("Çince", "Çin", "Çincede"),
+        "japanese": ("Japonca", "Japon", "Japoncada"),
+        "korean": ("Korece", "Kore", "Korecede"),
+        "arabic": ("Arapça", "Arap", "Arapçada"),
+        "portuguese": ("Portekizce", "Portekiz", "Portekizcede"),
+        "dutch": ("Felemenkçe", "Felemenk", "Felemenkçede"),
+        "greek": ("Yunanca", "Yunan", "Yunancada"),
+        "swedish": ("İsveççe", "İsveç", "İsveççede"),
+        "turkish": ("Türkçe", "Türk", "Türkçede"),
+    }
 
-    t_raw = str(title).strip()
-    clean = re.sub(r'^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*', '', t_raw, flags=re.IGNORECASE).strip()
-    low = clean.lower()
+    QUOTED_EXPRESSIONS = {
+        "who are you": "Sen Kimsin",
+        "who are you?": "Sen Kimsin?",
+        "what is your name": "Adın Ne",
+        "what is your name?": "Adın Ne?",
+        "where are you from": "Nerelisin",
+        "where are you from?": "Nerelisin?",
+        "how are you": "Nasılsın",
+        "how are you?": "Nasılsın?",
+        "hello": "Merhaba",
+        "goodbye": "Hoşça Kal",
+        "please": "Lütfen",
+        "thank you": "Teşekkür Ederim",
+        "yes": "Evet",
+        "no": "Hayır",
+        "doler": "Doler",
+        "gustar": "Gustar",
+        "ser": "Ser",
+        "estar": "Estar",
+        "haben": "Haben",
+        "sein": "Sein",
+        "avoir": "Avoir",
+        "être": "Être",
+    }
 
-    # Check for corrupted half-translations (e.g. "1'den 100'ye Sayma: Building Blocks of Numbers")
-    m_half = re.match(r"^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$", clean, re.IGNORECASE)
-    if m_half:
-        n1, n2, rest = m_half.group(1), m_half.group(2), m_half.group(3).strip()
-        trans_rest = resolve_curriculum_tr(rest, None)
-        return f"{n1}'den {n2}'e Sayma: {trans_rest}"
+    PHRASES = {
+        # Getting acquainted / greetings
+        "getting acquainted with the german language": "Almanca ile Tanışma",
+        "getting acquainted with the spanish language": "İspanyolca ile Tanışma",
+        "getting acquainted with the french language": "Fransızca ile Tanışma",
+        "getting acquainted with the italian language": "İtalyanca ile Tanışma",
+        "getting acquainted with the english language": "İngilizce ile Tanışma",
+        "getting acquainted": "Tanışma",
+        "basic greetings and farewells": "Temel Selamlaşmalar ve Vedalaşmalar",
+        "greetings and farewells": "Selamlaşmalar ve Vedalaşmalar",
+        "greetings and introductions": "Selamlaşmalar ve Tanıtımlar",
+        "basic greetings": "Temel Selamlaşmalar",
+        "farewells": "Vedalaşmalar",
+        "saying hello and goodbye": "Merhaba ve Hoşça Kal Deme",
+        
+        # Personal information & introductions
+        "sharing personal information": "Kişisel Bilgileri Paylaşma",
+        "personal information": "Kişisel Bilgiler",
+        "personal info": "Kişisel Bilgiler",
+        "introducing yourself and others": "Kendini ve Başkalarını Tanıtma",
+        "introducing yourself": "Kendini Tanıtma",
+        "introducing others": "Başkalarını Tanıtma",
+        "name, age, and origin": "İsim, Yaş ve Memleket",
+        "name, age and origin": "İsim, Yaş ve Memleket",
+        "age and origin": "Yaş ve Memleket",
+        "name and age": "İsim ve Yaş",
+        
+        # Numbers & quantities
+        "numbers and essential quantities": "Sayılar ve Temel Miktarlar",
+        "numbers and basic math": "Sayılar ve Temel Matematik",
+        "numbers and quantities": "Sayılar ve Miktarlar",
+        "essential quantities": "Temel Miktarlar",
+        "basic quantities": "Temel Miktarlar",
+        "counting and numbers": "Sayma ve Sayılar",
+        "telling time": "Zamanı Söyleme",
+        "prices and time": "Fiyatlar ve Zaman",
+        "days, months, and seasons": "Günler, Aylar ve Mevsimler",
+        "days of the week": "Haftanın Günleri",
+        "months of the year": "Yılın Ayları",
+        
+        # Questions & sentences
+        "formulating simple questions": "Basit Sorular Oluşturma",
+        "formulating questions": "Soru Cümleleri Oluşturma",
+        "formulating yes/no questions": "Evet/Hayır Soruları Oluşturma",
+        "yes/no and wh- questions": "Evet/Hayır ve Wh- Soruları",
+        "yes/no questions": "Evet/Hayır Soruları",
+        "wh- questions": "Wh- Soruları (Soru Kelimeleri)",
+        "asking questions and seeking clarifications": "Soru Sorma ve Açıklama İsteme",
+        "asking questions": "Soru Sorma",
+        "seeking clarifications": "Açıklama İsteme",
+        "question words": "Soru Kelimeleri",
+        "who, what, where, when, why": "Kim, Ne, Nerede, Ne Zaman, Neden",
+        "constructing simple sentences": "Basit Cümleler Kurma",
+        "simple sentences": "Basit Cümleler",
+        
+        # Politeness & help
+        "polite ways to ask for help or information": "Yardım veya Bilgi İstemek İçin Nezaket İfadeleri",
+        "polite ways to ask for help": "Yardım İstemek İçin Nezaket İfadeleri",
+        "ask for help or information": "Yardım veya Bilgi İsteme",
+        "asking for help": "Yardım İsteme",
+        "polite expressions": "Nezaket İfadeleri",
+        
+        # Culture
+        "cultural contexts": "Kültürel Bağlamlar",
+        "cultural insights": "Kültürel İçgörüler",
+        "cultural perspective": "Kültürel Bakış Açısı",
+        "cultural perspectives": "Kültürel Bakış Açıları",
+        "spanish-speaking countries": "İspanyolca Konuşulan Ülkeler",
+        "spanish-speaking world": "İspanyolca Konuşulan Dünya",
+        "german-speaking countries": "Almanca Konuşulan Ülkeler",
+        "german-speaking world": "Almanca Konuşulan Dünya",
+        "french-speaking countries": "Fransızca Konuşulan Ülkeler",
+        "geography and major cities": "Coğrafya ve Başlıca Şehirler",
+        "celebrations and traditions": "Kutlamalar ve Gelenekler",
+        "traditions and customs": "Gelenekler ve Görenekler",
+        "festivals and holidays": "Festivaller ve Tatiller",
+        
+        # Grammar & verbs
+        "alphabet and foundations": "Alfabe ve Temeller",
+        "the alphabet and foundations": "Alfabe ve Temeller",
+        "the alphabet": "Alfabe",
+        "vowels and consonants": "Sesli ve Sessiz Harfler",
+        "pronunciation and phonetics": "Telaffuz ve Fonetik",
+        "present tense": "Geniş Zaman",
+        "present tense conjugation": "Geniş Zaman Çekimi",
+        "past tense": "Geçmiş Zaman",
+        "future tense": "Gelecek Zaman",
+        "regular verbs": "Düzenli Fiiller",
+        "irregular verbs": "Düzensiz Fiiller",
+        "common irregular verbs": "Yaygın Düzensiz Fiiller",
+        "stem-changing verbs": "Kök Değiştiren Fiiller",
+        "reflexive verbs": "Dönüşlü Fiiller",
+        "subject-verb agreement": "Özne-Yüklem Uyumu",
+        
+        # Situations & survival
+        "everyday survival vocabulary": "Günlük Hayatta Kalma Kelimeleri",
+        "survival vocabulary": "Hayatta Kalma Kelimeleri",
+        "daily routines": "Günlük Rutinler",
+        "food and dining": "Yiyecek ve Yemek",
+        "shopping essentials": "Alışveriş Temelleri",
+        "emergency situations": "Acil Durumlar",
+        "public transportation": "Toplu Taşıma",
+        "directions and transportation": "Yol Tarifi ve Ulaşım",
+        "weather and seasons": "Hava Durumu ve Mevsimler",
+    }
 
-    # Check title map
-    tmap = _get_bm_title_map()
-    if t_raw in tmap:
-        return tmap[t_raw]
-    if clean in tmap:
-        return tmap[clean]
-    for k, v in tmap.items():
-        if k.lower() == low:
-            return v
+    VOCABULARY = {
+        # Nouns
+        "alphabet": "Alfabe",
+        "vowels": "Sesli Harfler",
+        "consonants": "Sessiz Harfler",
+        "pronunciation": "Telaffuz",
+        "phonetics": "Fonetik",
+        "numbers": "Sayılar",
+        "quantities": "Miktarlar",
+        "quantity": "Miktar",
+        "greetings": "Selamlaşmalar",
+        "farewells": "Vedalaşmalar",
+        "introductions": "Tanıtımlar",
+        "information": "Bilgiler",
+        "name": "İsim",
+        "age": "Yaş",
+        "origin": "Memleket / Köken",
+        "nationality": "Milliyet",
+        "questions": "Sorular",
+        "question": "Soru",
+        "answers": "Cevaplar",
+        "answer": "Cevap",
+        "sentences": "Cümleler",
+        "sentence": "Cümle",
+        "words": "Kelimeler",
+        "word": "Kelime",
+        "vocabulary": "Kelime Bilgisi",
+        "phrases": "İfadeler",
+        "phrase": "İfade",
+        "expressions": "İfadeler",
+        "grammar": "Dilbilgisi",
+        "verbs": "Fiiller",
+        "verb": "Fiil",
+        "nouns": "İsimler",
+        "noun": "İsim",
+        "adjectives": "Sıfatlar",
+        "adjective": "Sıfat",
+        "adverbs": "Zarflar",
+        "pronouns": "Zamirler",
+        "prepositions": "Edatlar",
+        "tenses": "Zamanlar",
+        "tense": "Zaman",
+        "conjugation": "Çekim",
+        "days": "Günler",
+        "months": "Aylar",
+        "seasons": "Mevsimler",
+        "weather": "Hava Durumu",
+        "time": "Zaman",
+        "prices": "Fiyatlar",
+        "price": "Fiyat",
+        "family": "Aile",
+        "routines": "Rutinler",
+        "routine": "Rutin",
+        "activities": "Aktiviteler",
+        "food": "Yiyecek",
+        "drinks": "İçecekler",
+        "meals": "Öğünler",
+        "restaurant": "Restoran",
+        "shopping": "Alışveriş",
+        "clothes": "Kıyafetler",
+        "clothing": "Giyim",
+        "colors": "Renkler",
+        "places": "Yerler",
+        "cities": "Şehirler",
+        "city": "Şehir",
+        "countries": "Ülkeler",
+        "country": "Ülke",
+        "world": "Dünya",
+        "geography": "Coğrafya",
+        "traditions": "Gelenekler",
+        "celebrations": "Kutlamalar",
+        "customs": "Görenekler",
+        "culture": "Kültür",
+        "contexts": "Bağlamlar",
+        "context": "Bağlam",
+        "health": "Sağlık",
+        "doctor": "Doktor",
+        "body": "Vücut",
+        "emergency": "Acil Durum",
+        "emergencies": "Acil Durumlar",
+        "directions": "Yol Tarifi",
+        "transportation": "Ulaşım",
+        "travel": "Seyahat",
+        "hotel": "Otel",
+        "airport": "Havalimanı",
+        "hobbies": "Hobiler",
+        "work": "İş",
+        "jobs": "Meslekler",
+        
+        # Adjectives
+        "basic": "Temel",
+        "essential": "Temel",
+        "simple": "Basit",
+        "common": "Yaygın",
+        "regular": "Düzenli",
+        "irregular": "Düzensiz",
+        "polite": "Kibar / Nezaket",
+        "personal": "Kişisel",
+        "daily": "Günlük",
+        "cultural": "Kültürel",
+        "practical": "Pratik",
+        "structural": "Yapısal",
+        "major": "Başlıca",
+        "traditional": "Geleneksel",
+        "new": "Yeni",
+        "important": "Önemli",
+        "useful": "Yararlı",
+        "key": "Temel / Anahtar",
+        "everyday": "Günlük",
+        "general": "Genel",
+        "elementary": "Başlangıç",
+        "advanced": "İleri",
+        "intermediate": "Orta Düzey",
+        "occupation": "Meslek",
+        "occupations": "Meslekler",
+        "profession": "Meslek",
+        "professions": "Meslekler",
+        "festivals": "Festivaller",
+        "festival": "Festival",
+        "case": "İsmin Hâli",
+        "cases": "İsmin Halleri",
+        "nominative": "Yalın Hâl (Nominativ)",
+        "accusative": "Belirtme Hâli (Akkusativ)",
+        "dative": "Yönelme Hâli (Dativ)",
+        "genitive": "Tamlayan Hâli (Genitiv)",
+        
+        # Verbs / Actions
+        "asking": "Sorma",
+        "answering": "Cevaplama",
+        "sharing": "Paylaşma",
+        "formulating": "Oluşturma",
+        "constructing": "Kurma",
+        "building": "Oluşturma",
+        "introducing": "Tanıtma",
+        "describing": "Tanımlama",
+        "expressing": "İfade Etme",
+        "navigating": "Yol Bulma",
+        "ordering": "Sipariş Verme",
+        "shopping": "Alışveriş Yapma",
+        "talking": "Konuşma",
+        "using": "Kullanma",
+        "exploring": "Keşfetme",
+        "mastering": "Uzmanlaşma",
+        "understanding": "Anlama",
+        "practicing": "Pratik Yapma",
+        "reviewing": "Tekrar Etme",
+        "counting": "Sayma",
+        "making": "Yapma",
+        "giving": "Verme",
+    }
 
-    # Language suffix: "X in Spanish", "X in German", etc.
-    for lang_en, lang_tr in LANGUAGE_NAMES_TR.items():
-        m_lang = re.match(rf'^(.*?)\s+in\s+{lang_en}$', clean, re.IGNORECASE)
-        if m_lang:
-            sub = m_lang.group(1).strip()
-            sub_tr = resolve_curriculum_tr(sub, None)
-            return f"{lang_tr} {sub_tr}"
+    @classmethod
+    def translate(cls, title: str) -> str:
+        if not title:
+            return ""
+        
+        t = str(title).strip()
+        # Clean prefix: "Unit 1: ", "Ünite 2: ", etc.
+        clean = re.sub(r'^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*', '', t, flags=re.IGNORECASE).strip()
+        low = clean.lower()
 
-    # Counting pattern
-    m_count = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', clean, re.IGNORECASE)
-    if m_count:
-        n1, n2, extra = m_count.group(1), m_count.group(2), m_count.group(3).strip()
-        suffix = "e" if n2.endswith("00") or n2 in ["1", "3", "4", "5", "8", "70", "80"] else "a"
-        res = f"{n1}'den {n2}'{suffix} Sayma"
-        extra_clean = re.sub(r'^[:\s\-]+', '', extra).strip()
-        if extra_clean:
-            res += f": {resolve_curriculum_tr(extra_clean, None)}"
-        return res
+        # Check if already pure Turkish
+        if re.search(r'[çğıöşüÇĞİÖŞÜ]', clean):
+            m_half = re.match(r"^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$", clean, re.IGNORECASE)
+            if m_half:
+                n1, n2, rest = m_half.group(1), m_half.group(2), m_half.group(3).strip()
+                return f"{n1}'den {n2}'e Sayma: {cls.translate(rest)}"
+            return clean
 
-    # Days of the week pattern
-    m_days = re.match(r'^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$', clean, re.IGNORECASE)
-    if m_days:
-        extra = m_days.group(2).strip()
-        if not extra: return "Haftanın Günleri"
-        if "plan" in extra.lower(): return "Haftanın Günleri: Planlama"
-        return f"Haftanın Günleri: {resolve_curriculum_tr(extra, None)}"
+        # Check title map from bilingual_materials.json
+        tmap = _get_bm_title_map()
+        if t in tmap:
+            return tmap[t]
+        if clean in tmap:
+            return tmap[clean]
+        for k, v in tmap.items():
+            if k.lower() == low:
+                return v
 
-    # Compound separated by colon
-    if ":" in clean:
-        parts = [p.strip() for p in clean.split(":", 1)]
-        p1 = resolve_curriculum_tr(parts[0], None)
-        p2 = resolve_curriculum_tr(parts[1], None)
-        if p1 != parts[0] or p2 != parts[1]:
+        # Direct exact match in phrase dictionary
+        if low in cls.PHRASES:
+            return cls.PHRASES[low]
+
+        # Handle colon compound "A: B"
+        if ":" in clean:
+            parts = [p.strip() for p in clean.split(":", 1)]
+            p1 = cls.translate(parts[0])
+            p2 = cls.translate(parts[1])
             return f"{p1}: {p2}"
 
-    # Compound separated by "vs." or "versus"
-    m_vs = re.match(r'^(.*?)\s+(?:vs\.?|versus)\s+(.*)$', clean, re.IGNORECASE)
-    if m_vs:
-        s1 = resolve_curriculum_tr(m_vs.group(1).strip(), None)
-        s2 = resolve_curriculum_tr(m_vs.group(2).strip(), None)
-        return f"{s1} ve {s2} Karşılaştırması"
+        # Handle "A vs. B" or "A versus B"
+        m_vs = re.match(r'^(.*?)\s+(?:vs\.?|versus)\s+(.*)$', clean, re.IGNORECASE)
+        if m_vs:
+            s1 = cls.translate(m_vs.group(1).strip())
+            s2 = cls.translate(m_vs.group(2).strip())
+            return f"{s1} ve {s2} Karşılaştırması"
 
-    # Pattern: "X for Y" e.g. "Essential Phrases for Shopping and Eating Out"
-    m_for = re.match(r'^(.*?)\s+for\s+(.*)$', clean, re.IGNORECASE)
-    if m_for:
-        s1 = resolve_curriculum_tr(m_for.group(1).strip(), None)
-        s2 = resolve_curriculum_tr(m_for.group(2).strip(), None)
-        if s1 != m_for.group(1).strip() or s2 != m_for.group(2).strip():
-            return f"{s2} İçin {s1}"
+        # Handle "Getting Acquainted with (the\s+)?(Language/Topic)"
+        m_acq = re.match(r'^getting\s+acquainted\s+with\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
+        if m_acq:
+            sub = m_acq.group(2).strip()
+            sub_clean = re.sub(r'\s+language$', '', sub, flags=re.IGNORECASE).strip().lower()
+            if sub_clean in cls.LANGUAGES:
+                lang_name = cls.LANGUAGES[sub_clean][0]
+                return f"{lang_name} ile Tanışma"
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} ile Tanışma"
 
-    # Pattern: "Introduction to X"
-    m_intro = re.match(r'^introduction\s+to\s+(.*)$', clean, re.IGNORECASE)
-    if m_intro:
-        sub = resolve_curriculum_tr(m_intro.group(1).strip(), None)
-        return sub if sub.endswith("Giriş") else f"{sub}'e Giriş"
+        # Handle "How to Ask and Answer 'X'" or "How to Ask and Answer X"
+        m_ask_ans = re.match(r'^how\s+to\s+ask\s+and\s+answer\s+[\'"]?(.*?)[\'"]?$', clean, re.IGNORECASE)
+        if m_ask_ans:
+            sub = m_ask_ans.group(1).strip()
+            sub_low = sub.lower()
+            if sub_low in cls.QUOTED_EXPRESSIONS:
+                sub_tr = cls.QUOTED_EXPRESSIONS[sub_low]
+                return f"'{sub_tr}' Diye Sorma ve Cevaplama"
+            return f"'{sub}' Diye Sorma ve Cevaplama"
 
-    # Pattern: "Using X in Y"
-    m_using_in = re.match(r'^using\s+(.*?)\s+in\s+(.*)$', clean, re.IGNORECASE)
-    if m_using_in:
-        s1 = resolve_curriculum_tr(m_using_in.group(1).strip(), None)
-        s2 = resolve_curriculum_tr(m_using_in.group(2).strip(), None)
-        return f"{s2}'de {s1} Kullanımı"
+        # Handle "How to (Verb) (X)"
+        m_howto = re.match(r'^how\s+to\s+(.*?)\s+(.*)$', clean, re.IGNORECASE)
+        if m_howto:
+            verb = m_howto.group(1).strip()
+            rest = m_howto.group(2).strip()
+            rest_tr = cls.translate(rest)
+            verb_tr = cls.VOCABULARY.get(verb.lower(), verb)
+            return f"{rest_tr} {verb_tr} Yolları"
 
-    # Pattern: "Using X"
-    m_using = re.match(r'^using\s+(.*)$', clean, re.IGNORECASE)
-    if m_using:
-        sub = resolve_curriculum_tr(m_using.group(1).strip(), None)
-        return f"{sub} Kullanımı"
+        # Handle "Sharing (X)"
+        m_sharing = re.match(r'^sharing\s+(.*)$', clean, re.IGNORECASE)
+        if m_sharing:
+            sub = m_sharing.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Paylaşma"
 
-    # Pattern: "Talking About X"
-    m_talking = re.match(r'^talking\s+about\s+(.*)$', clean, re.IGNORECASE)
-    if m_talking:
-        sub = resolve_curriculum_tr(m_talking.group(1).strip(), None)
-        return f"{sub} Hakkında Konuşma"
+        # Handle "Exploring (X)"
+        m_exp = re.match(r'^exploring\s+(.*)$', clean, re.IGNORECASE)
+        if m_exp:
+            sub = m_exp.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Keşfetme"
 
-    # Pattern: "Navigating X"
-    m_nav = re.match(r'^navigating\s+(.*)$', clean, re.IGNORECASE)
-    if m_nav:
-        sub = resolve_curriculum_tr(m_nav.group(1).strip(), None)
-        return f"{sub}'de Yol Bulma"
+        # Handle "Mastering (X)"
+        m_mas = re.match(r'^mastering\s+(.*)$', clean, re.IGNORECASE)
+        if m_mas:
+            sub = m_mas.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Konusunda Uzmanlaşma"
 
-    return current_tr or clean or t_raw
+        # Handle "Formulating (X) Questions"
+        m_form_q = re.match(r'^formulating\s+(.*?)\s+questions$', clean, re.IGNORECASE)
+        if m_form_q:
+            sub = m_form_q.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Soruları Oluşturma"
+
+        # Handle "Formulating (X)"
+        m_form = re.match(r'^formulating\s+(.*)$', clean, re.IGNORECASE)
+        if m_form:
+            sub = m_form.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Oluşturma"
+
+        # Handle "Constructing (X) in (the\s+)?(Y)"
+        m_const_in = re.match(r'^constructing\s+(.*?)\s+in\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
+        if m_const_in:
+            s1 = cls.translate(m_const_in.group(1).strip())
+            s2 = cls.translate(m_const_in.group(3).strip())
+            return f"{s2}'de {s1} Kurma"
+
+        # Handle "Constructing (X)"
+        m_const = re.match(r'^constructing\s+(.*)$', clean, re.IGNORECASE)
+        if m_const:
+            sub = m_const.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Kurma"
+
+        # Handle "Polite Ways to (X)"
+        m_polite = re.match(r'^polite\s+ways\s+to\s+(.*)$', clean, re.IGNORECASE)
+        if m_polite:
+            sub = m_polite.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} İçin Nezaket İfadeleri"
+
+        # Handle "Geography and Major Cities of (the\s+)?(X)"
+        m_geo = re.match(r'^geography\s+and\s+major\s+cities\s+of\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
+        if m_geo:
+            sub = m_geo.group(2).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr} Coğrafyası ve Başlıca Şehirleri"
+
+        # Handle "Celebrations and Traditions in (the\s+)?(X)"
+        m_cel = re.match(r'^celebrations\s+and\s+traditions\s+in\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
+        if m_cel:
+            sub = m_cel.group(2).strip()
+            sub_tr = cls.translate(sub)
+            return f"{sub_tr}'de Kutlamalar ve Gelenekler"
+
+        # Handle "Cultural Contexts: (X)" or "Cultural Contexts of (X)"
+        m_cult = re.match(r'^cultural\s+contexts?\s*(?:of|in)?\s*(.*)$', clean, re.IGNORECASE)
+        if m_cult and m_cult.group(1).strip():
+            sub = m_cult.group(1).strip()
+            sub_tr = cls.translate(sub)
+            return f"Kültürel Bağlamlar: {sub_tr}"
+
+        # Handle "Counting from (N1) to (N2)"
+        m_count = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', clean, re.IGNORECASE)
+        if m_count:
+            n1, n2, extra = m_count.group(1), m_count.group(2), m_count.group(3).strip()
+            suffix = "e" if n2.endswith("00") or n2 in ["1", "3", "4", "5", "8", "70", "80"] else "a"
+            res = f"{n1}'den {n2}'{suffix} Sayma"
+            extra_clean = re.sub(r'^[:\s\-]+', '', extra).strip()
+            if extra_clean:
+                res += f": {cls.translate(extra_clean)}"
+            return res
+
+        # Handle "Introduction to (X)"
+        m_intro = re.match(r'^introduction\s+to\s+(.*)$', clean, re.IGNORECASE)
+        if m_intro:
+            sub = cls.translate(m_intro.group(1).strip())
+            return sub if sub.endswith("Giriş") else f"{sub}'e Giriş"
+
+        # Handle "Using (X) in (Y)"
+        m_using_in = re.match(r'^using\s+(.*?)\s+in\s+(.*)$', clean, re.IGNORECASE)
+        if m_using_in:
+            s1 = cls.translate(m_using_in.group(1).strip())
+            s2 = cls.translate(m_using_in.group(2).strip())
+            return f"{s2}'de {s1} Kullanımı"
+
+        # Handle "Using (X)"
+        m_using = re.match(r'^using\s+(.*)$', clean, re.IGNORECASE)
+        if m_using:
+            sub = cls.translate(m_using.group(1).strip())
+            return f"{sub} Kullanımı"
+
+        # Handle "Talking About (X)"
+        m_talking = re.match(r'^talking\s+about\s+(.*)$', clean, re.IGNORECASE)
+        if m_talking:
+            sub = cls.translate(m_talking.group(1).strip())
+            return f"{sub} Hakkında Konuşma"
+
+        # Handle "Navigating (X)"
+        m_nav = re.match(r'^navigating\s+(.*)$', clean, re.IGNORECASE)
+        if m_nav:
+            sub = cls.translate(m_nav.group(1).strip())
+            return f"{sub}'de Yol Bulma"
+
+        # Handle "X for Y"
+        m_for = re.match(r'^(.*?)\s+for\s+(.*)$', clean, re.IGNORECASE)
+        if m_for:
+            s1 = cls.translate(m_for.group(1).strip())
+            s2 = cls.translate(m_for.group(2).strip())
+            if s1.lower() != m_for.group(1).strip().lower() or s2.lower() != m_for.group(2).strip().lower():
+                return f"{s2} İçin {s1}"
+
+        # Handle "X in [Language]"
+        for lang_en, (lang_nom, lang_adj, lang_loc) in cls.LANGUAGES.items():
+            m_lang = re.match(rf'^(.*?)\s+in\s+{lang_en}$', clean, re.IGNORECASE)
+            if m_lang:
+                sub = m_lang.group(1).strip()
+                sub_tr = cls.translate(sub)
+                return f"{lang_loc} {sub_tr}"
+
+        # Handle "X and Y" conjunction
+        if " and " in clean.lower():
+            parts = re.split(r'\s+and\s+', clean, flags=re.IGNORECASE)
+            if len(parts) == 2:
+                p1 = cls.translate(parts[0].strip())
+                p2 = cls.translate(parts[1].strip())
+                return f"{p1} ve {p2}"
+
+        # Handle comma-separated list "A, B, and C" or "A, B, C"
+        if "," in clean:
+            raw_items = re.split(r',\s*(?:and\s+)?', clean)
+            if len(raw_items) > 1:
+                tr_items = [cls.translate(item.strip()) for item in raw_items]
+                if len(tr_items) == 2:
+                    return f"{tr_items[0]} ve {tr_items[1]}"
+                return ", ".join(tr_items[:-1]) + f" ve {tr_items[-1]}"
+
+        # Check Language + Noun (e.g. "German Language", "Spanish Alphabet")
+        for lang_en, (lang_nom, lang_adj, lang_loc) in cls.LANGUAGES.items():
+            if low == f"the {lang_en} language" or low == f"{lang_en} language":
+                return f"{lang_nom} Dili"
+            m_lang_noun = re.match(rf'^{lang_en}\s+(.*)$', clean, re.IGNORECASE)
+            if m_lang_noun:
+                sub = m_lang_noun.group(1).strip()
+                sub_tr = cls.translate(sub)
+                return f"{lang_adj} {sub_tr}"
+
+        # Check Adjective + Noun (e.g. "Basic Greetings", "Essential Quantities")
+        words = clean.split()
+        if len(words) == 2:
+            w1 = words[0].lower()
+            w2 = words[1].lower()
+            if w1 in cls.VOCABULARY and w2 in cls.VOCABULARY:
+                return f"{cls.VOCABULARY[w1]} {cls.VOCABULARY[w2]}"
+
+        # Word-by-word tokenized fallback
+        translated_words = []
+        for w in words:
+            w_low = w.lower().strip(".,!?:;")
+            if w_low in cls.VOCABULARY:
+                translated_words.append(cls.VOCABULARY[w_low])
+            elif w_low in cls.LANGUAGES:
+                translated_words.append(cls.LANGUAGES[w_low][0])
+            elif w_low == "and":
+                translated_words.append("ve")
+            elif w_low == "or":
+                translated_words.append("veya")
+            elif w_low == "the":
+                continue
+            elif w_low == "with":
+                translated_words.append("ile")
+            else:
+                translated_words.append(w)
+
+        res = " ".join(translated_words)
+        return res if res else clean
+
+
+def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
+    """Translates educational curriculum titles (chapters/topics) into natural, grammatically correct Turkish."""
+    # If current_tr is already valid Turkish (contains Turkish letters or doesn't have English phrases), keep it
+    if current_tr and current_tr.strip() and current_tr != "Alfabeyi" and current_tr != title:
+        bad_fragments = ["Building Blocks", "Formal vs", "Math Operations", "Prices and Time", 
+                         "Personal Information", "Everyday Situations", "100'ye", 
+                         "Getting Acquainted", "Farewells", "Who Are You", "Essential Quantities",
+                         "Sharing Personal", "Formulating Simple", "Wh- Questions"]
+        if not any(bf.lower() in current_tr.lower() for bf in bad_fragments):
+            if re.search(r'[çğıöşüÇĞİÖŞÜ]', current_tr):
+                return current_tr
+
+    target = title or current_tr or ""
+    if not target:
+        return ""
+
+    return UniversalCurriculumTranslator.translate(target)
+
 
 

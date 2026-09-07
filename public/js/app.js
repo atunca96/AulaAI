@@ -2200,168 +2200,607 @@ const CURRICULUM_LANG_MAP_TR = {
   swedish: "İsveççede",
 };
 
+const UniversalCurriculumTranslator = {
+  LANGUAGES: {
+    "german": ["Almanca", "Alman", "Almancada"],
+    "spanish": ["İspanyolca", "İspanyol", "İspanyolcada"],
+    "french": ["Fransızca", "Fransız", "Fransızcada"],
+    "italian": ["İtalyanca", "İtalyan", "İtalyancada"],
+    "english": ["İngilizce", "İngiliz", "İngilizcede"],
+    "russian": ["Rusça", "Rus", "Rusçada"],
+    "chinese": ["Çince", "Çin", "Çincede"],
+    "japanese": ["Japonca", "Japon", "Japoncada"],
+    "korean": ["Korece", "Kore", "Korecede"],
+    "arabic": ["Arapça", "Arap", "Arapçada"],
+    "portuguese": ["Portekizce", "Portekiz", "Portekizcede"],
+    "dutch": ["Felemenkçe", "Felemenk", "Felemenkçede"],
+    "greek": ["Yunanca", "Yunan", "Yunancada"],
+    "swedish": ["İsveççe", "İsveç", "İsveççede"],
+    "turkish": ["Türkçe", "Türk", "Türkçede"],
+  },
+
+  QUOTED_EXPRESSIONS: {
+    "who are you": "Sen Kimsin",
+    "who are you?": "Sen Kimsin?",
+    "what is your name": "Adın Ne",
+    "what is your name?": "Adın Ne?",
+    "where are you from": "Nerelisin",
+    "where are you from?": "Nerelisin?",
+    "how are you": "Nasılsın",
+    "how are you?": "Nasılsın?",
+    "hello": "Merhaba",
+    "goodbye": "Hoşça Kal",
+    "please": "Lütfen",
+    "thank you": "Teşekkür Ederim",
+    "yes": "Evet",
+    "no": "Hayır",
+    "doler": "Doler",
+    "gustar": "Gustar",
+    "ser": "Ser",
+    "estar": "Estar",
+    "haben": "Haben",
+    "sein": "Sein",
+    "avoir": "Avoir",
+    "être": "Être",
+  },
+
+  PHRASES: {
+    "getting acquainted with the german language": "Almanca ile Tanışma",
+    "getting acquainted with the spanish language": "İspanyolca ile Tanışma",
+    "getting acquainted with the french language": "Fransızca ile Tanışma",
+    "getting acquainted with the italian language": "İtalyanca ile Tanışma",
+    "getting acquainted with the english language": "İngilizce ile Tanışma",
+    "getting acquainted": "Tanışma",
+    "basic greetings and farewells": "Temel Selamlaşmalar ve Vedalaşmalar",
+    "greetings and farewells": "Selamlaşmalar ve Vedalaşmalar",
+    "greetings and introductions": "Selamlaşmalar ve Tanıtımlar",
+    "basic greetings": "Temel Selamlaşmalar",
+    "farewells": "Vedalaşmalar",
+    "saying hello and goodbye": "Merhaba ve Hoşça Kal Deme",
+    "sharing personal information": "Kişisel Bilgileri Paylaşma",
+    "personal information": "Kişisel Bilgiler",
+    "personal info": "Kişisel Bilgiler",
+    "introducing yourself and others": "Kendini ve Başkalarını Tanıtma",
+    "introducing yourself": "Kendini Tanıtma",
+    "introducing others": "Başkalarını Tanıtma",
+    "name, age, and origin": "İsim, Yaş ve Memleket",
+    "name, age and origin": "İsim, Yaş ve Memleket",
+    "age and origin": "Yaş ve Memleket",
+    "name and age": "İsim ve Yaş",
+    "numbers and essential quantities": "Sayılar ve Temel Miktarlar",
+    "numbers and basic math": "Sayılar ve Temel Matematik",
+    "numbers and quantities": "Sayılar ve Miktarlar",
+    "essential quantities": "Temel Miktarlar",
+    "basic quantities": "Temel Miktarlar",
+    "counting and numbers": "Sayma ve Sayılar",
+    "telling time": "Zamanı Söyleme",
+    "prices and time": "Fiyatlar ve Zaman",
+    "days, months, and seasons": "Günler, Aylar ve Mevsimler",
+    "days of the week": "Haftanın Günleri",
+    "months of the year": "Yılın Ayları",
+    "formulating simple questions": "Basit Sorular Oluşturma",
+    "formulating questions": "Soru Cümleleri Oluşturma",
+    "formulating yes/no questions": "Evet/Hayır Soruları Oluşturma",
+    "yes/no and wh- questions": "Evet/Hayır ve Wh- Soruları",
+    "yes/no questions": "Evet/Hayır Soruları",
+    "wh- questions": "Wh- Soruları (Soru Kelimeleri)",
+    "asking questions and seeking clarifications": "Soru Sorma ve Açıklama İsteme",
+    "asking questions": "Soru Sorma",
+    "seeking clarifications": "Açıklama İsteme",
+    "question words": "Soru Kelimeleri",
+    "who, what, where, when, why": "Kim, Ne, Nerede, Ne Zaman, Neden",
+    "constructing simple sentences": "Basit Cümleler Kurma",
+    "simple sentences": "Basit Cümleler",
+    "polite ways to ask for help or information": "Yardım veya Bilgi İstemek İçin Nezaket İfadeleri",
+    "polite ways to ask for help": "Yardım İstemek İçin Nezaket İfadeleri",
+    "ask for help or information": "Yardım veya Bilgi İsteme",
+    "asking for help": "Yardım İsteme",
+    "polite expressions": "Nezaket İfadeleri",
+    "cultural contexts": "Kültürel Bağlamlar",
+    "cultural insights": "Kültürel İçgörüler",
+    "cultural perspective": "Kültürel Bakış Açısı",
+    "cultural perspectives": "Kültürel Bakış Açıları",
+    "spanish-speaking countries": "İspanyolca Konuşulan Ülkeler",
+    "spanish-speaking world": "İspanyolca Konuşulan Dünya",
+    "german-speaking countries": "Almanca Konuşulan Ülkeler",
+    "german-speaking world": "Almanca Konuşulan Dünya",
+    "french-speaking countries": "Fransızca Konuşulan Ülkeler",
+    "geography and major cities": "Coğrafya ve Başlıca Şehirler",
+    "celebrations and traditions": "Kutlamalar ve Gelenekler",
+    "traditions and customs": "Gelenekler ve Görenekler",
+    "festivals and holidays": "Festivaller ve Tatiller",
+    "alphabet and foundations": "Alfabe ve Temeller",
+    "the alphabet and foundations": "Alfabe ve Temeller",
+    "the alphabet": "Alfabe",
+    "vowels and consonants": "Sesli ve Sessiz Harfler",
+    "pronunciation and phonetics": "Telaffuz ve Fonetik",
+    "present tense": "Geniş Zaman",
+    "present tense conjugation": "Geniş Zaman Çekimi",
+    "past tense": "Geçmiş Zaman",
+    "future tense": "Gelecek Zaman",
+    "regular verbs": "Düzenli Fiiller",
+    "irregular verbs": "Düzensiz Fiiller",
+    "common irregular verbs": "Yaygın Düzensiz Fiiller",
+    "stem-changing verbs": "Kök Değiştiren Fiiller",
+    "reflexive verbs": "Dönüşlü Fiiller",
+    "subject-verb agreement": "Özne-Yüklem Uyumu",
+    "everyday survival vocabulary": "Günlük Hayatta Kalma Kelimeleri",
+    "survival vocabulary": "Hayatta Kalma Kelimeleri",
+    "daily routines": "Günlük Rutinler",
+    "food and dining": "Yiyecek ve Yemek",
+    "shopping essentials": "Alışveriş Temelleri",
+    "emergency situations": "Acil Durumlar",
+    "public transportation": "Toplu Taşıma",
+    "directions and transportation": "Yol Tarifi ve Ulaşım",
+    "weather and seasons": "Hava Durumu ve Mevsimler"
+  },
+
+  VOCABULARY: {
+    "alphabet": "Alfabe",
+    "vowels": "Sesli Harfler",
+    "consonants": "Sessiz Harfler",
+    "pronunciation": "Telaffuz",
+    "phonetics": "Fonetik",
+    "numbers": "Sayılar",
+    "quantities": "Miktarlar",
+    "quantity": "Miktar",
+    "greetings": "Selamlaşmalar",
+    "farewells": "Vedalaşmalar",
+    "introductions": "Tanıtımlar",
+    "information": "Bilgiler",
+    "name": "İsim",
+    "age": "Yaş",
+    "origin": "Memleket / Köken",
+    "nationality": "Milliyet",
+    "questions": "Sorular",
+    "question": "Soru",
+    "answers": "Cevaplar",
+    "answer": "Cevap",
+    "sentences": "Cümleler",
+    "sentence": "Cümle",
+    "words": "Kelimeler",
+    "word": "Kelime",
+    "vocabulary": "Kelime Bilgisi",
+    "phrases": "İfadeler",
+    "phrase": "İfade",
+    "expressions": "İfadeler",
+    "grammar": "Dilbilgisi",
+    "verbs": "Fiiller",
+    "verb": "Fiil",
+    "nouns": "İsimler",
+    "noun": "İsim",
+    "adjectives": "Sıfatlar",
+    "adjective": "Sıfat",
+    "adverbs": "Zarflar",
+    "pronouns": "Zamirler",
+    "prepositions": "Edatlar",
+    "tenses": "Zamanlar",
+    "tense": "Zaman",
+    "conjugation": "Çekim",
+    "days": "Günler",
+    "months": "Aylar",
+    "seasons": "Mevsimler",
+    "weather": "Hava Durumu",
+    "time": "Zaman",
+    "prices": "Fiyatlar",
+    "price": "Fiyat",
+    "family": "Aile",
+    "routines": "Rutinler",
+    "routine": "Rutin",
+    "activities": "Aktiviteler",
+    "food": "Yiyecek",
+    "drinks": "İçecekler",
+    "meals": "Öğünler",
+    "restaurant": "Restoran",
+    "shopping": "Alışveriş",
+    "clothes": "Kıyafetler",
+    "clothing": "Giyim",
+    "colors": "Renkler",
+    "places": "Yerler",
+    "cities": "Şehirler",
+    "city": "Şehir",
+    "countries": "Ülkeler",
+    "country": "Ülke",
+    "world": "Dünya",
+    "geography": "Coğrafya",
+    "traditions": "Gelenekler",
+    "celebrations": "Kutlamalar",
+    "customs": "Görenekler",
+    "culture": "Kültür",
+    "contexts": "Bağlamlar",
+    "context": "Bağlam",
+    "health": "Sağlık",
+    "doctor": "Doktor",
+    "body": "Vücut",
+    "emergency": "Acil Durum",
+    "emergencies": "Acil Durumlar",
+    "directions": "Yol Tarifi",
+    "transportation": "Ulaşım",
+    "travel": "Seyahat",
+    "hotel": "Otel",
+    "airport": "Havalimanı",
+    "hobbies": "Hobiler",
+    "work": "İş",
+    "jobs": "Meslekler",
+    "basic": "Temel",
+    "essential": "Temel",
+    "simple": "Basit",
+    "common": "Yaygın",
+    "regular": "Düzenli",
+    "irregular": "Düzensiz",
+    "polite": "Kibar / Nezaket",
+    "personal": "Kişisel",
+    "daily": "Günlük",
+    "cultural": "Kültürel",
+    "practical": "Pratik",
+    "structural": "Yapısal",
+    "major": "Başlıca",
+    "traditional": "Geleneksel",
+    "new": "Yeni",
+    "important": "Önemli",
+    "useful": "Yararlı",
+    "key": "Temel / Anahtar",
+    "everyday": "Günlük",
+    "general": "Genel",
+    "elementary": "Başlangıç",
+    "advanced": "İleri",
+    "intermediate": "Orta Düzey",
+    "occupation": "Meslek",
+    "occupations": "Meslekler",
+    "profession": "Meslek",
+    "professions": "Meslekler",
+    "festivals": "Festivaller",
+    "festival": "Festival",
+    "case": "İsmin Hâli",
+    "cases": "İsmin Halleri",
+    "nominative": "Yalın Hâl (Nominativ)",
+    "accusative": "Belirtme Hâli (Akkusativ)",
+    "dative": "Yönelme Hâli (Dativ)",
+    "genitive": "Tamlayan Hâli (Genitiv)",
+    "asking": "Sorma",
+    "answering": "Cevaplama",
+    "sharing": "Paylaşma",
+    "formulating": "Oluşturma",
+    "constructing": "Kurma",
+    "building": "Oluşturma",
+    "introducing": "Tanıtma",
+    "describing": "Tanımlama",
+    "expressing": "İfade Etme",
+    "navigating": "Yol Bulma",
+    "ordering": "Sipariş Verme",
+    "shopping": "Alışveriş Yapma",
+    "talking": "Konuşma",
+    "using": "Kullanma",
+    "exploring": "Keşfetme",
+    "mastering": "Uzmanlaşma",
+    "understanding": "Anlama",
+    "practicing": "Pratik Yapma",
+    "reviewing": "Tekrar Etme",
+    "counting": "Sayma",
+    "making": "Yapma",
+    "giving": "Verme",
+  },
+
+  translate: function(title) {
+    if (!title) return '';
+    const t = String(title).trim();
+    const clean = t.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, '').trim();
+    const low = clean.toLowerCase();
+
+    // Check if already Turkish
+    if (/[çğıöşüÇĞİÖŞÜ]/.test(clean)) {
+      const mHalf = clean.match(/^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$/i);
+      if (mHalf) {
+        return `${mHalf[1]}'den ${mHalf[2]}'e Sayma: ${this.translate(mHalf[3].trim())}`;
+      }
+      return clean;
+    }
+
+    // 1. Direct dictionary lookup in EDUCATIONAL_SENTENCE_MAP if available
+    if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR) {
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t];
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean];
+    }
+
+    // 2. Check window.PAGE_TITLE_PAIRS
+    if (Array.isArray(window.PAGE_TITLE_PAIRS)) {
+      for (const [en, tr] of window.PAGE_TITLE_PAIRS) {
+        if (!en || !tr) continue;
+        if (t.toLowerCase() === en.toLowerCase() || low === en.toLowerCase()) return tr;
+      }
+    }
+
+    // 3. Check CURRICULUM_PAIRS
+    if (Array.isArray(CURRICULUM_PAIRS)) {
+      for (const [en, tr] of CURRICULUM_PAIRS) {
+        if (!en || !tr) continue;
+        if (t.toLowerCase() === en.toLowerCase() || low === en.toLowerCase()) return tr;
+      }
+    }
+
+    // 4. Check PHRASES
+    if (this.PHRASES[low]) return this.PHRASES[low];
+
+    // Colon compound "A: B"
+    if (clean.includes(':')) {
+      const parts = clean.split(':');
+      if (parts.length === 2) {
+        return `${this.translate(parts[0].trim())}: ${this.translate(parts[1].trim())}`;
+      }
+    }
+
+    // A vs B
+    const mVs = clean.match(/^(.*?)\s+(?:vs\.?|versus)\s+(.*)$/i);
+    if (mVs) {
+      return `${this.translate(mVs[1].trim())} ve ${this.translate(mVs[2].trim())} Karşılaştırması`;
+    }
+
+    // Getting Acquainted with X
+    const mAcq = clean.match(/^getting\s+acquainted\s+with\s+(the\s+)?(.*)$/i);
+    if (mAcq) {
+      let sub = mAcq[2].trim();
+      const subClean = sub.replace(/\s+language$/i, '').trim().toLowerCase();
+      if (this.LANGUAGES[subClean]) {
+        return `${this.LANGUAGES[subClean][0]} ile Tanışma`;
+      }
+      return `${this.translate(sub)} ile Tanışma`;
+    }
+
+    // How to Ask and Answer 'X'
+    const mAskAns = clean.match(/^how\s+to\s+ask\s+and\s+answer\s+['"]?(.*?)['"]?$/i);
+    if (mAskAns) {
+      const sub = mAskAns[1].trim();
+      const subLow = sub.toLowerCase();
+      if (this.QUOTED_EXPRESSIONS[subLow]) {
+        return `'${this.QUOTED_EXPRESSIONS[subLow]}' Diye Sorma ve Cevaplama`;
+      }
+      return `'${sub}' Diye Sorma ve Cevaplama`;
+    }
+
+    // How to (Verb) (X)
+    const mHowto = clean.match(/^how\s+to\s+(.*?)\s+(.*)$/i);
+    if (mHowto) {
+      const verb = mHowto[1].trim();
+      const rest = mHowto[2].trim();
+      const verbTr = this.VOCABULARY[verb.toLowerCase()] || verb;
+      return `${this.translate(rest)} ${verbTr} Yolları`;
+    }
+
+    // Sharing X
+    const mSharing = clean.match(/^sharing\s+(.*)$/i);
+    if (mSharing) {
+      return `${this.translate(mSharing[1].trim())} Paylaşma`;
+    }
+
+    // Exploring X
+    const mExp = clean.match(/^exploring\s+(.*)$/i);
+    if (mExp) {
+      return `${this.translate(mExp[1].trim())} Keşfetme`;
+    }
+
+    // Mastering X
+    const mMas = clean.match(/^mastering\s+(.*)$/i);
+    if (mMas) {
+      return `${this.translate(mMas[1].trim())} Konusunda Uzmanlaşma`;
+    }
+
+    // Formulating (X) Questions
+    const mFormQ = clean.match(/^formulating\s+(.*?)\s+questions$/i);
+    if (mFormQ) {
+      return `${this.translate(mFormQ[1].trim())} Soruları Oluşturma`;
+    }
+
+    // Formulating X
+    const mForm = clean.match(/^formulating\s+(.*)$/i);
+    if (mForm) {
+      return `${this.translate(mForm[1].trim())} Oluşturma`;
+    }
+
+    // Constructing (X) in (the)? (Y)
+    const mConstIn = clean.match(/^constructing\s+(.*?)\s+in\s+(the\s+)?(.*)$/i);
+    if (mConstIn) {
+      const s1 = this.translate(mConstIn[1].trim());
+      const s2 = this.translate(mConstIn[3].trim());
+      return `${s2}'de ${s1} Kurma`;
+    }
+
+    // Constructing X
+    const mConst = clean.match(/^constructing\s+(.*)$/i);
+    if (mConst) {
+      return `${this.translate(mConst[1].trim())} Kurma`;
+    }
+
+    // Polite Ways to X
+    const mPolite = clean.match(/^polite\s+ways\s+to\s+(.*)$/i);
+    if (mPolite) {
+      return `${this.translate(mPolite[1].trim())} İçin Nezaket İfadeleri`;
+    }
+
+    // Geography and Major Cities of (the)? X
+    const mGeo = clean.match(/^geography\s+and\s+major\s+cities\s+of\s+(the\s+)?(.*)$/i);
+    if (mGeo) {
+      return `${this.translate(mGeo[2].trim())} Coğrafyası ve Başlıca Şehirleri`;
+    }
+
+    // Celebrations and Traditions in (the)? X
+    const mCel = clean.match(/^celebrations\s+and\s+traditions\s+in\s+(the\s+)?(.*)$/i);
+    if (mCel) {
+      return `${this.translate(mCel[2].trim())}'de Kutlamalar ve Gelenekler`;
+    }
+
+    // Cultural Contexts of / in X
+    const mCult = clean.match(/^cultural\s+contexts?\s*(?:of|in)?\s*(.*)$/i);
+    if (mCult && mCult[1].trim()) {
+      return `Kültürel Bağlamlar: ${this.translate(mCult[1].trim())}`;
+    }
+
+    // Counting from N1 to N2
+    const mCount = clean.match(/^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$/i);
+    if (mCount) {
+      const n1 = mCount[1];
+      const n2 = mCount[2];
+      const suffix = (n2.endsWith("00") || ["1", "3", "4", "5", "8", "70", "80"].includes(n2)) ? "e" : "a";
+      let res = `${n1}'den ${n2}'${suffix} Sayma`;
+      const extra = mCount[3].replace(/^[:\s\-]+/, '').trim();
+      if (extra) res += `: ${this.translate(extra)}`;
+      return res;
+    }
+
+    // Introduction to X
+    const mIntro = clean.match(/^introduction\s+to\s+(.*)$/i);
+    if (mIntro) {
+      const sub = this.translate(mIntro[1].trim());
+      return sub.endsWith("Giriş") ? sub : `${sub}'e Giriş`;
+    }
+
+    // Using X in Y
+    const mUsingIn = clean.match(/^using\s+(.*?)\s+in\s+(.*)$/i);
+    if (mUsingIn) {
+      const s1 = this.translate(mUsingIn[1].trim());
+      const s2 = this.translate(mUsingIn[2].trim());
+      return `${s2}'de ${s1} Kullanımı`;
+    }
+
+    // Using X
+    const mUsing = clean.match(/^using\s+(.*)$/i);
+    if (mUsing) {
+      return `${this.translate(mUsing[1].trim())} Kullanımı`;
+    }
+
+    // Talking About X
+    const mTalking = clean.match(/^talking\s+about\s+(.*)$/i);
+    if (mTalking) {
+      return `${this.translate(mTalking[1].trim())} Hakkında Konuşma`;
+    }
+
+    // Navigating X
+    const mNav = clean.match(/^navigating\s+(.*)$/i);
+    if (mNav) {
+      return `${this.translate(mNav[1].trim())}'de Yol Bulma`;
+    }
+
+    // X for Y
+    const mFor = clean.match(/^(.*?)\s+for\s+(.*)$/i);
+    if (mFor) {
+      const s1 = this.translate(mFor[1].trim());
+      const s2 = this.translate(mFor[2].trim());
+      if (s1.toLowerCase() !== mFor[1].trim().toLowerCase() || s2.toLowerCase() !== mFor[2].trim().toLowerCase()) {
+        return `${s2} İçin ${s1}`;
+      }
+    }
+
+    // X in [Language]
+    for (const [langEn, [langNom, langAdj, langLoc]] of Object.entries(this.LANGUAGES)) {
+      const regex = new RegExp(`^(.*?)\\s+in\\s+${langEn}$`, 'i');
+      const lm = clean.match(regex);
+      if (lm) {
+        return `${langLoc} ${this.translate(lm[1].trim())}`;
+      }
+    }
+
+    // X and Y
+    if (/\s+and\s+/i.test(clean)) {
+      const parts = clean.split(/\s+and\s+/i);
+      if (parts.length === 2) {
+        return `${this.translate(parts[0].trim())} ve ${this.translate(parts[1].trim())}`;
+      }
+    }
+
+    // Comma-separated list "A, B, and C" or "A, B, C"
+    if (clean.includes(',')) {
+      const rawItems = clean.split(/,\s*(?:and\s+)?/i);
+      if (rawItems.length > 1) {
+        const trItems = rawItems.map(item => this.translate(item.trim()));
+        if (trItems.length === 2) {
+          return `${trItems[0]} ve ${trItems[1]}`;
+        }
+        return trItems.slice(0, -1).join(', ') + ` ve ${trItems[trItems.length - 1]}`;
+      }
+    }
+
+    // Language + Noun
+    for (const [langEn, [langNom, langAdj, langLoc]] of Object.entries(this.LANGUAGES)) {
+      if (low === `the ${langEn} language` || low === `${langEn} language`) {
+        return `${langNom} Dili`;
+      }
+      const regex = new RegExp(`^${langEn}\\s+(.*)$`, 'i');
+      const lm = clean.match(regex);
+      if (lm) {
+        return `${langAdj} ${this.translate(lm[1].trim())}`;
+      }
+    }
+
+    // Adjective + Noun
+    const words = clean.split(/\s+/);
+    if (words.length === 2) {
+      const w1 = words[0].toLowerCase();
+      const w2 = words[1].toLowerCase();
+      if (this.VOCABULARY[w1] && this.VOCABULARY[w2]) {
+        return `${this.VOCABULARY[w1]} ${this.VOCABULARY[w2]}`;
+      }
+    }
+
+    // Tokenized word-by-word fallback
+    const translatedWords = [];
+    for (const w of words) {
+      const wClean = w.toLowerCase().replace(/[.,!?:;]/g, '');
+      if (this.VOCABULARY[wClean]) {
+        translatedWords.push(this.VOCABULARY[wClean]);
+      } else if (this.LANGUAGES[wClean]) {
+        translatedWords.push(this.LANGUAGES[wClean][0]);
+      } else if (wClean === "and") {
+        translatedWords.push("ve");
+      } else if (wClean === "or") {
+        translatedWords.push("veya");
+      } else if (wClean === "the") {
+        continue;
+      } else if (wClean === "with") {
+        translatedWords.push("ile");
+      } else {
+        translatedWords.push(w);
+      }
+    }
+
+    const res = translatedWords.join(' ');
+    return res || clean;
+  }
+};
+
 function translateCurriculumTitle(title, lang = currentLang) {
   if (!title) return '';
+  if (lang === 'tr') {
+    return UniversalCurriculumTranslator.translate(title);
+  }
+
+  // English lookup
   const trimmed = title.trim();
   const clean = trimmed.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
   const lowerTrimmed = trimmed.toLowerCase();
   const lowerClean = clean.toLowerCase();
 
-  // 1. Direct dictionary lookup in EDUCATIONAL_SENTENCE_MAP if available
-  if (lang === 'tr') {
-    if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR) {
-      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed];
-      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean];
-    }
-  } else if (lang === 'en') {
-    if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN) {
-      if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed];
-      if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean];
-    }
+  if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN) {
+    if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed];
+    if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean];
   }
 
-  // 2. Check window.PAGE_TITLE_PAIRS
   if (Array.isArray(window.PAGE_TITLE_PAIRS)) {
     for (const [en, tr] of window.PAGE_TITLE_PAIRS) {
       if (!en || !tr) continue;
-      const enLow = en.toLowerCase();
-      const trLow = tr.toLowerCase();
-      if (lowerTrimmed === enLow || lowerTrimmed === trLow || lowerClean === enLow || lowerClean === trLow) {
-        return lang === 'tr' ? tr : en;
-      }
+      if (lowerTrimmed === tr.toLowerCase() || lowerClean === tr.toLowerCase()) return en;
     }
   }
 
-  // 3. Check CURRICULUM_PAIRS
   if (Array.isArray(CURRICULUM_PAIRS)) {
     for (const [en, tr] of CURRICULUM_PAIRS) {
       if (!en || !tr) continue;
-      const enLow = en.toLowerCase();
-      const trLow = tr.toLowerCase();
-      if (lowerTrimmed === enLow || lowerTrimmed === trLow || lowerClean === enLow || lowerClean === trLow) {
-        return lang === 'tr' ? tr : en;
-      }
+      if (lowerTrimmed === tr.toLowerCase() || lowerClean === tr.toLowerCase()) return en;
     }
   }
 
-  // 4. Fallback common patterns and synonyms for curriculum/page titles
-  if (lang === 'tr') {
-    // Check for corrupted half-translations: "1'den 100'ye Sayma: Building Blocks of Numbers"
-    const halfMatch = clean.match(/^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$/i);
-    if (halfMatch) {
-      const rest = halfMatch[3].trim();
-      return `${halfMatch[1]}'den ${halfMatch[2]}'e Sayma: ${translateCurriculumTitle(rest, 'tr')}`;
-    }
-
-    if (/^(the\s+)?alphabet$/i.test(trimmed) || /^(the\s+)?alphabet$/i.test(clean)) return 'Alfabe';
-    if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed) || /^(essential|basic|key)\s+vocabulary$/i.test(clean)) return 'Temel Kelimeler';
-    if (/^structural\s+focus$/i.test(trimmed) || /^structural\s+focus$/i.test(clean)) return 'Yapısal Odak';
-    if (/^practical\s+application$/i.test(trimmed) || /^practical\s+application$/i.test(clean)) return 'Pratik Uygulama';
-    if (/^sound\s+practice$/i.test(trimmed) || /^sound\s+practice$/i.test(clean)) return 'Ses Pratiği';
-    if (/^spanish\s+alphabet$/i.test(trimmed) || /^spanish\s+alphabet$/i.test(clean)) return 'İspanyol Alfabesi';
-    if (/^quick\s+check$/i.test(trimmed) || /^quick\s+check$/i.test(clean)) return 'Hızlı Kontrol';
-
-    // Pattern: Language-specific ending: "X in Spanish", "X in German", etc.
-    for (const [langEn, langTr] of Object.entries(CURRICULUM_LANG_MAP_TR)) {
-      const regex = new RegExp(`^(.*?)\\s+in\\s+${langEn}$`, 'i');
-      const lm = clean.match(regex);
-      if (lm) {
-        const sub = lm[1].trim();
-        return `${langTr} ${translateCurriculumTitle(sub, 'tr')}`;
-      }
-    }
-
-    // Pattern: Counting from X to Y
-    const countMatch = clean.match(/^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$/i);
-    if (countMatch) {
-      const n2 = countMatch[2];
-      const suffix = (n2.endsWith("00") || ["1", "3", "4", "5", "8", "70", "80"].includes(n2)) ? "e" : "a";
-      let res = `${countMatch[1]}'den ${n2}'${suffix} Sayma`;
-      const extra = countMatch[3].replace(/^[:\s\-]+/, '').trim();
-      if (extra) res += `: ${translateCurriculumTitle(extra, 'tr')}`;
-      return res;
-    }
-
-    // Pattern: The Days of the Week: ...
-    const daysMatch = clean.match(/^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$/i);
-    if (daysMatch) {
-      const extra = daysMatch[2].trim();
-      if (!extra) return 'Haftanın Günleri';
-      if (/plan/i.test(extra)) return 'Haftanın Günleri: Planlama';
-      return `Haftanın Günleri: ${translateCurriculumTitle(extra, 'tr')}`;
-    }
-
-    // Pattern: Compound title separated by colon
-    if (clean.includes(':')) {
-      const parts = clean.split(':');
-      if (parts.length === 2) {
-        const p1 = translateCurriculumTitle(parts[0].trim(), 'tr');
-        const p2 = translateCurriculumTitle(parts[1].trim(), 'tr');
-        if (p1 !== parts[0].trim() || p2 !== parts[1].trim()) {
-          return `${p1}: ${p2}`;
-        }
-      }
-    }
-
-    // Pattern: Compound separated by "vs." or "versus"
-    const vsMatch = clean.match(/^(.*?)\s+(?:vs\.?|versus)\s+(.*)$/i);
-    if (vsMatch) {
-      const s1 = translateCurriculumTitle(vsMatch[1].trim(), 'tr');
-      const s2 = translateCurriculumTitle(vsMatch[2].trim(), 'tr');
-      return `${s1} ve ${s2} Karşılaştırması`;
-    }
-
-    // Pattern: "X for Y" e.g. "Essential Phrases for Shopping and Eating Out"
-    const mFor = clean.match(/^(.*?)\s+for\s+(.*)$/i);
-    if (mFor) {
-      const s1 = translateCurriculumTitle(mFor[1].trim(), 'tr');
-      const s2 = translateCurriculumTitle(mFor[2].trim(), 'tr');
-      if (s1 !== mFor[1].trim() || s2 !== mFor[2].trim()) {
-        return `${s2} İçin ${s1}`;
-      }
-    }
-
-    // Pattern: "Introduction to X"
-    const mIntro = clean.match(/^introduction\s+to\s+(.*)$/i);
-    if (mIntro) {
-      const sub = translateCurriculumTitle(mIntro[1].trim(), 'tr');
-      return sub.endsWith("Giriş") ? sub : `${sub}'e Giriş`;
-    }
-
-    // Pattern: "Using X in Y"
-    const mUsingIn = clean.match(/^using\s+(.*?)\s+in\s+(.*)$/i);
-    if (mUsingIn) {
-      const s1 = translateCurriculumTitle(mUsingIn[1].trim(), 'tr');
-      const s2 = translateCurriculumTitle(mUsingIn[2].trim(), 'tr');
-      return `${s2}'de ${s1} Kullanımı`;
-    }
-
-    // Pattern: "Using X"
-    const mUsing = clean.match(/^using\s+(.*)$/i);
-    if (mUsing) {
-      const sub = translateCurriculumTitle(mUsing[1].trim(), 'tr');
-      return `${sub} Kullanımı`;
-    }
-
-    // Pattern: "Talking About X"
-    const mTalking = clean.match(/^talking\s+about\s+(.*)$/i);
-    if (mTalking) {
-      const sub = translateCurriculumTitle(mTalking[1].trim(), 'tr');
-      return `${sub} Hakkında Konuşma`;
-    }
-
-    // Pattern: "Navigating X"
-    const mNav = clean.match(/^navigating\s+(.*)$/i);
-    if (mNav) {
-      const sub = translateCurriculumTitle(mNav[1].trim(), 'tr');
-      return `${sub}'de Yol Bulma`;
-    }
-  } else {
-    if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';
-    if (/^yapısal\s+odak$/i.test(trimmed) || /^yapısal\s+odak$/i.test(clean)) return 'Structural Focus';
-    if (/^pratik\s+uygulama$/i.test(trimmed) || /^pratik\s+uygulama$/i.test(clean)) return 'Practical Application';
-    if (/^hızlı\s+kontrol$/i.test(trimmed) || /^hızlı\s+kontrol$/i.test(clean)) return 'Quick Check';
-  }
+  if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';
+  if (/^yapısal\s+odak$/i.test(trimmed) || /^yapısal\s+odak$/i.test(clean)) return 'Structural Focus';
+  if (/^pratik\s+uygulama$/i.test(trimmed) || /^pratik\s+uygulama$/i.test(clean)) return 'Practical Application';
+  if (/^hızlı\s+kontrol$/i.test(trimmed) || /^hızlı\s+kontrol$/i.test(clean)) return 'Quick Check';
 
   return clean || trimmed;
 }

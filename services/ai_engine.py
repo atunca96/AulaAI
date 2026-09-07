@@ -416,9 +416,10 @@ RULES:
 4. VARIETY: Mix functional language, grammar, and cultural context.
 5. MANDATORY SCOPE: Generate EXACTLY 8 to 12 chapters to ensure full curriculum coverage. A roadmap with fewer than 8 units is unacceptable.
 6. TOPIC DENSITY: Each chapter MUST have at least 3-4 descriptive topics.
-5. ENGLISH TITLES ONLY: ALL unit titles ('title' field) and topic titles ('title' field) MUST be in English. Never use {language} for titles. Example: use 'Greetings and Introductions' NOT 'Saludos y Presentaciones'.
+7. ENGLISH TITLES ONLY: ALL unit titles ('title' field) and topic titles ('title' field) MUST be in English. Never use {language} for titles. Example: use 'Greetings and Introductions' NOT 'Saludos y Presentaciones'.
+8. TURKISH TRANSLATIONS: For EVERY chapter and topic, include a 'title_tr' field with a natural, grammatically correct Turkish translation of the title. Example: 'Greetings and Introductions' → 'Selamlaşmalar ve Tanıtımlar'.
 
-Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': [{{'title': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
+Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'title_tr': '...', 'topics': [{{'title': '...', 'title_tr': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.7)
     chapters = res.get("chapters", []) if res else []
     

@@ -211,20 +211,23 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
         _log("Step 4: Creating classroom structure in DB...")
         with db_connection() as db:
             db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+            from services.language_data import resolve_curriculum_tr
             for idx, ch in enumerate(chapters_data):
                 chapter_id = _uid()
                 ch_num = idx + 1
                 ch_title = str(ch.get("title", "Untitled Chapter"))
                 ch_page = ch.get("page")
-                db.execute("INSERT INTO chapters (id, course_id, number, title, page_number) VALUES (?,?,?,?,?)",
-                           (chapter_id, course_id, ch_num, ch_title, ch_page))
+                ch_tr = resolve_curriculum_tr(ch_title, ch.get("title_tr"))
+                db.execute("INSERT INTO chapters (id, course_id, number, title, page_number, title_tr) VALUES (?,?,?,?,?,?)",
+                           (chapter_id, course_id, ch_num, ch_title, ch_page, ch_tr))
                 for topic_idx, topic in enumerate(ch.get("topics", [])):
                     topic_id = _uid()
                     t_title = topic.get("title", "Untitled Topic")
                     t_type = topic.get("type", "vocabulary")
                     t_page = topic.get("page")
-                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
-                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx, t_page, "/books/" + os.path.basename(pdf_path)))
+                    t_tr = resolve_curriculum_tr(t_title, topic.get("title_tr"))
+                    db.execute("INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url, title_tr) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                               (topic_id, chapter_id, t_type, t_title, "A1.1", json.dumps({}), topic_idx, t_page, "/books/" + os.path.basename(pdf_path), t_tr))
             db.commit()
         _log("Structure creation complete.")
         bump_version()

@@ -160,20 +160,23 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                     clean_title = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', unit_title, flags=re.IGNORECASE).strip()
                     unit_title = clean_title # UI handles the numbering header
 
+                from services.language_data import resolve_curriculum_tr
+                ch_tr = resolve_curriculum_tr(unit_title, unit.get("title_tr"))
                 db.execute(
-                    "INSERT INTO chapters (id, course_id, number, title, page_number) VALUES (?,?,?,?,?)",
-                    (chapter_id, course_id, unit_idx + 1, unit_title, 0) # V2 currently lacks page numbers
+                    "INSERT INTO chapters (id, course_id, number, title, page_number, title_tr) VALUES (?,?,?,?,?,?)",
+                    (chapter_id, course_id, unit_idx + 1, unit_title, 0, ch_tr) # V2 currently lacks page numbers
                 )
                 
                 for topic_idx, topic in enumerate(unit.get("topics", [])):
                     topic_id = _uid()
                     t_text = topic.get("text", "Untitled Topic")
                     t_tag = topic.get("tag", "vocabulary")
+                    t_tr = resolve_curriculum_tr(t_text, topic.get("title_tr"))
                     
                     # We use a default difficulty and empty content as V2 focus is structure
                     db.execute(
-                        "INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path))
+                        "INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url, title_tr) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path), t_tr)
                     )
             
             # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)
