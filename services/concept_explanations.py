@@ -717,6 +717,259 @@ PRAGMATIC_DICTIONARY = {
         "tr": "(Onlar) ...dirler / ...dırlar",
         "desc_en": "Third-person plural present of 'ser'.",
         "desc_tr": "'Ser' fiilinin 3. çoğul şahıs çekimi."
+    },
+
+    # ── GERMAN (Deutsch) ──
+    "guten morgen": {
+        "en": "Good morning", "tr": "Günaydın",
+        "desc_en": "Standard German morning greeting used until midday.",
+        "desc_tr": "Almancada sabah saatlerinde öğleye kadar kullanılan standart karşılama."
+    },
+    "guten tag": {
+        "en": "Good day / Hello", "tr": "İyi günler / Merhaba",
+        "desc_en": "Standard polite daytime greeting in German.",
+        "desc_tr": "Almancada gün içinde yaygın olarak kullanılan resmi ve genel selamlaşma."
+    },
+    "guten abend": {
+        "en": "Good evening", "tr": "İyi akşamlar",
+        "desc_en": "Polite German greeting used in the evening hours.",
+        "desc_tr": "Almancada akşam saatlerinde kullanılan kibar selamlaşma."
+    },
+    "gute nacht": {
+        "en": "Good night", "tr": "İyi geceler",
+        "desc_en": "German parting expression specifically used before bedtime.",
+        "desc_tr": "Almancada uyumadan önce veya gece ayrılırken söylenen veda ifadesi."
+    },
+    "auf wiedersehen": {
+        "en": "Goodbye", "tr": "Görüşmek üzere / Hoşça kalın",
+        "desc_en": "Formal German farewell expression.",
+        "desc_tr": "Almancada resmi ve kibar veda sözü."
+    },
+    "tschuss": {
+        "en": "Bye", "tr": "Hoşça kal",
+        "desc_en": "Informal German farewell among friends and peers.",
+        "desc_tr": "Almancada arkadaşlar arasında kullanılan samimi veda ifadesi."
+    },
+    "ich": {
+        "en": "I", "tr": "Ben",
+        "desc_en": "German first-person singular subject pronoun.",
+        "desc_tr": "Almanca 1. tekil şahıs zamiri."
+    },
+    "bin": {
+        "en": "I am", "tr": "(Ben) ...yim / ...yım",
+        "desc_en": "First-person singular present of German 'sein' (to be).",
+        "desc_tr": "Almancada 'sein' (olmak) fiilinin 1. tekil şahıs çekimi (asla sadece zamir değil)."
+    },
+    "du": {
+        "en": "You", "tr": "Sen",
+        "desc_en": "German second-person informal singular subject pronoun.",
+        "desc_tr": "Almanca 2. tekil şahıs zamiri (samimi hitap)."
+    },
+    "bist": {
+        "en": "You are", "tr": "(Sen) ...sin / ...sın",
+        "desc_en": "Second-person singular present of German 'sein'.",
+        "desc_tr": "Almancada 'sein' (olmak) fiilinin 2. tekil şahıs çekimi."
+    },
+    "er": {
+        "en": "He", "tr": "O (erkek)",
+        "desc_en": "German third-person singular masculine pronoun.",
+        "desc_tr": "Almanca 3. tekil şahıs eril zamiri."
+    },
+    "sie": {
+        "en": "She / They / You (formal)", "tr": "O (kadın) / Onlar / Siz",
+        "desc_en": "German third-person feminine pronoun, plural pronoun, or formal 'You'.",
+        "desc_tr": "Almancada dişil 'O', çoğul 'Onlar' veya büyük harfle resmi 'Siz'."
+    },
+    "ist": {
+        "en": "He/she/it is", "tr": "(O) ...dir / ...dır",
+        "desc_en": "Third-person singular present of German 'sein'.",
+        "desc_tr": "Almancada 'sein' (olmak) fiilinin 3. tekil şahıs çekimi."
+    },
+    "wir": {
+        "en": "We", "tr": "Biz",
+        "desc_en": "German first-person plural subject pronoun.",
+        "desc_tr": "Almanca 1. çoğul şahıs zamiri."
+    },
+    "sind": {
+        "en": "We are / They are", "tr": "(Biz) ...yiz / ...yız",
+        "desc_en": "First and third person plural present of German 'sein'.",
+        "desc_tr": "Almancada 'sein' fiilinin çoğul çekimi."
+    },
+
+    # ── FRENCH (Français) ──
+    "bonjour": {
+        "en": "Hello / Good morning", "tr": "Günaydın / Merhaba",
+        "desc_en": "Universal French daytime greeting.",
+        "desc_tr": "Fransızcada gün boyu kullanılan standart selamlaşma."
+    },
+    "bonsoir": {
+        "en": "Good evening", "tr": "İyi akşamlar",
+        "desc_en": "French greeting used from late afternoon through the evening.",
+        "desc_tr": "Fransızcada akşam saatlerinde kullanılan selamlaşma."
+    },
+    "bonne nuit": {
+        "en": "Good night", "tr": "İyi geceler",
+        "desc_en": "French parting wish before sleeping.",
+        "desc_tr": "Fransızcada gece yatarken veya ayrılırken söylenen iyi geceler dileği."
+    },
+    "au revoir": {
+        "en": "Goodbye", "tr": "Görüşmek üzere / Hoşça kalın",
+        "desc_en": "Standard French farewell expression.",
+        "desc_tr": "Fransızcada temel ve saygılı veda ifadesi."
+    },
+    "salut": {
+        "en": "Hi / Bye", "tr": "Selam / Hoşça kal",
+        "desc_en": "Informal French greeting and parting phrase among friends.",
+        "desc_tr": "Fransızcada hem merhaba hem hoşça kal anlamında samimi hitap."
+    },
+    "je": {
+        "en": "I", "tr": "Ben",
+        "desc_en": "French first-person singular subject pronoun.",
+        "desc_tr": "Fransızca 1. tekil şahıs zamiri."
+    },
+    "suis": {
+        "en": "I am", "tr": "(Ben) ...yim / ...yım",
+        "desc_en": "First-person singular present of French 'être' (to be).",
+        "desc_tr": "Fransızcada 'être' (olmak) fiilinin 1. tekil şahıs çekimi (asla sadece zamir değil)."
+    },
+    "tu": {
+        "en": "You", "tr": "Sen",
+        "desc_en": "Second-person informal singular subject pronoun.",
+        "desc_tr": "2. tekil şahıs zamiri (samimi hitap)."
+    },
+    "il": {
+        "en": "He", "tr": "O (erkek)",
+        "desc_en": "French third-person singular masculine pronoun.",
+        "desc_tr": "Fransızca 3. tekil şahıs eril zamiri."
+    },
+    "elle": {
+        "en": "She", "tr": "O (kadın)",
+        "desc_en": "French third-person singular feminine pronoun.",
+        "desc_tr": "Fransızca 3. tekil şahıs dişil zamiri."
+    },
+    "est": {
+        "en": "He/she is", "tr": "(O) ...dir / ...dır",
+        "desc_en": "Third-person singular present of French 'être'.",
+        "desc_tr": "Fransızcada 'être' (olmak) fiilinin 3. tekil şahıs çekimi."
+    },
+    "nous": {
+        "en": "We", "tr": "Biz",
+        "desc_en": "French first-person plural subject pronoun.",
+        "desc_tr": "Fransızca 1. çoğul şahıs zamiri."
+    },
+    "sommes": {
+        "en": "We are", "tr": "(Biz) ...yiz / ...yız",
+        "desc_en": "First-person plural present of French 'être'.",
+        "desc_tr": "Fransızcada 'être' fiilinin 1. çoğul şahıs çekimi."
+    },
+    "vous": {
+        "en": "You (formal/plural)", "tr": "Siz / Sizler",
+        "desc_en": "French polite singular or general plural second-person pronoun.",
+        "desc_tr": "Fransızcada kibar tekil veya genel çoğul hitap zamiri."
+    },
+
+    # ── ITALIAN (Italiano) ──
+    "buongiorno": {
+        "en": "Good morning / Good day", "tr": "Günaydın / İyi günler",
+        "desc_en": "Standard Italian polite daytime greeting.",
+        "desc_tr": "İtalyancada sabah ve gündüz kullanılan kibar karşılama."
+    },
+    "buonasera": {
+        "en": "Good evening", "tr": "İyi akşamlar",
+        "desc_en": "Italian greeting used in the late afternoon and evening.",
+        "desc_tr": "İtalyancada akşam saatlerinde söylenen selamlaşma."
+    },
+    "buonanotte": {
+        "en": "Good night", "tr": "İyi geceler",
+        "desc_en": "Italian parting expression before sleeping.",
+        "desc_tr": "İtalyancada uyumadan önce söylenen veda kalıbı."
+    },
+    "arrivederci": {
+        "en": "Goodbye", "tr": "Görüşmek üzere",
+        "desc_en": "Standard Italian polite farewell expression.",
+        "desc_tr": "İtalyancada kibar ve yaygın veda sözü."
+    },
+    "ciao": {
+        "en": "Hello / Bye", "tr": "Merhaba / Hoşça kal",
+        "desc_en": "Universal informal Italian greeting and parting word.",
+        "desc_tr": "İtalyancada hem karşılama hem veda için kullanılan samimi sözcük."
+    },
+    "io": {
+        "en": "I", "tr": "Ben",
+        "desc_en": "Italian first-person singular subject pronoun.",
+        "desc_tr": "İtalyanca 1. tekil şahıs zamiri."
+    },
+    "sono": {
+        "en": "I am / They are", "tr": "(Ben) ...yim / ...yım",
+        "desc_en": "First-person singular (or 3rd-plural) present of Italian 'essere' (to be).",
+        "desc_tr": "İtalyancada 'essere' (olmak) fiilinin 1. tekil şahıs çekimi."
+    },
+    "lui": {
+        "en": "He", "tr": "O (erkek)",
+        "desc_en": "Italian third-person singular masculine pronoun.",
+        "desc_tr": "İtalyanca 3. tekil şahıs eril zamiri."
+    },
+    "lei": {
+        "en": "She / You (formal)", "tr": "O (kadın) / Siz (resmi)",
+        "desc_en": "Italian third-person feminine pronoun or formal 'You'.",
+        "desc_tr": "İtalyancada 3. tekil şahıs dişil zamiri veya resmi 'Siz'."
+    },
+    "noi": {
+        "en": "We", "tr": "Biz",
+        "desc_en": "Italian first-person plural subject pronoun.",
+        "desc_tr": "İtalyanca 1. çoğul şahıs zamiri."
+    },
+    "siamo": {
+        "en": "We are", "tr": "(Biz) ...yiz / ...yız",
+        "desc_en": "First-person plural present of Italian 'essere'.",
+        "desc_tr": "İtalyancada 'essere' fiilinin 1. çoğul şahıs çekimi."
+    },
+
+    # ── ENGLISH ──
+    "good morning": {
+        "en": "Good morning", "tr": "Günaydın",
+        "desc_en": "Standard morning greeting used from dawn until noon.",
+        "desc_tr": "Sabah saatlerinde öğleye kadar kullanılan standart karşılama."
+    },
+    "good afternoon": {
+        "en": "Good afternoon", "tr": "Tünaydın",
+        "desc_en": "Polite greeting used from midday until evening.",
+        "desc_tr": "Öğleden akşama kadar kullanılan kibar ve doğal selamlaşma."
+    },
+    "good evening": {
+        "en": "Good evening", "tr": "İyi akşamlar",
+        "desc_en": "Polite greeting used during evening hours.",
+        "desc_tr": "Akşam saatlerinde kullanılan kibar karşılama."
+    },
+    "good night": {
+        "en": "Good night", "tr": "İyi geceler",
+        "desc_en": "Parting wish spoken before bed or upon leaving late at night.",
+        "desc_tr": "Yatmadan önce veya gece ayrılırken söylenen veda ifadesi."
+    },
+    "i": {
+        "en": "I", "tr": "Ben",
+        "desc_en": "First-person singular subject pronoun.",
+        "desc_tr": "1. tekil şahıs zamiri."
+    },
+    "i am": {
+        "en": "I am", "tr": "(Ben) ...yim / ...yım",
+        "desc_en": "First-person singular present of 'to be'.",
+        "desc_tr": "'To be' (olmak) fiilinin 1. tekil şahıs çekimi."
+    },
+    "you are": {
+        "en": "You are", "tr": "(Sen) ...sin / ...sın",
+        "desc_en": "Second-person present of 'to be'.",
+        "desc_tr": "'To be' fiilinin 2. şahıs çekimi."
+    },
+    "we are": {
+        "en": "We are", "tr": "(Biz) ...yiz / ...yız",
+        "desc_en": "First-person plural present of 'to be'.",
+        "desc_tr": "'To be' fiilinin 1. çoğul şahıs çekimi."
+    },
+    "they are": {
+        "en": "They are", "tr": "(Onlar) ...dirler / ...dırlar",
+        "desc_en": "Third-person plural present of 'to be'.",
+        "desc_tr": "'To be' fiilinin 3. çoğul şahıs çekimi."
     }
 }
 

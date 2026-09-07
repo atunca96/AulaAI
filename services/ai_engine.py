@@ -573,8 +573,12 @@ This rule is language-agnostic: always relate sounds to common, accessible words
 
     natural_pragmatics_rule = f"""
 NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
-- When translating Spanish/English greetings to Turkish, NEVER use unnatural literal translations like 'İyi öğleden sonra' or 'İyi öğleden sonraları'. ALWAYS use culturally authentic Turkish greetings: 'Buenas tardes' / 'Good afternoon' -> 'Tünaydın' (or 'İyi günler'), 'Buenos días' -> 'Günaydın', 'Buenas noches' -> 'İyi akşamlar' (or 'İyi geceler').
-- PRONOUN VS AUXILIARY VERB DISTINCTION: Subject pronoun 'Yo' translates to 'Ben' (in Turkish, never 'I'). The conjugated auxiliary verb 'Soy' (from 'ser') translates to '(Ben) ...yim / ...yım' ('I am'), NEVER bare 'Ben'. Always distinguish personal pronouns from verb conjugations.
+- When translating greetings to {instruction_lang_name} (e.g. Turkish), NEVER use unnatural literal translations or word-for-word calques (e.g. NEVER use 'İyi öğleden sonra' or 'İyi öğleden sonraları' in Turkish). ALWAYS use culturally authentic, native greetings in {instruction_lang_name} (e.g. for Turkish: 'Tünaydın', 'Günaydın', 'İyi akşamlar', 'İyi geceler'; for English: 'Good afternoon', 'Good morning', etc.).
+- PRONOUN VS AUXILIARY VERB DISTINCTION: Subject pronouns (Spanish 'Yo', German 'ich', French 'je', Italian 'io', English 'I') translate to 'Ben' in Turkish (never 'I'). Conjugated auxiliary verbs (Spanish 'Soy', German 'bin', French 'suis', Italian 'sono', English 'I am') translate to '(Ben) ...yim / ...yım', NEVER bare 'Ben'. Always maintain clear pedagogical separation between personal pronouns and verb conjugations.
+- CEFR LEVEL RIGOR:
+  * A1/A2: Explicit phonetic guidance, clean vocabulary, foundational morphological markers, everyday communicative situations.
+  * B1/B2: Nuanced grammatical contrasts (indicative vs subjunctive, past aspectual contrasts), discourse connectors, authentic dialogues.
+  * C1: Stylistic sophistication, idiomatic expressions, syntactic complexity, precise register shifts.
 - In instructional texts, always use native, idiomatic phrasing suitable for professional educational textbooks.
 """
 
