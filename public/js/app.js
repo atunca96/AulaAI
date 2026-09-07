@@ -2481,25 +2481,65 @@ const UniversalCurriculumTranslator = {
     "giving": "Verme",
   },
 
+  cleanHybrids: function(text) {
+    if (!text) return '';
+    let t = String(text).trim();
+    const hybrids = [
+      [/Dünya\s+Around\s+Us/gi, 'Çevremizdeki Dünya'],
+      [/the\s+world\s+around\s+us/gi, 'Çevremizdeki Dünya'],
+      [/world\s+around\s+us/gi, 'Çevremizdeki Dünya'],
+      [/around\s+us/gi, 'Çevremizdeki'],
+      [/\bDaily\s+Objects\b/gi, 'Günlük Eşyalar'],
+      [/\bGünlük\s+Objects\b/gi, 'Günlük Eşyalar'],
+      [/\bobjects\b/gi, 'Eşyalar'],
+      [/\bAile\s+ve\s+Friends\s+ve\s+(?:ve\s+)?Relationships\b/gi, 'Aile, Arkadaşlar ve İlişkiler'],
+      [/\bFamily[,\s]+Friends[,\s]+(?:and\s+)?Relationships\b/gi, 'Aile, Arkadaşlar ve İlişkiler'],
+      [/\bfriends\b/gi, 'Arkadaşlar'],
+      [/\brelationships\b/gi, 'İlişkiler'],
+      [/Temel\s+Social\s+Situations['’]?de\s+Yol\s+Bulma/gi, 'Temel Sosyal Durumlarda İletişim'],
+      [/Social\s+Situations['’]?de\s+Yol\s+Bulma/gi, 'Sosyal Durumlarda İletişim'],
+      [/\bNavigating\s+Basic\s+Social\s+Situations\b/gi, 'Temel Sosyal Durumlarda İletişim'],
+      [/\bBasic\s+Social\s+Situations\b/gi, 'Temel Sosyal Durumlar'],
+      [/\bSocial\s+Situations\b/gi, 'Sosyal Durumlar'],
+      [/\bTraveling\s+Basics\b/gi, 'Seyahat Temelleri'],
+      [/\bTravel\s+Basics\b/gi, 'Seyahat Temelleri'],
+      [/Dışarıda\s+Yemek\s+Yeme/gi, 'Dışarıda Yemek'],
+      [/\bDining\s+Out\b/gi, 'Dışarıda Yemek'],
+      [/\bEating\s+Out\b/gi, 'Dışarıda Yemek']
+    ];
+    for (const [pat, repl] of hybrids) {
+      t = t.replace(pat, repl);
+    }
+    t = t.replace(/\bve\s+ve\b/gi, 've')
+         .replace(/\bve\s+ve\b/gi, 've')
+         .replace(/\bveya\s+veya\b/gi, 'veya')
+         .replace(/,\s*ve\b/gi, ' ve')
+         .replace(/\s{2,}/g, ' ')
+         .trim();
+    return t;
+  },
+
   translate: function(title) {
     if (!title) return '';
     const t = String(title).trim();
-    const clean = t.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, '').trim();
+    let clean = t.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, '').trim();
+    clean = this.cleanHybrids(clean);
     const low = clean.toLowerCase();
 
-    // Check if already Turkish
-    if (/[çğıöşüÇĞİÖŞÜ]/.test(clean)) {
+    // Check if already Turkish without English leftovers
+    const englishWords = /\b(around|us|objects?|friends?|relationships?|social|situations?|traveling|basics?|getting|acquainted|with|greetings?|farewells?|who|are|you|sharing|personal|information|formulating|simple|questions?|essential|quantities|numbers?|present|tense|asking|seeking|clarifications?|cultural|contexts?|countries|world|geography|major|cities|celebrations?|traditions?|polite|ways?|dining|eating|out)\b/i;
+    if (/[çğıöşüÇĞİÖŞÜ]/.test(clean) && !englishWords.test(clean)) {
       const mHalf = clean.match(/^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$/i);
       if (mHalf) {
-        return `${mHalf[1]}'den ${mHalf[2]}'e Sayma: ${this.translate(mHalf[3].trim())}`;
+        return this.cleanHybrids(`${mHalf[1]}'den ${mHalf[2]}'e Sayma: ${this.translate(mHalf[3].trim())}`);
       }
-      return clean;
+      return this.cleanHybrids(clean);
     }
 
     // 1. Direct dictionary lookup in EDUCATIONAL_SENTENCE_MAP if available
     if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR) {
-      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t];
-      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean];
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t]) return this.cleanHybrids(window.EDUCATIONAL_SENTENCE_MAP_EN_TR[t]);
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return this.cleanHybrids(window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]);
     }
 
     // 2. Check window.PAGE_TITLE_PAIRS
@@ -2808,11 +2848,11 @@ function translateCurriculumTitle(title, lang = currentLang) {
 function getLocalizedCurriculumTitle(item, lang = currentLang) {
   if (!item) return '';
   if (typeof item === 'string') {
-    return translateCurriculumTitle(item, lang);
+    return UniversalCurriculumTranslator.cleanHybrids(translateCurriculumTitle(item, lang));
   }
   if (lang === 'tr') {
     const raw = item.title_tr || item.title || '';
-    return translateCurriculumTitle(raw, 'tr');
+    return UniversalCurriculumTranslator.cleanHybrids(translateCurriculumTitle(raw, 'tr'));
   } else {
     const raw = item.title || item.title_tr || '';
     return translateCurriculumTitle(raw, 'en');

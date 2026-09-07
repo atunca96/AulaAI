@@ -979,6 +979,43 @@ class UniversalCurriculumTranslator:
     }
 
     @classmethod
+    def clean_hybrids(cls, text: str) -> str:
+        if not text:
+            return ""
+        t = str(text).strip()
+        hybrids = [
+            (r'Dünya\s+Around\s+Us', 'Çevremizdeki Dünya'),
+            (r'the\s+world\s+around\s+us', 'Çevremizdeki Dünya'),
+            (r'world\s+around\s+us', 'Çevremizdeki Dünya'),
+            (r'around\s+us', 'Çevremizdeki'),
+            (r'\bDaily\s+Objects\b', 'Günlük Eşyalar'),
+            (r'\bGünlük\s+Objects\b', 'Günlük Eşyalar'),
+            (r'\bobjects\b', 'Eşyalar'),
+            (r'\bAile\s+ve\s+Friends\s+ve\s+(?:ve\s+)?Relationships\b', 'Aile, Arkadaşlar ve İlişkiler'),
+            (r'\bFamily[,\s]+Friends[,\s]+(?:and\s+)?Relationships\b', 'Aile, Arkadaşlar ve İlişkiler'),
+            (r'\bfriends\b', 'Arkadaşlar'),
+            (r'\brelationships\b', 'İlişkiler'),
+            (r'Temel\s+Social\s+Situations[\'’]?de\s+Yol\s+Bulma', 'Temel Sosyal Durumlarda İletişim'),
+            (r'Social\s+Situations[\'’]?de\s+Yol\s+Bulma', 'Sosyal Durumlarda İletişim'),
+            (r'\bNavigating\s+Basic\s+Social\s+Situations\b', 'Temel Sosyal Durumlarda İletişim'),
+            (r'\bBasic\s+Social\s+Situations\b', 'Temel Sosyal Durumlar'),
+            (r'\bSocial\s+Situations\b', 'Sosyal Durumlar'),
+            (r'\bTraveling\s+Basics\b', 'Seyahat Temelleri'),
+            (r'\bTravel\s+Basics\b', 'Seyahat Temelleri'),
+            (r'Dışarıda\s+Yemek\s+Yeme', 'Dışarıda Yemek'),
+            (r'\bDining\s+Out\b', 'Dışarıda Yemek'),
+            (r'\bEating\s+Out\b', 'Dışarıda Yemek'),
+        ]
+        for pat, repl in hybrids:
+            t = re.sub(pat, repl, t, flags=re.IGNORECASE)
+        t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bveya\s+veya\b', 'veya', t, flags=re.IGNORECASE)
+        t = re.sub(r',\s*ve\b', ' ve', t, flags=re.IGNORECASE)
+        t = re.sub(r'\s{2,}', ' ', t).strip()
+        return t
+
+    @classmethod
     def translate(cls, title: str) -> str:
         if not title:
             return ""
@@ -986,15 +1023,19 @@ class UniversalCurriculumTranslator:
         t = str(title).strip()
         # Clean prefix: "Unit 1: ", "Ünite 2: ", etc.
         clean = re.sub(r'^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*', '', t, flags=re.IGNORECASE).strip()
+        
+        # Clean hybrid fragments immediately
+        clean = cls.clean_hybrids(clean)
         low = clean.lower()
 
-        # Check if already pure Turkish
-        if re.search(r'[çğıöşüÇĞİÖŞÜ]', clean):
+        # Check if already pure Turkish (must not have remaining English keywords)
+        english_words = r'\b(around|us|objects?|friends?|relationships?|social|situations?|traveling|basics?|getting|acquainted|with|greetings?|farewells?|who|are|you|sharing|personal|information|formulating|simple|questions?|essential|quantities|numbers?|present|tense|asking|seeking|clarifications?|cultural|contexts?|countries|world|geography|major|cities|celebrations?|traditions?|polite|ways?|dining|eating|out)\b'
+        if re.search(r'[çğıöşüÇĞİÖŞÜ]', clean) and not re.search(english_words, clean, re.IGNORECASE):
             m_half = re.match(r"^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$", clean, re.IGNORECASE)
             if m_half:
                 n1, n2, rest = m_half.group(1), m_half.group(2), m_half.group(3).strip()
-                return f"{n1}'den {n2}'e Sayma: {cls.translate(rest)}"
-            return clean
+                return cls.clean_hybrids(f"{n1}'den {n2}'e Sayma: {cls.translate(rest)}")
+            return cls.clean_hybrids(clean)
 
         # Check title map from bilingual_materials.json
         tmap = _get_bm_title_map()
