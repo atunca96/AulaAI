@@ -1,0 +1,266 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Alphabet and Foundations",
+      "title_tr": "Alfabe ve Temel Bilgiler",
+      "topics": [
+        {
+          "title": "The Alphabet",
+          "title_tr": "Alfabe",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Vowels and Consonants",
+          "title_tr": "Sesli ve Sessiz Harfler",
+          "type": "grammar"
+        },
+        {
+          "title": "Pronunciation and Phonetics",
+          "title_tr": "Telaffuz ve Fonetik",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Greetings and Introductions",
+      "title_tr": "Selamlaşmalar ve Tanıtımlar",
+      "topics": [
+        {
+          "title": "Basic Greetings: Hello, Goodbye, and More",
+          "title_tr": "Temel Selamlaşmalar: Merhaba, Hoşça Kal ve Daha Fazlası",
+          "type": "functional language"
+        },
+        {
+          "title": "Introducing Yourself and Others",
+          "title_tr": "Kendinizi ve Başkalarını Tanıtmak",
+          "type": "functional language"
+        },
+        {
+          "title": "Polite Expressions: Please, Thank You, and Excuse Me",
+          "title_tr": "Nazik İfadeler: Lütfen, Teşekkürler ve Affedersiniz",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Numbers and Counting",
+      "title_tr": "Rakamlar ve Sayma",
+      "topics": [
+        {
+          "title": "Cardinal Numbers: 1 to 100",
+          "title_tr": "Kardinal Sayılar: 1'den 100'e",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Ordinal Numbers: First, Second, Third",
+          "title_tr": "Sıralı Sayılar: Birinci, İkinci, Üçüncü",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Using Numbers in Everyday Situations",
+          "title_tr": "Günlük Durumlarda Sayıları Kullanmak",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Describing Yourself and Others",
+      "title_tr": "Kendinizi ve Başkalarını Tanımlamak",
+      "topics": [
+        {
+          "title": "Basic Adjectives: Big, Small, Happy, Sad",
+          "title_tr": "Temel Sıfatlar: Büyük, Küçük, Mutlu, Üzgün",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Talking About Age and Nationality",
+          "title_tr": "Yaş ve Milliyet Hakkında Konuşmak",
+          "type": "functional language"
+        },
+        {
+          "title": "Basic Sentence Structure: Subject-Verb-Object",
+          "title_tr": "Temel Cümle Yapısı: Özne-Fiil-Nesne",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Daily Routines and Activities",
+      "title_tr": "Günlük Rutinler ve Aktiviteler",
+      "topics": [
+        {
+          "title": "Common Verbs: To be, To have, To go",
+          "title_tr": "Yaygın Fiiller: Olmak, Sahip Olmak, Gitmek",
+          "type": "grammar"
+        },
+        {
+          "title": "Talking About Your Daily Routine",
+          "title_tr": "Günlük Rutininiz Hakkında Konuşmak",
+          "type": "functional language"
+        },
+        {
+          "title": "Asking and Answering Simple Questions",
+          "title_tr": "Basit Sorular Sormak ve Cevaplamak",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Time and Dates",
+      "title_tr": "Zaman ve Tarihler",
+      "topics": [
+        {
+          "title": "Telling the Time: Hours and Minutes",
+          "title_tr": "Saati Söylemek: Saatler ve Dakikalar",
+          "type": "functional language"
+        },
+        {
+          "title": "Days of the Week and Months of the Year",
+          "title_tr": "Haftanın Günleri ve Yılın Ayları",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Talking About Future Plans",
+          "title_tr": "Gelecek Planları Hakkında Konuşmak",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Food and Drink: At the Café",
+      "title_tr": "Yiyecek ve İçecek: Kafede",
+      "topics": [
+        {
+          "title": "Common Foods and Drinks: Ordering at a Café",
+          "title_tr": "Yaygın Yiyecekler ve İçecekler: Bir Kafede Sipariş Vermek",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking for and Giving Recommendations",
+          "title_tr": "functional language"
+        },
+        {
+          "title": "Understanding Menus: Key Phrases",
+          "title_tr": "Menüleri Anlamak: Anahtar İfadeler",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Shopping and Daily Needs",
+      "title_tr": "Alışveriş ve Günlük İhtiyaçlar",
+      "topics": [
+        {
+          "title": "Essential Shopping Vocabulary: Clothes and Accessories",
+          "title_tr": "Temel Alışveriş Kelime Dağarcığı: Giysiler ve Aksesuarlar",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking for Prices and Making Simple Transactions",
+          "title_tr": "functional language"
+        },
+        {
+          "title": "Understanding Sizes and Colors",
+          "title_tr": "Bedenler ve Renkleri Anlamak",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Navigating Your Community",
+      "title_tr": "Topluluğunuzda Yol Tarifi",
+      "topics": [
+        {
+          "title": "Asking for Directions: Where is...?",
+          "title_tr": "Yol Tarifi Sormak: ... Nerede?",
+          "type": "functional language"
+        },
+        {
+          "title": "Key Places in the Community: Bank, Post Office, etc.",
+          "title_tr": "Toplulukta Anahtar Yerler: Banka, Postane, vb.",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Using Public Transport: Basic Vocabulary and Phrases",
+          "title_tr": "Toplu Taşımayı Kullanmak: Temel Kelime Dağarcığı ve İfadeler",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "title": "Health and Emergencies",
+      "title_tr": "Sağlık ve Acil Durumlar",
+      "topics": [
+        {
+          "title": "Common Health Issues and Symptoms",
+          "title_tr": "Yaygın Sağlık Sorunları ve Belirtiler",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Seeking Help: Phrases for Emergencies",
+          "title_tr": "Yardım İstemek: Acil Durumlar İçin İfadeler",
+          "type": "functional language"
+        },
+        {
+          "title": "Visiting a Doctor: Key Questions",
+          "title_tr": "Doktor Ziyareti: Anahtar Sorular",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "title": "Hobbies and Free Time Activities",
+      "title_tr": "Hobiler ve Boş Zaman Aktiviteleri",
+      "topics": [
+        {
+          "title": "Discussing Hobbies: What Do You Like to Do?",
+          "title_tr": "Hobileri Tartışmak: Ne Yapmaktan Hoşlanırsınız?",
+          "type": "functional language"
+        },
+        {
+          "title": "Common Leisure Activities: Playing Sports, Reading",
+          "title_tr": "Yaygın Boş Zaman Aktiviteleri: Spor Oynamak, Okumak",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Making Plans with Friends: Invitations and Suggestions",
+          "title_tr": "Arkadaşlarla Plan Yapmak: Davetler ve Öneriler",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "title": "Cultural Insights: Festivals and Traditions",
+      "title_tr": "Kültürel Bilgiler: Festivaller ve Gelenekler",
+      "topics": [
+        {
+          "title": "Introduction to German Festivals: Oktoberfest, Christmas",
+          "title_tr": "Alman Festivallerine Giriş: Oktoberfest, Noel",
+          "type": "cultural context"
+        },
+        {
+          "title": "Common Traditions: Gifts, Food, and Celebrations",
+          "title_tr": "Yaygın Gelenekler: Hediyeler, Yiyecekler ve Kutlamalar",
+          "type": "cultural context"
+        },
+        {
+          "title": "Basic Phrases for Celebratory Situations",
+          "title_tr": "Kutlama Durumları İçin Temel İfadeler",
+          "type": "functional language"
+        }
+      ]
+    }
+  ]
+}

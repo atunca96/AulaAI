@@ -1220,7 +1220,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "then": "sonra",
   "For -er/-ir verbs: -ía, -ías, -ía, -íamos, -íais, -ían": "er/-ir fiilleri için: -ía, -ías, -ía, -íamos, -íais, -ían",
   "Cultural Nuances in Greetings": "Selamlaşmalardaki Kültürel İncelikler",
-  "Navigating a Restaurant: Ordering Food": "Bir Restoranda Yol Tarifi: Yemek Siparişi",
+  "Navigating a Restaurant: Ordering Food": "Restoranda: Yemek Siparişi Verme",
   "What do you say if you want to express that you have breakfast?": "Kahvaltı yaptığınızı ifade etmek istediğinizde ne söylersiniz?",
   "• The correct answer uses the verb 'tengo' which means 'I have'. This is the standard way to state age in Spanish. The distractors do not convey age correctly.\n• 'Soy' is used for identity, not age.": "• Doğru cevap, 'tengo' fiilini kullanır; bu 'benim var' anlamına gelir. Bu, İspanyolca'da yaş belirtmenin standart yoludur. Yanıltıcı seçenekler yaş belirtimini doğru bir şekilde iletmez.\n• 'Soy' kimlik için kullanılır, yaş için değil.",
   "The correct answer uses the verb 'tengo' which means 'I have'. This is the standard way to state age in Spanish. The distractors do not convey age correctly.\n• 'Soy' is used for identity, not age.": "Doğru cevap, 'tengo' fiilini kullanır; bu 'benim var' anlamına gelir. Bu, İspanyolca'da yaş belirtmenin standart yoludur. Yanıltıcı seçenekler yaş belirtimini doğru bir şekilde iletmez.\n• 'Soy' kimlik için kullanılır, yaş için değil.",
@@ -1232,7 +1232,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "'Me gusta dibujar' is the correct phrase to express enjoyment of drawing. 'Dibujar' is the infinitive form of the verb.\n• The distractors do not correctly express enjoyment or use the right verb form.": "'Me gusta dibujar' ifadesi, çizim yapmaktan keyif aldığınızı ifade etmek için doğru ifadedir. 'Dibujar' fiilin mastar halidir.\n• Yanıltıcı seçenekler, keyif ifade etme veya doğru fiil formunu kullanma konusunda doğru değildir.",
   "• These terms are used in everyday greetings and farewells.\n• Understanding the context helps in social interactions.\n• Greetings can vary based on time of day and formality.": "• Bu terimler günlük selamlaşma ve veda etme durumlarında kullanılır.\n• Bağlamı anlamak sosyal etkileşimlerde yardımcı olur.\n• Selamlaşmalar, günün saatine ve resmiyete göre değişiklik gösterebilir.",
   "These terms are used in everyday greetings and farewells.\n• Understanding the context helps in social interactions.\n• Greetings can vary based on time of day and formality.": "Bu terimler günlük selamlaşma ve veda etme durumlarında kullanılır.\n• Bağlamı anlamak sosyal etkileşimlerde yardımcı olur.\n• Selamlaşmalar, günün saatine ve resmiyete göre değişiklik gösterebilir.",
-  "Telling Time: Basic Expressions": "Zamanı Söyleme: Temel İfadeler",
+  "Telling Time: Basic Expressions": "Saati Söyleme: Temel İfadeler",
   "• These terms describe daily life and routines in Spanish-speaking cultures.\n• Understanding these words helps in discussing everyday activities.": "• Bu terimler, İspanyolca konuşulan kültürlerde günlük yaşamı ve rutinleri tanımlar.\n• Bu kelimeleri anlamak, günlük aktiviteleri tartışmaya yardımcı olur.",
   "These terms describe daily life and routines in Spanish-speaking cultures.\n• Understanding these words helps in discussing everyday activities.": "Bu terimler, İspanyolca konuşulan kültürlerde günlük yaşamı ve rutinleri tanımlar.\n• Bu kelimeleri anlamak, günlük aktiviteleri tartışmaya yardımcı olur.",
   "Which sentence correctly uses the verb 'tener' in present tense?": "'Tener' fiilini şimdiki zamanda doğru kullanan cümle hangisidir?",
@@ -1250,7 +1250,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "What do you say when you meet someone in the morning?": "Birisiyle sabah karşılaştığınızda ne söylersiniz?",
   "• Understanding these terms helps with pronunciation.\n• These words are commonly used in everyday conversations.": "• Bu terimleri anlamak telaffuz konusunda yardımcı olur.\n• Bu kelimeler günlük konuşmalarda yaygın olarak kullanılır.",
   "Understanding these terms helps with pronunciation.\n• These words are commonly used in everyday conversations.": "Bu terimleri anlamak telaffuz konusunda yardımcı olur.\n• Bu kelimeler günlük konuşmalarda yaygın olarak kullanılır.",
-  "Using Numbers in Everyday Contexts": "Günlük Bağlamlarda Sayıları Kullanma",
+  "Using Numbers in Everyday Contexts": "Günlük Yaşamda Sayıları Kullanma",
   "• These numbers are fundamental for everyday communication.\n• Understanding basic numbers helps in shopping, telling time, and counting.\n• Numbers 1-10 are the building blocks for larger numbers.\n• Cultural context: Numbers can indicate quantity, age, and time.\n• Practice pronunciation to enhance speaking skills.": "• Bu sayılar, günlük iletişim için temeldir.\n• Temel sayıları anlamak alışverişte, zamanı söylemede ve saymada yardımcı olur.\n• 1-10 sayıları, daha büyük sayılar için yapı taşlarıdır.\n• Kültürel bağlam: Sayılar miktarı, yaşı ve zamanı gösterebilir.\n• Konuşma becerilerini geliştirmek için telaffuzu pratik edin.",
   "These numbers are fundamental for everyday communication.\n• Understanding basic numbers helps in shopping, telling time, and counting.\n• Numbers 1-10 are the building blocks for larger numbers.\n• Cultural context: Numbers can indicate quantity, age, and time.\n• Practice pronunciation to enhance speaking skills.": "Bu sayılar, günlük iletişim için temeldir.\n• Temel sayıları anlamak alışverişte, zamanı söylemede ve saymada yardımcı olur.\n• 1-10 sayıları, daha büyük sayılar için yapı taşlarıdır.\n• Kültürel bağlam: Sayılar miktarı, yaşı ve zamanı gösterebilir.\n• Konuşma becerilerini geliştirmek için telaffuzu pratik edin.",
   "• These sentences illustrate vowel and consonant sounds in context.\n• Helps learners recognize pronunciation patterns.": "• Bu cümleler, bağlamda sesli ve sessiz harf seslerini gösterir.\n• Öğrenicilerin telaffuz kalıplarını tanımasına yardımcı olur.",
@@ -1258,7 +1258,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "• Vowels are the building blocks of syllables in Spanish.\n• Consonants add variety and meaning to words.\n• Understanding these sounds is crucial for pronunciation.": "• Ünlüler, İspanyolcada hecelerin yapı taşlarıdır.\n• Ünsüzler, kelimelere çeşitlilik ve anlam katar.\n• Bu sesleri anlamak, telaffuz için çok önemlidir.",
   "Vowels are the building blocks of syllables in Spanish.\n• Consonants add variety and meaning to words.\n• Understanding these sounds is crucial for pronunciation.": "Ünlüler, İspanyolcada hecelerin yapı taşlarıdır.\n• Ünsüzler, kelimelere çeşitlilik ve anlam katar.\n• Bu sesleri anlamak, telaffuz için çok önemlidir.",
   "• These examples show how to use vocabulary with proper pronunciation.": "• Bu örnekler, kelime dağarcığını doğru telaffuz ile nasıl kullanacağınızı gösterir.",
-  "Shopping Basics: Common Phrases": "Alışveriş Temelleri: Yaygın İfadeler",
+  "Shopping Basics: Common Phrases": "Alışveriş Temelleri: Yaygın Kalıplar",
   "The Alphabet": "Alfabe",
   "What is a popular leisure activity in Spain?": "İspanya'da popüler bir boş zaman aktivitesi nedir?",
   "What is the appropriate greeting for the morning?": "Sabah için uygun selamlaşma nedir?",
@@ -1272,7 +1272,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "Days of the Week: A Weekly Routine": "Haftanın Günleri: Haftalık Rutin",
   "• Use these adjectives to describe physical traits in Spanish.\n• Adjectives agree in gender and number with the nouns they describe.": "• Bu sıfatları, İspanyolcada fiziksel özellikleri tanımlamak için kullanın.\n• Sıfatlar, tanımladıkları isimlerle cinsiyet ve sayı bakımından uyumlu olmalıdır.",
   "Use these adjectives to describe physical traits in Spanish.\n• Adjectives agree in gender and number with the nouns they describe.": "Bu sıfatları, İspanyolcada fiziksel özellikleri tanımlamak için kullanın.\n• Sıfatlar, tanımladıkları isimlerle cinsiyet ve sayı bakımından uyumlu olmalıdır.",
-  "Introducing Family Members: Vocabulary": "Aile Üyelerini Tanıtma: Kelime Dağarcığı",
+  "Introducing Family Members: Vocabulary": "Aile Üyelerini Tanıtma: Kelime Bilgisi",
   "• The correct phrase '¿Dónde puedo facturar mi maleta?' directly asks about checking in luggage. The other options do not relate to the action of checking in a suitcase.": "• Doğru ifade '¿Dónde puedo facturar mi maleta?' doğrudan bagaj kaydı hakkında sorar. Diğer seçenekler, bir valizi kaydetme eylemi ile ilgili değildir.",
   "• These examples show how to use time expressions with activities.\n• They reflect common scenarios in daily life.": "• Bu örnekler, etkinliklerle birlikte zaman ifadelerini nasıl kullanacağınızı gösterir.\n• Günlük yaşamda yaygın senaryoları yansıtır.",
   "These examples show how to use time expressions with activities.\n• They reflect common scenarios in daily life.": "Bu örnekler, etkinliklerle birlikte zaman ifadelerini nasıl kullanacağınızı gösterir.\n• Günlük yaşamda yaygın senaryoları yansıtır.",
@@ -1284,14 +1284,14 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "How do you say 'four' in Spanish?": "'Dört' İspanyolcada nasıl söylenir?",
   "• These verbs are commonly used in daily conversations.\n• Understanding their conjugation is crucial for basic communication.\n• Many of these verbs are irregular, so practice is key.": "• Bu fiiller, günlük konuşmalarda yaygın olarak kullanılır.\n• Çekimlerini anlamak, temel iletişim için çok önemlidir.\n• Bu fiillerin çoğu düzensizdir, bu yüzden pratik yapmak önemlidir.",
   "These verbs are commonly used in daily conversations.\n• Understanding their conjugation is crucial for basic communication.\n• Many of these verbs are irregular, so practice is key.": "Bu fiiller, günlük konuşmalarda yaygın olarak kullanılır.\n• Çekimlerini anlamak, temel iletişim için çok önemlidir.\n• Bu fiillerin çoğu düzensizdir, bu yüzden pratik yapmak önemlidir.",
-  "Asking Questions: Wh- Questions": "Soru Sorma: Wh- Soruları",
+  "Asking Questions: Wh- Questions": "Soru Sorma: Soru Kalıpları",
   "Family and Relationships": "Aile ve İlişkiler",
-  "Cultural Perspectives on Leisure Activities in Spain and Latin America": "İspanya ve Latin Amerika'daki Boş Zaman Aktiviteleri Üzerine Kültürel Bakış Açıları",
+  "Cultural Perspectives on Leisure Activities in Spain and Latin America": "İspanya ve Latin Amerika'da Boş Zaman Aktivitelerine Kültürel Bakış",
   "What day comes after martes?": "Martes'ten sonra hangi gün gelir?",
   "What is the phonetic sound of the letter 'G' in Spanish?": "İspanyolcada 'G' harfinin fonetik sesi nedir?",
   "• '¿Cuánto cuesta?' is the correct phrase to ask about the price directly. The other options do not inquire about cost.\n• It's essential to use the right phrase to get the information needed.": "• '¿Cuánto cuesta?' doğru ifade, doğrudan fiyatı sormak için kullanılır. Diğer seçenekler maliyet hakkında soru sormaz.\n• Gerekli bilgiyi almak için doğru ifadeyi kullanmak önemlidir.",
   "'¿Cuánto cuesta?' is the correct phrase to ask about the price directly. The other options do not inquire about cost.\n• It's essential to use the right phrase to get the information needed.": "'¿Cuánto cuesta?' doğru ifade, doğrudan fiyatı sormak için kullanılır. Diğer seçenekler maliyet hakkında soru sormaz.\n• Gerekli bilgiyi almak için doğru ifadeyi kullanmak önemlidir.",
-  "Using the Alphabet in Context": "Bağlamda Alfabeyi Kullanma",
+  "Using the Alphabet in Context": "Alfabeyi Bağlam İçinde Kullanma",
   "What is 'siete más cinco' in English?": "'siete más cinco' İngilizcede nedir?",
   "• The correct adjective must agree with the feminine noun and describe height.\n• 'Alta' is the feminine form of 'alto'. 'Bajo' and 'gordo' do not fit the context.": "• Doğru sıfat, dişil isimle uyumlu olmalı ve boyu tanımlamalıdır.\n• 'Alta', 'alto'nun dişil formudur. 'Bajo' ve 'gordo' bağlama uygun değildir.",
   "The correct adjective must agree with the feminine noun and describe height.\n• 'Alta' is the feminine form of 'alto'. 'Bajo' and 'gordo' do not fit the context.": "Doğru sıfat, dişil isimle uyumlu olmalı ve boyu tanımlamalıdır.\n• 'Alta', 'alto'nun dişil formudur. 'Bajo' ve 'gordo' bağlama uygun değildir.",
@@ -1303,13 +1303,13 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "What time is 'Son las cinco y cuarto'?": "'Son las cinco y cuarto' ifadesi saat kaçtır?",
   "• The correct phrase is '¿Cómo te llamas?'. This directly asks for someone's name.\n• The other options do not appropriately ask for a name.\n• Understanding how to ask for names is essential for introductions.": "• Doğru ifade '¿Cómo te llamas?'dır. Bu, birinin adını doğrudan sorar.\n• Diğer seçenekler, uygun bir şekilde bir isim sormaz.\n• İsim sormayı anlamak, tanıtımlar için önemlidir.",
   "The correct phrase is '¿Cómo te llamas?'. This directly asks for someone's name.\n• The other options do not appropriately ask for a name.\n• Understanding how to ask for names is essential for introductions.": "Doğru ifade '¿Cómo te llamas?'dır. Bu, birinin adını doğrudan sorar.\n• Diğer seçenekler, uygun bir şekilde bir isim sormaz.\n• İsim sormayı anlamak, tanıtımlar için önemlidir.",
-  "Describing Physical Appearance: Adjectives": "Fiziksel Görünümü Tanımlama: Sıfatlar",
+  "Describing Physical Appearance: Adjectives": "Fiziksel Görünüşü Tanımlama: Sıfatlar",
   "• These terms represent the days of the week in Spanish.\n• Understanding these words is crucial for discussing routines and schedules.\n• Each day has cultural significance in various Spanish-speaking countries.": "• Bu terimler İspanyolca'da haftanın günlerini temsil eder.\n• Bu kelimeleri anlamak, rutinler ve programlar hakkında konuşmak için çok önemlidir.\n• Her gün, çeşitli İspanyolca konuşulan ülkelerde kültürel bir öneme sahiptir.",
   "These terms represent the days of the week in Spanish.\n• Understanding these words is crucial for discussing routines and schedules.\n• Each day has cultural significance in various Spanish-speaking countries.": "Bu terimler İspanyolca'da haftanın günlerini temsil eder.\n• Bu kelimeleri anlamak, rutinler ve programlar hakkında konuşmak için çok önemlidir.\n• Her gün, çeşitli İspanyolca konuşulan ülkelerde kültürel bir öneme sahiptir.",
-  "Talking About Age and Nationality": "Yaş ve Milliyet Hakkında Konuşmak",
+  "Talking About Age and Nationality": "Yaş ve Milliyet Hakkında Konuşma",
   "• These phrases are crucial for navigating shopping situations in Spanish-speaking countries.\n• Knowing these terms helps in understanding prices, asking for help, and making purchases.\n• Cultural nuances: Always be polite when asking for assistance.\n• Use formal language in stores to show respect.\n• Practice pronunciation to ensure clarity.": "• Bu ifadeler, İspanyolca konuşulan ülkelerde alışveriş durumlarında gezinmek için çok önemlidir.\n• Bu terimleri bilmek, fiyatları anlamak, yardım istemek ve alışveriş yapmak için yardımcı olur.\n• Kültürel incelikler: Yardım isterken her zaman nazik olun.\n• Sayfalarda saygı göstermek için resmi dil kullanın.\n• Netlik sağlamak için telaffuzu pratik edin.",
   "These phrases are crucial for navigating shopping situations in Spanish-speaking countries.\n• Knowing these terms helps in understanding prices, asking for help, and making purchases.\n• Cultural nuances: Always be polite when asking for assistance.\n• Use formal language in stores to show respect.\n• Practice pronunciation to ensure clarity.": "Bu ifadeler, İspanyolca konuşulan ülkelerde alışveriş durumlarında gezinmek için çok önemlidir.\n• Bu terimleri bilmek, fiyatları anlamak, yardım istemek ve alışveriş yapmak için yardımcı olur.\n• Kültürel incelikler: Yardım isterken her zaman nazik olun.\n• Sayfalarda saygı göstermek için resmi dil kullanın.\n• Netlik sağlamak için telaffuzu pratik edin.",
-  "Introducing Yourself: Basic Phrases": "Kendini Tanıtma: Temel İfadeler",
+  "Introducing Yourself: Basic Phrases": "Kendini Tanıtma: Temel Kalıplar",
   "• These sentences illustrate how to use vocabulary in real situations at the airport.\n• Contextual understanding enhances memory retention.": "• Bu cümleler, havaalanında gerçek durumlarda kelime dağarcığını nasıl kullanacağınızı gösterir.\n• Bağlamsal anlayış, hafıza kalıcılığını artırır.",
   "These sentences illustrate how to use vocabulary in real situations at the airport.\n• Contextual understanding enhances memory retention.": "Bu cümleler, havaalanında gerçek durumlarda kelime dağarcığını nasıl kullanacağınızı gösterir.\n• Bağlamsal anlayış, hafıza kalıcılığını artırır.",
   "• The correct answer is a basic number in Spanish.\n• Other options are either unrelated or represent different numbers.\n• Knowing basic numbers is essential for communication.": "• Doğru cevap, İspanyolca'da temel bir sayıdır.\n• Diğer seçenekler ya alakasızdır ya da farklı sayıları temsil eder.\n• Temel sayıları bilmek, iletişim için gereklidir.",
@@ -1334,14 +1334,14 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "Which adjective correctly describes a tall woman?": "Uzun bir kadını doğru şekilde tanımlayan sıfat hangisidir?",
   "• The correct answer uses the right subject-verb agreement based on the subject's number and gender.\n• Incorrect options do not match the subject with the verb form.": "• Doğru cevap, öznenin sayısına ve cinsiyetine göre doğru özne-fiil uyumunu kullanır.\n• Yanlış seçenekler, özne ile fiil formunu eşleştirmez.",
   "The correct answer uses the right subject-verb agreement based on the subject's number and gender.\n• Incorrect options do not match the subject with the verb form.": "Doğru cevap, öznenin sayısına ve cinsiyetine göre doğru özne-fiil uyumunu kullanır.\n• Yanlış seçenekler, özne ile fiil formunu eşleştirmez.",
-  "Cultural Context: Spanish Daily Life and Routines": "Kültürel Bağlam: İspanyol Günlük Hayatı ve Rutinleri",
+  "Cultural Context: Spanish Daily Life and Routines": "Kültürel Bağlam: İspanya'da Günlük Yaşam ve Rutinler",
   "• The letter 'G' has a hard sound like 'g' in 'go' when followed by 'a', 'o', or 'u'.\n• When followed by 'e' or 'i', it has a softer sound, similar to 'h' in 'hello'.\n• Understanding this helps in accurate pronunciation.": "• 'G' harfi, 'a', 'o' veya 'u' ile takip edildiğinde 'go' kelimesindeki 'g' gibi sert bir sese sahiptir.\n• 'e' veya 'i' ile takip edildiğinde, 'hello' kelimesindeki 'h' gibi daha yumuşak bir sese sahiptir.\n• Bunu anlamak, doğru telaffuzda yardımcı olur.",
   "The letter 'G' has a hard sound like 'g' in 'go' when followed by 'a', 'o', or 'u'.\n• When followed by 'e' or 'i', it has a softer sound, similar to 'h' in 'hello'.\n• Understanding this helps in accurate pronunciation.": "'G' harfi, 'a', 'o' veya 'u' ile takip edildiğinde 'go' kelimesindeki 'g' gibi sert bir sese sahiptir.\n• 'e' veya 'i' ile takip edildiğinde, 'hello' kelimesindeki 'h' gibi daha yumuşak bir sese sahiptir.\n• Bunu anlamak, doğru telaffuzda yardımcı olur.",
   "• These sentences illustrate everyday interactions.\n• They show how to use common verbs in context.\n• Practice these dialogues to enhance fluency.": "• Bu cümleler, günlük etkileşimleri gösterir.\n• Yaygın fiilleri bağlam içinde nasıl kullanacağınızı gösterir.\n• Akıcılığı artırmak için bu diyaloglarla pratik yapın.",
   "These sentences illustrate everyday interactions.\n• They show how to use common verbs in context.\n• Practice these dialogues to enhance fluency.": "Bu cümleler, günlük etkileşimleri gösterir.\n• Yaygın fiilleri bağlam içinde nasıl kullanacağınızı gösterir.\n• Akıcılığı artırmak için bu diyaloglarla pratik yapın.",
   "• These terms represent the months and seasons in Spanish.\n• Understanding these words is essential for discussing time and planning activities.\n• Cultural context: Different seasons may have unique celebrations in Spanish-speaking countries.": "• Bu terimler, İspanyolca'da ayları ve mevsimleri temsil eder.\n• Bu kelimeleri anlamak, zaman hakkında konuşmak ve etkinlikleri planlamak için gereklidir.\n• Kültürel bağlam: Farklı mevsimler, İspanyolca konuşulan ülkelerde benzersiz kutlamalara sahip olabilir.",
   "These terms represent the months and seasons in Spanish.\n• Understanding these words is essential for discussing time and planning activities.\n• Cultural context: Different seasons may have unique celebrations in Spanish-speaking countries.": "Bu terimler, İspanyolca'da ayları ve mevsimleri temsil eder.\n• Bu kelimeleri anlamak, zaman hakkında konuşmak ve etkinlikleri planlamak için gereklidir.\n• Kültürel bağlam: Farklı mevsimler, İspanyolca konuşulan ülkelerde benzersiz kutlamalara sahip olabilir.",
-  "Describing Relationships: Simple Phrases": "İlişkileri Tanımlama: Basit İfadeler",
+  "Describing Relationships: Simple Phrases": "İlişkileri Tanımlama: Basit Kalıplar",
   "Which word is pronounced like 'ah'?": "'ah' gibi telaffuz edilen kelime hangisidir?",
   "• The phrase indicates it is 5:15. 'Son' indicates multiple hours, and 'cuarto' refers to 15 minutes.\n• The distractors are incorrect interpretations of the phrase.": "• Bu ifade 5:15 olduğunu belirtir. 'Son', birden fazla saati belirtir ve 'cuarto' 15 dakikayı ifade eder.\n• Dikkat dağıtıcılar, ifadenin yanlış yorumlamalarıdır.",
   "The phrase indicates it is 5:15. 'Son' indicates multiple hours, and 'cuarto' refers to 15 minutes.\n• The distractors are incorrect interpretations of the phrase.": "Bu ifade 5:15 olduğunu belirtir. 'Son', birden fazla saati belirtir ve 'cuarto' 15 dakikayı ifade eder.\n• Dikkat dağıtıcılar, ifadenin yanlış yorumlamalarıdır.",
@@ -1353,10 +1353,10 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "• These terms help describe age and nationality in conversations.\n• Understanding these words is key for introductions and personal information.": "• Bu terimler, konuşmalarda yaş ve milliyeti tanımlamaya yardımcı olur.\n• Bu kelimeleri anlamak, tanıtımlar ve kişisel bilgiler için anahtardır.",
   "These terms help describe age and nationality in conversations.\n• Understanding these words is key for introductions and personal information.": "Bu terimler, konuşmalarda yaş ve milliyeti tanımlamaya yardımcı olur.\n• Bu kelimeleri anlamak, tanıtımlar ve kişisel bilgiler için anahtardır.",
   "What do you say to express your age in Spanish?": "İspanyolca'da yaşınızı ifade etmek için ne söylersiniz?",
-  "Expressing Likes and Dislikes: Using 'gustar'": "Beğenileri ve Beğenmemeleri İfade Etme: 'gustar' Kullanımı",
-  "Expressing What You Like to Do: Sentence Structures": "Yapmayı Sevdiğiniz Şeyleri İfade Etme: Cümle Yapıları",
-  "Constructing Simple Sentences: Subject-Verb Agreement": "Basit Cümleler Kurma: Özne-Fiil Uyumu",
-  "How to Say Hello and Goodbye": "Merhaba ve Hoşça Kal Demenin Yolları",
+  "Expressing Likes and Dislikes: Using 'gustar'": "Beğenileri ve Sevmediklerini Belirtme: 'gustar' Kullanımı",
+  "Expressing What You Like to Do: Sentence Structures": "Neler Yapmaktan Hoşlandığını Belirtme: Cümle Yapıları",
+  "Constructing Simple Sentences: Subject-Verb Agreement": "Basit Cümleler Oluşturma: Özne-Yüklem Uyumu",
+  "How to Say Hello and Goodbye": "Merhaba ve Hoşça Kal Deme",
   "• These sentences show how to talk about hobbies in everyday conversations.\n• They help in forming questions and responses about interests.": "• Bu cümleler, günlük konuşmalarda hobiler hakkında nasıl konuşacağınızı gösterir.\n• İlgi alanları hakkında sorular ve yanıtlar oluşturmanıza yardımcı olur.",
   "These sentences show how to talk about hobbies in everyday conversations.\n• They help in forming questions and responses about interests.": "Bu cümleler, günlük konuşmalarda hobiler hakkında nasıl konuşacağınızı gösterir.\n• İlgi alanları hakkında sorular ve yanıtlar oluşturmanıza yardımcı olur.",
   "Daily Activities and Routines": "Günlük Aktiviteler ve Rutinler",
@@ -1369,10 +1369,10 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "• These phrases are crucial for navigating an airport in Spanish-speaking countries.\n• Understanding these terms helps in communication with staff and other travelers.\n• Many phrases are similar across languages, making them easier to remember.": "• Bu ifadeler, İspanyolca konuşulan ülkelerde bir havaalanında gezinmek için kritik öneme sahiptir.\n• Bu terimleri anlamak, personel ve diğer yolcularla iletişimde yardımcı olur.\n• Birçok ifade diller arasında benzerlik gösterir, bu da onları hatırlamayı kolaylaştırır.",
   "These phrases are crucial for navigating an airport in Spanish-speaking countries.\n• Understanding these terms helps in communication with staff and other travelers.\n• Many phrases are similar across languages, making them easier to remember.": "Bu ifadeler, İspanyolca konuşulan ülkelerde bir havaalanında gezinmek için kritik öneme sahiptir.\n• Bu terimleri anlamak, personel ve diğer yolcularla iletişimde yardımcı olur.\n• Birçok ifade diller arasında benzerlik gösterir, bu da onları hatırlamayı kolaylaştırır.",
   "Counting from 1 to 100: Basic Numbers": "1'den 100'e Sayma: Temel Sayılar",
-  "Talking About Your Day: Daily Routines": "Gününüzü Anlatmak: Günlük Rutinler",
+  "Talking About Your Day: Daily Routines": "Gününüz Hakkında Konuşma: Günlük Rutinler",
   "• Soccer is a significant part of Spanish culture, often associated with community and celebration. Other options may not be as culturally significant.": "• Futbol, İspanyol kültürünün önemli bir parçasıdır ve genellikle topluluk ve kutlama ile ilişkilendirilir. Diğer seçenekler kültürel olarak bu kadar önemli olmayabilir.",
-  "Cultural Insights: The Importance of Family in Spanish-speaking Cultures": "Kültürel İçgörüler: İspanyolca Konuşulan Kültürlerde Ailenin Önemi",
-  "Discussing Hobbies: Common Activities": "Hobiler Hakkında Tartışmak: Yaygın Aktiviteler",
+  "Cultural Insights: The Importance of Family in Spanish-speaking Cultures": "Kültürel Bakış: İspanyolca Konuşulan Kültürlerde Ailenin Önemi",
+  "Discussing Hobbies: Common Activities": "Hobiler Hakkında Konuşma: Yaygın Aktiviteler",
   "What do you say to ask someone's name?": "Birinin adını sormak için ne dersiniz?",
   "• These sentences help you practice using the vocabulary in context.\n• Useful for daily conversations and planning events.": "• Bu cümleler, kelime dağarcığını bağlam içinde kullanma pratiği yapmanıza yardımcı olur.\n• Günlük konuşmalar ve etkinlik planlaması için faydalıdır.",
   "These sentences help you practice using the vocabulary in context.\n• Useful for daily conversations and planning events.": "Bu cümleler, kelime dağarcığını bağlam içinde kullanma pratiği yapmanıza yardımcı olur.\n• Günlük konuşmalar ve etkinlik planlaması için faydalıdır.",
@@ -1393,7 +1393,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "Which question would you ask to know about someone's age?": "Birinin yaşını öğrenmek için hangi soruyu sorarsınız?",
   "• The correct question word for age is 'cuántos'. This is because age is typically expressed in numbers. 'Qué' is too general, and 'dónde' refers to location, which doesn't fit the context.": "• Yaş için doğru soru kelimesi 'cuántos'tur. Bunun nedeni, yaşın genellikle sayılarla ifade edilmesidir. 'Qué' çok genel, 'dónde' ise yer ile ilgilidir, bu da bağlama uymamaktadır.",
   "Which sentence correctly uses a time expression?": "Hangi cümle bir zaman ifadesini doğru bir şekilde kullanır?",
-  "Simple Math Operations in Spanish": "İspanyolca'da Basit Matematik İşlemleri",
+  "Simple Math Operations in Spanish": "İspanyolca Basit Matematik İşlemleri",
   "Using Time Expressions with Activities": "Aktivitelerle Zaman İfadelerini Kullanma",
   "• 'Buenos días' is the appropriate greeting in the morning.\n• 'Hola' is too general and does not specify the time of day.\n• 'Adiós' is for farewells, not greetings.": "• 'Buenos días', sabah için uygun bir selamlaşmadır.\n• 'Hola' çok genel olup günün saatini belirtmez.\n• 'Adiós' veda için kullanılır, selamlaşma için değil.",
   "'Buenos días' is the appropriate greeting in the morning.\n• 'Hola' is too general and does not specify the time of day.\n• 'Adiós' is for farewells, not greetings.": "'Buenos días', sabah için uygun bir selamlaşmadır.\n• 'Hola' çok genel olup günün saatini belirtmez.\n• 'Adiós' veda için kullanılır, selamlaşma için değil.",
@@ -1402,7 +1402,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "What do you say when you want to check in your suitcase?": "Valizinizi kontrol ettirmek istediğinizde ne dersiniz?",
   "• These terms are crucial for telling time in Spanish.\n• Understanding these words helps in daily conversations.\n• Cultural context: Time is often discussed in relation to daily activities.": "• Bu terimler, İspanyolca'da zamanı söylemek için kritik öneme sahiptir.\n• Bu kelimeleri anlamak, günlük konuşmalarda yardımcı olur.\n• Kültürel bağlam: Zaman genellikle günlük aktivitelerle ilişkilendirilerek tartışılır.",
   "These terms are crucial for telling time in Spanish.\n• Understanding these words helps in daily conversations.\n• Cultural context: Time is often discussed in relation to daily activities.": "Bu terimler, İspanyolca'da zamanı söylemek için kritik öneme sahiptir.\n• Bu kelimeleri anlamak, günlük konuşmalarda yardımcı olur.\n• Kültürel bağlam: Zaman genellikle günlük aktivitelerle ilişkilendirilerek tartışılır.",
-  "Phonetic Sounds of the Alphabet": "Alfabedeki Fonetik Sesler",
+  "Phonetic Sounds of the Alphabet": "Alfabenin Fonetik Sesleri",
   "• The correct phrase uses 'cuesta' to indicate cost. Other options may not convey the question about price clearly.\n• Understanding the context of asking for prices is essential in shopping situations.": "• Doğru ifade, maliyeti belirtmek için 'cuesta' kullanır. Diğer seçenekler fiyat sorusunu net bir şekilde iletmez.\n• Fiyat sorma bağlamını anlamak, alışveriş durumlarında önemlidir.",
   "The correct phrase uses 'cuesta' to indicate cost. Other options may not convey the question about price clearly.\n• Understanding the context of asking for prices is essential in shopping situations.": "Doğru ifade, maliyeti belirtmek için 'cuesta' kullanır. Diğer seçenekler fiyat sorusunu net bir şekilde iletmez.\n• Fiyat sorma bağlamını anlamak, alışveriş durumlarında önemlidir.",
   "• The correct choice shows a clear time reference with an activity.\n• Incorrect options either lack a time expression or misplace it.": "• Doğru seçim, bir aktivite ile net bir zaman referansı gösterir.\n• Yanlış seçenekler ya bir zaman ifadesi içermez ya da yanlış yerleştirilmiştir.",
@@ -1426,8 +1426,8 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "• These sentences illustrate how to use numbers in conversation.\n• Contextual understanding enhances learning.\n• Practice these dialogues to improve fluency.": "• Bu cümleler, konuşmada sayıları nasıl kullanacağınızı gösterir.\n• Bağlamsal anlayış öğrenmeyi artırır.\n• Bu diyalogları pratik yaparak akıcılığı geliştirin.",
   "These sentences illustrate how to use numbers in conversation.\n• Contextual understanding enhances learning.\n• Practice these dialogues to improve fluency.": "Bu cümleler, konuşmada sayıları nasıl kullanacağınızı gösterir.\n• Bağlamsal anlayış öğrenmeyi artırır.\n• Bu diyalogları pratik yaparak akıcılığı geliştirin.",
   "Which sentence correctly expresses a liking for cooking?": "Hangi cümle yemek pişirmeye olan bir beğeniyi doğru bir şekilde ifade eder?",
-  "Using Common Verbs in Present Tense": "Geniş Zaman'da Yaygın Fiillerin Kullanımı",
-  "At the Airport: Key Phrases and Vocabulary": "Havaalanında: Anahtar İfadeler ve Kelime Dağarcığı",
+  "Using Common Verbs in Present Tense": "Geniş Zamanda Yaygın Fiilleri Kullanma",
+  "At the Airport: Key Phrases and Vocabulary": "Havaalanında: Önemli Kalıplar ve Kelimeler",
   "• The correct answer has the vowel 'o' prominently featured.\n• Other options lack the 'o' sound, making them incorrect.": "• Doğru cevap, 'o' sesini belirgin bir şekilde içerir.\n• Diğer seçenekler 'o' sesini içermez, bu da onları yanlış kılar.",
   "The correct answer has the vowel 'o' prominently featured.\n• Other options lack the 'o' sound, making them incorrect.": "Doğru cevap, 'o' sesini belirgin bir şekilde içerir.\n• Diğer seçenekler 'o' sesini içermez, bu da onları yanlış kılar.",
   "Numbers and Basic Math": "Sayilar ve Temel Matematik",
@@ -1581,8 +1581,8 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "'σπίτι' kelimesi ev demektir. Diğer seçenekler yanlıştır çünkü farklı anlamlar taşır.": "'σπίτι' kelimesi ev demektir. Diğer seçenekler yanlıştır çünkü farklı anlamlar taşır.",
   "Social Exchanges and Interactions": "Sosyal Değişimler ve Etkileşimler",
   "Olumsuz cümlelerde 'δεν' kullanılır: Δεν πήγα (gitmedim).": "Olumsuz cümlelerde 'δεν' kullanılır: Δεν πήγα (gitmedim).",
-  "Expressing Likes and Dislikes": "Beğenileri ve Beğenmeme Durumlarını İfade Etmek",
-  "Telling Time and Scheduling": "Zamanı Söylemek ve Programlama",
+  "Expressing Likes and Dislikes": "Beğenileri ve Sevmediklerini Belirtme",
+  "Telling Time and Scheduling": "Zamanı Söyleme ve Planlama",
   "İade cümleleri 'Ben bunu iade etmek istiyorum' şeklindedir.": "İade cümleleri 'Ben bunu iade etmek istiyorum' şeklindedir.",
   "Bu kelimeler, toplu taşıma ile ilgili günlük konuşmalarda sıkça kullanılır.": "Bu kelimeler, toplu taşıma ile ilgili günlük konuşmalarda sıkça kullanılır.",
   "Aşağıdaki cümlede hangi fiil geçmiş zamanla doğru bir şekilde kullanılmıştır?": "Aşağıdaki cümlede hangi fiil geçmiş zamanla doğru bir şekilde kullanılmıştır?",
@@ -1674,7 +1674,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "• Bu cümleler, Yunan lehçelerinin günlük yaşamda nasıl kullanıldığını gösterir.": "• Bu cümleler, Yunan lehçelerinin günlük yaşamda nasıl kullanıldığını gösterir.",
   "• Doğru cevap 'πόλη' çünkü bu kelime 'şehir' demektir. Diğer seçenekler yanlış çünkü farklı anlamları vardır.": "• Doğru cevap 'πόλη' çünkü bu kelime 'şehir' demektir. Diğer seçenekler yanlış çünkü farklı anlamları vardır.",
   "Doğru cevap 'πόλη' çünkü bu kelime 'şehir' demektir. Diğer seçenekler yanlış çünkü farklı anlamları vardır.": "Doğru cevap 'πόλη' çünkü bu kelime 'şehir' demektir. Diğer seçenekler yanlış çünkü farklı anlamları vardır.",
-  "Shopping Essentials": "Alışveriş Temel Gereksinimleri",
+  "Shopping Essentials": "Alışveriş Esasları",
   "Geçmiş zaman, eylemlerin geçmişte gerçekleştiğini belirtir.": "Geçmiş zaman, eylemlerin geçmişte gerçekleştiğini belirtir.",
   "Göz teması, saygının bir göstergesidir.": "Göz teması, saygının bir göstergesidir.",
   "Expressing Frequency and Habits": "Frekansı ve Alışkanlıkları İfade Etme",
@@ -2328,7 +2328,31 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "When you hear 'jota', what letter do you think of?": "'jota' duyduğunuzda aklınıza hangi harf gelir?",
   "If a person says 'uve doble', what letter do they mention?": "Bir kişi 'uve doble' derse, hangi harften bahsediyordur?",
   "How is the last letter of the Spanish alphabet pronounced?": "İspanyol alfabesinin son harfi nasıl telaffuz edilir?",
-  "When they tell you 'cu', what letter are they spelling?": "Size 'cu' dediklerinde, hangi harfi heceliyorlardır?"
+  "When they tell you 'cu', what letter are they spelling?": "Size 'cu' dediklerinde, hangi harfi heceliyorlardır?",
+  "The Alphabet and Foundations": "Alfabe ve Temeller",
+  "Formal and Informal Greetings": "Resmi ve Gayriresmi Selamlaşmalar",
+  "Introducing Yourself and Others": "Kendini ve Başkalarını Tanıtma",
+  "Asking and Answering Basic Questions": "Temel Sorular Sorma ve Cevaplama",
+  "Numbers and Basic Quantities": "Sayılara ve Temel Miktarlara",
+  "Numbers and Quantities": "Sayılar ve Miktarlar",
+  "Counting from 0 to 100": "0'dan 100'e Sayma",
+  "Counting from 1 to 100": "1'den 100'e Sayma",
+  "Using Numbers in Daily Life: Age, Phone Numbers, and Prices": "Günlük Yaşamda Sayıları Kullanma: Yaş, Telefon Numaraları ve Fiyatlar",
+  "Basic Math Operations: Addition and Subtraction": "Basit Matematik İşlemleri: Toplama ve Çıkarma",
+  "Days, Months, and Basic Time Management": "Günler, Aylar ve Temel Zaman Yönetimi",
+  "The Days of the Week: Planning Your Schedule": "Haftanın Günleri: Programınızı Planlama",
+  "The Days of the Week: Planning and Routines": "Haftanın Günleri: Planlama ve Rutinler",
+  "The Days of the Week: Planning Activities": "Haftanın Günleri: Aktiviteleri Planlama",
+  "The Days of the Week": "Haftanın Günleri",
+  "Months of the Year and the Four Seasons": "Yılın Ayları ve Dört Mevsim",
+  "Telling Time and Daily Schedules": "Saati Söyleme ve Günlük Planlar",
+  "Survival Vocabulary": "Hayatta Kalma Kelimeleri",
+  "Ordering Food and Drinks": "Yiyecek ve İçecek Siparişi Verme",
+  "Describing People: Personality and Physical Appearance": "İnsanları Tanımlama: Kişilik ve Fiziksel Görünüş",
+  "Describing Physical Appearance": "Fiziksel Görünüşü Tanımlama",
+  "Subject Pronouns and Basic Sentence Structure": "Özne Zamirleri ve Temel Cümle Yapısı",
+  "Reflexive Verbs and Daily Routine": "Dönüşlü Fiiller ve Günlük Rutin",
+  "Introducing Family Members": "Aile Üyelerini Tanıtma"
 };
 
 window.EDUCATIONAL_SENTENCE_MAP_TR_EN = {
@@ -3609,30 +3633,6 @@ window.VOCAB_MAP_TR_EN = {
 };
 
 window.PAGE_TITLE_PAIRS = [
-  ["Introducing Family Members", "Aile Üyelerini Tanıtma"],
-  ["Reflexive Verbs and Daily Routine", "Dönüşlü Fiiller ve Günlük Rutin"],
-  ["Subject Pronouns and Basic Sentence Structure", "Özne Zamirleri ve Temel Cümle Yapısı"],
-  ["Describing Physical Appearance", "Fiziksel Görünüşü Tanımlama"],
-  ["Describing People: Personality and Physical Appearance", "İnsanları Tanımlama: Kişilik ve Fiziksel Görünüş"],
-  ["Ordering Food and Drinks", "Yiyecek ve İçecek Siparişi Verme"],
-  ["Survival Vocabulary", "Hayatta Kalma Kelimeleri"],
-  ["Telling Time and Daily Schedules", "Saati Söyleme ve Günlük Planlar"],
-  ["Months of the Year and the Four Seasons", "Yılın Ayları ve Dört Mevsim"],
-  ["The Days of the Week", "Haftanın Günleri"],
-  ["The Days of the Week: Planning Activities", "Haftanın Günleri: Aktiviteleri Planlama"],
-  ["The Days of the Week: Planning and Routines", "Haftanın Günleri: Planlama ve Rutinler"],
-  ["The Days of the Week: Planning Your Schedule", "Haftanın Günleri: Programınızı Planlama"],
-  ["Days, Months, and Basic Time Management", "Günler, Aylar ve Temel Zaman Yönetimi"],
-  ["Basic Math Operations: Addition and Subtraction", "Basit Matematik İşlemleri: Toplama ve Çıkarma"],
-  ["Using Numbers in Daily Life: Age, Phone Numbers, and Prices", "Günlük Yaşamda Sayıları Kullanma: Yaş, Telefon Numaraları ve Fiyatlar"],
-  ["Counting from 1 to 100", "1'den 100'e Sayma"],
-  ["Counting from 0 to 100", "0'dan 100'e Sayma"],
-  ["Numbers and Quantities", "Sayılar ve Miktarlar"],
-  ["Numbers and Basic Quantities", "Sayılara ve Temel Miktarlara"],
-  ["Asking and Answering Basic Questions", "Temel Sorular Sorma ve Cevaplama"],
-  ["Introducing Yourself and Others", "Kendini ve Başkalarını Tanıtma"],
-  ["Formal and Informal Greetings", "Resmi ve Gayriresmi Selamlaşmalar"],
-  ["The Alphabet and Foundations", "Alfabe ve Temeller"],
   [
     "Alfabeto Master List",
     "Alfabe Ana Listesi"
@@ -3750,10 +3750,6 @@ window.PAGE_TITLE_PAIRS = [
     "İspanyolca Konuşan Ülkelerde Seyahat"
   ],
   [
-    "Culinary Adventures",
-    "Gastronomik Maceralar"
-  ],
-  [
     "Morning Rituals and Daily Activities",
     "Sabah Ritüelleri ve Günlük Aktiviteler"
   ],
@@ -3818,10 +3814,6 @@ window.PAGE_TITLE_PAIRS = [
     "İşinizi ve Sorumluluklarınızı Tanımlama"
   ],
   [
-    "Common Workplace Interactions",
-    "Yaygın İş Yeri Etkileşimleri"
-  ],
-  [
     "Using the Future Tense: Discussing Plans",
     "Gelecek Zaman Kullanımı: Planları Tartışma"
   ],
@@ -3832,10 +3824,6 @@ window.PAGE_TITLE_PAIRS = [
   [
     "Describing Travel Experiences",
     "Seyahat Deneyimlerini Tanımlama"
-  ],
-  [
-    "Cultural Etiquette When Traveling",
-    "Seyahat Ederken Kültürel Görgü Kuralları"
   ],
   [
     "Talking About Food Preferences and Dietary Restrictions",
@@ -3891,7 +3879,7 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "The Alphabet",
-    "Alfabeyi"
+    "Alfabe"
   ],
   [
     "Vowels and Consonants",
@@ -3903,11 +3891,11 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "How to Say Hello and Goodbye",
-    "Merhaba ve Hoşça Kal Demenin Yolları"
+    "Merhaba ve Hoşça Kal Deme"
   ],
   [
     "Introducing Yourself: Basic Phrases",
-    "Kendini Tanıtma: Temel İfadeler"
+    "Kendini Tanıtma: Temel Kalıplar"
   ],
   [
     "Cultural Nuances in Greetings: A Spanish Perspective",
@@ -3919,11 +3907,11 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "Using Numbers in Everyday Contexts",
-    "Günlük Bağlamlarda Sayıları Kullanma"
+    "Günlük Yaşamda Sayıları Kullanma"
   ],
   [
     "Simple Math Operations in Spanish",
-    "İspanyolca'da Basit Matematik İşlemleri"
+    "İspanyolca Basit Matematik İşlemleri"
   ],
   [
     "Days of the Week: A Weekly Routine",
@@ -3934,48 +3922,44 @@ window.PAGE_TITLE_PAIRS = [
     "Yılın Ayları ve Mevsimler"
   ],
   [
-    "Telling Time: Basic Expressions",
-    "Zamanı Söyleme: Temel İfadeler"
-  ],
-  [
     "At the Airport: Key Phrases and Vocabulary",
-    "Havaalanında: Anahtar İfadeler ve Kelime Dağarcığı"
+    "Havaalanında: Önemli Kalıplar ve Kelimeler"
   ],
   [
     "Navigating a Restaurant: Ordering Food",
-    "Bir Restoranda Yol Tarifi: Yemek Siparişi"
+    "Restoranda: Yemek Siparişi Verme"
   ],
   [
     "Shopping Basics: Common Phrases",
-    "Alışveriş Temelleri: Yaygın İfadeler"
+    "Alışveriş Temelleri: Yaygın Kalıplar"
   ],
   [
     "Talking About Age and Nationality",
-    "Yaş ve Milliyet Hakkında Konuşmak"
+    "Yaş ve Milliyet Hakkında Konuşma"
   ],
   [
     "Describing Physical Appearance: Adjectives",
-    "Fiziksel Görünümü Tanımlama: Sıfatlar"
+    "Fiziksel Görünüşü Tanımlama: Sıfatlar"
   ],
   [
     "Expressing Likes and Dislikes: Using 'gustar'",
-    "Beğenileri ve Beğenmemeleri İfade Etme: 'gustar' Kullanımı"
+    "Beğenileri ve Sevmediklerini Belirtme: 'gustar' Kullanımı"
   ],
   [
     "Constructing Simple Sentences: Subject-Verb Agreement",
-    "Basit Cümleler Kurma: Özne-Fiil Uyumu"
+    "Basit Cümleler Oluşturma: Özne-Yüklem Uyumu"
   ],
   [
     "Using Common Verbs in Present Tense",
-    "Geniş Zaman'da Yaygın Fiillerin Kullanımı"
+    "Geniş Zamanda Yaygın Fiilleri Kullanma"
   ],
   [
     "Asking Questions: Wh- Questions",
-    "Soru Sorma: Wh- Soruları"
+    "Soru Sorma: Soru Kalıpları"
   ],
   [
     "Talking About Your Day: Daily Routines",
-    "Gününüzü Anlatmak: Günlük Rutinler"
+    "Gününüz Hakkında Konuşma: Günlük Rutinler"
   ],
   [
     "Using Time Expressions with Activities",
@@ -3983,31 +3967,31 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "Cultural Context: Spanish Daily Life and Routines",
-    "Kültürel Bağlam: İspanyol Günlük Hayatı ve Rutinleri"
+    "Kültürel Bağlam: İspanya'da Günlük Yaşam ve Rutinler"
   ],
   [
     "Introducing Family Members: Vocabulary",
-    "Aile Üyelerini Tanıtma: Kelime Dağarcığı"
+    "Aile Üyelerini Tanıtma: Kelime Bilgisi"
   ],
   [
     "Describing Relationships: Simple Phrases",
-    "İlişkileri Tanımlama: Basit İfadeler"
+    "İlişkileri Tanımlama: Basit Kalıplar"
   ],
   [
     "Cultural Insights: The Importance of Family in Spanish-speaking Cultures",
-    "Kültürel İçgörüler: İspanyolca Konuşulan Kültürlerde Ailenin Önemi"
+    "Kültürel Bakış: İspanyolca Konuşulan Kültürlerde Ailenin Önemi"
   ],
   [
     "Discussing Hobbies: Common Activities",
-    "Hobiler Hakkında Tartışmak: Yaygın Aktiviteler"
+    "Hobiler Hakkında Konuşma: Yaygın Aktiviteler"
   ],
   [
     "Expressing What You Like to Do: Sentence Structures",
-    "Yapmayı Sevdiğiniz Şeyleri İfade Etme: Cümle Yapıları"
+    "Neler Yapmaktan Hoşlandığını Belirtme: Cümle Yapıları"
   ],
   [
     "Cultural Perspectives on Leisure Activities in Spain and Latin America",
-    "İspanya ve Latin Amerika'daki Boş Zaman Aktiviteleri Üzerine Kültürel Bakış Açıları"
+    "İspanya ve Latin Amerika'da Boş Zaman Aktivitelerine Kültürel Bakış"
   ],
   [
     "Exploring the Past",
@@ -4023,15 +4007,7 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "Shopping Essentials",
-    "Alışveriş Temel Gereksinimleri"
-  ],
-  [
-    "Workplace Communication",
-    "İş Yeri İletişimi"
-  ],
-  [
-    "Cultural Insights",
-    "Kültürel İçgörüler"
+    "Alışveriş Esasları"
   ],
   [
     "Traveling in Greece",
@@ -4043,7 +4019,7 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "Telling Time and Scheduling",
-    "Zamanı Söylemek ve Programlama"
+    "Zamanı Söyleme ve Planlama"
   ],
   [
     "Expressing Frequency and Habits",
@@ -4083,7 +4059,7 @@ window.PAGE_TITLE_PAIRS = [
   ],
   [
     "Expressing Likes and Dislikes",
-    "Beğenileri ve Beğenmeme Durumlarını İfade Etmek"
+    "Beğenileri ve Sevmediklerini Belirtme"
   ],
   [
     "Navigating a Grocery Store",
@@ -4132,5 +4108,929 @@ window.PAGE_TITLE_PAIRS = [
   [
     "Booking Accommodations and Services",
     "Konaklama ve Hizmet Rezervasyonu Yapmak"
+  ],
+  [
+    "The Alphabet and Foundations",
+    "Alfabe ve Temeller"
+  ],
+  [
+    "Formal and Informal Greetings",
+    "Resmi ve Gayriresmi Selamlaşmalar"
+  ],
+  [
+    "Introducing Yourself and Others",
+    "Kendini ve Başkalarını Tanıtma"
+  ],
+  [
+    "Asking and Answering Basic Questions",
+    "Temel Sorular Sorma ve Cevaplama"
+  ],
+  [
+    "Numbers and Basic Quantities",
+    "Sayılara ve Temel Miktarlara"
+  ],
+  [
+    "Numbers and Quantities",
+    "Sayılar ve Miktarlar"
+  ],
+  [
+    "Counting from 0 to 100",
+    "0'dan 100'e Sayma"
+  ],
+  [
+    "Counting from 1 to 100",
+    "1'den 100'e Sayma"
+  ],
+  [
+    "Using Numbers in Daily Life: Age, Phone Numbers, and Prices",
+    "Günlük Yaşamda Sayıları Kullanma: Yaş, Telefon Numaraları ve Fiyatlar"
+  ],
+  [
+    "Basic Math Operations: Addition and Subtraction",
+    "Basit Matematik İşlemleri: Toplama ve Çıkarma"
+  ],
+  [
+    "Days, Months, and Basic Time Management",
+    "Günler, Aylar ve Temel Zaman Yönetimi"
+  ],
+  [
+    "The Days of the Week: Planning Your Schedule",
+    "Haftanın Günleri: Programınızı Planlama"
+  ],
+  [
+    "The Days of the Week: Planning and Routines",
+    "Haftanın Günleri: Planlama ve Rutinler"
+  ],
+  [
+    "The Days of the Week: Planning Activities",
+    "Haftanın Günleri: Aktiviteleri Planlama"
+  ],
+  [
+    "The Days of the Week",
+    "Haftanın Günleri"
+  ],
+  [
+    "Months of the Year and the Four Seasons",
+    "Yılın Ayları ve Dört Mevsim"
+  ],
+  [
+    "Telling Time and Daily Schedules",
+    "Saati Söyleme ve Günlük Planlar"
+  ],
+  [
+    "Survival Vocabulary",
+    "Hayatta Kalma Kelimeleri"
+  ],
+  [
+    "Ordering Food and Drinks",
+    "Yiyecek ve İçecek Siparişi Verme"
+  ],
+  [
+    "Describing People: Personality and Physical Appearance",
+    "İnsanları Tanımlama: Kişilik ve Fiziksel Görünüş"
+  ],
+  [
+    "Describing Physical Appearance",
+    "Fiziksel Görünüşü Tanımlama"
+  ],
+  [
+    "Subject Pronouns and Basic Sentence Structure",
+    "Özne Zamirleri ve Temel Cümle Yapısı"
+  ],
+  [
+    "Reflexive Verbs and Daily Routine",
+    "Dönüşlü Fiiller ve Günlük Rutin"
+  ],
+  [
+    "Introducing Family Members",
+    "Aile Üyelerini Tanıtma"
+  ],
+  [
+    "Polite Farewells and Their Contexts",
+    "Kibar Vedalaşmalar ve Bağlamları"
+  ],
+  [
+    "Numbers and Basic Counting",
+    "Sayılar ve Temel Sayma"
+  ],
+  [
+    "NUMBERS AND BASIC COUNTING",
+    "Sayılar ve Temel Sayma"
+  ],
+  [
+    "Building Blocks of Numbers",
+    "Sayıların Temel Yapı Taşları"
+  ],
+  [
+    "1'den 100'ye Sayma: Building Blocks of Numbers",
+    "1'den 100'e Sayma: Sayıların Temel Yapı Taşları"
+  ],
+  [
+    "Counting from 1 to 100: Building Blocks of Numbers",
+    "1'den 100'e Sayma: Sayıların Temel Yapı Taşları"
+  ],
+  [
+    "Using Numbers in Everyday Situations: Prices and Time",
+    "Sayıları Günlük Durumlarda Kullanma: Fiyatlar ve Zaman"
+  ],
+  [
+    "Using Numbers in Everyday Situations",
+    "Sayıları Günlük Durumlarda Kullanma"
+  ],
+  [
+    "Prices and Time",
+    "Fiyatlar ve Zaman"
+  ],
+  [
+    "Basic Math Operations in Spanish",
+    "İspanyolcada Temel Matematik İşlemleri"
+  ],
+  [
+    "Basic Math Operations",
+    "Temel Matematik İşlemleri"
+  ],
+  [
+    "Personal Information and Descriptive Basics",
+    "Kişisel Bilgiler ve Temel Tanımlamalar"
+  ],
+  [
+    "PERSONAL INFORMATION AND DESCRIPTIVE BASICS",
+    "Kişisel Bilgiler ve Temel Tanımlamalar"
+  ],
+  [
+    "Asking and Answering Questions About Yourself",
+    "Kendiniz Hakkında Soru Sorma ve Cevaplama"
+  ],
+  [
+    "Describing Yourself: Age, Nationality, and Occupation",
+    "Kendini Tanımlama: Yaş, Milliyet ve Meslek"
+  ],
+  [
+    "Describing Yourself",
+    "Kendini Tanımlama"
+  ],
+  [
+    "Age, Nationality, and Occupation",
+    "Yaş, Milliyet ve Meslek"
+  ],
+  [
+    "Talking About Your Family: Basic Vocabulary and Structures",
+    "Aileniz Hakkında Konuşma: Temel Kelimeler ve Yapılar"
+  ],
+  [
+    "Talking About Your Family",
+    "Aileniz Hakkında Konuşma"
+  ],
+  [
+    "Basic Vocabulary and Structures",
+    "Temel Kelimeler ve Yapılar"
+  ],
+  [
+    "Essential Greetings and Introductions",
+    "Temel Selamlaşmalar ve Tanıtımlar"
+  ],
+  [
+    "Cardinal Numbers: Counting from One to Ten",
+    "Asıl Sayılar: Birden Ona Sayma"
+  ],
+  [
+    "Cardinal Numbers",
+    "Asıl Sayılar"
+  ],
+  [
+    "Ordinal Numbers: Describing Order and Sequence",
+    "Sıra Sayıları: Sıra ve Dizilimi Tanımlama"
+  ],
+  [
+    "Ordinal Numbers",
+    "Sıra Sayıları"
+  ],
+  [
+    "Describing Your Daily Life",
+    "Günlük Hayatınızı Tanımlama"
+  ],
+  [
+    "Basic Present Tense: Talking About Routines",
+    "Temel Geniş Zaman: Rutinler Hakkında Konuşma"
+  ],
+  [
+    "Daily Activities Vocabulary: Common Verbs and Expressions",
+    "Günlük Aktiviteler Kelimeleri: Yaygın Fiiller ve İfadeler"
+  ],
+  [
+    "Constructing Simple Sentences: Subject-Object-Verb Structure",
+    "Basit Cümleler Kurma: Özne-Nesne-Yüklem Yapısı"
+  ],
+  [
+    "Survival Vocabulary for Travelers",
+    "Gezginler İçin Hayatta Kalma Kelimeleri"
+  ],
+  [
+    "Essential Phrases for Navigating Public Transport",
+    "Toplu Taşımada Yol Bulma İçin Temel İfadeler"
+  ],
+  [
+    "Asking for Directions: Key Questions and Responses",
+    "Yol Tarifi Sorma: Temel Sorular ve Yanıtlar"
+  ],
+  [
+    "Dining Out: Ordering Food and Understanding Menus",
+    "Dışarıda Yemek Yeme: Yemek Siparişi ve Menüleri Anlama"
+  ],
+  [
+    "Dining Out",
+    "Dışarıda Yemek Yeme"
+  ],
+  [
+    "Ordering Food and Understanding Menus",
+    "Yemek Siparişi ve Menüleri Anlama"
+  ],
+  [
+    "Family and Personal Information",
+    "Aile ve Kişisel Bilgiler"
+  ],
+  [
+    "Family Vocabulary: Identifying Family Members",
+    "Aile Kelimeleri: Aile Üyelerini Tanıma"
+  ],
+  [
+    "Describing Relationships: Simple Adjectives and Phrases",
+    "İlişkileri Tanımlama: Basit Sıfatlar ve İfadeler"
+  ],
+  [
+    "Sharing Personal Information: Where You Live and Work",
+    "Kişisel Bilgi Paylaşma: Nerede Yaşadığınız ve Çalıştığınız"
+  ],
+  [
+    "Identifying Places in Your Community: Vocabulary and Usage",
+    "Topluluğunuzdaki Yerleri Tanıma: Kelimeler ve Kullanım"
+  ],
+  [
+    "Simple Conversations About Places: Asking and Answering Questions",
+    "Yerler Hakkında Basit Konuşmalar: Soru Sorma ve Cevaplama"
+  ],
+  [
+    "Common Hobbies and Interests Vocabulary",
+    "Yaygın Hobiler ve İlgi Alanları Kelimeleri"
+  ],
+  [
+    "Engaging in Small Talk: Discussing Interests with Others",
+    "Kısa Sohbet Yapma: Başkalarıyla İlgi Alanlarını Tartışma"
+  ],
+  [
+    "Weather and Seasons",
+    "Hava Durumu ve Mevsimler"
+  ],
+  [
+    "Describing the Weather: Common Terms and Expressions",
+    "Hava Durumunu Tanımlama: Yaygın Terimler ve İfadeler"
+  ],
+  [
+    "Talking About Seasons: Activities and Preferences",
+    "Mevsimler Hakkında Konuşma: Aktiviteler ve Tercihler"
+  ],
+  [
+    "Basic Shopping Skills",
+    "Temel Alışveriş Becerileri"
+  ],
+  [
+    "Shopping Vocabulary: Common Items and Shopping Expressions",
+    "Alışveriş Kelimeleri: Yaygın Eşyalar ve İfadeler"
+  ],
+  [
+    "Asking About Prices: Useful Questions and Responses",
+    "Fiyatları Sorma: Yararlı Sorular ve Yanıtlar"
+  ],
+  [
+    "Understanding Payment Methods: Cash, Card, and Mobile Payments",
+    "Ödeme Yöntemlerini Anlama: Nakit, Kart ve Mobil Ödemeler"
+  ],
+  [
+    "Everyday Survival Vocabulary",
+    "Günlük Hayatta Kalma Kelimeleri"
+  ],
+  [
+    "EVERYDAY SURVIVAL VOCABULARY",
+    "Günlük Hayatta Kalma Kelimeleri"
+  ],
+  [
+    "Navigating Public Places: Directions and Transportation",
+    "Kamusal Alanlarda Yol Bulma: Yol Tarifi ve Ulaşım"
+  ],
+  [
+    "Navigating Public Places",
+    "Kamusal Alanlarda Yol Bulma"
+  ],
+  [
+    "Directions and Transportation",
+    "Yol Tarifi ve Ulaşım"
+  ],
+  [
+    "Essential Phrases for Shopping and Eating Out",
+    "Alışveriş ve Dışarıda Yemek İçin Temel İfadeler"
+  ],
+  [
+    "Shopping and Eating Out",
+    "Alışveriş ve Dışarıda Yemek"
+  ],
+  [
+    "Emergency Situations: Key Vocabulary and Phrases",
+    "Acil Durumlar: Temel Kelimeler ve İfadeler"
+  ],
+  [
+    "Key Vocabulary and Phrases",
+    "Temel Kelimeler ve İfadeler"
+  ],
+  [
+    "Introduction to Regular Verbs: -ar, -er, -ir",
+    "Düzenli Fiillere Giriş: -ar, -er, -ir"
+  ],
+  [
+    "Introduction to Regular Verbs",
+    "Düzenli Fiillere Giriş"
+  ],
+  [
+    "Using Common Irregular Verbs in Present Tense",
+    "Geniş Zamanda Yaygın Düzensiz Fiillerin Kullanımı"
+  ],
+  [
+    "Using Common Irregular Verbs",
+    "Yaygın Düzensiz Fiillerin Kullanımı"
+  ],
+  [
+    "Common Irregular Verbs in Present Tense",
+    "Geniş Zamanda Yaygın Düzensiz Fiiller"
+  ],
+  [
+    "Stem-Changing Verbs in the Present Tense",
+    "Geniş Zamanda Kök Değiştiren Fiiller"
+  ],
+  [
+    "Forming Questions and Negations",
+    "Soru ve Olumsuz Cümle Kurma"
+  ],
+  [
+    "Daily Routines: Reflexive Verbs and Time Expressions",
+    "Günlük Rutinler: Dönüşlü Fiiller ve Zaman İfadeleri"
+  ],
+  [
+    "Talking About Your Daily Routine",
+    "Günlük Rutininiz Hakkında Konuşma"
+  ],
+  [
+    "Parts of the Day and Time Expressions",
+    "Günün Bölümleri ve Zaman İfadeleri"
+  ],
+  [
+    "Parts of the Day",
+    "Günün Bölümleri"
+  ],
+  [
+    "Food, Dining, and Ordering Meals",
+    "Yiyecek, Yemek ve Sipariş Verme"
+  ],
+  [
+    "At the Restaurant: Ordering Food and Drinks",
+    "Restoranda: Yiyecek ve İçecek Siparişi"
+  ],
+  [
+    "Expressing Preferences: Me Gusta and Other Verbs",
+    "Tercihleri İfade Etme: Me Gusta ve Diğer Fiiller"
+  ],
+  [
+    "Around the Town: Places and Directions",
+    "Şehirde: Yerler ve Yol Tarifi"
+  ],
+  [
+    "Around the Town",
+    "Şehirde"
+  ],
+  [
+    "Asking for and Giving Directions",
+    "Yol Tarifi Sorma ve Verme"
+  ],
+  [
+    "Public Transportation and Getting Around",
+    "Toplu Taşıma ve Şehir İçi Ulaşım"
+  ],
+  [
+    "Getting Around",
+    "Şehir İçi Ulaşım"
+  ],
+  [
+    "Weather, Seasons, and Free Time Activities",
+    "Hava Durumu, Mevsimler ve Boş Zaman Aktiviteleri"
+  ],
+  [
+    "Describing the Weather and Temperature",
+    "Hava Durumu ve Sıcaklığı Tanımlama"
+  ],
+  [
+    "Free Time Activities and Hobbies",
+    "Boş Zaman Aktiviteleri ve Hobiler"
+  ],
+  [
+    "Making Plans with 'Ir a' + Infinitive",
+    "'Ir a' + Mastar ile Plan Yapma"
+  ],
+  [
+    "Shopping, Clothes, and Colors",
+    "Alışveriş, Kıyafetler ve Renkler"
+  ],
+  [
+    "At the Clothing Store: Colors, Sizes, and Prices",
+    "Giyim Mağazasında: Renkler, Bedenler ve Fiyatlar"
+  ],
+  [
+    "Health, Body Parts, and Visiting the Doctor",
+    "Sağlık, Vücut Bölümleri ve Doktora Gitme"
+  ],
+  [
+    "Body Parts and Expressing Pain with 'Doler'",
+    "Vücut Bölümleri ve 'Doler' ile Ağrı İfade Etme"
+  ],
+  [
+    "Past Tense: Introduction to the Preterite",
+    "Geçmiş Zaman: Preterite Zamanına Giriş"
+  ],
+  [
+    "Travel, Holidays, and Transportation",
+    "Seyahat, Tatiller ve Ulaşım"
+  ],
+  [
+    "Constructing Simple Sentences in Present Tense",
+    "Geniş Zamanda Basit Cümleler Kurma"
+  ],
+  [
+    "Constructing Simple Sentences in the Present Tense",
+    "Geniş Zamanda Basit Cümleler Kurma"
+  ],
+  [
+    "Constructing Simple Sentences",
+    "Basit Cümleler Kurma"
+  ],
+  [
+    "Simple Sentences in Present Tense",
+    "Geniş Zamanda Basit Cümleler"
+  ],
+  [
+    "Asking Questions and Seeking Clarifications",
+    "Soru Sorma ve Açıklama İsteme"
+  ],
+  [
+    "Asking Questions and Seeking Clarification",
+    "Soru Sorma ve Açıklama İsteme"
+  ],
+  [
+    "Asking Questions",
+    "Soru Sorma"
+  ],
+  [
+    "Formulating Yes/No Questions",
+    "Evet/Hayır Soruları Oluşturma"
+  ],
+  [
+    "Formulating Yes or No Questions",
+    "Evet/Hayır Soruları Oluşturma"
+  ],
+  [
+    "Formulating Questions",
+    "Soru Cümleleri Oluşturma"
+  ],
+  [
+    "Question Words",
+    "Soru Kelimeleri"
+  ],
+  [
+    "Question Words Kullanımı",
+    "Soru Kelimeleri Kullanımı"
+  ],
+  [
+    "Question Words Kullanımı: Who, What, Where, When, Why",
+    "Soru Kelimeleri Kullanımı: Kim, Ne, Nerede, Ne Zaman, Neden"
+  ],
+  [
+    "Question Words: Who, What, Where, When, Why",
+    "Soru Kelimeleri: Kim, Ne, Nerede, Ne Zaman, Neden"
+  ],
+  [
+    "Using Question Words: Who, What, Where, When, Why",
+    "Soru Kelimeleri Kullanımı: Kim, Ne, Nerede, Ne Zaman, Neden"
+  ],
+  [
+    "Polite Ways to Ask for Help or Information",
+    "Yardım veya Bilgi İstemek İçin Nezaket İfadeleri"
+  ],
+  [
+    "Polite Ways to Ask for Help",
+    "Yardım İstemek İçin Nezaket İfadeleri"
+  ],
+  [
+    "Polite Requests and Expressions",
+    "Nezaket İstekleri ve İfadeleri"
+  ],
+  [
+    "Spanish-Speaking World",
+    "İspanyolca Konuşulan Dünya"
+  ],
+  [
+    "The Spanish-Speaking World",
+    "İspanyolca Konuşulan Dünya"
+  ],
+  [
+    "Geography and Major Cities of the Spanish-Speaking World",
+    "İspanyolca Konuşulan Dünyanın Coğrafyası ve Başlıca Şehirleri"
+  ],
+  [
+    "Geography and Major Cities",
+    "Coğrafya ve Başlıca Şehirler"
+  ],
+  [
+    "Celebrations and Traditions in Spanish-Speaking Countries",
+    "İspanyolca Konuşulan Ülkelerde Kutlamalar ve Gelenekler"
+  ],
+  [
+    "Celebrations and Traditions in the Spanish-Speaking World",
+    "İspanyolca Konuşulan Dünyada Kutlamalar ve Gelenekler"
+  ],
+  [
+    "Celebrations and Traditions in Spain and Latin America",
+    "İspanya ve Latin Amerika'da Kutlamalar ve Gelenekler"
+  ],
+  [
+    "Celebrations and Traditions",
+    "Kutlamalar ve Gelenekler"
+  ],
+  [
+    "Traditional Festivals and Holidays",
+    "Geleneksel Festivaller ve Tatiller"
+  ],
+  [
+    "Festivals and Holidays",
+    "Festivaller ve Tatiller"
+  ],
+  [
+    "Forming Negative Sentences",
+    "Olumsuz Cümle Kurma"
+  ],
+  [
+    "Forming Questions",
+    "Soru Cümleleri Kurma"
+  ],
+  [
+    "At the Airport",
+    "Havaalanında"
+  ],
+  [
+    "At the Restaurant",
+    "Restoranda"
+  ],
+  [
+    "At the Hotel",
+    "Otelde"
+  ],
+  [
+    "At the Market",
+    "Pazarda"
+  ],
+  [
+    "At the Doctor",
+    "Doktorda"
+  ],
+  [
+    "At the Hospital",
+    "Hastanede"
+  ],
+  [
+    "At the Pharmacy",
+    "Eczanede"
+  ],
+  [
+    "Making Reservations",
+    "Rezervasyon Yapma"
+  ],
+  [
+    "Making Appointments",
+    "Randevu Alma"
+  ],
+  [
+    "Ordering at a Restaurant",
+    "Restoranda Sipariş Verme"
+  ],
+  [
+    "Describing People",
+    "İnsanları Tanımlama"
+  ],
+  [
+    "Describing Places",
+    "Yerleri Tanımlama"
+  ],
+  [
+    "Expressing Feelings and Emotions",
+    "Duyguları İfade Etme"
+  ],
+  [
+    "Feelings and Emotions",
+    "Duygular ve Hisler"
+  ],
+  [
+    "Expressing Opinions",
+    "Fikir Belirtme"
+  ],
+  [
+    "Expressing Preferences",
+    "Tercihleri İfade Etme"
+  ],
+  [
+    "Comparatives and Superlatives",
+    "Karşılaştırma ve Üstünlük Dereceleri"
+  ],
+  [
+    "Review and Practice",
+    "Tekrar ve Pratik"
+  ],
+  [
+    "Comprehensive Review",
+    "Kapsamlı Tekrar"
+  ],
+  [
+    "Conversation Practice",
+    "Konuşma Pratiği"
+  ],
+  [
+    "Cultural Insights: Understanding German Customs",
+    "Kültürel Bilgiler: Alman Geleneklerini Anlama"
+  ],
+  [
+    "Saying Hello: Common Greetings in Various Situations",
+    "Merhaba Demek: Farklı Durumlarda Yaygın Selamlaşmalar"
+  ],
+  [
+    "Introducing Yourself: Name, Age, and Nationality",
+    "Kendini Tanıtma: İsim, Yaş ve Milliyet"
+  ],
+  [
+    "Politeness Levels: Understanding Formal and Informal Language",
+    "Nazik Olma Düzeyleri: Resmi ve Gayri Resmi Dili Anlama"
+  ],
+  [
+    "Using Numbers in Everyday Situations: Age and Time",
+    "Günlük Durumlarda Sayıları Kullanma: Yaş ve Zaman"
+  ],
+  [
+    "Cultural Insights: Important Landmarks in Korea",
+    "Kültürel Bilgiler: Kore'deki Önemli Semboller"
+  ],
+  [
+    "Cultural Connection: Korean Holidays and Seasonal Events",
+    "Kültürel Bağlantı: Kore Bayramları ve Mevsimsel Etkinlikler"
+  ],
+  [
+    "The Alphabet And Foundations",
+    "Alfabe ve Temel Bilgiler"
+  ],
+  [
+    "Alphabet And Foundations",
+    "Alfabe ve Temel Bilgiler"
+  ],
+  [
+    "Alphabet",
+    "Alfabe"
+  ],
+  [
+    "Vowels And Consonants",
+    "Sesli ve Sessiz Harfler"
+  ],
+  [
+    "Pronunciation And Phonetics",
+    "Telaffuz ve Fonetik"
+  ],
+  [
+    "Greetings And Introductions",
+    "Selamlaşmalar ve Tanıtımlar"
+  ],
+  [
+    "Greetings & Introductions",
+    "Selamlaşmalar ve Tanıtımlar"
+  ],
+  [
+    "Saying Hello And Goodbye",
+    "Merhaba ve Hoşça Kal Deme"
+  ],
+  [
+    "Introducing Yourself",
+    "Kendini Tanıtma"
+  ],
+  [
+    "Formal Vs Informal",
+    "Resmi ve Samimi Hitaplar"
+  ],
+  [
+    "Formal Vs Informal Speech",
+    "Resmi ve Samimi Konuşma"
+  ],
+  [
+    "Numbers And Basic Math",
+    "Sayılar ve Temel Matematik"
+  ],
+  [
+    "Counting From 1 To 100",
+    "1'den 100'e Sayma"
+  ],
+  [
+    "Numbers In Context",
+    "Bağlam İçinde Sayılar"
+  ],
+  [
+    "Days, Months, And Time",
+    "Günler, Aylar ve Zaman"
+  ],
+  [
+    "Days, Months And Time",
+    "Günler, Aylar ve Zaman"
+  ],
+  [
+    "Days Of The Week",
+    "Haftanın Günleri"
+  ],
+  [
+    "Months And Seasons",
+    "Aylar ve Mevsimler"
+  ],
+  [
+    "Telling Time",
+    "Saati Söyleme"
+  ],
+  [
+    "Common Emergency Phrases",
+    "Acil Durum İfadeleri"
+  ],
+  [
+    "Asking For Help",
+    "Yardım İsteme"
+  ],
+  [
+    "Basic Signs And Warnings",
+    "Temel İşaretler ve Uyarılar"
+  ],
+  [
+    "Describing Yourself And Others",
+    "Kendini ve Başkalarını Tanımlama"
+  ],
+  [
+    "Physical Appearance",
+    "Fiziksel Görünüş"
+  ],
+  [
+    "Personality Traits",
+    "Kişilik Özellikleri"
+  ],
+  [
+    "Subject Pronouns And Verb 'To Be'",
+    "Özne Zamirleri ve Olmak Fiili"
+  ],
+  [
+    "Subject Pronouns",
+    "Özne Zamirleri"
+  ],
+  [
+    "Basic Sentence Structure",
+    "Temel Cümle Yapısı"
+  ],
+  [
+    "Negation And Questions",
+    "Olumsuzluk ve Soru Cümleleri"
+  ],
+  [
+    "Daily Activities And Routines",
+    "Günlük Aktiviteler ve Rutinler"
+  ],
+  [
+    "Morning To Night Routines",
+    "Sabahtan Akşama Rutinler"
+  ],
+  [
+    "Talking About Your Day",
+    "Gününüz Hakkında Konuşma"
+  ],
+  [
+    "Frequency Adverbs",
+    "Sıklık Zarfları"
+  ],
+  [
+    "Family And Relationships",
+    "Aile ve İlişkiler"
+  ],
+  [
+    "Family Members",
+    "Aile Üyeleri"
+  ],
+  [
+    "Describing Family Relations",
+    "Aile İlişkilerini Anlatma"
+  ],
+  [
+    "Possessive Adjectives",
+    "İyelik Sıfatları"
+  ],
+  [
+    "Hobbies And Interests",
+    "Hobiler ve İlgi Alanları"
+  ],
+  [
+    "Free Time Activities",
+    "Boş Zaman Aktiviteleri"
+  ],
+  [
+    "Sports And Games",
+    "Sporlar ve Oyunlar"
+  ],
+  [
+    "Expressing Likes And Dislikes",
+    "Beğenileri ve Sevmediklerini Belirtme"
+  ],
+  [
+    "Food And Dining",
+    "Yiyecekler ve Yemek"
+  ],
+  [
+    "Ordering Food",
+    "Yemek Siparişi Verme"
+  ],
+  [
+    "At The Restaurant",
+    "Restoranda"
+  ],
+  [
+    "Shopping And Clothes",
+    "Alışveriş ve Giysiler"
+  ],
+  [
+    "Buying Clothes",
+    "Kıyafet Satın Alma"
+  ],
+  [
+    "Asking For Prices",
+    "Fiyat Sorma"
+  ],
+  [
+    "Colors And Sizes",
+    "Renkler ve Bedenler"
+  ],
+  [
+    "Around Town And Directions",
+    "Şehirde ve Yol Tarifleri"
+  ],
+  [
+    "Asking For Directions",
+    "Yol Tarifi Sorma"
+  ],
+  [
+    "Places In Town",
+    "Şehirdeki Yerler"
+  ],
+  [
+    "Transportation",
+    "Ulaşım"
+  ],
+  [
+    "Travel And Vacation",
+    "Seyahat ve Tatil"
+  ],
+  [
+    "At The Airport",
+    "Havalimanında"
+  ],
+  [
+    "At The Train Station",
+    "Tren İstasyonunda"
+  ],
+  [
+    "Hotel Check-In",
+    "Otele Giriş Yapma"
+  ],
+  [
+    "Review And Practice",
+    "Tekrar ve Pratik"
+  ],
+  [
+    "Review And Practical Application",
+    "Tekrar ve Pratik Uygulama"
+  ],
+  [
+    "The World Around Us",
+    "Çevremizdeki Dünya"
+  ],
+  [
+    "World Around Us",
+    "Çevremizdeki Dünya"
+  ],
+  [
+    "Weather And Seasons",
+    "Hava Durumu ve Mevsimler"
+  ],
+  [
+    "Nature And Environment",
+    "Doğa ve Çevre"
   ]
 ];

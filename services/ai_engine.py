@@ -386,7 +386,8 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
             with open(cache_file, "r", encoding="utf-8") as f:
                 cached_data = json.load(f)
                 if cached_data and "chapters" in cached_data:
-                    return cached_data["chapters"]
+                    from services.curriculum_translator import ensure_bilingual_curriculum
+                    return ensure_bilingual_curriculum(cached_data["chapters"])
         except: pass
 
     system = f"""You are a world-class curriculum architect and expert linguist specializing in the CEFR framework (A1-C2) for {language}. 
@@ -446,10 +447,11 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'title_tr'
         alphabet_unit = {
             "number": 1,
             "title": "The Alphabet and Foundations",
+            "title_tr": "Alfabe ve Temel Bilgiler",
             "topics": [
-                {"title": "The Alphabet", "type": "vocabulary"},
-                {"title": "Vowels and Consonants", "type": "grammar"},
-                {"title": "Pronunciation and Phonetics", "type": "grammar"}
+                {"title": "The Alphabet", "title_tr": "Alfabe", "type": "vocabulary"},
+                {"title": "Vowels and Consonants", "title_tr": "Sesli ve Sessiz Harfler", "type": "grammar"},
+                {"title": "Pronunciation and Phonetics", "title_tr": "Telaffuz ve Fonetik", "type": "grammar"}
             ]
         }
         filtered_chapters.insert(0, alphabet_unit)
@@ -462,12 +464,9 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'title_tr'
         
         chapters = filtered_chapters
     
-    # ── BILINGUAL TITLE ENRICHMENT: Ensure title_tr is populated for every chapter and topic ──
-    from services.language_data import resolve_curriculum_tr
-    for ch in chapters:
-        ch["title_tr"] = resolve_curriculum_tr(ch.get("title", ""), ch.get("title_tr"))
-        for t in ch.get("topics", []):
-            t["title_tr"] = resolve_curriculum_tr(t.get("title", ""), t.get("title_tr"))
+    # ── BILINGUAL TITLE ENRICHMENT: Ensure both title (EN) and title_tr (TR) are populated cleanly ──
+    from services.curriculum_translator import ensure_bilingual_curriculum
+    chapters = ensure_bilingual_curriculum(chapters)
 
     # ── AUTO-CACHE: Save the generated blueprint so "Clear Cached Blueprints" works ──
     if chapters:
@@ -704,9 +703,11 @@ def _get_blueprint_path(language, level):
 
 def save_blueprint_cache(language, level, chapters):
     try:
+        from services.curriculum_translator import ensure_bilingual_curriculum
+        clean_chapters = ensure_bilingual_curriculum(chapters)
         cache_file = _get_blueprint_path(language, level)
         with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump({"chapters": chapters}, f, ensure_ascii=False, indent=2)
+            json.dump({"chapters": clean_chapters}, f, ensure_ascii=False, indent=2)
         return True
     except: return False
 

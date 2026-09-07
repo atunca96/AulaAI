@@ -293,15 +293,17 @@ def finalize_course_bilingual_data(course_id: str):
     # 1. Collect all titles and content strings
     to_translate_to_tr = []
     
+    from services.curriculum_translator import is_clean_turkish
+    
     # Chapters
     for ch in chapters:
-        if ch["title"] and not ch["title_tr"]:
+        if ch["title"] and (not ch["title_tr"] or not is_clean_turkish(ch["title_tr"])):
             to_translate_to_tr.append(ch["title"].strip())
 
     # Topics & Lessons
     topic_data_list = []
     for t in topics:
-        if t["title"] and not t["title_tr"]:
+        if t["title"] and (not t["title_tr"] or not is_clean_turkish(t["title_tr"])):
             to_translate_to_tr.append(t["title"].strip())
             
         try:
@@ -312,7 +314,7 @@ def finalize_course_bilingual_data(course_id: str):
         pages = content.get("pages", [])
         for p in pages:
             # Page title
-            if p.get("title") and not p.get("title_tr"):
+            if p.get("title") and (not p.get("title_tr") or not is_clean_turkish(p.get("title_tr"))):
                 to_translate_to_tr.append(p["title"].strip())
             # Bullet points / explanation
             txt = p.get("text") or p.get("explanation") or p.get("intro") or ""
@@ -360,13 +362,17 @@ def finalize_course_bilingual_data(course_id: str):
     with db_connection() as db:
         # Update chapters
         for ch in chapters:
-            ch_tr = ch["title_tr"] or trans_map.get(ch["title"].strip())
+            ch_tr = trans_map.get(ch["title"].strip()) if (not ch["title_tr"] or not is_clean_turkish(ch["title_tr"])) else ch["title_tr"]
             if ch_tr:
                 db.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (ch_tr, ch["id"]))
 
         # Update topics
         for tid, ttitle, content in topic_data_list:
-            t_tr = trans_map.get(ttitle.strip()) or ttitle
+            t_row = next((x for x in topics if x["id"] == tid), None)
+            t_curr = t_row["title_tr"] if t_row else None
+            t_tr = trans_map.get(ttitle.strip()) if (not t_curr or not is_clean_turkish(t_curr)) else t_curr
+            if not t_tr:
+                t_tr = ttitle
             pages = content.get("pages", [])
             for p in pages:
                 # Title

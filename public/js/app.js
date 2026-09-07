@@ -2565,7 +2565,11 @@ const UniversalCurriculumTranslator = {
     if (clean.includes(':')) {
       const parts = clean.split(':');
       if (parts.length === 2) {
-        return `${this.translate(parts[0].trim())}: ${this.translate(parts[1].trim())}`;
+        const s1 = this.translate(parts[0].trim());
+        const s2 = this.translate(parts[1].trim());
+        if (this.isCleanTurkish(s1) && this.isCleanTurkish(s2)) {
+          return `${s1}: ${s2}`;
+        }
       }
     }
 
@@ -2742,7 +2746,11 @@ const UniversalCurriculumTranslator = {
     if (/\s+and\s+/i.test(clean)) {
       const parts = clean.split(/\s+and\s+/i);
       if (parts.length === 2) {
-        return `${this.translate(parts[0].trim())} ve ${this.translate(parts[1].trim())}`;
+        const s1 = this.translate(parts[0].trim());
+        const s2 = this.translate(parts[1].trim());
+        if (this.isCleanTurkish(s1) && this.isCleanTurkish(s2)) {
+          return `${s1} ve ${s2}`;
+        }
       }
     }
 
@@ -2751,10 +2759,12 @@ const UniversalCurriculumTranslator = {
       const rawItems = clean.split(/,\s*(?:and\s+)?/i);
       if (rawItems.length > 1) {
         const trItems = rawItems.map(item => this.translate(item.trim()));
-        if (trItems.length === 2) {
-          return `${trItems[0]} ve ${trItems[1]}`;
+        if (trItems.every(it => this.isCleanTurkish(it))) {
+          if (trItems.length === 2) {
+            return `${trItems[0]} ve ${trItems[1]}`;
+          }
+          return trItems.slice(0, -1).join(', ') + ` ve ${trItems[trItems.length - 1]}`;
         }
-        return trItems.slice(0, -1).join(', ') + ` ve ${trItems[trItems.length - 1]}`;
       }
     }
 
@@ -2780,44 +2790,49 @@ const UniversalCurriculumTranslator = {
       }
     }
 
-    // Tokenized word-by-word fallback
-    const translatedWords = [];
-    for (const w of words) {
-      const wClean = w.toLowerCase().replace(/[.,!?:;]/g, '');
-      if (this.VOCABULARY[wClean]) {
-        translatedWords.push(this.VOCABULARY[wClean]);
-      } else if (this.LANGUAGES[wClean]) {
-        translatedWords.push(this.LANGUAGES[wClean][0]);
-      } else if (wClean === "and") {
-        translatedWords.push("ve");
-      } else if (wClean === "or") {
-        translatedWords.push("veya");
-      } else if (wClean === "the") {
-        continue;
-      } else if (wClean === "with") {
-        translatedWords.push("ile");
-      } else {
-        translatedWords.push(w);
-      }
-    }
+    return clean;
+  },
 
-    const res = translatedWords.join(' ');
-    return res || clean;
+  isHybridOrEnglish: function(text) {
+    if (!text || typeof text !== 'string') return false;
+    const t = text.trim();
+    if (!t) return false;
+    const low = t.toLowerCase();
+    if (low.includes('ve ve') || low.includes('pratik application') || low.includes('around us')) return true;
+    const hasTr = /[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|kültürel|bilgiler|dilbilgisi|kelimeler|cümleler|dünya)\b/i.test(t);
+    const hasEn = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us)\b/i.test(t);
+    return (hasTr && hasEn) || (hasEn && !/[çğıöşüÇĞİÖŞÜâîû]/.test(t));
+  },
+
+  isCleanTurkish: function(text) {
+    if (!text || typeof text !== 'string') return false;
+    return !this.isHybridOrEnglish(text);
   }
 };
 
 function translateCurriculumTitle(title, lang = currentLang) {
   if (!title) return '';
-  if (lang === 'tr') {
-    return UniversalCurriculumTranslator.translate(title);
-  }
-
-  // English lookup
   const trimmed = title.trim();
   const clean = trimmed.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
   const lowerTrimmed = trimmed.toLowerCase();
   const lowerClean = clean.toLowerCase();
 
+  if (lang === 'tr') {
+    // Check precompiled bundles first
+    if (Array.isArray(window.PAGE_TITLE_PAIRS)) {
+      for (const [en, tr] of window.PAGE_TITLE_PAIRS) {
+        if (!en || !tr) continue;
+        if (lowerClean === en.toLowerCase() || lowerTrimmed === en.toLowerCase()) return tr;
+      }
+    }
+    if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR) {
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[trimmed];
+      if (window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean]) return window.EDUCATIONAL_SENTENCE_MAP_EN_TR[clean];
+    }
+    return UniversalCurriculumTranslator.translate(title);
+  }
+
+  // English lookup
   if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN) {
     if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[trimmed];
     if (window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean]) return window.EDUCATIONAL_SENTENCE_MAP_TR_EN[clean];
@@ -2848,14 +2863,26 @@ function translateCurriculumTitle(title, lang = currentLang) {
 function getLocalizedCurriculumTitle(item, lang = currentLang) {
   if (!item) return '';
   if (typeof item === 'string') {
-    return UniversalCurriculumTranslator.cleanHybrids(translateCurriculumTitle(item, lang));
+    return translateCurriculumTitle(item, lang);
   }
   if (lang === 'tr') {
-    const raw = item.title_tr || item.title || '';
-    return UniversalCurriculumTranslator.cleanHybrids(translateCurriculumTitle(raw, 'tr'));
+    if (item.title_tr && typeof item.title_tr === 'string') {
+      const trVal = item.title_tr.trim();
+      if (trVal && !UniversalCurriculumTranslator.isHybridOrEnglish(trVal)) {
+        return trVal;
+      }
+    }
+    const source = item.title || item.title_tr || '';
+    return translateCurriculumTitle(source, 'tr');
   } else {
-    const raw = item.title || item.title_tr || '';
-    return translateCurriculumTitle(raw, 'en');
+    if (item.title && typeof item.title === 'string') {
+      const enVal = item.title.trim();
+      if (enVal && !UniversalCurriculumTranslator.isCleanTurkish(enVal)) {
+        return enVal;
+      }
+    }
+    const source = item.title_tr || item.title || '';
+    return translateCurriculumTitle(source, 'en');
   }
 }
 
@@ -4113,22 +4140,26 @@ function renderAiSyllabusEditor(syllabus) {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
   container.innerHTML = syllabus.map((chapter, i) => {
+    const titleEn = chapter.title || '';
+    const titleTr = chapter.title_tr || '';
     const chTitle = getLocalizedCurriculumTitle(chapter, currentLang);
     return `
-    <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+    <div class="syllabus-chapter" data-title-en="${esc(titleEn)}" data-title-tr="${esc(titleTr)}" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${i + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger);">${SVG_TRASH}</button>
       </div>
-      <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" oninput="this.closest('.syllabus-chapter').dataset[currentLang==='tr'?'titleTr':'titleEn']=this.value" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         ${(chapter.topics || []).map(topic => {
+          const tEn = typeof topic === 'string' ? topic : (topic.title || '');
+          const tTr = typeof topic === 'string' ? '' : (topic.title_tr || '');
           const title = getLocalizedCurriculumTitle(topic, currentLang);
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
-            <div class="topic-item" data-type="${type}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <div class="topic-item" data-type="${type}" data-title-en="${esc(tEn)}" data-title-tr="${esc(tTr)}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? SVG_GEAR : '•'}</span>
-              <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
+              <input type="text" class="text-input topic-title" value="${esc(title)}" oninput="this.closest('.topic-item').dataset[currentLang==='tr'?'titleTr':'titleEn']=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
           `;
@@ -4191,14 +4222,34 @@ async function buildAiClassroom() {
   const courseName = document.getElementById('ai-course-name').value;
   const chapters = [];
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
-    const title = chapterEl.querySelector('.syllabus-title').value;
+    const inpVal = chapterEl.querySelector('.syllabus-title').value.trim();
+    let title_en = chapterEl.dataset.titleEn || inpVal;
+    let title_tr = chapterEl.dataset.titleTr || inpVal;
+    if (currentLang === 'tr') {
+      title_tr = inpVal;
+      if (!title_en || title_en === inpVal) title_en = inpVal;
+    } else {
+      title_en = inpVal;
+      if (!title_tr || title_tr === inpVal) title_tr = inpVal;
+    }
+
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
       const topicInp = topicItem.querySelector('.topic-title');
+      const tVal = (topicInp ? topicInp.value : '').trim();
+      let t_en = topicItem.dataset.titleEn || tVal;
+      let t_tr = topicItem.dataset.titleTr || tVal;
+      if (currentLang === 'tr') {
+        t_tr = tVal;
+        if (!t_en || t_en === tVal) t_en = tVal;
+      } else {
+        t_en = tVal;
+        if (!t_tr || t_tr === tVal) t_tr = tVal;
+      }
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
-      topics.push({ title: topicInp.value, type: type });
+      topics.push({ title: t_en, title_tr: t_tr, type: type });
     });
-    chapters.push({ title, topics });
+    chapters.push({ title: title_en, title_tr: title_tr, topics: topics });
   });
 
   const btn = document.getElementById('ai-build-btn');

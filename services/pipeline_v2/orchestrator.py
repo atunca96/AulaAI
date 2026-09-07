@@ -149,31 +149,44 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
             
-            for unit_idx, unit in enumerate(curriculum.get("units", [])):
+            from services.curriculum_translator import translate_titles_batch, is_clean_turkish
+            units_list = curriculum.get("units", [])
+            titles_to_translate = []
+            for unit in units_list:
+                u_tr = unit.get("title_tr", "")
+                u_title = unit.get("title", "")
+                if not u_tr or not is_clean_turkish(u_tr):
+                    if u_title: titles_to_translate.append(u_title)
+                for topic in unit.get("topics", []):
+                    t_text = topic.get("text", "")
+                    t_tr = topic.get("title_tr", "")
+                    if not t_tr or not is_clean_turkish(t_tr):
+                        if t_text: titles_to_translate.append(t_text)
+
+            tr_map = translate_titles_batch(titles_to_translate, target_lang="tr") if titles_to_translate else {}
+
+            for unit_idx, unit in enumerate(units_list):
                 chapter_id = _uid()
                 unit_title = unit.get("title", f"Unit {unit_idx + 1}")
                 
                 # Standardize Unit Numbering for A1 (especially after alphabet injection)
                 if level.upper().startswith("A1"):
                     import re
-                    # Remove any existing "Unit X" prefix to avoid "Unit 1: Unit 1: ..."
                     clean_title = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', unit_title, flags=re.IGNORECASE).strip()
-                    unit_title = clean_title # UI handles the numbering header
+                    unit_title = clean_title
 
-                from services.language_data import resolve_curriculum_tr
-                ch_tr = resolve_curriculum_tr(unit_title, unit.get("title_tr"))
+                ch_tr = unit.get("title_tr") if is_clean_turkish(unit.get("title_tr")) else tr_map.get(unit_title, unit_title)
                 db.execute(
                     "INSERT INTO chapters (id, course_id, number, title, page_number, title_tr) VALUES (?,?,?,?,?,?)",
-                    (chapter_id, course_id, unit_idx + 1, unit_title, 0, ch_tr) # V2 currently lacks page numbers
+                    (chapter_id, course_id, unit_idx + 1, unit_title, 0, ch_tr)
                 )
                 
                 for topic_idx, topic in enumerate(unit.get("topics", [])):
                     topic_id = _uid()
                     t_text = topic.get("text", "Untitled Topic")
                     t_tag = topic.get("tag", "vocabulary")
-                    t_tr = resolve_curriculum_tr(t_text, topic.get("title_tr"))
+                    t_tr = topic.get("title_tr") if is_clean_turkish(topic.get("title_tr")) else tr_map.get(t_text, t_text)
                     
-                    # We use a default difficulty and empty content as V2 focus is structure
                     db.execute(
                         "INSERT INTO topics (id, chapter_id, type, title, difficulty, content, sort_order, page_number, pdf_url, title_tr) VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path), t_tr)

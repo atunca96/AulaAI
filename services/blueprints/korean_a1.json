@@ -6,17 +6,21 @@
       "topics": [
         {
           "title": "The Alphabet",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Alfabe"
         },
         {
           "title": "Vowels and Consonants",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Sesli ve Sessiz Harfler"
         },
         {
           "title": "Pronunciation and Phonetics",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Telaffuz ve Fonetik"
         }
-      ]
+      ],
+      "title_tr": "Alfabe ve Temel Bilgiler"
     },
     {
       "number": 2,
@@ -24,17 +28,21 @@
       "topics": [
         {
           "title": "Saying Hello: Common Greetings in Various Situations",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Merhaba Demek: Farklı Durumlarda Yaygın Selamlaşmalar"
         },
         {
           "title": "Introducing Yourself: Name, Age, and Nationality",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Kendini Tanıtma: İsim, Yaş ve Milliyet"
         },
         {
           "title": "Politeness Levels: Understanding Formal and Informal Language",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Nazik Olma Düzeyleri: Resmi ve Gayri Resmi Dili Anlama"
         }
-      ]
+      ],
+      "title_tr": "Temel Selamlaşmalar ve Tanıtımlar"
     },
     {
       "number": 3,
@@ -42,17 +50,21 @@
       "topics": [
         {
           "title": "Cardinal Numbers: Counting from One to Ten",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Asıl Sayılar: Birden Ona Sayma"
         },
         {
           "title": "Using Numbers in Everyday Situations: Age and Time",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Günlük Durumlarda Sayıları Kullanma: Yaş ve Zaman"
         },
         {
           "title": "Ordinal Numbers: Describing Order and Sequence",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Sıra Sayıları: Sıra ve Dizilimi Tanımlama"
         }
-      ]
+      ],
+      "title_tr": "Sayılar ve Temel Sayma"
     },
     {
       "number": 4,
@@ -60,17 +72,21 @@
       "topics": [
         {
           "title": "Basic Present Tense: Talking About Routines",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Temel Geniş Zaman: Rutinler Hakkında Konuşma"
         },
         {
           "title": "Daily Activities Vocabulary: Common Verbs and Expressions",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Günlük Aktiviteler Kelimeleri: Yaygın Fiiller ve İfadeler"
         },
         {
           "title": "Constructing Simple Sentences: Subject-Object-Verb Structure",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Basit Cümleler Kurma: Özne-Nesne-Yüklem Yapısı"
         }
-      ]
+      ],
+      "title_tr": "Günlük Hayatınızı Tanımlama"
     },
     {
       "number": 5,
@@ -78,17 +94,21 @@
       "topics": [
         {
           "title": "Essential Phrases for Navigating Public Transport",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Toplu Taşımada Yol Bulma İçin Temel İfadeler"
         },
         {
           "title": "Asking for Directions: Key Questions and Responses",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Yol Tarifi Sorma: Temel Sorular ve Yanıtlar"
         },
         {
           "title": "Dining Out: Ordering Food and Understanding Menus",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Dışarıda Yemek Yeme: Yemek Siparişi ve Menüleri Anlama"
         }
-      ]
+      ],
+      "title_tr": "Gezginler İçin Hayatta Kalma Kelimeleri"
     },
     {
       "number": 6,
@@ -96,17 +116,21 @@
       "topics": [
         {
           "title": "Family Vocabulary: Identifying Family Members",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Aile Kelimeleri: Aile Üyelerini Tanıma"
         },
         {
           "title": "Describing Relationships: Simple Adjectives and Phrases",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "İlişkileri Tanımlama: Basit Sıfatlar ve İfadeler"
         },
         {
           "title": "Sharing Personal Information: Where You Live and Work",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Kişisel Bilgi Paylaşma: Nerede Yaşadığınız ve Çalıştığınız"
         }
-      ]
+      ],
+      "title_tr": "Aile ve Kişisel Bilgiler"
     },
     {
       "number": 7,
@@ -114,17 +138,21 @@
       "topics": [
         {
           "title": "Identifying Places in Your Community: Vocabulary and Usage",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Topluluğunuzdaki Yerleri Tanıma: Kelimeler ve Kullanım"
         },
         {
           "title": "Simple Conversations About Places: Asking and Answering Questions",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Yerler Hakkında Basit Konuşmalar: Soru Sorma ve Cevaplama"
         },
         {
           "title": "Cultural Insights: Important Landmarks in Korea",
-          "type": "cultural"
+          "type": "cultural",
+          "title_tr": "Kültürel Bilgiler: Kore'deki Önemli Semboller"
         }
-      ]
+      ],
+      "title_tr": "Yaygın Yerleri Keşfetme"
     },
     {
       "number": 8,
@@ -132,17 +160,21 @@
       "topics": [
         {
           "title": "Common Hobbies and Interests Vocabulary",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Yaygın Hobiler ve İlgi Alanları Kelimeleri"
         },
         {
-          "title": "Constructing Preference Statements: I Like, I Don't Like",
-          "type": "grammar"
+          "title": "Constructing Preference Statements: 'I like', 'I don't like'",
+          "type": "grammar",
+          "title_tr": "Tercih İfadeleri Kurma: Severim, Sevmem"
         },
         {
           "title": "Engaging in Small Talk: Discussing Interests with Others",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Kısa Sohbet Yapma: Başkalarıyla İlgi Alanlarını Tartışma"
         }
-      ]
+      ],
+      "title_tr": "Beğenileri ve Sevmediklerini Belirtme"
     },
     {
       "number": 9,
@@ -150,17 +182,21 @@
       "topics": [
         {
           "title": "Describing the Weather: Common Terms and Expressions",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Hava Durumunu Tanımlama: Yaygın Terimler ve İfadeler"
         },
         {
           "title": "Talking About Seasons: Activities and Preferences",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Mevsimler Hakkında Konuşma: Aktiviteler ve Tercihler"
         },
         {
           "title": "Cultural Connection: Korean Holidays and Seasonal Events",
-          "type": "cultural"
+          "type": "cultural",
+          "title_tr": "Kültürel Bağlantı: Kore Bayramları ve Mevsimsel Etkinlikler"
         }
-      ]
+      ],
+      "title_tr": "Hava Durumu ve Mevsimler"
     },
     {
       "number": 10,
@@ -168,17 +204,21 @@
       "topics": [
         {
           "title": "Shopping Vocabulary: Common Items and Shopping Expressions",
-          "type": "vocabulary"
+          "type": "vocabulary",
+          "title_tr": "Alışveriş Kelimeleri: Yaygın Eşyalar ve İfadeler"
         },
         {
           "title": "Asking About Prices: Useful Questions and Responses",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Fiyatları Sorma: Yararlı Sorular ve Yanıtlar"
         },
         {
           "title": "Understanding Payment Methods: Cash, Card, and Mobile Payments",
-          "type": "grammar"
+          "type": "grammar",
+          "title_tr": "Ödeme Yöntemlerini Anlama: Nakit, Kart ve Mobil Ödemeler"
         }
-      ]
+      ],
+      "title_tr": "Temel Alışveriş Becerileri"
     }
   ]
 }

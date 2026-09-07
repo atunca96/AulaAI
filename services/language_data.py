@@ -1290,21 +1290,19 @@ class UniversalCurriculumTranslator:
 
 def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
     """Translates educational curriculum titles (chapters/topics) into natural, grammatically correct Turkish."""
-    # If current_tr is already valid Turkish (contains Turkish letters or doesn't have English phrases), keep it
+    from services.curriculum_translator import is_clean_turkish, translate_titles_batch
+
+    # If current_tr is already clean Turkish, keep it
     if current_tr and current_tr.strip() and current_tr != "Alfabeyi" and current_tr != title:
-        bad_fragments = ["Building Blocks", "Formal vs", "Math Operations", "Prices and Time", 
-                         "Personal Information", "Everyday Situations", "100'ye", 
-                         "Getting Acquainted", "Farewells", "Who Are You", "Essential Quantities",
-                         "Sharing Personal", "Formulating Simple", "Wh- Questions"]
-        if not any(bf.lower() in current_tr.lower() for bf in bad_fragments):
-            if re.search(r'[çğıöşüÇĞİÖŞÜ]', current_tr):
-                return current_tr
+        if is_clean_turkish(current_tr):
+            return current_tr.strip()
 
     target = title or current_tr or ""
-    if not target:
+    if not target or not target.strip():
         return ""
 
-    return UniversalCurriculumTranslator.translate(target)
+    res = translate_titles_batch([target.strip()], target_lang="tr")
+    return res.get(target.strip()) or target.strip()
 
 
 

@@ -527,19 +527,32 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
                        (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language, "structuring", "Building curriculum structure...", time.time()))
             db.commit()
 
+    # Ensure all chapters and topics have clean bilingual titles (EN and TR)
+    from services.curriculum_translator import ensure_bilingual_curriculum
+    chapters = ensure_bilingual_curriculum(chapters)
+
     # Process the nested chapters into the worker's expected format
     worker_chapters = []
     for i, chap in enumerate(chapters):
         topics_processed = []
         for j, t in enumerate(chap.get("topics", [])):
             if isinstance(t, dict):
-                topics_processed.append({"title": t.get("title", "Untitled Topic"), "type": t.get("type", "vocabulary")})
+                topics_processed.append({
+                    "title": t.get("title", "Untitled Topic"),
+                    "title_tr": t.get("title_tr", ""),
+                    "type": t.get("type", "vocabulary")
+                })
             else:
-                topics_processed.append({"title": str(t), "type": "vocabulary" if j % 2 == 0 else "grammar"})
+                topics_processed.append({
+                    "title": str(t),
+                    "title_tr": "",
+                    "type": "vocabulary" if j % 2 == 0 else "grammar"
+                })
                 
         worker_chapters.append({
             "number": i + 1,
-            "title": chap["title"],
+            "title": chap.get("title", f"Unit {i + 1}"),
+            "title_tr": chap.get("title_tr", ""),
             "topics": topics_processed
         })
     

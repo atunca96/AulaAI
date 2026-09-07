@@ -452,34 +452,63 @@ def init_db():
                     
                     print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
 
-        # AUTOMATED RESILIENCE: Ensure all courses in DB have title_tr populated and pdf_url cleaned
+        # AUTOMATED RESILIENCE: Ensure all courses in DB have clean bilingual titles (title=EN, title_tr=TR)
         try:
-            bm_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
-            if os.path.exists(bm_path):
-                with open(bm_path, "r", encoding="utf-8") as f:
-                    bm_data = json.load(f)
-                title_map = bm_data.get("title_pairs", {})
-                from services.language_data import resolve_curriculum_tr
+            from services.curriculum_translator import is_clean_turkish, is_pure_english, translate_titles_batch
 
-                # Fix Alfabeyi unconditionally
-                c.execute("UPDATE topics SET title_tr = 'Alfabe' WHERE title_tr = 'Alfabeyi'")
-                c.execute("UPDATE chapters SET title_tr = 'Alfabe' WHERE title_tr = 'Alfabeyi'")
+            # 1. Check all chapters
+            chap_rows = c.execute("SELECT id, title, title_tr FROM chapters").fetchall()
+            ch_needed_tr = []
+            ch_needed_en = []
+            for r in chap_rows:
+                t_en = (r["title"] or "").strip()
+                t_tr = (r["title_tr"] or "").strip()
+                if not t_tr or not is_clean_turkish(t_tr):
+                    if t_en: ch_needed_tr.append(t_en)
+                if not t_en or is_clean_turkish(t_en):
+                    if t_tr: ch_needed_en.append(t_tr)
+                    elif t_en: ch_needed_en.append(t_en)
 
-                # Chapters
-                for row in c.execute("SELECT id, title, title_tr FROM chapters").fetchall():
-                    resolved = resolve_curriculum_tr(row["title"], row["title_tr"])
-                    if resolved and resolved != row["title_tr"]:
-                        c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (resolved, row["id"]))
-                # Topics
-                for row in c.execute("SELECT id, title, title_tr FROM topics").fetchall():
-                    resolved = resolve_curriculum_tr(row["title"], row["title_tr"])
-                    if resolved and resolved != row["title_tr"]:
-                        c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (resolved, row["id"]))
+            # 2. Check all topics
+            top_rows = c.execute("SELECT id, title, title_tr FROM topics").fetchall()
+            top_needed_tr = []
+            top_needed_en = []
+            for r in top_rows:
+                t_en = (r["title"] or "").strip()
+                t_tr = (r["title_tr"] or "").strip()
+                if not t_tr or not is_clean_turkish(t_tr):
+                    if t_en: top_needed_tr.append(t_en)
+                if not t_en or is_clean_turkish(t_en):
+                    if t_tr: top_needed_en.append(t_tr)
+                    elif t_en: top_needed_en.append(t_en)
+
+            all_needed_tr = list(set(ch_needed_tr + top_needed_tr))
+            all_needed_en = list(set(ch_needed_en + top_needed_en))
+
+            tr_map = translate_titles_batch(all_needed_tr, target_lang="tr") if all_needed_tr else {}
+            en_map = translate_titles_batch(all_needed_en, target_lang="en") if all_needed_en else {}
+
+            for r in chap_rows:
+                t_en = (r["title"] or "").strip()
+                t_tr = (r["title_tr"] or "").strip()
+                new_en = en_map.get(t_tr, en_map.get(t_en, t_en)) if (not t_en or is_clean_turkish(t_en)) else t_en
+                new_tr = tr_map.get(t_en, t_tr or t_en) if (not t_tr or not is_clean_turkish(t_tr)) else t_tr
+                if new_en != r["title"] or new_tr != r["title_tr"]:
+                    c.execute("UPDATE chapters SET title = ?, title_tr = ? WHERE id = ?", (new_en, new_tr, r["id"]))
+
+            for r in top_rows:
+                t_en = (r["title"] or "").strip()
+                t_tr = (r["title_tr"] or "").strip()
+                new_en = en_map.get(t_tr, en_map.get(t_en, t_en)) if (not t_en or is_clean_turkish(t_en)) else t_en
+                new_tr = tr_map.get(t_en, t_tr or t_en) if (not t_tr or not is_clean_turkish(t_tr)) else t_tr
+                if new_en != r["title"] or new_tr != r["title_tr"]:
+                    c.execute("UPDATE topics SET title = ?, title_tr = ? WHERE id = ?", (new_en, new_tr, r["id"]))
+
             c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
-            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v5')")
-            print("[MIGRATION] Verified title_tr, fixed 'Alfabeyi', and cleaned pdf_url for all courses.")
+            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('universal_curriculum_healing_v1')")
+            print("[MIGRATION] Universal curriculum healing completed: All courses verified bilingual.")
         except Exception as e:
-            print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")
+            print(f"[MIGRATION ERROR] Failed to heal curriculum: {e}")
 
         db.commit()
 

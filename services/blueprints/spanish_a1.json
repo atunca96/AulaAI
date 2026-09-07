@@ -2,183 +2,223 @@
   "chapters": [
     {
       "number": 1,
-      "title": "Alfabe ve Temeller",
+      "title": "Alphabet and Basics",
       "topics": [
         {
-          "title": "Alfabe",
-          "type": "vocabulary"
+          "title": "The Alphabet",
+          "type": "vocabulary",
+          "title_tr": "Alfabe"
         },
         {
-          "title": "Sesli Harfler ve Sessiz Harfler",
-          "type": "grammar"
+          "title": "Vowels and Consonants",
+          "type": "grammar",
+          "title_tr": "Sesli Harfler ve Sessiz Harfler"
         },
         {
-          "title": "Telaffuz ve Fonetik",
-          "type": "grammar"
+          "title": "Pronunciation And Phonetics",
+          "type": "grammar",
+          "title_tr": "Telaffuz ve Fonetik"
         }
-      ]
+      ],
+      "title_tr": "Alfabe ve Temeller"
     },
     {
       "number": 2,
-      "title": "Selamlaşmalar ve Tanıtımlar",
+      "title": "Greetings And Introductions",
       "topics": [
         {
-          "title": "Merhaba ve Hoşça Kal Demenin Yolları",
-          "type": "vocabulary"
+          "title": "Ways to Say Hello and Goodbye",
+          "type": "vocabulary",
+          "title_tr": "Merhaba ve Hoşça Kal Demenin Yolları"
         },
         {
-          "title": "Kendini Tanıtma: Temel İfadeler",
-          "type": "grammar"
+          "title": "Introducing Yourself: Basic Phrases",
+          "type": "grammar",
+          "title_tr": "Kendini Tanıtma: Temel İfadeler"
         },
         {
-          "title": "Selamlaşmalardaki Kültürel İncelikler: İspanyol Perspektifi",
-          "type": "cultural"
+          "title": "Cultural Nuances in Greetings: The Spanish Perspective",
+          "type": "cultural",
+          "title_tr": "Selamlaşmalardaki Kültürel İncelikler: İspanyol Perspektifi"
         }
-      ]
+      ],
+      "title_tr": "Selamlaşmalar ve Tanıtımlar"
     },
     {
       "number": 3,
-      "title": "Sayilar ve Temel Matematik",
+      "title": "Numbers and Basic Mathematics",
       "topics": [
         {
-          "title": "1'den 100'e Sayma: Temel Sayılar",
-          "type": "vocabulary"
+          "title": "Counting from 1 to 100: Basic Numbers",
+          "type": "vocabulary",
+          "title_tr": "1'den 100'e Sayma: Temel Sayılar"
         },
         {
-          "title": "Günlük Bağlamlarda Sayıları Kullanma",
-          "type": "grammar"
+          "title": "Using Numbers in Everyday Contexts",
+          "type": "grammar",
+          "title_tr": "Günlük Bağlamlarda Sayıları Kullanma"
         },
         {
-          "title": "İspanyolca'da Basit Matematik İşlemleri",
-          "type": "grammar"
+          "title": "Simple Mathematical Operations in Spanish",
+          "type": "grammar",
+          "title_tr": "İspanyolca'da Basit Matematik İşlemleri"
         }
-      ]
+      ],
+      "title_tr": "Sayilar ve Temel Matematik"
     },
     {
       "number": 4,
-      "title": "Günler, Aylar ve Zaman",
+      "title": "Days, Months, And Time",
       "topics": [
         {
-          "title": "Haftanın Günleri: Haftalık Rutin",
-          "type": "vocabulary"
+          "title": "Days of the Week: Weekly Routine",
+          "type": "vocabulary",
+          "title_tr": "Haftanın Günleri: Haftalık Rutin"
         },
         {
-          "title": "Yılın Ayları ve Mevsimler",
-          "type": "vocabulary"
+          "title": "Months of the Year and Seasons",
+          "type": "vocabulary",
+          "title_tr": "Yılın Ayları ve Mevsimler"
         },
         {
-          "title": "Zamanı Söyleme: Temel İfadeler",
-          "type": "grammar"
+          "title": "Telling Time: Basic Phrases",
+          "type": "grammar",
+          "title_tr": "Zamanı Söyleme: Temel İfadeler"
         }
-      ]
+      ],
+      "title_tr": "Günler, Aylar ve Zaman"
     },
     {
       "number": 5,
-      "title": "Temel Hayatta Kalma Kelimeleri",
+      "title": "Essential Survival Vocabulary",
       "topics": [
         {
-          "title": "Havaalanında: Anahtar İfadeler ve Kelime Dağarcığı",
-          "type": "vocabulary"
+          "title": "At the Airport: Key Phrases and Vocabulary",
+          "type": "vocabulary",
+          "title_tr": "Havaalanında: Anahtar İfadeler ve Kelime Dağarcığı"
         },
         {
-          "title": "Bir Restoranda Yol Tarifi: Yemek Siparişi",
-          "type": "vocabulary"
+          "title": "Directions in a Restaurant: Ordering Food",
+          "type": "vocabulary",
+          "title_tr": "Bir Restoranda Yol Tarifi: Yemek Siparişi"
         },
         {
-          "title": "Alışveriş Temelleri: Yaygın İfadeler",
-          "type": "vocabulary"
+          "title": "Shopping Basics: Common Phrases",
+          "type": "vocabulary",
+          "title_tr": "Alışveriş Temelleri: Yaygın İfadeler"
         }
-      ]
+      ],
+      "title_tr": "Temel Hayatta Kalma Kelimeleri"
     },
     {
       "number": 6,
-      "title": "Kendini ve Başkalarını Tanımlama",
+      "title": "Describing Yourself And Others",
       "topics": [
         {
-          "title": "Yaş ve Milliyet Hakkında Konuşmak",
-          "type": "grammar"
+          "title": "Talking About Age and Nationality",
+          "type": "grammar",
+          "title_tr": "Yaş ve Milliyet Hakkında Konuşmak"
         },
         {
-          "title": "Fiziksel Görünümü Tanımlama: Sıfatlar",
-          "type": "vocabulary"
+          "title": "Describing Physical Appearance: Adjectives",
+          "type": "vocabulary",
+          "title_tr": "Fiziksel Görünümü Tanımlama: Sıfatlar"
         },
         {
-          "title": "Beğenileri ve Beğenmemeleri İfade Etme: 'gustar' Kullanımı",
-          "type": "grammar"
+          "title": "Expressing Likes and Dislikes: Using 'gustar'",
+          "type": "grammar",
+          "title_tr": "Beğenileri ve Beğenmemeleri İfade Etme: 'gustar' Kullanımı"
         }
-      ]
+      ],
+      "title_tr": "Kendini ve Başkalarını Tanımlama"
     },
     {
       "number": 7,
-      "title": "Temel Cümleler Oluşturma",
+      "title": "Forming Basic Sentences",
       "topics": [
         {
-          "title": "Basit Cümleler Kurma: Özne-Fiil Uyumu",
-          "type": "grammar"
+          "title": "Forming Simple Sentences: Subject-Verb Agreement",
+          "type": "grammar",
+          "title_tr": "Basit Cümleler Kurma: Özne-Fiil Uyumu"
         },
         {
-          "title": "Geniş Zaman'da Yaygın Fiillerin Kullanımı",
-          "type": "grammar"
+          "title": "Using Common Verbs in the Present Tense",
+          "type": "grammar",
+          "title_tr": "Geniş Zaman'da Yaygın Fiillerin Kullanımı"
         },
         {
-          "title": "Soru Sorma: Wh- Soruları",
-          "type": "grammar"
+          "title": "Asking Questions: Wh- Questions",
+          "type": "grammar",
+          "title_tr": "Soru Sorma: Wh- Soruları"
         }
-      ]
+      ],
+      "title_tr": "Temel Cümleler Oluşturma"
     },
     {
       "number": 8,
-      "title": "Günlük Aktiviteler ve Rutinler",
+      "title": "Daily Activities And Routines",
       "topics": [
         {
-          "title": "Gününüzü Anlatmak: Günlük Rutinler",
-          "type": "vocabulary"
+          "title": "Describing Your Day: Daily Routines",
+          "type": "vocabulary",
+          "title_tr": "Gününüzü Anlatmak: Günlük Rutinler"
         },
         {
-          "title": "Aktivitelerle Zaman İfadelerini Kullanma",
-          "type": "grammar"
+          "title": "Using Time Expressions with Activities",
+          "type": "grammar",
+          "title_tr": "Aktivitelerle Zaman İfadelerini Kullanma"
         },
         {
-          "title": "Kültürel Bağlam: İspanyol Günlük Hayatı ve Rutinleri",
-          "type": "cultural"
+          "title": "Cultural Context: Spanish Daily Life and Routines",
+          "type": "cultural",
+          "title_tr": "Kültürel Bağlam: İspanyol Günlük Hayatı ve Rutinleri"
         }
-      ]
+      ],
+      "title_tr": "Günlük Aktiviteler ve Rutinler"
     },
     {
       "number": 9,
-      "title": "Aile ve İlişkiler",
+      "title": "Family And Relationships",
       "topics": [
         {
-          "title": "Aile Üyelerini Tanıtma: Kelime Dağarcığı",
-          "type": "vocabulary"
+          "title": "Introducing Family Members: Vocabulary",
+          "type": "vocabulary",
+          "title_tr": "Aile Üyelerini Tanıtma: Kelime Dağarcığı"
         },
         {
-          "title": "İlişkileri Tanımlama: Basit İfadeler",
-          "type": "grammar"
+          "title": "Describing Relationships: Simple Expressions",
+          "type": "grammar",
+          "title_tr": "İlişkileri Tanımlama: Basit İfadeler"
         },
         {
-          "title": "Kültürel İçgörüler: İspanyolca Konuşulan Kültürlerde Ailenin Önemi",
-          "type": "cultural"
+          "title": "Cultural Insights: The Importance of Family in Spanish-Speaking Cultures",
+          "type": "cultural",
+          "title_tr": "Kültürel İçgörüler: İspanyolca Konuşulan Kültürlerde Ailenin Önemi"
         }
-      ]
+      ],
+      "title_tr": "Aile ve İlişkiler"
     },
     {
       "number": 10,
-      "title": "Hobiler ve İlgi Alanları",
+      "title": "Hobbies And Interests",
       "topics": [
         {
-          "title": "Hobiler Hakkında Tartışmak: Yaygın Aktiviteler",
-          "type": "vocabulary"
+          "title": "Discussing Hobbies: Common Activities",
+          "type": "vocabulary",
+          "title_tr": "Hobiler Hakkında Tartışmak: Yaygın Aktiviteler"
         },
         {
-          "title": "Yapmayı Sevdiğiniz Şeyleri İfade Etme: Cümle Yapıları",
-          "type": "grammar"
+          "title": "Expressing Things You Enjoy Doing: Sentence Structures",
+          "type": "grammar",
+          "title_tr": "Yapmayı Sevdiğiniz Şeyleri İfade Etme: Cümle Yapıları"
         },
         {
-          "title": "İspanya ve Latin Amerika'daki Boş Zaman Aktiviteleri Üzerine Kültürel Bakış Açıları",
-          "type": "cultural"
+          "title": "Cultural Perspectives on Leisure Activities in Spain and Latin America",
+          "type": "cultural",
+          "title_tr": "İspanya ve Latin Amerika'daki Boş Zaman Aktiviteleri Üzerine Kültürel Bakış Açıları"
         }
-      ]
+      ],
+      "title_tr": "Hobiler ve İlgi Alanları"
     }
   ]
 }

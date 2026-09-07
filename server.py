@@ -1699,19 +1699,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
 
-            from services.language_data import resolve_curriculum_tr
+            from services.curriculum_translator import is_clean_turkish, translate_titles_batch
+
+            # Identify any titles needing translation healing
+            needed_translations = []
+            for ch in chapters:
+                ch_tr = ch["title_tr"]
+                if not ch_tr or not is_clean_turkish(ch_tr):
+                    if ch["title"]: needed_translations.append(ch["title"])
+                topics_raw = db.execute("SELECT id, title, title_tr FROM topics WHERE chapter_id = ?", (ch["id"],)).fetchall()
+                for t in topics_raw:
+                    t_tr = t["title_tr"]
+                    if not t_tr or not is_clean_turkish(t_tr):
+                        if t["title"]: needed_translations.append(t["title"])
+
+            healing_map = translate_titles_batch(needed_translations, target_lang="tr") if needed_translations else {}
 
             result = []
             db_changed = False
             for ch in chapters:
                 ch_dict = dict(ch)
-                ch_tr = resolve_curriculum_tr(ch_dict.get("title", ""), ch_dict.get("title_tr"))
-                if ch_tr and ch_tr != ch_dict.get("title_tr"):
-                    ch_dict["title_tr"] = ch_tr
-                    try:
-                        db.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (ch_tr, ch["id"]))
-                        db_changed = True
-                    except: pass
+                curr_tr = ch_dict.get("title_tr")
+                if not curr_tr or not is_clean_turkish(curr_tr):
+                    ch_tr = healing_map.get(ch_dict.get("title", ""), curr_tr or ch_dict.get("title", ""))
+                    if ch_tr and ch_tr != curr_tr:
+                        ch_dict["title_tr"] = ch_tr
+                        try:
+                            db.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (ch_tr, ch["id"]))
+                            db_changed = True
+                        except: pass
 
                 topics = db.execute(
                     "SELECT * FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)
@@ -1720,13 +1736,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 processed_topics = []
                 for t in topics:
                     t_dict = dict(t)
-                    t_tr = resolve_curriculum_tr(t_dict.get("title", ""), t_dict.get("title_tr"))
-                    if t_tr and t_tr != t_dict.get("title_tr"):
-                        t_dict["title_tr"] = t_tr
-                        try:
-                            db.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (t_tr, t["id"]))
-                            db_changed = True
-                        except: pass
+                    t_curr_tr = t_dict.get("title_tr")
+                    if not t_curr_tr or not is_clean_turkish(t_curr_tr):
+                        t_tr = healing_map.get(t_dict.get("title", ""), t_curr_tr or t_dict.get("title", ""))
+                        if t_tr and t_tr != t_curr_tr:
+                            t_dict["title_tr"] = t_tr
+                            try:
+                                db.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (t_tr, t["id"]))
+                                db_changed = True
+                            except: pass
 
                     count_row = db.execute("SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)).fetchone()
                     t_dict["question_count"] = count_row["cnt"] if count_row else 0
@@ -2943,6 +2961,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         cid = data.get("course_id")
         # Ensure we treat falsy/null values as None
         course_id = cid if cid and cid != "null" and cid != "undefined" else None
+
+        # Ensure curriculum is fully bilingual (both title and title_tr)
+        if chapters:
+            from services.curriculum_translator import ensure_bilingual_curriculum
+            chapters = ensure_bilingual_curriculum(chapters)
         
         # Save blueprint to cache NOW (user committed to building)
         if language and level and chapters:
@@ -2952,8 +2975,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             for ch in chapters:
                 cache_topics = []
                 for t in ch.get("topics", []):
-                    cache_topics.append({"title": t.get("title", ""), "type": t.get("type", "vocabulary")})
-                cache_chapters.append({"number": len(cache_chapters) + 1, "title": ch.get("title", ""), "topics": cache_topics})
+                    cache_topics.append({
+                        "title": t.get("title", ""),
+                        "title_tr": t.get("title_tr", ""),
+                        "type": t.get("type", "vocabulary")
+                    })
+                cache_chapters.append({
+                    "number": len(cache_chapters) + 1,
+                    "title": ch.get("title", ""),
+                    "title_tr": ch.get("title_tr", ""),
+                    "topics": cache_topics
+                })
             save_blueprint_cache(language, level, cache_chapters)
         
         from services.legacy.pdf_pipeline import process_manual_to_classroom
