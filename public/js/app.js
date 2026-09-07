@@ -2023,7 +2023,58 @@ const CURRICULUM_PAIRS = [
   ["Basic Shopping Skills", "Temel Alışveriş Becerileri"],
   ["Shopping Vocabulary: Common Items and Shopping Expressions", "Alışveriş Kelimeleri: Yaygın Eşyalar ve İfadeler"],
   ["Asking About Prices: Useful Questions and Responses", "Fiyatları Sorma: Yararlı Sorular ve Yanıtlar"],
-  ["Understanding Payment Methods: Cash, Card, and Mobile Payments", "Ödeme Yöntemlerini Anlama: Nakit, Kart ve Mobil Ödemeler"],
+  ["Everyday Survival Vocabulary", "Günlük Hayatta Kalma Kelimeleri"],
+  ["EVERYDAY SURVIVAL VOCABULARY", "Günlük Hayatta Kalma Kelimeleri"],
+  ["Navigating Public Places: Directions and Transportation", "Kamusal Alanlarda Yol Bulma: Yol Tarifi ve Ulaşım"],
+  ["Navigating Public Places", "Kamusal Alanlarda Yol Bulma"],
+  ["Directions and Transportation", "Yol Tarifi ve Ulaşım"],
+  ["Essential Phrases for Shopping and Eating Out", "Alışveriş ve Dışarıda Yemek İçin Temel İfadeler"],
+  ["Shopping and Eating Out", "Alışveriş ve Dışarıda Yemek"],
+  ["Eating Out", "Dışarıda Yemek"],
+  ["Emergency Situations: Key Vocabulary and Phrases", "Acil Durumlar: Temel Kelimeler ve İfadeler"],
+  ["Emergency Situations", "Acil Durumlar"],
+  ["Key Vocabulary and Phrases", "Temel Kelimeler ve İfadeler"],
+  ["Basic Present Tense Conjugation", "Temel Geniş Zaman Çekimi"],
+  ["BASIC PRESENT TENSE CONJUGATION", "Temel Geniş Zaman Çekimi"],
+  ["Present Tense Conjugation", "Geniş Zaman Çekimi"],
+  ["Basic Present Tense", "Temel Geniş Zaman"],
+  ["Introduction to Regular Verbs: -ar, -er, -ir", "Düzenli Fiillere Giriş: -ar, -er, -ir"],
+  ["Introduction to Regular Verbs", "Düzenli Fiillere Giriş"],
+  ["Regular Verbs", "Düzenli Fiiller"],
+  ["Using Common Irregular Verbs in Present Tense", "Geniş Zamanda Yaygın Düzensiz Fiillerin Kullanımı"],
+  ["Using Common Irregular Verbs", "Yaygın Düzensiz Fiillerin Kullanımı"],
+  ["Common Irregular Verbs in Present Tense", "Geniş Zamanda Yaygın Düzensiz Fiiller"],
+  ["Common Irregular Verbs", "Yaygın Düzensiz Fiiller"],
+  ["Stem-Changing Verbs in the Present Tense", "Geniş Zamanda Kök Değiştiren Fiiller"],
+  ["Stem-Changing Verbs", "Kök Değiştiren Fiiller"],
+  ["Forming Questions and Negations", "Soru ve Olumsuz Cümle Kurma"],
+  ["Daily Activities and Routines", "Günlük Aktiviteler ve Rutinler"],
+  ["Daily Routines: Reflexive Verbs and Time Expressions", "Günlük Rutinler: Dönüşlü Fiiller ve Zaman İfadeleri"],
+  ["Daily Routines", "Günlük Rutinler"],
+  ["Talking About Your Daily Routine", "Günlük Rutininiz Hakkında Konuşma"],
+  ["Parts of the Day and Time Expressions", "Günün Bölümleri ve Zaman İfadeleri"],
+  ["Parts of the Day", "Günün Bölümleri"],
+  ["Time Expressions", "Zaman İfadeleri"],
+  ["Food, Dining, and Ordering Meals", "Yiyecek, Yemek ve Sipariş Verme"],
+  ["At the Restaurant: Ordering Food and Drinks", "Restoranda: Yiyecek ve İçecek Siparişi"],
+  ["Ordering Food and Drinks", "Yiyecek ve İçecek Siparişi Verme"],
+  ["Expressing Preferences: Me Gusta and Other Verbs", "Tercihleri İfade Etme: Me Gusta ve Diğer Fiiller"],
+  ["Around the Town: Places and Directions", "Şehirde: Yerler ve Yol Tarifi"],
+  ["Around the Town", "Şehirde"],
+  ["Asking for and Giving Directions", "Yol Tarifi Sorma ve Verme"],
+  ["Public Transportation and Getting Around", "Toplu Taşıma ve Şehir İçi Ulaşım"],
+  ["Getting Around", "Şehir İçi Ulaşım"],
+  ["Weather, Seasons, and Free Time Activities", "Hava Durumu, Mevsimler ve Boş Zaman Aktiviteleri"],
+  ["Describing the Weather and Temperature", "Hava Durumu ve Sıcaklığı Tanımlama"],
+  ["Free Time Activities and Hobbies", "Boş Zaman Aktiviteleri ve Hobiler"],
+  ["Free Time Activities", "Boş Zaman Aktiviteleri"],
+  ["Making Plans with 'Ir a' + Infinitive", "'Ir a' + Mastar ile Plan Yapma"],
+  ["Shopping, Clothes, and Colors", "Alışveriş, Kıyafetler ve Renkler"],
+  ["At the Clothing Store: Colors, Sizes, and Prices", "Giyim Mağazasında: Renkler, Bedenler ve Fiyatlar"],
+  ["Health, Body Parts, and Visiting the Doctor", "Sağlık, Vücut Bölümleri ve Doktora Gitme"],
+  ["Body Parts and Expressing Pain with 'Doler'", "Vücut Bölümleri ve 'Doler' ile Ağrı İfade Etme"],
+  ["Past Tense: Introduction to the Preterite", "Geçmiş Zaman: Preterite Zamanına Giriş"],
+  ["Travel, Holidays, and Transportation", "Seyahat, Tatiller ve Ulaşım"]
 ];
 
 const CURRICULUM_LANG_MAP_TR = {
@@ -2154,6 +2205,52 @@ function translateCurriculumTitle(title, lang = currentLang) {
       const s2 = translateCurriculumTitle(vsMatch[2].trim(), 'tr');
       return `${s1} ve ${s2} Karşılaştırması`;
     }
+
+    // Pattern: "X for Y" e.g. "Essential Phrases for Shopping and Eating Out"
+    const mFor = clean.match(/^(.*?)\s+for\s+(.*)$/i);
+    if (mFor) {
+      const s1 = translateCurriculumTitle(mFor[1].trim(), 'tr');
+      const s2 = translateCurriculumTitle(mFor[2].trim(), 'tr');
+      if (s1 !== mFor[1].trim() || s2 !== mFor[2].trim()) {
+        return `${s2} İçin ${s1}`;
+      }
+    }
+
+    // Pattern: "Introduction to X"
+    const mIntro = clean.match(/^introduction\s+to\s+(.*)$/i);
+    if (mIntro) {
+      const sub = translateCurriculumTitle(mIntro[1].trim(), 'tr');
+      return sub.endsWith("Giriş") ? sub : `${sub}'e Giriş`;
+    }
+
+    // Pattern: "Using X in Y"
+    const mUsingIn = clean.match(/^using\s+(.*?)\s+in\s+(.*)$/i);
+    if (mUsingIn) {
+      const s1 = translateCurriculumTitle(mUsingIn[1].trim(), 'tr');
+      const s2 = translateCurriculumTitle(mUsingIn[2].trim(), 'tr');
+      return `${s2}'de ${s1} Kullanımı`;
+    }
+
+    // Pattern: "Using X"
+    const mUsing = clean.match(/^using\s+(.*)$/i);
+    if (mUsing) {
+      const sub = translateCurriculumTitle(mUsing[1].trim(), 'tr');
+      return `${sub} Kullanımı`;
+    }
+
+    // Pattern: "Talking About X"
+    const mTalking = clean.match(/^talking\s+about\s+(.*)$/i);
+    if (mTalking) {
+      const sub = translateCurriculumTitle(mTalking[1].trim(), 'tr');
+      return `${sub} Hakkında Konuşma`;
+    }
+
+    // Pattern: "Navigating X"
+    const mNav = clean.match(/^navigating\s+(.*)$/i);
+    if (mNav) {
+      const sub = translateCurriculumTitle(mNav[1].trim(), 'tr');
+      return `${sub}'de Yol Bulma`;
+    }
   } else {
     if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';
     if (/^yapısal\s+odak$/i.test(trimmed) || /^yapısal\s+odak$/i.test(clean)) return 'Structural Focus';
@@ -2162,6 +2259,20 @@ function translateCurriculumTitle(title, lang = currentLang) {
   }
 
   return clean || trimmed;
+}
+
+function getLocalizedCurriculumTitle(item, lang = currentLang) {
+  if (!item) return '';
+  if (typeof item === 'string') {
+    return translateCurriculumTitle(item, lang);
+  }
+  if (lang === 'tr') {
+    const raw = item.title_tr || item.title || '';
+    return translateCurriculumTitle(raw, 'tr');
+  } else {
+    const raw = item.title || item.title_tr || '';
+    return translateCurriculumTitle(raw, 'en');
+  }
 }
 
 const VOCAB_PAIRS = [
@@ -3418,8 +3529,7 @@ function renderAiSyllabusEditor(syllabus) {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
   container.innerHTML = syllabus.map((chapter, i) => {
-    const rawChTitle = (currentLang === 'tr' && chapter.title_tr) ? chapter.title_tr : (chapter.title || '');
-    const chTitle = (currentLang === 'tr' && chapter.title_tr) ? chapter.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
+    const chTitle = getLocalizedCurriculumTitle(chapter, currentLang);
     return `
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -3429,8 +3539,7 @@ function renderAiSyllabusEditor(syllabus) {
       <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
         ${(chapter.topics || []).map(topic => {
-          const rawTitle = typeof topic === 'string' ? topic : (topic.title_tr && currentLang === 'tr' ? topic.title_tr : (topic.title || ''));
-          const title = (currentLang === 'tr' && topic.title_tr) ? topic.title_tr : translateCurriculumTitle(rawTitle, currentLang);
+          const title = getLocalizedCurriculumTitle(topic, currentLang);
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
             <div class="topic-item" data-type="${type}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -4486,9 +4595,8 @@ function renderCurriculum() {
 
     const treeEl = document.getElementById('curriculum-tree');
     treeEl.innerHTML = curriculum.map((ch, i) => {
-      const cleanTitle = (ch.title || "").replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
       const displayNum = i + 1;
-      const translatedChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle, currentLang);
+      const translatedChTitle = getLocalizedCurriculumTitle(ch, currentLang);
       return `
       <div class="chapter-block">
         <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
@@ -4500,8 +4608,7 @@ function renderCurriculum() {
           <span class="chapter-toggle">▸</span>
         </div>
         <div class="chapter-topics">${(ch.topics || []).map(t_obj => {
-          const cleanTopicTitle = (t_obj.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
-          const translatedTTitle = (currentLang === 'tr' && t_obj.title_tr) ? t_obj.title_tr : translateCurriculumTitle(cleanTopicTitle, currentLang);
+          const translatedTTitle = getLocalizedCurriculumTitle(t_obj, currentLang);
           return `
           <div class="topic-item">
             <div class="topic-info">
@@ -4751,19 +4858,14 @@ function populateSelects() {
   if (!curriculum || !Array.isArray(curriculum)) return;
   let topicOpts = '', chapterOpts = '';
   curriculum.forEach((ch, idx) => {
-    let title = ch.title || "";
-    // Remove redundant "Unit X:" or "Chapter X:" if it already exists in the title
-    const cleanTitle = title.replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
-    
     // Always use the index + 1 for the unit number to ensure they start at 1 and are sequential
     const displayNum = idx + 1;
-    const trTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle, currentLang);
+    const trTitle = getLocalizedCurriculumTitle(ch, currentLang);
     const displayTitle = `${t('Unit')} ${displayNum}: ${trTitle}`;
     
     chapterOpts += `<option value="${ch.id}">${displayTitle}</option>`;
     (ch.topics || []).forEach(tp => { 
-      const cleanT = (tp.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
-      const trTopic = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(cleanT, currentLang);
+      const trTopic = getLocalizedCurriculumTitle(tp, currentLang);
       const badgeText = translateBadge(tp.type);
       topicOpts += `<option value="${tp.id}">U${displayNum} — ${trTopic} (${badgeText})</option>`; 
     });
@@ -5855,11 +5957,9 @@ function renderStudentHome(data) {
   if (chapterEl) {
     if (curriculum && curriculum.length > 0) {
       const ch0 = curriculum[0];
-      const rawChTitle = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : (ch0.title || '');
-      const ch0Title = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
+      const ch0Title = getLocalizedCurriculumTitle(ch0, currentLang);
       chapterEl.innerHTML = `<h4 style="margin-bottom:12px"><span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(ch0Title)}</h4>${(ch0.topics || []).map(tp => {
-        const rawTpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : (tp.title || '');
-        const tpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(rawTpTitle, currentLang);
+        const tpTitle = getLocalizedCurriculumTitle(tp, currentLang);
         return `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${esc(tpTitle)}</span></div></div>`;
       }).join('')}`;
     } else {
@@ -5876,8 +5976,7 @@ function loadStudentPractice() {
     return;
   }
   practiceEl.innerHTML = curriculum.map((ch, idx) => (ch.topics || []).map(tp => {
-    const rawTpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : (tp.title || '');
-    const tpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(rawTpTitle, currentLang);
+    const tpTitle = getLocalizedCurriculumTitle(tp, currentLang);
     const unitNum = ch.number || (idx + 1);
     return `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
@@ -6535,15 +6634,13 @@ function renderStudyBook() {
 
   // Clear existing content and render
   toc.innerHTML = curriculum.map((ch, i) => {
-    const rawChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : (ch.title || '');
-    const chTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
+    const chTitle = getLocalizedCurriculumTitle(ch, currentLang);
     return `
     <div class="study-ch-group" style="margin-bottom:16px;">
       <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number || (i + 1)}: ${esc(chTitle)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
         ${(ch.topics || []).map(topicObj => {
-          const rawTopicTitle = (currentLang === 'tr' && topicObj.title_tr) ? topicObj.title_tr : (topicObj.title || '');
-          const tTitle = (currentLang === 'tr' && topicObj.title_tr) ? topicObj.title_tr : translateCurriculumTitle(rawTopicTitle, currentLang);
+          const tTitle = getLocalizedCurriculumTitle(topicObj, currentLang);
           return `
           <button class="btn btn-ghost study-topic-btn" data-topic-id="${topicObj.id}" onclick="showStudyTopic('${topicObj.id}')" title="${esc(tTitle)}" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
             ${esc(tTitle)}
@@ -6813,7 +6910,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
     pageContentHtml = `<div style="text-align:center; padding:40px; color:var(--danger);"><p>Failed to render this lesson page.</p></div>`;
   }
 
-  const headerTopicTitle = (currentLang === 'tr' && topic.title_tr) ? topic.title_tr : translateCurriculumTitle(topic.title, currentLang);
+  const headerTopicTitle = getLocalizedCurriculumTitle(topic, currentLang);
   container.innerHTML = `
     <div class="study-topic-wrapper">
       <div class="study-topic-header">

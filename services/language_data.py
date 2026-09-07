@@ -743,6 +743,45 @@ def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
         s2 = resolve_curriculum_tr(m_vs.group(2).strip(), None)
         return f"{s1} ve {s2} Karşılaştırması"
 
+    # Pattern: "X for Y" e.g. "Essential Phrases for Shopping and Eating Out"
+    m_for = re.match(r'^(.*?)\s+for\s+(.*)$', clean, re.IGNORECASE)
+    if m_for:
+        s1 = resolve_curriculum_tr(m_for.group(1).strip(), None)
+        s2 = resolve_curriculum_tr(m_for.group(2).strip(), None)
+        if s1 != m_for.group(1).strip() or s2 != m_for.group(2).strip():
+            return f"{s2} İçin {s1}"
+
+    # Pattern: "Introduction to X"
+    m_intro = re.match(r'^introduction\s+to\s+(.*)$', clean, re.IGNORECASE)
+    if m_intro:
+        sub = resolve_curriculum_tr(m_intro.group(1).strip(), None)
+        return sub if sub.endswith("Giriş") else f"{sub}'e Giriş"
+
+    # Pattern: "Using X in Y"
+    m_using_in = re.match(r'^using\s+(.*?)\s+in\s+(.*)$', clean, re.IGNORECASE)
+    if m_using_in:
+        s1 = resolve_curriculum_tr(m_using_in.group(1).strip(), None)
+        s2 = resolve_curriculum_tr(m_using_in.group(2).strip(), None)
+        return f"{s2}'de {s1} Kullanımı"
+
+    # Pattern: "Using X"
+    m_using = re.match(r'^using\s+(.*)$', clean, re.IGNORECASE)
+    if m_using:
+        sub = resolve_curriculum_tr(m_using.group(1).strip(), None)
+        return f"{sub} Kullanımı"
+
+    # Pattern: "Talking About X"
+    m_talking = re.match(r'^talking\s+about\s+(.*)$', clean, re.IGNORECASE)
+    if m_talking:
+        sub = resolve_curriculum_tr(m_talking.group(1).strip(), None)
+        return f"{sub} Hakkında Konuşma"
+
+    # Pattern: "Navigating X"
+    m_nav = re.match(r'^navigating\s+(.*)$', clean, re.IGNORECASE)
+    if m_nav:
+        sub = resolve_curriculum_tr(m_nav.group(1).strip(), None)
+        return f"{sub}'de Yol Bulma"
+
     return current_tr or clean or t_raw
 
 
