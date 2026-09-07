@@ -1761,17 +1761,17 @@ function translateDifficulty(diff, lang = currentLang) {
 const CURRICULUM_PAIRS = [
   ["Alphabet and Foundations", "Alfabe ve Temeller"],
   ["The Alphabet", "Alfabe"],
-  ["Vowels and Consonants", "Ünlüler ve Ünsüzler"],
+  ["Vowels and Consonants", "Sesli Harfler ve Sessiz Harfler"],
   ["Pronunciation and Phonetics", "Telaffuz ve Fonetik"],
-  ["Greetings and Introductions", "Selamlaşma ve Tanışma"],
+  ["Greetings and Introductions", "Selamlaşmalar ve Tanıtımlar"],
   ["How to Say Hello and Goodbye", "Merhaba ve Hoşça Kal Deme"],
   ["Introducing Yourself: Basic Phrases", "Kendini Tanıtma: Temel Kalıplar"],
-  ["Cultural Nuances in Greetings: A Spanish Perspective", "Selamlaşmada Kültürel İncelikler: İspanyol Perspektifi"],
-  ["Numbers and Basic Math", "Sayılar ve Temel Matematik"],
+  ["Cultural Nuances in Greetings: A Spanish Perspective", "Selamlaşmalardaki Kültürel İncelikler: İspanyol Perspektifi"],
+  ["Numbers and Basic Math", "Sayilar ve Temel Matematik"],
   ["Counting from 1 to 100: Basic Numbers", "1'den 100'e Sayma: Temel Sayılar"],
   ["Using Numbers in Everyday Contexts", "Günlük Yaşamda Sayıları Kullanma"],
   ["Simple Math Operations in Spanish", "İspanyolca Basit Matematik İşlemleri"],
-  ["Days, Months, and Time", "Günler, Aylar ve Saat"],
+  ["Days, Months, and Time", "Günler, Aylar ve Zaman"],
   ["Days of the Week: A Weekly Routine", "Haftanın Günleri: Haftalık Rutin"],
   ["Months of the Year and Seasons", "Yılın Ayları ve Mevsimler"],
   ["Telling Time: Basic Expressions", "Saati Söyleme: Temel İfadeler"],
@@ -1783,7 +1783,7 @@ const CURRICULUM_PAIRS = [
   ["Talking About Age and Nationality", "Yaş ve Milliyet Hakkında Konuşma"],
   ["Describing Physical Appearance: Adjectives", "Fiziksel Görünüşü Tanımlama: Sıfatlar"],
   ["Expressing Likes and Dislikes: Using 'gustar'", "Beğenileri ve Sevmediklerini Belirtme: 'gustar' Kullanımı"],
-  ["Forming Basic Sentences", "Temel Cümleler Kurma"],
+  ["Forming Basic Sentences", "Temel Cümleler Oluşturma"],
   ["Constructing Simple Sentences: Subject-Verb Agreement", "Basit Cümleler Oluşturma: Özne-Yüklem Uyumu"],
   ["Using Common Verbs in Present Tense", "Geniş Zamanda Yaygın Fiilleri Kullanma"],
   ["Asking Questions: Wh- Questions", "Soru Sorma: Soru Kalıpları"],
@@ -1869,6 +1869,30 @@ const CURRICULUM_PAIRS = [
   ["Talking About Food Preferences and Dietary Restrictions", "Yiyecek Tercihleri ve Diyet Kısıtlamaları Hakkında Konuşmak"],
   ["Ordering at a Restaurant: Key Phrases", "Bir Restoranda Sipariş Verme: Anahtar İfadeler"],
   ["Cultural Insights into Spanish Cuisine", "İspanyol Mutfağına Kültürel Bakışlar"],
+  ["The Alphabet and Foundations", "Alfabe ve Temeller"],
+  ["Formal and Informal Greetings", "Resmi ve Gayriresmi Selamlaşmalar"],
+  ["Introducing Yourself and Others", "Kendini ve Başkalarını Tanıtma"],
+  ["Asking and Answering Basic Questions", "Temel Sorular Sorma ve Cevaplama"],
+  ["Numbers and Basic Quantities", "Sayılara ve Temel Miktarlara"],
+  ["Numbers and Quantities", "Sayılar ve Miktarlar"],
+  ["Counting from 0 to 100", "0'dan 100'e Sayma"],
+  ["Counting from 1 to 100", "1'den 100'e Sayma"],
+  ["Using Numbers in Daily Life: Age, Phone Numbers, and Prices", "Günlük Yaşamda Sayıları Kullanma: Yaş, Telefon Numaraları ve Fiyatlar"],
+  ["Basic Math Operations: Addition and Subtraction", "Basit Matematik İşlemleri: Toplama ve Çıkarma"],
+  ["Days, Months, and Basic Time Management", "Günler, Aylar ve Temel Zaman Yönetimi"],
+  ["The Days of the Week: Planning Your Schedule", "Haftanın Günleri: Programınızı Planlama"],
+  ["The Days of the Week: Planning and Routines", "Haftanın Günleri: Planlama ve Rutinler"],
+  ["The Days of the Week: Planning Activities", "Haftanın Günleri: Aktiviteleri Planlama"],
+  ["The Days of the Week", "Haftanın Günleri"],
+  ["Months of the Year and the Four Seasons", "Yılın Ayları ve Dört Mevsim"],
+  ["Telling Time and Daily Schedules", "Saati Söyleme ve Günlük Planlar"],
+  ["Survival Vocabulary", "Hayatta Kalma Kelimeleri"],
+  ["Ordering Food and Drinks", "Yiyecek ve İçecek Siparişi Verme"],
+  ["Describing People: Personality and Physical Appearance", "İnsanları Tanımlama: Kişilik ve Fiziksel Görünüş"],
+  ["Describing Physical Appearance", "Fiziksel Görünüşü Tanımlama"],
+  ["Subject Pronouns and Basic Sentence Structure", "Özne Zamirleri ve Temel Cümle Yapısı"],
+  ["Reflexive Verbs and Daily Routine", "Dönüşlü Fiiller ve Günlük Rutin"],
+  ["Introducing Family Members", "Aile Üyelerini Tanıtma"],
 ];
 
 function translateCurriculumTitle(title, lang = currentLang) {
@@ -1915,14 +1939,45 @@ function translateCurriculumTitle(title, lang = currentLang) {
     }
   }
 
-  // 4. Fallback common synonyms for page titles
+  // 4. Fallback common patterns and synonyms for curriculum/page titles
   if (lang === 'tr') {
+    if (/^(the\s+)?alphabet$/i.test(trimmed) || /^(the\s+)?alphabet$/i.test(clean)) return 'Alfabe';
     if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed) || /^(essential|basic|key)\s+vocabulary$/i.test(clean)) return 'Temel Kelimeler';
     if (/^structural\s+focus$/i.test(trimmed) || /^structural\s+focus$/i.test(clean)) return 'Yapısal Odak';
     if (/^practical\s+application$/i.test(trimmed) || /^practical\s+application$/i.test(clean)) return 'Pratik Uygulama';
     if (/^sound\s+practice$/i.test(trimmed) || /^sound\s+practice$/i.test(clean)) return 'Ses Pratiği';
     if (/^spanish\s+alphabet$/i.test(trimmed) || /^spanish\s+alphabet$/i.test(clean)) return 'İspanyol Alfabesi';
     if (/^quick\s+check$/i.test(trimmed) || /^quick\s+check$/i.test(clean)) return 'Hızlı Kontrol';
+
+    // Pattern: Counting from X to Y
+    const countMatch = clean.match(/^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$/i);
+    if (countMatch) {
+      let res = `${countMatch[1]}'den ${countMatch[2]}'ye Sayma`;
+      const extra = countMatch[3].replace(/^[:\s\-]+/, '').trim();
+      if (extra) res += `: ${translateCurriculumTitle(extra, 'tr')}`;
+      return res;
+    }
+
+    // Pattern: The Days of the Week: ...
+    const daysMatch = clean.match(/^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$/i);
+    if (daysMatch) {
+      const extra = daysMatch[2].trim();
+      if (!extra) return 'Haftanın Günleri';
+      if (/plan/i.test(extra)) return 'Haftanın Günleri: Planlama';
+      return `Haftanın Günleri: ${translateCurriculumTitle(extra, 'tr')}`;
+    }
+
+    // Pattern: Compound title separated by colon
+    if (clean.includes(':')) {
+      const parts = clean.split(':');
+      if (parts.length === 2) {
+        const p1 = translateCurriculumTitle(parts[0].trim(), 'tr');
+        const p2 = translateCurriculumTitle(parts[1].trim(), 'tr');
+        if (p1 !== parts[0].trim() || p2 !== parts[1].trim()) {
+          return `${p1}: ${p2}`;
+        }
+      }
+    }
   } else {
     if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';
     if (/^yapısal\s+odak$/i.test(trimmed) || /^yapısal\s+odak$/i.test(clean)) return 'Structural Focus';
