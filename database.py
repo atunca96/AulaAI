@@ -395,6 +395,18 @@ def init_db():
         c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
                   ("student-demo-id", "Alex Rivera", "2023001@student.aulaai", hashed_pwd_student, "student"))
         
+        # Student 176725004 (Alper Tunca)
+        hashed_pwd_1767 = hashlib.sha256(("ALper2002@" + "AulaAI_Salt").encode('utf-8')).hexdigest()
+        student_1767_id = "4a7a9515-01e4-46b6-a366-1355b57c9bad"
+        c.execute("""
+            INSERT INTO users (id, name, email, password, role, status, created_at)
+            VALUES (?, 'Alper Tunca', '176725004@student.aulaai', ?, 'student', 'approved', '2024-01-01 00:00:00')
+            ON CONFLICT(id) DO UPDATE SET password = excluded.password, status = 'approved'
+        """, (student_1767_id, hashed_pwd_1767))
+        c.execute("""
+            UPDATE users SET password = ?, status = 'approved' WHERE email = '176725004@student.aulaai'
+        """, (hashed_pwd_1767,))
+        
         # AUTOMATED DUPLICATION: Ensure Ela has her Spanish Marmara course
         c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
         

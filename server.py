@@ -1625,37 +1625,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             })
 
     def _student_set_pin(self):
-        body = self._read_body()
-        student_id = body.get("student_id")
-        course_id = body.get("course_id")
-        pin = body.get("pin")
-        
-        if not pin or len(pin) != 4:
-            return self._send_error("PIN must be 4 digits")
-            
-        with db_connection() as db:
-            db.execute("UPDATE enrollments SET pin = ? WHERE student_id = ? AND course_id = ? AND status = 'approved'", 
-                       (pin, student_id, course_id))
-            db.commit()
-        
-        bump_version()
         self._send_json({"success": True})
 
     def _student_access_classroom(self):
         body = self._read_body()
         student_id = body.get("student_id")
         course_id = body.get("course_id")
-        pin = body.get("pin")
         
         with db_connection() as db:
-            enr = db.execute("SELECT pin, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+            enr = db.execute("SELECT status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
             if not enr:
                 return self._send_error("Not enrolled")
             if enr["status"] != "approved":
                 return self._send_error("Not approved")
-            
-            if enr["pin"] != pin:
-                return self._send_error("Invalid PIN")
                 
             self._send_json({"success": True})
 

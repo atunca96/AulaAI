@@ -823,6 +823,13 @@ const i18n = {
     'student.join_new': 'Join New Classroom',
     'student.join_title': 'Join Classroom',
     'student.enter_code': 'Enter the 5-digit code provided by your teacher',
+    'student_login_hint': 'Sign in with your student number and password',
+    'Invalid student number or password': 'Invalid student number or password',
+    'Invalid credentials': 'Invalid email or password',
+    'Student number is required': 'Student number is required',
+    'Password is required': 'Password is required',
+    'Please enter student number and password.': 'Please enter student number and password.',
+    'Invalid classroom code. Please verify the code with your teacher.': 'Invalid classroom code. Please verify the code with your teacher.',
     'no_classrooms_found': 'No classrooms found',
     'student.join_btn': 'Join Classroom',
     'student.pin_required': 'Security PIN Required',
@@ -1222,6 +1229,15 @@ const i18n = {
     loginTitle: 'Öğrenci Girişi', signInTab: 'Giriş Yap', registerTab: 'Kayıt Ol', signInHint: 'Devam etmek için giriş yapın', emailLabel: 'E-posta', passwordLabel: 'Şifre', signInBtn: 'Giriş Yap', joinClass: 'Sınıfa Katıl', registerHint: 'Öğrenci hesabı oluştur', nameLabel: 'Ad Soyad', registerBtn: 'Hesap Oluştur', lecturerAccess: 'Öğretmen Girişi', signOut: 'Çıkış Yap', rememberMe: 'Beni Hatırla',
     'Lecturer Login': 'Öğretmen Girişi', 'Sign in with your email and password': 'E-posta ve şifrenizle giriş yapın',
     'Student Login': 'Öğrenci Girişi', 'Log in with your student number': 'Öğrenci numaranızla giriş yapın',
+    'student_login_hint': 'Öğrenci numaranız ve şifrenizle giriş yapın',
+    'Invalid student number or password': 'Geçersiz öğrenci numarası veya şifre',
+    'Invalid credentials': 'Geçersiz e-posta veya şifre',
+    'Student number is required': 'Öğrenci numarası gereklidir',
+    'Password is required': 'Şifre gereklidir',
+    'Please enter student number and password.': 'Lütfen öğrenci numarası ve şifrenizi girin.',
+    'missing_info': 'Lütfen öğrenci numarası ve şifrenizi girin.',
+    'Invalid classroom code. Please verify the code with your teacher.': 'Geçersiz sınıf kodu. Lütfen öğretmeninizle teyit edin.',
+    'Invalid classroom code': 'Geçersiz sınıf kodu',
     'Student Number': 'Öğrenci Numarası', '(required)': '(ilk girişte gerekli)',
     'Your Full Name': 'Adınız Soyadınız', 'e.g. 2021123456': 'Örn: 2021123456',
     'login.class_code': 'Sınıf Kodu (5 hane)', 'login.class_code_placeholder': 'Örn: 12345',
@@ -3675,7 +3691,7 @@ async function handleStudentLogin(e) {
     });
 
     if (res.error) {
-      errBox.textContent = res.error;
+      errBox.textContent = t(res.error) || res.error;
       errBox.classList.remove('hidden');
       if (btn) btn.disabled = false;
     } else {
@@ -3683,7 +3699,7 @@ async function handleStudentLogin(e) {
       if (btn) btn.disabled = false;
     }
   } catch (err) {
-    errBox.textContent = t('error');
+    errBox.textContent = t('error') || 'Bir hata oluştu.';
     errBox.classList.remove('hidden');
     if (btn) btn.disabled = false;
   }
@@ -3697,7 +3713,14 @@ async function handleLogin(e) {
       password: document.getElementById('login-password').value
     }
   });
-  if (data.error) { document.getElementById('login-error').textContent = data.error; document.getElementById('login-error').classList.remove('hidden'); return false; }
+  if (data.error) {
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+      errEl.textContent = t(data.error) || data.error;
+      errEl.classList.remove('hidden');
+    }
+    return false;
+  }
   await completeLogin(data.user, true);
   return false;
 }
@@ -5335,7 +5358,6 @@ async function loadStudentRoster() {
       <div class="student-meta-row">
         <span><span data-i18n="Mastery:">${t('Mastery:')}</span> ${pct}%</span>
         <span>${s.total_responses} <span data-i18n="responses">${t('responses')}</span></span>
-        <span style="color:var(--accent-light); font-weight:700;">PIN: ${s.pin || '---'}</span>
       </div>
     </div>`;
   }).join('');
@@ -6887,93 +6909,31 @@ async function enterStudentClassroom(courseId) {
     return;
   }
 
-  if (!enr.pin) {
-    showPinModal('setup', courseId);
-  } else {
-    showPinModal('verify', courseId);
-  }
+  stopLiveSync();
+  currentUser.role = 'student';
+  await selectClassroom(courseId, false);
 }
 
 function showPinModal(mode, courseId) {
-  const modal = document.getElementById('pin-entry-modal');
-  const title = document.getElementById('pin-modal-title');
-  const desc = document.getElementById('pin-modal-desc');
-  const pinInput = document.getElementById('student-pin-input');
-  const submitBtn = document.getElementById('pin-submit-btn');
-  const errBox = document.getElementById('pin-error');
-
-  modal.classList.remove('hidden');
-  pinInput.value = '';
-  pinInput.focus();
-  errBox.classList.add('hidden');
-
-  // Enforce digits-only, max 4 characters
-  pinInput.oninput = () => {
-    pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-  };
-
-  // Support Enter key for PIN submission
-  pinInput.onkeydown = (e) => {
-    if (e.key === 'Enter') submitBtn.click();
-  };
-
-  if (mode === 'setup') {
-    title.textContent = t('student.pin_setup');
-    desc.textContent = t('student.pin_setup_desc');
-    submitBtn.textContent = t('submit');
-    submitBtn.onclick = () => handleSetPin(courseId, pinInput.value);
-  } else {
-    title.textContent = t('student.pin_required');
-    desc.textContent = t('student.pin_desc');
-    submitBtn.textContent = t('class.enter');
-    submitBtn.onclick = () => handleVerifyPin(courseId, pinInput.value);
-  }
+  // Deprecated: PIN system removed
+  selectClassroom(courseId, false);
 }
 
 function closePinModal() {
-  document.getElementById('pin-entry-modal').classList.add('hidden');
+  const modal = document.getElementById('pin-entry-modal');
+  if (modal) modal.classList.add('hidden');
 }
 
 async function handleSetPin(courseId, pin) {
-  if (!/^\d{4}$/.test(pin)) {
-    const errBox = document.getElementById('pin-error');
-    errBox.textContent = t('student.pin_must_be_4') || 'PIN must be exactly 4 digits';
-    errBox.classList.remove('hidden');
-    return;
-  }
-  const res = await api('/student/set-pin', {
-    method: 'POST',
-    body: { student_id: currentUser.id, course_id: courseId, pin: pin }
-  });
-  if (res.error) {
-    document.getElementById('pin-error').textContent = res.error;
-    document.getElementById('pin-error').classList.remove('hidden');
-  } else {
-    closePinModal();
-    await selectClassroom(courseId, false);
-  }
+  closePinModal();
+  await selectClassroom(courseId, false);
 }
 
 async function handleVerifyPin(courseId, pin) {
-  if (!/^\d{4}$/.test(pin)) {
-    const errBox = document.getElementById('pin-error');
-    errBox.textContent = t('student.pin_must_be_4') || 'PIN must be exactly 4 digits';
-    errBox.classList.remove('hidden');
-    return;
-  }
-  const res = await api('/student/access', {
-    method: 'POST',
-    body: { student_id: currentUser.id, course_id: courseId, pin: pin }
-  });
-  if (res.error) {
-    document.getElementById('pin-error').textContent = t('student.invalid_pin');
-    document.getElementById('pin-error').classList.remove('hidden');
-  } else {
-    closePinModal();
-    stopLiveSync();
-    currentUser.role = 'student';
-    await selectClassroom(courseId, false);
-  }
+  closePinModal();
+  stopLiveSync();
+  currentUser.role = 'student';
+  await selectClassroom(courseId, false);
 }
 
 function startWaitingRoomPoll(courseId) {
@@ -7115,7 +7075,6 @@ async function loadAdminStudentPanel(isRefresh = false) {
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
           <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
             <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
-            <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentPIN('${s.id}', ${escJS(s.name)})">${t('admin.reset_pin')}</button>
             <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
             <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
           </td>
