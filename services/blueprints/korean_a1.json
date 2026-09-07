@@ -1,0 +1,184 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Alphabet and Foundations",
+      "topics": [
+        {
+          "title": "The Alphabet",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Vowels and Consonants",
+          "type": "grammar"
+        },
+        {
+          "title": "Pronunciation and Phonetics",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Essential Greetings and Introductions",
+      "topics": [
+        {
+          "title": "Saying Hello: Common Greetings in Various Situations",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Introducing Yourself: Name, Age, and Nationality",
+          "type": "grammar"
+        },
+        {
+          "title": "Politeness Levels: Understanding Formal and Informal Language",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Numbers and Basic Counting",
+      "topics": [
+        {
+          "title": "Cardinal Numbers: Counting from One to Ten",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Using Numbers in Everyday Situations: Age and Time",
+          "type": "grammar"
+        },
+        {
+          "title": "Ordinal Numbers: Describing Order and Sequence",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Describing Your Daily Life",
+      "topics": [
+        {
+          "title": "Basic Present Tense: Talking About Routines",
+          "type": "grammar"
+        },
+        {
+          "title": "Daily Activities Vocabulary: Common Verbs and Expressions",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Constructing Simple Sentences: Subject-Object-Verb Structure",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Survival Vocabulary for Travelers",
+      "topics": [
+        {
+          "title": "Essential Phrases for Navigating Public Transport",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking for Directions: Key Questions and Responses",
+          "type": "grammar"
+        },
+        {
+          "title": "Dining Out: Ordering Food and Understanding Menus",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Family and Personal Information",
+      "topics": [
+        {
+          "title": "Family Vocabulary: Identifying Family Members",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Describing Relationships: Simple Adjectives and Phrases",
+          "type": "grammar"
+        },
+        {
+          "title": "Sharing Personal Information: Where You Live and Work",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Exploring Common Places",
+      "topics": [
+        {
+          "title": "Identifying Places in Your Community: Vocabulary and Usage",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Simple Conversations About Places: Asking and Answering Questions",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Insights: Important Landmarks in Korea",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Expressing Likes and Dislikes",
+      "topics": [
+        {
+          "title": "Common Hobbies and Interests Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Constructing Preference Statements: I Like, I Don't Like",
+          "type": "grammar"
+        },
+        {
+          "title": "Engaging in Small Talk: Discussing Interests with Others",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Weather and Seasons",
+      "topics": [
+        {
+          "title": "Describing the Weather: Common Terms and Expressions",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Talking About Seasons: Activities and Preferences",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Connection: Korean Holidays and Seasonal Events",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "title": "Basic Shopping Skills",
+      "topics": [
+        {
+          "title": "Shopping Vocabulary: Common Items and Shopping Expressions",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Asking About Prices: Useful Questions and Responses",
+          "type": "grammar"
+        },
+        {
+          "title": "Understanding Payment Methods: Cash, Card, and Mobile Payments",
+          "type": "grammar"
+        }
+      ]
+    }
+  ]
+}

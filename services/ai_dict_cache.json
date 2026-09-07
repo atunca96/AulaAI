@@ -133,5 +133,55 @@
     "explanation": "'d' is the fourth letter of the German alphabet and is pronounced similarly to the English 'd'.",
     "usage": "It is used in words like 'der' (the), 'drei' (three), and 'danke' (thank you).",
     "tip": "When pronouncing 'd' in German, ensure it is voiced and placed at the front of the mouth, similar to English."
+  },
+  "Spanish_‎hola": {
+    "explanation": "'Hola' means 'hello' in Spanish. It is a common greeting used in both formal and informal situations.",
+    "usage": "'Hola' can be used when meeting someone for the first time or when greeting a friend.",
+    "tip": "You can use 'hola' at any time of the day, making it a versatile greeting."
+  },
+  "Spanish_‎¿cómo te llamas?": {
+    "explanation": "The term '¿cómo te llamas?' translates to 'What is your name?' in English. It is a common way to ask someone for their name in Spanish.",
+    "usage": "You can use '¿cómo te llamas?' when you meet someone new and want to introduce yourself or learn their name.",
+    "tip": "When responding, you can say 'Me llamo...' followed by your name, which means 'My name is...'."
+  },
+  "Spanish_“‎¿cómo se llama?”": {
+    "explanation": "“¿cómo se llama?” means 'what is your name?' or 'what is he/she called?'. It is a way to ask someone for their name in Spanish.",
+    "usage": "You can use this phrase when meeting someone new and wanting to know their name. For example, if you meet a new friend, you might say, 'Hola, ¿cómo se llama?'",
+    "tip": "Remember that 'llama' comes from the verb 'llamar', which means 'to call'. So you are literally asking how someone is called."
+  },
+  "Spanish_“‎hola, ¿cómo estás?”": {
+    "explanation": "The phrase 'hola, ¿cómo estás?' translates to 'hello, how are you?' in English. It is a common greeting in Spanish-speaking countries.",
+    "usage": "You can use 'hola, ¿cómo estás?' when meeting someone or starting a conversation. It is a friendly and informal way to ask about someone's well-being.",
+    "tip": "Remember that 'estás' is the second person singular form of the verb 'estar', which means 'to be'. Use it when speaking to someone you know well or someone your age."
+  },
+  "Spanish_“‎hola, ¿cómo estás?”_tr": {
+    "explanation": "'hola, ¿cómo estás?' İspanyolca'da 'merhaba, nasılsın?' anlamına gelir. Bu, selamlaşma ve birinin durumunu sorma ifadesidir.",
+    "usage": "Bu ifadeyi tanıdıklarınızla selamlaşırken veya bir sohbet başlatırken kullanabilirsiniz.",
+    "tip": "Cevap verirken, 'Estoy bien, gracias.' (İyiyim, teşekkür ederim.) gibi ifadeler kullanabilirsiniz."
+  },
+  "Spanish_hola, ¿cómo estás?_tr": {
+    "explanation": "'hola, ¿cómo estás?' İspanyolca'da 'merhaba, nasılsın?' anlamına gelir. Bu, selamlaşma ve birinin durumunu sorma ifadesidir.",
+    "usage": "Bu ifadeyi tanıdıklarınızla selamlaşırken veya bir sohbet başlatırken kullanabilirsiniz.",
+    "tip": "Cevap verirken, 'Estoy bien, gracias.' (İyiyim, teşekkür ederim.) gibi ifadeler kullanabilirsiniz."
+  },
+  "Spanish_‎hola, ¿cómo estás?_tr": {
+    "explanation": "'hola, ¿cómo estás?' İspanyolca'da 'merhaba, nasılsın?' anlamına gelir. Bu, selamlaşma ve birinin durumunu sorma ifadesidir.",
+    "usage": "Bu ifadeyi tanıdıklarınızla selamlaşırken veya bir sohbet başlatırken kullanabilirsiniz.",
+    "tip": "Cevap verirken, 'Estoy bien, gracias.' (İyiyim, teşekkür ederim.) gibi ifadeler kullanabilirsiniz."
+  },
+  "Spanish_hola, ¿cómo estás?_en": {
+    "explanation": "'hola, ¿cómo estás?' translates to 'hello, how are you?' in English. It is a common greeting in Spanish-speaking cultures.",
+    "usage": "This phrase is used to greet someone and inquire about their well-being. It can be used in both formal and informal contexts.",
+    "tip": "Respond to this greeting by saying 'Estoy bien, gracias' (I am fine, thank you) or share how you are feeling."
+  },
+  "Spanish_consonante_tr": {
+    "explanation": "'Consonante', İspanyolcada ünlü harfler dışında kalan, sesli harflerle birlikte kelimeleri oluşturan harflerdir. Örneğin, 'b', 'c', 'd' gibi harfler consonante olarak kabul edilir.",
+    "usage": "Örneğin, 'casa' kelimesinde 'c' ve 's' consonante olarak kullanılmıştır.",
+    "tip": "Consonante'ler, kelimelerin anlamını değiştirebilir. Örneğin, 'pato' ve 'gato' kelimelerinde farklı consonante'ler vardır."
+  },
+  "Spanish_cien_tr": {
+    "explanation": "'cien', İspanyolcada yüz sayısını ifade eden bir terimdir.",
+    "usage": "'cien', 100 sayısını belirtmek için kullanılır. Örneğin, 'Tengo cien pesos' (Yüz pesosum var).",
+    "tip": "Sayılarda 'cien' terimi, 100'den sonraki sayılar için 'ciento' şeklinde değişir. Örneğin, 101 için 'ciento uno' kullanılır."
   }
 }

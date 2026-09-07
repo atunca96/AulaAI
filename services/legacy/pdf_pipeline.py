@@ -412,6 +412,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     _log(f"Topic Error: {e}")
 
         _log(f"Phase 2 Complete for {course_id}.")
+        try:
+            from services.bilingual_finisher import finalize_course_bilingual_data
+            finalize_course_bilingual_data(course_id)
+        except Exception as b_err:
+            _log(f"Warning: finalize_course_bilingual_data failed: {b_err}")
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()

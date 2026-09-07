@@ -29,43 +29,80 @@ def _save_cache(cache):
 
 AI_CACHE = _load_cache()
 
-def get_definition(word, lang_name, context=None):
+def clean_lookup_word(w):
+    if not w: return ""
+    return re.sub(r'[\u200e\u200f]', '', str(w)).strip(' \t\n\r"\'“”«»`').strip()
+
+def get_definition(word, lang_name, context=None, target_lang="en"):
     """
     AI-First dictionary logic with persistent caching and high-priority sanity check.
+    Supports both English and Turkish target languages.
     """
-    word = word.strip().lower()
+    raw_word = word.strip()
+    norm_word = clean_lookup_word(raw_word).lower()
+    clean_word_val = clean_lookup_word(raw_word)
     lang_name = lang_name.split('(')[0].strip()
-    cache_key = f"{lang_name}_{word}"
+    is_tr = (target_lang == "tr")
+    cache_key = f"{lang_name}_{norm_word}_{target_lang}"
     
     # 0. HIGH PRIORITY SANITY (Bypass cache for most common words)
     SANITY = {
-        "hola": "Hello / Hi", "gracias": "Thank you", "teşekkür": "Thank you",
-        "teşekkür ederim": "I thank you / Thank you", "zayıf": "Weak / Thin / Slender",
-        "güzel": "Beautiful / Good / Nice", "merhaba": "Hello", "tamam": "OK / Fine",
-        "evet": "Yes", "hayır": "No", "bilgisayar": "Computer", "öğrenci": "Student",
-        "okul": "School", "kitap": "Book"
+        "hola": {"en": "Hello / Hi", "tr": "Merhaba / Selam"},
+        "gracias": {"en": "Thank you", "tr": "Teşekkürler"},
+        "teşekkür": {"en": "Thank you", "tr": "Teşekkür"},
+        "teşekkür ederim": {"en": "I thank you / Thank you", "tr": "Teşekkür ederim"},
+        "zayıf": {"en": "Weak / Thin / Slender", "tr": "Zayıf / İnce"},
+        "güzel": {"en": "Beautiful / Good / Nice", "tr": "Güzel / Hoş"},
+        "merhaba": {"en": "Hello", "tr": "Merhaba"},
+        "tamam": {"en": "OK / Fine", "tr": "Tamam"},
+        "evet": {"en": "Yes", "tr": "Evet"},
+        "hayır": {"en": "No", "tr": "Hayır"},
+        "bilgisayar": {"en": "Computer", "tr": "Bilgisayar"},
+        "öğrenci": {"en": "Student", "tr": "Öğrenci"},
+        "okul": {"en": "School", "tr": "Okul"},
+        "kitap": {"en": "Book", "tr": "Kitap"}
     }
-    if word in SANITY:
-        return {
-            "explanation": f"'{word}' means '{SANITY[word]}'.",
-            "usage": f"Commonly used in daily interaction.",
-            "tip": "This is a high-frequency word we've pre-verified for you!",
-            "source": "AulaAI Core"
-        }
+    if norm_word in SANITY:
+        meaning = SANITY[norm_word].get(target_lang, SANITY[norm_word]["en"])
+        if is_tr:
+            return {
+                "explanation": f"'{clean_word_val}', '{meaning}' anlamına gelir.",
+                "usage": "Günlük iletişimde yaygın olarak kullanılır.",
+                "tip": "Bu, sizin için önceden doğruladığımız yüksek frekanslı bir kelimedir!",
+                "source": "AulaAI Core"
+            }
+        else:
+            return {
+                "explanation": f"'{clean_word_val}' means '{meaning}'.",
+                "usage": "Commonly used in daily interaction.",
+                "tip": "This is a high-frequency word we've pre-verified for you!",
+                "source": "AulaAI Core"
+            }
 
-    # 1. Check Cache
+    # 1. Check Cache with target_lang
     if cache_key in AI_CACHE:
         cached = AI_CACHE[cache_key]
-        # VALIDATION: If the cached result is just a fallback, ignore it and re-run
         expl = cached.get("explanation", "").lower()
         is_fallback = "daily interaction" in expl or "specific quality" in expl or "surrounding sentence" in expl or "no definition found" in expl
         if not is_fallback:
             return {**cached, "source": "AulaAI Memory"}
+
+    # Also check without target_lang suffix for backwards compatibility
+    legacy_key = f"{lang_name}_{raw_word}"
+    legacy_norm_key = f"{lang_name}_{norm_word}"
+    if not is_tr:
+        for lk in [legacy_key, legacy_norm_key]:
+            if lk in AI_CACHE:
+                cached = AI_CACHE[lk]
+                expl = cached.get("explanation", "").lower()
+                is_fallback = "daily interaction" in expl or "specific quality" in expl or "surrounding sentence" in expl or "no definition found" in expl
+                if not is_fallback:
+                    return {**cached, "source": "AulaAI Memory"}
     
-    # 2. Call AI Brain
+    # 2. Call AI Brain in target_lang
     try:
         from services.ai_engine import ai_explain_word
-        result = ai_explain_word(word, lang_name, context)
+        result = ai_explain_word(clean_word_val or raw_word, lang_name, context, material_language=target_lang)
         if result and "explanation" in result:
             AI_CACHE[cache_key] = result
             _save_cache(AI_CACHE)

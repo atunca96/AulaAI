@@ -107,6 +107,11 @@ def main():
                     f.write(traceback.format_exc())
                 raise e
             finally:
+                try:
+                    from services.bilingual_finisher import finalize_course_bilingual_data
+                    finalize_course_bilingual_data(course_id)
+                except Exception as b_err:
+                    print(f"[WORKER] Warning: finalize_course_bilingual_data failed: {b_err}")
                 with db_connection() as db:
                     db.execute("UPDATE courses SET is_building=0 WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                     db.commit()
@@ -167,6 +172,13 @@ def main():
         except Exception as e:
             print(f"[PIPELINE] ERROR during ENRICHMENT: {e}")
             
+        # Finalize bilingual data before releasing course build
+        try:
+            from services.bilingual_finisher import finalize_course_bilingual_data
+            finalize_course_bilingual_data(course_id)
+        except Exception as b_err:
+            print(f"[PIPELINE] Warning: finalize_course_bilingual_data failed: {b_err}")
+
         # Finalize
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, progress = 100 WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))

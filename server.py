@@ -387,6 +387,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             student_id = params.get("student_id", [None])[0]
             course_id = params.get("course_id", [None])[0]
             return self._get_student_progress(student_id, course_id)
+        elif path == "/api/student/enrollments":
+            student_id = params.get("student_id", [None])[0]
+            return self._get_student_enrollments(student_id)
         elif path == "/api/questions":
             topic_id = params.get("topic_id", [None])[0]
             return self._get_questions(topic_id)
@@ -452,14 +455,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             word = params.get("word", [None])[0]
             lang = params.get("lang", [None])[0]
             context = params.get("context", [None])[0]
+            ui_lang = params.get("ui_lang", ["en"])[0]
             if not word: return self._send_error("word required")
             
-            # Context-aware cache key: lesson-specific lookups get their own cache entry
-            cache_key = f"dict_{lang}_{word.lower()}" + (f"_ctx_{context[:30]}" if context else "")
+            # Context-aware and language-aware cache key
+            clean_w = word.replace('\u200e', '').replace('\u200f', '').strip(' \t\n\r"\'“”«»`').lower()
+            cache_key = f"dict_{lang}_{clean_w}_{ui_lang}" + (f"_ctx_{context[:30]}" if context else "")
             cached = get_cache(cache_key)
             if cached: return self._send_json(cached)
             
-            result = get_definition(word, lang or "en", context=context)
+            result = get_definition(word, lang or "en", context=context, target_lang=ui_lang)
             set_cache(cache_key, result)
             return self._send_json(result)
         elif path == "/api/dictionary/ai-explain":
@@ -820,6 +825,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._create_classroom_from_scratch()
         elif path == "/api/draft/curriculum":
             return self._draft_curriculum()
+        elif path == "/api/translate/material":
+            return self._translate_material()
             
         # Other routes
         elif path == "/api/login":
@@ -894,6 +901,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._delete_blueprint()
         elif path == "/api/blueprint/delete-all":
             return self._delete_all_blueprints()
+        elif path == "/api/admin/set-student-password" or path == "/api/student/set-password":
+            return self._admin_set_student_password()
+        elif path == "/api/admin/create-student":
+            return self._admin_create_student()
         else:
             self._send_error("Not found", 404)
 
@@ -937,6 +948,97 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if row and row["email"] == 'atunca96@gmail.com':
                 return True
         return False
+
+    def _is_authority(self):
+        """Returns true if caller is website admin or a lecturer."""
+        user_id = self._get_user_id()
+        if not user_id: return False
+        if self._is_admin(): return True
+        if user_id in ['lecturer-demo-id', 'ela-lecturer-id']: return True
+        with db_connection() as db:
+            row = db.execute("SELECT role, email FROM users WHERE id = ?", (user_id,)).fetchone()
+            if row:
+                if row["email"] in ['atunca96@gmail.com', 'ela94216@gmail.com']: return True
+                if row["role"] in ['lecturer', 'admin']: return True
+        return False
+
+    def _admin_set_student_password(self):
+        """Sets or resets the password for a student. Accessible by admin or lecturer."""
+        if not self._is_authority():
+            return self._send_error("Unauthorized", 403)
+        body = self._read_body()
+        student_id = body.get("student_id")
+        student_number = body.get("student_number")
+        new_password = body.get("password", "").strip()
+
+        if not new_password:
+            return self._send_error("New password is required")
+
+        hashed_pwd = hash_password(new_password)
+
+        with db_connection() as db:
+            if student_id:
+                user = db.execute("SELECT id FROM users WHERE id = ? AND role = 'student'", (student_id,)).fetchone()
+            elif student_number:
+                email_key = f"{student_number.strip()}@student.aulaai"
+                user = db.execute("SELECT id FROM users WHERE email = ? AND role = 'student'", (email_key,)).fetchone()
+            else:
+                return self._send_error("student_id or student_number is required")
+
+            if not user:
+                return self._send_error("Student not found", 404)
+
+            db.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_pwd, user["id"]))
+            db.commit()
+
+        bump_version()
+        return self._send_json({"success": True})
+
+    def _admin_create_student(self):
+        """Creates a new student account with student number, name, and password. Admin or Lecturer."""
+        if not self._is_authority():
+            return self._send_error("Unauthorized", 403)
+        body = self._read_body()
+        student_number = body.get("student_number", "").strip()
+        name = body.get("name", "").strip()
+        password = body.get("password", "").strip()
+        course_id = body.get("course_id")
+
+        if not student_number:
+            return self._send_error("Student number is required")
+        if not name:
+            return self._send_error("Full name is required")
+        if not password:
+            return self._send_error("Password is required")
+
+        email_key = f"{student_number}@student.aulaai"
+        hashed_pwd = hash_password(password)
+
+        with db_connection() as db:
+            existing = db.execute("SELECT id FROM users WHERE email = ?", (email_key,)).fetchone()
+            if existing:
+                return self._send_error("A student with this student number already exists", 409)
+
+            student_id = _uid()
+            db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                       (student_id, name, email_key, hashed_pwd, "student", "approved"))
+
+            if course_id:
+                db.execute("INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, enrolled_at) VALUES (?,?,?,?,datetime('now'))",
+                           (_uid(), student_id, course_id, "approved"))
+
+            db.commit()
+
+        bump_version()
+        return self._send_json({
+            "success": True,
+            "student": {
+                "id": student_id,
+                "name": name,
+                "student_number": student_number,
+                "email": email_key
+            }
+        })
 
     def _read_body_silent(self):
         """Reads body without crashing if empty."""
@@ -1382,56 +1484,79 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                      "email": email, "role": "student", "status": "pending"}
         })
 
-    def _student_portal_login(self):
-        """Phase 1: Student enters portal with number/name."""
-        body = self._read_body()
-        student_number = body.get("student_number", "").strip()
-        name = body.get("name", "").strip()
-
-        if not student_number:
-            return self._send_error("Student number is required")
-        if not name:
-            return self._send_error("Name is required")
-
-        # Use student number as the email key (internal)
-        email_key = f"{student_number}@student.aulaai"
-        
+    def _get_student_enrollments(self, student_id):
+        if not student_id:
+            return self._send_error("student_id is required")
         with db_connection() as db:
-            user = db.execute("SELECT * FROM users WHERE email = ?", (email_key,)).fetchone()
-            if not user:
-                # Create global student account
-                user_id = _uid()
-                db.execute("INSERT INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
-                           (user_id, name, email_key, "[STUDENT_PORTAL]", "student", "approved"))
-                db.commit()
-                user = {"id": user_id, "name": name, "email": email_key, "role": "student"}
-            else:
-                user = dict(user)
-                if user["name"].strip().lower() != name.strip().lower():
-                    return self._send_error("Student number and name do not match")
-            
-            # Fetch all enrollments
             enrollments = db.execute("""
-                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language
+                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
                 FROM enrollments e
                 JOIN courses c ON e.course_id = c.id
                 WHERE e.student_id = ?
+                ORDER BY e.enrolled_at DESC
+            """, (student_id,)).fetchall()
+            return self._send_json({"enrollments": [dict(e) for e in enrollments]})
+
+    def _student_portal_login(self):
+        """Student enters portal with student number and password."""
+        body = self._read_body()
+        student_id = body.get("student_id")
+        student_number = body.get("student_number", "").strip()
+        password = body.get("password", "").strip()
+
+        if student_id and not password:
+            return self._get_student_enrollments(student_id)
+
+        if not student_number:
+            return self._send_error("Student number is required")
+        if not password:
+            return self._send_error("Password is required")
+
+        # Use student number as the email key (internal)
+        email_key = f"{student_number}@student.aulaai"
+        hashed_pwd = hash_password(password)
+        
+        with db_connection() as db:
+            user = db.execute("SELECT * FROM users WHERE email = ? AND role = 'student'", (email_key,)).fetchone()
+            if not user:
+                return self._send_error("Invalid student number or password", 401)
+            
+            user = dict(user)
+            user_pwd = user.get("password") or ""
+            
+            if not user_pwd or user_pwd == "[STUDENT_PORTAL]" or user_pwd != hashed_pwd:
+                return self._send_error("Invalid student number or password", 401)
+            
+            # Fetch all enrollments
+            enrollments = db.execute("""
+                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
+                FROM enrollments e
+                JOIN courses c ON e.course_id = c.id
+                WHERE e.student_id = ?
+                ORDER BY e.enrolled_at DESC
             """, (user["id"],)).fetchall()
             
             self._send_json({
-                "user": user,
+                "user": {"id": user["id"], "name": user["name"],
+                         "email": user["email"], "role": user["role"], "status": user.get("status", "approved")},
                 "enrollments": [dict(e) for e in enrollments]
             })
 
     def _student_join_classroom(self):
         body = self._read_body()
         student_id = body.get("student_id")
-        code = body.get("code")
+        raw_code = body.get("code") or ""
+        code = str(raw_code).strip()
+        
+        if not student_id:
+            return self._send_error("student_id is required")
+        if not code:
+            return self._send_error("Classroom code is required")
         
         with db_connection() as db:
-            course = db.execute("SELECT id FROM courses WHERE code = ?", (code,)).fetchone()
+            course = db.execute("SELECT id, name, code, language, level FROM courses WHERE UPPER(TRIM(code)) = UPPER(TRIM(?))", (code,)).fetchone()
             if not course:
-                return self._send_error("Invalid classroom code")
+                return self._send_error("Invalid classroom code. Please verify the code with your teacher.")
             
             course_id = course["id"]
             existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
@@ -1441,9 +1566,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                            (_uid(), student_id, course_id, "pending"))
                 db.commit()
                 bump_version()
-                return self._send_json({"success": True, "status": "pending"})
+                status = "pending"
             else:
-                return self._send_json({"success": True, "status": existing["status"]})
+                status = existing["status"]
+            
+            # Return updated enrollments for this student
+            enrollments = db.execute("""
+                SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
+                FROM enrollments e
+                JOIN courses c ON e.course_id = c.id
+                WHERE e.student_id = ?
+                ORDER BY e.enrolled_at DESC
+            """, (student_id,)).fetchall()
+
+            return self._send_json({
+                "success": True, 
+                "status": status,
+                "course_id": course_id,
+                "course_name": course["name"],
+                "enrollments": [dict(e) for e in enrollments]
+            })
 
     def _student_set_pin(self):
         body = self._read_body()
@@ -1547,8 +1689,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     t_dict = dict(t)
                     count_row = db.execute("SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)).fetchone()
                     t_dict["question_count"] = count_row["cnt"] if count_row else 0
-                    if t_dict.get("pdf_url"):
-                        t_dict["pdf_url"] = "/books/" + os.path.basename(t_dict["pdf_url"])
+                    raw_pdf = str(t_dict.get("pdf_url") or "").strip()
+                    if raw_pdf and raw_pdf.upper() != "NONE" and not raw_pdf.upper().endswith("/NONE"):
+                        t_dict["pdf_url"] = "/books/" + os.path.basename(raw_pdf)
+                    else:
+                        t_dict["pdf_url"] = None
                     processed_topics.append(t_dict)
                 ch_dict["topics"] = processed_topics
                 result.append(ch_dict)
@@ -2768,6 +2913,42 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         from services.legacy.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id, material_language=material_language)
         return self._send_json(result)
+
+    def _translate_material(self):
+        """Translates educational material text between English and Turkish on demand for newly created classrooms."""
+        data = self._read_body()
+        text = data.get("text", "").strip()
+        target_lang = data.get("target_lang", "tr").lower()
+        if not text:
+            return self._send_json({"translated": ""})
+
+        # Check local pre-compiled cache first
+        cache_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+                if target_lang == "tr" and text in cache.get("sentence_pairs", {}):
+                    return self._send_json({"translated": cache["sentence_pairs"][text]})
+                if target_lang == "en" and text in cache.get("sentence_pairs_tr_en", {}):
+                    return self._send_json({"translated": cache["sentence_pairs_tr_en"][text]})
+                if text in cache.get("vocab_pairs", {}):
+                    return self._send_json({"translated": cache["vocab_pairs"][text]})
+            except Exception:
+                pass
+
+        # If not cached, translate via OpenRouter
+        try:
+            from services.ai_engine import _call_ai
+            dest = "Turkish" if target_lang == "tr" else "English"
+            prompt = f"Translate the following educational text into natural, CEFR-aligned {dest}. Keep all foreign terms (e.g. Spanish, Greek) in quotes exactly as they are. Return ONLY a JSON object: {{\"translation\": \"...\"}}\n\nText:\n{text}"
+            res = _call_ai([{"role": "user", "content": prompt}], max_tokens=1000, temperature=0.1)
+            translated = res.get("translation") or res.get("text") or res.get("result") if isinstance(res, dict) else str(res)
+            if not translated or translated == "{}" or translated == "None":
+                translated = text
+            return self._send_json({"translated": translated})
+        except Exception as e:
+            return self._send_json({"translated": text, "error": str(e)})
 
     def _read_multipart(self):
         """Simple multipart parser for PDF upload."""

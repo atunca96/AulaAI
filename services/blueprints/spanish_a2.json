@@ -1,0 +1,148 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Everyday Routines",
+      "topics": [
+        {
+          "title": "Morning Rituals and Daily Activities",
+          "type": "functional language"
+        },
+        {
+          "title": "Using Reflexive Verbs in Daily Contexts",
+          "type": "grammar"
+        },
+        {
+          "title": "Common Expressions for Daily Routines",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Describing Your Environment",
+      "topics": [
+        {
+          "title": "Adjectives to Describe Your Home",
+          "type": "functional language"
+        },
+        {
+          "title": "Prepositions of Place: Where Things Are",
+          "type": "grammar"
+        },
+        {
+          "title": "Talking About Your Neighborhood",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Social Interactions and Small Talk",
+      "topics": [
+        {
+          "title": "Engaging in Simple Conversations",
+          "type": "functional language"
+        },
+        {
+          "title": "Asking and Answering Personal Questions",
+          "type": "functional language"
+        },
+        {
+          "title": "Cultural Nuances in Greetings",
+          "type": "cultural context"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Exploring the Past: Introduction to Past Tenses",
+      "topics": [
+        {
+          "title": "Understanding the Preterite Tense",
+          "type": "grammar"
+        },
+        {
+          "title": "Using the Imperfect Tense for Background Descriptions",
+          "type": "grammar"
+        },
+        {
+          "title": "Simple Narratives: Telling a Story from the Past",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Shopping Scenarios",
+      "topics": [
+        {
+          "title": "At the Market: Buying Food and Goods",
+          "type": "functional language"
+        },
+        {
+          "title": "Expressing Preferences and Needs",
+          "type": "functional language"
+        },
+        {
+          "title": "Understanding Prices and Bargaining",
+          "type": "functional language"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Workplace Basics",
+      "topics": [
+        {
+          "title": "Describing Your Job and Responsibilities",
+          "type": "functional language"
+        },
+        {
+          "title": "Common Workplace Interactions",
+          "type": "functional language"
+        },
+        {
+          "title": "Using the Future Tense: Discussing Plans",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Traveling in Spanish-Speaking Countries",
+      "topics": [
+        {
+          "title": "Asking for Directions and Transportation",
+          "type": "functional language"
+        },
+        {
+          "title": "Describing Travel Experiences",
+          "type": "functional language"
+        },
+        {
+          "title": "Cultural Etiquette When Traveling",
+          "type": "cultural context"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Culinary Adventures",
+      "topics": [
+        {
+          "title": "Talking About Food Preferences and Dietary Restrictions",
+          "type": "functional language"
+        },
+        {
+          "title": "Ordering at a Restaurant: Key Phrases",
+          "type": "functional language"
+        },
+        {
+          "title": "Cultural Insights into Spanish Cuisine",
+          "type": "cultural context"
+        }
+      ]
+    }
+  ]
+}

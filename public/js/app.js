@@ -238,7 +238,7 @@ function renderStudentChat(messages) {
     return `
         <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
              style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
-          ${!isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
+          ${!isMe ? `<div class="chat-sender" data-i18n="Lecturer" style="font-size:11px; font-weight:700; margin-bottom:4px; color:var(--accent-light);">${t('Lecturer')}</div>` : ''}
           ${esc(m.content)}
           <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
@@ -257,9 +257,9 @@ function renderLecturerChat(messages) {
     const isMe = m.sender === 'lecturer';
     const dateObj = new Date(m.created_at.includes('Z') ? m.created_at : m.created_at.replace(' ', 'T') + 'Z');
     return `
-        <div class="chat-bubble ${isMe ? 'sent' : 'received'}"
+        <div class="chat-bubble ${isMe ? 'sent' : 'received'}" 
              style="align-self:${isMe ? 'flex-end' : 'flex-start'}; background:${isMe ? 'var(--gradient-1)' : 'var(--bg-input)'}; color:${isMe ? 'white' : 'var(--text-main)'}; padding:12px 16px; border-radius:18px; max-width:85%; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:${isMe ? 'none' : '1px solid var(--border)'}; ${isMe ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'};">
-          ${isMe ? `<div class="chat-sender" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
+          ${isMe ? `<div class="chat-sender" data-i18n="Lecturer" style="font-size:11px; font-weight:700; margin-bottom:4px; color:rgba(255,255,255,0.7);">${t('Lecturer')}</div>` : ''}
           ${esc(m.content)}
           <span class="chat-time" style="display:block; font-size:10px; opacity:0.7; margin-top:4px; text-align:${isMe ? 'right' : 'left'};">${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
@@ -618,7 +618,7 @@ const i18n = {
     'privacy.h2': '2. Local Processing & Security',
     'privacy.p2': 'All records are stored securely on local database servers. We comply with standard KVKK and GDPR data minimization requirements. Your data is never sold or used for advertisement targeting.',
     'privacy.h3': '3. Your Rights',
-    'privacy.p3': 'Students and lecturers have full rights to request PIN resets, retrieve their overall curriculum history, or request permanent deletion of their account databases. For inquiries, email atunca96@gmail.com.',
+    'privacy.p3': 'Students and lecturers have full rights to request PIN resets, retrieve their overall curriculum history, or request permanent deletion of their account databases. For inquiries, email rkahraman@marmara.edu.tr.',
     // Login screen
     signInTab: 'Sign In', registerTab: 'Register', signInHint: 'Sign in to continue', emailLabel: 'Email', passwordLabel: 'Password', signInBtn: 'Sign In', joinClass: 'Join the Class', registerHint: 'Create a student account', nameLabel: 'Full Name', registerBtn: 'Create Account', lecturerAccess: 'Lecturer Access', signOut: 'Sign Out', rememberMe: 'Remember Me',
     loginTitle: 'Student Login',
@@ -818,10 +818,13 @@ const i18n = {
     'gen.loading': 'Questions are being generated...',
     'gen.time': 'This may take 5-10 seconds.',
     'Unit': 'Unit',
+    'Units': 'Units',
+    'units': 'Units',
     'Material': 'Material',
     'study': 'Material',
     'book': 'Book',
     'study.units': 'Units',
+    'study.sidebar_guide': 'Use the sidebar on the left to navigate through units.',
     'study.vocabulary': 'Vocabulary Cheat Sheet',
     'study.grammar': 'Grammar & Key Rules',
     'study.usage': 'Practical Usage',
@@ -829,6 +832,7 @@ const i18n = {
     'study.preview': 'Lesson Preview',
     'study.back': 'Back',
     'study.next': 'Next Page',
+    'study.quick_check': 'Quick Check',
     'study.ready': "You're Ready to Practice!",
     'study.preview_end': 'End of Lesson Material',
     'study.preview_msg': 'This is how the lesson appears to your students.',
@@ -973,6 +977,15 @@ const i18n = {
     'student.delete_account_msg': 'Are you sure you want to permanently delete your account? All your progress and data will be lost forever.',
     'student.delete_confirm_btn': 'Yes, Delete My Account',
     // Admin Student Panel
+    'student_login_hint': 'Sign in with your student number and password',
+    'admin.add_student': 'Add Student',
+    'admin.set_password': 'Set Password',
+    'admin.enter_new_password_for': 'Enter new password for {name}:',
+    'admin.enter_student_number': 'Enter the student number:',
+    'admin.enter_student_name': 'Enter full name for #{number}:',
+    'admin.enter_student_pwd': 'Enter password for {name}:',
+    'admin.password_set_success': 'Password updated successfully.',
+    'admin.student_created_success': 'Student account created successfully.',
     'admin.all_students': 'All Students',
     'admin.reset_all_students': 'Reset All Students',
     'admin.reset_students_confirm': 'This will delete ALL student accounts and their data across ALL classrooms. This cannot be undone.',
@@ -1020,7 +1033,7 @@ const i18n = {
     'privacy.h2': '2. Yerel İşleme ve Güvenlik',
     'privacy.p2': 'Tüm kayıtlar yerel veri tabanı sunucularında güvenli bir şekilde saklanır. Standart KVKK ve GDPR veri minimizasyonu gerekliliklerine uyuyoruz. Verileriniz asla satılmaz veya reklam hedeflemesi amacıyla kullanılmaz.',
     'privacy.h3': '3. Haklarınız',
-    'privacy.p3': 'Öğrenciler ve öğretim elemanları, PIN kodlarının sıfırlanmasını talep etme, müfredat geçmişlerini görüntüleme veya hesap veri tabanlarının kalıcı olarak silinmesini isteme hakkına sahiptir. Sorularınız için atunca96@gmail.com adresine e-posta gönderebilirsiniz.',
+    'privacy.p3': 'Öğrenciler ve öğretim elemanları, PIN kodlarının sıfırlanmasını talep etme, müfredat geçmişlerini görüntüleme veya hesap veri tabanlarının kalıcı olarak silinmesini isteme hakkına sahiptir. Sorularınız için rkahraman@marmara.edu.tr adresine e-posta gönderebilirsiniz.',
     'ai.select_lang': '1. Dil Seçin',
     'ai.target_level': '2. Hedef Seviye',
     'ai.course_name': '3. Kurs Adı',
@@ -1109,6 +1122,7 @@ const i18n = {
     'study.preview': 'Ders Önizleme',
     'study.back': 'Geri',
     'study.next': 'Sonraki Sayfa',
+    'study.quick_check': 'Hızlı Kontrol',
     'study.ready': 'Alıştırma Yapmaya Hazırsın!',
     'study.preview_end': 'Ders Materyali Sonu',
     'study.preview_msg': 'Bu dersin öğrencileriniz için nasıl göründüğüdür.',
@@ -1186,6 +1200,7 @@ const i18n = {
     typeReply: 'Mesajınızı yazın...',
     sendBtn: 'Gönder',
     Lecturer: 'Öğretmen', Student: 'Öğrenci',
+    'study.sidebar_guide': 'Üniteler arasında gezinmek için soldaki kenar çubuğunu kullanın.',
     '👩‍\ud83c\udfeb Lecturer': '👩‍\ud83c\udfeb Öğretmen', '\ud83c\udf93 Student': '\ud83c\udf93 Öğrenci',
     // Student dashboard
     home: 'Ana Sayfa', practice: 'Alıştırma', quizzes: 'Sınavlar', myProgress: 'Gelişimim',
@@ -1327,6 +1342,8 @@ const i18n = {
     'gen.ai_architecting': 'Yapay zekamız müfredatınızı kurguluyor ve çalışma materyallerini oluşturuyor. Lütfen bekleyin.',
     'gen.please_wait': 'Lütfen Bekleyin',
     'Unit': 'Ünite',
+    'Units': 'Üniteler',
+    'units': 'Üniteler',
     'SelectTopic': 'Bir konu seçin...',
     'AllChapters': 'Tüm üniteler',
     'ok': 'Tamam',
@@ -1398,6 +1415,15 @@ const i18n = {
     'student.delete_account_msg': 'Hesabınızı kalıcı olarak silmek istediğinizden emin misiniz? Tüm ilerlemeniz ve verileriniz sonsuza dek kaybolacak.',
     'student.delete_confirm_btn': 'Evet, Hesabımı Sil',
     // Admin Student Panel
+    'student_login_hint': 'Öğrenci numaranız ve şifrenizle giriş yapın',
+    'admin.add_student': 'Öğrenci Ekle',
+    'admin.set_password': 'Şifre Belirle',
+    'admin.enter_new_password_for': '{name} için yeni şifre belirleyin:',
+    'admin.enter_student_number': 'Öğrenci numarasını girin:',
+    'admin.enter_student_name': '#{number} için ad soyad girin:',
+    'admin.enter_student_pwd': '{name} için şifre belirleyin:',
+    'admin.password_set_success': 'Şifre başarıyla güncellendi.',
+    'admin.student_created_success': 'Öğrenci hesabı başarıyla oluşturuldu.',
     'admin.all_students': 'Tüm Öğrenciler',
     'admin.reset_all_students': 'Tüm Öğrencileri Sıfırla',
     'admin.reset_students_confirm': 'Bu işlem TÜM sınıflardaki TÜM öğrenci hesaplarını ve verilerini silecektir. Bu işlem geri alınamaz.',
@@ -1508,14 +1534,30 @@ function applyTranslations() {
   const langBtn = document.getElementById('lang-btn');
   if (langBtn) {
     langBtn.setAttribute('data-i18n', 'langBtn');
-    langBtn.textContent = t('langBtn');
+    langBtn.textContent = currentLang === 'en' ? 'EN' : 'TR';
+  }
+  const studentLangBtn = document.getElementById('student-lang-btn');
+  if (studentLangBtn) {
+    studentLangBtn.textContent = currentLang === 'en' ? 'EN' : 'TR';
   }
   const sidebarLangLabel = document.getElementById('sidebar-lang-label');
   if (sidebarLangLabel) {
-    sidebarLangLabel.textContent = currentLang === 'en' ? 'TR' : 'EN';
+    sidebarLangLabel.textContent = currentLang === 'en' ? 'EN' : 'TR';
   }
 
-  if (_lastReportData && document.getElementById('tab-reports').classList.contains('active')) {
+  // Photo 1: Curriculum Subtitle (Course Name — Content Map / İçerik Haritası)
+  const subtitleEl = document.getElementById('curriculum-subtitle');
+  if (subtitleEl && currentCourse) {
+    const cName = translateCourseName(currentCourse.name, currentLang);
+    subtitleEl.textContent = `${cName} — ${t('Content Map')}`;
+  }
+
+  // Messaging chat-sender headers
+  document.querySelectorAll('.chat-sender').forEach(el => {
+    el.textContent = t('Lecturer');
+  });
+
+  if (_lastReportData && document.getElementById('tab-reports')?.classList.contains('active')) {
     renderReport(_lastReportData);
   }
 
@@ -1529,12 +1571,27 @@ function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
 
-  // Update state immediately
+  // 1. Update all static UI elements immediately
   applyTranslations();
 
-  if (_lastReportData) renderReport(_lastReportData);
+  // 2. Re-render curriculum tree if loaded
+  if (curriculum && document.getElementById('curriculum-tree')) {
+    renderCurriculum();
+  }
 
-  // Re-render all dynamic content SYNCHRONOUSLY using cached data
+  // 3. Re-render Study Material book & topic
+  renderStudyBook();
+  let lastTopic = localStorage.getItem('aula_last_topic');
+  let lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+  if (!lastTopic && curriculum && curriculum[0] && curriculum[0].topics && curriculum[0].topics[0]) {
+    lastTopic = curriculum[0].topics[0].id;
+    lastPage = 0;
+  }
+  if (lastTopic) {
+    showStudyTopic(lastTopic, lastPage);
+  }
+
+  // 4. Re-render role dashboard synchronously
   if (currentUser) {
     if (currentUser.role === 'lecturer') {
       if (currentCourse) renderLecturerSync();
@@ -1548,13 +1605,34 @@ function toggleLanguage() {
     }
   }
 
-  // Re-render activity preview if visible
+  // 5. Reports
+  if (_lastReportData) renderReport(_lastReportData);
+
+  // 6. Practice preview if visible
   const preview = document.getElementById('activity-preview');
   if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
-    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (_lastActivityData.topic?.title || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+    preview.innerHTML = '<h2 style="margin-bottom:20px">📋 ' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
   }
 
-  // Sync the Draft Review modal if open
+  // 7. Active quiz or assignment if in progress
+  const quizArea = document.getElementById('quiz-taking-area');
+  if (quizArea && !quizArea.classList.contains('hidden') && quizArea.dataset.questions) {
+    showQuizQuestion(quizArea);
+  }
+  const assignArea = document.getElementById('assignment-taking-area');
+  if (assignArea && !assignArea.classList.contains('hidden') && assignArea.dataset.questions) {
+    showAssignmentQuestion(assignArea);
+  }
+
+  // 8. Re-render active dictionary popup if open
+  const dictPopup = document.getElementById('aula-dict-popup');
+  if (dictPopup && dictPopup.style.display !== 'none' && window._lastDictWord && window._lastDictRes) {
+    renderDictContent(window._lastDictWord, window._lastDictLang || 'English', window._lastDictRes);
+  } else if (dictPopup && dictPopup.style.display !== 'none' && activeDictWord) {
+    showDict(activeDictWord, { pageX: parseInt(dictPopup.style.left) || 200, pageY: parseInt(dictPopup.style.top) || 200 });
+  }
+
+  // 9. Sync the Draft Review modal if open
   renderDraftListSync();
 }
 
@@ -1585,43 +1663,586 @@ function renderLecturerSync() {
 
 function renderStudentSync() {
   if (!currentUser) return;
-  document.getElementById('student-nav-username').textContent = currentUser.name;
-  document.getElementById('student-greeting').textContent = t('welcomeBack', { name: currentUser.name }) + '!';
+  const navUser = document.getElementById('student-nav-username');
+  if (navUser) navUser.textContent = currentUser.name;
+  const greeting = document.getElementById('student-greeting');
+  if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
 
-  if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
+  renderStudentHome(_lastStudentHomeData || { masteries: [] });
   if (_lastQuizListData) renderQuizList(_lastQuizListData);
   if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
   if (_lastStudentHomeData) renderStudentProgress(_lastStudentHomeData);
+  if (curriculum) loadStudentPractice();
 }
 
+// ── Comprehensive Bidirectional Translation Engine ──
 
-const vocabTR = {
-  "hello": "merhaba", "good morning": "günaydın", "good afternoon": "iyi günler", "good night": "iyi geceler",
-  "What's your name?": "Adın ne?", "My name is...": "Benim adım...", "Where are you from?": "Nerelisin?",
-  "I'm from...": "Ben ...'lıyım", "nice to meet you": "memnun oldum", "goodbye": "hoşça kal", "see you later": "görüşürüz",
-  "please": "lütfen", "thank you": "teşekkür ederim", "Spanish": "İspanyol", "Mexican": "Meksikalı",
-  "American": "Amerikalı", "French": "Fransız", "German": "Alman", "Italian": "İtalyan", "Brazilian": "Brezilyalı",
-  "Chinese": "Çinli", "Japanese": "Japon", "English/British": "İngiliz", "Argentine": "Arjantinli", "Colombian": "Kolombiyalı",
-  "Multiple Choice": "Çoktan Seçmeli", "Fill in the Blank": "Boşluk Doldurma", "Arrange the dialogue in the correct order:": "Diyaloğu doğru sıraya koyun:"
-};
+const COURSE_LANG_PAIRS = [
+  ['Spanish', 'İspanyolca'],
+  ['German', 'Almanca'],
+  ['French', 'Fransızca'],
+  ['Italian', 'İtalyanca'],
+  ['Portuguese', 'Portekizce'],
+  ['Russian', 'Rusça'],
+  ['Chinese', 'Çince'],
+  ['Japanese', 'Japonca'],
+  ['Arabic', 'Arapça'],
+  ['Turkish', 'Türkçe'],
+  ['Dutch', 'Felemenkçe'],
+  ['Swedish', 'İsveççe'],
+  ['Korean', 'Korece'],
+  ['Greek', 'Yunanca'],
+  ['English', 'İngilizce']
+];
 
-function translatePrompt(text) {
-  if (!text) return '';
-  if (currentLang !== 'tr') return text;
-  let t = text;
-  t = t.replace(/What does '(.*)' mean\?/, "'$1' ne anlama gelir?");
-  let match = t.match(/How do you say '(.*)' in (.*)\?/);
-  if (match) {
-    const wordTR = vocabTR[match[1]] || match[1];
-    const langTR = vocabTR[match[2]] || match[2];
-    t = `${langTR}'da '${wordTR}' nasıl denir?`;
+function translateCourseName(name, lang = currentLang) {
+  if (!name) return '';
+  const trimmed = name.trim();
+  for (const [en, tr] of COURSE_LANG_PAIRS) {
+    if (trimmed.toLowerCase() === en.toLowerCase() || trimmed.toLowerCase() === tr.toLowerCase()) {
+      return lang === 'tr' ? tr : en;
+    }
   }
-  return vocabTR[t] || t;
+  return name;
 }
 
-function translateOption(text) {
-  if (currentLang !== 'tr') return text;
-  return vocabTR[text] || text;
+const BADGE_PAIRS = [
+  ['PHONETICS', 'FONETİK'],
+  ['GRAMMAR', 'DİLBİLGİSİ'],
+  ['VOCABULARY', 'KELİME BİLGİSİ'],
+  ['CULTURAL', 'KÜLTÜREL'],
+  ['EXAMPLES', 'ÖRNEKLER'],
+  ['DIALOGUE', 'DİYALOG'],
+  ['MCQ', 'ÇOKTAN SEÇMELİ'],
+  ['MULTIPLE CHOICE', 'ÇOKTAN SEÇMELİ'],
+  ['FILL IN THE BLANK', 'BOŞLUK DOLDURMA'],
+  ['FILL_BLANK', 'BOŞLUK DOLDURMA'],
+  ['PRACTICE', 'ALIŞTIRMA']
+];
+
+function translateBadge(type, lang = currentLang) {
+  if (!type) return '';
+  const upper = String(type).trim().toUpperCase();
+  for (const [en, tr] of BADGE_PAIRS) {
+    if (upper === en || upper === tr) {
+      return lang === 'tr' ? tr : en;
+    }
+  }
+  return upper;
+}
+
+function translateDifficulty(diff, lang = currentLang) {
+  if (!diff) return '';
+  const d = String(diff).toLowerCase();
+  if (lang === 'tr') {
+    if (d === 'beginner') return 'Başlangıç';
+    if (d === 'intermediate') return 'Orta';
+    if (d === 'advanced') return 'İleri';
+  } else {
+    if (d === 'başlangıç' || d === 'baslangic') return 'Beginner';
+    if (d === 'orta') return 'Intermediate';
+    if (d === 'ileri') return 'Advanced';
+  }
+  return diff;
+}
+
+const CURRICULUM_PAIRS = [
+  ["Alphabet and Foundations", "Alfabe ve Temeller"],
+  ["The Alphabet", "Alfabe"],
+  ["Vowels and Consonants", "Ünlüler ve Ünsüzler"],
+  ["Pronunciation and Phonetics", "Telaffuz ve Fonetik"],
+  ["Greetings and Introductions", "Selamlaşma ve Tanışma"],
+  ["How to Say Hello and Goodbye", "Merhaba ve Hoşça Kal Deme"],
+  ["Introducing Yourself: Basic Phrases", "Kendini Tanıtma: Temel Kalıplar"],
+  ["Cultural Nuances in Greetings: A Spanish Perspective", "Selamlaşmada Kültürel İncelikler: İspanyol Perspektifi"],
+  ["Numbers and Basic Math", "Sayılar ve Temel Matematik"],
+  ["Counting from 1 to 100: Basic Numbers", "1'den 100'e Sayma: Temel Sayılar"],
+  ["Using Numbers in Everyday Contexts", "Günlük Yaşamda Sayıları Kullanma"],
+  ["Simple Math Operations in Spanish", "İspanyolca Basit Matematik İşlemleri"],
+  ["Days, Months, and Time", "Günler, Aylar ve Saat"],
+  ["Days of the Week: A Weekly Routine", "Haftanın Günleri: Haftalık Rutin"],
+  ["Months of the Year and Seasons", "Yılın Ayları ve Mevsimler"],
+  ["Telling Time: Basic Expressions", "Saati Söyleme: Temel İfadeler"],
+  ["Essential Survival Vocabulary", "Temel Hayatta Kalma Kelimeleri"],
+  ["At the Airport: Key Phrases and Vocabulary", "Havaalanında: Önemli Kalıplar ve Kelimeler"],
+  ["Navigating a Restaurant: Ordering Food", "Restoranda: Yemek Siparişi Verme"],
+  ["Shopping Basics: Common Phrases", "Alışveriş Temelleri: Yaygın Kalıplar"],
+  ["Describing Yourself and Others", "Kendini ve Başkalarını Tanımlama"],
+  ["Talking About Age and Nationality", "Yaş ve Milliyet Hakkında Konuşma"],
+  ["Describing Physical Appearance: Adjectives", "Fiziksel Görünüşü Tanımlama: Sıfatlar"],
+  ["Expressing Likes and Dislikes: Using 'gustar'", "Beğenileri ve Sevmediklerini Belirtme: 'gustar' Kullanımı"],
+  ["Forming Basic Sentences", "Temel Cümleler Kurma"],
+  ["Constructing Simple Sentences: Subject-Verb Agreement", "Basit Cümleler Oluşturma: Özne-Yüklem Uyumu"],
+  ["Using Common Verbs in Present Tense", "Geniş Zamanda Yaygın Fiilleri Kullanma"],
+  ["Asking Questions: Wh- Questions", "Soru Sorma: Soru Kalıpları"],
+  ["Daily Activities and Routines", "Günlük Aktiviteler ve Rutinler"],
+  ["Talking About Your Day: Daily Routines", "Gününüz Hakkında Konuşma: Günlük Rutinler"],
+  ["Using Time Expressions with Activities", "Aktivitelerle Zaman İfadelerini Kullanma"],
+  ["Cultural Context: Spanish Daily Life and Routines", "Kültürel Bağlam: İspanya'da Günlük Yaşam ve Rutinler"],
+  ["Family and Relationships", "Aile ve İlişkiler"],
+  ["Introducing Family Members: Vocabulary", "Aile Üyelerini Tanıtma: Kelime Bilgisi"],
+  ["Describing Relationships: Simple Phrases", "İlişkileri Tanımlama: Basit Kalıplar"],
+  ["Cultural Insights: The Importance of Family in Spanish-speaking Cultures", "Kültürel Bakış: İspanyolca Konuşulan Kültürlerde Ailenin Önemi"],
+  ["Hobbies and Interests", "Hobiler ve İlgi Alanları"],
+  ["Discussing Hobbies: Common Activities", "Hobiler Hakkında Konuşma: Yaygın Aktiviteler"],
+  ["Expressing What You Like to Do: Sentence Structures", "Neler Yapmaktan Hoşlandığını Belirtme: Cümle Yapıları"],
+  ["Cultural Perspectives on Leisure Activities in Spain and Latin America", "İspanya ve Latin Amerika'da Boş Zaman Aktivitelerine Kültürel Bakış"],
+  ["Everyday Routines", "Günlük Rutinler"],
+  ["Exploring the Past", "Geçmişi Keşfetmek"],
+  ["Describing Your Surroundings", "Çevrenizi Tanımlama"],
+  ["Social Exchanges and Interactions", "Sosyal İletişim ve Etkileşimler"],
+  ["Shopping Essentials", "Alışveriş Esasları"],
+  ["Workplace Communication", "İş Yeri İletişimi"],
+  ["Cultural Insights", "Kültürel Bilgiler"],
+  ["Traveling in Greece", "Yunanistan'da Seyahat"],
+  ["Describing Daily Activities", "Günlük Aktiviteleri Tanımlama"],
+  ["Telling Time and Scheduling", "Zamanı Söyleme ve Planlama"],
+  ["Expressing Frequency and Habits", "Sıklık ve Alışkanlıkları Belirtme"],
+  ["Introduction to the Simple Past Tense", "Geçmiş Zamana Giriş"],
+  ["Narrating Past Events in Context", "Geçmiş Olayları Bağlamında Anlatma"],
+  ["Common Verbs in the Past Tense", "Geçmiş Zamanda Yaygın Fiiller"],
+  ["Talking About Your Home", "Eviniz Hakkında Konuşma"],
+  ["Describing Places and Locations", "Yerleri ve Konumları Tanımlama"],
+  ["Using Prepositions of Place", "Yer Edatlarını Kullanma"],
+  ["Making Small Talk", "Kısa Sohbetler Yapma"],
+  ["Polite Requests and Offers", "Kibar İstekler ve Teklifler"],
+  ["Expressing Likes and Dislikes", "Beğenileri ve Sevmediklerini Belirtme"],
+  ["Navigating a Grocery Store", "Markette Alışveriş Yapma"],
+  ["Asking for Prices and Discounts", "Fiyat ve İndirim Sorma"],
+  ["Making Purchases and Returns", "Satın Alma ve İadeler"],
+  ["Talking About Your Job", "İşiniz Hakkında Konuşma"],
+  ["Describing Work Tasks and Responsibilities", "İş Görevlerini ve Sorumlulukları Tanımlama"],
+  ["Interacting with Colleagues and Clients", "İş Arkadaşları ve Müşterilerle İletişim"],
+  ["Understanding Greek Customs and Etiquette", "Yunan Gelenek ve Görgü Kurallarını Anlama"],
+  ["Celebrations and Traditions in Greece", "Yunanistan'da Kutlamalar ve Gelenekler"],
+  ["Regional Dialects and Variations", "Bölgesel Lehçeler ve Farklılıklar"],
+  ["Asking for Directions", "Yol Tarifi Sorma"],
+  ["Using Public Transportation", "Toplu Taşımayı Kullanma"],
+  ["Booking Accommodations and Services", "Konaklama ve Hizmet Rezervasyonu"],
+  ["Alfabeto Master List", "Alfabe Ana Listesi"],
+  ["Phonetic Sounds of the Alphabet", "Alfabenin Fonetik Sesleri"],
+  ["Using the Alphabet in Context", "Alfabeyi Bağlam İçinde Kullanma"],
+  ["Quick Check", "Hızlı Kontrol"],
+  ["Practical Usage", "Pratik Kullanım"],
+  ["Vocabulary Cheat Sheet", "Kelime İpucu Listesi"],
+  ["Grammar & Key Rules", "Dilbilgisi ve Temel Kurallar"]
+];
+
+function translateCurriculumTitle(title, lang = currentLang) {
+  if (!title) return '';
+  const trimmed = title.trim();
+  const lower = trimmed.toLowerCase();
+
+  // 1. Check window.PAGE_TITLE_PAIRS
+  if (Array.isArray(window.PAGE_TITLE_PAIRS)) {
+    for (const [en, tr] of window.PAGE_TITLE_PAIRS) {
+      if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
+        return lang === 'tr' ? tr : en;
+      }
+    }
+  }
+
+  // 2. Check CURRICULUM_PAIRS
+  for (const [en, tr] of CURRICULUM_PAIRS) {
+    if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
+      return lang === 'tr' ? tr : en;
+    }
+  }
+
+  // 3. Fallback common synonyms for page titles
+  if (lang === 'tr') {
+    if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed)) return 'Temel Kelimeler';
+    if (/^structural\s+focus$/i.test(trimmed)) return 'Yapısal Odak';
+    if (/^practical\s+application$/i.test(trimmed)) return 'Pratik Uygulama';
+    if (/^sound\s+practice$/i.test(trimmed)) return 'Ses Pratiği';
+    if (/^spanish\s+alphabet$/i.test(trimmed)) return 'İspanyol Alfabesi';
+    if (/^quick\s+check$/i.test(trimmed)) return 'Hızlı Kontrol';
+  } else {
+    if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed)) return 'Essential Vocabulary';
+    if (/^yapısal\s+odak$/i.test(trimmed)) return 'Structural Focus';
+    if (/^pratik\s+uygulama$/i.test(trimmed)) return 'Practical Application';
+    if (/^hızlı\s+kontrol$/i.test(trimmed)) return 'Quick Check';
+  }
+
+  return trimmed;
+}
+
+const VOCAB_PAIRS = [
+  ["hello", "merhaba"],
+  ["hi", "selam"],
+  ["good morning", "günaydın"],
+  ["good afternoon", "iyi günler"],
+  ["good evening", "iyi akşamlar"],
+  ["good night", "iyi geceler"],
+  ["What's your name?", "Adın ne?"],
+  ["My name is...", "Benim adım..."],
+  ["Where are you from?", "Nerelisin?"],
+  ["I'm from...", "Ben ...'lıyım"],
+  ["nice to meet you", "memnun oldum"],
+  ["goodbye", "hoşça kal"],
+  ["bye", "hoşça kal"],
+  ["see you later", "görüşürüz"],
+  ["see you soon", "yakında görüşürüz"],
+  ["please", "lütfen"],
+  ["thank you", "teşekkür ederim"],
+  ["thanks", "teşekkürler"],
+  ["you're welcome", "rica ederim"],
+  ["yes", "evet"],
+  ["no", "hayır"],
+  ["excuse me", "afedersiniz"],
+  ["sorry", "özür dilerim"],
+  ["friend", "arkadaş"],
+  ["family", "aile"],
+  ["mother", "anne"],
+  ["father", "baba"],
+  ["brother", "erkek kardeş"],
+  ["sister", "kız kardeş"],
+  ["son", "oğul"],
+  ["daughter", "kız çocuk"],
+  ["house", "ev"],
+  ["home", "ev"],
+  ["water", "su"],
+  ["bread", "ekmek"],
+  ["coffee", "kahve"],
+  ["tea", "çay"],
+  ["food", "yemek"],
+  ["book", "kitap"],
+  ["school", "okul"],
+  ["teacher", "öğretmen"],
+  ["student", "öğrenci"],
+  ["cat", "kedi"],
+  ["dog", "köpek"],
+  ["car", "araba"],
+  ["city", "şehir"],
+  ["country", "ülke"],
+  ["time", "zaman"],
+  ["day", "gün"],
+  ["night", "gece"],
+  ["week", "hafta"],
+  ["month", "ay"],
+  ["year", "yıl"],
+  ["today", "bugün"],
+  ["tomorrow", "yarın"],
+  ["yesterday", "dün"],
+  ["Monday", "Pazartesi"],
+  ["Tuesday", "Salı"],
+  ["Wednesday", "Çarşamba"],
+  ["Thursday", "Perşembe"],
+  ["Friday", "Cuma"],
+  ["Saturday", "Cumartesi"],
+  ["Sunday", "Pazar"],
+  ["one", "bir"],
+  ["two", "iki"],
+  ["three", "üç"],
+  ["four", "dört"],
+  ["five", "beş"],
+  ["six", "altı"],
+  ["seven", "yedi"],
+  ["eight", "sekiz"],
+  ["nine", "dokuz"],
+  ["ten", "on"],
+  ["I", "ben"],
+  ["you", "sen"],
+  ["he", "o (erkek)"],
+  ["she", "o (kadın)"],
+  ["we", "biz"],
+  ["they", "onlar"],
+  ["Spanish", "İspanyol"],
+  ["Mexican", "Meksikalı"],
+  ["American", "Amerikalı"],
+  ["French", "Fransız"],
+  ["German", "Alman"],
+  ["Italian", "İtalyan"],
+  ["Brazilian", "Brezilyalı"],
+  ["Chinese", "Çinli"],
+  ["Japanese", "Japon"],
+  ["English/British", "İngiliz"],
+  ["Argentine", "Arjantinli"],
+  ["Colombian", "Kolombiyalı"],
+  ["Greek", "Yunan"],
+  ["Turkish", "Türk"],
+  ["Multiple Choice", "Çoktan Seçmeli"],
+  ["Fill in the Blank", "Boşluk Doldurma"],
+  ["Arrange the dialogue in the correct order:", "Diyaloğu doğru sıraya koyun:"]
+];
+
+const SPANISH_LETTER_SPELLINGS = new Set([
+  'a','be','ce','de','e','efe','ge','hache','i','jota','ka','ele','eme','ene','eñe','o','pe','cu','ere','erre','ese','te','u','uve','uve doble','equis','i griega','zeta'
+]);
+
+function translateOption(text, lang = currentLang) {
+  if (!text) return '';
+  const trimmed = text.trim();
+  if (trimmed.length <= 1) {
+    // Single characters / letters must never be translated into pronouns (e.g. 'o' -> 'she' or 'i' -> 'ben')
+    return trimmed;
+  }
+  const lower = trimmed.toLowerCase();
+  if (SPANISH_LETTER_SPELLINGS.has(lower)) {
+    // Spanish alphabet letter spellings are proper pronunciation names, never machine-translated
+    return trimmed;
+  }
+  const isTr = (lang === 'tr');
+
+  // 1. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN
+  const enTr = window.VOCAB_MAP_EN_TR || {};
+  const trEn = window.VOCAB_MAP_TR_EN || {};
+
+  if (isTr) {
+    if (enTr[trimmed]) return enTr[trimmed];
+    if (enTr[lower]) return enTr[lower];
+    // If it is already known Turkish, preserve it
+    if (trEn[trimmed] || trEn[lower]) return text;
+  } else {
+    if (trEn[trimmed]) return trEn[trimmed];
+    if (trEn[lower]) return trEn[lower];
+    // If it is already known English, preserve it
+    if (enTr[trimmed] || enTr[lower]) return text;
+  }
+
+  // 2. Check VOCAB_PAIRS array
+  for (const [en, tr] of VOCAB_PAIRS) {
+    if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
+      return isTr ? tr : en;
+    }
+  }
+
+  return text;
+}
+
+function translatePrompt(text, lang = currentLang) {
+  if (!text) return '';
+  let str = text.trim();
+  if (lang === 'tr') {
+    str = str.replace(/What is the phonetic sound of the letter '(.*)' in Spanish\?/i, "İspanyolcada '$1' harfinin fonetik sesi nedir?");
+    str = str.replace(/What is the phonetic sound of the letter '(.*)' in (.*)\?/i, "$2'de '$1' harfinin fonetik sesi nedir?");
+    str = str.replace(/What does '(.*)' mean\?/i, "'$1' ne anlama gelir?");
+    str = str.replace(/How do you say '(.*)' in Spanish\?/i, (m, w) => {
+      const wordTR = translateOption(w, 'tr');
+      return `İspanyolca'da '${wordTR}' nasıl denir?`;
+    });
+    str = str.replace(/How do you say '(.*)' in (.*)\?/i, (m, w, l) => {
+      const wordTR = translateOption(w, 'tr');
+      const langTR = translateCourseName(l, 'tr');
+      return `${langTR}'da '${wordTR}' nasıl denir?`;
+    });
+    str = str.replace(/Identify the correct option:?/i, "Doğru seçeneği belirleyin:");
+    str = str.replace(/Identify the correct answer:?/i, "Doğru cevabı belirleyin:");
+    str = str.replace(/Select the correct answer:?/i, "Doğru cevabı seçin:");
+    str = str.replace(/Choose the correct translation:?/i, "Doğru çeviriyi seçin:");
+    str = str.replace(/Choose the correct option:?/i, "Doğru seçeneği seçin:");
+    str = str.replace(/Fill in the blank:?/i, "Boşluğu doldurun:");
+    str = str.replace(/Reorder the dialogue correctly:?/i, "Diyaloğu doğru sıraya koyun:");
+    str = str.replace(/Arrange the dialogue in the correct order:?/i, "Diyaloğu doğru sıraya koyun:");
+    str = str.replace(/Which word best completes the sentence\?/i, "Cümleyi en iyi hangi kelime tamamlar?");
+    str = str.replace(/Which of the following means '(.*)'\?/i, "Aşağıdakilerden hangisi '$1' anlamına gelir?");
+    str = str.replace(/Translate the following sentence:?/i, "Aşağıdaki cümleyi çevirin:");
+    str = str.replace(/Translate the following:?/i, "Aşağıdakini çevirin:");
+  } else {
+    str = str.replace(/İspanyolcada '(.*)' harfinin fonetik sesi nedir\?/i, "What is the phonetic sound of the letter '$1' in Spanish?");
+    str = str.replace(/(.*)'de '(.*)' harfinin fonetik sesi nedir\?/i, (m, l, w) => {
+      const langEN = translateCourseName(l, 'en');
+      return `What is the phonetic sound of the letter '${w}' in ${langEN}?`;
+    });
+    str = str.replace(/'(.*)' ne anlama gelir\?/i, "What does '$1' mean?");
+    str = str.replace(/İspanyolca'da '(.*)' nasıl denir\?/i, (m, w) => {
+      const wordEN = translateOption(w, 'en');
+      return `How do you say '${wordEN}' in Spanish?`;
+    });
+    str = str.replace(/(.*)'da '(.*)' nasıl denir\?/i, (m, l, w) => {
+      const wordEN = translateOption(w, 'en');
+      const langEN = translateCourseName(l, 'en');
+      return `How do you say '${wordEN}' in ${langEN}?`;
+    });
+    str = str.replace(/Doğru seçeneği belirleyin:?/i, "Identify the correct option:");
+    str = str.replace(/Doğru cevabı belirleyin:?/i, "Identify the correct answer:");
+    str = str.replace(/Doğru cevabı seçin:?/i, "Select the correct answer:");
+    str = str.replace(/Doğru çeviriyi seçin:?/i, "Choose the correct translation:");
+    str = str.replace(/Doğru seçeneği seçin:?/i, "Choose the correct option:");
+    str = str.replace(/Boşluğu doldurun:?/i, "Fill in the blank:");
+    str = str.replace(/Diyaloğu doğru sıraya koyun:?/i, "Reorder the dialogue correctly:");
+    str = str.replace(/Cümleyi en iyi hangi kelime tamamlar\?/i, "Which word best completes the sentence?");
+    str = str.replace(/Aşağıdakilerden hangisi '(.*)' anlamına gelir\?/i, "Which of the following means '$1'?");
+    str = str.replace(/Aşağıdaki cümleyi çevirin:?/i, "Translate the following sentence:");
+    str = str.replace(/Aşağıdakini çevirin:?/i, "Translate the following:");
+  }
+  return str;
+}
+
+const EDUCATIONAL_SENTENCE_PAIRS = [
+  ["This is the complete list of the Spanish alphabet.", "Bu, İspanyol alfabesinin tam listesidir."],
+  ["Each letter has a unique sound that is important for pronunciation.", "Her harfin telaffuz için önemli olan benzersiz bir sesi vardır."],
+  ["Familiarity with these letters helps in spelling and reading.", "Bu harflere aşina olmak heceleme ve okumaya yardımcı olur."],
+  ["Understanding the alphabet is foundational for language learning.", "Alfabeyi anlamak dil öğrenimi için temeldir."],
+  ["Each letter has a specific sound in Spanish.", "İspanyolcada her harfin belirli bir sesi vardır."],
+  ["Vowels (A, E, I, O, U) have clear, distinct sounds.", "Ünlüler (A, E, I, O, U) net ve belirgin seslere sahiptir."],
+  ["Consonants can vary in sound depending on their placement.", "Ünsüzlerin sesleri konumlarına göre değişiklik gösterebilir."],
+  ["Practice saying each letter out loud to master pronunciation.", "Telaffuzda ustalaşmak için her harfi sesli olarak telaffuz edin."],
+  ["Listening to native speakers helps improve your phonetic skills.", "Anadili konuşanları dinlemek fonetik becerilerinizi geliştirmeye yardımcı olur."],
+  ["These examples show how to use letters in everyday situations.", "Bu örnekler harflerin günlük durumlarda nasıl kullanılacağını gösterir."],
+  ["Recognizing letters helps in spelling names and places.", "Harfleri tanımak isimleri ve yerleri hecelemeye yardımcı olur."],
+  ["Practice with these sentences to improve fluency.", "Akıcılığı artırmak için bu cümlelerle pratik yapın."],
+  ["The letter 'G' has a hard sound like 'g' in 'go' when followed by 'a', 'o', or 'u'.", "'G' harfi 'a', 'o' veya 'u'dan önce geldiğinde 'go'daki 'g' gibi sert bir sese sahiptir."],
+  ["When followed by 'e' or 'i', it has a softer sound, similar to 'h' in 'hello'.", "'e' veya 'i'den önce geldiğinde 'hello'daki 'h'ye benzer daha yumuşak bir sese sahiptir."],
+  ["Understanding this helps in accurate pronunciation.", "Bunu anlamak doğru telaffuz için yardımcı olur."],
+  ["Common greetings in Spanish include hola, buenos días, and buenas tardes.", "İspanyolcada yaygın selamlaşmalar arasında hola, buenos días ve buenas tardes yer alır."],
+  ["Use 'tú' for informal situations and 'usted' for formal situations.", "Resmi olmayan durumlar için 'tú', resmi durumlar için 'usted' kullanın."],
+  ["Numbers from 1 to 20 have unique names in Spanish.", "1'den 20'ye kadar olan sayıların İspanyolcada benzersiz adları vardır."],
+  ["Days of the week are not capitalized in Spanish.", "İspanyolcada haftanın günleri büyük harfle başlamaz."],
+  ["Months and seasons are essential for discussing plans and dates.", "Aylar ve mevsimler planları ve tarihleri konuşmak için gereklidir."]
+];
+
+function translateEducationalText(text, lang = currentLang) {
+  if (!text || typeof text !== 'string') return text;
+  
+  const isTr = (lang === 'tr');
+  const enTrMap = window.EDUCATIONAL_SENTENCE_MAP_EN_TR || {};
+  const trEnMap = window.EDUCATIONAL_SENTENCE_MAP_TR_EN || {};
+  
+  // Split by newline to preserve paragraph and bullet structure
+  const lines = text.split('\n');
+  const translatedLines = lines.map(line => {
+    const rawLine = line;
+    const bulletMatch = rawLine.match(/^([•\-\*\s]+)(.*)$/);
+    const bullet = bulletMatch ? bulletMatch[1] : '';
+    const cleanContent = (bulletMatch ? bulletMatch[2] : rawLine).trim();
+    if (!cleanContent) return rawLine;
+
+    // 1. Direct dictionary lookup
+    if (isTr) {
+      if (enTrMap[cleanContent]) return bullet + enTrMap[cleanContent];
+      const noDot = cleanContent.replace(/\.+$/, '');
+      if (enTrMap[noDot]) return bullet + enTrMap[noDot] + (cleanContent.endsWith('.') ? '.' : '');
+    } else {
+      if (trEnMap[cleanContent]) return bullet + trEnMap[cleanContent];
+      const noDot = cleanContent.replace(/\.+$/, '');
+      if (trEnMap[noDot]) return bullet + trEnMap[noDot] + (cleanContent.endsWith('.') ? '.' : '');
+    }
+
+    // 2. Legacy sentence pair lookup
+    if (Array.isArray(window.EDUCATIONAL_SENTENCE_PAIRS)) {
+      for (const [en, tr] of window.EDUCATIONAL_SENTENCE_PAIRS) {
+        if (isTr && cleanContent === en) return bullet + tr;
+        if (!isTr && cleanContent === tr) return bullet + en;
+      }
+    }
+
+    // 3. Dynamic Pedagogical Template Regex Engine (covers future / AI-generated lessons)
+    let processed = cleanContent;
+    if (isTr) {
+      processed = processed.replace(/^These terms are (crucial|essential|fundamental|important) for understanding (.*) in (.*)\.?$/i, 
+        "$3 dilinde $2 konusunu anlamak için bu terimler çok önemlidir.");
+      processed = processed.replace(/^These terms are (crucial|essential|fundamental|important) for (.*)\.?$/i, 
+        "Bu terimler $2 için çok önemlidir.");
+      processed = processed.replace(/^Understanding these (terms|words|phrases) helps with (.*)\.?$/i, 
+        "Bu $1'i anlamak $2 konusunda yardımcı olur.");
+      processed = processed.replace(/^These examples show how to use (.*) in everyday situations\.?$/i, 
+        "Bu örnekler $1 konusunun günlük durumlarda nasıl kullanılacağını gösterir.");
+      processed = processed.replace(/^These phrases are (crucial|essential) for (.*)\.?$/i, 
+        "Bu ifadeler $2 için çok önemlidir.");
+      processed = processed.replace(/^These sentences illustrate (.*)\.?$/i, 
+        "Bu cümleler $1 konusunu açıklar.");
+      processed = processed.replace(/^Example:\s*(.*)\s*\((.*)\)/i, (m, phrase, paren) => {
+        const trParen = translateOption(paren, 'tr');
+        return `Örnek: ${phrase} (${trParen})`;
+      });
+      processed = processed.replace(/'(.*)' is used to express (.*)\.?/i, "'$1', $2 ifade etmek için kullanılır.");
+      processed = processed.replace(/'(.*)' specifically refers to (.*)\.?/i, "'$1' özellikle $2 anlamına gelir.");
+      processed = processed.replace(/The correct answer is '(.*)'/i, "Doğru cevap: '$1'");
+      processed = processed.replace(/Other options do not fit the context\.?/i, "Diğer seçenekler bağlama uymaz.");
+    } else {
+      processed = processed.replace(/^Bu terimler (.*) için çok önemlidir\.?$/i, "These terms are essential for $1.");
+      processed = processed.replace(/^Bu terimler günlük yaşamda sıkça kullanılır\.?$/i, "These terms are frequently used in daily life.");
+      processed = processed.replace(/^Bu cümleler günlük hayatta nasıl kullanılır\.?$/i, "How these sentences are used in everyday life.");
+      processed = processed.replace(/^Bu cümleler günlük hayatta nasıl kullanılabilir\.?$/i, "How these sentences can be used in everyday life.");
+      processed = processed.replace(/^Örnek:\s*(.*)\s*\((.*)\)/i, (m, phrase, paren) => {
+        const enParen = translateOption(paren, 'en');
+        return `Example: ${phrase} (${enParen})`;
+      });
+      processed = processed.replace(/'(.*)' kelimesi (.*) ifade eder\.?/i, "The word '$1' expresses $2.");
+      processed = processed.replace(/'(.*)' ifadesi (.*) için kullanılır\.?/i, "The phrase '$1' is used for $2.");
+      processed = processed.replace(/Diğer seçenekler (.*) uygun değildir\.?/i, "Other options are not suitable in this context.");
+      processed = processed.replace(/Doğru cevap (.*)\.?/i, "The correct answer $1.");
+    }
+
+    if (processed !== cleanContent) {
+      return bullet + processed;
+    }
+
+    // 4. Substring fallback for embedded phrases
+    let subStr = cleanContent;
+    if (isTr) {
+      for (const [en, tr] of (window.EDUCATIONAL_SENTENCE_PAIRS || [])) {
+        if (subStr.includes(en)) subStr = subStr.split(en).join(tr);
+      }
+    } else {
+      for (const [en, tr] of (window.EDUCATIONAL_SENTENCE_PAIRS || [])) {
+        if (subStr.includes(tr)) subStr = subStr.split(tr).join(en);
+      }
+    }
+
+    // 5. On-Demand Background Translation for brand new future classrooms
+    if (subStr === cleanContent && cleanContent.length > 5 && !cleanContent.startsWith('http')) {
+      const isEnglishSource = !/[çğıöşüÇĞİÖŞÜ]/.test(cleanContent) && /\b(the|and|is|are|in|for|with|of|to|these|this|vowels|consonants)\b/i.test(cleanContent);
+      const isTurkishSource = /[çğıöşüÇĞİÖŞÜ]/.test(cleanContent) || /\b(ve|ile|bir|bu|için|nasıl|olarak|kullanılır|anlatırken|tanımlar)\b/i.test(cleanContent);
+      const needsTranslation = (isTr && isEnglishSource) || (!isTr && isTurkishSource);
+      
+      if (needsTranslation) {
+        if (!window._pendingMaterialTranslations) window._pendingMaterialTranslations = new Set();
+        const cacheKey = `${lang}:${cleanContent}`;
+        if (!window._pendingMaterialTranslations.has(cacheKey)) {
+          window._pendingMaterialTranslations.add(cacheKey);
+          fetch('/api/translate/material', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: cleanContent, target_lang: lang })
+          }).then(r => r.json()).then(data => {
+            if (data && data.translated && data.translated !== cleanContent && data.translated !== 'None') {
+              if (isTr) {
+                if (!window.EDUCATIONAL_SENTENCE_MAP_EN_TR) window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {};
+                window.EDUCATIONAL_SENTENCE_MAP_EN_TR[cleanContent] = data.translated;
+              } else {
+                if (!window.EDUCATIONAL_SENTENCE_MAP_TR_EN) window.EDUCATIONAL_SENTENCE_MAP_TR_EN = {};
+                window.EDUCATIONAL_SENTENCE_MAP_TR_EN[cleanContent] = data.translated;
+              }
+              const lastTopic = localStorage.getItem('aula_last_topic');
+              const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+              if (lastTopic) showStudyTopic(lastTopic, lastPage);
+            }
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return bullet + subStr;
+  });
+
+  return translatedLines.join('\n');
+}
+
+function translateDictExplanation(explanation, isTr) {
+  if (!explanation) return '';
+  if (!isTr) return explanation;
+  let res = explanation;
+  res = res.replace(/The phrase '(.*)' translates to '(.*)' in English\. It is a common greeting in Spanish-speaking countries\./i, (m, phrase, eng) => {
+    const tr = translateOption(eng, 'tr') || 'merhaba, nasılsın?';
+    return `'${phrase}' ifadesi '${tr}' anlamına gelir. İspanyolca konuşulan ülkelerde yaygın bir selamlaşmadır.`;
+  });
+  res = res.replace(/The phrase '(.*)' translates to '(.*)' in English\./i, (m, phrase, eng) => {
+    const tr = translateOption(eng, 'tr');
+    return `'${phrase}' ifadesi '${tr}' anlamına gelir.`;
+  });
+  res = res.replace(/The term '(.*)' translates to '(.*)' in English\./i, (m, term, eng) => {
+    const tr = translateOption(eng, 'tr');
+    return `'${term}' terimi '${tr}' anlamına gelir.`;
+  });
+  res = res.replace(/'(.*)' means '(.*)'\./i, (m, word, meaning) => {
+    const meaningTR = translateOption(meaning, 'tr');
+    return `'${word}', '${meaningTR}' anlamına gelir.`;
+  });
+  res = res.replace(/Commonly used in daily interaction\./i, "Günlük iletişimde yaygın olarak kullanılır.");
+  res = res.replace(/This is a high-frequency word we've pre-verified for you!/i, "Bu, sizin için önceden doğruladığımız yüksek frekanslı bir kelimedir!");
+  return res;
 }
 
 async function api(path, opts = {}) {
@@ -1672,8 +2293,252 @@ function fillDemo(role) {
     document.getElementById('login-password').value = 'demo123';
   } else {
     document.getElementById('student-number').value = '2023001';
-    document.getElementById('student-name-input').value = 'Alex Rivera';
+    const pwdEl = document.getElementById('student-password');
+    if (pwdEl) pwdEl.value = 'demo123';
   }
+}
+
+// ── SPA Router & Route Definitions ──
+const _ROUTE_MAP = {
+  '/': { screen: 'login-screen' },
+  '/login': { screen: 'login-screen' },
+  '/classrooms': { screen: 'classroom-selection-screen' },
+  '/portal': { screen: 'student-portal-screen' },
+  '/waiting': { screen: 'waiting-room-screen' },
+  '/overview': { screen: 'lecturer-dashboard', tab: 'overview' },
+  '/curriculum': { screen: 'lecturer-dashboard', tab: 'curriculum' },
+  '/activities': { screen: 'lecturer-dashboard', tab: 'activities' },
+  '/quizzes': { screen: 'lecturer-dashboard', tab: 'quizzes-mgmt' },
+  '/assignments': { screen: 'lecturer-dashboard', tab: 'assignments-mgmt' },
+  '/students': { screen: 'lecturer-dashboard', tab: 'students-tab' },
+  '/materials': { screen: 'lecturer-dashboard', tab: 'study-materials' },
+  '/textbook': { screen: 'lecturer-dashboard', tab: 'book' },
+  '/messages': { screen: 'lecturer-dashboard', tab: 'inbox' },
+  '/home': { screen: 'student-dashboard', tab: 's-home' },
+  '/practice': { screen: 'student-dashboard', tab: 's-practice' },
+  '/my-quizzes': { screen: 'student-dashboard', tab: 's-quizzes' },
+  '/my-assignments': { screen: 'student-dashboard', tab: 's-assignments' },
+  '/my-materials': { screen: 'student-dashboard', tab: 's-study-tab' },
+  '/my-textbook': { screen: 'student-dashboard', tab: 's-book' },
+  '/my-messages': { screen: 'student-dashboard', tab: 's-messages' }
+};
+
+const _TAB_TO_PATH = {
+  'overview': '/overview',
+  'curriculum': '/curriculum',
+  'activities': '/activities',
+  'quizzes-mgmt': '/quizzes',
+  'assignments-mgmt': '/assignments',
+  'students-tab': '/students',
+  'study-materials': '/materials',
+  'book': '/textbook',
+  'inbox': '/messages',
+  's-home': '/home',
+  's-practice': '/practice',
+  's-quizzes': '/my-quizzes',
+  's-assignments': '/my-assignments',
+  's-study-tab': '/my-materials',
+  's-book': '/my-textbook',
+  's-messages': '/my-messages'
+};
+
+const _TAB_TO_PATH_VALUES = new Set(Object.values(_TAB_TO_PATH));
+
+const _SCREEN_TO_PATH = {
+  'login-screen': '/login',
+  'classroom-selection-screen': '/classrooms',
+  'student-portal-screen': '/portal',
+  'waiting-room-screen': '/waiting'
+};
+
+let _isNavigatingFromPopState = false;
+
+function parseRouteUrl(pathname = window.location.pathname, search = window.location.search) {
+  let rawPath = pathname || '/';
+  let rawSearch = search || '';
+  if (rawPath.includes('?')) {
+    const qIdx = rawPath.indexOf('?');
+    rawSearch = rawPath.slice(qIdx) + (rawSearch ? '&' + rawSearch.replace(/^\?/, '') : '');
+    rawPath = rawPath.slice(0, qIdx);
+  }
+
+  let classroomRef = null;
+  if (rawSearch) {
+    try {
+      const params = new URLSearchParams(rawSearch);
+      classroomRef = params.get('c') || params.get('course') || params.get('code') || params.get('id') || params.get('classroom');
+    } catch (e) {}
+
+    // Support bare ?248258, ?=248258, overview=?248258
+    if (!classroomRef) {
+      const clean = rawSearch.replace(/^\?/, '').trim();
+      if (clean) {
+        if (!clean.includes('&') && !clean.includes('=')) {
+          classroomRef = clean;
+        } else if (clean.startsWith('=')) {
+          classroomRef = clean.replace(/^=+/, '').trim();
+        }
+      }
+    }
+  }
+
+  let cleanPath = rawPath.replace(/\/+$/, '') || '/';
+  const parts = cleanPath.split('/').filter(Boolean);
+
+  if (parts.length >= 2 && parts[0] === 'c') {
+    classroomRef = classroomRef || parts[1];
+    cleanPath = '/' + (parts[2] || 'overview');
+  } else if (parts.length === 2 && _ROUTE_MAP['/' + parts[0]]) {
+    classroomRef = classroomRef || parts[1];
+    cleanPath = '/' + parts[0];
+  }
+
+  const route = _ROUTE_MAP[cleanPath] || null;
+  return {
+    path: cleanPath,
+    route: route,
+    screen: route ? route.screen : null,
+    tab: route ? route.tab : null,
+    classroomRef: classroomRef
+  };
+}
+
+function updateUrlPath(path, replace = false) {
+  if (!path) return;
+  let fullUrl = path;
+  if (!fullUrl.includes('?') && _TAB_TO_PATH_VALUES.has(fullUrl) && currentCourse) {
+    const code = currentCourse.code || currentCourse.id;
+    if (code) {
+      fullUrl = `${path}?c=${encodeURIComponent(code)}`;
+    }
+  }
+
+  const currentFull = window.location.pathname + window.location.search;
+  if (currentFull === fullUrl) return;
+
+  try {
+    if (replace) {
+      window.history.replaceState({ path: fullUrl }, '', fullUrl);
+    } else {
+      window.history.pushState({ path: fullUrl }, '', fullUrl);
+    }
+  } catch (e) {
+    console.warn('Router updateUrlPath error:', e);
+  }
+}
+
+function handlePopState(e) {
+  const fullUrl = window.location.pathname + window.location.search;
+  applyRoute(fullUrl, true);
+}
+
+async function applyRoute(urlOrPath, fromPopState = false) {
+  _isNavigatingFromPopState = fromPopState;
+  try {
+    const parsed = parseRouteUrl(urlOrPath);
+    const { route, screen, tab, classroomRef, path } = parsed;
+
+    if (!currentUser) {
+      if (path !== '/' && path !== '/login') {
+        sessionStorage.setItem('aula_redirect_path', urlOrPath);
+      }
+      showScreen('login-screen', false);
+      return;
+    }
+
+    if (!route) {
+      if (currentUser.role === 'lecturer') {
+        if (currentCourse) {
+          showScreen('lecturer-dashboard', false);
+          const btn = document.querySelector('#lecturer-dashboard [data-tab="overview"]');
+          if (btn) switchTab(btn, false, false);
+        } else {
+          showClassroomSelection();
+        }
+      } else {
+        if (currentCourse) {
+          showScreen('student-dashboard', false);
+          const btn = document.querySelector('#student-dashboard [data-tab="s-home"]');
+          if (btn) switchTab(btn, false, false);
+        } else {
+          showStudentPortal();
+        }
+      }
+      return;
+    }
+
+    if (screen === 'login-screen') {
+      showScreen('login-screen', false);
+    } else if (screen === 'classroom-selection-screen') {
+      if (currentUser.role !== 'lecturer') {
+        showScreen('login-screen');
+      } else {
+        showClassroomSelection();
+      }
+    } else if (screen === 'student-portal-screen') {
+      if (currentUser.role !== 'student') {
+        showScreen('login-screen');
+      } else {
+        showStudentPortal();
+      }
+    } else if (screen === 'waiting-room-screen') {
+      showScreen('waiting-room-screen', false);
+    } else if (screen === 'lecturer-dashboard') {
+      if (currentUser.role !== 'lecturer') {
+        sessionStorage.setItem('aula_redirect_path', urlOrPath);
+        showScreen('login-screen');
+      } else {
+        if (classroomRef && (!currentCourse || (currentCourse.code !== classroomRef && currentCourse.id !== classroomRef))) {
+          try {
+            const courses = await api('/courses');
+            const found = courses.find(c => c.code === classroomRef || c.id === classroomRef);
+            if (found) {
+              if (tab) localStorage.setItem('aula_last_tab', tab);
+              await selectClassroom(found.id, true);
+              return;
+            }
+          } catch (e) {
+            console.error('Error switching classroom in route:', e);
+          }
+        }
+        showScreen('lecturer-dashboard', false);
+        if (tab) {
+          const btn = document.querySelector(`#lecturer-dashboard [data-tab="${tab}"]`);
+          if (btn) switchTab(btn, false, false);
+        }
+      }
+    } else if (screen === 'student-dashboard') {
+      if (currentUser.role !== 'student') {
+        sessionStorage.setItem('aula_redirect_path', urlOrPath);
+        showScreen('login-screen');
+      } else {
+        if (classroomRef && (!currentCourse || (currentCourse.code !== classroomRef && currentCourse.id !== classroomRef))) {
+          try {
+            const courses = await api('/courses');
+            const found = courses.find(c => c.code === classroomRef || c.id === classroomRef);
+            if (found) {
+              if (tab) localStorage.setItem('aula_last_tab', tab);
+              await selectClassroom(found.id, false);
+              return;
+            }
+          } catch (e) {
+            console.error('Error switching classroom in route:', e);
+          }
+        }
+        showScreen('student-dashboard', false);
+        if (tab) {
+          const btn = document.querySelector(`#student-dashboard [data-tab="${tab}"]`);
+          if (btn) switchTab(btn, false, false);
+        }
+      }
+    }
+  } finally {
+    _isNavigatingFromPopState = false;
+  }
+}
+
+function initRouter() {
+  window.addEventListener('popstate', handlePopState);
 }
 
 async function completeLogin(user, isFresh = false) {
@@ -1688,9 +2553,24 @@ async function completeLogin(user, isFresh = false) {
   // Session Storage is per-tab, so it's safer for multiple roles in different tabs
   sessionStorage.setItem('aula_user', JSON.stringify(user));
 
-  const remember = document.getElementById('login-remember') ? document.getElementById('login-remember').checked : true;
+  let remember = true;
+  if (user && user.role === 'student') {
+    const studentRememberEl = document.getElementById('student-login-remember');
+    remember = studentRememberEl ? studentRememberEl.checked : true;
+  } else {
+    const lecturerRememberEl = document.getElementById('login-remember');
+    remember = lecturerRememberEl ? lecturerRememberEl.checked : true;
+  }
+
+  // Preserve existing persistent login if restoring session on page reload
+  if (!isFresh && localStorage.getItem('aula_user')) {
+    remember = true;
+  }
+
   if (remember) {
     localStorage.setItem('aula_user', JSON.stringify(user));
+  } else if (isFresh) {
+    localStorage.removeItem('aula_user');
   }
 
   localStorage.setItem('aula_lang', currentLang);
@@ -1721,7 +2601,7 @@ async function completeLogin(user, isFresh = false) {
           if (check && check.status === 'approved') {
             clearInterval(window._waitingPoll);
             currentUser.status = 'approved';
-            localStorage.setItem('aula_user', JSON.stringify(currentUser));
+            if (remember) localStorage.setItem('aula_user', JSON.stringify(currentUser));
             sessionStorage.setItem('aula_user', JSON.stringify(currentUser));
             window.location.reload();
           } else if (check && (check.error === 'User not found' || check.error === 'course_deleted')) {
@@ -1737,21 +2617,66 @@ async function completeLogin(user, isFresh = false) {
     }
   }
 
+  const currentFullUrl = window.location.pathname + window.location.search;
+  const redirectPath = sessionStorage.getItem('aula_redirect_path');
+  const targetUrl = redirectPath || (window.location.pathname !== '/login' && window.location.pathname !== '/' ? currentFullUrl : null);
+  if (redirectPath) sessionStorage.removeItem('aula_redirect_path');
+
+  const parsed = parseRouteUrl(targetUrl || window.location.pathname, targetUrl ? '' : window.location.search);
+  const targetTab = parsed.tab;
+  const targetClassroomRef = parsed.classroomRef;
+  const targetPath = parsed.path;
+
+  if (targetTab) {
+    localStorage.setItem('aula_last_tab', targetTab);
+  }
+
   if (currentUser.role === 'lecturer') {
-    const savedCourse = localStorage.getItem('aula_last_course');
-    if (savedCourse) {
-      await selectClassroom(savedCourse);
-    } else {
+    if (targetPath === '/classrooms') {
       showClassroomSelection();
+    } else {
+      let courseIdToSelect = null;
+      if (targetClassroomRef) {
+        try {
+          const courses = await api('/courses');
+          const found = courses.find(c => c.code === targetClassroomRef || c.id === targetClassroomRef);
+          if (found) courseIdToSelect = found.id;
+        } catch (e) {
+          console.error("Failed fetching courses for URL resolution:", e);
+        }
+      }
+      if (!courseIdToSelect) {
+        courseIdToSelect = localStorage.getItem('aula_last_course');
+      }
+      if (courseIdToSelect) {
+        await selectClassroom(courseIdToSelect);
+      } else {
+        showClassroomSelection();
+      }
     }
   } else {
     // Global Student Portal
-    const savedCourse = localStorage.getItem('aula_last_course');
-    if (savedCourse) {
-      await selectClassroom(savedCourse, false);
+    if (targetPath === '/portal') {
+      showStudentPortal();
     } else {
-      showScreen('student-portal-screen');
-      await refreshStudentEnrollments();
+      let courseIdToSelect = null;
+      if (targetClassroomRef) {
+        try {
+          const courses = await api('/courses');
+          const found = courses.find(c => c.code === targetClassroomRef || c.id === targetClassroomRef);
+          if (found) courseIdToSelect = found.id;
+        } catch (e) {
+          console.error("Failed fetching courses for student URL resolution:", e);
+        }
+      }
+      if (!courseIdToSelect) {
+        courseIdToSelect = localStorage.getItem('aula_last_course');
+      }
+      if (courseIdToSelect) {
+        await selectClassroom(courseIdToSelect, false);
+      } else {
+        showStudentPortal();
+      }
     }
   }
   startLiveSync();
@@ -1863,7 +2788,10 @@ async function selectClassroom(id, isLecturer = true) {
 
   // 2. Fetch course data
   const courses = await api('/courses');
-  let course = courses.find(c => c.id === id);
+  let course = courses.find(c => c.id === id || c.code === id);
+  if (course) {
+    id = course.id;
+  }
 
   // Fallback if the course was deleted/consolidated
   if (!course && courses.length > 0) {
@@ -1993,8 +2921,12 @@ async function selectClassroom(id, isLecturer = true) {
   }
 
   if (currentUser.role === 'lecturer') {
-    showScreen('lecturer-dashboard');
-    const targetTab = localStorage.getItem('aula_last_tab') || 'overview';
+    showScreen('lecturer-dashboard', false);
+    const parsed = parseRouteUrl(window.location.pathname, window.location.search);
+    let targetTab = (parsed.screen === 'lecturer-dashboard' && parsed.tab) ? parsed.tab : null;
+    if (!targetTab) {
+      targetTab = localStorage.getItem('aula_last_tab') || 'overview';
+    }
     let finalTab = targetTab;
 
     const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
@@ -2008,8 +2940,12 @@ async function selectClassroom(id, isLecturer = true) {
       if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
     }
   } else {
-    showScreen('student-dashboard');
-    let targetTab = localStorage.getItem('aula_last_tab') || 's-home';
+    showScreen('student-dashboard', false);
+    const parsed = parseRouteUrl(window.location.pathname, window.location.search);
+    let targetTab = (parsed.screen === 'student-dashboard' && parsed.tab) ? parsed.tab : null;
+    if (!targetTab) {
+      targetTab = localStorage.getItem('aula_last_tab') || 's-home';
+    }
 
     const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
     if (tabBtn) switchTab(tabBtn, true); // skipLoad=true since we call initStudent after
@@ -2276,8 +3212,6 @@ async function buildAiClassroom() {
   btn.innerHTML = '<div class="spinner-small" style="display:inline-block"></div> ' + t('loading');
 
   try {
-    const materialLangSelect = document.getElementById('ai-material-language-select');
-    const materialLanguage = materialLangSelect ? materialLangSelect.value : 'en';
     const res = await api('/classroom/create-from-scratch', {
       method: 'POST',
       body: {
@@ -2286,8 +3220,7 @@ async function buildAiClassroom() {
         level: _selectedAiLevel,
         chapters,
         lecturer_id: currentUser.id,
-        course_id: localStorage.getItem('aula_rearchitecting_id'),
-        material_language: materialLanguage
+        course_id: localStorage.getItem('aula_rearchitecting_id')
       }
     });
     localStorage.removeItem('aula_rearchitecting_id');
@@ -2523,10 +3456,6 @@ async function handleCreateClassroom(e) {
   if (_lastExtractedLanguage) {
     formData.append('language', _lastExtractedLanguage);
   }
-  const materialLangSelect = document.getElementById('pdf-material-language-select');
-  if (materialLangSelect) {
-    formData.append('material_language', materialLangSelect.value);
-  }
 
   statusEl.classList.remove('hidden');
   btn.disabled = true;
@@ -2557,11 +3486,12 @@ async function handleStudentLogin(e) {
   if (e) e.preventDefault();
   const btn = e ? e.target.querySelector('button[type="submit"]') : null;
   const num = document.getElementById('student-number').value.trim();
-  const name = document.getElementById('student-name-input').value.trim();
+  const pwdEl = document.getElementById('student-password');
+  const password = pwdEl ? pwdEl.value : '';
   const errBox = document.getElementById('student-login-error');
 
-  if (!num || !name) {
-    errBox.textContent = t('missing_info');
+  if (!num || !password) {
+    errBox.textContent = t('missing_info') || 'Please enter student number and password.';
     errBox.classList.remove('hidden');
     return;
   }
@@ -2572,7 +3502,7 @@ async function handleStudentLogin(e) {
   try {
     const res = await api('/student/login', {
       method: 'POST',
-      body: { student_number: num, name: name }
+      body: { student_number: num, password: password }
     });
 
     if (res.error) {
@@ -2638,7 +3568,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedUser) {
       try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
       catch (e) { showScreen('login-screen'); }
-    } else showScreen('login-screen');
+    } else {
+      const p = window.location.pathname + window.location.search;
+      if (p && p !== '/' && p !== '/login') {
+        sessionStorage.setItem('aula_redirect_path', p);
+      }
+      showScreen('login-screen');
+    }
 
     // Add language warnings to creation forms
     const activityBtn = document.querySelector('button[onclick="launchActivity()"]');
@@ -2668,6 +3604,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Start Real-time Messaging Sync
     startMessagePolling();
+
+    // Initialize SPA Router
+    initRouter();
   } catch (err) {
     console.error('INIT ERROR:', err);
     alert('Critical Initialization Error: ' + err.message);
@@ -2678,7 +3617,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function showScreen(id) {
+function showScreen(id, updateRoute = true) {
   // Stop waiting room polling if we leave that screen
   if (id !== 'waiting-room-screen' && window._waitingPoll) {
     clearInterval(window._waitingPoll);
@@ -2687,6 +3626,11 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById(id);
   if (target) target.classList.add('active');
+
+  if (updateRoute && !_isNavigatingFromPopState) {
+    const p = _SCREEN_TO_PATH[id];
+    if (p) updateUrlPath(p);
+  }
 }
 document.addEventListener('focusin', (e) => {
   if (e.target.id === 'inbox-reply-text' || e.target.id === 'message-text') {
@@ -2702,7 +3646,7 @@ document.addEventListener('focusin', (e) => {
   }
 });
 
-function switchTab(btn, skipLoad = false) {
+function switchTab(btn, skipLoad = false, updateRoute = true) {
   // Find which screen we are in (Lecturer or Student)
   const screen = btn.closest('.screen') || (currentUser.role === 'lecturer' ? document.getElementById('lecturer-dashboard') : document.getElementById('student-dashboard'));
   if (!screen) return;
@@ -2722,7 +3666,7 @@ function switchTab(btn, skipLoad = false) {
       const allowedTabs = ['s-home', 's-messages'];
       if (!allowedTabs.includes(tabId)) {
         triggerStudentBuildingFocus();
-        return;
+        return; 
       }
     }
   }
@@ -2762,6 +3706,11 @@ function switchTab(btn, skipLoad = false) {
   });
 
   localStorage.setItem('aula_last_tab', tabId);
+
+  if (updateRoute && !_isNavigatingFromPopState) {
+    const p = _TAB_TO_PATH[tabId];
+    if (p) updateUrlPath(p);
+  }
 
   if (!skipLoad) {
     if (tabId === 'inbox') loadInbox();
@@ -3210,51 +4159,45 @@ async function loadCurriculumAsync() {
 function renderCurriculum() {
   try {
     const subtitleEl = document.getElementById('curriculum-subtitle');
-    if (subtitleEl && currentCourse) subtitleEl.textContent = `${currentCourse.name} — ${t('Content Map')}`;
-    if (subtitleEl) subtitleEl.setAttribute('data-i18n-data', JSON.stringify({ name: currentCourse?.name || '' })); // Optional: for more complex templates
+    if (subtitleEl && currentCourse) {
+      const cName = translateCourseName(currentCourse.name, currentLang);
+      subtitleEl.textContent = `${cName} — ${t('Content Map')}`;
+    }
 
     if (!curriculum || !Array.isArray(curriculum)) {
       document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">${t('class.no_curriculum')}</p>`;
       return;
     }
 
-    const isBuilding = currentCourse && currentCourse.is_building;
     const treeEl = document.getElementById('curriculum-tree');
-    const rebuildBtn = document.getElementById('rebuild-curriculum-btn');
-
-    if (rebuildBtn) {
-      rebuildBtn.disabled = isBuilding;
-      rebuildBtn.style.opacity = isBuilding ? '0.5' : '1';
-      const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
-      if (btnText) btnText.textContent = isBuilding ? t('Building...') : t('Build All Lessons');
-    }
-
     treeEl.innerHTML = curriculum.map((ch, i) => {
       const cleanTitle = (ch.title || "").replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
       const displayNum = i + 1;
+      const translatedChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle);
       return `
       <div class="chapter-block">
         <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
           <div style="display:flex;align-items:center;gap:12px;">
             <span class="chapter-num">${displayNum}</span>
-            <span class="chapter-title">${esc(cleanTitle)}</span>
-            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', ${escJS(ch.title)})" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">\ud83d\uddd1\ufe0f</button>
+            <span class="chapter-title">${esc(translatedChTitle)}</span>
+            <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteChapter('${ch.id}', ${escJS(ch.title)})" style="color:var(--danger); padding:2px; margin-left:8px; font-size:12px;">🗑️</button>
           </div>
           <span class="chapter-toggle">▸</span>
         </div>
         <div class="chapter-topics">${(ch.topics || []).map(t_obj => {
           const cleanTopicTitle = (t_obj.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
+          const translatedTTitle = (currentLang === 'tr' && t_obj.title_tr) ? t_obj.title_tr : translateCurriculumTitle(cleanTopicTitle);
           return `
           <div class="topic-item">
             <div class="topic-info">
-              <span class="topic-type-badge ${t_obj.type}">${t_obj.type}</span>
-              <span class="topic-name">${esc(cleanTopicTitle)}</span>
+              <span class="topic-type-badge ${t_obj.type}">${translateBadge(t_obj.type)}</span>
+              <span class="topic-name">${esc(translatedTTitle)}</span>
             </div>
             <div style="display:flex; align-items:center; gap:12px;">
-              ${t_obj.pdf_url ? `<button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); window.open('${t_obj.pdf_url}', '_blank')">\ud83d\udcd6</button>` : ''}
-              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', ${escJS(t_obj.title)})" style="color:var(--danger); padding:4px;">\ud83d\uddd1\ufe0f</button>
+              <button class="btn btn-sm" style="background:var(--info); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px; cursor:pointer;" title="${t('Material') || 'Study Material'}" onclick="event.stopPropagation(); openTopicMaterial('${t_obj.id}', '${t_obj.pdf_url || ''}')">📖</button>
+              <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); deleteTopic('${t_obj.id}', ${escJS(t_obj.title)})" style="color:var(--danger); padding:4px;">🗑️</button>
               <div class="topic-meta">
-                <span>${t_obj.difficulty}</span>
+                <span>${translateDifficulty(t_obj.difficulty)}</span>
                 <span>${t_obj.question_count || 0} ${t('questions')}</span>
               </div>
             </div>
@@ -3263,6 +4206,48 @@ function renderCurriculum() {
   } catch (err) {
     console.error('Render Error:', err);
   }
+}
+
+function openTopicMaterial(topicId, pdfUrl) {
+  if (pdfUrl && !pdfUrl.toLowerCase().includes('none')) {
+    let topic = null;
+    if (curriculum) {
+      for (const ch of curriculum) {
+        topic = (ch.topics || []).find(t => t.id === topicId);
+        if (topic) break;
+      }
+    }
+    if (!topic || !topic.content || topic.content === '{}') {
+      window.open(pdfUrl, '_blank');
+      return;
+    }
+  }
+
+  const isStudent = currentUser && currentUser.role === 'student';
+  const studyTabBtn = isStudent 
+    ? (document.getElementById('nav-s-study-tab') || document.querySelector('button[data-tab="s-study-tab"]'))
+    : (document.getElementById('lecturer-study-tab') || document.querySelector('button[data-tab="study-materials"]'));
+    
+  if (studyTabBtn) {
+    switchTab(studyTabBtn);
+  } else {
+    const targetPanelId = isStudent ? 'tab-s-study-tab' : 'tab-study-materials';
+    document.querySelectorAll('.tab-panel').forEach(p => {
+      if (p.id === targetPanelId) {
+        p.classList.add('active');
+        p.classList.remove('hidden');
+        p.style.display = 'block';
+      } else {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      }
+    });
+  }
+  
+  renderStudyBook();
+  setTimeout(() => {
+    showStudyTopic(topicId);
+  }, 100);
 }
 
 async function deleteChapter(id, title) {
@@ -3293,38 +4278,88 @@ async function rebuildClassroom(force = false) {
   if (!force) {
     const ok = await showConfirmModal(
       'confirm.rebuild_title',
-      "confirm.rebuild_msg",
-      false, null, false, "confirm.rebuild_ok", "confirm.rebuild_cancel"
+      'confirm.rebuild_msg',
+      true,
+      null,
+      false,
+      'confirm.rebuild_ok',
+      'confirm.rebuild_cancel'
     );
     if (!ok) return;
   }
 
+  const rebuildBtn = document.getElementById('rebuild-curriculum-btn');
+  if (rebuildBtn) {
+    rebuildBtn.disabled = true;
+    rebuildBtn.style.opacity = '0.5';
+    const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
+    if (btnText) btnText.textContent = t('Building...');
+  }
+
+  showToast(t('gen.preparing_content'), "info");
+  
   try {
-    const res = await api('/classroom/rebuild', {
+    const res = await api('/curriculum/rebuild', {
       method: 'POST',
-      body: { course_id: currentCourse.id, force: force }
+      body: { course_id: currentCourse.id }
     });
-    if (res.status === 'success') {
+    if (res.success) {
       currentCourse.is_building = 1;
-      // HARD UI RESET
-      const bannerId = currentUser.role === 'lecturer' ? 'lecturer-building-banner' : 'student-building-banner';
-      const fillId = currentUser.role === 'lecturer' ? 'lecturer-progress-fill' : 'student-progress-fill';
-      const textId = currentUser.role === 'lecturer' ? 'lecturer-progress-text' : 'student-progress-text';
-      const b = document.getElementById(bannerId);
-      const f = document.getElementById(fillId);
-      const t = document.getElementById(textId);
-      if (b) b.classList.remove('hidden');
-      if (f) f.style.width = '0%';
-      if (t) t.textContent = '0%';
-      
-      _buildStartTime = Date.now();
-      renderCurriculum();
+      showToast(t('gen.building'), "success");
+      // Poll progress until completion
+      pollRebuildProgress(currentCourse.id);
     } else {
-      showAlert("Error", res.error || "Failed to start build");
+      showToast(res.error || "Failed to start lesson building", "error");
+      if (rebuildBtn) {
+        rebuildBtn.disabled = false;
+        rebuildBtn.style.opacity = '1';
+        const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
+        if (btnText) btnText.textContent = t('Build All Lessons');
+      }
     }
   } catch (err) {
-    showAlert("Error", "Network error starting build");
+    console.error("Rebuild trigger error:", err);
+    showToast("Network error triggering rebuild", "error");
+    if (rebuildBtn) {
+      rebuildBtn.disabled = false;
+      rebuildBtn.style.opacity = '1';
+      const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
+      if (btnText) btnText.textContent = t('Build All Lessons');
+    }
   }
+}
+
+function pollRebuildProgress(cid) {
+  const banner = document.getElementById('lecturer-building-banner');
+  const fill = document.getElementById('lecturer-progress-fill');
+  const txt = document.getElementById('lecturer-progress-text');
+  if (banner) banner.classList.remove('hidden');
+
+  const timer = setInterval(async () => {
+    try {
+      const st = await api(`/curriculum/status?course_id=${cid}`);
+      if (!st.is_building) {
+        clearInterval(timer);
+        if (banner) banner.classList.add('hidden');
+        if (currentCourse) currentCourse.is_building = 0;
+        const rebuildBtn = document.getElementById('rebuild-curriculum-btn');
+        if (rebuildBtn) {
+          rebuildBtn.disabled = false;
+          rebuildBtn.style.opacity = '1';
+          const btnText = rebuildBtn.querySelector('span[data-i18n="Build Lessons"]') || rebuildBtn.querySelector('span:last-child');
+          if (btnText) btnText.textContent = t('Build All Lessons');
+        }
+        showToast(t('is ready!'), "success");
+        await loadCurriculumAsync();
+      } else {
+        const pct = Math.min(95, Math.round((st.progress || 0) * 100));
+        if (fill) fill.style.width = pct + '%';
+        if (txt) txt.textContent = pct + '%';
+      }
+    } catch(e) {
+      console.warn("Poll status error:", e);
+    }
+  }, 3000);
 }
 
 async function reArchitectCurriculum() {
@@ -3529,12 +4564,19 @@ function renderPromptHTML(a, isQuiz = false) {
   let p = formatActivityData(a.prompt);
   p = translatePrompt(p); // Preserve existing localization mechanism
   
-  if (a.translation) {
+  const rawTrans = a.translation || a.translation_tr || a.translation_en || '';
+  if (rawTrans) {
+    let trans = rawTrans;
+    if (currentLang === 'tr') {
+      trans = a.translation_tr || a.turkish || translateEducationalText(a.translation) || translatePrompt(a.translation) || a.translation || rawTrans;
+    } else {
+      trans = a.translation_en || a.english || a.translation || rawTrans;
+    }
     return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
       onmouseenter="this.querySelector('.activity-translation').style.display='block'" 
       onmouseleave="this.querySelector('.activity-translation').style.display='none'">
       <div class="activity-prompt" style="display:inline; border-bottom:1px dashed var(--text-muted); padding-bottom:2px;">${p}</div>
-      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:8px; display:none; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; border-left:3px solid var(--accent); position:absolute; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.5); width:max-content; max-width:400px; left:0; top:100%;"><i>${esc(a.translation)}</i></div>
+      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:8px; display:none; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; border-left:3px solid var(--accent); position:absolute; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.5); width:max-content; max-width:400px; left:0; top:100%;"><i>${esc(trans)}</i></div>
     </div>`;
   }
   return `<div class="activity-prompt">${p}</div>`;
@@ -4065,6 +5107,7 @@ async function loadStudentRoster() {
           ${s.name}${schoolNumHtml}
         </div>
         <div style="display:flex; gap:6px; flex-shrink:0">
+          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 8px; border-radius:6px; font-size:12px" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})">🔑 <span data-i18n="admin.set_password">${t('admin.set_password')}</span></button>
           <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">\ud83d\udcac <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
           <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>
         </div>
@@ -4091,6 +5134,34 @@ window.openChatFromRoster = async (studentId, studentName) => {
 window.approveStudent = async (id) => {
   await api('/students/approve', { method: 'POST', body: { student_id: id, course_id: courseId } });
   loadStudentRoster();
+};
+
+window.lecturerSetStudentPassword = async function(sid, name) {
+  const newPassword = await showConfirmModal(
+    'admin.set_password',
+    'admin.enter_new_password_for',
+    false,
+    '••••••••',
+    false,
+    'ok',
+    'cancel',
+    { name }
+  );
+  if (newPassword && newPassword.trim()) {
+    try {
+      const res = await api('/admin/set-student-password', {
+        method: 'POST',
+        body: { student_id: sid, password: newPassword.trim() }
+      });
+      if (res && res.success) {
+        await showAlert('success', 'admin.password_set_success', false);
+      } else {
+        await showAlert(t('error'), res.error || 'Failed to update password', true);
+      }
+    } catch (err) {
+      await showAlert(t('error'), err.message || 'Error updating password', true);
+    }
+  }
 };
 
 function showConfirmModal(titleKey, messageKey, isDanger = false, inputPlaceholder = null, hideCancel = false, okKey = null, cancelKey = null, messageData = {}) {
@@ -4418,15 +5489,15 @@ function renderStudentHome(data) {
   const statsEl = document.getElementById('student-stats');
   if (statsEl) {
     statsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
-      <div class="stat-card"><div class="stat-label">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
-      <div class="stat-card"><div class="stat-label">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
-      <div class="stat-card"><div class="stat-label">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
+      <div class="stat-card"><div class="stat-label" data-i18n="overallMastery">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="strongTopics">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="needsWork">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="topicsStudied">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
   }
 
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
-    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">\ud83d\udcd6 ${t('currentChapter')}: ${curriculum[0].title}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${tp.type}</span><span class="topic-name">${tp.title}</span></div></div>`).join('')}` : '';
+    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">📖 <span data-i18n="currentChapter">${t('currentChapter')}</span>: ${translateCurriculumTitle(curriculum[0].title)}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${translateCurriculumTitle(tp.title)}</span></div></div>`).join('')}` : '';
   }
 }
 
@@ -4434,10 +5505,10 @@ function loadStudentPractice() {
   document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
     `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
-        <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${tp.type}</div>
+        <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${translateBadge(tp.type)}</div>
       </div>
-      <div style="font-weight:600;margin-bottom:4px">${tp.title}</div>
-      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${tp.difficulty}</div>
+      <div style="font-weight:600;margin-bottom:4px">${translateCurriculumTitle(tp.title)}</div>
+      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${translateDifficulty(tp.difficulty)}</div>
     </div>`
   ).join('')).join('');
 }
@@ -4510,7 +5581,7 @@ function renderStudentProgress(data) {
   if (!chart) return;
   chart.innerHTML = (data.masteries || []).map(m => {
     const pct = Math.round(m.score * 100);
-    return `<div class="progress-item"><div class="progress-label"><span>${m.title} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${m.type}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
+    return `<div class="progress-item"><div class="progress-label"><span>${translateCurriculumTitle(m.title)} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${translateBadge(m.type)}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
   }).join('') || `<p style="color:var(--text-muted)">${t('No quizzes yet.')}</p>`;
 }
 
@@ -5093,27 +6164,29 @@ function renderStudyBook() {
   }
 
   // Clear existing content and render
-  toc.innerHTML = curriculum.map((ch, i) => `
+  toc.innerHTML = curriculum.map((ch, i) => {
+    const chTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(ch.title);
+    return `
     <div class="study-ch-group" style="margin-bottom:16px;">
-      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;">${t('Unit')} ${ch.number || (i + 1)}</div>
+      <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; opacity:0.7;"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number || (i + 1)}: ${esc(chTitle)}</div>
       <div style="display:flex; flex-direction:column; gap:4px;">
-        ${(ch.topics || []).map(t => `
-          <button class="btn btn-ghost study-topic-btn" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
-            ${esc(t.title)}
+        ${(ch.topics || []).map(t => {
+          const tTitle = (currentLang === 'tr' && t.title_tr) ? t.title_tr : translateCurriculumTitle(t.title);
+          return `
+          <button class="btn btn-ghost study-topic-btn" data-topic-id="${t.id}" onclick="showStudyTopic('${t.id}')" style="justify-content:flex-start; text-align:left; font-size:13px; padding:10px 14px; border-radius:var(--radius-sm); line-height:1.3; height:auto; transition:0.2s ease;">
+            ${esc(tTitle)}
           </button>
-        `).join('')}
+        `;}).join('')}
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function showStudyTopic(topicId, pageIdx = 0) {
   const isStudent = currentUser.role === 'student';
-  const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content';
-  const container = document.getElementById(contentId);
+  const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
+  const container = document.getElementById(contentId) || document.getElementById('ai-book-content');
   if (!container) return;
-
-  container.innerHTML = `<div style="height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;"><div class="spinner"></div></div>`;
 
   // Save for refresh
   localStorage.setItem('aula_last_topic', topicId);
@@ -5131,7 +6204,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
   // Highlight active sidebar item
   document.querySelectorAll('.study-topic-btn').forEach(b => {
-    const isActive = b.textContent.trim() === topic.title;
+    const isActive = b.getAttribute('data-topic-id') === topicId || b.textContent.trim() === topic.title || (topic.title_tr && b.textContent.trim() === topic.title_tr) || b.textContent.trim() === translateCurriculumTitle(topic.title);
     b.classList.toggle('active', isActive);
     b.style.background = isActive ? 'var(--accent-glow)' : '';
   });
@@ -5149,25 +6222,45 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach(p => {
+        const isMcq = (p.type === 'mcq' || p.prompt);
+        let pageTitle = "";
+        if (currentLang === 'tr') {
+          const rawTitle = p.title || topic.title || '';
+          pageTitle = (p.title_tr && p.title_tr !== p.title) ? p.title_tr : translateCurriculumTitle(rawTitle);
+          if (!pageTitle && isMcq) pageTitle = t('study.quick_check') || 'Hızlı Kontrol';
+        } else {
+          pageTitle = p.title ? translateCurriculumTitle(p.title) : (isMcq ? (t('study.quick_check') || 'Quick Check') : (translateCurriculumTitle(topic.title) || t('Material')));
+        }
         pages.push({
-          title: p.title || (topic.title || t('Material')),
+          title: pageTitle,
           icon: "",
           render: () => {
             let html = "";
             
             // 1. Text/Explanation Detection
-            let text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
-            if (!text || (typeof text === "object" && !Array.isArray(text))) {
-               for(let key in p) {
-                 if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "type") {
-                   text = p[key]; break;
+            // For MCQs, NEVER display the answer explanation beforehand; only display explicit intro or instructions if present.
+            let text = "";
+            if (isMcq) {
+              text = (currentLang === 'tr' && p.intro_tr) ? p.intro_tr : (p.intro || p.context || p.instructions || "");
+            } else {
+              if (currentLang === 'tr' && (p.text_tr || p.explanation_tr)) {
+                text = p.text_tr || p.explanation_tr;
+              } else {
+                text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
+              }
+              if (!text || (typeof text === "object" && !Array.isArray(text))) {
+                 for(let key in p) {
+                   if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "title_tr" && key !== "type" && key !== "explanation" && key !== "answer") {
+                     text = p[key]; break;
+                   }
                  }
-               }
+              }
             }
 
             if (text && typeof text === "string") {
-              const fixDiacriticsText = fixDiacritics(text);
-              const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z])/).filter(l => l.trim().length > 0);
+              const translatedText = (currentLang === 'tr' && (p.text_tr || p.explanation_tr)) ? text : translateEducationalText(text);
+              const fixDiacriticsText = fixDiacritics(translatedText);
+              const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
               if (linesArr.length > 1) {
                 html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:var(--text-primary); list-style-type: disc; padding-left: 24px; margin: 0 0 32px 0;">
                   ${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim()}</li>`).join("")}
@@ -5213,7 +6306,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
             };
 
             // Prevent MCQs from double-rendering their options as vocab cards
-            const isMcq = (p.type === 'mcq' || p.prompt);
             if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
               html += `<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">`;
               rawData.forEach(it => {
@@ -5237,8 +6329,15 @@ function showStudyTopic(topicId, pageIdx = 0) {
                       </div>`;
                   }
                 } else if (typeof it === "object" && it !== null) {
-                  const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.turkish || it.arabic || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                  const v = safeStr(it.translation || it.meaning || it.reading || it.romaji || it.pinyin || it.pronunciation || it.text || it.content || it.english || it.value || Object.values(it)[1]);
+                  const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
+                  let rawV = "";
+                  if (currentLang === 'tr') {
+                    rawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.translation || it.meaning || it.value || Object.values(it)[1]);
+                  } else {
+                    rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
+                  }
+                  const rawResolved = translateOption(rawV);
+                  const v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
                   const isLetter = typeof k === "string" && k.trim().length <= 2;
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
@@ -5248,13 +6347,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
                         <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
                       </div>`;
                   } else if (isLetter) {
-                    // Single letter — render without translation, without dict interaction
+                    // Single letter — render cleanly with its proper spelling pronunciation name
+                    const kStr = safeStr(k).trim();
+                    const vStr = safeStr(v).trim();
+                    const isRedundant = !vStr || ['she', 'he', 'ben'].includes(vStr.toLowerCase());
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">🔈</button>
                           <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
-                        ${v ? `<div class="english-translation" style="font-style:italic;">${safeStr(v)}</div>` : ''}
+                        ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:18px; color:var(--accent-light);">${vStr}</div>` : ''}
                       </div>`;
                   } else {
                     // Regular word+translation — cursor:default on row, pointer only on the word text itself
@@ -5273,11 +6375,14 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
             // 3. MCQ Support
             if (p.type === 'mcq' || p.prompt) {
-               html += `<div style="margin-top:24px; background:var(--bg-input); padding:24px; border-radius:var(--radius-lg); border:1px solid var(--border);">
-                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:var(--text-primary);">${fixDiacritics(p.prompt || "Identify the correct option:")}</div>
+               const allOptions = Array.from(new Set((p.distractors || []).concat(p.answer))).filter(Boolean);
+               allOptions.sort();
+               const translatedPrompt = (currentLang === 'tr' && p.prompt_tr) ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:");
+               html += `<div style="margin-top:${html ? '24px' : '0'}; background:var(--bg-input); padding:28px; border-radius:var(--radius-lg); border:1px solid var(--border);">
+                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:var(--text-primary);">${fixDiacritics(translatedPrompt)}</div>
                  <div style="display:flex; flex-direction:column; gap:12px;">
-                   ${(p.distractors || []).concat(p.answer).sort().map(opt => `
-                     <button class="btn btn-outline" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(opt)}</button>
+                   ${allOptions.map(opt => `
+                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(translateOption(opt))}</button>
                    `).join('')}
                  </div>
                </div>`;
@@ -5304,27 +6409,52 @@ function showStudyTopic(topicId, pageIdx = 0) {
   }
 
   const page = pages[pageIdx] || pages[0];
+  let pageContentHtml = "";
+  try {
+    pageContentHtml = page && typeof page.render === 'function' ? page.render() : `<div style="text-align:center; padding:40px; color:var(--text-muted);">No material content found.</div>`;
+  } catch (err) {
+    console.error("Page Render Execution Error:", err);
+    pageContentHtml = `<div style="text-align:center; padding:40px; color:var(--danger);"><p>Failed to render this lesson page.</p></div>`;
+  }
 
   container.innerHTML = `
-    <div style="max-width:850px; margin:0 auto; animation:fadeIn 0.4s ease-out;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:32px; border-bottom:1px solid var(--border); padding-bottom:24px;">
+    <div class="study-topic-wrapper">
+      <div class="study-topic-header">
         <div>
-          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${topic.title} • PAGE ${pageIdx + 1}/${pages.length}</div>
-          <h1 style="font-size:36px; font-weight:800; letter-spacing:-1px;">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
+          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${translateCurriculumTitle(topic.title)} • <span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</div>
+          <h1 style="font-size:32px; font-weight:800; letter-spacing:-1px; margin:0; line-height:1.2;">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
-        <div style="display:flex; gap:12px;">
+        <div style="display:flex; gap:12px; flex-shrink:0;">
           ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
           ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
       </div>
-      <div class="study-card" style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:40px; min-height:500px; box-shadow:none;">
-        ${page.render()}
+      <div class="study-card">
+        ${pageContentHtml}
       </div>
-      <div style="margin-top:24px; display:flex; justify-content:center; gap:8px;">
-        ${pages.map((_, i) => `<div style="width:${i === pageIdx ? '24px' : '12px'}; height:3px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; transition:0.3s ease;"></div>`).join('')}
+      <div class="study-pills-footer">
+        ${pages.map((p, i) => `
+          <button 
+            type="button"
+            onclick="showStudyTopic('${topicId}', ${i})"
+            title="${esc(p.title || ((t('page') || 'Page') + ' ' + (i + 1)))}"
+            aria-label="Go to page ${i + 1}"
+            style="background:none; border:none; padding:8px 4px; cursor:pointer; display:flex; align-items:center; outline:none;"
+            onmouseenter="this.querySelector('.study-pill').style.background = '${i === pageIdx ? 'var(--accent)' : 'var(--text-secondary)'}'; this.querySelector('.study-pill').style.transform = 'scaleY(1.2)';"
+            onmouseleave="this.querySelector('.study-pill').style.background = '${i === pageIdx ? 'var(--accent)' : 'var(--border)'}'; this.querySelector('.study-pill').style.transform = 'scaleY(1)';"
+          >
+            <span class="study-pill" style="display:block; width:${i === pageIdx ? '38px' : '18px'}; height:6px; border-radius:6px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; box-shadow:${i === pageIdx ? '0 0 10px var(--accent-glow)' : 'none'}; transition:all 0.25s ease;"></span>
+          </button>
+        `).join('')}
       </div>
     </div>
   `;
+
+  // Always reset scroll to top of the study card on page navigation
+  const studyCardEl = container.querySelector('.study-card');
+  if (studyCardEl) {
+    studyCardEl.scrollTop = 0;
+  }
 
   // Preload TTS immediately for all foreign words on this page
   const _ttsWords = [];
@@ -5347,31 +6477,38 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
     if (selected === correct) {
         btn.style.background = 'rgba(34, 197, 94, 0.2)';
         btn.style.borderColor = '#22c55e';
-        btn.innerHTML += ' \u2705'; // Checkmark
+        btn.style.opacity = '1';
+        btn.innerHTML += ' ✅';
     } else {
         btn.style.background = 'rgba(239, 68, 68, 0.2)';
         btn.style.borderColor = '#ef4444';
-        btn.innerHTML += ' \u274c'; // Cross
+        btn.style.opacity = '1';
+        btn.innerHTML += ' ❌';
         
         // Highlight correct one
         buttons.forEach(b => {
-            if (b.innerText.includes(correct)) {
-                b.style.background = 'rgba(34, 197, 129, 0.1)';
+            if (b.getAttribute('data-opt') === correct) {
+                b.style.background = 'rgba(34, 197, 129, 0.15)';
                 b.style.borderColor = '#10b981';
+                b.style.opacity = '1';
             }
         });
     }
     
     if (explanation) {
         const expDiv = document.createElement('div');
-        expDiv.style.marginTop = '16px';
-        expDiv.style.padding = '12px';
-        expDiv.style.background = 'rgba(255,255,255,0.05)';
+        expDiv.style.marginTop = '20px';
+        expDiv.style.padding = '16px 20px';
+        expDiv.style.background = 'rgba(255,255,255,0.04)';
         expDiv.style.borderRadius = '12px';
-        expDiv.style.fontSize = '14px';
-        expDiv.style.color = 'var(--accent-light)';
-        expDiv.innerHTML = `\ud83d\udca1 <b>Note:</b> ${explanation}`;
-        parent.appendChild(expDiv);
+        expDiv.style.border = '1px solid var(--border)';
+        expDiv.style.fontSize = '15px';
+        expDiv.style.lineHeight = '1.6';
+        expDiv.style.whiteSpace = 'pre-wrap';
+        expDiv.style.color = 'var(--text-primary)';
+        const translatedExplanation = translateEducationalText(explanation);
+        expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;">💡 <span>${t('Explanation') || 'Explanation'}</span></div>${fixDiacritics(translatedExplanation)}`;
+        (parent.parentElement || parent).appendChild(expDiv);
     }
 }
 
@@ -5391,12 +6528,9 @@ function launchStudyActivity(topicId, topicTitle) {
 // ── Student Portal Functions ──
 
 async function refreshStudentEnrollments() {
-  if (!currentUser) return;
-  const res = await api('/student/login', {
-    method: 'POST',
-    body: { student_number: currentUser.email.split('@')[0], name: currentUser.name }
-  });
-  if (!res.error) {
+  if (!currentUser || !currentUser.id) return;
+  const res = await api(`/student/enrollments?student_id=${currentUser.id}`);
+  if (res && !res.error) {
     currentStudentEnrollments = res.enrollments || [];
     renderStudentPortal();
   }
@@ -5409,7 +6543,7 @@ function renderStudentPortal() {
   if (currentStudentEnrollments.length === 0) {
     grid.innerHTML = `
       <div style="grid-column:1/-1; text-align:center; padding:60px; background:var(--bg-card); border-radius:16px; border:1px dashed var(--border);">
-        <div style="font-size:48px; margin-bottom:16px;">\ud83c\udfeb</div>
+        <div style="font-size:48px; margin-bottom:16px;">🏫</div>
         <h2 data-i18n="no_classrooms_found">${t('no_classrooms_found')}</h2>
         <p style="color:var(--text-muted); margin-top:8px;">${t('student.enter_code')}</p>
       </div>
@@ -5421,7 +6555,7 @@ function renderStudentPortal() {
     <div class="classroom-card" style="position:relative">
       <div onclick="enterStudentClassroom('${enr.course_id}')" style="cursor:pointer">
         <div class="classroom-card-header">
-          <div class="classroom-icon">\ud83c\udf93</div>
+          <div class="classroom-icon">🎓</div>
           <div class="classroom-status ${enr.status}">${enr.status === 'approved' ? '✓ ' + t('approved') : '⏳ ' + t('pending')}</div>
         </div>
         <div class="classroom-card-body">
@@ -5443,8 +6577,11 @@ function renderStudentPortal() {
 
 function openJoinClassroomModal() {
   document.getElementById('join-classroom-modal').classList.remove('hidden');
-  document.getElementById('join-class-code').value = '';
-  document.getElementById('join-class-code').focus();
+  const input = document.getElementById('join-class-code');
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 50);
+  }
 }
 
 function closeJoinClassroomModal() {
@@ -5452,22 +6589,51 @@ function closeJoinClassroomModal() {
 }
 
 async function handleJoinClassroom() {
-  const code = document.getElementById('join-class-code').value.trim();
-  if (code.length < 5) {
+  const codeInput = document.getElementById('join-class-code');
+  const code = codeInput ? codeInput.value.trim() : '';
+  if (!code || code.length < 5) {
     showAlert(t('missing_info'), t('student.enter_code'), true);
     return;
   }
 
-  const res = await api('/student/join', {
-    method: 'POST',
-    body: { student_id: currentUser.id, code: code }
-  });
+  const submitBtn = document.querySelector('#join-classroom-modal button.btn-primary');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '...';
+  }
 
-  if (res.error) {
-    showAlert(t('error'), res.error, true);
-  } else {
-    closeJoinClassroomModal();
-    await refreshStudentEnrollments();
+  try {
+    const res = await api('/student/join', {
+      method: 'POST',
+      body: { student_id: currentUser.id, code: code }
+    });
+
+    if (res.error) {
+      showAlert(t('error'), res.error, true);
+    } else {
+      closeJoinClassroomModal();
+      if (res.enrollments) {
+        currentStudentEnrollments = res.enrollments;
+        renderStudentPortal();
+      } else {
+        await refreshStudentEnrollments();
+      }
+
+      if (res.status === 'pending' && res.course_id) {
+        showScreen('waiting-room-screen');
+        startWaitingRoomPoll(res.course_id);
+      } else if (res.status === 'approved' && res.course_id) {
+        await enterStudentClassroom(res.course_id);
+      }
+    }
+  } catch (err) {
+    showAlert(t('error'), err.message || 'Failed to join classroom', true);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.setAttribute('data-i18n', 'student.join_btn');
+      submitBtn.textContent = t('student.join_btn') || 'Join Classroom';
+    }
   }
 }
 
@@ -5708,6 +6874,7 @@ async function loadAdminStudentPanel(isRefresh = false) {
           <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
           <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
           <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
+            <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
             <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentPIN('${s.id}', ${escJS(s.name)})">${t('admin.reset_pin')}</button>
             <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
             <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
@@ -5719,7 +6886,10 @@ async function loadAdminStudentPanel(isRefresh = false) {
       <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
           <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
-          <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminResetStudents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>${t('admin.reset_all_students')}</button>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-sm btn-primary" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminOpenCreateStudentModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>${t('admin.add_student')}</button>
+            <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminResetStudents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>${t('admin.reset_all_students')}</button>
+          </div>
         </div>
         <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
           <table style="width:100%; border-collapse:collapse; font-size:14px;">
@@ -5790,6 +6960,88 @@ async function adminResetStudents() {
     }
   } catch (e) {
     showAlert(t('error'), 'Network error during reset.', true);
+  }
+}
+
+async function adminSetStudentPassword(sid, name, studentNum) {
+  const newPassword = await showConfirmModal(
+    'admin.set_password',
+    'admin.enter_new_password_for',
+    false,
+    '••••••••',
+    false,
+    'ok',
+    'cancel',
+    { name: name || studentNum }
+  );
+  if (newPassword && newPassword.trim()) {
+    try {
+      const res = await api('/admin/set-student-password', {
+        method: 'POST',
+        body: { student_id: sid, student_number: studentNum, password: newPassword.trim() }
+      });
+      if (res && res.success) {
+        await showAlert('success', 'admin.password_set_success', false);
+      } else {
+        await showAlert(t('error'), res.error || 'Failed to update password', true);
+      }
+    } catch (err) {
+      await showAlert(t('error'), err.message || 'Error updating password', true);
+    }
+  }
+}
+
+async function adminOpenCreateStudentModal() {
+  const studentNum = await showConfirmModal(
+    'admin.add_student',
+    'admin.enter_student_number',
+    false,
+    'e.g. 2023002',
+    false
+  );
+  if (!studentNum || !studentNum.trim()) return;
+
+  const studentName = await showConfirmModal(
+    'admin.add_student',
+    'admin.enter_student_name',
+    false,
+    'e.g. Maria Gonzalez',
+    false,
+    'ok',
+    'cancel',
+    { number: studentNum.trim() }
+  );
+  if (!studentName || !studentName.trim()) return;
+
+  const password = await showConfirmModal(
+    'admin.add_student',
+    'admin.enter_student_pwd',
+    false,
+    'e.g. student123',
+    false,
+    'ok',
+    'cancel',
+    { name: studentName.trim() }
+  );
+  if (!password || !password.trim()) return;
+
+  try {
+    const res = await api('/admin/create-student', {
+      method: 'POST',
+      body: {
+        student_number: studentNum.trim(),
+        name: studentName.trim(),
+        password: password.trim()
+      }
+    });
+    if (res && res.success) {
+      await showAlert('success', 'admin.student_created_success', false);
+      loadAdminStudentPanel(true);
+    } else {
+      await showAlert(t('error'), res.error || 'Failed to create student', true);
+    }
+  } catch (err) {
+    await showAlert(t('error'), err.message || 'Error creating student', true);
   }
 }
 
@@ -5929,46 +7181,17 @@ async function showDict(word, e) {
     }
     // Pass the current study topic as context so the AI doesn't contradict lesson material
     const topicTitle = localStorage.getItem('aula_last_topic_title') || '';
-    let dictUrl = `/dictionary?word=${encodeURIComponent(word)}&lang=${lang}`;
+    let dictUrl = `/dictionary?word=${encodeURIComponent(word)}&lang=${lang}&ui_lang=${currentLang}`;
     if (topicTitle) dictUrl += `&context=${encodeURIComponent(topicTitle)}`;
     const res = await api(dictUrl);
 
+    window._lastDictRes = res;
+    window._lastDictWord = word;
+    window._lastDictLang = lang;
+
     loading.style.display = 'none';
     content.style.display = 'block';
-
-    // Unified AI-First Display
-    const explanation = res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found.");
-    const usage = res.usage || "Use it in daily conversation.";
-    const tip = res.tip || t('explain_more');
-    const source = res.source || "AulaAI Brain";
-
-    content.innerHTML = `
-            <div style="position:relative; margin-bottom:16px;">
-                <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
-                <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-height:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)" style="font-size:20px;">🔈</button></div>
-                <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${lang.split('(')[0].trim()})</div>
-            </div>
-            
-            <div class="ai-card">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-                    <span style="font-size:18px;">🤖</span>
-                    <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">Linguistic Intelligence</span>
-                </div>
-                <div class="ai-explanation" style="font-size:16px; color:#ffffff; line-height:1.6; margin-bottom:14px;">${explanation}</div>
-                
-                <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:6px;">Usage</div>
-                <div class="english-translation" style="font-style:italic; font-size:15px; color:rgba(255,255,255,0.7); margin-bottom:14px;">"${usage}"</div>
-                
-                <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:12px; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.4;">
-                    <span style="font-weight:700; color:var(--accent-light);">PRO-TIP:</span> ${tip}
-                </div>
-            </div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-muted); opacity:0.6; margin-top:16px;">
-                <span>POWERED BY ${source.toUpperCase()}</span>
-                <span style="cursor:pointer; font-weight:800; color:var(--accent-light);" onclick="closeDict()">DISMISS</span>
-            </div>
-        `;
+    renderDictContent(word, lang, res);
   } catch (err) {
     console.error("Dict error:", err);
     // Show silent error in popup
@@ -5977,12 +7200,52 @@ async function showDict(word, e) {
     content.innerHTML = `
         <div style="position:relative; text-align:center; padding:20px;">
             <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center;">&times;</button>
-            <div style="font-size:40px; margin-bottom:12px;">\u26a0\ufe0f</div>
-            <div style="color:var(--danger); font-size:14px;">Dictionary service unavailable.</div>
-            <button class="btn btn-sm btn-ghost" style="margin-top:12px;" onclick="closeDict()">Close</button>
+            <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
+            <div style="color:var(--danger); font-size:14px;">${currentLang === 'tr' ? 'Sözlük servisine erişilemiyor.' : 'Dictionary service unavailable.'}</div>
+            <button class="btn btn-sm btn-ghost" style="margin-top:12px;" onclick="closeDict()">${currentLang === 'tr' ? 'Kapat' : 'Close'}</button>
         </div>
     `;
   }
+}
+
+function renderDictContent(word, lang, res) {
+  const content = document.getElementById('dict-content');
+  if (!content || !res) return;
+  const isTr = currentLang === 'tr';
+  const rawExplanation = (isTr && res.explanation_tr) ? res.explanation_tr : (res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found."));
+  const explanation = translateDictExplanation(rawExplanation, isTr);
+  const rawUsage = (isTr && res.usage_tr) ? res.usage_tr : (res.usage || "Use it in daily conversation.");
+  const usage = translateEducationalText(rawUsage);
+  const rawTip = (isTr && res.tip_tr) ? res.tip_tr : (res.tip || (isTr ? 'Ayrıntılı bilgi için sınıftaki ders materyallerine başvurun.' : 'Refer to classroom materials for more context.'));
+  const tip = translateEducationalText(rawTip);
+  const displayLang = translateCourseName(lang.split('(')[0].trim(), currentLang);
+
+  content.innerHTML = `
+    <div style="position:relative; margin-bottom:16px;">
+        <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
+        <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-line:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)" style="font-size:20px;">🔈</button></div>
+        <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${displayLang})</div>
+    </div>
+    
+    <div class="ai-card">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+            <span style="font-size:18px;">🤖</span>
+            <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">${isTr ? 'Dilbilimsel Zeka' : 'Linguistic Intelligence'}</span>
+        </div>
+        <div class="ai-explanation" style="font-size:16px; color:#ffffff; line-height:1.6; margin-bottom:14px;">${explanation}</div>
+        
+        <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:6px;">${isTr ? 'Kullanım' : 'Usage'}</div>
+        <div class="english-translation" style="font-style:italic; font-size:15px; color:rgba(255,255,255,0.7); margin-bottom:14px;">"${usage}"</div>
+        
+        <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:12px; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.4;">
+            <span style="font-weight:700; color:var(--accent-light);">${isTr ? 'İPUCU:' : 'PRO-TIP:'}</span> ${tip}
+        </div>
+    </div>
+    
+    <div style="display:flex; justify-content:flex-end; align-items:center; font-size:10px; color:var(--text-muted); margin-top:16px;">
+        <span style="cursor:pointer; font-weight:800; color:var(--accent-light);" onclick="closeDict()">${isTr ? 'KAPAT' : 'DISMISS'}</span>
+    </div>
+  `;
 }
 
 function closeDict() {
@@ -5990,6 +7253,8 @@ function closeDict() {
   if (popup) {
     popup.style.display = 'none';
     activeDictWord = "";
+    window._lastDictWord = null;
+    window._lastDictRes = null;
     // Remove highlights
     document.querySelectorAll('.tap-highlight').forEach(el => el.classList.remove('tap-highlight'));
   }

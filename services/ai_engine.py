@@ -462,6 +462,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
     EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in {instruction_lang_name}.
     FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
+    MCQ RULE: In 'mcq' pages, 'explanation' is pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'The alternatives do not...'.
     PHONETIC RULE: {phonetic_rule}
     ACCURACY RULE: {accuracy_rule}
     DEPTH RULE: {depth_rule}

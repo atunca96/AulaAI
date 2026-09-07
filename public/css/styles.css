@@ -2048,6 +2048,166 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
     border: none;
 }
 
+/* ==========================================================================
+   Independent Scroll & Locked Frame Layout for Study Material Container
+   ========================================================================== */
+.study-container {
+  display: flex !important;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  height: clamp(600px, calc(100vh - 200px), 820px);
+  min-height: 580px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Left Sidebar: Fixed Width, 100% Height, Independent Scroll */
+.study-sidebar {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+[data-theme="light"] .study-sidebar {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.study-sidebar-header {
+  padding: 20px 20px 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.study-sidebar-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+}
+
+.study-sidebar-toc {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.study-sidebar-toc::-webkit-scrollbar {
+  width: 6px;
+}
+.study-sidebar-toc::-webkit-scrollbar-track {
+  background: transparent;
+}
+.study-sidebar-toc::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.study-sidebar-toc::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Right Content Panel: Fixed 100% Height, Flex Column */
+.study-content-panel {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 32px 40px;
+  background: var(--bg-primary);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.study-content-area {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* Inside Topic Page: Locked Frame Layout */
+.study-topic-wrapper {
+  max-width: 850px;
+  width: 100%;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  box-sizing: border-box;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.study-topic-header {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+/* Study Card: Locked Frame Height with Independent Scroll */
+.study-card {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px;
+  box-shadow: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  box-sizing: border-box;
+}
+
+.study-card::-webkit-scrollbar {
+  width: 6px;
+}
+.study-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+.study-card::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.study-card::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Bottom Pagination Pills */
+.study-pills-footer {
+  flex-shrink: 0;
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
 .mobile-only { display: none; }
 .pc-only { display: flex; }
 
@@ -2066,20 +2226,48 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
     }
     
     /* Study Units Sidebar (now top) */
+    .study-sidebar,
     .study-container > div:first-child {
         width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         border-right: none !important;
         border-bottom: 1px solid var(--border) !important;
         max-height: 250px !important;
+        height: auto !important;
         background: var(--bg-secondary) !important;
-        padding: 15px !important;
+        padding: 0 !important;
     }
     
+    .study-sidebar-header {
+        padding: 12px 16px !important;
+    }
+    
+    .study-sidebar-toc {
+        max-height: 200px !important;
+        padding: 10px 16px !important;
+    }
+
     /* Study Content Area */
+    .study-content-panel,
     .study-container > div:last-child {
         width: 100% !important;
-        padding: 24px 16px !important;
+        height: auto !important;
+        padding: 20px 14px !important;
         background: var(--bg-primary) !important;
+        overflow: visible !important;
+    }
+
+    .study-content-area,
+    .study-topic-wrapper {
+        height: auto !important;
+    }
+
+    .study-card {
+        height: auto !important;
+        max-height: none !important;
+        padding: 20px 16px !important;
+        overflow: visible !important;
     }
 
     #s-ai-book-content-area, #ai-book-content-area {

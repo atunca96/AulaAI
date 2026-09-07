@@ -256,6 +256,14 @@ def init_db():
             c.execute("ALTER TABLE courses ADD COLUMN material_language TEXT DEFAULT 'en'")
         except: pass
 
+        # MIGRATION: Ensure title_tr columns exist for bilingual curriculum
+        try:
+            c.execute("ALTER TABLE chapters ADD COLUMN title_tr TEXT")
+        except: pass
+        try:
+            c.execute("ALTER TABLE topics ADD COLUMN title_tr TEXT")
+        except: pass
+
         # Student Performance & Mastery
         c.execute('''CREATE TABLE IF NOT EXISTS mastery_scores (
             student_id TEXT,
@@ -379,6 +387,11 @@ def init_db():
         c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
                   ("ela-lecturer-id", "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
         
+        # Demo Student (Alex Rivera)
+        hashed_pwd_student = hashlib.sha256(("demo123" + "AulaAI_Salt").encode('utf-8')).hexdigest()
+        c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
+                  ("student-demo-id", "Alex Rivera", "2023001@student.aulaai", hashed_pwd_student, "student"))
+        
         # AUTOMATED DUPLICATION: Ensure Ela has her Spanish Marmara course
         c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
         
@@ -414,7 +427,31 @@ def init_db():
                                       (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"]))
                     
                     print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
-        
+        # AUTOMATED MIGRATION: Ensure all existing courses have title_tr populated and pdf_url cleaned
+        mig_row = c.execute("SELECT 1 FROM migration_history WHERE key = 'populate_bilingual_titles_v1'").fetchone()
+        if not mig_row:
+            try:
+                bm_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
+                if os.path.exists(bm_path):
+                    with open(bm_path, "r", encoding="utf-8") as f:
+                        bm_data = json.load(f)
+                    title_map = bm_data.get("title_pairs", {})
+                    # Chapters
+                    for row in c.execute("SELECT id, title FROM chapters WHERE title_tr IS NULL OR title_tr = ''").fetchall():
+                        t_clean = row["title"].strip()
+                        if t_clean in title_map:
+                            c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+                    # Topics
+                    for row in c.execute("SELECT id, title FROM topics WHERE title_tr IS NULL OR title_tr = ''").fetchall():
+                        t_clean = row["title"].strip()
+                        if t_clean in title_map:
+                            c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+                c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
+                c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v1')")
+                print("[MIGRATION] Populated title_tr and cleaned pdf_url.")
+            except Exception as e:
+                print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")
+
         db.commit()
 
         # Run demo course seeding ONLY if the DB is actually empty

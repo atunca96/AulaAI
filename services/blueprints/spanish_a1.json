@@ -1,0 +1,184 @@
+{
+  "chapters": [
+    {
+      "number": 1,
+      "title": "The Alphabet and Foundations",
+      "topics": [
+        {
+          "title": "The Alphabet",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Vowels and Consonants",
+          "type": "grammar"
+        },
+        {
+          "title": "Pronunciation and Phonetics",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "title": "Greetings and Introductions",
+      "topics": [
+        {
+          "title": "How to Say Hello and Goodbye",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Introducing Yourself: Basic Phrases",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Nuances in Greetings: A Spanish Perspective",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "title": "Numbers and Basic Math",
+      "topics": [
+        {
+          "title": "Counting from 1 to 100: Basic Numbers",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Using Numbers in Everyday Contexts",
+          "type": "grammar"
+        },
+        {
+          "title": "Simple Math Operations in Spanish",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Days, Months, and Time",
+      "topics": [
+        {
+          "title": "Days of the Week: A Weekly Routine",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Months of the Year and Seasons",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Telling Time: Basic Expressions",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "title": "Essential Survival Vocabulary",
+      "topics": [
+        {
+          "title": "At the Airport: Key Phrases and Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Navigating a Restaurant: Ordering Food",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Shopping Basics: Common Phrases",
+          "type": "vocabulary"
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "title": "Describing Yourself and Others",
+      "topics": [
+        {
+          "title": "Talking About Age and Nationality",
+          "type": "grammar"
+        },
+        {
+          "title": "Describing Physical Appearance: Adjectives",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Expressing Likes and Dislikes: Using 'gustar'",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Forming Basic Sentences",
+      "topics": [
+        {
+          "title": "Constructing Simple Sentences: Subject-Verb Agreement",
+          "type": "grammar"
+        },
+        {
+          "title": "Using Common Verbs in Present Tense",
+          "type": "grammar"
+        },
+        {
+          "title": "Asking Questions: Wh- Questions",
+          "type": "grammar"
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "title": "Daily Activities and Routines",
+      "topics": [
+        {
+          "title": "Talking About Your Day: Daily Routines",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Using Time Expressions with Activities",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Context: Spanish Daily Life and Routines",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "title": "Family and Relationships",
+      "topics": [
+        {
+          "title": "Introducing Family Members: Vocabulary",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Describing Relationships: Simple Phrases",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Insights: The Importance of Family in Spanish-speaking Cultures",
+          "type": "cultural"
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "title": "Hobbies and Interests",
+      "topics": [
+        {
+          "title": "Discussing Hobbies: Common Activities",
+          "type": "vocabulary"
+        },
+        {
+          "title": "Expressing What You Like to Do: Sentence Structures",
+          "type": "grammar"
+        },
+        {
+          "title": "Cultural Perspectives on Leisure Activities in Spain and Latin America",
+          "type": "cultural"
+        }
+      ]
+    }
+  ]
+}

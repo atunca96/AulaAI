@@ -21,9 +21,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260528_authentic">
+    <link rel="stylesheet" href="/css/styles.css?v=20260906_i18n">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/app.js?v=20260528_authentic" defer></script>
+    <script src="/js/bilingual_materials.js?v=20260907_privacy_fix3" defer></script>
+    <script src="/js/app.js?v=20260907_privacy_fix3" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -379,15 +380,22 @@
                 <!-- Student Login -->
                 <div id="student-login-panel">
                     <h2 data-i18n="Student Login">Student Login</h2>
-                    <p class="login-hint" data-i18n="Log in with your student number">ÖğÖğrenci numaranızla giriş yapın</p>
+                    <p class="login-hint" data-i18n="student_login_hint">Sign in with your student number and password</p>
                     <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
                         <div class="form-group">
-                            <label data-i18n="student_number">Student Number</label>
-                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="off" spellcheck="false">
+                            <label for="student-number" data-i18n="student_number">Student Number</label>
+                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="username" spellcheck="false" required>
                         </div>
                         <div class="form-group">
-                            <label data-i18n="full_name">Full Name</label>
-                            <input type="text" id="student-name-input" class="text-input" placeholder="Your Full Name" data-i18n="full_name_placeholder" autocomplete="off" spellcheck="false">
+                            <label for="student-password" data-i18n="Password">Password</label>
+                            <input type="password" id="student-password" class="text-input" placeholder="••••••••" data-i18n="Password" autocomplete="current-password" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="student-login-remember">
+                                <span class="checkbox-custom"></span>
+                                <span data-i18n="Remember Me">Beni Hatırla</span>
+                            </label>
                         </div>
                         <div id="student-login-error" class="error-box hidden" style="margin-bottom:20px;"></div>
                         <button type="submit" class="btn btn-primary btn-full btn-lg" id="student-login-btn" data-i18n="signIn">Sign In</button>
@@ -536,13 +544,7 @@
                     <input type="text" id="ai-course-name" data-i18n-placeholder="ai.name_placeholder" placeholder="e.g. Intensive Language Course" style="width:100%; padding:12px; border-radius:var(--radius); background:var(--bg-input); border:1px solid var(--border); color:var(--text-main);">
                 </div>
 
-                <div class="form-group" style="margin-top:24px;">
-                    <label style="display:block; margin-bottom:8px; font-weight:600;">4. Material Explanation Language</label>
-                    <select id="ai-material-language-select" class="text-input" style="width:100%; padding:12px; border-radius:var(--radius); background:var(--bg-input); border:1px solid var(--border); color:var(--text-main); font-size:14px;">
-                        <option value="en">English (explanations & instructions)</option>
-                        <option value="tr">Türkçe (açıklamalar ve talimatlar)</option>
-                    </select>
-                </div>
+
 
                 <div style="margin-top:32px; display:flex; flex-direction:column; gap:8px;">
                     <button class="btn btn-primary btn-lg" onclick="generateAiCurriculum()" id="ai-gen-btn" style="width:100%;" data-i18n="ai.gen_curriculum">Generate Curriculum</button>
@@ -669,17 +671,7 @@
                     </select>
                 </div>
 
-                <!-- Step 2.6: Material Language -->
-                <div class="form-group" style="margin-top:20px;">
-                    <label style="font-weight:700; font-size:13px;">
-                        <span style="color:var(--accent-light); margin-right:6px;">*</span>
-                        <span>Material Explanation Language</span>
-                    </label>
-                    <select id="pdf-material-language-select" class="text-input" style="font-size:14px; padding:12px;">
-                        <option value="en">English (explanations & instructions)</option>
-                        <option value="tr">Türkçe (açıklamalar ve talimatlar)</option>
-                    </select>
-                </div>
+
 
                 <!-- Step 3: Auto-Extract -->
                 <div id="section-extract" class="form-group">
@@ -762,7 +754,7 @@
                 <p style="color:var(--text-muted); font-size:14px;" data-i18n="student.enter_code">Enter the 5-digit code provided by your teacher</p>
             </div>
             <div class="form-group" style="margin-bottom:24px;">
-                <input type="text" id="join-class-code" class="text-input" maxlength="5" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 5)">
+                <input type="text" id="join-class-code" class="text-input" maxlength="10" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;" oninput="this.value = this.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10)" onkeydown="if(event.key==='Enter') handleJoinClassroom()">
             </div>
             <button class="btn btn-primary btn-full btn-lg" onclick="handleJoinClassroom()" data-i18n="student.join_btn">Join Classroom</button>
         </div>
@@ -1053,15 +1045,20 @@
                     <p class="subtitle book-subtitle">Course Materials</p>
                 </div>
                 <!-- Digital Study Container -->
-                <div class="study-container hidden" id="ai-book-container" style="display:flex; background:var(--bg-card); border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); min-height: 600px;">
-                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
-                        <div id="ai-book-toc"></div>
+                <div class="study-container hidden" id="ai-book-container">
+                    <div class="study-sidebar">
+                        <div class="study-sidebar-header">
+                            <h3 data-i18n="Units">Units</h3>
+                        </div>
+                        <div id="ai-book-toc" class="study-sidebar-toc"></div>
                     </div>
-                    <div id="ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary);">
-                        <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
-                            <div style="font-size:48px; margin-bottom:20px;">📖</div>
-                            <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
+                    <div id="ai-book-content" class="study-content-panel">
+                        <div id="ai-book-content-area" class="study-content-area">
+                            <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
+                                <div style="font-size: 54px; margin-bottom: 20px;">📖</div>
+                                <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
+                                <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1089,6 +1086,7 @@
                 <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
             </div>
             <div class="nav-user">
+                <button class="btn btn-ghost btn-lang" onclick="toggleLanguage()" id="student-lang-btn" style="font-weight:700; font-size:13px; margin-right:8px; border:1px solid var(--border); padding:4px 10px; border-radius:8px;">TR</button>
                 <button class="btn btn-ghost" onclick="toggleTheme()" id="student-theme-toggle-btn" title="Toggle Theme" style="font-size:18px; margin-right:8px;">🌙</button>
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
             </div>
@@ -1179,22 +1177,25 @@
                     <p class="subtitle" style="color: var(--text-secondary); margin:0;" data-i18n="select_study_topic">Select a topic from the sidebar to begin your lesson</p>
                 </div>
                 
-                <div class="study-container" id="s-ai-book-container" style="display:flex; background:var(--bg-card); border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); min-height: 600px;">
+                <div class="study-container" id="s-ai-book-container">
                     <!-- Sidebar -->
-                    <div style="width:280px; border-right:1px solid var(--border); overflow-y:auto; padding:20px; background:rgba(0,0,0,0.1);">
-                        <h3 style="margin-bottom:20px; font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted);" data-i18n="Units">Units</h3>
-                        <div id="s-ai-book-toc"></div>
+                    <div class="study-sidebar">
+                        <div class="study-sidebar-header">
+                            <h3 data-i18n="Units">Units</h3>
+                        </div>
+                        <div id="s-ai-book-toc" class="study-sidebar-toc"></div>
                     </div>
                     
                     <!-- Content -->
-                    <div id="s-ai-book-content" style="flex:1; overflow-y:auto; padding:40px; background:var(--bg-primary); position:relative;">
+                    <div id="s-ai-book-content" class="study-content-panel">
                         <div id="study-topic-loading" class="hidden" style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:10; display:flex; align-items:center; justify-content:center;">
                             <div class="spinner"></div>
                         </div>
-                        <div id="s-ai-book-content-area">
-                            <div style="max-width:800px; margin:0 auto; text-align:center; padding-top:100px; color:var(--text-muted);">
-                                <h2 data-i18n="select_study_topic">Select a topic to start studying</h2>
-                                <p style="margin-top:10px; color:var(--text-muted);">Use the sidebar on the left to navigate through units.</p>
+                        <div id="s-ai-book-content-area" class="study-content-area">
+                            <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
+                                <div style="font-size: 54px; margin-bottom: 20px;">📖</div>
+                                <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
+                                <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
                             </div>
                         </div>
                     </div>
@@ -1267,7 +1268,7 @@
                 <p style="margin-bottom:16px;" data-i18n="privacy.p2">All records are stored securely on local database servers. We comply with standard KVKK and GDPR data minimization requirements. Your data is never sold or used for advertisement targeting.</p>
                 
                 <h4 style="margin:20px 0 8px 0; font-family:'Georgia', serif;" data-i18n="privacy.h3">3. Your Rights</h4>
-                <p style="margin-bottom:16px;" data-i18n="privacy.p3">Students and lecturers have full rights to request PIN resets, retrieve their overall curriculum history, or request permanent deletion of their account databases. For inquiries, email atunca96@gmail.com.</p>
+                <p style="margin-bottom:16px;" data-i18n="privacy.p3">Students and lecturers have full rights to request PIN resets, retrieve their overall curriculum history, or request permanent deletion of their account databases. For inquiries, email rkahraman@marmara.edu.tr.</p>
             </div>
             <div style="margin-top:24px; text-align:right;">
                 <button class="btn btn-primary" onclick="closePrivacyModal()" data-i18n="ok">OK</button>
