@@ -2352,7 +2352,8 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "Describing Physical Appearance": "Fiziksel Görünüşü Tanımlama",
   "Subject Pronouns and Basic Sentence Structure": "Özne Zamirleri ve Temel Cümle Yapısı",
   "Reflexive Verbs and Daily Routine": "Dönüşlü Fiiller ve Günlük Rutin",
-  "Introducing Family Members": "Aile Üyelerini Tanıtma"
+  "Introducing Family Members": "Aile Üyelerini Tanıtma",
+  "harf": "letter"
 };
 
 window.EDUCATIONAL_SENTENCE_MAP_TR_EN = {
@@ -2534,7 +2535,8 @@ window.EDUCATIONAL_SENTENCE_MAP_TR_EN = {
   "İsteklerde 'είναι δυνατόν' ifadesi, bir şeyin mümkün olup olmadığını sormak için kullanılır.": "'είναι δυνατόν' is used in requests to ask whether something is possible.",
   "İş arkadaşlarınızla iletişim kurarken faydalıdır.": "It is useful when communicating with your colleagues.",
   "İş görevlerini ve sorumluluklarını tanımlarken 'είμαι υπεύθυνος για' (ben sorumluyum) yapısını kullanırız.": "When defining job duties and responsibilities, we use the structure 'είμαι υπεύθυνος για' (I am responsible for).",
-  "İş yaşamında sıkça karşılaşılan kelimelerdir.": "These are words frequently encountered in professional life."
+  "İş yaşamında sıkça karşılaşılan kelimelerdir.": "These are words frequently encountered in professional life.",
+  "harf": "letter"
 };
 
 window.VOCAB_MAP_EN_TR = {
@@ -2869,7 +2871,7 @@ window.VOCAB_MAP_EN_TR = {
   "village": "köy",
   "corner": "köşe",
   "dialect": "lehçe",
-  "letter": "mektup",
+  "letter": "harf",
   "long": "uzun",
   "lunch": "öğle yemeği",
   "salary": "maaş",
@@ -3093,7 +3095,8 @@ window.VOCAB_MAP_EN_TR = {
   "song": "Şarkı",
   "city": "şehir",
   "sugar": "şeker",
-  "driver": "şoför"
+  "driver": "şoför",
+  "harf": "letter"
 };
 
 window.VOCAB_MAP_TR_EN = {
@@ -3412,7 +3415,7 @@ window.VOCAB_MAP_TR_EN = {
   "köy": "village",
   "köşe": "corner",
   "lehçe": "dialect",
-  "mektup": "letter",
+  "harf": "letter",
   "uzun": "tall",
   "öğle yemeği": "lunch",
   "maaş": "salary",
@@ -3629,7 +3632,8 @@ window.VOCAB_MAP_TR_EN = {
   "şarkı": "song",
   "şehir": "city",
   "şeker": "sugar",
-  "şoför": "driver"
+  "şoför": "driver",
+  "letter": "harf"
 };
 
 window.PAGE_TITLE_PAIRS = [

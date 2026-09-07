@@ -334,6 +334,9 @@ def finalize_course_bilingual_data(course_id: str):
                     v = it.get("translation") or it.get("meaning") or it.get("english") or ""
                     if v and isinstance(v, str) and len(v.strip()) > 1:
                         to_translate_to_tr.append(v.strip())
+                    expl = it.get("explanation") or it.get("explanation_en") or ""
+                    if expl and isinstance(expl, str) and len(expl.strip()) > 2 and not it.get("explanation_tr"):
+                        to_translate_to_tr.append(expl.strip())
             # MCQ
             if p.get("prompt"): to_translate_to_tr.append(p["prompt"].strip())
             if p.get("explanation"): to_translate_to_tr.append(p["explanation"].strip())
@@ -357,6 +360,8 @@ def finalize_course_bilingual_data(course_id: str):
         if t_en in trans_map:
             cache["title_pairs"][t_en] = trans_map[t_en]
     _save_cache(cache)
+
+    from services.concept_explanations import get_concept_explanation
 
     # 3. Apply translations directly into database
     with db_connection() as db:
@@ -416,6 +421,21 @@ def finalize_course_bilingual_data(course_id: str):
                             it["translation_en"] = v_clean
                             it["translation_tr"] = v_tr
                             it["turkish"] = v_tr
+                        
+                        # Explanation enrichment & translation
+                        expl = it.get("explanation") or it.get("explanation_en") or ""
+                        if expl and isinstance(expl, str) and len(expl.strip()) > 2:
+                            expl_clean = expl.strip()
+                            it["explanation_en"] = expl_clean
+                            it["explanation_tr"] = trans_map.get(expl_clean, it.get("explanation_tr") or expl_clean)
+                            it["explanation"] = it["explanation_en"]
+                        else:
+                            c_tr = get_concept_explanation(it.get("term"), v, "tr")
+                            c_en = get_concept_explanation(it.get("term"), v, "en")
+                            if c_en:
+                                it["explanation"] = c_en
+                                it["explanation_en"] = c_en
+                                it["explanation_tr"] = c_tr
                 # MCQ
                 if p.get("prompt"):
                     p["prompt_tr"] = trans_map.get(p["prompt"].strip(), p["prompt"])

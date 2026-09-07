@@ -3029,6 +3029,304 @@ function translateOption(text, lang = currentLang) {
   return text;
 }
 
+const PEDAGOGICAL_CONCEPT_EXPLANATIONS = {
+  // Phonetics & Pronunciation
+  "vowel": {
+    en: "A core speech sound produced with an open vocal tract without air obstruction (A, E, I, O, U).",
+    tr: "Ses yolunda bir engelle karşılaşmadan serbestçe çıkan temel sesler (A, E, I, İ, O, Ö, U, Ü)."
+  },
+  "consonant": {
+    en: "A speech sound formed by obstructing or restricting airflow with lips, tongue, or teeth.",
+    tr: "Dudak, dil veya dişlerin hava akımını kısmen veya tamamen engellemesiyle oluşan sesler."
+  },
+  "umlaut": {
+    en: "A vowel sound modification marked by two dots (ä, ö, ü) that alters pronunciation.",
+    tr: "Almancada ses değişimini gösteren iki noktalı özel harfler (ä, ö, ü)."
+  },
+  "sound": {
+    en: "An individual spoken phonetic unit or letter pronunciation value.",
+    tr: "Bir dildeki her bir işitilebilir ses veya fonetik konuşma birimi."
+  },
+  "syllable": {
+    en: "A unit of spoken pronunciation formed by a single vowel sound, with or without consonants.",
+    tr: "Ağzın tek bir nefes ve ses hamlesiyle çıkardığı ses veya ses öbeği."
+  },
+  "word": {
+    en: "A single distinct, meaningful linguistic element used to form phrases and sentences.",
+    tr: "Cümle kurmaya yarayan bağımsız ve anlamlı temel dil birimi."
+  },
+  "letter": {
+    en: "A written character or symbol representing one or more speech sounds in an alphabet.",
+    tr: "Dildeki bir sesi gösteren ve alfabeyi oluşturan yazılı işaret."
+  },
+  "alphabet": {
+    en: "The complete standardized set of letters representing the sounds of a language.",
+    tr: "Bir dildeki sesleri gösteren, belli bir sıraya göre dizilmiş harflerin tamamı."
+  },
+  "sentence": {
+    en: "A grammatically complete set of words expressing a statement, question, or thought.",
+    tr: "Bir duyguyu, düşünceyi veya durumu bildiren sözcük dizisi."
+  },
+  "language": {
+    en: "A structured system of communication used by a community to express thoughts and ideas.",
+    tr: "İnsanların duygu ve düşüncelerini aktarmak için kullandığı kurallı iletişim sistemi."
+  },
+  "accent": {
+    en: "The vocal emphasis or pitch placed on a specific syllable within a word.",
+    tr: "Bir kelimede belirli bir hecenin diğerlerine göre daha baskılı ve belirgin söylenmesi."
+  },
+  "stress": {
+    en: "The prominent acoustic emphasis given to a syllable in spoken words.",
+    tr: "Konuşurken bir heceye verilen belirgin ses vurgusu."
+  },
+  "intonation": {
+    en: "The melodic rise and fall of vocal pitch across phrases and sentences.",
+    tr: "Konuşurken ses perdesinin cümlenin anlamına göre alçalıp yükselmesi."
+  },
+  "pronunciation": {
+    en: "The conventional articulation and audible speech production of words and sounds.",
+    tr: "Bir dildeki ses ve kelimelerin ağızdan doğru ve anlaşılır biçimde sesletimi."
+  },
+  "diphthong": {
+    en: "Two adjacent vowel sounds gliding together within the same syllable (e.g., ei, au, eu).",
+    tr: "Tek bir hecede kesintisiz bir kaymayla birleşen iki sesli harf (ör. ei, au, eu)."
+  },
+  "hiatus": {
+    en: "Two consecutive vowel sounds pronounced in separate, distinct syllables.",
+    tr: "Yan yana gelen iki sesli harfin iki ayrı hecede bölünerek okunması."
+  },
+  "silent": {
+    en: "A letter written in spelling but omitted from verbal pronunciation.",
+    tr: "Yazıda yer alan fakat telaffuz edilirken sesletilmeyen harf."
+  },
+  "weak vowel": {
+    en: "In Spanish, the closed vowels (I, U) that readily combine into diphthongs.",
+    tr: "İspanyolcada diftong oluşturan dar sesli harfler (I, U)."
+  },
+  "strong vowel": {
+    en: "In Spanish, open vowels (A, E, O) that form independent, separated syllables.",
+    tr: "İspanyolcada bağımsız hece oluşturan açık sesli harfler (A, E, O)."
+  },
+  "accentuation": {
+    en: "The rules governing where vocal stress and written accent marks fall in words.",
+    tr: "Kelimelerdeki vurgu ve aksan işaretlerinin yerini belirleyen kurallar bütünü."
+  },
+  "rhythm": {
+    en: "The beat, cadence, and timing pattern of spoken syllables in a language.",
+    tr: "Konuşmadaki hecelerin ve vurguların oluşturduğu ahenkli ritim."
+  },
+
+  // Grammar & Parts of Speech
+  "noun": {
+    en: "A word identifying a person, place, physical object, or abstract concept.",
+    tr: "Canlı veya cansız varlıkları, nesneleri ve kavramları adlandıran sözcük türü."
+  },
+  "verb": {
+    en: "A word expressing an action, event, occurrence, or state of being.",
+    tr: "Bir işi, oluşu, hareketi veya durumu zaman ve kişiye bağlayarak bildiren sözcük."
+  },
+  "adjective": {
+    en: "A word describing or qualifying the qualities, state, or traits of a noun.",
+    tr: "İsimlerin niteliklerini, durumlarını veya özelliklerini belirten sözcük."
+  },
+  "adverb": {
+    en: "A word modifying a verb, adjective, or phrase (describing manner, time, or place).",
+    tr: "Fiilleri, sıfatları veya diğer zarfları durum, zaman veya miktar yönünden niteleyen sözcük."
+  },
+  "pronoun": {
+    en: "A word that substitutes for a noun or noun phrase (e.g., I, you, he, she, they).",
+    tr: "İsmin yerini tutan ve onun yerine kullanılan sözcük (ben, sen, o, biz, siz, onlar)."
+  },
+  "article": {
+    en: "A grammatical marker accompanying a noun to signal definiteness or grammatical gender.",
+    tr: "İsmin önüne gelerek onun belirli mi yoksa belirsiz mi olduğunu gösteren dilbilgisi birimi."
+  },
+  "definite article": {
+    en: "Specifies a particular, identifiable person or object (e.g., 'the', German 'der/die/das').",
+    tr: "Bilinen veya belirli bir varlığı niteleyen tanımlık (Almanca 'der/die/das', İspanyolca 'el/la')."
+  },
+  "indefinite article": {
+    en: "Refers to a non-specific or newly introduced person or object (e.g., 'a/an', 'ein/eine').",
+    tr: "Herhangi bir varlığı genel olarak niteleyen tanımlık (Almanca 'ein/eine', İspanyolca 'un/una')."
+  },
+  "preposition": {
+    en: "A word showing spatial, directional, temporal, or logical relationships (in, on, at).",
+    tr: "Kelimeler arasında yön, yer, zaman veya ilgi ilişkisi kuran ilgeç."
+  },
+  "conjunction": {
+    en: "A connecting word linking phrases, clauses, or coordinating elements (and, but, because).",
+    tr: "Kelimeleri veya cümleleri birbirine bağlayan sözcük (ve, ama, çünkü)."
+  },
+  "gender": {
+    en: "Grammatical categorization of nouns into classes such as masculine, feminine, or neuter.",
+    tr: "Pek çok dilde isimlerin eril, dişil veya nötr olarak sınıflandırılması."
+  },
+  "masculine": {
+    en: "Grammatical gender category marked with masculine articles (e.g., German 'der', Spanish 'el').",
+    tr: "Eril cinsiyetteki isimler (Almanca 'der', İspanyolca 'el' artikeliyle kullanılır)."
+  },
+  "feminine": {
+    en: "Grammatical gender category marked with feminine articles (e.g., German 'die', Spanish 'la').",
+    tr: "Dişil cinsiyetteki isimler (Almanca 'die', İspanyolca 'la' artikeliyle kullanılır)."
+  },
+  "neuter": {
+    en: "Grammatical gender category that is neither masculine nor feminine (e.g., German 'das').",
+    tr: "Ne eril ne de dişil olan cinsiyet kategorisi (Almanca 'das' artikeliyle kullanılır)."
+  },
+  "singular": {
+    en: "Grammatical form designating a single person, item, or concept.",
+    tr: "Sadece tek bir varlığı veya kişiyi belirten sözcük biçimi."
+  },
+  "plural": {
+    en: "Grammatical form designating more than one person, item, or concept.",
+    tr: "Birden fazla varlığı veya kişiyi belirten sözcük biçimi."
+  },
+  "subject": {
+    en: "The actor, person, or entity performing the verb or being described in a sentence.",
+    tr: "Cümlede bildirilen işi yapan veya hakkında bilgi verilen temel öge."
+  },
+  "object": {
+    en: "The person, item, or entity affected by or receiving the action of a verb.",
+    tr: "Cümlede öznenin yaptığı işten etkilenen varlık veya öge."
+  },
+  "infinitive": {
+    en: "The base, uninflected dictionary form of a verb before conjugation.",
+    tr: "Fiilin kişi ve zaman eki almamış yalın sözlük hali (mastar)."
+  },
+  "conjugation": {
+    en: "The inflection and ending changes of a verb corresponding to person, number, and tense.",
+    tr: "Fiilin kişi, zaman ve kipe göre ek alarak değişmesi (fiil çekimi)."
+  },
+  "regular verb": {
+    en: "A verb that adheres strictly to standard, predictable conjugation patterns.",
+    tr: "Standart kurallara ve kalıplara uygun olarak çekimlenen düzenli fiil."
+  },
+  "irregular verb": {
+    en: "A verb with idiosyncratic stem changes or non-standard conjugation endings.",
+    tr: "Çekimlenirken kökü veya ekleri standart kuralların dışına çıkan düzensiz fiil."
+  },
+  "reflexive verb": {
+    en: "A verb where the subject and the direct object are the same entity (acting on oneself).",
+    tr: "Öznenin yaptığı işin yine özneye döndüğü dönüşlü fiil."
+  },
+  "modal verb": {
+    en: "An auxiliary verb indicating permission, ability, obligation, or necessity.",
+    tr: "Zorunluluk, izin, yetenek veya olasılık bildiren kip yardımcı fiili."
+  },
+  "cognate": {
+    en: "A word sharing common ancestral origin, meaning, and spelling across languages.",
+    tr: "Farklı dillerde ortak kökenden gelen, yazılışı ve anlamı birbirine çok benzeyen sözcük."
+  },
+  "false friend": {
+    en: "A deceptive word that looks or sounds like a familiar word but carries a different meaning.",
+    tr: "Yazılışı veya okunuşu tanıdık gelen ancak tamamen farklı anlama sahip yanıltıcı sözcük."
+  }
+};
+
+const CONCEPT_ALIASES = {
+  // German
+  "vokal": "vowel", "vokale": "vowel",
+  "konsonant": "consonant", "konsonanten": "consonant",
+  "laut": "sound", "laute": "sound",
+  "silbe": "syllable", "silben": "syllable",
+  "wort": "word", "worter": "word",
+  "buchstabe": "letter", "buchstaben": "letter",
+  "satz": "sentence", "satze": "sentence",
+  "sprache": "language", "sprachen": "language",
+  "akzent": "accent", "betonung": "stress", "aussprache": "pronunciation",
+  "substantiv": "noun", "nomen": "noun", "adjektiv": "adjective",
+  "praposition": "preposition", "pronomen": "pronoun", "genus": "gender",
+  "maskulin": "masculine", "feminin": "feminine", "neutrum": "neuter",
+  "kognat": "cognate", "falscher freund": "false friend", "stumm": "silent",
+  // Spanish
+  "vocal": "vowel", "vocales": "vowel",
+  "consonante": "consonant", "consonantes": "consonant",
+  "silaba": "syllable", "silabas": "syllable",
+  "sonido": "sound", "sonidos": "sound",
+  "palabra": "word", "palabras": "word",
+  "letra": "letter", "letras": "letter",
+  "abecedario": "alphabet", "acento": "accent", "acentos": "accent",
+  "tonica": "stress", "diptongo": "diphthong", "hiato": "hiatus",
+  "silencio": "silent", "silencioso": "silent", "mudo": "silent",
+  "entonacion": "intonation", "pronunciacion": "pronunciation",
+  "acentuacion": "accentuation", "debil": "weak vowel", "vocal debil": "weak vowel",
+  "fuerte": "strong vowel", "vocal fuerte": "strong vowel",
+  "sustantivo": "noun", "verbo": "verb", "adjetivo": "adjective",
+  "adverbio": "adverb", "pronombre": "pronoun", "articulo": "article",
+  "preposicion": "preposition", "genero": "gender",
+  "cognado": "cognate", "falso amigo": "false friend",
+  // Turkish
+  "sesli harf": "vowel", "unlu": "vowel", "unluler": "vowel",
+  "sessiz harf": "consonant", "unsuz": "consonant", "unsuzler": "consonant",
+  "iki noktali unlu": "umlaut", "ses": "sound", "fonetik ses": "sound",
+  "hece": "syllable", "heceler": "syllable", "kelime": "word", "sozcuk": "word",
+  "harf": "letter", "harfler": "letter", "alfabe": "alphabet", "cumle": "sentence",
+  "dil": "language", "vurgu": "accent", "aksan": "accent", "diftong": "diphthong",
+  "cift unlu": "diphthong", "hiat": "hiatus", "ayri unluler": "hiatus",
+  "okunmayan harf": "silent", "tonlama": "intonation", "ezgi": "intonation",
+  "telaffuz": "pronunciation", "sesletim": "pronunciation", "isim": "noun",
+  "ad": "noun", "fiil": "verb", "eylem": "verb", "sifat": "adjective",
+  "zarf": "adverb", "zamir": "pronoun", "tanimlik": "article", "artikel": "article",
+  "edat": "preposition", "cinsiyet": "gender", "eril": "masculine", "disil": "feminine", "notr": "neuter",
+  "ortak kokenli": "cognate", "yaniltici benzer": "false friend"
+};
+
+function normalizeConceptStr(str) {
+  if (!str || typeof str !== 'string') return '';
+  let s = str.toLowerCase().trim();
+  const prefixes = ['der ', 'die ', 'das ', 'el ', 'la ', 'los ', 'las ', 'the ', 'a ', 'an ', 'ein ', 'eine ', 'un ', 'una '];
+  for (const p of prefixes) {
+    if (s.startsWith(p)) { s = s.slice(p.length).trim(); break; }
+  }
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, '').trim();
+}
+
+function resolveItemExplanation(it, term, translation, lang = currentLang) {
+  if (it && typeof it === 'object') {
+    if (lang === 'tr') {
+      const trExpl = it.explanation_tr || it.turkish_explanation || it.desc_tr;
+      if (trExpl && typeof trExpl === 'string' && trExpl.trim().length > 2) return trExpl.trim();
+    } else {
+      const enExpl = it.explanation_en || it.english_explanation || it.desc_en;
+      if (enExpl && typeof enExpl === 'string' && enExpl.trim().length > 2) return enExpl.trim();
+    }
+  }
+
+  // Check pedagogical concept knowledge base (for active language)
+  const normTerm = normalizeConceptStr(term);
+  const normTrans = normalizeConceptStr(translation);
+  
+  let key = normTrans && (PEDAGOGICAL_CONCEPT_EXPLANATIONS[normTrans] ? normTrans : CONCEPT_ALIASES[normTrans]);
+  if (!key && normTerm) {
+    key = PEDAGOGICAL_CONCEPT_EXPLANATIONS[normTerm] ? normTerm : CONCEPT_ALIASES[normTerm];
+  }
+  if (!key) {
+    // Check words inside
+    for (const w of (normTrans + ' ' + normTerm).split(/\s+/)) {
+      if (w && (PEDAGOGICAL_CONCEPT_EXPLANATIONS[w] || CONCEPT_ALIASES[w])) {
+        key = PEDAGOGICAL_CONCEPT_EXPLANATIONS[w] ? w : CONCEPT_ALIASES[w];
+        break;
+      }
+    }
+  }
+
+  if (key && PEDAGOGICAL_CONCEPT_EXPLANATIONS[key]) {
+    const entry = PEDAGOGICAL_CONCEPT_EXPLANATIONS[key];
+    const val = lang === 'tr' ? (entry.tr || entry.en) : (entry.en || entry.tr);
+    if (val) return val;
+  }
+
+  // If not a standard concept, use raw item explanation
+  if (it && typeof it === 'object') {
+    const rawExpl = it.explanation || it.description || it.desc || it.note || it.usage;
+    if (rawExpl && typeof rawExpl === 'string' && rawExpl.trim().length > 2) {
+      return lang === 'tr' ? translateEducationalText(rawExpl.trim()) : rawExpl.trim();
+    }
+  }
+
+  return '';
+}
+
 function translatePrompt(text, lang = currentLang) {
   if (!text) return '';
   let str = text.trim();
@@ -7449,11 +7747,13 @@ function showStudyTopic(topicId, pageIdx = 0) {
                       </div>`;
                   } else {
                     // Multi-char word — dict-clickable, but only over the word text itself
+                    const briefExpl = resolveItemExplanation(null, it, '', currentLang);
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
                         </div>
+                        ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
                       </div>`;
                   }
                 } else if (typeof it === "object" && it !== null) {
@@ -7487,13 +7787,17 @@ function showStudyTopic(topicId, pageIdx = 0) {
                         ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:14px; color:var(--accent-light);">${vStr}</div>` : ''}
                       </div>`;
                   } else {
-                    // Regular word+translation — cursor:default on row, pointer only on the word text itself
+                    // Regular word+translation with brief pedagogical explanation
+                    const briefExpl = resolveItemExplanation(it, safeStr(k), safeStr(v), currentLang);
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
                           <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16px; font-weight:600; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
-                        <div class="english-translation">${safeStr(v)}</div>
+                        <div class="english-translation">
+                          <div class="vocab-meaning-title">${safeStr(v)}</div>
+                          ${briefExpl ? `<div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div>` : ''}
+                        </div>
                       </div>`;
                   }
                 }

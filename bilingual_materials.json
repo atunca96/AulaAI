@@ -2105,7 +2105,8 @@
     "Describing Physical Appearance": "Fiziksel Görünüşü Tanımlama",
     "Subject Pronouns and Basic Sentence Structure": "Özne Zamirleri ve Temel Cümle Yapısı",
     "Reflexive Verbs and Daily Routine": "Dönüşlü Fiiller ve Günlük Rutin",
-    "Introducing Family Members": "Aile Üyelerini Tanıtma"
+    "Introducing Family Members": "Aile Üyelerini Tanıtma",
+    "harf": "letter"
   },
   "sentence_pairs_tr_en": {
     "'Lütfen' ve 'Teşekkür ederim' gibi ifadeler sıkça kullanılır.": "'Please' and 'Thank you' are expressions that are frequently used.",
@@ -2286,7 +2287,8 @@
     "İsteklerde 'είναι δυνατόν' ifadesi, bir şeyin mümkün olup olmadığını sormak için kullanılır.": "'είναι δυνατόν' is used in requests to ask whether something is possible.",
     "İş arkadaşlarınızla iletişim kurarken faydalıdır.": "It is useful when communicating with your colleagues.",
     "İş görevlerini ve sorumluluklarını tanımlarken 'είμαι υπεύθυνος για' (ben sorumluyum) yapısını kullanırız.": "When defining job duties and responsibilities, we use the structure 'είμαι υπεύθυνος για' (I am responsible for).",
-    "İş yaşamında sıkça karşılaşılan kelimelerdir.": "These are words frequently encountered in professional life."
+    "İş yaşamında sıkça karşılaşılan kelimelerdir.": "These are words frequently encountered in professional life.",
+    "harf": "letter"
   },
   "vocab_pairs": {
     "All good": "Her şey yolunda",
@@ -2525,7 +2527,7 @@
     "köy": "village",
     "köşe": "corner",
     "lehçe": "dialect",
-    "letter": "mektup",
+    "letter": "harf",
     "long": "uzun",
     "lunch": "öğle yemeği",
     "lütfen": "please",
@@ -2744,7 +2746,8 @@
     "Şarkı": "song",
     "şehir": "city",
     "şeker": "sugar",
-    "şoför": "driver"
+    "şoför": "driver",
+    "harf": "letter"
   },
   "title_pairs": {
     "Everyday Routines": "Günlük Rutinler",

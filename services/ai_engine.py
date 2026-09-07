@@ -523,8 +523,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 NO {instruction_lang_name.upper()} IN LISTS (CRITICAL): 
 - NEVER include {instruction_lang_name} translations as separate items in a list of strings. 
 - All items in a 'list' or 'items' array MUST be in the target language if they are strings. 
-- If you want to provide a translation, use the OBJECT format: {{'term': '...', 'translation': '...'}} or {{'text': '...', 'meaning': '...'}}. 
-- ALWAYS generate: [{{'term': 'Word', 'translation': 'Translation'}}, ...] or ['Word', 'Word2', ...]."""
+- If you want to provide a translation, use the OBJECT format: {{'term': '...', 'translation': '...', 'explanation': '...'}} or {{'text': '...', 'meaning': '...'}}. 
+- ALWAYS generate: [{{'term': 'Word', 'translation': 'Translation', 'explanation': 'Brief 1-sentence pedagogical explanation'}}, ...]."""
+    explanatory_items_mandate = f"""
+EXPLANATORY ITEMS MANDATE (CRITICAL):
+- In 'items' arrays, every item MUST be an object with 'term', 'translation', and 'explanation'.
+- FORMAT: {{"term": "Target word/phrase", "translation": "Direct {instruction_lang_name} meaning", "explanation": "Brief 1-sentence pedagogical explanation of what this word/phrase is, how it functions, or when it is used."}}
+- For grammatical concepts, phonetic terms, and linguistic words (e.g. vowels, consonants, umlauts, syllables, accents, articles, nouns): NEVER leave them as bare one-word labels. ALWAYS explain what the concept is in {instruction_lang_name}.
+- For vocabulary words or expressions: Provide a concise usage tip, cultural nuance, or context tip in 'explanation'.
+"""
     density_mandate = """
 CONTENT DENSITY MANDATE (CRITICAL): 
 - VOCABULARY: Minimum 10 items per vocabulary page. Cover primary, secondary, and tertiary nuances.
@@ -576,6 +583,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
     MCQ RULE: In 'mcq' pages, 'explanation' is pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'The alternatives do not...'.
     STRICT ANTI-GIVEAWAY MANDATE: The question prompt MUST NEVER contain the correct answer or give away the answer. Distractors must be homogeneous and plausible. NEVER ask shallow trivia about what string is inside a letter name.
+    EXPLANATORY ITEMS MANDATE: {explanatory_items_mandate}
     PHONETIC RULE: {phonetic_rule}
     ACCURACY RULE: {accuracy_rule}
     DEPTH RULE: {depth_rule}
@@ -602,6 +610,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
     7. {instruction_lang_name.upper()}-ONLY EXPLANATIONS: ALL instructional text, tips, and explanations MUST be in {instruction_lang_name}. NEVER use {language} to explain {language}.
     8. ALPHABET SPECIAL: If this is an alphabet topic, the first page MUST be the complete master list.
     9. PEDAGOGICAL DEPTH: Use practical, everyday scenarios. Explain 'why' using bullets.
+    10. EXPLANATORY ITEMS: For every item in 'items', provide an 'explanation' field giving a brief 1-sentence explanation of what the word/phrase/concept is in {instruction_lang_name}.
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
@@ -610,8 +619,8 @@ This rule is language-agnostic: always relate sounds to common, accessible words
           "title": "Essential Vocabulary", 
           "explanation": "• Deep English explanation of how to use these terms\\n• Cultural or grammatical nuances", 
           "items": [ 
-            {{ "term": "...", "translation": "..." }},
-            {{ "term": "...", "translation": "..." }}
+            {{ "term": "...", "translation": "...", "explanation": "Brief explanation of what this word/phrase is" }},
+            {{ "term": "...", "translation": "...", "explanation": "Brief explanation of what this word/phrase is" }}
           ] 
         }},
         {{ 
@@ -634,6 +643,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
 
     def _clean_pages(lesson_dict):
         if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
+        from services.concept_explanations import get_concept_explanation
         cleaned = []
         for p in lesson_dict.get("pages", []):
             if p.get("type") == "mcq":
@@ -648,6 +658,30 @@ This rule is language-agnostic: always relate sounds to common, accessible words
                 trivia_indicators = ["nombre que incluye", "se llama", "name includes", "includes the word", "harfinin adı", "kelimesini içerir", "cuál de estas letras tiene un nombre"]
                 if any(x in clean_p for x in trivia_indicators):
                     continue  # Skip trivia
+            
+            # Pedagogical item explanation enrichment
+            items = p.get("items") or p.get("vocabulary") or p.get("words") or []
+            if isinstance(items, list):
+                for it in items:
+                    if isinstance(it, dict):
+                        term_val = str(it.get("term") or it.get("word") or "")
+                        trans_val = str(it.get("translation") or it.get("meaning") or "")
+                        # Auto-fill explanation if missing or bare
+                        if not it.get("explanation") or len(str(it.get("explanation")).strip()) <= 2:
+                            concept_expl = get_concept_explanation(term_val, trans_val, lang=material_language)
+                            if concept_expl:
+                                it["explanation"] = concept_expl
+                        # Set language-specific fields
+                        if it.get("explanation"):
+                            if material_language == "tr":
+                                it["explanation_tr"] = it["explanation"]
+                                if not it.get("explanation_en"):
+                                    it["explanation_en"] = get_concept_explanation(term_val, trans_val, lang="en") or it["explanation"]
+                            else:
+                                it["explanation_en"] = it["explanation"]
+                                if not it.get("explanation_tr"):
+                                    it["explanation_tr"] = get_concept_explanation(term_val, trans_val, lang="tr") or it["explanation"]
+
             cleaned.append(p)
         lesson_dict["pages"] = cleaned
         return lesson_dict
