@@ -6451,6 +6451,15 @@ function renderStudyBook() {
   `;}).join('');
 }
 
+function highlightPedagogicalTerms(text) {
+  if (!text || typeof text !== 'string') return '';
+  let res = text.replace(/'([^'\n\r]{1,50})'/g, '<code class="study-term-chip">$1</code>');
+  res = res.replace(/\(([^)\n\r]{1,70})\)/g, (m, inner) => {
+    return `<span class="study-term-paren">(<span class="study-term-highlight">${inner}</span>)</span>`;
+  });
+  return res;
+}
+
 function showStudyTopic(topicId, pageIdx = 0) {
   const isStudent = currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
@@ -6530,12 +6539,27 @@ function showStudyTopic(topicId, pageIdx = 0) {
               const translatedText = (currentLang === 'tr' && (p.text_tr || p.explanation_tr)) ? text : translateEducationalText(text);
               const fixDiacriticsText = fixDiacritics(translatedText);
               const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
+              const badgeLabel = currentLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
               if (linesArr.length > 1) {
-                html += `<ul class="ai-explanation" style="font-size:20px; line-height:1.6; color:var(--text-primary); list-style-type: disc; padding-left: 24px; margin: 0 0 32px 0;">
-                  ${linesArr.map(line => `<li style="margin-bottom: 12px;">${line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim()}</li>`).join("")}
-                </ul>`;
+                html += `
+                  <div class="pedagogy-guide-block">
+                    <div class="pedagogy-guide-badge">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                      <span>${badgeLabel}</span>
+                    </div>
+                    <div class="pedagogy-rules-list">
+                      ${linesArr.map(line => {
+                        const cleanLine = line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim();
+                        return `<div class="pedagogy-rule-item">
+                          <div class="pedagogy-rule-bullet"></div>
+                          <div class="pedagogy-rule-content">${highlightPedagogicalTerms(cleanLine)}</div>
+                        </div>`;
+                      }).join("")}
+                    </div>
+                  </div>
+                `;
               } else {
-                html += `<div dir="auto" class="ai-explanation" style="font-size:20px; line-height:1.8; color:var(--text-primary); white-space:pre-wrap; margin-bottom:32px;">${fixDiacriticsText}</div>`;
+                html += `<div dir="auto" class="pedagogy-single-note">${highlightPedagogicalTerms(fixDiacriticsText)}</div>`;
               }
             }
 
@@ -6585,7 +6609,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                          <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
                         </div>
                       </div>`;
                   } else {
@@ -6593,7 +6617,7 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:20px; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                          <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
                         </div>
                       </div>`;
                   }
@@ -6611,9 +6635,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
                     // Dialogue/long-sentence card — cursor:default on card, pointer only on word
-                    html += `<div dir="auto" style="background:var(--bg-input); padding:18px; border-radius:var(--radius-sm); border:1px solid var(--border); border-left:3px solid var(--accent); cursor:default;">
-                        ${(it.speaker && k) ? `<div style="font-weight:800; color:var(--accent); font-size:11px; text-transform:uppercase; margin-bottom:4px;">${safeStr(k)}</div>` : ""}
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:20px; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
+                    html += `<div dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:3px solid var(--accent); cursor:default;">
+                        ${(it.speaker && k) ? `<div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; margin-bottom:6px; letter-spacing:0.5px;">${safeStr(k)}</div>` : ""}
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:15.5px; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
                       </div>`;
                   } else if (isLetter) {
                     // Single letter — render cleanly with its proper spelling pronunciation name
@@ -6623,16 +6647,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" style="font-size:20px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
+                          <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
-                        ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:18px; color:var(--accent-light);">${vStr}</div>` : ''}
+                        ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:14px; color:var(--accent-light);">${vStr}</div>` : ''}
                       </div>`;
                   } else {
                     // Regular word+translation — cursor:default on row, pointer only on the word text itself
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:20px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
+                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16px; font-weight:600; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
                         </div>
                         <div class="english-translation">${safeStr(v)}</div>
                       </div>`;
@@ -6647,11 +6671,11 @@ function showStudyTopic(topicId, pageIdx = 0) {
                const allOptions = Array.from(new Set((p.distractors || []).concat(p.answer))).filter(Boolean);
                allOptions.sort();
                const translatedPrompt = (currentLang === 'tr' && p.prompt_tr) ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:");
-               html += `<div style="margin-top:${html ? '24px' : '0'}; background:var(--bg-input); padding:28px; border-radius:var(--radius-lg); border:1px solid var(--border);">
-                 <div dir="auto" style="font-size:20px; font-weight:700; margin-bottom:20px; color:var(--text-primary);">${fixDiacritics(translatedPrompt)}</div>
-                 <div style="display:flex; flex-direction:column; gap:12px;">
+               html += `<div style="margin-top:${html ? '24px' : '0'}; background:var(--bg-input); padding:24px; border-radius:12px; border:1px solid var(--border);">
+                 <div dir="auto" style="font-size:16px; font-weight:700; margin-bottom:16px; color:var(--text-primary); line-height:1.5;">${fixDiacritics(translatedPrompt)}</div>
+                 <div style="display:flex; flex-direction:column; gap:10px;">
                    ${allOptions.map(opt => `
-                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:16px; font-size:18px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(translateOption(opt))}</button>
+                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(translateOption(opt))}</button>
                    `).join('')}
                  </div>
                </div>`;
@@ -6666,8 +6690,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
       title: isStudent ? t('study.complete') : t('study.preview'),
       icon: "",
       render: () => `<div style="text-align:center; padding:60px 20px;">
-      <h2 style="font-size:28px;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
-      <p style="color:var(--text-muted); font-size:18px; margin:20px 0 40px;">${isStudent ? t('study.ready_msg') : t('study.preview_msg')}</p>
+      <h2 style="font-size:24px; font-weight:700;">${isStudent ? t('study.ready') : t('study.preview_end')}</h2>
+      <p style="color:var(--text-muted); font-size:15px; margin:16px 0 32px;">${isStudent ? t('study.ready_msg') : t('study.preview_msg')}</p>
       ${isStudent ? `<button class="btn btn-primary btn-lg" onclick="launchStudyActivity('${topic.id}', ${escJS(topic.title)})">${t('study.start_practice')}</button>` : ''}
     </div>`
     });
@@ -6691,12 +6715,16 @@ function showStudyTopic(topicId, pageIdx = 0) {
     <div class="study-topic-wrapper">
       <div class="study-topic-header">
         <div>
-          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${esc(headerTopicTitle)} • <span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</div>
-          <h1 style="font-size:32px; font-weight:800; letter-spacing:-1px; margin:0; line-height:1.2;">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
+          <div class="study-breadcrumb-pill">
+            <span class="study-badge-tag">${esc(headerTopicTitle)}</span>
+            <span class="study-badge-divider">•</span>
+            <span class="study-badge-page"><span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</span>
+          </div>
+          <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
-        <div style="display:flex; gap:12px; flex-shrink:0;">
-          ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
-          ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
+        <div style="display:flex; gap:10px; flex-shrink:0;">
+          ${pageIdx > 0 ? `<button class="btn btn-outline btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
+          ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
       </div>
       <div class="study-card">
@@ -6706,14 +6734,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
         ${pages.map((p, i) => `
           <button 
             type="button"
+            class="study-pill-btn"
             onclick="showStudyTopic('${topicId}', ${i})"
             title="${esc(p.title || ((t('page') || 'Page') + ' ' + (i + 1)))}"
             aria-label="Go to page ${i + 1}"
-            style="background:none; border:none; padding:8px 4px; cursor:pointer; display:flex; align-items:center; outline:none;"
-            onmouseenter="this.querySelector('.study-pill').style.background = '${i === pageIdx ? 'var(--accent)' : 'var(--text-secondary)'}'; this.querySelector('.study-pill').style.transform = 'scaleY(1.2)';"
-            onmouseleave="this.querySelector('.study-pill').style.background = '${i === pageIdx ? 'var(--accent)' : 'var(--border)'}'; this.querySelector('.study-pill').style.transform = 'scaleY(1)';"
           >
-            <span class="study-pill" style="display:block; width:${i === pageIdx ? '38px' : '18px'}; height:6px; border-radius:6px; background:${i === pageIdx ? 'var(--accent)' : 'var(--border)'}; box-shadow:${i === pageIdx ? '0 0 10px var(--accent-glow)' : 'none'}; transition:all 0.25s ease;"></span>
+            <span class="study-pill ${i === pageIdx ? 'active' : ''}"></span>
           </button>
         `).join('')}
       </div>
