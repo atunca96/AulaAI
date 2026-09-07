@@ -3220,8 +3220,144 @@ const PEDAGOGICAL_CONCEPT_EXPLANATIONS = {
   "false friend": {
     en: "A deceptive word that looks or sounds like a familiar word but carries a different meaning.",
     tr: "Yazılışı veya okunuşu tanıdık gelen ancak tamamen farklı anlama sahip yanıltıcı sözcük."
+  },
+  // Cases & Tenses
+  "case": {
+    en: "A grammatical category determining the grammatical role of a noun in a sentence.",
+    tr: "İsmin cümlede üstlendiği dilbilgisel görevi belirleyen çekim hali."
+  },
+  "nominative": {
+    en: "The base grammatical case identifying the subject of a sentence.",
+    tr: "Cümlenin öznesi olan ismin ek almamış yalın hali."
+  },
+  "accusative": {
+    en: "The case marking the direct object directly receiving the action of a transitive verb.",
+    tr: "Geçişli fiilin doğrudan etkilediği nesneyi belirten -i hali."
+  },
+  "dative": {
+    en: "The case marking the indirect recipient, beneficiary, or directional target of an action.",
+    tr: "Eylemin yöneldiği veya yararlandığı dolaylı tümleci belirten -e hali."
+  },
+  "genitive": {
+    en: "The case expressing possession, belonging, origin, or close relationship between nouns.",
+    tr: "Aitlik, iyelik veya tamlama ilişkisi bildiren ilgi / tamlayan hali (-in)."
+  },
+  "tense": {
+    en: "The grammatical inflection of a verb showing the time of an action relative to speaking.",
+    tr: "Eylemin gerçekleştiği zaman dilimini belirten fiil çekim kategorisi."
+  },
+  "present tense": {
+    en: "The verb tense used for present actions, habitual facts, and general truths.",
+    tr: "Şu anda gerçekleşen veya genel geçer durumları bildiren şimdiki/geniş zaman."
+  },
+  "past tense": {
+    en: "The verb tense expressing actions that occurred and completed before the present moment.",
+    tr: "Geçmişte tamamlanmış veya yaşanmış olayları bildiren geçmiş zaman."
+  },
+  "future tense": {
+    en: "The verb tense expressing actions that are expected to happen after the present time.",
+    tr: "Gelecekte gerçekleşmesi beklenen veya planlanan eylemleri bildiren gelecek zaman."
+  },
+  "imperative": {
+    en: "The grammatical mood used to express direct commands, instructions, or requests.",
+    tr: "Doğrudan emir, talimat veya rica bildiren fiil kipi."
+  },
+  "subjunctive": {
+    en: "The grammatical mood expressing wishes, doubts, hypotheticals, or possibilities.",
+    tr: "Dilek, istek, şüphe, varsayım veya temenni bildiren kip biçimi."
+  },
+  "synonym": {
+    en: "A word with identical or very similar meaning to another word in the same language.",
+    tr: "Yazılışları farklı ancak anlamları aynı veya birbirine çok yakın olan sözcük."
+  },
+  "antonym": {
+    en: "A word with opposite meaning to another word in the same language.",
+    tr: "Anlamca birbiriyle çelişen ve karşıt anlam taşıyan sözcük."
   }
 };
+
+const CANONICAL_CONCEPT_NAMES = {
+  vowel: { en: "Vowel", tr: "Ünlü" },
+  consonant: { en: "Consonant", tr: "Ünsüz" },
+  umlaut: { en: "Umlaut", tr: "İki Noktalı Ünlü (Umlaut)" },
+  sound: { en: "Sound", tr: "Ses" },
+  syllable: { en: "Syllable", tr: "Hece" },
+  word: { en: "Word", tr: "Kelime" },
+  letter: { en: "Letter", tr: "Harf" },
+  alphabet: { en: "Alphabet", tr: "Alfabe" },
+  sentence: { en: "Sentence", tr: "Cümle" },
+  language: { en: "Language", tr: "Dil" },
+  accent: { en: "Accent", tr: "Vurgu" },
+  stress: { en: "Stress", tr: "Vurgu" },
+  intonation: { en: "Intonation", tr: "Tonlama" },
+  pronunciation: { en: "Pronunciation", tr: "Telaffuz" },
+  diphthong: { en: "Diphthong", tr: "Diftong (Çift Ünlü)" },
+  hiatus: { en: "Hiatus", tr: "Hiyat (Ayrı Ünlüler)" },
+  silent: { en: "Silent Letter", tr: "Okunmayan Harf" },
+  "weak vowel": { en: "Weak Vowel", tr: "Dar Ünlü" },
+  "strong vowel": { en: "Strong Vowel", tr: "Açık Ünlü" },
+  accentuation: { en: "Accentuation", tr: "Aksan Kuralları" },
+  rhythm: { en: "Rhythm", tr: "Ritim" },
+  noun: { en: "Noun", tr: "İsim" },
+  verb: { en: "Verb", tr: "Fiil" },
+  adjective: { en: "Adjective", tr: "Sıfat" },
+  adverb: { en: "Adverb", tr: "Zarf" },
+  pronoun: { en: "Pronoun", tr: "Zamir" },
+  article: { en: "Article", tr: "Tanımlık (Artikel)" },
+  "definite article": { en: "Definite Article", tr: "Belirli Tanımlık" },
+  "indefinite article": { en: "Indefinite Article", tr: "Belirsiz Tanımlık" },
+  preposition: { en: "Preposition", tr: "Edat" },
+  conjunction: { en: "Conjunction", tr: "Bağlaç" },
+  gender: { en: "Gender", tr: "Dilbilgisel Cinsiyet" },
+  masculine: { en: "Masculine", tr: "Eril" },
+  feminine: { en: "Feminine", tr: "Dişil" },
+  neuter: { en: "Neuter", tr: "Nötr" },
+  singular: { en: "Singular", tr: "Tekil" },
+  plural: { en: "Plural", tr: "Çoğul" },
+  subject: { en: "Subject", tr: "Özne" },
+  object: { en: "Object", tr: "Nesne" },
+  infinitive: { en: "Infinitive", tr: "Mastar" },
+  conjugation: { en: "Conjugation", tr: "Fiil Çekimi" },
+  "regular verb": { en: "Regular Verb", tr: "Düzenli Fiil" },
+  "irregular verb": { en: "Irregular Verb", tr: "Düzensiz Fiil" },
+  "reflexive verb": { en: "Reflexive Verb", tr: "Dönüşlü Fiil" },
+  "modal verb": { en: "Modal Verb", tr: "Modal Yardımcı Fiil" },
+  cognate: { en: "Cognate", tr: "Ortak Kökenli Sözcük" },
+  "false friend": { en: "False Friend", tr: "Yanıltıcı Benzer" },
+  case: { en: "Grammatical Case", tr: "İsmin Hali" },
+  nominative: { en: "Nominative Case", tr: "Yalın Hal" },
+  accusative: { en: "Accusative Case", tr: "Belirtme Hali (-i)" },
+  dative: { en: "Dative Case", tr: "Yönelme Hali (-e)" },
+  genitive: { en: "Genitive Case", tr: "İlgi / Tamlayan Hali (-in)" },
+  tense: { en: "Tense", tr: "Zaman" },
+  "present tense": { en: "Present Tense", tr: "Geniş / Şimdiki Zaman" },
+  "past tense": { en: "Past Tense", tr: "Geçmiş Zaman" },
+  "future tense": { en: "Future Tense", tr: "Gelecek Zaman" },
+  imperative: { en: "Imperative", tr: "Emir Kipi" },
+  subjunctive: { en: "Subjunctive", tr: "Dilek / İstek Kipi" },
+  synonym: { en: "Synonym", tr: "Eş Anlamlı" },
+  antonym: { en: "Antonym", tr: "Zıt Anlamlı" }
+};
+
+const INCOMPATIBLE_CONCEPT_CLUSTERS = [
+  new Set(["vowel", "consonant", "silent"]),
+  new Set(["weak vowel", "strong vowel"]),
+  new Set(["diphthong", "hiatus"]),
+  new Set(["masculine", "feminine", "neuter"]),
+  new Set(["singular", "plural"]),
+  new Set(["noun", "verb", "adjective", "adverb", "preposition", "conjunction", "article", "pronoun"]),
+  new Set(["nominative", "accusative", "dative", "genitive"]),
+  new Set(["present tense", "past tense", "future tense"]),
+  new Set(["synonym", "antonym"])
+];
+
+function areConceptsIncompatible(k1, k2) {
+  if (!k1 || !k2 || k1 === k2) return false;
+  for (const cluster of INCOMPATIBLE_CONCEPT_CLUSTERS) {
+    if (cluster.has(k1) && cluster.has(k2)) return true;
+  }
+  return false;
+}
 
 const CONCEPT_ALIASES = {
   // German
@@ -3234,10 +3370,22 @@ const CONCEPT_ALIASES = {
   "satz": "sentence", "satze": "sentence",
   "sprache": "language", "sprachen": "language",
   "akzent": "accent", "betonung": "stress", "aussprache": "pronunciation",
-  "substantiv": "noun", "nomen": "noun", "adjektiv": "adjective",
-  "praposition": "preposition", "pronomen": "pronoun", "genus": "gender",
-  "maskulin": "masculine", "feminin": "feminine", "neutrum": "neuter",
+  "substantiv": "noun", "nomen": "noun",
+  "verb": "verb", "verben": "verb",
+  "adjektiv": "adjective", "adjektive": "adjective",
+  "adverb": "adverb", "adverbien": "adverb",
+  "praposition": "preposition", "prapositionen": "preposition",
+  "pronomen": "pronoun", "artikel": "article",
+  "genus": "gender", "maskulin": "masculine", "feminin": "feminine", "neutrum": "neuter",
+  "einzahl": "singular", "mehrzahl": "plural", "singular": "singular", "plural": "plural",
   "kognat": "cognate", "falscher freund": "false friend", "stumm": "silent",
+  "fall": "case", "kasus": "case",
+  "nominativ": "nominative", "akkusativ": "accusative", "dativ": "dative", "genitiv": "genitive",
+  "zeitform": "tense", "tempus": "tense",
+  "prasens": "present tense", "prateritum": "past tense", "perfekt": "past tense", "futur": "future tense",
+  "imperativ": "imperative", "konjunktiv": "subjunctive",
+  "synonym": "synonym", "antonym": "antonym",
+
   // Spanish
   "vocal": "vowel", "vocales": "vowel",
   "consonante": "consonant", "consonantes": "consonant",
@@ -3245,69 +3393,122 @@ const CONCEPT_ALIASES = {
   "sonido": "sound", "sonidos": "sound",
   "palabra": "word", "palabras": "word",
   "letra": "letter", "letras": "letter",
-  "abecedario": "alphabet", "acento": "accent", "acentos": "accent",
+  "abecedario": "alphabet", "alfabeto": "alphabet",
+  "acento": "accent", "acentos": "accent",
   "tonica": "stress", "diptongo": "diphthong", "hiato": "hiatus",
   "silencio": "silent", "silencioso": "silent", "mudo": "silent",
   "entonacion": "intonation", "pronunciacion": "pronunciation",
   "acentuacion": "accentuation", "debil": "weak vowel", "vocal debil": "weak vowel",
   "fuerte": "strong vowel", "vocal fuerte": "strong vowel",
-  "sustantivo": "noun", "verbo": "verb", "adjetivo": "adjective",
-  "adverbio": "adverb", "pronombre": "pronoun", "articulo": "article",
-  "preposicion": "preposition", "genero": "gender",
+  "sustantivo": "noun", "sustantivos": "noun", "nombre": "noun",
+  "verbo": "verb", "verbos": "verb",
+  "adjetivo": "adjective", "adjetivos": "adjective",
+  "adverbio": "adverb", "adverbios": "adverb",
+  "pronombre": "pronoun", "pronombres": "pronoun",
+  "articulo": "article", "articulos": "article",
+  "preposicion": "preposition", "preposiciones": "preposition",
+  "conjuncion": "conjunction", "conjunciones": "conjunction",
+  "genero": "gender", "masculino": "masculine", "femenino": "feminine", "neutro": "neuter",
+  "singular": "singular", "plural": "plural",
+  "sujeto": "subject", "objeto": "object", "infinitivo": "infinitive", "conjugacion": "conjugation",
   "cognado": "cognate", "falso amigo": "false friend",
+  "caso": "case", "nominativo": "nominative", "acusativo": "accusative", "dativo": "dative", "genitivo": "genitive",
+  "tiempo verbal": "tense", "presente": "present tense", "pasado": "past tense", "preterito": "past tense", "imperfecto": "past tense", "futuro": "future tense",
+  "imperativo": "imperative", "subjuntivo": "subjunctive",
+  "sinonimo": "synonym", "antonimo": "antonym",
+
   // Turkish
-  "sesli harf": "vowel", "unlu": "vowel", "unluler": "vowel",
-  "sessiz harf": "consonant", "unsuz": "consonant", "unsuzler": "consonant",
+  "sesli harf": "vowel", "unlu": "vowel", "unluler": "vowel", "sesli": "vowel",
+  "sessiz harf": "consonant", "unsuz": "consonant", "unsuzler": "consonant", "sessiz": "consonant",
   "iki noktali unlu": "umlaut", "ses": "sound", "fonetik ses": "sound",
   "hece": "syllable", "heceler": "syllable", "kelime": "word", "sozcuk": "word",
   "harf": "letter", "harfler": "letter", "alfabe": "alphabet", "cumle": "sentence",
   "dil": "language", "vurgu": "accent", "aksan": "accent", "diftong": "diphthong",
   "cift unlu": "diphthong", "hiat": "hiatus", "ayri unluler": "hiatus",
   "okunmayan harf": "silent", "tonlama": "intonation", "ezgi": "intonation",
-  "telaffuz": "pronunciation", "sesletim": "pronunciation", "isim": "noun",
-  "ad": "noun", "fiil": "verb", "eylem": "verb", "sifat": "adjective",
-  "zarf": "adverb", "zamir": "pronoun", "tanimlik": "article", "artikel": "article",
-  "edat": "preposition", "cinsiyet": "gender", "eril": "masculine", "disil": "feminine", "notr": "neuter",
-  "ortak kokenli": "cognate", "yaniltici benzer": "false friend"
+  "telaffuz": "pronunciation", "sesletim": "pronunciation",
+  "isim": "noun", "ad": "noun",
+  "fiil": "verb", "eylem": "verb",
+  "sifat": "adjective", "onad": "adjective",
+  "zarf": "adverb", "belirtec": "adverb",
+  "zamir": "pronoun", "adıl": "pronoun",
+  "tanimlik": "article", "artikel": "article",
+  "edat": "preposition", "ilgec": "preposition", "baglac": "conjunction",
+  "cinsiyet": "gender", "eril": "masculine", "disil": "feminine", "notr": "neuter",
+  "tekil": "singular", "cogul": "plural", "ozne": "subject", "nesne": "object", "tumlec": "object",
+  "mastar": "infinitive", "fiil cekimi": "conjugation", "cekim": "conjugation",
+  "ortak kokenli": "cognate", "yaniltici benzer": "false friend",
+  "hal": "case", "ismin hali": "case", "durum": "case",
+  "yalin hal": "nominative", "belirtme hali": "accusative", "yonelme hali": "dative", "tamlayan hali": "genitive",
+  "zaman": "tense", "simdiki zaman": "present tense", "genis zaman": "present tense",
+  "gecmis zaman": "past tense", "gelecek zaman": "future tense",
+  "emir kipi": "imperative", "istek kipi": "subjunctive",
+  "es anlamli": "synonym", "anlamdas": "synonym", "zit anlamli": "antonym", "karsit": "antonym",
+
+  // French
+  "voyelle": "vowel", "voyelles": "vowel", "consonne": "consonant", "consonnes": "consonant",
+  "syllabe": "syllable", "mot": "word", "lettre": "letter", "nom": "noun", "verbe": "verb",
+  "adjectif": "adjective", "adverbe": "adverb", "pronom": "pronoun", "article": "article",
+  "preposition": "preposition", "genre": "gender", "masculin": "masculine", "feminin": "feminine",
+  "singulier": "singular", "pluriel": "plural",
+
+  // Italian
+  "vocale": "vowel", "vocali": "vowel", "consonante": "consonant", "consonanti": "consonant",
+  "sillaba": "syllable", "parola": "word", "lettera": "letter", "sostantivo": "noun",
+  "nome": "noun", "verbo": "verb", "aggettivo": "adjective", "avverbio": "adverb",
+  "pronome": "pronoun", "articolo": "article", "preposizione": "preposition",
+  "genere": "gender", "maschile": "masculine", "femminile": "feminine",
+  "singolare": "singular", "plurale": "plural"
 };
 
 function normalizeConceptStr(str) {
   if (!str || typeof str !== 'string') return '';
   let s = str.toLowerCase().trim();
-  const prefixes = ['der ', 'die ', 'das ', 'el ', 'la ', 'los ', 'las ', 'the ', 'a ', 'an ', 'ein ', 'eine ', 'un ', 'una '];
+  const prefixes = ['der ', 'die ', 'das ', 'el ', 'la ', 'los ', 'las ', 'the ', 'a ', 'an ', 'ein ', 'eine ', 'un ', 'una ', 'le ', 'les ', 'il ', 'lo ', 'gli '];
   for (const p of prefixes) {
     if (s.startsWith(p)) { s = s.slice(p.length).trim(); break; }
   }
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, '').trim();
 }
 
+function resolveConceptKey(str) {
+  if (!str || typeof str !== 'string') return '';
+  const norm = normalizeConceptStr(str);
+  if (!norm) return '';
+  if (PEDAGOGICAL_CONCEPT_EXPLANATIONS[norm]) return norm;
+  if (CONCEPT_ALIASES[norm]) return CONCEPT_ALIASES[norm];
+  for (const w of norm.split(/\s+/)) {
+    if (PEDAGOGICAL_CONCEPT_EXPLANATIONS[w]) return w;
+    if (CONCEPT_ALIASES[w]) return CONCEPT_ALIASES[w];
+  }
+  return '';
+}
+
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
+  const termKey = resolveConceptKey(term);
+  const transKey = resolveConceptKey(translation);
+
+  // If item already has explicit language-specific explanation, verify it doesn't contradict the ground truth term
   if (it && typeof it === 'object') {
-    if (lang === 'tr') {
-      const trExpl = it.explanation_tr || it.turkish_explanation || it.desc_tr;
-      if (trExpl && typeof trExpl === 'string' && trExpl.trim().length > 2) return trExpl.trim();
-    } else {
-      const enExpl = it.explanation_en || it.english_explanation || it.desc_en;
-      if (enExpl && typeof enExpl === 'string' && enExpl.trim().length > 2) return enExpl.trim();
+    const rawLangExpl = (lang === 'tr')
+      ? (it.explanation_tr || it.turkish_explanation || it.desc_tr)
+      : (it.explanation_en || it.english_explanation || it.desc_en);
+    if (rawLangExpl && typeof rawLangExpl === 'string' && rawLangExpl.trim().length > 2) {
+      const explKey = resolveConceptKey(rawLangExpl);
+      // Only return raw explanation if it doesn't contradict the authentic source term
+      if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
+        return rawLangExpl.trim();
+      }
     }
   }
 
-  // Check pedagogical concept knowledge base (for active language)
-  const normTerm = normalizeConceptStr(term);
-  const normTrans = normalizeConceptStr(translation);
-  
-  let key = normTrans && (PEDAGOGICAL_CONCEPT_EXPLANATIONS[normTrans] ? normTrans : CONCEPT_ALIASES[normTrans]);
-  if (!key && normTerm) {
-    key = PEDAGOGICAL_CONCEPT_EXPLANATIONS[normTerm] ? normTerm : CONCEPT_ALIASES[normTerm];
-  }
-  if (!key) {
-    // Check words inside
-    for (const w of (normTrans + ' ' + normTerm).split(/\s+/)) {
-      if (w && (PEDAGOGICAL_CONCEPT_EXPLANATIONS[w] || CONCEPT_ALIASES[w])) {
-        key = PEDAGOGICAL_CONCEPT_EXPLANATIONS[w] ? w : CONCEPT_ALIASES[w];
-        break;
-      }
-    }
+  // GROUND TRUTH: termKey (authentic foreign word being studied) ALWAYS takes precedence over transKey!
+  let key = termKey;
+  if (termKey && transKey && areConceptsIncompatible(termKey, transKey)) {
+    // Conflict detected: source term wins, translation hallucination ignored
+    key = termKey;
+  } else if (!key) {
+    key = transKey;
   }
 
   if (key && PEDAGOGICAL_CONCEPT_EXPLANATIONS[key]) {
@@ -3316,7 +3517,7 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
     if (val) return val;
   }
 
-  // If not a standard concept, use raw item explanation
+  // Fallback to generic item explanation
   if (it && typeof it === 'object') {
     const rawExpl = it.explanation || it.description || it.desc || it.note || it.usage;
     if (rawExpl && typeof rawExpl === 'string' && rawExpl.trim().length > 2) {
@@ -7765,7 +7966,21 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
                   }
                   const rawResolved = translateOption(rawV);
-                  const v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+                  let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+
+                  // --- SEMANTIC CONCEPT SELF-HEALING ---
+                  // If k is an authentic pedagogical/linguistic concept, guarantee that v matches k and never contradicts it
+                  const termConceptKey = resolveConceptKey(safeStr(k));
+                  if (termConceptKey) {
+                    const transConceptKey = resolveConceptKey(safeStr(v));
+                    if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === safeStr(k).toLowerCase()) {
+                      const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][currentLang] : null;
+                      if (canonicalTitle) {
+                        v = canonicalTitle;
+                      }
+                    }
+                  }
+
                   const isLetter = typeof k === "string" && k.trim().length <= 2;
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {

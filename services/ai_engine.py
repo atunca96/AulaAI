@@ -643,7 +643,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
 
     def _clean_pages(lesson_dict):
         if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
-        from services.concept_explanations import get_concept_explanation
+        from services.concept_explanations import heal_concept_item
         cleaned = []
         for p in lesson_dict.get("pages", []):
             if p.get("type") == "mcq":
@@ -659,28 +659,13 @@ This rule is language-agnostic: always relate sounds to common, accessible words
                 if any(x in clean_p for x in trivia_indicators):
                     continue  # Skip trivia
             
-            # Pedagogical item explanation enrichment
-            items = p.get("items") or p.get("vocabulary") or p.get("words") or []
-            if isinstance(items, list):
-                for it in items:
-                    if isinstance(it, dict):
-                        term_val = str(it.get("term") or it.get("word") or "")
-                        trans_val = str(it.get("translation") or it.get("meaning") or "")
-                        # Auto-fill explanation if missing or bare
-                        if not it.get("explanation") or len(str(it.get("explanation")).strip()) <= 2:
-                            concept_expl = get_concept_explanation(term_val, trans_val, lang=material_language)
-                            if concept_expl:
-                                it["explanation"] = concept_expl
-                        # Set language-specific fields
-                        if it.get("explanation"):
-                            if material_language == "tr":
-                                it["explanation_tr"] = it["explanation"]
-                                if not it.get("explanation_en"):
-                                    it["explanation_en"] = get_concept_explanation(term_val, trans_val, lang="en") or it["explanation"]
-                            else:
-                                it["explanation_en"] = it["explanation"]
-                                if not it.get("explanation_tr"):
-                                    it["explanation_tr"] = get_concept_explanation(term_val, trans_val, lang="tr") or it["explanation"]
+            # Pedagogical item explanation enrichment & self-healing
+            for list_key in ["items", "vocabulary", "words", "list", "dialogue", "examples"]:
+                arr = p.get(list_key)
+                if isinstance(arr, list):
+                    for it in arr:
+                        if isinstance(it, dict):
+                            heal_concept_item(it, lang=material_language)
 
             cleaned.append(p)
         lesson_dict["pages"] = cleaned
