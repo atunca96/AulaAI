@@ -435,18 +435,24 @@ def init_db():
                 with open(bm_path, "r", encoding="utf-8") as f:
                     bm_data = json.load(f)
                 title_map = bm_data.get("title_pairs", {})
+                import re
+                clean_re = re.compile(r'^(unit|chapter|topic|tema|lektion|item|c\.|l\.)\s*\d+\s*[:\-]\s*', re.IGNORECASE)
                 # Chapters
-                for row in c.execute("SELECT id, title FROM chapters WHERE title_tr IS NULL OR title_tr = ''").fetchall():
-                    t_clean = row["title"].strip()
-                    if t_clean in title_map:
-                        c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+                for row in c.execute("SELECT id, title, title_tr FROM chapters").fetchall():
+                    t_raw = (row["title"] or "").strip()
+                    t_clean = clean_re.sub("", t_raw).strip()
+                    matched_tr = title_map.get(t_raw) or title_map.get(t_clean)
+                    if matched_tr and (not row["title_tr"] or row["title_tr"] == row["title"]):
+                        c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (matched_tr, row["id"]))
                 # Topics
-                for row in c.execute("SELECT id, title FROM topics WHERE title_tr IS NULL OR title_tr = ''").fetchall():
-                    t_clean = row["title"].strip()
-                    if t_clean in title_map:
-                        c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (title_map[t_clean], row["id"]))
+                for row in c.execute("SELECT id, title, title_tr FROM topics").fetchall():
+                    t_raw = (row["title"] or "").strip()
+                    t_clean = clean_re.sub("", t_raw).strip()
+                    matched_tr = title_map.get(t_raw) or title_map.get(t_clean)
+                    if matched_tr and (not row["title_tr"] or row["title_tr"] == row["title"]):
+                        c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (matched_tr, row["id"]))
             c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
-            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v2')")
+            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v3')")
             print("[MIGRATION] Verified title_tr and cleaned pdf_url for all courses.")
         except Exception as e:
             print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")

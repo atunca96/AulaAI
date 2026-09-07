@@ -1565,6 +1565,16 @@ function applyTranslations() {
   if (document.getElementById('ai-architect-modal') && !document.getElementById('ai-architect-modal').classList.contains('hidden')) {
     renderAiLanguages();
   }
+
+  if (curriculum && Array.isArray(curriculum) && curriculum.length > 0) {
+    populateSelects();
+    if (document.getElementById('curriculum-tree')) renderCurriculum();
+    if (document.getElementById('ai-book-toc') || document.getElementById('s-ai-book-toc')) renderStudyBook();
+    if (currentUser && currentUser.role === 'student') {
+      if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
+      loadStudentPractice();
+    }
+  }
 }
 
 function toggleLanguage() {
@@ -1578,6 +1588,7 @@ function toggleLanguage() {
   if (curriculum && document.getElementById('curriculum-tree')) {
     renderCurriculum();
   }
+  populateSelects();
 
   // 3. Re-render Study Material book & topic
   renderStudyBook();
@@ -1602,6 +1613,7 @@ function toggleLanguage() {
     } else {
       if (currentCourse) renderStudentSync();
       else renderStudentPortal();
+      if (curriculum) loadStudentPractice();
     }
   }
 
@@ -1825,7 +1837,38 @@ const CURRICULUM_PAIRS = [
   ["Quick Check", "Hızlı Kontrol"],
   ["Practical Usage", "Pratik Kullanım"],
   ["Vocabulary Cheat Sheet", "Kelime İpucu Listesi"],
-  ["Grammar & Key Rules", "Dilbilgisi ve Temel Kurallar"]
+  ["Grammar & Key Rules", "Dilbilgisi ve Temel Kurallar"],
+  ["Describing Your Environment", "Çevrenizi Tanımlamak"],
+  ["Social Interactions and Small Talk", "Sosyal Etkileşimler ve Küçük Sohbet"],
+  ["Exploring the Past: Introduction to Past Tenses", "Geçmişi Keşfetmek: Geçmiş Zamanlara Giriş"],
+  ["Shopping Scenarios", "Alışveriş Senaryoları"],
+  ["Workplace Basics", "İş Yeri Temelleri"],
+  ["Traveling in Spanish-Speaking Countries", "İspanyolca Konuşan Ülkelerde Seyahat"],
+  ["Culinary Adventures", "Gastronomik Maceralar"],
+  ["Morning Rituals and Daily Activities", "Sabah Ritüelleri ve Günlük Aktiviteler"],
+  ["Using Reflexive Verbs in Daily Contexts", "Günlük Bağlamlarda Refleksif Fiiller Kullanmak"],
+  ["Common Expressions for Daily Routines", "Günlük Rutinler için Yaygın İfadeler"],
+  ["Adjectives to Describe Your Home", "Evinizi Tanımlamak İçin Sıfatlar"],
+  ["Prepositions of Place: Where Things Are", "Yer Prepozisyonları: Eşyaların Nerede Olduğu"],
+  ["Talking About Your Neighborhood", "Mahalleniz Hakkında Konuşmak"],
+  ["Engaging in Simple Conversations", "Basit Konuşmalara Katılma"],
+  ["Asking and Answering Personal Questions", "Kişisel Sorular Sorma ve Cevaplama"],
+  ["Cultural Nuances in Greetings", "Selamlaşmalardaki Kültürel İncelikler"],
+  ["Understanding the Preterite Tense", "Geçmiş Zamanı Anlamak"],
+  ["Using the Imperfect Tense for Background Descriptions", "Arka Plan Tanımlamaları için Geçmiş Zaman Kullanımı"],
+  ["Simple Narratives: Telling a Story from the Past", "Basit Anlatılar: Geçmişten Bir Hikaye Anlatmak"],
+  ["At the Market: Buying Food and Goods", "Pazarda: Gıda ve Eşya Satın Alma"],
+  ["Expressing Preferences and Needs", "Tercihleri ve İhtiyaçları İfade Etmek"],
+  ["Understanding Prices and Bargaining", "Fiyatları Anlama ve Pazarlık"],
+  ["Describing Your Job and Responsibilities", "İşinizi ve Sorumluluklarınızı Tanımlama"],
+  ["Common Workplace Interactions", "Yaygın İş Yeri Etkileşimleri"],
+  ["Using the Future Tense: Discussing Plans", "Gelecek Zaman Kullanımı: Planları Tartışma"],
+  ["Asking for Directions and Transportation", "Yol Tarifi ve Ulaşım İsteme"],
+  ["Describing Travel Experiences", "Seyahat Deneyimlerini Tanımlama"],
+  ["Cultural Etiquette When Traveling", "Seyahat Ederken Kültürel Görgü Kuralları"],
+  ["Talking About Food Preferences and Dietary Restrictions", "Yiyecek Tercihleri ve Diyet Kısıtlamaları Hakkında Konuşmak"],
+  ["Ordering at a Restaurant: Key Phrases", "Bir Restoranda Sipariş Verme: Anahtar İfadeler"],
+  ["Cultural Insights into Spanish Cuisine", "İspanyol Mutfağına Kültürel Bakışlar"],
 ];
 
 function translateCurriculumTitle(title, lang = currentLang) {
@@ -3143,28 +3186,33 @@ async function generateAiCurriculum() {
 function renderAiSyllabusEditor(syllabus) {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
-  container.innerHTML = syllabus.map((chapter, i) => `
+  container.innerHTML = syllabus.map((chapter, i) => {
+    const rawChTitle = (currentLang === 'tr' && chapter.title_tr) ? chapter.title_tr : (chapter.title || '');
+    const chTitle = (currentLang === 'tr' && chapter.title_tr) ? chapter.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
+    return `
     <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 style="margin:0; color:var(--accent-light);">Unit ${i + 1}</h4>
-        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">\ud83d\uddd1\ufe0f</button>
+        <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${i + 1}</h4>
+        <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">🗑️</button>
       </div>
-      <input type="text" class="text-input syllabus-title" value="${esc(chapter.title)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
       <div class="topics-list">
-        ${chapter.topics.map(topic => {
-    const title = typeof topic === 'string' ? topic : (topic.title || '');
-    return `
-            <div class="topic-item" data-type="${topic.type || 'vocabulary'}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${(topic.type || 'vocabulary') === 'grammar' ? '\u2699\ufe0f' : '•'}</span>
+        ${(chapter.topics || []).map(topic => {
+          const rawTitle = typeof topic === 'string' ? topic : (topic.title_tr && currentLang === 'tr' ? topic.title_tr : (topic.title || ''));
+          const title = (currentLang === 'tr' && topic.title_tr) ? topic.title_tr : translateCurriculumTitle(rawTitle, currentLang);
+          const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
+          return `
+            <div class="topic-item" data-type="${type}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? '⚙️' : '•'}</span>
               <input type="text" class="text-input topic-title" value="${esc(title)}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
           `;
-  }).join('')}
+        }).join('')}
         <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function addUnitToAiArchitect() {
@@ -4166,7 +4214,7 @@ function renderOverview(report) {
   const chartEl = document.getElementById('topic-difficulty-chart');
   if (chartEl) {
     chartEl.innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
-      `<div class="progress-item"><div class="progress-label"><span>${name}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
+      `<div class="progress-item"><div class="progress-label"><span>${translateCurriculumTitle(name, currentLang)}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
     ).join('');
   }
 
@@ -4177,6 +4225,12 @@ async function loadCurriculumAsync() {
   const currData = await api('/curriculum?course_id=' + courseId);
   curriculum = Array.isArray(currData) ? currData : [];
   renderCurriculum();
+  renderStudyBook();
+  populateSelects();
+  if (currentUser && currentUser.role === 'student') {
+    if (_lastStudentHomeData) renderStudentHome(_lastStudentHomeData);
+    loadStudentPractice();
+  }
 }
 
 function renderCurriculum() {
@@ -4196,7 +4250,7 @@ function renderCurriculum() {
     treeEl.innerHTML = curriculum.map((ch, i) => {
       const cleanTitle = (ch.title || "").replace(/^(unit|chapter|lektion|tema|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
       const displayNum = i + 1;
-      const translatedChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle);
+      const translatedChTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle, currentLang);
       return `
       <div class="chapter-block">
         <div class="chapter-header" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.chapter-toggle').textContent=this.nextElementSibling.classList.contains('open')?'▾':'▸'">
@@ -4209,7 +4263,7 @@ function renderCurriculum() {
         </div>
         <div class="chapter-topics">${(ch.topics || []).map(t_obj => {
           const cleanTopicTitle = (t_obj.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
-          const translatedTTitle = (currentLang === 'tr' && t_obj.title_tr) ? t_obj.title_tr : translateCurriculumTitle(cleanTopicTitle);
+          const translatedTTitle = (currentLang === 'tr' && t_obj.title_tr) ? t_obj.title_tr : translateCurriculumTitle(cleanTopicTitle, currentLang);
           return `
           <div class="topic-item">
             <div class="topic-info">
@@ -4420,6 +4474,7 @@ async function reArchitectCurriculum() {
 }
 
 function populateSelects() {
+  if (!curriculum || !Array.isArray(curriculum)) return;
   let topicOpts = '', chapterOpts = '';
   curriculum.forEach((ch, idx) => {
     let title = ch.title || "";
@@ -4428,16 +4483,21 @@ function populateSelects() {
     
     // Always use the index + 1 for the unit number to ensure they start at 1 and are sequential
     const displayNum = idx + 1;
-    const displayTitle = `${t('Unit')} ${displayNum}: ${cleanTitle}`;
+    const trTitle = (currentLang === 'tr' && ch.title_tr) ? ch.title_tr : translateCurriculumTitle(cleanTitle, currentLang);
+    const displayTitle = `${t('Unit')} ${displayNum}: ${trTitle}`;
     
     chapterOpts += `<option value="${ch.id}">${displayTitle}</option>`;
-    (ch.topics || []).forEach(t => { 
-      const cleanT = (t.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
-      topicOpts += `<option value="${t.id}">U${displayNum} — ${cleanT} (${t.type})</option>`; 
+    (ch.topics || []).forEach(tp => { 
+      const cleanT = (tp.title || "").replace(/^(topic|tema|item)\s*\d+\s*[:\-]\s*/i, "").trim();
+      const trTopic = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(cleanT, currentLang);
+      const badgeText = translateBadge(tp.type);
+      topicOpts += `<option value="${tp.id}">U${displayNum} — ${trTopic} (${badgeText})</option>`; 
     });
   });
-  document.getElementById('activity-topic-select').innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
-  document.getElementById('quiz-chapter-select').innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+  const actSelect = document.getElementById('activity-topic-select');
+  if (actSelect) actSelect.innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
+  const quizSelect = document.getElementById('quiz-chapter-select');
+  if (quizSelect) quizSelect.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
   const as = document.getElementById('assignment-chapter-select');
   if (as) as.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
 }
@@ -5520,20 +5580,40 @@ function renderStudentHome(data) {
 
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
-    chapterEl.innerHTML = curriculum.length ? `<h4 style="margin-bottom:12px">📖 <span data-i18n="currentChapter">${t('currentChapter')}</span>: ${translateCurriculumTitle(curriculum[0].title)}</h4>${(curriculum[0].topics || []).map(tp => `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${translateCurriculumTitle(tp.title)}</span></div></div>`).join('')}` : '';
+    if (curriculum && curriculum.length > 0) {
+      const ch0 = curriculum[0];
+      const rawChTitle = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : (ch0.title || '');
+      const ch0Title = (currentLang === 'tr' && ch0.title_tr) ? ch0.title_tr : translateCurriculumTitle(rawChTitle, currentLang);
+      chapterEl.innerHTML = `<h4 style="margin-bottom:12px">📖 <span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(ch0Title)}</h4>${(ch0.topics || []).map(tp => {
+        const rawTpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : (tp.title || '');
+        const tpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(rawTpTitle, currentLang);
+        return `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${esc(tpTitle)}</span></div></div>`;
+      }).join('')}`;
+    } else {
+      chapterEl.innerHTML = '';
+    }
   }
 }
 
 function loadStudentPractice() {
-  document.getElementById('practice-topics').innerHTML = curriculum.map(ch => (ch.topics || []).map(tp =>
-    `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
+  const practiceEl = document.getElementById('practice-topics');
+  if (!practiceEl) return;
+  if (!curriculum || !Array.isArray(curriculum)) {
+    practiceEl.innerHTML = '';
+    return;
+  }
+  practiceEl.innerHTML = curriculum.map((ch, idx) => (ch.topics || []).map(tp => {
+    const rawTpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : (tp.title || '');
+    const tpTitle = (currentLang === 'tr' && tp.title_tr) ? tp.title_tr : translateCurriculumTitle(rawTpTitle, currentLang);
+    const unitNum = ch.number || (idx + 1);
+    return `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
       <div style="display:flex; justify-content:space-between; align-items:flex-start">
         <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${translateBadge(tp.type)}</div>
       </div>
-      <div style="font-weight:600;margin-bottom:4px">${translateCurriculumTitle(tp.title)}</div>
-      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${ch.number} · ${translateDifficulty(tp.difficulty)}</div>
-    </div>`
-  ).join('')).join('');
+      <div style="font-weight:600;margin-bottom:4px">${esc(tpTitle)}</div>
+      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${unitNum} · ${translateDifficulty(tp.difficulty)}</div>
+    </div>`;
+  }).join('')).join('');
 }
 
 function startStudyFirst(topicId) {
@@ -6442,11 +6522,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
     pageContentHtml = `<div style="text-align:center; padding:40px; color:var(--danger);"><p>Failed to render this lesson page.</p></div>`;
   }
 
+  const headerTopicTitle = (currentLang === 'tr' && topic.title_tr) ? topic.title_tr : translateCurriculumTitle(topic.title, currentLang);
   container.innerHTML = `
     <div class="study-topic-wrapper">
       <div class="study-topic-header">
         <div>
-          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${translateCurriculumTitle(topic.title)} • <span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</div>
+          <div style="font-size:11px; color:var(--accent); font-weight:900; text-transform:uppercase; letter-spacing:2px; margin-bottom:8px;">${esc(headerTopicTitle)} • <span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</div>
           <h1 style="font-size:32px; font-weight:800; letter-spacing:-1px; margin:0; line-height:1.2;">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
         <div style="display:flex; gap:12px; flex-shrink:0;">
