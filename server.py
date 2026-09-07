@@ -270,11 +270,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self._send_json({"error": message}, status)
 
     def _read_body(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length == 0:
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if length == 0:
+                return {}
+            body = self.rfile.read(length)
+            return json.loads(body)
+        except Exception:
             return {}
-        body = self.rfile.read(length)
-        return json.loads(body)
 
     def _serve_static(self, path):
         """Serve static files from the public directory."""
