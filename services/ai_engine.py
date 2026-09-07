@@ -578,7 +578,7 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
 - CEFR LEVEL RIGOR:
   * A1/A2: Explicit phonetic guidance, clean vocabulary, foundational morphological markers, everyday communicative situations.
   * B1/B2: Nuanced grammatical contrasts (indicative vs subjunctive, past aspectual contrasts), discourse connectors, authentic dialogues.
-  * C1: Stylistic sophistication, idiomatic expressions, syntactic complexity, precise register shifts.
+  * C1/C2: Advanced stylistic sophistication, native idioms, colloquialisms vs academic register, nuanced pragmatics, rhetorical mastery, and complex syntactic subordination.
 - In instructional texts, always use native, idiomatic phrasing suitable for professional educational textbooks.
 """
 

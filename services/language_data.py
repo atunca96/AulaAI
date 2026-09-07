@@ -602,11 +602,20 @@ CEFR_COMPETENCY_FRAMEWORK = {
         "- False friends (faux amis), deceptive cognates, and prepositions governed by specific verbs."
     ),
     "C1": (
-        "CEFR C1 / C2 (Operational Proficiency / Mastery):\n"
-        "- Stylistic and rhetorical subtlety, figurative language, polysemy, and cultural idioms.\n"
-        "- Rare/literary grammatical structures (imperfect subjunctive in -se vs -ra, archaic inversions).\n"
-        "- Pragmatic inference, reading between the lines, identifying speaker tone, irony, and stance.\n"
-        "- Specialized academic and professional vocabulary collocations."
+        "CEFR C1 (Effective Operational Proficiency / Advanced):\n"
+        "- Complex argumentation, broad lexical repertoire with idiomatic expressions, flexible communication for professional/academic contexts.\n"
+        "- Stylistic and rhetorical subtlety, figurative language, polysemy, and cultural collocations.\n"
+        "- Advanced grammatical structures (literary tenses, subjunctive nuances in concessions/hypotheticals, syntactic inversions).\n"
+        "- Pragmatic inference, subtext analysis, detecting implicit tone, irony, and speaker stance.\n"
+        "- Specialized academic and professional domain discourse."
+    ),
+    "C2": (
+        "CEFR C2 (Mastery / Near-Native Proficiency):\n"
+        "- Effortless comprehension of virtually everything heard or read, reconstructing arguments from diverse spoken/written sources into coherent presentations.\n"
+        "- Spontaneous, fluent, and precise expression, conveying fine shades of meaning even in highly complex or contentious scenarios.\n"
+        "- Deep cultural and literary mastery: historical idioms, proverbs, regional colloquialisms vs elevated academic/philosophical register.\n"
+        "- Nuanced rhetorical devices: sarcasm, irony, hyperbole, litotes, subtle hedging, dialectal variations.\n"
+        "- Native-level syntactic dexterity, spontaneous repartee, and critical synthesis of dense academic texts."
     )
 }
 
@@ -614,9 +623,9 @@ def get_pedagogical_guidelines(language: str, level: str = "A1") -> str:
     """Generates authoritative CEFR-level and language-specific pedagogical criteria."""
     lvl_key = "A1"
     u_lvl = (level or "A1").upper()
-    for k in ["C1", "C2", "B2", "B1", "A2", "A1"]:
+    for k in ["C2", "C1", "B2", "B1", "A2", "A1"]:
         if k in u_lvl:
-            lvl_key = k if k != "C2" else "C1"
+            lvl_key = k
             break
     
     cefr_text = CEFR_COMPETENCY_FRAMEWORK.get(lvl_key, CEFR_COMPETENCY_FRAMEWORK["A1"])
