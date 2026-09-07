@@ -2992,6 +2992,13 @@ const SPANISH_LETTER_SPELLINGS = new Set([
 function translateOption(text, lang = currentLang) {
   if (!text) return '';
   const trimmed = text.trim();
+  const isTr = (lang === 'tr');
+
+  // Handle English pronoun "I" -> "Ben"
+  if (trimmed === 'I') {
+    return isTr ? 'Ben' : 'I';
+  }
+
   if (trimmed.length <= 1) {
     // Single characters / letters must never be translated into pronouns (e.g. 'o' -> 'she' or 'i' -> 'ben')
     return trimmed;
@@ -3001,7 +3008,23 @@ function translateOption(text, lang = currentLang) {
     // Spanish alphabet letter spellings are proper pronunciation names, never machine-translated
     return trimmed;
   }
-  const isTr = (lang === 'tr');
+
+  // Pragmatic greetings & natural Turkish overrides
+  if (lower === 'good afternoon' || lower === 'good afternoon.') {
+    return isTr ? 'Tünaydın' : 'Good afternoon';
+  }
+  if (lower.includes('öğleden sonra') || lower.includes('ogleden sonra')) {
+    return isTr ? 'Tünaydın' : 'Good afternoon';
+  }
+  if (lower === 'good morning' || lower === 'good morning.') {
+    return isTr ? 'Günaydın' : 'Good morning';
+  }
+  if (lower === 'good evening' || lower === 'good evening.') {
+    return isTr ? 'İyi akşamlar' : 'Good evening';
+  }
+  if (lower === 'good night' || lower === 'good night.') {
+    return isTr ? 'İyi geceler' : 'Good night';
+  }
 
   // 1. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN
   const enTr = window.VOCAB_MAP_EN_TR || {};
@@ -3477,14 +3500,172 @@ function resolveConceptKey(str) {
   if (!norm) return '';
   if (PEDAGOGICAL_CONCEPT_EXPLANATIONS[norm]) return norm;
   if (CONCEPT_ALIASES[norm]) return CONCEPT_ALIASES[norm];
-  for (const w of norm.split(/\s+/)) {
-    if (PEDAGOGICAL_CONCEPT_EXPLANATIONS[w]) return w;
-    if (CONCEPT_ALIASES[w]) return CONCEPT_ALIASES[w];
+  const words = norm.split(/\s+/);
+  // Word-level fallback ONLY for very short phrases (<= 3 words), NEVER for sentences
+  if (words.length <= 3) {
+    for (const w of words) {
+      if (PEDAGOGICAL_CONCEPT_EXPLANATIONS[w]) return w;
+      if (CONCEPT_ALIASES[w]) return CONCEPT_ALIASES[w];
+    }
   }
   return '';
 }
 
+const FRONTEND_PRAGMATIC_MAP = {
+  "buenas tardes": {
+    en: "Good afternoon",
+    tr: "Tünaydın",
+    desc_en: "Standard polite greeting used from midday until dusk.",
+    desc_tr: "Öğleden gün batımına kadar kullanılan kibar ve doğal selamlaşma ifadesi."
+  },
+  "buenos dias": {
+    en: "Good morning",
+    tr: "Günaydın",
+    desc_en: "Standard greeting used in the morning until noon.",
+    desc_tr: "Sabah saatlerinde öğleye kadar kullanılan standart karşılama ifadesi."
+  },
+  "buenas noches": {
+    en: "Good evening / Good night",
+    tr: "İyi akşamlar / İyi geceler",
+    desc_en: "Greeting used in the evening, also used as farewell at night.",
+    desc_tr: "Akşam saatlerinde selamlaşırken veya gece ayrılırken kullanılır."
+  },
+  "hola": {
+    en: "Hello / Hi",
+    tr: "Merhaba",
+    desc_en: "Universal, all-purpose greeting suitable for any time of day.",
+    desc_tr: "Günün her saatinde kullanılabilen genel ve samimi selamlaşma sözcüğü."
+  },
+  "adios": {
+    en: "Goodbye",
+    tr: "Hoşça kal",
+    desc_en: "Standard farewell expression.",
+    desc_tr: "Ayrılırken söylenen temel veda sözü."
+  },
+  "hasta luego": {
+    en: "See you later",
+    tr: "Görüşmek üzere",
+    desc_en: "Common parting phrase when expecting to see someone again soon.",
+    desc_tr: "Yakın zamanda tekrar karşılaşılacağı durumlarda söylenen veda sözü."
+  },
+  "hasta manana": {
+    en: "See you tomorrow",
+    tr: "Yarın görüşürüz",
+    desc_en: "Parting phrase specifically for the following day.",
+    desc_tr: "Ertesi gün yeniden bir araya gelineceğini bildiren veda ifadesi."
+  },
+  "mucho gusto": {
+    en: "Nice to meet you",
+    tr: "Tanıştığımıza memnun oldum",
+    desc_en: "Polite formula when introduced to someone for the first time.",
+    desc_tr: "Biriyle ilk kez tanışıldığında nezaket gereği söylenen kalıp."
+  },
+  "me llamo": {
+    en: "My name is",
+    tr: "Benim adım...",
+    desc_en: "Reflexive verb phrase used to state one's own name.",
+    desc_tr: "Kendi ismini söylerken kullanılan dönüşlü kalıp (Adım...)."
+  },
+  "como estas": {
+    en: "How are you?",
+    tr: "Nasılsın?",
+    desc_en: "Informal inquiry about someone's well-being.",
+    desc_tr: "Yakınlara ve akranlara yöneltilen samimi hal hatır sorusu."
+  },
+  "yo": {
+    en: "I",
+    tr: "Ben",
+    desc_en: "First-person singular subject pronoun.",
+    desc_tr: "1. tekil şahıs zamiri (eylemi yapan konuşan kişi)."
+  },
+  "soy": {
+    en: "I am",
+    tr: "(Ben) ...yim / ...yım",
+    desc_en: "First-person singular present of 'ser' (to be: identity, origin, traits).",
+    desc_tr: "'Ser' (olmak) fiilinin 1. tekil şahıs çekimi (kimlik, milliyet, meslek bildirir)."
+  },
+  "tu": {
+    en: "You",
+    tr: "Sen",
+    desc_en: "Second-person informal singular subject pronoun.",
+    desc_tr: "2. tekil şahıs zamiri (samimi hitap)."
+  },
+  "eres": {
+    en: "You are",
+    tr: "(Sen) ...sin / ...sın",
+    desc_en: "Second-person singular present of 'ser'.",
+    desc_tr: "'Ser' fiilinin 2. tekil şahıs çekimi."
+  },
+  "el": {
+    en: "He",
+    tr: "O (erkek)",
+    desc_en: "Third-person singular masculine pronoun.",
+    desc_tr: "3. tekil şahıs eril zamiri."
+  },
+  "ella": {
+    en: "She",
+    tr: "O (kadın)",
+    desc_en: "Third-person singular feminine pronoun.",
+    desc_tr: "3. tekil şahıs dişil zamiri."
+  },
+  "usted": {
+    en: "You (formal)",
+    tr: "Siz (resmi)",
+    desc_en: "Second-person formal singular pronoun.",
+    desc_tr: "Nezaket ve resmiyet bildiren 2. tekil şahıs hitabı."
+  },
+  "es": {
+    en: "He/she/it is",
+    tr: "(O) ...dir / ...dır",
+    desc_en: "Third-person singular present of 'ser'.",
+    desc_tr: "'Ser' fiilinin 3. tekil şahıs çekimi."
+  },
+  "nosotros": {
+    en: "We",
+    tr: "Biz",
+    desc_en: "First-person plural subject pronoun.",
+    desc_tr: "1. çoğul şahıs zamiri."
+  },
+  "somos": {
+    en: "We are",
+    tr: "(Biz) ...yiz / ...yız",
+    desc_en: "First-person plural present of 'ser'.",
+    desc_tr: "'Ser' fiilinin 1. çoğul şahıs çekimi."
+  },
+  "ellos": {
+    en: "They",
+    tr: "Onlar (eril)",
+    desc_en: "Third-person plural masculine pronoun.",
+    desc_tr: "3. çoğul şahıs eril / genel zamiri."
+  },
+  "ellas": {
+    en: "They (feminine)",
+    tr: "Onlar (dişil)",
+    desc_en: "Third-person plural feminine pronoun.",
+    desc_tr: "3. çoğul şahıs dişil zamiri."
+  },
+  "ustedes": {
+    en: "You all",
+    tr: "Sizler",
+    desc_en: "Second-person plural pronoun (universal in Latin America).",
+    desc_tr: "2. çoğul şahıs hitabı (Latin Amerika'da genel, İspanya'da resmi)."
+  },
+  "son": {
+    en: "They are / You all are",
+    tr: "(Onlar) ...dirler / ...dırlar",
+    desc_en: "Third-person plural present of 'ser'.",
+    desc_tr: "'Ser' fiilinin 3. çoğul şahıs çekimi."
+  }
+};
+
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
+  // Pragmatic check first
+  const normTerm = normalizeConceptStr(term);
+  if (normTerm && FRONTEND_PRAGMATIC_MAP[normTerm]) {
+    const prag = FRONTEND_PRAGMATIC_MAP[normTerm];
+    return lang === 'tr' ? prag.desc_tr : prag.desc_en;
+  }
+
   const termKey = resolveConceptKey(term);
   const transKey = resolveConceptKey(translation);
 
@@ -7795,7 +7976,7 @@ function highlightPedagogicalTerms(text) {
 }
 
 function showStudyTopic(topicId, pageIdx = 0) {
-  const isStudent = currentUser.role === 'student';
+  const isStudent = currentUser && currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
   const container = document.getElementById(contentId) || document.getElementById('ai-book-content');
   if (!container) return;
@@ -7805,8 +7986,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
   localStorage.setItem('aula_last_page', pageIdx);
 
   let topic = null;
-  for (const ch of curriculum) {
-    topic = ch.topics.find(t => t.id === topicId);
+  const currList = window.curriculum || curriculum || [];
+  for (const ch of currList) {
+    topic = ch.topics ? ch.topics.find(t => t.id === topicId) : null;
     if (topic) break;
   }
   if (!topic) return;
@@ -7937,25 +8119,42 @@ function showStudyTopic(topicId, pageIdx = 0) {
               html += `<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">`;
               rawData.forEach(it => {
                 if (typeof it === "string") {
-                  const isLetter = it.trim().length <= 2;
-                  if (isLetter) {
-                    // Single letter — no dict lookup, no translation
-                    html += `<div class="study-vocab-card">
-                        <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                  const sTrimmed = it.trim();
+                  const isRuleOrSentence = sTrimmed.startsWith('•') || sTrimmed.startsWith('-') || sTrimmed.startsWith('*') || sTrimmed.split(/\s+/).length > 4 || sTrimmed.length > 35;
+                  if (isRuleOrSentence) {
+                    // Guideline rule / sentence — render as pedagogical guideline card, NOT as a vocab flashcard with TTS
+                    const cleanLine = sTrimmed.replace(/^[•\-\*\s]+/, '').trim();
+                    const translatedLine = (currentLang === 'tr') ? translateEducationalText(cleanLine) : cleanLine;
+                    html += `
+                      <div class="pedagogy-guide-block" style="margin-top:4px; margin-bottom:4px;">
+                        <div class="pedagogy-rules-list">
+                          <div class="pedagogy-rule-item">
+                            <div class="pedagogy-rule-bullet"></div>
+                            <div class="pedagogy-rule-content">${highlightPedagogicalTerms(fixDiacritics(translatedLine))}</div>
+                          </div>
                         </div>
                       </div>`;
                   } else {
-                    // Multi-char word — dict-clickable, but only over the word text itself
-                    const briefExpl = resolveItemExplanation(null, it, '', currentLang);
-                    html += `<div class="study-vocab-card">
-                        <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
-                        </div>
-                        ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
-                      </div>`;
+                    const isLetter = sTrimmed.length <= 2;
+                    if (isLetter) {
+                      // Single letter — no dict lookup, no translation
+                      html += `<div class="study-vocab-card">
+                          <div class="vocab-term-wrapper">
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                            <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                          </div>
+                        </div>`;
+                    } else {
+                      // Multi-char word — dict-clickable, but only over the word text itself
+                      const briefExpl = resolveItemExplanation(null, it, '', currentLang);
+                      html += `<div class="study-vocab-card">
+                          <div class="vocab-term-wrapper">
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                            <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                          </div>
+                          ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
+                        </div>`;
+                    }
                   }
                 } else if (typeof it === "object" && it !== null) {
                   const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
@@ -7967,6 +8166,18 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   }
                   const rawResolved = translateOption(rawV);
                   let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+
+                  // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
+                  const normK = normalizeConceptStr(safeStr(k));
+                  if (normK && FRONTEND_PRAGMATIC_MAP[normK]) {
+                    const prag = FRONTEND_PRAGMATIC_MAP[normK];
+                    v = (currentLang === 'tr') ? prag.tr : prag.en;
+                  }
+
+                  // Eliminate calque 'öğleden sonra' if present in v
+                  if (typeof v === 'string' && (v.toLowerCase().includes('öğleden sonra') || v.toLowerCase().includes('ogleden sonra'))) {
+                    v = (currentLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
+                  }
 
                   // --- SEMANTIC CONCEPT SELF-HEALING ---
                   // If k is an authentic pedagogical/linguistic concept, guarantee that v matches k and never contradicts it
@@ -7981,7 +8192,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     }
                   }
 
-                  const isLetter = typeof k === "string" && k.trim().length <= 2;
+                  const isPragmaticWord = Boolean(normK && FRONTEND_PRAGMATIC_MAP[normK]);
+                  const isLetter = !isPragmaticWord && typeof k === "string" && (
+                    (k.trim().length === 1 && !['a', 'y', 'o'].includes(normK)) ||
+                    SPANISH_LETTER_SPELLINGS.has(normK) ||
+                    Boolean(it.letter || it.character)
+                  );
                   
                   if (it.speaker || (typeof k === "string" && k.length > 50)) {
                     // Dialogue/long-sentence card — cursor:default on card, pointer only on word

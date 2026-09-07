@@ -498,11 +498,13 @@ def resolve_concept_key(text: str) -> str:
         return ALIASES[norm]
     # Check individual words or phrases inside
     words = norm.split()
-    for w in words:
-        if w in CONCEPT_EXPLANATIONS:
-            return w
-        if w in ALIASES:
-            return ALIASES[w]
+    # Word-level fallback ONLY for very short phrases (<= 3 words), NEVER for sentences
+    if len(words) <= 3:
+        for w in words:
+            if w in CONCEPT_EXPLANATIONS:
+                return w
+            if w in ALIASES:
+                return ALIASES[w]
     return ""
 
 def are_concepts_incompatible(key1: str, key2: str) -> bool:
@@ -538,14 +540,234 @@ def get_concept_explanation(term: str = "", translation: str = "", lang: str = "
     target_lang = "tr" if lang == "tr" else "en"
     return expl_dict.get(target_lang, expl_dict.get("en", ""))
 
-def heal_concept_item(item: dict, lang: str = "en") -> dict:
+PRAGMATIC_DICTIONARY = {
+    # Greetings & Salutations
+    "buenas tardes": {
+        "en": "Good afternoon",
+        "tr": "Tünaydın",
+        "desc_en": "Standard polite greeting used from midday until dusk.",
+        "desc_tr": "Öğleden gün batımına kadar kullanılan kibar ve doğal selamlaşma ifadesi."
+    },
+    "buenos dias": {
+        "en": "Good morning",
+        "tr": "Günaydın",
+        "desc_en": "Standard greeting used in the morning until noon.",
+        "desc_tr": "Sabah saatlerinde öğleye kadar kullanılan standart karşılama ifadesi."
+    },
+    "buenas noches": {
+        "en": "Good evening / Good night",
+        "tr": "İyi akşamlar / İyi geceler",
+        "desc_en": "Greeting used in the evening, also used as farewell at night.",
+        "desc_tr": "Akşam saatlerinde selamlaşırken veya gece ayrılırken kullanılır."
+    },
+    "hola": {
+        "en": "Hello / Hi",
+        "tr": "Merhaba",
+        "desc_en": "Universal, all-purpose greeting suitable for any time of day.",
+        "desc_tr": "Günün her saatinde kullanılabilen genel ve samimi selamlaşma sözcüğü."
+    },
+    "adios": {
+        "en": "Goodbye",
+        "tr": "Hoşça kal",
+        "desc_en": "Standard farewell expression.",
+        "desc_tr": "Ayrılırken söylenen temel veda sözü."
+    },
+    "hasta luego": {
+        "en": "See you later",
+        "tr": "Görüşmek üzere",
+        "desc_en": "Common parting phrase when expecting to see someone again soon.",
+        "desc_tr": "Yakın zamanda tekrar karşılaşılacağı durumlarda söylenen veda sözü."
+    },
+    "hasta manana": {
+        "en": "See you tomorrow",
+        "tr": "Yarın görüşürüz",
+        "desc_en": "Parting phrase specifically for the following day.",
+        "desc_tr": "Ertesi gün yeniden bir araya gelineceğini bildiren veda ifadesi."
+    },
+    "mucho gusto": {
+        "en": "Nice to meet you",
+        "tr": "Tanıştığımıza memnun oldum",
+        "desc_en": "Polite formula when introduced to someone for the first time.",
+        "desc_tr": "Biriyle ilk kez tanışıldığında nezaket gereği söylenen kalıp."
+    },
+    "me llamo": {
+        "en": "My name is",
+        "tr": "Benim adım...",
+        "desc_en": "Reflexive verb phrase used to state one's own name.",
+        "desc_tr": "Kendi ismini söylerken kullanılan dönüşlü kalıp (Adım...)."
+    },
+    "como estas": {
+        "en": "How are you?",
+        "tr": "Nasılsın?",
+        "desc_en": "Informal inquiry about someone's well-being.",
+        "desc_tr": "Yakınlara ve akranlara yöneltilen samimi hal hatır sorusu."
+    },
+    "como esta usted": {
+        "en": "How are you? (formal)",
+        "tr": "Nasılsınız?",
+        "desc_en": "Formal, respectful inquiry about well-being.",
+        "desc_tr": "Resmi veya saygı gerektiren durumlarda sorulan hal hatır kalıbı."
+    },
+
+    # Subject Pronouns vs Auxiliary Verbs
+    "yo": {
+        "en": "I",
+        "tr": "Ben",
+        "desc_en": "First-person singular subject pronoun.",
+        "desc_tr": "1. tekil şahıs zamiri (eylemi yapan konuşan kişi)."
+    },
+    "soy": {
+        "en": "I am",
+        "tr": "(Ben) ...yim / ...yım",
+        "desc_en": "First-person singular present of 'ser' (to be: identity, origin, traits).",
+        "desc_tr": "'Ser' (olmak) fiilinin 1. tekil şahıs çekimi (kimlik, milliyet, meslek bildirir)."
+    },
+    "tu": {
+        "en": "You",
+        "tr": "Sen",
+        "desc_en": "Second-person informal singular subject pronoun.",
+        "desc_tr": "2. tekil şahıs zamiri (samimi hitap)."
+    },
+    "eres": {
+        "en": "You are",
+        "tr": "(Sen) ...sin / ...sın",
+        "desc_en": "Second-person singular present of 'ser'.",
+        "desc_tr": "'Ser' fiilinin 2. tekil şahıs çekimi."
+    },
+    "el": {
+        "en": "He",
+        "tr": "O (erkek)",
+        "desc_en": "Third-person singular masculine pronoun.",
+        "desc_tr": "3. tekil şahıs eril zamiri."
+    },
+    "ella": {
+        "en": "She",
+        "tr": "O (kadın)",
+        "desc_en": "Third-person singular feminine pronoun.",
+        "desc_tr": "3. tekil şahıs dişil zamiri."
+    },
+    "usted": {
+        "en": "You (formal)",
+        "tr": "Siz (resmi)",
+        "desc_en": "Second-person formal singular pronoun (conjugates with 3rd person).",
+        "desc_tr": "Nezaket ve resmiyet bildiren 2. tekil şahıs hitabı."
+    },
+    "es": {
+        "en": "He/she/it is",
+        "tr": "(O) ...dir / ...dır",
+        "desc_en": "Third-person singular present of 'ser'.",
+        "desc_tr": "'Ser' fiilinin 3. tekil şahıs çekimi."
+    },
+    "nosotros": {
+        "en": "We",
+        "tr": "Biz",
+        "desc_en": "First-person plural subject pronoun.",
+        "desc_tr": "1. çoğul şahıs zamiri."
+    },
+    "nosotras": {
+        "en": "We (feminine)",
+        "tr": "Biz (kadınlar)",
+        "desc_en": "First-person plural feminine subject pronoun.",
+        "desc_tr": "1. çoğul şahıs dişil zamiri."
+    },
+    "somos": {
+        "en": "We are",
+        "tr": "(Biz) ...yiz / ...yız",
+        "desc_en": "First-person plural present of 'ser'.",
+        "desc_tr": "'Ser' fiilinin 1. çoğul şahıs çekimi."
+    },
+    "vosotros": {
+        "en": "You all (informal)",
+        "tr": "Sizler (samimi)",
+        "desc_en": "Second-person plural informal pronoun (used in Spain).",
+        "desc_tr": "İspanya'da kullanılan 2. çoğul şahıs zamiri."
+    },
+    "vosotras": {
+        "en": "You all (feminine)",
+        "tr": "Sizler (kadınlar)",
+        "desc_en": "Second-person plural feminine informal pronoun (Spain).",
+        "desc_tr": "İspanya'da kullanılan 2. çoğul şahıs dişil zamiri."
+    },
+    "sois": {
+        "en": "You all are",
+        "tr": "(Sizler) ...siniz / ...sınız",
+        "desc_en": "Second-person plural present of 'ser'.",
+        "desc_tr": "'Ser' fiilinin 2. çoğul şahıs çekimi (İspanya)."
+    },
+    "ellos": {
+        "en": "They (masculine / mixed)",
+        "tr": "Onlar (eril)",
+        "desc_en": "Third-person plural masculine pronoun.",
+        "desc_tr": "3. çoğul şahıs eril / genel zamiri."
+    },
+    "ellas": {
+        "en": "They (feminine)",
+        "tr": "Onlar (dişil)",
+        "desc_en": "Third-person plural feminine pronoun.",
+        "desc_tr": "3. çoğul şahıs dişil zamiri."
+    },
+    "ustedes": {
+        "en": "You all",
+        "tr": "Sizler",
+        "desc_en": "Second-person plural pronoun (universal in Latin America).",
+        "desc_tr": "2. çoğul şahıs hitabı (Latin Amerika'da genel, İspanya'da resmi)."
+    },
+    "son": {
+        "en": "They are / You all are",
+        "tr": "(Onlar) ...dirler / ...dırlar",
+        "desc_en": "Third-person plural present of 'ser'.",
+        "desc_tr": "'Ser' fiilinin 3. çoğul şahıs çekimi."
+    }
+}
+
+def heal_pragmatic_item(item: dict, lang: str = "en") -> dict:
     """
-    Validates and self-heals a vocabulary/concept dictionary item.
-    Ensures that if term is a known pedagogical concept, the translation
-    and explanation strictly match that concept and never contradict it.
+    Validates and heals pragmatic greetings, pronouns, and verbs.
+    Ensures natural Turkish equivalents (e.g. 'Tünaydın', 'Ben', '(Ben) ...yim / ...yım').
     """
     if not isinstance(item, dict):
         return item
+    
+    term = str(item.get("term") or item.get("word") or item.get("key") or "").strip()
+    norm = _normalize(term)
+    target_lang = "tr" if lang == "tr" else "en"
+
+    if norm in PRAGMATIC_DICTIONARY:
+        entry = PRAGMATIC_DICTIONARY[norm]
+        item["translation_en"] = entry["en"]
+        item["translation_tr"] = entry["tr"]
+        item["explanation_en"] = entry["desc_en"]
+        item["explanation_tr"] = entry["desc_tr"]
+        item["translation"] = entry[target_lang]
+        if "meaning" in item:
+            item["meaning"] = entry[target_lang]
+        if "turkish" in item:
+            item["turkish"] = entry["tr"]
+        if "english" in item:
+            item["english"] = entry["en"]
+        item["explanation"] = entry[f"desc_{target_lang}"]
+        return item
+
+    # Self-heal unnatural Turkish calque 'öğleden sonra' in greetings
+    for k in ["translation", "meaning", "translation_tr", "turkish"]:
+        if k in item and isinstance(item[k], str):
+            val = item[k].strip()
+            if "öğleden sonra" in val.lower() or "ogleden sonra" in val.lower():
+                item[k] = "Tünaydın"
+
+    return item
+
+def heal_concept_item(item: dict, lang: str = "en") -> dict:
+    """
+    Validates and self-heals a vocabulary/concept dictionary item.
+    Ensures that if term is a known pedagogical concept or pragmatic term,
+    the translation and explanation strictly match and never contradict it.
+    """
+    if not isinstance(item, dict):
+        return item
+
+    # Run pragmatic healer first
+    item = heal_pragmatic_item(item, lang=lang)
 
     term = str(item.get("term") or item.get("word") or item.get("key") or "").strip()
     trans = str(item.get("translation") or item.get("meaning") or item.get("value") or "").strip()

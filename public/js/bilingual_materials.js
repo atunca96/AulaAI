@@ -965,7 +965,7 @@ window.EDUCATIONAL_SENTENCE_MAP_EN_TR = {
   "caramel custard dessert": "karamel kreması tatlısı",
   "how much does it cost": "ne kadar",
   "offer": "teklif",
-  "good afternoon": "iyi akşamlar",
+  "good afternoon": "Tünaydın",
   "I am ... years old": "Ben ... yaşındayım",
   "Example: 'Voy a comer' means 'I am going to eat'.": "Örnek: 'Voy a comer' 'Yemek yiyeceğim' anlamına gelir.",
   "Answers often follow a simple structure: Subject + Verb + Complement.": "Cevaplar genellikle basit bir yapıyı takip eder: Özne + Fiil + Tamamlayıcı.",
@@ -2588,8 +2588,8 @@ window.VOCAB_MAP_EN_TR = {
   "friday": "Cuma",
   "Gelenek": "Tradition",
   "gelenek": "tradition",
-  "Good afternoon": "İyi öğleden sonra",
-  "good afternoon": "İyi öğleden sonra",
+  "Good afternoon": "Tünaydın",
+  "good afternoon": "Tünaydın",
   "Good evening": "İyi akşamlar",
   "good evening": "İyi akşamlar",
   "Good morning": "Günaydın",
@@ -2604,8 +2604,8 @@ window.VOCAB_MAP_EN_TR = {
   "how are you?": "Nasılsın?",
   "How much does it cost?": "Ne kadar?",
   "how much does it cost?": "Ne kadar?",
-  "I am": "Ben",
-  "i am": "Ben",
+  "I am": "(Ben) ...yim / ...yım",
+  "i am": "(Ben) ...yim / ...yım",
   "I am a student": "Ben bir öğrenciyim",
   "i am a student": "Ben bir öğrenciyim",
   "I am from": "Ben ...'dan geliyorum",
@@ -3096,7 +3096,15 @@ window.VOCAB_MAP_EN_TR = {
   "city": "şehir",
   "sugar": "şeker",
   "driver": "şoför",
-  "harf": "letter"
+  "harf": "letter",
+  "I": "Ben",
+  "i": "Ben",
+  "Yo": "Ben",
+  "yo": "Ben",
+  "Soy": "(Ben) ...yim / ...yım",
+  "soy": "(Ben) ...yim / ...yım",
+  "Buenas tardes": "Tünaydın",
+  "buenas tardes": "Tünaydın"
 };
 
 window.VOCAB_MAP_TR_EN = {
@@ -3148,8 +3156,8 @@ window.VOCAB_MAP_TR_EN = {
   "cuma": "Friday",
   "Tradition": "Gelenek",
   "tradition": "gelenek",
-  "İyi öğleden sonra": "Good afternoon",
-  "i̇yi öğleden sonra": "Good afternoon",
+  "Tünaydın": "Good afternoon",
+  "tünaydın": "Good afternoon",
   "İyi akşamlar": "Good evening",
   "i̇yi akşamlar": "Good evening",
   "Günaydın": "Good morning",
@@ -3162,8 +3170,8 @@ window.VOCAB_MAP_TR_EN = {
   "nasılsın?": "What's up?",
   "Ne kadar?": "How much does it cost?",
   "ne kadar?": "How much does it cost?",
-  "Ben": "I am",
-  "ben": "I am",
+  "(Ben) ...yim / ...yım": "soy",
+  "(ben) ...yim / ...yım": "soy",
   "Ben bir öğrenciyim": "I am a student",
   "ben bir öğrenciyim": "I am a student",
   "Ben ...'dan geliyorum": "I am from",
@@ -3633,7 +3641,11 @@ window.VOCAB_MAP_TR_EN = {
   "şehir": "city",
   "şeker": "sugar",
   "şoför": "driver",
-  "letter": "harf"
+  "letter": "harf",
+  "Ben": "I",
+  "ben": "yo",
+  "İyi öğleden sonra": "Good afternoon",
+  "iyi öğleden sonra": "Good afternoon"
 };
 
 window.PAGE_TITLE_PAIRS = [

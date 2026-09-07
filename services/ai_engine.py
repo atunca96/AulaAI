@@ -571,6 +571,13 @@ Instead, ALWAYS use common {instruction_lang_name} word approximations that a st
 (e.g., 'Ç sounds like the ch in church', or 'Ş sounds like the sh in sheep' for English-speakers; or Turkish equivalents for Turkish-speakers). 
 This rule is language-agnostic: always relate sounds to common, accessible words in {instruction_lang_name}."""
 
+    natural_pragmatics_rule = f"""
+NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
+- When translating Spanish/English greetings to Turkish, NEVER use unnatural literal translations like 'İyi öğleden sonra' or 'İyi öğleden sonraları'. ALWAYS use culturally authentic Turkish greetings: 'Buenas tardes' / 'Good afternoon' -> 'Tünaydın' (or 'İyi günler'), 'Buenos días' -> 'Günaydın', 'Buenas noches' -> 'İyi akşamlar' (or 'İyi geceler').
+- PRONOUN VS AUXILIARY VERB DISTINCTION: Subject pronoun 'Yo' translates to 'Ben' (in Turkish, never 'I'). The conjugated auxiliary verb 'Soy' (from 'ser') translates to '(Ben) ...yim / ...yım' ('I am'), NEVER bare 'Ben'. Always distinguish personal pronouns from verb conjugations.
+- In instructional texts, always use native, idiomatic phrasing suitable for professional educational textbooks.
+"""
+
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     
@@ -583,6 +590,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
     MCQ RULE: In 'mcq' pages, 'explanation' is pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'The alternatives do not...'.
     STRICT ANTI-GIVEAWAY MANDATE: The question prompt MUST NEVER contain the correct answer or give away the answer. Distractors must be homogeneous and plausible. NEVER ask shallow trivia about what string is inside a letter name.
+    NATURAL PRAGMATICS RULE: {natural_pragmatics_rule}
     EXPLANATORY ITEMS MANDATE: {explanatory_items_mandate}
     PHONETIC RULE: {phonetic_rule}
     ACCURACY RULE: {accuracy_rule}
@@ -643,7 +651,7 @@ This rule is language-agnostic: always relate sounds to common, accessible words
 
     def _clean_pages(lesson_dict):
         if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
-        from services.concept_explanations import heal_concept_item
+        from services.concept_explanations import heal_concept_item, heal_pragmatic_item
         cleaned = []
         for p in lesson_dict.get("pages", []):
             if p.get("type") == "mcq":
@@ -663,9 +671,21 @@ This rule is language-agnostic: always relate sounds to common, accessible words
             for list_key in ["items", "vocabulary", "words", "list", "dialogue", "examples"]:
                 arr = p.get(list_key)
                 if isinstance(arr, list):
+                    filtered_arr = []
                     for it in arr:
                         if isinstance(it, dict):
                             heal_concept_item(it, lang=material_language)
+                            filtered_arr.append(it)
+                        elif isinstance(it, str):
+                            s = it.strip()
+                            # If it is a sentence or bullet rule, move it out of vocabulary items into text
+                            if s.startswith(('•', '-', '*')) or len(s.split()) > 4 or len(s) > 35:
+                                existing_text = p.get("text") or p.get("explanation") or ""
+                                if s not in existing_text:
+                                    p["text"] = f"{existing_text}\n{s}".strip()
+                            else:
+                                filtered_arr.append(it)
+                    p[list_key] = filtered_arr
 
             cleaned.append(p)
         lesson_dict["pages"] = cleaned

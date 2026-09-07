@@ -206,7 +206,7 @@ def rebuild_bilingual_bundle():
     for k, v in vocab.items():
         if not k or not v: continue
         k_c, v_c = k.strip(), v.strip()
-        if len(k_c) <= 1 or len(v_c) <= 1: continue
+        if (len(k_c) <= 1 and k_c != 'I') or (len(v_c) <= 1 and v_c != 'I'): continue
         is_k_tr = bool(re.search(r'[çğıöşüÇĞİÖŞÜ\u011f\u011e\u0131\u0130\u00f6\u00d6\u015f\u015e\u00fc\u00dc\u00e7\u00c7]', k_c))
         if is_k_tr:
             vocab_tr_en[k_c] = v_c
@@ -218,6 +218,17 @@ def rebuild_bilingual_bundle():
             vocab_en_tr[k_c.lower()] = v_c
             vocab_tr_en[v_c] = k_c
             vocab_tr_en[v_c.lower()] = k_c
+
+    # Enforce authentic pragmatic translations
+    vocab_en_tr["Good afternoon"] = "Tünaydın"
+    vocab_en_tr["good afternoon"] = "Tünaydın"
+    vocab_tr_en["Tünaydın"] = "Good afternoon"
+    vocab_tr_en["tünaydın"] = "Good afternoon"
+    vocab_tr_en["İyi öğleden sonra"] = "Good afternoon"
+    vocab_tr_en["iyi öğleden sonra"] = "Good afternoon"
+    vocab_en_tr["I"] = "Ben"
+    vocab_tr_en["Ben"] = "I"
+    vocab_en_tr["I am"] = "(Ben) ...yim / ...yım"
 
     # Page titles pairs
     page_titles = [

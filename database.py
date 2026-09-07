@@ -510,6 +510,71 @@ def init_db():
         except Exception as e:
             print(f"[MIGRATION ERROR] Failed to heal curriculum: {e}")
 
+        # ── MIGRATION: Natural Pragmatics & Cultural Greetings Healing (v1) ──
+        try:
+            mig_done = c.execute("SELECT 1 FROM migration_history WHERE key = 'pragmatic_cultural_healing_v1'").fetchone()
+            if not mig_done:
+                from services.concept_explanations import heal_concept_item, heal_pragmatic_item
+                import re
+                try:
+                    c.execute("UPDATE lexicon SET translation_tr = 'Tünaydın' WHERE LOWER(term) = 'buenas tardes' OR translation_tr LIKE '%öğleden sonra%'")
+                    c.execute("UPDATE lexicon SET translation_tr = 'Ben' WHERE LOWER(term) = 'yo'")
+                    c.execute("UPDATE lexicon SET translation_tr = '(Ben) ...yim / ...yım' WHERE LOWER(term) = 'soy'")
+                except: pass
+
+                top_items = c.execute("SELECT id, content FROM topics WHERE content IS NOT NULL").fetchall()
+                for top in top_items:
+                    raw_c = top["content"]
+                    if not raw_c or not raw_c.strip().startswith('{'): continue
+                    try:
+                        cont = json.loads(raw_c)
+                        mod = False
+                        pages = cont.get("pages", [])
+                        if isinstance(pages, list):
+                            for p in pages:
+                                for lk in ["items", "vocabulary", "words", "list"]:
+                                    arr = p.get(lk)
+                                    if isinstance(arr, list):
+                                        new_arr = []
+                                        for it in arr:
+                                            if isinstance(it, dict):
+                                                heal_concept_item(it, lang="tr")
+                                                heal_concept_item(it, lang="en")
+                                                t_v = str(it.get('term') or it.get('word') or '').strip().lower()
+                                                if t_v == 'yo':
+                                                    it['translation_tr'] = 'Ben'
+                                                    it['turkish'] = 'Ben'
+                                                elif t_v == 'soy':
+                                                    it['translation_tr'] = '(Ben) ...yim / ...yım'
+                                                    it['turkish'] = '(Ben) ...yim / ...yım'
+                                                elif t_v == 'buenas tardes':
+                                                    it['translation_tr'] = 'Tünaydın'
+                                                    it['turkish'] = 'Tünaydın'
+                                                new_arr.append(it)
+                                                mod = True
+                                            elif isinstance(it, str):
+                                                s = it.strip()
+                                                if s.startswith(('•', '-', '*')) or len(s.split()) > 4 or len(s) > 35:
+                                                    ex_text = p.get("text") or p.get("explanation") or ""
+                                                    if s not in ex_text:
+                                                        p["text"] = f"{ex_text}\n{s}".strip()
+                                                    mod = True
+                                                else:
+                                                    new_arr.append(it)
+                                        p[lk] = new_arr
+                                for tk in ["text", "explanation", "title_tr", "text_tr", "explanation_tr"]:
+                                    if tk in p and isinstance(p[tk], str) and ("İyi öğleden sonra" in p[tk] or "iyi öğleden sonra" in p[tk]):
+                                        p[tk] = re.sub(r'[İi]yi öğleden sonra(ları)?', 'Tünaydın', p[tk])
+                                        mod = True
+                        if mod:
+                            c.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(cont, ensure_ascii=False), top["id"]))
+                    except: pass
+
+                c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('pragmatic_cultural_healing_v1')")
+                print("[MIGRATION] Pragmatic cultural healing completed: Greetings and pronouns aligned.")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] Failed to heal pragmatics: {e}")
+
         db.commit()
 
         # Run demo course seeding ONLY if the DB is actually empty
