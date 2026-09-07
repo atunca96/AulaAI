@@ -459,34 +459,7 @@ def init_db():
                 with open(bm_path, "r", encoding="utf-8") as f:
                     bm_data = json.load(f)
                 title_map = bm_data.get("title_pairs", {})
-                import re
-                clean_re = re.compile(r'^(unit|chapter|topic|tema|lektion|item|c\.|l\.)\s*\d+\s*[:\-]\s*', re.IGNORECASE)
-
-                def resolve_db_tr(title, current_tr):
-                    if current_tr and current_tr != "Alfabeyi" and current_tr != title:
-                        return current_tr
-                    t_raw = (title or "").strip()
-                    t_clean = clean_re.sub("", t_raw).strip()
-                    if t_clean.lower() in ("the alphabet", "alphabet"):
-                        return "Alfabe"
-                    if t_raw in title_map: return title_map[t_raw]
-                    if t_clean in title_map: return title_map[t_clean]
-                    for k, v in title_map.items():
-                        if k.lower() == t_clean.lower(): return v
-                    m = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', t_clean, re.IGNORECASE)
-                    if m:
-                        res = f"{m.group(1)}'den {m.group(2)}'ye Sayma"
-                        extra = re.sub(r'^[:\s\-]+', '', m.group(3)).strip()
-                        if extra:
-                            res += f": {resolve_db_tr(extra, None)}"
-                        return res
-                    m = re.match(r'^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$', t_clean, re.IGNORECASE)
-                    if m:
-                        extra = m.group(2).strip()
-                        if not extra: return "Haftanın Günleri"
-                        if "plan" in extra.lower(): return "Haftanın Günleri: Planlama"
-                        return f"Haftanın Günleri: {resolve_db_tr(extra, None)}"
-                    return current_tr or t_clean or t_raw
+                from services.language_data import resolve_curriculum_tr
 
                 # Fix Alfabeyi unconditionally
                 c.execute("UPDATE topics SET title_tr = 'Alfabe' WHERE title_tr = 'Alfabeyi'")
@@ -494,16 +467,16 @@ def init_db():
 
                 # Chapters
                 for row in c.execute("SELECT id, title, title_tr FROM chapters").fetchall():
-                    resolved = resolve_db_tr(row["title"], row["title_tr"])
+                    resolved = resolve_curriculum_tr(row["title"], row["title_tr"])
                     if resolved and resolved != row["title_tr"]:
                         c.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (resolved, row["id"]))
                 # Topics
                 for row in c.execute("SELECT id, title, title_tr FROM topics").fetchall():
-                    resolved = resolve_db_tr(row["title"], row["title_tr"])
+                    resolved = resolve_curriculum_tr(row["title"], row["title_tr"])
                     if resolved and resolved != row["title_tr"]:
                         c.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (resolved, row["id"]))
             c.execute("UPDATE topics SET pdf_url = NULL WHERE pdf_url = 'NONE' OR pdf_url = '/books/NONE' OR pdf_url LIKE '%NONE%'")
-            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v4')")
+            c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('populate_bilingual_titles_v5')")
             print("[MIGRATION] Verified title_tr, fixed 'Alfabeyi', and cleaned pdf_url for all courses.")
         except Exception as e:
             print(f"[MIGRATION ERROR] Failed to populate title_tr: {e}")

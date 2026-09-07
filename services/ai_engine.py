@@ -461,6 +461,13 @@ Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'topics': 
         
         chapters = filtered_chapters
     
+    # ── BILINGUAL TITLE ENRICHMENT: Ensure title_tr is populated for every chapter and topic ──
+    from services.language_data import resolve_curriculum_tr
+    for ch in chapters:
+        ch["title_tr"] = resolve_curriculum_tr(ch.get("title", ""), ch.get("title_tr"))
+        for t in ch.get("topics", []):
+            t["title_tr"] = resolve_curriculum_tr(t.get("title", ""), t.get("title_tr"))
+
     # ── AUTO-CACHE: Save the generated blueprint so "Clear Cached Blueprints" works ──
     if chapters:
         save_blueprint_cache(language, level, chapters)

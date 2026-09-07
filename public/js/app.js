@@ -1966,12 +1966,88 @@ const CURRICULUM_PAIRS = [
   ["Subject Pronouns and Basic Sentence Structure", "Özne Zamirleri ve Temel Cümle Yapısı"],
   ["Reflexive Verbs and Daily Routine", "Dönüşlü Fiiller ve Günlük Rutin"],
   ["Introducing Family Members", "Aile Üyelerini Tanıtma"],
+  ["Saying Hello: Formal vs. Informal Greetings", "Selamlaşma: Resmi ve Samimi Selamlaşmalar"],
+  ["Saying Hello", "Selamlaşma"],
+  ["Formal vs. Informal Greetings", "Resmi ve Samimi Selamlaşmalar"],
+  ["Formal vs Informal Greetings", "Resmi ve Samimi Selamlaşmalar"],
+  ["Polite Farewells and Their Contexts", "Kibar Vedalaşmalar ve Bağlamları"],
+  ["Polite Farewells", "Kibar Vedalaşmalar"],
+  ["Numbers and Basic Counting", "Sayılar ve Temel Sayma"],
+  ["NUMBERS AND BASIC COUNTING", "Sayılar ve Temel Sayma"],
+  ["Building Blocks of Numbers", "Sayıların Temel Yapı Taşları"],
+  ["Building Blocks", "Temel Yapı Taşları"],
+  ["Using Numbers in Everyday Situations: Prices and Time", "Sayıları Günlük Durumlarda Kullanma: Fiyatlar ve Zaman"],
+  ["Using Numbers in Everyday Situations", "Sayıları Günlük Durumlarda Kullanma"],
+  ["Prices and Time", "Fiyatlar ve Zaman"],
+  ["Basic Math Operations in Spanish", "İspanyolcada Temel Matematik İşlemleri"],
+  ["Basic Math Operations", "Temel Matematik İşlemleri"],
+  ["Personal Information and Descriptive Basics", "Kişisel Bilgiler ve Temel Tanımlamalar"],
+  ["PERSONAL INFORMATION AND DESCRIPTIVE BASICS", "Kişisel Bilgiler ve Temel Tanımlamalar"],
+  ["Asking and Answering Questions About Yourself", "Kendiniz Hakkında Soru Sorma ve Cevaplama"],
+  ["Asking and Answering Questions", "Soru Sorma ve Cevaplama"],
+  ["Describing Yourself: Age, Nationality, and Occupation", "Kendini Tanımlama: Yaş, Milliyet ve Meslek"],
+  ["Describing Yourself", "Kendini Tanımlama"],
+  ["Age, Nationality, and Occupation", "Yaş, Milliyet ve Meslek"],
+  ["Talking About Your Family: Basic Vocabulary and Structures", "Aileniz Hakkında Konuşma: Temel Kelimeler ve Yapılar"],
+  ["Talking About Your Family", "Aileniz Hakkında Konuşma"],
+  ["Basic Vocabulary and Structures", "Temel Kelimeler ve Yapılar"],
+  ["Essential Greetings and Introductions", "Temel Selamlaşmalar ve Tanıtımlar"],
+  ["Cardinal Numbers: Counting from One to Ten", "Asıl Sayılar: Birden Ona Sayma"],
+  ["Cardinal Numbers", "Asıl Sayılar"],
+  ["Ordinal Numbers: Describing Order and Sequence", "Sıra Sayıları: Sıra ve Dizilimi Tanımlama"],
+  ["Ordinal Numbers", "Sıra Sayıları"],
+  ["Describing Your Daily Life", "Günlük Hayatınızı Tanımlama"],
+  ["Basic Present Tense: Talking About Routines", "Temel Geniş Zaman: Rutinler Hakkında Konuşma"],
+  ["Basic Present Tense", "Temel Geniş Zaman"],
+  ["Daily Activities Vocabulary: Common Verbs and Expressions", "Günlük Aktiviteler Kelimeleri: Yaygın Fiiller ve İfadeler"],
+  ["Constructing Simple Sentences: Subject-Object-Verb Structure", "Basit Cümleler Kurma: Özne-Nesne-Yüklem Yapısı"],
+  ["Survival Vocabulary for Travelers", "Gezginler İçin Hayatta Kalma Kelimeleri"],
+  ["Essential Phrases for Navigating Public Transport", "Toplu Taşımada Yol Bulma İçin Temel İfadeler"],
+  ["Asking for Directions: Key Questions and Responses", "Yol Tarifi Sorma: Temel Sorular ve Yanıtlar"],
+  ["Dining Out: Ordering Food and Understanding Menus", "Dışarıda Yemek Yeme: Yemek Siparişi ve Menüleri Anlama"],
+  ["Dining Out", "Dışarıda Yemek Yeme"],
+  ["Ordering Food and Understanding Menus", "Yemek Siparişi ve Menüleri Anlama"],
+  ["Family and Personal Information", "Aile ve Kişisel Bilgiler"],
+  ["Family Vocabulary: Identifying Family Members", "Aile Kelimeleri: Aile Üyelerini Tanıma"],
+  ["Describing Relationships: Simple Adjectives and Phrases", "İlişkileri Tanımlama: Basit Sıfatlar ve İfadeler"],
+  ["Sharing Personal Information: Where You Live and Work", "Kişisel Bilgi Paylaşma: Nerede Yaşadığınız ve Çalıştığınız"],
+  ["Exploring Common Places", "Yaygın Yerleri Keşfetme"],
+  ["Identifying Places in Your Community: Vocabulary and Usage", "Topluluğunuzdaki Yerleri Tanıma: Kelimeler ve Kullanım"],
+  ["Simple Conversations About Places: Asking and Answering Questions", "Yerler Hakkında Basit Konuşmalar: Soru Sorma ve Cevaplama"],
+  ["Common Hobbies and Interests Vocabulary", "Yaygın Hobiler ve İlgi Alanları Kelimeleri"],
+  ["Constructing Preference Statements: I Like, I Don't Like", "Tercih İfadeleri Kurma: Severim, Sevmem"],
+  ["Engaging in Small Talk: Discussing Interests with Others", "Kısa Sohbet Yapma: Başkalarıyla İlgi Alanlarını Tartışma"],
+  ["Weather and Seasons", "Hava Durumu ve Mevsimler"],
+  ["Describing the Weather: Common Terms and Expressions", "Hava Durumunu Tanımlama: Yaygın Terimler ve İfadeler"],
+  ["Talking About Seasons: Activities and Preferences", "Mevsimler Hakkında Konuşma: Aktiviteler ve Tercihler"],
+  ["Basic Shopping Skills", "Temel Alışveriş Becerileri"],
+  ["Shopping Vocabulary: Common Items and Shopping Expressions", "Alışveriş Kelimeleri: Yaygın Eşyalar ve İfadeler"],
+  ["Asking About Prices: Useful Questions and Responses", "Fiyatları Sorma: Yararlı Sorular ve Yanıtlar"],
+  ["Understanding Payment Methods: Cash, Card, and Mobile Payments", "Ödeme Yöntemlerini Anlama: Nakit, Kart ve Mobil Ödemeler"],
 ];
+
+const CURRICULUM_LANG_MAP_TR = {
+  spanish: "İspanyolcada",
+  english: "İngilizcede",
+  german: "Almancada",
+  french: "Fransızcada",
+  italian: "İtalyancada",
+  portuguese: "Portekizcede",
+  russian: "Rusçada",
+  chinese: "Çincede",
+  japanese: "Japoncada",
+  korean: "Korecede",
+  arabic: "Arapçada",
+  turkish: "Türkçede",
+  greek: "Yunancada",
+  dutch: "Felemenkçede",
+  swedish: "İsveççede",
+};
 
 function translateCurriculumTitle(title, lang = currentLang) {
   if (!title) return '';
   const trimmed = title.trim();
-  const clean = trimmed.replace(/^(unit|chapter|topic|tema|lektion|item|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
+  const clean = trimmed.replace(/^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*/i, "").trim();
   const lowerTrimmed = trimmed.toLowerCase();
   const lowerClean = clean.toLowerCase();
 
@@ -2014,6 +2090,13 @@ function translateCurriculumTitle(title, lang = currentLang) {
 
   // 4. Fallback common patterns and synonyms for curriculum/page titles
   if (lang === 'tr') {
+    // Check for corrupted half-translations: "1'den 100'ye Sayma: Building Blocks of Numbers"
+    const halfMatch = clean.match(/^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$/i);
+    if (halfMatch) {
+      const rest = halfMatch[3].trim();
+      return `${halfMatch[1]}'den ${halfMatch[2]}'e Sayma: ${translateCurriculumTitle(rest, 'tr')}`;
+    }
+
     if (/^(the\s+)?alphabet$/i.test(trimmed) || /^(the\s+)?alphabet$/i.test(clean)) return 'Alfabe';
     if (/^(essential|basic|key)\s+vocabulary$/i.test(trimmed) || /^(essential|basic|key)\s+vocabulary$/i.test(clean)) return 'Temel Kelimeler';
     if (/^structural\s+focus$/i.test(trimmed) || /^structural\s+focus$/i.test(clean)) return 'Yapısal Odak';
@@ -2022,10 +2105,22 @@ function translateCurriculumTitle(title, lang = currentLang) {
     if (/^spanish\s+alphabet$/i.test(trimmed) || /^spanish\s+alphabet$/i.test(clean)) return 'İspanyol Alfabesi';
     if (/^quick\s+check$/i.test(trimmed) || /^quick\s+check$/i.test(clean)) return 'Hızlı Kontrol';
 
+    // Pattern: Language-specific ending: "X in Spanish", "X in German", etc.
+    for (const [langEn, langTr] of Object.entries(CURRICULUM_LANG_MAP_TR)) {
+      const regex = new RegExp(`^(.*?)\\s+in\\s+${langEn}$`, 'i');
+      const lm = clean.match(regex);
+      if (lm) {
+        const sub = lm[1].trim();
+        return `${langTr} ${translateCurriculumTitle(sub, 'tr')}`;
+      }
+    }
+
     // Pattern: Counting from X to Y
     const countMatch = clean.match(/^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$/i);
     if (countMatch) {
-      let res = `${countMatch[1]}'den ${countMatch[2]}'ye Sayma`;
+      const n2 = countMatch[2];
+      const suffix = (n2.endsWith("00") || ["1", "3", "4", "5", "8", "70", "80"].includes(n2)) ? "e" : "a";
+      let res = `${countMatch[1]}'den ${n2}'${suffix} Sayma`;
       const extra = countMatch[3].replace(/^[:\s\-]+/, '').trim();
       if (extra) res += `: ${translateCurriculumTitle(extra, 'tr')}`;
       return res;
@@ -2050,6 +2145,14 @@ function translateCurriculumTitle(title, lang = currentLang) {
           return `${p1}: ${p2}`;
         }
       }
+    }
+
+    // Pattern: Compound separated by "vs." or "versus"
+    const vsMatch = clean.match(/^(.*?)\s+(?:vs\.?|versus)\s+(.*)$/i);
+    if (vsMatch) {
+      const s1 = translateCurriculumTitle(vsMatch[1].trim(), 'tr');
+      const s2 = translateCurriculumTitle(vsMatch[2].trim(), 'tr');
+      return `${s1} ve ${s2} Karşılaştırması`;
     }
   } else {
     if (/^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(trimmed) || /^temel\s+(kelimeler|kelime\s+bilgisi|kelime\s+dağarcığı|fiiller)$/i.test(clean)) return 'Essential Vocabulary';

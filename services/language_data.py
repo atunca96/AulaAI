@@ -631,3 +631,118 @@ def get_pedagogical_guidelines(language: str, level: str = "A1") -> str:
     
     return f"\n--- PEDAGOGICAL ASSESSMENT STANDARDS ({lvl_key}) ---\n{cefr_text}\n{lang_guidance}"
 
+import os
+import re
+
+_BM_TITLE_MAP = None
+
+def _get_bm_title_map():
+    global _BM_TITLE_MAP
+    if _BM_TITLE_MAP is not None:
+        return _BM_TITLE_MAP
+    _BM_TITLE_MAP = {}
+    bm_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "bilingual_materials.json")
+    if os.path.exists(bm_path):
+        try:
+            with open(bm_path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                _BM_TITLE_MAP = d.get("title_pairs", {})
+        except Exception:
+            pass
+    return _BM_TITLE_MAP
+
+LANGUAGE_NAMES_TR = {
+    "spanish": "İspanyolcada",
+    "english": "İngilizcede",
+    "german": "Almancada",
+    "french": "Fransızcada",
+    "italian": "İtalyancada",
+    "portuguese": "Portekizcede",
+    "russian": "Rusçada",
+    "chinese": "Çincede",
+    "japanese": "Japoncada",
+    "korean": "Korecede",
+    "arabic": "Arapçada",
+    "turkish": "Türkçede",
+    "greek": "Yunancada",
+    "dutch": "Felemenkçede",
+    "swedish": "İsveççede",
+}
+
+def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
+    """Translates educational curriculum titles (chapters/topics) into natural, grammatically correct Turkish."""
+    if current_tr and current_tr.strip() and current_tr != "Alfabeyi" and current_tr != title:
+        # If current_tr is already translated and doesn't contain un-translated English fragments, keep it
+        bad_fragments = ["Building Blocks", "Formal vs", "Math Operations", "Prices and Time", "Personal Information", "Everyday Situations", "100'ye"]
+        if not any(bf in current_tr for bf in bad_fragments):
+            return current_tr
+
+    if not title:
+        return current_tr or ""
+
+    t_raw = str(title).strip()
+    clean = re.sub(r'^(unit|chapter|topic|tema|lektion|item|ünite|unite|bölüm|bolum|c\.|l\.)\s*\d+\s*[:\-]\s*', '', t_raw, flags=re.IGNORECASE).strip()
+    low = clean.lower()
+
+    # Check for corrupted half-translations (e.g. "1'den 100'ye Sayma: Building Blocks of Numbers")
+    m_half = re.match(r"^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$", clean, re.IGNORECASE)
+    if m_half:
+        n1, n2, rest = m_half.group(1), m_half.group(2), m_half.group(3).strip()
+        trans_rest = resolve_curriculum_tr(rest, None)
+        return f"{n1}'den {n2}'e Sayma: {trans_rest}"
+
+    # Check title map
+    tmap = _get_bm_title_map()
+    if t_raw in tmap:
+        return tmap[t_raw]
+    if clean in tmap:
+        return tmap[clean]
+    for k, v in tmap.items():
+        if k.lower() == low:
+            return v
+
+    # Language suffix: "X in Spanish", "X in German", etc.
+    for lang_en, lang_tr in LANGUAGE_NAMES_TR.items():
+        m_lang = re.match(rf'^(.*?)\s+in\s+{lang_en}$', clean, re.IGNORECASE)
+        if m_lang:
+            sub = m_lang.group(1).strip()
+            sub_tr = resolve_curriculum_tr(sub, None)
+            return f"{lang_tr} {sub_tr}"
+
+    # Counting pattern
+    m_count = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', clean, re.IGNORECASE)
+    if m_count:
+        n1, n2, extra = m_count.group(1), m_count.group(2), m_count.group(3).strip()
+        suffix = "e" if n2.endswith("00") or n2 in ["1", "3", "4", "5", "8", "70", "80"] else "a"
+        res = f"{n1}'den {n2}'{suffix} Sayma"
+        extra_clean = re.sub(r'^[:\s\-]+', '', extra).strip()
+        if extra_clean:
+            res += f": {resolve_curriculum_tr(extra_clean, None)}"
+        return res
+
+    # Days of the week pattern
+    m_days = re.match(r'^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$', clean, re.IGNORECASE)
+    if m_days:
+        extra = m_days.group(2).strip()
+        if not extra: return "Haftanın Günleri"
+        if "plan" in extra.lower(): return "Haftanın Günleri: Planlama"
+        return f"Haftanın Günleri: {resolve_curriculum_tr(extra, None)}"
+
+    # Compound separated by colon
+    if ":" in clean:
+        parts = [p.strip() for p in clean.split(":", 1)]
+        p1 = resolve_curriculum_tr(parts[0], None)
+        p2 = resolve_curriculum_tr(parts[1], None)
+        if p1 != parts[0] or p2 != parts[1]:
+            return f"{p1}: {p2}"
+
+    # Compound separated by "vs." or "versus"
+    m_vs = re.match(r'^(.*?)\s+(?:vs\.?|versus)\s+(.*)$', clean, re.IGNORECASE)
+    if m_vs:
+        s1 = resolve_curriculum_tr(m_vs.group(1).strip(), None)
+        s2 = resolve_curriculum_tr(m_vs.group(2).strip(), None)
+        return f"{s1} ve {s2} Karşılaştırması"
+
+    return current_tr or clean or t_raw
+
+

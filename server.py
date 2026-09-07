@@ -1699,43 +1699,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
 
-            bm_title_map = {}
-            bm_path = os.path.join(os.path.dirname(__file__), "bilingual_materials.json")
-            if os.path.exists(bm_path):
-                try:
-                    with open(bm_path, "r", encoding="utf-8") as f:
-                        bm_data = json.load(f)
-                    bm_title_map = bm_data.get("title_pairs", {})
-                except: pass
-
-            import re
-            clean_re = re.compile(r'^(unit|chapter|topic|tema|lektion|item|c\.|l\.)\s*\d+\s*[:\-]\s*', re.IGNORECASE)
-
-            def resolve_curriculum_tr(title, current_tr):
-                if current_tr and current_tr != "Alfabeyi" and current_tr != title:
-                    return current_tr
-                t_raw = (title or "").strip()
-                t_clean = clean_re.sub("", t_raw).strip()
-                if t_clean.lower() in ("the alphabet", "alphabet"):
-                    return "Alfabe"
-                if t_raw in bm_title_map: return bm_title_map[t_raw]
-                if t_clean in bm_title_map: return bm_title_map[t_clean]
-                for k, v in bm_title_map.items():
-                    if k.lower() == t_clean.lower(): return v
-                m = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', t_clean, re.IGNORECASE)
-                if m:
-                    res = f"{m.group(1)}'den {m.group(2)}'ye Sayma"
-                    extra = re.sub(r'^[:\s\-]+', '', m.group(3)).strip()
-                    if extra:
-                        res += f": {resolve_curriculum_tr(extra, None)}"
-                    return res
-                m = re.match(r'^(the\s+)?days\s+of\s+the\s+week[:\s\-]*(.*)$', t_clean, re.IGNORECASE)
-                if m:
-                    extra = m.group(2).strip()
-                    if not extra: return "Haftanın Günleri"
-                    if "plan" in extra.lower(): return "Haftanın Günleri: Planlama"
-                    return f"Haftanın Günleri: {resolve_curriculum_tr(extra, None)}"
-                return current_tr or t_clean or t_raw
+            from services.language_data import resolve_curriculum_tr
 
             result = []
             db_changed = False
