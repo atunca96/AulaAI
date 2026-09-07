@@ -452,3 +452,182 @@ def get_special_chars_prompt(language):
         f"Do NOT include characters from other languages (e.g., do not put ç in Dutch, ñ in German, ß in Dutch). "
         f"If a character is NOT in this reference list, it does NOT belong in {language}."
     )
+
+
+# ── UNIVERSAL CEFR PEDAGOGICAL ASSESSMENT FRAMEWORK (A1 - C2) ──
+
+LANGUAGE_PEDAGOGY = {
+    "Spanish": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: b/v sound identity, c before e/i (/θ/ or /s/) vs a/o/u (/k/), "
+            "g before e/i (/x/) vs a/o/u (/g/), silent h (hijo, hora), jota (/x/), qu- only before e/i (queso, quince), "
+            "r (flap) vs rr (trill), ll/y, and ñ (/ɲ/). "
+            "NEVER ask what word is inside a letter name (e.g., do NOT ask 'which letter has doble in its name'). "
+            "Instead test spelling of real words, identifying silent letters, or distinguishing sounds in minimal pairs."
+        ),
+        "grammar_traps": [
+            "ser vs. estar (essence/identity vs. state/location)",
+            "por vs. para (cause/medium vs. destination/purpose)",
+            "gustar-type verbs (A mí me gusta / gustan)",
+            "direct vs. indirect object pronouns (lo/la vs. le)",
+            "gender exceptions (el problema, el tema, el día, la mano, el agua fría)",
+            "preterite vs. imperfect aspectual difference (completed vs. habitual/background)"
+        ]
+    },
+    "German": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: umlauts (ä, ö, ü) contrasting with a, o, u; "
+            "ch1 (ich-Laut after front vowels e, i, ä, ö, ü) vs ch2 (ach-Laut after back vowels a, o, u); "
+            "sp- and st- at start of syllable sounding like /ʃp/ and /ʃt/; v sounding like /f/ in native words (Vogel, Vater); "
+            "s before vowel sounding like /z/ (Sonne); ß representing unvoiced /s/ after long vowels/diphthongs."
+        ),
+        "grammar_traps": [
+            "der, die, das grammatical genders",
+            "four cases: Nominativ, Akkusativ, Dativ, Genitiv",
+            "two-way prepositions (Wechselpräpositionen): Dativ for location (Wo?), Akkusativ for motion (Wohin?)",
+            "word order: Verb-second (V2) in main clauses, verb-final in subordinate clauses (weil, dass, wenn)",
+            "separable prefix verbs (anrufen -> ruft an)",
+            "Perfekt auxiliary selection: haben vs. sein (change of place/state)"
+        ]
+    },
+    "French": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: nasal vowels (an/en, in/ain, on, un), "
+            "silent final consonants (t, s, d, p, x in chat, lit, trop, prix), liaisons (les amis -> /lezami/), "
+            "u (/y/) vs ou (/u/), é (/e/) vs è/ê (/ɛ/), c with cedilla (ç) before a/o/u sounding like /s/."
+        ),
+        "grammar_traps": [
+            "passé composé with avoir vs. être (DR & MRS VANDERTRAMP and reflexive verbs)",
+            "passé composé vs. imparfait",
+            "partitive articles (du, de la, des) becoming 'de' in negative sentences",
+            "pronoun placement before the conjugated verb or auxiliary",
+            "subjunctive triggers (il faut que, bien que, vouloir que)"
+        ]
+    },
+    "Italian": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: c and g before e/i are soft (ch/dzh), before a/o/u are hard; "
+            "ch and gh make c/g hard before e/i (chiesa, spaghetti); gn (/ɲ/), gli (/ʎ/), double consonants (gemination: fatto vs fato)."
+        ),
+        "grammar_traps": [
+            "essere vs. avere in passato prossimo with past participle agreement",
+            "pronominal particles ci (there/about it) and ne (of it/them)",
+            "piacere agreement (mi piace il libro vs mi piacciono i libri)",
+            "articulated prepositions (di + il = del, a + la = alla)",
+            "congiuntivo (subjunctive) in expressions of opinion and emotion"
+        ]
+    },
+    "Turkish": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: ı (dotless i) vs i (dotted i), ö vs o, ü vs u, "
+            "ğ (soft g - lengthens preceding vowel, never starts a word), c (/dʒ/) vs ç (/tʃ/), s vs ş (/ʃ/)."
+        ),
+        "grammar_traps": [
+            "2-way vowel harmony (-ler/-lar, -e/-a) and 4-way vowel harmony (-i/-ı/-u/-ü)",
+            "consonant mutation (p/ç/t/k -> b/c/d/ğ before a vowel, e.g. kitap -> kitabı)",
+            "consonant assimilation (f, s, t, k, ç, ş, h, p + d -> t, c -> ç)",
+            "agglutinative suffix ordering (noun + plural + possessive + case)",
+            "SOV sentence structure and postpositions (için, ile, gibi)"
+        ]
+    },
+    "Greek": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: vowel digraphs (αι=/e/, ει/οι/υι=/i/, ου=/u/), "
+            "consonant digraphs (μπ=/b/ or /mb/, ντ=/d/ or /nd/, γκ=/g/ or /ŋg/, τσ=/ts/, τζ=/dz/), tonos accentuation."
+        ),
+        "grammar_traps": [
+            "3 genders (masculine, feminine, neuter) with articles (o, η, το)",
+            "4 cases (Nominative, Genitive, Accusative, Vocative)",
+            "verbal aspect: continuous (imperfective) vs. simple (aorist/perfective)"
+        ]
+    },
+    "Russian": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: hard vs soft consonants (palatalization via ь and soft vowels), "
+            "vowel reduction (akanie: unstressed 'o' pronounced as /a/; ikanie: unstressed 'e/я' pronounced as /i/), "
+            "voiced/voiceless consonant assimilation (e.g. в -> /f/ before unvoiced)."
+        ),
+        "grammar_traps": [
+            "6 cases (Nominative, Genitive, Dative, Accusative, Instrumental, Prepositional)",
+            "verbal aspects: imperfective (process, repetition) vs. perfective (result, single completed action)",
+            "verbs of motion (unidirectional vs multidirectional: идти/ходить, ехать/ездить)"
+        ]
+    },
+    "Arabic": {
+        "phonetics": (
+            "Test authentic phonetic discrimination: emphatic consonants (ص, ض, ط, ظ) vs plain counterparts (س, د, ت, ذ), "
+            "pharyngeal sounds (ع, ح) vs (ء, هـ), velar/uvular sounds (خ, غ, ق), long vs short vowels."
+        ),
+        "grammar_traps": [
+            "root-and-pattern (triconsonantal) morphological derivations",
+            "nominal sentences (jumla ismiyya) without a present tense copula",
+            "non-human plural agreement treated as feminine singular",
+            "idaafa (construct state) possessive construction"
+        ]
+    }
+}
+
+CEFR_COMPETENCY_FRAMEWORK = {
+    "A1": (
+        "CEFR A1 (Breakthrough / Beginner):\n"
+        "- Focus on basic phonetic-orthographic mapping (sound-to-letter, silent letters, spelling of high-frequency words).\n"
+        "- High-frequency routine expressions, formal vs informal address (tú vs usted, du vs Sie).\n"
+        "- Gender and number concord in simple noun phrases (el libro nuevo, las casas blancas).\n"
+        "- Basic present tense indicative of regular and core irregular verbs (ser, estar, tener, ir, hacer).\n"
+        "- Authentic situational dialogues in everyday settings (café, airport, classroom, introductions).\n"
+        "- NEVER ask giveaway questions (e.g. prompt contains the answer word) or meta-trivia about letter names."
+    ),
+    "A2": (
+        "CEFR A2 (Waystage / Elementary):\n"
+        "- Narrative past tenses: aspectual contrast between completed punctual actions and background/routine descriptions.\n"
+        "- Pronominal syntax: direct and indirect object pronouns (placement before conjugated verbs, enclisis with infinitives/gerunds).\n"
+        "- Everyday prepositions and directional connectors (por vs para, desde, hasta, hacia).\n"
+        "- Reflexive verbs in daily routine contexts with temporal markers (normalmente, de repente, ayer, mientras).\n"
+        "- Functional problem-solving scenarios: shopping, asking for directions, making plans, expressing simple opinions."
+    ),
+    "B1": (
+        "CEFR B1 (Threshold / Intermediate):\n"
+        "- Mood distinction: Indicative vs Subjunctive in subordinate noun clauses (wishes, doubts, emotions, recommendations).\n"
+        "- Purpose and temporal clauses with subjunctive (para que, antes de que, cuando + subjuntivo for future).\n"
+        "- Hypothetical conditional sentences (real vs unreal conditionals: si tuviera..., compraría...).\n"
+        "- Indirect speech reporting and discourse connectors (sin embargo, por lo tanto, a pesar de que).\n"
+        "- Distinguishing between near-synonymous verbs and idiomatic collocations."
+    ),
+    "B2": (
+        "CEFR B2 (Vantage / Upper-Intermediate):\n"
+        "- Advanced Subjunctive nuances (concessive clauses, modal restrictions, hypothetical past).\n"
+        "- Passive voice, passive reflexive (se pasivo), and impersonal constructions.\n"
+        "- Nuances in register (formal vs informal, journalistic vs colloquial).\n"
+        "- Complex discourse markers and cohesive devices.\n"
+        "- False friends (faux amis), deceptive cognates, and prepositions governed by specific verbs."
+    ),
+    "C1": (
+        "CEFR C1 / C2 (Operational Proficiency / Mastery):\n"
+        "- Stylistic and rhetorical subtlety, figurative language, polysemy, and cultural idioms.\n"
+        "- Rare/literary grammatical structures (imperfect subjunctive in -se vs -ra, archaic inversions).\n"
+        "- Pragmatic inference, reading between the lines, identifying speaker tone, irony, and stance.\n"
+        "- Specialized academic and professional vocabulary collocations."
+    )
+}
+
+def get_pedagogical_guidelines(language: str, level: str = "A1") -> str:
+    """Generates authoritative CEFR-level and language-specific pedagogical criteria."""
+    lvl_key = "A1"
+    u_lvl = (level or "A1").upper()
+    for k in ["C1", "C2", "B2", "B1", "A2", "A1"]:
+        if k in u_lvl:
+            lvl_key = k if k != "C2" else "C1"
+            break
+    
+    cefr_text = CEFR_COMPETENCY_FRAMEWORK.get(lvl_key, CEFR_COMPETENCY_FRAMEWORK["A1"])
+    lang_info = LANGUAGE_PEDAGOGY.get(language, {})
+    
+    lang_guidance = ""
+    if lang_info:
+        phon = lang_info.get("phonetics", "")
+        traps = lang_info.get("grammar_traps", [])
+        traps_str = "\n".join([f"  • {t}" for t in traps])
+        lang_guidance = f"\nTARGET LANGUAGE SPECIFICS ({language}):\nPhonetic Principles: {phon}\nKey Pedagogical Traps & Competencies to test:\n{traps_str}\n"
+    
+    return f"\n--- PEDAGOGICAL ASSESSMENT STANDARDS ({lvl_key}) ---\n{cefr_text}\n{lang_guidance}"
+

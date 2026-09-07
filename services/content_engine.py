@@ -234,13 +234,14 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                         "content": json.loads(t_row["content"]) if t_row["content"] else {}
                     })
         
-        # Use first topic's language as base
+        # Use first topic's language and level as base
         base_lang = "Unknown"
         material_language = "en"
+        course_level = "A1"
         if topics_summary:
             with db_connection() as db_conn:
                 l_row = db_conn.execute("""
-                    SELECT co.language, co.material_language FROM courses co
+                    SELECT co.language, co.material_language, co.level FROM courses co
                     JOIN chapters ch ON co.id = ch.course_id
                     JOIN topics t ON ch.id = t.chapter_id
                     WHERE t.id = ?
@@ -249,6 +250,8 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     base_lang = l_row["language"] if l_row["language"] else "Unknown"
                     if "material_language" in l_row.keys() and l_row["material_language"]:
                         material_language = l_row["material_language"]
+                    if "level" in l_row.keys() and l_row["level"]:
+                        course_level = l_row["level"]
         
         if material_language == "en" and ui_lang in ["tr", "en"]:
             material_language = ui_lang
@@ -261,6 +264,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=needed,
+            level=course_level,
             existing_questions=forbidden_questions,
             is_quiz=is_quiz,
             material_language=material_language
@@ -280,13 +284,13 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     db_conn.execute(
                         "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
                         (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
-                         json.dumps(distractors), "A1.1")
+                         json.dumps(distractors), course_level)
                     )
                     questions.append({
                         "id": q_id, "topic_id": tid,
                         "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
                         "answer": q.get("answer", ""), "distractors": distractors, 
-                        "options": options, "difficulty": "A1.1"
+                        "options": options, "difficulty": course_level
                     })
                 db_conn.commit()
             from services.state import bump_version
@@ -314,6 +318,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             topic_content={"topics": topics_summary},
             language=base_lang,
             count=still_needed,
+            level=course_level,
             existing_questions=forbidden_questions + questions,  # forbidden list grows each pass
             is_quiz=is_quiz,
             material_language=material_language
@@ -334,13 +339,13 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     db_conn.execute(
                         "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
                         (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
-                         json.dumps(distractors), "A1.1")
+                         json.dumps(distractors), course_level)
                     )
                     questions.append({
                         "id": q_id, "topic_id": tid,
                         "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
                         "answer": q.get("answer", ""), "distractors": distractors, 
-                        "options": options, "difficulty": "A1.1"
+                        "options": options, "difficulty": course_level
                     })
                 db_conn.commit()
             from services.state import bump_version

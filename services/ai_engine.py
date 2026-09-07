@@ -134,6 +134,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
+    gen_count = max(c + 4, int(c * 1.4))
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -143,7 +144,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     else:
         content_str = json.dumps(topic_content, ensure_ascii=False)
     
-    from services.language_data import get_reference_prompt, get_special_chars_prompt
+    from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     
     ref_data = ""
@@ -156,27 +157,35 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     if existing_questions and len(existing_questions) > 0:
         qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
- 
+
+    pedagogy_guidance = get_pedagogical_guidelines(language, level)
+
     system = f"""You are the {language} Pedagogic Engine (V5). 
-    Your mission: Using the provided textbook content as your source, generate questions that test genuine understanding of the material — use real examples from the text, plausible distractors drawn from related concepts, and varied formats. Never repeat the same question pattern twice in a single set.
+    Your mission: Using the provided textbook content as your source, generate questions that test genuine communicative and linguistic understanding. Never repeat the same question pattern twice in a single set.
     
-    PEDAGOGIC PROTOCOL:
-    1. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
-    2. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
+    {pedagogy_guidance}
+    
+    PEDAGOGIC PROTOCOL & MANDATES:
+    1. STRICT ANTI-GIVEAWAY MANDATE (CRITICAL):
+       - The prompt MUST NEVER contain the correct answer or any stem/part of the correct answer.
+       - NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling of characters (e.g., NEVER ask 'Which letter name has the word X in it?', 'Which word ends in Y?', 'Which of these is a letter?').
+       - For alphabet and pronunciation topics, test genuine sound-to-letter correspondences in authentic words, silent letters, or minimal pairs. NEVER ask about the spelling of a letter's name.
+    2. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
+    3. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
        - If the correct answer is a QUESTION (e.g. "¿Cuánto cuesta?"), then ALL 3 distractors MUST ALSO be questions (e.g. "¿Dónde está?", "¿Cómo se llama?", "¿Qué hora es?").
        - If the correct answer is a STATEMENT, all distractors must also be statements.
        - If the correct answer is a VERB FORM, all distractors must also be verb forms.
        - If the correct answer is a NOUN, all distractors must also be nouns.
        - NEVER mix questions with statements, nouns with verbs, or phrases with single words. The student must NOT be able to identify the correct answer just by looking at the format.
-    3. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or situation. 
-    4. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
-    5. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
-    6. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
+    4. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or communicative situation. 
+    5. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
+    6. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
+    7. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object. Every prompt MUST have a {instruction_lang_name} 'translation' in the 'translation' field."""
- 
-    user = f"""TASK: Generate EXACTLY {c} unique {topic_type} questions.
+
+    user = f"""TASK: Generate EXACTLY {gen_count} unique {topic_type} questions.
     TOPIC: {topic_title}
     LEVEL: {level}
     SOURCE MATERIAL: {content_str}
@@ -220,36 +229,68 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         else:
             raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
         
-        # ── V4 ZERO-FILTER CATASTROPHE GUARD ──
-        # We trust Gemini 2.0 Flash to follow the pedagogy. 
-        # We only check for missing keys to prevent UI crashes.
+        # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER ──
         final = []
-        for item in raw_list[:count]:
+        for item in raw_list:
             if not isinstance(item, dict): continue
             
             p = str(item.get("prompt", "")).strip()
             a = str(item.get("answer", "")).strip()
             d = item.get("distractors", [])
             
-            if p and a and len(d) >= 3:
-                # Basic shuffle and assembly
-                opts = [a] + [str(x).strip() for x in d[:3]]
-                py_random.shuffle(opts)
+            if not (p and a and isinstance(d, list) and len(d) >= 3):
+                continue
+
+            # Programmatic Anti-Giveaway & Anti-Trivia Verification
+            clean_p = re.sub(r'[^\w\s]', ' ', p.lower())
+            clean_a = re.sub(r'[^\w\s]', ' ', a.lower()).strip()
+            
+            is_giveaway = False
+            if len(clean_a) >= 2:
+                # Direct word match of the answer in prompt
+                if f" {clean_a} " in f" {clean_p} ":
+                    is_giveaway = True
+                # Match any individual word in multi-word answer (excluding common stopwords)
+                stopwords = {"el", "la", "los", "las", "un", "una", "de", "en", "a", "y", "o", "the", "a", "an", "of", "in", "to", "and", "or", "bir", "ve", "veya", "ile"}
+                for w in clean_a.split():
+                    if len(w) > 3 and w not in stopwords and f" {w} " in f" {clean_p} ":
+                        is_giveaway = True
+                        break
+            
+            # Reject meta-trivia about letter names or strings
+            trivia_indicators = [
+                "nombre que incluye", "se llama", "name includes", "includes the word",
+                "harfinin adı", "kelimesini içerir", "which letter has the name",
+                "cuál de estas letras tiene un nombre", "letter's name", "name of the letter",
+                "how is the letter named", "harfi nasıl adlandırılır"
+            ]
+            if any(t in clean_p for t in trivia_indicators):
+                is_giveaway = True
                 
-                final.append({
-                    "id": _uid(),
-                    "type": "mcq",
-                    "prompt": p,
-                    "translation": item.get("translation", ""),
-                    "answer": a,
-                    "distractors": d[:3],
-                    "options": opts,
-                    "why": item.get("why", "Correct answer based on the material.")
-                })
+            if is_giveaway:
+                print(f"[REJECTED GIVEAWAY/TRIVIA QUESTION] Prompt: '{p}' | Answer: '{a}'")
+                continue
+
+            # Basic shuffle and assembly
+            opts = [a] + [str(x).strip() for x in d[:3]]
+            py_random.shuffle(opts)
+            
+            final.append({
+                "id": _uid(),
+                "type": "mcq",
+                "prompt": p,
+                "translation": item.get("translation", ""),
+                "answer": a,
+                "distractors": d[:3],
+                "options": opts,
+                "why": item.get("why", "Correct answer based on the material.")
+            })
+            if len(final) >= c:
+                break
         
         if not final:
             with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] Gemini 2.0 returned no valid questions for {topic_title}\n")
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] Gemini returned no valid questions for {topic_title}\n")
             return []
             
         return final
@@ -374,11 +415,13 @@ def ai_generate_report_insights(cohort_data):
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="en"):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
-    from services.language_data import get_reference_prompt, get_special_chars_prompt, ALPHABETS
+    from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines, ALPHABETS
     
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
+    
+    pedagogy_guidance = get_pedagogical_guidelines(language, level)
     
     lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in {instruction_lang_name}. All target language content (vocabulary, sentences, examples) MUST be in {language}."
     if is_beginner:
@@ -429,15 +472,15 @@ BEGINNER SIMPLICITY RULE (A1-A2):
 3. RELATABILITY: Always relate foreign concepts to something a native {instruction_lang_name} speaker does naturally. Every single letter or grammar rule must have a '{instruction_lang_name}-Friendly Tip' that makes it feel easy, not academic."""
     contrast_rule = """
 TOPIC CONTRAST RULE (MANDATORY): 
-- If the topic is 'Alphabet', focus EXCLUSIVELY on letter names and sequences. DO NOT ask about pronunciation or phonetics.
-- If the topic is 'Pronunciation', focus EXCLUSIVELY on phonetic sounds, silent letters, and stress. DO NOT ask about the names of letters.
-- If the topic is 'Greetings', focus on cultural social hierarchies. DO NOT ask about grammar rules unless they change the greeting.
-- REPETITION CHECK: Before generating a question, ask yourself: 'Is this the most obvious/generic question for this topic?'. If yes, DISCARD it and create something more specific and clever."""
+- If the topic is 'Alphabet', focus on sound-to-letter correspondence, recognizing characters in authentic vocabulary words, and distinguishing tricky letter pairs. NEVER ask shallow trivia about the names of letters or string patterns.
+- If the topic is 'Pronunciation', focus on phonetic sounds, silent letters, minimal pairs, and stress patterns in real words.
+- If the topic is 'Greetings', focus on pragmatic competence, social hierarchies, and communicative context (formal vs. informal, time of day).
+- REPETITION CHECK: Before generating a question, ensure it tests authentic linguistic competence and never gives away the answer."""
     differentiation_rule = """
 TOPIC DIFFERENTIATION RULE (CRITICAL): 
 - UNIQUE QUESTIONS: NEVER reuse generic questions across related topics. Questions must be 'Laser-Focused' on the specific title of the topic.
-- NUANCE: For 'Alphabet' topics, focus on letter names, recognition, and alphabetical order. For 'Pronunciation' topics, focus strictly on phonetic sounds, vowel length, oral stress, and sound comparisons.
-- VARIETY: Use clever, varied scenarios. For pronunciation, use sound comparisons or silent letters. For alphabet, use letter sequencing or uppercase/lowercase matching."""
+- NUANCE: For 'Alphabet' topics, test recognition of letters within authentic words, sound-symbol mappings, and diacritics. For 'Pronunciation' topics, focus strictly on phonetic sounds, vowel length, oral stress, and sound comparisons.
+- STRICT ANTI-GIVEAWAY MANDATE: The prompt must NEVER contain the answer word, and NEVER ask what word is contained in a letter's name (e.g. NEVER ask which letter has 'doble' in its name)."""
     depth_rule = f"""
 MCQ EXPLANATION DEPTH (CRITICAL): 
 - NEVER restate the question or the answer (e.g., DO NOT say 'Choose the correct greeting').
@@ -457,12 +500,16 @@ This rule is language-agnostic: always relate sounds to common, accessible words
 
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
+    
+    {pedagogy_guidance}
+    
     FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. No walls of text.
     SMARTBOARD RULE: Lessons are taught on large smartboards. You MUST break all paragraphs into clear, scannable bullet points so students can read them from the back of a classroom. 
     EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in {instruction_lang_name}.
     FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
     MCQ RULE: In 'mcq' pages, 'explanation' is pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'The alternatives do not...'.
+    STRICT ANTI-GIVEAWAY MANDATE: The question prompt MUST NEVER contain the correct answer or give away the answer. Distractors must be homogeneous and plausible. NEVER ask shallow trivia about what string is inside a letter name.
     PHONETIC RULE: {phonetic_rule}
     ACCURACY RULE: {accuracy_rule}
     DEPTH RULE: {depth_rule}
@@ -519,14 +566,32 @@ This rule is language-agnostic: always relate sounds to common, accessible words
       ]
     }}"""
 
+    def _clean_pages(lesson_dict):
+        if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
+        cleaned = []
+        for p in lesson_dict.get("pages", []):
+            if p.get("type") == "mcq":
+                prompt_txt = str(p.get("prompt", "")).lower()
+                ans_txt = str(p.get("answer", "")).lower().strip()
+                clean_p = re.sub(r'[^\w\s]', ' ', prompt_txt)
+                clean_a = re.sub(r'[^\w\s]', ' ', ans_txt).strip()
+                if len(clean_a) > 2 and f" {clean_a} " in f" {clean_p} ":
+                    continue  # Skip giveaway
+                trivia_indicators = ["nombre que incluye", "se llama", "name includes", "includes the word", "harfinin adı", "kelimesini içerir", "cuál de estas letras tiene un nombre"]
+                if any(x in clean_p for x in trivia_indicators):
+                    continue  # Skip trivia
+            cleaned.append(p)
+        lesson_dict["pages"] = cleaned
+        return lesson_dict
+
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
     if res and "pages" in res:
-        return res
+        return _clean_pages(res)
     # If primary model failed entirely, try fallback once
     if MODEL_FALLBACK:
         res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4000, temperature=0.4)
         if res2 and "pages" in res2:
-            return res2
+            return _clean_pages(res2)
     return {"pages": []}
 
 def ai_explain_word(word, language, context=None, material_language="en"):
