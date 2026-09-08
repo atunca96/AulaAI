@@ -7990,7 +7990,7 @@ function renderActivityCard(a, idx, ctx) {
     </div>
   ` : '';
 
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${translateOption(o)}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
@@ -8395,8 +8395,8 @@ async function viewQuiz(quizId, title) {
             ${q.type === 'mcq' ? `
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 ${(q.distractors || []).concat([q.answer]).map(o => `
-                  <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
+                    <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${fixDiacritics(safeStr(o))}
                   </div>
                 `).join('')}
               </div>
@@ -8489,7 +8489,7 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
-    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${translateOption(o)}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -9250,7 +9250,7 @@ async function viewAssignment(assignmentId, title) {
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 ${(q.distractors || []).concat([q.answer]).map(o => `
                   <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
+                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${fixDiacritics(safeStr(o))}
                   </div>
                 `).join('')}
               </div>
@@ -9569,7 +9569,7 @@ function showAssignmentQuestion(area) {
     const options = (q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5);
     answerHTML = `<div class="options-grid" style="margin-top:16px">
       ${options.map(o => `<button class="option-btn" onclick="assignmentAnswer(${escJS(o)})"
-        style="text-align:left;padding:14px 18px;font-size:14px">${translateOption(o)}</button>`).join('')}
+        style="text-align:left;padding:14px 18px;font-size:14px">${fixDiacritics(safeStr(o))}</button>`).join('')}
     </div>`;
   } else {
     answerHTML = `<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
@@ -10323,7 +10323,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                  <div dir="auto" style="font-size:16px; font-weight:700; margin-bottom:16px; color:var(--text-primary); line-height:1.5;">${fixDiacritics(translatedPrompt)}</div>
                  <div style="display:flex; flex-direction:column; gap:10px;">
                    ${allOptions.map(opt => `
-                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)})">${fixDiacritics(translateOption(opt))}</button>
+                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)})">${fixDiacritics(safeStr(opt))}</button>
                    `).join('')}
                  </div>
                </div>`;
