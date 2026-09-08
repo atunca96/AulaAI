@@ -2317,10 +2317,12 @@ const UniversalCurriculumTranslator = {
     "basic greetings": "Temel Selamlaşmalar",
     "farewells": "Vedalaşmalar",
     "saying hello and goodbye": "Merhaba ve Hoşça Kal Deme",
+    "polite expressions and requests": "Nazik İfadeler ve İstekler",
+    "polite expressions": "Nazik İfadeler",
     "sharing personal information": "Kişisel Bilgileri Paylaşma",
     "personal information": "Kişisel Bilgiler",
     "personal info": "Kişisel Bilgiler",
-    "introducing yourself and others": "Kendini ve Başkalarını Tanıtma",
+    "introducing yourself and others": "Kendinizi ve Başkalarını Tanıtmak",
     "introducing yourself": "Kendini Tanıtma",
     "introducing others": "Başkalarını Tanıtma",
     "name, age, and origin": "İsim, Yaş ve Memleket",
@@ -2424,6 +2426,11 @@ const UniversalCurriculumTranslator = {
     "phrases": "İfadeler",
     "phrase": "İfade",
     "expressions": "İfadeler",
+    "expression": "İfade",
+    "requests": "İstekler",
+    "request": "İstek",
+    "others": "Başkaları",
+    "yourself": "Kendiniz",
     "grammar": "Dilbilgisi",
     "verbs": "Fiiller",
     "verb": "Fiil",
@@ -2488,7 +2495,7 @@ const UniversalCurriculumTranslator = {
     "common": "Yaygın",
     "regular": "Düzenli",
     "irregular": "Düzensiz",
-    "polite": "Kibar / Nezaket",
+    "polite": "Nazik",
     "personal": "Kişisel",
     "daily": "Günlük",
     "cultural": "Kültürel",
@@ -2865,7 +2872,7 @@ const UniversalCurriculumTranslator = {
     const t = text.trim();
     if (!t) return false;
     const low = t.toLowerCase();
-    if (low.includes('ve ve') || low.includes('pratik application') || low.includes('around us')) return true;
+    if (/\bve\s+ve\b/i.test(low) || low.includes('pratik application') || low.includes('around us')) return true;
     if (low.includes('functional language') || low.includes('cultural context') || low.includes('celebratory') || low.includes('situations')) {
       if (/[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için)\b/i.test(t)) return true;
       return true;
@@ -2880,6 +2887,7 @@ const UniversalCurriculumTranslator = {
     return !this.isHybridOrEnglish(text);
   }
 };
+window.UniversalCurriculumTranslator = UniversalCurriculumTranslator;
 
 function translateCurriculumTitle(title, lang = currentLang) {
   if (!title) return '';
@@ -5595,10 +5603,13 @@ function renderAiSyllabusEditor(syllabus) {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
   container.innerHTML = syllabus.map((chapter, i) => {
-    const titleEn = chapter.title || '';
-    const titleTr = chapter.title_tr || '';
+    let titleEn = chapter.title || '';
+    let titleTr = chapter.title_tr || '';
+    if (!titleTr || titleTr.trim().toLowerCase() === titleEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(titleTr)) {
+      titleTr = UniversalCurriculumTranslator.translate(titleEn);
+    }
     return `
-    <div class="syllabus-chapter" data-title-en="${esc(titleEn)}" data-title-tr="${esc(titleTr)}" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+    <div class="syllabus-chapter" data-title-en="${esc(titleEn)}" data-title-tr="${esc(titleTr)}" data-last-auto-tr="${esc(titleTr)}" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${i + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger);">${SVG_TRASH}</button>
@@ -5606,24 +5617,27 @@ function renderAiSyllabusEditor(syllabus) {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
         <div>
           <label style="display:block; font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">English Unit Name</label>
-          <input type="text" class="text-input syllabus-title-en" placeholder="e.g. Health and Emergencies" value="${esc(titleEn)}" oninput="this.closest('.syllabus-chapter').dataset.titleEn=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+          <input type="text" class="text-input syllabus-title-en" placeholder="e.g. Health and Emergencies" value="${esc(titleEn)}" oninput="onAiChapterEnInput(this)" style="font-weight:600; background:rgba(0,0,0,0.25);">
         </div>
         <div>
           <label style="display:block; font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">Türkçe Ünite Adı</label>
-          <input type="text" class="text-input syllabus-title-tr" placeholder="örn. Sağlık ve Acil Durumlar" value="${esc(titleTr)}" oninput="this.closest('.syllabus-chapter').dataset.titleTr=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+          <input type="text" class="text-input syllabus-title-tr" placeholder="örn. Sağlık ve Acil Durumlar" value="${esc(titleTr)}" oninput="onAiChapterTrInput(this)" style="font-weight:600; background:rgba(0,0,0,0.25);">
         </div>
       </div>
       <div class="topics-list">
         ${(chapter.topics || []).map(topic => {
-          const tEn = typeof topic === 'string' ? topic : (topic.title || '');
-          const tTr = typeof topic === 'string' ? '' : (topic.title_tr || '');
+          let tEn = typeof topic === 'string' ? topic : (topic.title || '');
+          let tTr = typeof topic === 'string' ? '' : (topic.title_tr || '');
+          if (!tTr || tTr.trim().toLowerCase() === tEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(tTr)) {
+            tTr = UniversalCurriculumTranslator.translate(tEn);
+          }
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
-            <div class="topic-item" data-type="${type}" data-title-en="${esc(tEn)}" data-title-tr="${esc(tTr)}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <div class="topic-item" data-type="${type}" data-title-en="${esc(tEn)}" data-title-tr="${esc(tTr)}" data-last-auto-tr="${esc(tTr)}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? SVG_GEAR : '•'}</span>
               <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1;">
-                <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" value="${esc(tEn)}" oninput="this.closest('.topic-item').dataset.titleEn=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
-                <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" value="${esc(tTr)}" oninput="this.closest('.topic-item').dataset.titleTr=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+                <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" value="${esc(tEn)}" oninput="onAiTopicEnInput(this)" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+                <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" value="${esc(tTr)}" oninput="onAiTopicTrInput(this)" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
               </div>
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
@@ -5635,13 +5649,63 @@ function renderAiSyllabusEditor(syllabus) {
   `;}).join('');
 }
 
+function onAiChapterEnInput(input) {
+  const chapter = input.closest('.syllabus-chapter');
+  if (!chapter) return;
+  const val = input.value;
+  chapter.dataset.titleEn = val;
+  const trInp = chapter.querySelector('.syllabus-title-tr');
+  if (trInp) {
+    const curTr = trInp.value.trim();
+    if (!curTr || curTr === (chapter.dataset.lastAutoTr || '') || curTr.toLowerCase() === val.trim().toLowerCase()) {
+      const autoTr = UniversalCurriculumTranslator.translate(val);
+      trInp.value = autoTr;
+      chapter.dataset.titleTr = autoTr;
+      chapter.dataset.lastAutoTr = autoTr;
+    }
+  }
+}
+
+function onAiChapterTrInput(input) {
+  const chapter = input.closest('.syllabus-chapter');
+  if (chapter) {
+    chapter.dataset.titleTr = input.value;
+    chapter.dataset.lastAutoTr = '';
+  }
+}
+
+function onAiTopicEnInput(input) {
+  const item = input.closest('.topic-item');
+  if (!item) return;
+  const val = input.value;
+  item.dataset.titleEn = val;
+  const trInp = item.querySelector('.topic-title-tr');
+  if (trInp) {
+    const curTr = trInp.value.trim();
+    if (!curTr || curTr === (item.dataset.lastAutoTr || '') || curTr.toLowerCase() === val.trim().toLowerCase()) {
+      const autoTr = UniversalCurriculumTranslator.translate(val);
+      trInp.value = autoTr;
+      item.dataset.titleTr = autoTr;
+      item.dataset.lastAutoTr = autoTr;
+    }
+  }
+}
+
+function onAiTopicTrInput(input) {
+  const item = input.closest('.topic-item');
+  if (item) {
+    item.dataset.titleTr = input.value;
+    item.dataset.lastAutoTr = '';
+  }
+}
+
 function addUnitToAiArchitect() {
   const container = document.getElementById('ai-curriculum-list');
   if (!container) return;
 
   const unitIdx = container.querySelectorAll('.syllabus-chapter').length;
   const unitHtml = `
-    <div class="syllabus-chapter" data-title-en="" data-title-tr="" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+    <div class="syllabus-chapter" data-title-en="" data-title-tr="" data-last-auto-tr="" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${unitIdx + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">${SVG_TRASH}</button>
@@ -5649,11 +5713,11 @@ function addUnitToAiArchitect() {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
         <div>
           <label style="display:block; font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">English Unit Name</label>
-          <input type="text" class="text-input syllabus-title-en" placeholder="Unit title in English" oninput="this.closest('.syllabus-chapter').dataset.titleEn=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+          <input type="text" class="text-input syllabus-title-en" placeholder="Unit title in English" oninput="onAiChapterEnInput(this)" style="font-weight:600; background:rgba(0,0,0,0.25);">
         </div>
         <div>
           <label style="display:block; font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">Türkçe Ünite Adı</label>
-          <input type="text" class="text-input syllabus-title-tr" placeholder="Türkçe ünite başlığı" oninput="this.closest('.syllabus-chapter').dataset.titleTr=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+          <input type="text" class="text-input syllabus-title-tr" placeholder="Türkçe ünite başlığı" oninput="onAiChapterTrInput(this)" style="font-weight:600; background:rgba(0,0,0,0.25);">
         </div>
       </div>
       <div class="topics-list">
@@ -5676,12 +5740,13 @@ function addTopicToSyllabus(btn) {
   div.setAttribute('data-type', 'vocabulary');
   div.setAttribute('data-title-en', '');
   div.setAttribute('data-title-tr', '');
+  div.setAttribute('data-last-auto-tr', '');
   div.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
   div.innerHTML = `
     <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">•</span>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1;">
-      <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" oninput="this.closest('.topic-item').dataset.titleEn=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
-      <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" oninput="this.closest('.topic-item').dataset.titleTr=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+      <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" oninput="onAiTopicEnInput(this)" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+      <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" oninput="onAiTopicTrInput(this)" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
     </div>
     <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
   `;
@@ -5708,7 +5773,9 @@ async function buildAiClassroom() {
     let title_en = (enInp ? enInp.value : (chapterEl.dataset.titleEn || (legacyInp ? legacyInp.value : ''))).trim();
     let title_tr = (trInp ? trInp.value : (chapterEl.dataset.titleTr || (legacyInp ? legacyInp.value : ''))).trim();
     if (!title_en && title_tr) title_en = title_tr;
-    if (!title_tr && title_en) title_tr = title_en;
+    if (!title_tr || title_tr.toLowerCase() === title_en.toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(title_tr)) {
+      title_tr = UniversalCurriculumTranslator.translate(title_en);
+    }
 
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
@@ -5718,7 +5785,9 @@ async function buildAiClassroom() {
       let t_en = (tEnInp ? tEnInp.value : (topicItem.dataset.titleEn || (tLegacyInp ? tLegacyInp.value : ''))).trim();
       let t_tr = (tTrInp ? tTrInp.value : (topicItem.dataset.titleTr || (tLegacyInp ? tLegacyInp.value : ''))).trim();
       if (!t_en && t_tr) t_en = t_tr;
-      if (!t_tr && t_en) t_tr = t_en;
+      if (!t_tr || t_tr.toLowerCase() === t_en.toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(t_tr)) {
+        t_tr = UniversalCurriculumTranslator.translate(t_en);
+      }
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
       topics.push({ title: t_en, title_tr: t_tr, type: type });
     });

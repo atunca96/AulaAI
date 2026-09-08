@@ -33,6 +33,12 @@ CANONICAL_TITLE_MAP = {
     "pronunciation and phonetics": "Telaffuz ve Fonetik",
     "greetings and introductions": "Selamlaşmalar ve Tanıtımlar",
     "greetings & introductions": "Selamlaşmalar ve Tanıtımlar",
+    "basic greetings and farewells": "Temel Selamlaşmalar ve Vedalaşmalar",
+    "greetings and farewells": "Selamlaşmalar ve Vedalaşmalar",
+    "introducing yourself and others": "Kendinizi ve Başkalarını Tanıtmak",
+    "polite expressions and requests": "Nazik İfadeler ve İstekler",
+    "polite expressions": "Nazik İfadeler",
+    "requests": "İstekler",
     "saying hello and goodbye": "Merhaba ve Hoşça Kal Deme",
     "introducing yourself": "Kendini Tanıtma",
     "formal vs informal": "Resmi ve Samimi Hitaplar",
@@ -189,7 +195,7 @@ def is_hybrid(text: str) -> bool:
     if not t:
         return False
     low = t.lower()
-    if "ve ve" in low or "pratik application" in low or "ve pratik application" in low or "around us" in low:
+    if re.search(r'\bve\s+ve\b', low) or "pratik application" in low or "ve pratik application" in low or "around us" in low:
         return True
     if "celebratory" in low or "situations" in low or "functional language" in low:
         if bool(TR_LETTERS.search(t) or TR_WORDS.search(t)):
@@ -273,6 +279,15 @@ def translate_titles_batch(titles: List[str], target_lang: str = "tr") -> Dict[s
             if cached_val and is_clean_turkish(cached_val):
                 results[raw] = cached_val
                 continue
+            # Check UniversalCurriculumTranslator deterministic engine
+            try:
+                from services.language_data import UniversalCurriculumTranslator
+                uct_val = UniversalCurriculumTranslator.translate(clean)
+                if uct_val and is_clean_turkish(uct_val):
+                    results[raw] = uct_val
+                    continue
+            except Exception:
+                pass
         elif target_lang == "en":
             # Reverse canonical match
             rev = next((k for k, v in CANONICAL_TITLE_MAP.items() if v.lower() == low_clean), None)
@@ -346,7 +361,15 @@ Input:
             clean = _clean_title_key(raw)
             low_clean = clean.lower()
             if target_lang == "tr":
-                results[raw] = CANONICAL_TITLE_MAP.get(low_clean, clean)
+                cand = CANONICAL_TITLE_MAP.get(low_clean)
+                if not cand:
+                    try:
+                        from services.language_data import UniversalCurriculumTranslator
+                        uct_cand = UniversalCurriculumTranslator.translate(clean)
+                        if uct_cand and not is_pure_english(uct_cand) and not is_hybrid(uct_cand):
+                            cand = uct_cand
+                    except Exception: pass
+                results[raw] = cand if (cand and not is_pure_english(cand)) else clean
             else:
                 results[raw] = clean
 

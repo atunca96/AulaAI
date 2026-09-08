@@ -66,15 +66,25 @@ def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) 
                 return True
     return False
 
-# LOCAL DEV: Load .env if it exists
-if os.path.exists(".env"):
-    try:
-        with open(".env", "r") as f:
-            for line in f:
-                if "=" in line:
-                    k, v = line.strip().split("=", 1)
-                    os.environ[k] = v
-    except: pass
+# Robust .env loading across execution contexts
+if not os.getenv("OPENROUTER_API_KEY"):
+    for env_path in [
+        ".env",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    ]:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            os.environ.setdefault(k.strip(), v.strip())
+                if os.getenv("OPENROUTER_API_KEY"):
+                    break
+            except Exception:
+                pass
 
 # Triple-Threat Orchestration (V5.0-OPENAI-POWERED)
 MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "openai/gpt-4o-mini")          # Default to gpt-4o-mini for speed & cost
