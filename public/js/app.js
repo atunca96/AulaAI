@@ -5749,8 +5749,10 @@ function renderAiSyllabusEditor(syllabus) {
   container.innerHTML = syllabus.map((chapter, i) => {
     let titleEn = chapter.title || '';
     let titleTr = chapter.title_tr || '';
-    if (!titleTr || titleTr.trim().toLowerCase() === titleEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(titleTr)) {
-      titleTr = UniversalCurriculumTranslator.translate(titleEn);
+    // Trust server-provided title_tr. Only clear it if it's a known hybrid or identical to English.
+    // Do NOT call local translate() here — that produces English for unknown phrases.
+    if (titleTr && (titleTr.trim().toLowerCase() === titleEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(titleTr))) {
+      titleTr = ''; // clear bad value; placeholder will show; AI debounce will fill it
     }
     return `
     <div class="syllabus-chapter" data-title-en="${esc(titleEn)}" data-title-tr="${esc(titleTr)}" data-last-auto-tr="${esc(titleTr)}" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
@@ -5772,8 +5774,9 @@ function renderAiSyllabusEditor(syllabus) {
         ${(chapter.topics || []).map(topic => {
           let tEn = typeof topic === 'string' ? topic : (topic.title || '');
           let tTr = typeof topic === 'string' ? '' : (topic.title_tr || '');
-          if (!tTr || tTr.trim().toLowerCase() === tEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(tTr)) {
-            tTr = UniversalCurriculumTranslator.translate(tEn);
+          // Trust server-provided title_tr. Clear only if it's a hybrid/identical-to-English.
+          if (tTr && (tTr.trim().toLowerCase() === tEn.trim().toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(tTr))) {
+            tTr = ''; // clear bad value; AI debounce will fill it
           }
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
@@ -5791,6 +5794,47 @@ function renderAiSyllabusEditor(syllabus) {
       </div>
     </div>
   `;}).join('');
+  // After rendering, fire AI translation for any fields that are still empty or need filling
+  _fillMissingTurkishTranslations(container);
+}
+
+// Post-render: scan syllabus editor and AI-translate any empty Turkish fields
+async function _fillMissingTurkishTranslations(container) {
+  if (!container) return;
+  // Collect all (enInput, trInput) pairs where Turkish is empty
+  const pairs = [];
+  container.querySelectorAll('.syllabus-chapter').forEach(chapter => {
+    const enInp = chapter.querySelector('.syllabus-title-en');
+    const trInp = chapter.querySelector('.syllabus-title-tr');
+    if (enInp && trInp && enInp.value.trim() && !trInp.value.trim()) {
+      pairs.push({ enInp, trInp, container: chapter });
+    }
+    chapter.querySelectorAll('.topic-item').forEach(item => {
+      const tEnInp = item.querySelector('.topic-title-en');
+      const tTrInp = item.querySelector('.topic-title-tr');
+      if (tEnInp && tTrInp && tEnInp.value.trim() && !tTrInp.value.trim()) {
+        pairs.push({ enInp: tEnInp, trInp: tTrInp, container: item });
+      }
+    });
+  });
+  if (!pairs.length) return;
+
+  // Fire AI translations concurrently (batched naturally by the browser)
+  await Promise.all(pairs.map(async ({ enInp, trInp, container: el }) => {
+    const englishText = enInp.value.trim();
+    if (!englishText) return;
+    try {
+      const res = await api('/translate/material', {
+        method: 'POST',
+        body: { text: englishText, target_lang: 'tr' }
+      });
+      if (res && res.translated && typeof res.translated === 'string' && res.translated !== englishText) {
+        trInp.value = res.translated;
+        el.dataset.titleTr = res.translated;
+        el.dataset.lastAutoTr = res.translated;
+      }
+    } catch (_e) { /* silently ignore — user can fill manually */ }
+  }));
 }
 
 // Debounce helper for AI title translation calls
@@ -5963,9 +6007,7 @@ async function buildAiClassroom() {
     let title_en = (enInp ? enInp.value : (chapterEl.dataset.titleEn || (legacyInp ? legacyInp.value : ''))).trim();
     let title_tr = (trInp ? trInp.value : (chapterEl.dataset.titleTr || (legacyInp ? legacyInp.value : ''))).trim();
     if (!title_en && title_tr) title_en = title_tr;
-    if (!title_tr || title_tr.toLowerCase() === title_en.toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(title_tr)) {
-      title_tr = UniversalCurriculumTranslator.translate(title_en);
-    }
+    // Do NOT call local translate() — server's ensure_bilingual_curriculum handles gaps
 
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
@@ -5975,9 +6017,7 @@ async function buildAiClassroom() {
       let t_en = (tEnInp ? tEnInp.value : (topicItem.dataset.titleEn || (tLegacyInp ? tLegacyInp.value : ''))).trim();
       let t_tr = (tTrInp ? tTrInp.value : (topicItem.dataset.titleTr || (tLegacyInp ? tLegacyInp.value : ''))).trim();
       if (!t_en && t_tr) t_en = t_tr;
-      if (!t_tr || t_tr.toLowerCase() === t_en.toLowerCase() || UniversalCurriculumTranslator.isHybridOrEnglish(t_tr)) {
-        t_tr = UniversalCurriculumTranslator.translate(t_en);
-      }
+      // Do NOT call local translate() — server's ensure_bilingual_curriculum handles gaps
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
       topics.push({ title: t_en, title_tr: t_tr, type: type });
     });
