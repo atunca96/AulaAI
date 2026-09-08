@@ -1358,7 +1358,7 @@ const i18n = {
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
     '\u2795 Create New Quiz': '\u2795 Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
     Chapter: 'Konu Seçin', 'All chapters': 'Tüm Konular', AllTopics: 'Tüm Konular', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
-    completed: 'Tamamlandı', 'Created': 'Oluşturulma',
+    completed: 'Tamamlandı', 'Created': 'Oluşturuldu',
     // Assignments
     'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
     '\u2795 Create New Assignment': '\u2795 Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
@@ -1769,6 +1769,16 @@ function toggleLanguage() {
 
   // 9. Sync the Draft Review modal if open
   renderDraftListSync();
+
+  // 10. Sync student detail modal if open (viewQuiz / viewAssignment)
+  const detailModal = document.getElementById('student-detail-modal');
+  if (detailModal && !detailModal.classList.contains('hidden')) {
+    if (window._currentViewingQuiz) {
+      viewQuiz(window._currentViewingQuiz.id, window._currentViewingQuiz.title);
+    } else if (window._currentViewingAssignment) {
+      viewAssignment(window._currentViewingAssignment.id, window._currentViewingAssignment.title);
+    }
+  }
 }
 
 function renderDraftListSync() {
@@ -1792,7 +1802,9 @@ function renderLecturerSync() {
   if (curriculum) renderCurriculum();
   populateSelects();
   if (_lastQuizListData) renderQuizList(_lastQuizListData);
+  else if (currentCourse) loadQuizList();
   if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+  else if (currentCourse) loadAssignmentList();
   if (_lastStudentRosterData) renderStudentRoster(_lastStudentRosterData);
 }
 
@@ -1805,7 +1817,9 @@ function renderStudentSync() {
 
   renderStudentHome(_lastStudentHomeData || { masteries: [] });
   if (_lastQuizListData) renderQuizList(_lastQuizListData);
+  else if (currentCourse) loadQuizList();
   if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+  else if (currentCourse) loadAssignmentList();
   if (_lastStudentHomeData) renderStudentProgress(_lastStudentHomeData);
   if (curriculum) loadStudentPractice();
 }
@@ -1892,6 +1906,11 @@ function translateDifficulty(diff, lang = currentLang) {
 }
 
 const CURRICULUM_PAIRS = [
+  ["All Topics", "Tüm Konular"],
+  ["All topics", "Tüm konular"],
+  ["All chapters", "Tüm Konular"],
+  ["All Chapters", "Tüm Bölümler"],
+  ["All lessons", "Tüm Dersler"],
   ["Alphabet and Foundations", "Alfabe ve Temeller"],
   ["The Alphabet", "Alfabe"],
   ["Vowels and Consonants", "Sesli Harfler ve Sessiz Harfler"],
@@ -3097,6 +3116,66 @@ function translateCurriculumTitle(title, lang = currentLang) {
 
   return clean || trimmed;
 }
+
+function translateQuizTitle(title, lang = currentLang) {
+  if (!title) return '';
+  const trimmed = title.trim();
+
+  // 1. Exact match for All Topics / All Chapters variations
+  if (/^(tüm\s+konular|tüm\s+bölümler|tüm\s+dersler)$/i.test(trimmed)) {
+    return lang === 'tr' ? 'Tüm Konular' : 'All Topics';
+  }
+  if (/^(all\s+topics|all\s+chapters|all\s+lessons)$/i.test(trimmed)) {
+    return lang === 'tr' ? 'Tüm Konular' : 'All Topics';
+  }
+
+  // 2. Generic Quiz / Assignment
+  if (/^quiz$/i.test(trimmed)) {
+    return lang === 'tr' ? 'Sınav' : 'Quiz';
+  }
+  if (/^assignment$/i.test(trimmed)) {
+    return lang === 'tr' ? 'Ödev' : 'Assignment';
+  }
+
+  // 3. Chapter / Unit Quiz: "Chapter 3 Quiz", "Ünite 3 Sınavı", etc.
+  const mChQuiz = trimmed.match(/^(chapter|bölüm|ünite|unit)\s*(\d+)\s*(quiz|sınavı?)$/i);
+  if (mChQuiz) {
+    const num = mChQuiz[2];
+    return lang === 'tr' ? `Ünite ${num} Sınavı` : `Unit ${num} Quiz`;
+  }
+
+  // 4. Chapter / Unit Assignment: "Chapter 3 Assignment", "Ünite 3 Ödevi"
+  const mChAssign = trimmed.match(/^(chapter|bölüm|ünite|unit)\s*(\d+)\s*(assignment|ödevi?)$/i);
+  if (mChAssign) {
+    const num = mChAssign[2];
+    return lang === 'tr' ? `Ünite ${num} Ödevi` : `Unit ${num} Assignment`;
+  }
+
+  // 5. Topic with Quiz suffix: e.g. "Vowels and Consonants Quiz" or "Sesli Harfler ve Sessiz Harfler Sınavı"
+  const mSuffixQuiz = trimmed.match(/^(.*?)\s+(quiz|sınavı?)$/i);
+  if (mSuffixQuiz) {
+    const baseTopic = mSuffixQuiz[1].trim();
+    const translatedBase = translateCurriculumTitle(baseTopic, lang);
+    return lang === 'tr' ? `${translatedBase} Sınavı` : `${translatedBase} Quiz`;
+  }
+
+  // 6. Topic with Assignment suffix: e.g. "Vowels and Consonants Assignment" or "Sesli Harfler ve Sessiz Harfler Ödevi"
+  const mSuffixAssign = trimmed.match(/^(.*?)\s+(assignment|ödevi?)$/i);
+  if (mSuffixAssign) {
+    const baseTopic = mSuffixAssign[1].trim();
+    const translatedBase = translateCurriculumTitle(baseTopic, lang);
+    return lang === 'tr' ? `${translatedBase} Ödevi` : `${translatedBase} Assignment`;
+  }
+
+  // 7. Topic itself as title
+  const translatedCurriculum = translateCurriculumTitle(trimmed, lang);
+  if (translatedCurriculum) {
+    return translatedCurriculum;
+  }
+
+  return trimmed;
+}
+window.translateQuizTitle = translateQuizTitle;
 
 function getLocalizedCurriculumTitle(item, lang = currentLang) {
   if (!item) return '';
@@ -6555,6 +6634,8 @@ function switchTab(btn, skipLoad = false, updateRoute = true) {
   if (!skipLoad) {
     if (tabId === 'inbox') loadInbox();
     if (tabId === 's-messages') loadStudentChat();
+    if (tabId === 'quizzes-mgmt' || tabId === 'quizzes' || tabId === 's-quizzes') loadQuizList();
+    if (tabId === 'assignments-mgmt' || tabId === 'assignments' || tabId === 's-assignments') loadAssignmentList();
   }
 }
 
@@ -6605,7 +6686,11 @@ function goToHome() {
   }
 }
 
-function closeModal() { document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden')); }
+function closeModal() {
+  window._currentViewingQuiz = null;
+  window._currentViewingAssignment = null;
+  document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+}
 
 function closeMobileChat() {
   document.querySelectorAll('.chat-wrapper').forEach(w => w.classList.remove('is-active'));
@@ -7784,27 +7869,30 @@ async function loadQuizList() {
 }
 
 function renderQuizList(quizzes) {
-  const container = currentUser.role === 'lecturer' ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
+  const isLecturer = currentUser && currentUser.role === 'lecturer';
+  const container = isLecturer ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
-  container.innerHTML = quizzes.length === 0 ? `<p style="color:var(--text-muted);padding:20px" data-i18n="noQuizzes">${t('noQuizzes')}</p>`
+  container.innerHTML = (!quizzes || quizzes.length === 0) ? `<p style="color:var(--text-muted);padding:20px" data-i18n="noQuizzes">${t('noQuizzes')}</p>`
     : quizzes.map(q => {
-      if (currentUser.role === 'lecturer') {
+      const displayTitle = esc(translateQuizTitle(q.title, currentLang));
+      const createdLabel = t('Created');
+      const formattedDate = new Date(q.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+      if (isLecturer) {
         return `<div class="card" style="margin-bottom:12px">
             <div class="card-body flex-between">
               <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}',${escJS(q.title)})">
-                <strong>${q.title}</strong>
-                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()}</div>
+                <strong>${displayTitle}</strong>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${createdLabel}: ${formattedDate}</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="previewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})"><span>${t('view')}</span></button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
                 <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">${SVG_TRASH} <span>${t('confirm.delete_quiz')}</span></button>
               </div>
             </div>
           </div>`;
       } else {
         const isCompleted = q.is_completed;
-        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${q.title}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${t('Created')}: ${new Date(q.created_at).toLocaleDateString()} ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
+        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${displayTitle}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${createdLabel}: ${formattedDate} ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
       }
     }).join('');
 }
@@ -7816,6 +7904,8 @@ async function deleteQuiz(quizId, title) {
 }
 
 async function viewQuiz(quizId, title) {
+  window._currentViewingQuiz = { id: quizId, title: title };
+  window._currentViewingAssignment = null;
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
   document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
@@ -7825,42 +7915,64 @@ async function viewQuiz(quizId, title) {
     api('/quiz/responses?quiz_id=' + quizId)
   ]);
 
-  const studentResults = respData.student_results || [];
-  const classAvg = respData.average_score ? Math.round(respData.average_score * 100) : 0;
+  const studentResults = (respData && respData.student_results) || [];
+  const classAvg = (respData && respData.average_score) ? Math.round(respData.average_score * 100) : 0;
+  const isTr = currentLang === 'tr';
+  const displayTitle = translateQuizTitle(title, currentLang);
+  const qs = (quizData && quizData.questions) || [];
 
   const L = {
-    noResponses: t('assign.no_responses'),
-    submitted: t('assign.submitted'),
-    classAvg: t('assign.class_avg'),
-    correct: t('assign.correct'),
-    studentAnswer: t('assign.student_answer'),
-    correctAns: t('assign.correct_answer')
+    noResponses: t('assign.no_responses') || (isTr ? 'Henüz yanıt gönderilmedi.' : 'No responses submitted yet.'),
+    submitted: t('assign.submitted') || (isTr ? 'gönderildi' : 'submitted'),
+    classAvg: t('assign.class_avg') || (isTr ? 'Sınıf Ortalaması' : 'Class Average'),
+    correct: t('assign.correct') || (isTr ? 'Doğru' : 'Correct'),
+    studentAnswer: t('assign.student_answer') || (isTr ? 'Öğrenci Yanıtı' : 'Student Answer'),
+    correctAns: t('assign.correct_answer') || (isTr ? 'Doğru Cevap' : 'Correct Answer'),
+    questionsTab: isTr ? 'Sorular' : 'Questions',
+    responsesTab: isTr ? 'Yanıtlar' : 'Responses'
   };
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">${title}</h2>
+    <h2 style="margin-bottom:4px">${displayTitle}</h2>
     <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">
-      <span data-i18n="assign.class_avg">${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
-      ${studentResults.length} <span data-i18n="assign.submitted">${L.submitted}</span>
+      <span>${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
+      ${studentResults.length} <span>${L.submitted}</span>
     </div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px"><span data-i18n="answer">${t('answer')}</span></button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px"><span data-i18n="responses">${t('responses')}</span> (${studentResults.length})</button>
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'qv-questions')" style="flex:1;padding:10px"><span>${L.questionsTab}</span> (${qs.length})</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'qv-responses')" style="flex:1;padding:10px"><span>${L.responsesTab}</span> (${studentResults.length})</button>
     </div>
 
     <div id="qv-questions">
-      ${quizData.questions.map((q, i) => `
-        <div style="margin-bottom:10px; padding:12px; background:var(--bg-input); border:1px solid var(--border); border-radius:8px">
-          <div style="font-weight:600; margin-bottom:6px; font-size:14px">Q${i + 1}: ${translatePrompt(q.prompt)}</div>
-          <div style="font-size:13px"><span data-i18n="answer">${t('answer')}</span>: <strong style="color:var(--success)">${q.answer}</strong></div>
-        </div>
-      `).join('')}
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${qs.map((q, i) => `
+          <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
+              ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? (isTr ? 'Çoktan Seçmeli' : 'Multiple Choice') : (isTr ? 'Boşluk Doldurma' : 'Fill in the Blank'))}
+            </div>
+            <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+            ${q.type === 'mcq' ? `
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                ${(q.distractors || []).concat([q.answer]).map(o => `
+                  <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
+                ${SVG_CHECK} ${q.answer}
+              </div>
+            `}
+          </div>
+        `).join('')}
+      </div>
     </div>
 
     <div id="qv-responses" style="display:none">
       ${studentResults.length === 0
-      ? `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="assign.no_responses">${L.noResponses}</p>`
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
       : studentResults.map(sr => {
         const avgPct = Math.round(sr.average_score * 100);
         const correctCount = sr.answers.filter(a => a.is_correct).length;
@@ -7869,7 +7981,7 @@ async function viewQuiz(quizId, title) {
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
                     <strong style="font-size:15px">${sr.student_name}</strong>
-                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span data-i18n="assign.correct">${L.correct}</span></span>
+                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span>${L.correct}</span></span>
                   </div>
                   <div style="display:flex; align-items:center; gap:10px">
                     <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
@@ -7885,8 +7997,8 @@ async function viewQuiz(quizId, title) {
                         <div style="flex:1">
                           <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span><span data-i18n="assign.student_answer">${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? '[Blank]' : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span><span data-i18n="assign.correct_answer">${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            <span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (isTr ? '[Boş Bırakıldı]' : '[Blank]') : esc(a.student_answer)}</strong></span>
+                            ${!isRight ? `<span><span>${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
                           </div>
                         </div>
                       </div>`;
@@ -7902,8 +8014,13 @@ async function viewQuiz(quizId, title) {
 function switchQuizViewTab(btn, panelId) {
   btn.parentElement.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('qv-questions').style.display = panelId === 'qv-questions' ? 'block' : 'none';
-  document.getElementById('qv-responses').style.display = panelId === 'qv-responses' ? 'block' : 'none';
+  const modalBody = btn.closest('#student-detail-body') || document.getElementById('student-detail-body');
+  if (modalBody) {
+    ['qv-questions', 'qv-responses', 'av-questions', 'av-responses'].forEach(id => {
+      const p = modalBody.querySelector('#' + id);
+      if (p) p.style.display = (id === panelId) ? 'block' : 'none';
+    });
+  }
 }
 
 async function takeQuiz(quizId) {
@@ -8510,7 +8627,8 @@ async function loadAssignmentList() {
 }
 
 function renderAssignmentList(assignments) {
-  const container = currentUser.role === 'lecturer'
+  const isLecturer = currentUser && currentUser.role === 'lecturer';
+  const container = isLecturer
     ? document.getElementById('assignment-list')
     : document.getElementById('student-assignment-list');
   if (!container) return;
@@ -8520,33 +8638,40 @@ function renderAssignmentList(assignments) {
     return;
   }
 
-  if (currentUser.role === 'lecturer') {
-    container.innerHTML = assignments.map(a => `
+  if (isLecturer) {
+    container.innerHTML = assignments.map(a => {
+      const displayTitle = esc(translateQuizTitle(a.title, currentLang));
+      const createdLabel = t('Created');
+      const formattedDate = new Date(a.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+      return `
       <div class="card" style="margin-bottom:12px">
         <div class="card-body flex-between">
-          <div style="flex:1">
-            <strong style="font-size:15px">${esc(a.title)}</strong>
+          <div style="flex:1;cursor:pointer" onclick="viewAssignment('${a.id}',${escJS(a.title)})">
+            <strong style="font-size:15px">${displayTitle}</strong>
             <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-              ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()}
+              ${createdLabel}: ${formattedDate}
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
-            <button class="btn btn-outline btn-sm" onclick="previewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
-            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})"><span>${t('view')}</span></button>
+            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
             <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">${SVG_TRASH} <span>${t('confirm.delete_assignment')}</span></button>
           </div>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } else {
     container.innerHTML = assignments.map(a => {
       const done = a.is_completed;
+      const displayTitle = esc(translateQuizTitle(a.title, currentLang));
+      const createdLabel = t('Created');
+      const formattedDate = new Date(a.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
       return `
         <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'};opacity:${done ? '0.6' : '1'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
           <div class="card-body flex-between">
             <div>
-              <strong style="font-size:15px">${esc(a.title)}</strong>
+              <strong style="font-size:15px">${displayTitle}</strong>
               <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-                ${t('Created')}: ${new Date(a.created_at).toLocaleDateString()} ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}
+                ${createdLabel}: ${formattedDate} ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}
               </div>
             </div>
             <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? t('completed') : t('takeQuizBtn')}</span>
@@ -8563,14 +8688,21 @@ async function deleteAssignment(assignmentId, title) {
 }
 
 async function viewAssignment(assignmentId, title) {
+  window._currentViewingAssignment = { id: assignmentId, title: title };
+  window._currentViewingQuiz = null;
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
   document.getElementById('student-detail-body').innerHTML =
     `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
 
-  const data = await api('/assignment/responses?assignment_id=' + assignmentId);
+  const [assignData, respData] = await Promise.all([
+    api('/assignment/take?assignment_id=' + assignmentId),
+    api('/assignment/responses?assignment_id=' + assignmentId)
+  ]);
   const isTr = currentLang === 'tr';
-  const results = data.student_results || [];
+  const displayTitle = translateQuizTitle(title, currentLang);
+  const results = (respData && respData.student_results) || [];
+  const qs = (assignData && assignData.questions) || [];
 
   // Class average
   const classAvg = results.length
@@ -8578,162 +8710,125 @@ async function viewAssignment(assignmentId, title) {
     : 0;
 
   const L = {
-    noResponses: t('assign.no_responses'),
-    submitted: t('assign.submitted'),
-    classAvg: t('assign.class_avg'),
-    correct: t('assign.correct'),
-    studentAnswer: t('assign.student_answer'),
-    correctAnswer: t('assign.correct_answer'),
-    expand: t('assign.view_details')
+    noResponses: t('assign.no_responses') || (isTr ? 'Henüz yanıt gönderilmedi.' : 'No responses submitted yet.'),
+    submitted: t('assign.submitted') || (isTr ? 'gönderildi' : 'submitted'),
+    classAvg: t('assign.class_avg') || (isTr ? 'Sınıf Ortalaması' : 'Class Average'),
+    correct: t('assign.correct') || (isTr ? 'Doğru' : 'Correct'),
+    studentAnswer: t('assign.student_answer') || (isTr ? 'Öğrenci Yanıtı' : 'Student Answer'),
+    correctAnswer: t('assign.correct_answer') || (isTr ? 'Doğru Cevap' : 'Correct Answer'),
+    expand: t('assign.view_details') || (isTr ? 'Detayları Gör' : 'View Details'),
+    questionsTab: isTr ? 'Sorular' : 'Questions',
+    responsesTab: isTr ? 'Yanıtlar' : 'Responses'
   };
 
   document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">${title}</h2>
+    <h2 style="margin-bottom:4px">${displayTitle}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${data.total_questions} <span data-i18n="questions">${t('questions')}</span> &nbsp;·&nbsp;
-      ${results.length} <span data-i18n="assign.submitted">${L.submitted}</span>
+      <span>${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
+      ${results.length} <span>${L.submitted}</span>
     </div>
 
-    ${results.length > 0 ? `
-    <!-- Summary bar -->
-    <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="assign.submitted">${t('assign.submitted')}</div>
-        <div style="font-size:26px;font-weight:700">${results.length}</div>
-      </div>
-      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="CLASS MASTERY">${t('CLASS MASTERY')}</div>
-        <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
-      </div>
-      <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px" data-i18n="assign.top_score">${t('assign.top_score')}</div>
-        <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
-      </div>
+    <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+      <button class="nav-tab active" onclick="switchQuizViewTab(this,'av-questions')" style="flex:1;padding:10px"><span>${L.questionsTab}</span> (${qs.length})</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'av-responses')" style="flex:1;padding:10px"><span>${L.responsesTab}</span> (${results.length})</button>
     </div>
 
-    <!-- Score bar chart -->
-    <div style="margin-bottom:24px">
-      ${results.map((sr, i) => {
-    const pct = Math.round(sr.average_score * 100);
-    const correctCount = sr.answers.filter(a => a.is_correct).length;
-    return `
-        <div style="margin-bottom:6px">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
-            <span style="font-weight:500">
-              ${i < 3 ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
-              ${esc(sr.student_name)}
-            </span>
-            <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
-              <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${data.total_questions} <span data-i18n="correct">${L.correct.toLowerCase()}</span>)</span>
-            </span>
-          </div>
-          <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
-            <div style="background:${masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${pct}%;transition:width 0.6s ease"></div>
-          </div>
-        </div>
-        <!-- Expandable detail -->
-        <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-          <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
-            ${esc(sr.student_name)} — <span data-i18n="assign.detailed_answers">${t('assign.detailed_answers')}</span>
-          </div>
-          ${sr.answers.map((a, qi) => `
-            <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
-              <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? SVG_CHECK : SVG_CROSS}</span>
-              <div style="flex:1;font-size:13px">
-                <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${a.prompt}</div>
-                <div style="display:flex;gap:16px;flex-wrap:wrap">
-                  <span><span data-i18n="assign.student_answer">${L.studentAnswer}</span>: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (currentLang === 'tr' ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
-                  ${!a.is_correct ? `<span><span data-i18n="assign.correct_answer">${L.correctAnswer}</span>: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
-                </div>
-              </div>
-              <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score * 100)}%</span>
+    <div id="av-questions">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        ${qs.map((q, i) => `
+          <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
+            <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
+              ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? (isTr ? 'Çoktan Seçmeli' : 'Multiple Choice') : (isTr ? 'Boşluk Doldurma' : 'Fill in the Blank'))}
             </div>
-          `).join('')}
-        </div>`;
-  }).join('')}
-    </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="assign.no_responses">${L.noResponses}</p>`}
+            <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+            ${q.type === 'mcq' ? `
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                ${(q.distractors || []).concat([q.answer]).map(o => `
+                  <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                    ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
+                ${SVG_CHECK} ${q.answer}
+              </div>
+            `}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div id="av-responses" style="display:none">
+      ${results.length > 0 ? `
+      <!-- Summary bar -->
+      <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.submitted}</div>
+          <div style="font-size:26px;font-weight:700">${results.length}</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('CLASS MASTERY') || (isTr ? 'Sınıf Başarısı' : 'Class Mastery')}</div>
+          <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
+        </div>
+        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
+          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.top_score') || (isTr ? 'En Yüksek Skor' : 'Top Score')}</div>
+          <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
+        </div>
+      </div>
+
+      <!-- Score bar chart -->
+      <div style="margin-bottom:24px">
+        ${results.map((sr, i) => {
+          const pct = Math.round(sr.average_score * 100);
+          const correctCount = sr.answers.filter(a => a.is_correct).length;
+          return `
+          <div style="margin-bottom:6px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+              <span style="font-weight:500">
+                ${i < 3 ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
+                ${esc(sr.student_name)}
+              </span>
+              <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
+                <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${qs.length || sr.answers.length} <span>${L.correct.toLowerCase()}</span>)</span>
+              </span>
+            </div>
+            <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
+              <div style="background:${masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${pct}%;transition:width 0.6s ease"></div>
+            </div>
+          </div>
+          <!-- Expandable detail -->
+          <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
+              ${esc(sr.student_name)} — <span>${t('assign.detailed_answers') || (isTr ? 'Ayrıntılı Cevaplar' : 'Detailed Answers')}</span>
+            </div>
+            ${sr.answers.map((a, qi) => `
+              <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
+                <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? SVG_CHECK : SVG_CROSS}</span>
+                <div style="flex:1;font-size:13px">
+                  <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${translatePrompt(a.prompt)}</div>
+                  <div style="display:flex;gap:16px;flex-wrap:wrap">
+                    <span><span>${L.studentAnswer}</span>: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (isTr ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
+                    ${!a.is_correct ? `<span><span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
+                  </div>
+                </div>
+                <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score * 100)}%</span>
+              </div>
+            `).join('')}
+          </div>`;
+        }).join('')}
+      </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
+    </div>
   `;
   applyTranslations(document.getElementById('student-detail-body'));
 }
 
 async function previewAssignment(aid, title) {
-  const modal = document.getElementById('student-detail-modal');
-  modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
-
-  const data = await api('/assignment/take?assignment_id=' + aid);
-  const isTr = currentLang === 'tr';
-  const qs = data.questions || [];
-
-  document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">${title} - ${t('Preview')}</h2>
-    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${qs.length} ${t('questions')}
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      ${qs.map((q, i) => `
-        <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
-          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
-            ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
-          </div>
-          <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
-          ${q.type === 'mcq' ? `
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              ${(q.distractors || []).concat([q.answer]).map(o => `
-                <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                  ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
-                </div>
-              `).join('')}
-            </div>
-          ` : `
-            <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
-              ${SVG_CHECK} ${q.answer}
-            </div>
-          `}
-        </div>
-      `).join('')}
-    </div>
-  `;
+  return viewAssignment(aid, title);
 }
 
 async function previewQuiz(qid, title) {
-  const modal = document.getElementById('student-detail-modal');
-  modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
-
-  const data = await api('/quiz/take?quiz_id=' + qid);
-  const isTr = currentLang === 'tr';
-  const qs = data.questions || [];
-
-  document.getElementById('student-detail-body').innerHTML = `
-    <h2 style="margin-bottom:4px">${title} - ${isTr ? 'Önizleme' : 'Preview'}</h2>
-    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
-      ${qs.length} ${isTr ? 'soru' : 'questions'}
-    </div>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      ${qs.map((q, i) => `
-        <div style="padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
-          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
-            ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? 'Multiple Choice' : 'Fill in the Blank')}
-          </div>
-          <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
-          ${q.type === 'mcq' ? `
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              ${(q.distractors || []).concat([q.answer]).map(o => `
-                <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
-                  ${o === q.answer ? SVG_CHECK + ' ' : ''}${translateOption(o)}
-                </div>
-              `).join('')}
-            </div>
-          ` : `
-            <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid var(--success);color:var(--success);font-weight:600;display:inline-block">
-              ${SVG_CHECK} ${q.answer}
-            </div>
-          `}
-        </div>
-      `).join('')}
-    </div>
-  `;
+  return viewQuiz(qid, title);
 }
 
 async function createAssignment() {
