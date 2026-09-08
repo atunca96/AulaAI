@@ -3816,26 +3816,38 @@ function translateOption(text, lang = currentLang) {
     return isTr ? 'İyi geceler' : 'Good night';
   }
 
-  // 1. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN
+  // 1. Check unambiguous VOCAB_PAIRS array first
+  for (const [en, tr] of VOCAB_PAIRS) {
+    if (lower === en.toLowerCase()) return isTr ? tr : en;
+    if (lower === tr.toLowerCase()) return isTr ? tr : en;
+  }
+
+  // 2. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN with bidirectional awareness
   const enTr = window.VOCAB_MAP_EN_TR || {};
   const trEn = window.VOCAB_MAP_TR_EN || {};
 
   if (isTr) {
-    if (enTr[trimmed]) return enTr[trimmed];
-    if (enTr[lower]) return enTr[lower];
-    // If it is already known Turkish, preserve it
-    if (trEn[trimmed] || trEn[lower]) return text;
+    if (enTr[trimmed] && enTr[trimmed].toLowerCase() !== lower) return enTr[trimmed];
+    if (enTr[lower] && enTr[lower].toLowerCase() !== lower) return enTr[lower];
+    if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
+    if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
+    for (const [k, v] of Object.entries(trEn)) {
+      if (v && v.toLowerCase() === lower && k) return k;
+    }
+    for (const [k, v] of Object.entries(enTr)) {
+      if (k && k.toLowerCase() === lower && v) return v;
+    }
   } else {
-    if (trEn[trimmed]) return trEn[trimmed];
-    if (trEn[lower]) return trEn[lower];
-    // If it is already known English, preserve it
-    if (enTr[trimmed] || enTr[lower]) return text;
-  }
-
-  // 2. Check VOCAB_PAIRS array
-  for (const [en, tr] of VOCAB_PAIRS) {
-    if (lower === en.toLowerCase() || lower === tr.toLowerCase()) {
-      return isTr ? tr : en;
+    // Target is English
+    if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
+    if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
+    if (enTr[trimmed] && enTr[trimmed].toLowerCase() !== lower) return enTr[trimmed];
+    if (enTr[lower] && enTr[lower].toLowerCase() !== lower) return enTr[lower];
+    for (const [k, v] of Object.entries(enTr)) {
+      if (v && v.toLowerCase() === lower && k) return k;
+    }
+    for (const [k, v] of Object.entries(trEn)) {
+      if (v && v.toLowerCase() === lower && k) return k;
     }
   }
 
@@ -5069,7 +5081,7 @@ function translateEducationalText(text, lang = currentLang) {
     // 3. Dynamic Pedagogical Template Regex Engine (covers future / AI-generated lessons)
     let processed = cleanContent;
     if (isTr) {
-      // Comparison Context Tags & Contrast Labels (Image 1)
+      // Comparison Context Tags & Contrast Labels
       processed = processed.replace(/^Colloquial$/i, "Günlük / Samimi");
       processed = processed.replace(/^Formal$/i, "Resmi / Saygılı");
       processed = processed.replace(/^Informal$/i, "Samimi / Günlük");
@@ -5084,6 +5096,13 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Standard\s*\/\s*Neutral$/i, "Standart / Nötr");
       processed = processed.replace(/^Common Error\s*\/\s*Incorrect$/i, "Sık Yapılan Hata / Yanlış");
       processed = processed.replace(/^Authentic\s*\/\s*Correct$/i, "Doğal / Doğru Kullanım");
+      // Phonetic/contextual variation labels
+      processed = processed.replace(/^Standard Pronunciation$/i, "Normal Telaffuz");
+      processed = processed.replace(/^Contextual Variation$/i, "Bağlama Göre Değişen Telaffuz");
+      processed = processed.replace(/^Contextual Pronunciation$/i, "Bağlamsal Telaffuz");
+      processed = processed.replace(/^Natural Pronunciation$/i, "Doğal Telaffuz");
+      processed = processed.replace(/^Regional Variation$/i, "Bölgesel Farklılık");
+      processed = processed.replace(/^Emphatic Pronunciation$/i, "Vurgulu Telaffuz");
 
       // Contrast Notes & Descriptions (Image 1)
       processed = processed.replace(/^Standard informal greeting\.?$/i, "Standart samimi / günlük selamlama.");
@@ -5102,6 +5121,19 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Sophisticated formal\/literary expression\.?$/i, "Zengin ve incelikli edebi/resmi anlatım.");
       processed = processed.replace(/^Everyday colloquial sentence in (.*)\.?$/i, "$1 dilinde günlük samimi cümle.");
       processed = processed.replace(/^Advanced nuanced sentence in (.*)\.?$/i, "$1 dilinde ileri düzey nüanslı cümle.");
+      // Phonetic notes
+      processed = processed.replace(/^Normal pronunciation\.?$/i, "Normal telaffuz.");
+      processed = processed.replace(/^Standard pronunciation\.?$/i, "Normal telaffuz.");
+      processed = processed.replace(/^Contextual variation\.?$/i, "Bağlama göre değişen telaffuz.");
+      processed = processed.replace(/^Context-dependent pronunciation\.?$/i, "Bağlama göre değişen telaffuz.");
+      processed = processed.replace(/^Pronunciation varies by context\.?$/i, "Telaffuz bağlama göre değişir.");
+      processed = processed.replace(/^The (.*) sound is softened before (.*)\./i, "$1 sesi $2 harfinden önce yumuşatılır.");
+      processed = processed.replace(/^The (.*) sound is typically (.*) before (.*)\./i, "$1 sesi genellikle $3 harfinden önce $2 olarak telaffuz edilir.");
+      processed = processed.replace(/^Used (.*) before (.*)\./i, "$2 harfinden önce $1 kullanılır.");
+      processed = processed.replace(/^Used in most contexts\./i, "Çoğu bağlamda kullanılır.");
+      processed = processed.replace(/^Used before (.*) sounds\./i, "$1 sesleri öncesinde kullanılır.");
+      processed = processed.replace(/^Used before the vowels? (.*)\./i, "$1 sesli harfi\/harfleri öncesinde kullanılır.");
+
 
       // Grammatical Analysis & Breakdown Patterns (Image 3)
       processed = processed.replace(/^The verb '(.*)' changes according to the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
@@ -5160,6 +5192,16 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Resmi selamlama ifadesi\.?$/i, "Formal greeting.");
       processed = processed.replace(/^Günlük ve samimi konuşma üslubu\.?$/i, "Casual conversational style.");
       processed = processed.replace(/^Kibar ve saygılı hitap biçimi\.?$/i, "Polite and respectful address.");
+      // Phonetic TR→EN reverses
+      processed = processed.replace(/^Normal [Tt]elaffuz\.?$/i, "Standard pronunciation.");
+      processed = processed.replace(/^Bağlama [Gg]öre [Dd]eğişen [Tt]elaffuz\.?$/i, "Contextual variation.");
+      processed = processed.replace(/^Bağlamsal [Tt]elaffuz\.?$/i, "Contextual pronunciation.");
+      processed = processed.replace(/^Doğal [Tt]elaffuz\.?$/i, "Natural pronunciation.");
+      processed = processed.replace(/^Bölgesel [Ff]arklılık\.?$/i, "Regional variation.");
+      processed = processed.replace(/^Vurgulu [Tt]elaffuz\.?$/i, "Emphatic pronunciation.");
+      processed = processed.replace(/^Çoğu bağlamda kullanılır\.?$/i, "Used in most contexts.");
+      processed = processed.replace(/^Telaffuz bağlama göre değişir\.?$/i, "Pronunciation varies by context.");
+      processed = processed.replace(/^Doğrudan\s*\/\s*Günlük Konuşma$/i, "Direct / Conversational");
       processed = processed.replace(/^Sessiz Harf Değişkenliği$/i, "Consonant Variability");
       processed = processed.replace(/^Hece Yapısı$/i, "Syllable Structure");
       processed = processed.replace(/^Sesli Harf Netliği$/i, "Vowel Clarity");
@@ -9566,7 +9608,15 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             let html = "";
             
             // 0. Syntactic Formula / Pattern Detection
-            const rawFormula = (currentLang === 'tr' && p.formula_tr) ? p.formula_tr : (p.formula || p.pattern || p.structure || "");
+            // In EN mode: prefer formula_en if present, else only use formula if it has bracket notation [...]
+            // (plain target-language sentences stored in p.formula from old materials must NOT show in EN mode)
+            const isStructuralFormula = (str) => typeof str === 'string' && /\[/.test(str);
+            let rawFormula = "";
+            if (currentLang === 'tr') {
+              rawFormula = (p.formula_tr) ? p.formula_tr : (isStructuralFormula(p.formula) ? p.formula : (p.pattern || p.structure || ""));
+            } else {
+              rawFormula = (p.formula_en) ? p.formula_en : (isStructuralFormula(p.formula) ? p.formula : (isStructuralFormula(p.pattern) ? p.pattern : (isStructuralFormula(p.structure) ? p.structure : "")));
+            }
             if (rawFormula && typeof rawFormula === "string" && rawFormula.trim().length > 0) {
               const formulaVal = translateFormulaBrackets(rawFormula, currentLang);
               const formulaLabel = currentLang === 'tr' ? 'Sözdizimsel Yapı ve Formül' : 'Syntactic Pattern & Formula';
@@ -9709,20 +9759,26 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       if (currentLang === 'tr') {
                         cContext = c.context_tr || (c.context ? translateEducationalText(c.context, 'tr') : (c.label ? translateEducationalText(c.label, 'tr') : "Karşılaştırma"));
                       } else {
-                        cContext = c.context || (c.context_tr ? translateEducationalText(c.context_tr, 'en') : (c.label || "Contrast"));
+                        // Always translate — c.context may be stored in Turkish for older materials
+                        const rawCtx = c.context || c.context_tr || c.label || "";
+                        cContext = rawCtx ? translateEducationalText(rawCtx, 'en') : "Contrast";
                       }
                       const cTarget = c.target || c.sentence || c.text || "";
                       let cTrans = "";
                       if (currentLang === 'tr') {
                         cTrans = c.translation_tr || (c.translation ? translateEducationalText(c.translation, 'tr') : (c.meaning ? translateEducationalText(c.meaning, 'tr') : ""));
                       } else {
-                        cTrans = c.translation || (c.translation_tr ? translateEducationalText(c.translation_tr, 'en') : (c.meaning || ""));
+                        // c.translation may be stored in Turkish — always run through EN translation
+                        const rawTrans = c.translation_en || c.translation || c.translation_tr || c.meaning || "";
+                        cTrans = rawTrans ? translateEducationalText(rawTrans, 'en') : "";
                       }
                       let cNote = "";
                       if (currentLang === 'tr') {
                         cNote = c.note_tr || (c.note ? translateEducationalText(c.note, 'tr') : (c.explanation ? translateEducationalText(c.explanation, 'tr') : ""));
                       } else {
-                        cNote = c.note || (c.note_tr ? translateEducationalText(c.note_tr, 'en') : (c.explanation || ""));
+                        // c.note may be stored in Turkish — always run through EN translation
+                        const rawNote = c.note_en || c.note || c.note_tr || c.explanation || "";
+                        cNote = rawNote ? translateEducationalText(rawNote, 'en') : "";
                       }
                       return `
                         <div class="pedagogy-contrast-card">
@@ -9949,8 +10005,21 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     } else {
                       rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
                     }
-                    const rawResolved = translateOption(rawV);
+                    const rawResolved = translateOption(rawV, currentLang);
                     let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+
+                    // ROOT LANGUAGE MIXUP FIX: In EN mode, ensure any Turkish stored value is translated to English
+                    if (currentLang !== 'tr' && v) {
+                      const autoEN = translateOption(v, 'en');
+                      if (autoEN && autoEN.toLowerCase() !== v.toLowerCase()) {
+                        v = autoEN.charAt(0).toUpperCase() + autoEN.slice(1);
+                      } else {
+                        const eduEN = translateEducationalText(v, 'en');
+                        if (eduEN && eduEN.toLowerCase() !== v.toLowerCase()) {
+                          v = eduEN.charAt(0).toUpperCase() + eduEN.slice(1);
+                        }
+                      }
+                    }
 
                     // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
                     const kStr = safeStr(k).trim();
@@ -10722,9 +10791,61 @@ const handleDictTrigger = async (e) => {
   let trigger = e.target.closest('.foreign-word');
   if (!trigger) return;
 
-  let word = trigger.innerText.trim();
+  let word = trigger.innerText.trim()
+    .replace(/^["«"„]|["»""]$/g, '').trim(); // strip surrounding quotes
 
-  // Smart Phrase Expansion (e.g., teşekkür -> teşekkür ederim)
+  // If the .foreign-word element wraps a full sentence, extract the specific word at click point
+  const wordCount = word.split(/\s+/).length;
+  if (wordCount > 3 && (document.caretRangeFromPoint || document.caretPositionFromPoint)) {
+    let range;
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    } else {
+      const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
+    }
+    if (range && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+      const text = range.startContainer.textContent || '';
+      const offset = range.startOffset;
+      // Walk backwards to word start
+      let start = offset;
+      while (start > 0 && !/[\s"«"„»""]/.test(text[start - 1])) start--;
+      // Walk forwards to word end
+      let end = offset;
+      while (end < text.length && !/[\s"«"„»"",\.\!\?;:]/.test(text[end])) end++;
+      const clickedToken = text.slice(start, end).trim();
+      if (clickedToken && clickedToken.length > 1) {
+        word = clickedToken;
+        // Highlight only by wrapping the token temporarily (don't highlight the whole container)
+        // Use a temporary <mark> around the token in the text node
+        try {
+          const markRange = document.createRange();
+          markRange.setStart(range.startContainer, start);
+          markRange.setEnd(range.startContainer, end);
+          const mark = document.createElement('mark');
+          mark.style.cssText = 'background:rgba(99,102,241,0.35);color:inherit;border-radius:3px;';
+          markRange.surroundContents(mark);
+          setTimeout(() => { if (mark.parentNode) { mark.outerHTML = mark.innerHTML; } }, 1500);
+        } catch (_) {
+          // If surroundContents fails (cross-node), fall back to container highlight
+          trigger.classList.add('tap-highlight');
+          setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
+        }
+      } else {
+        trigger.classList.add('tap-highlight');
+        setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
+      }
+    } else {
+      trigger.classList.add('tap-highlight');
+      setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
+    }
+  } else {
+    // Short phrase or single word — highlight the whole element as before
+    trigger.classList.add('tap-highlight');
+    setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
+  }
+
+  // Smart Phrase Expansion (e.g., teşekkür → teşekkür ederim)
   if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
     const fullText = trigger.innerText || trigger.parentElement.innerText || "";
     if (fullText.toLowerCase().includes('teşekkür ederim')) {
@@ -10733,10 +10854,6 @@ const handleDictTrigger = async (e) => {
   }
 
   if (word && word.length > 1 && word.length < 100) {
-    // Visual Feedback
-    trigger.classList.add('tap-highlight');
-    setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
-
     // Haptic Feedback (Vibration)
     if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(10);
@@ -10856,38 +10973,72 @@ function renderDictContent(word, lang, res) {
   const content = document.getElementById('dict-content');
   if (!content || !res) return;
   const isTr = currentLang === 'tr';
-  const rawExplanation = (isTr && res.explanation_tr) ? res.explanation_tr : (res.explanation || (res.definitions ? res.definitions[0].definition : "No definition found."));
+  const rawExplanation = (isTr && res.explanation_tr) ? res.explanation_tr : (res.explanation || (res.definitions ? res.definitions[0].definition : (isTr ? "Tanım bulunamadı." : "No definition found.")));
   const explanation = translateDictExplanation(rawExplanation, isTr);
-  const rawUsage = (isTr && res.usage_tr) ? res.usage_tr : (res.usage || "Use it in daily conversation.");
+  const rawUsage = (isTr && res.usage_tr) ? res.usage_tr : (res.usage || (isTr ? "Günlük konuşmada kullanın." : "Use it in daily conversation."));
   const usage = translateEducationalText(rawUsage);
   const rawTip = (isTr && res.tip_tr) ? res.tip_tr : (res.tip || (isTr ? 'Ayrıntılı bilgi için sınıftaki ders materyallerine başvurun.' : 'Refer to classroom materials for more context.'));
   const tip = translateEducationalText(rawTip);
   const displayLang = translateCourseName(lang.split('(')[0].trim(), currentLang);
+  const cleanLang = lang.split('(')[0].trim();
+  const fontSize = word.length > 16 ? (word.length > 28 ? '18px' : '22px') : '28px';
 
   content.innerHTML = `
-    <div style="position:relative; margin-bottom:16px;">
-        <button onclick="closeDict()" style="position:absolute; top:-10px; right:-10px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:32px; height:32px; border-radius:50%; cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; z-index:10;">&times;</button>
-        <div id="dict-word-title" style="font-size:${word.length > 40 ? '16px' : '24px'}; color:#fff; font-weight:800; letter-spacing:-0.5px; line-line:1.4; margin-bottom:8px; word-break:break-word; display:flex; align-items:center; gap:10px;">${word}<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${lang.split('(')[0].trim()}', event)">${TTS_SVG_IDLE}</button></div>
-        <div style="font-size:12px; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px; font-weight:700;">(${displayLang})</div>
-    </div>
-    
-    <div class="ai-card">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-            <span class="ai-badge" style="font-size:11px;">AI</span>
-            <span style="font-size:11px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">${isTr ? 'Dilbilimsel Zeka' : 'Linguistic Intelligence'}</span>
+    <div style="position:relative;">
+
+      <!-- Header: Word + Close -->
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:16px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:${fontSize}; font-weight:900; letter-spacing:-0.5px; line-height:1.2; word-break:break-word;
+            background:linear-gradient(135deg, #ffffff 0%, var(--accent-light) 100%);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
+            ${word}
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+            <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px;
+              background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3);
+              font-size:10px; font-weight:700; color:var(--accent-light); text-transform:uppercase; letter-spacing:0.8px;">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              ${displayLang}
+            </span>
+            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(word)}, '${cleanLang}', event)" title="${isTr ? 'Dinle' : 'Listen'}" style="flex-shrink:0;">${TTS_SVG_IDLE}</button>
+          </div>
         </div>
-        <div class="ai-explanation" style="font-size:16px; color:#ffffff; line-height:1.6; margin-bottom:14px;">${explanation}</div>
-        
-        <div style="font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:6px;">${isTr ? 'Kullanım' : 'Usage'}</div>
-        <div class="english-translation" style="font-style:italic; font-size:15px; color:rgba(255,255,255,0.7); margin-bottom:14px;">"${usage}"</div>
-        
-        <div style="background:rgba(255,255,255,0.05); padding:12px; border-radius:12px; font-size:13px; color:rgba(255,255,255,0.6); line-height:1.4;">
-            <span style="font-weight:700; color:var(--accent-light);">${isTr ? 'İPUCU:' : 'PRO-TIP:'}</span> ${tip}
+        <button onclick="closeDict()" style="flex-shrink:0; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; transition:all 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.12)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'">&times;</button>
+      </div>
+
+      <!-- Divider -->
+      <div style="height:1px; background:linear-gradient(90deg, var(--accent) 0%, transparent 100%); margin-bottom:16px; opacity:0.3;"></div>
+
+      <!-- Explanation -->
+      <div style="margin-bottom:14px;">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:7px;">
+          <span style="width:3px; height:12px; background:var(--accent); border-radius:2px; display:inline-block;"></span>
+          <span style="font-size:9px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1.2px;">${isTr ? 'Anlam & Açıklama' : 'Meaning & Explanation'}</span>
         </div>
-    </div>
-    
-    <div style="display:flex; justify-content:flex-end; align-items:center; font-size:10px; color:var(--text-muted); margin-top:16px;">
-        <span style="cursor:pointer; font-weight:800; color:var(--accent-light);" onclick="closeDict()">${isTr ? 'KAPAT' : 'DISMISS'}</span>
+        <div class="ai-explanation" style="font-size:15px; color:var(--text-primary); line-height:1.65;">${explanation}</div>
+      </div>
+
+      <!-- Usage -->
+      <div style="margin-bottom:14px; padding:12px 14px; border-radius:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:9px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:6px;">${isTr ? 'Kullanım Örneği' : 'Usage Example'}</div>
+        <div class="english-translation" style="font-style:italic; font-size:14px; color:rgba(255,255,255,0.75); line-height:1.5;">&ldquo;${usage}&rdquo;</div>
+      </div>
+
+      <!-- Pro-Tip -->
+      <div style="padding:10px 14px; border-radius:10px; background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.18); margin-bottom:16px;">
+        <span style="font-size:9px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">${isTr ? '💡 İpucu' : '💡 Pro-Tip'}</span>
+        <div style="font-size:12px; color:rgba(255,255,255,0.55); line-height:1.5; margin-top:4px;">${tip}</div>
+      </div>
+
+      <!-- Footer -->
+      <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.06);">
+        <button class="btn btn-ghost btn-sm" style="font-size:10px; padding:5px 11px; border-radius:var(--radius-sm); background:var(--accent-glow); border:1px solid rgba(99,102,241,0.3); color:var(--accent); cursor:pointer; font-weight:700; letter-spacing:0.3px;" onclick="askAiAboutWord()">
+          ${isTr ? '✦ Asistan ile Açıkla' : '✦ Explain with Assistant'}
+        </button>
+        <span style="font-size:9px; color:var(--text-muted); cursor:pointer; font-weight:700; text-transform:uppercase; letter-spacing:1px;" onclick="closeDict()">${isTr ? 'Kapat' : 'Dismiss'}</span>
+      </div>
+
     </div>
   `;
 }
