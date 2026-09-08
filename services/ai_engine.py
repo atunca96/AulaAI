@@ -428,7 +428,12 @@ RULES:
 5. MANDATORY SCOPE: Generate EXACTLY 8 to 12 chapters to ensure full curriculum coverage. A roadmap with fewer than 8 units is unacceptable.
 6. TOPIC DENSITY: Each chapter MUST have at least 3-4 descriptive topics.
 7. ENGLISH TITLES ONLY: ALL unit titles ('title' field) and topic titles ('title' field) MUST be in English. Never use {language} for titles. Example: use 'Greetings and Introductions' NOT 'Saludos y Presentaciones'.
-8. TURKISH TRANSLATIONS: For EVERY chapter and topic, include a 'title_tr' field with a natural, grammatically correct Turkish translation of the title. Example: 'Greetings and Introductions' → 'Selamlaşmalar ve Tanıtımlar'.
+8. TURKISH TRANSLATIONS: For EVERY chapter and topic, include a 'title_tr' field with a natural, grammatically correct Turkish translation.
+   - Example 1: 'Basic Adjectives for Personal Description' → 'Kişisel Tanım İçin Temel Sıfatlar' (NEVER leave English words like 'Personal Description İçin...')
+   - Example 2: 'Everyday Survival Vocabulary' → 'Günlük Hayatta Kalma Kelimeleri' (NEVER stutter or duplicate words like 'Günlük Hayatta Hayatta Kalma...')
+   - Example 3: 'Essential Vocabulary for Traveling' → 'Seyahat İçin Temel Kelimeler' (NEVER write 'Traveling İçin...')
+   - Example 4: "Using 'Ser' to Describe Identity" → "'Ser' Kullanarak Kimliği Tanımlama"
+   - STRICT: NEVER mix English words into Turkish titles. Every word in 'title_tr' must be 100% Turkish. NEVER duplicate words (e.g. NEVER write 've ve', 'Hayatta Hayatta').
 
 Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'title_tr': '...', 'topics': [{{'title': '...', 'title_tr': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.7)

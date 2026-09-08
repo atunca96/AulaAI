@@ -36,13 +36,34 @@ CANONICAL_TITLE_MAP = {
     "basic greetings and farewells": "Temel Selamlaşmalar ve Vedalaşmalar",
     "greetings and farewells": "Selamlaşmalar ve Vedalaşmalar",
     "introducing yourself and others": "Kendinizi ve Başkalarını Tanıtmak",
+    "introducing yourself": "Kendini Tanıtma",
+    "introducing others": "Başkalarını Tanıtma",
     "polite expressions and requests": "Nazik İfadeler ve İstekler",
     "polite expressions": "Nazik İfadeler",
     "requests": "İstekler",
     "saying hello and goodbye": "Merhaba ve Hoşça Kal Deme",
-    "introducing yourself": "Kendini Tanıtma",
     "formal vs informal": "Resmi ve Samimi Hitaplar",
     "formal vs informal speech": "Resmi ve Samimi Konuşma",
+    "describing yourself and others": "Kendinizi ve Başkalarını Tanımlama",
+    "basic adjectives for personal description": "Kişisel Tanım İçin Temel Sıfatlar",
+    "basic adjectives": "Temel Sıfatlar",
+    "personal description": "Kişisel Tanım",
+    "using 'ser' to describe identity": "'Ser' Kullanarak Kimliği Tanımlama",
+    "using ser to describe identity": "'Ser' Kullanarak Kimliği Tanımlama",
+    "talking about age and nationality": "Yaş ve Milliyet Hakkında Konuşma",
+    "age and nationality": "Yaş ve Milliyet",
+    "everyday survival vocabulary": "Günlük Hayatta Kalma Kelimeleri",
+    "survival vocabulary": "Hayatta Kalma Kelimeleri",
+    "everyday survival": "Günlük Hayatta Kalma",
+    "essential vocabulary for traveling": "Seyahat İçin Temel Kelimeler",
+    "vocabulary for traveling": "Seyahat İçin Kelimeler",
+    "essential vocabulary": "Temel Kelimeler",
+    "navigating public transportation": "Toplu Taşımada Yol Bulma",
+    "public transportation": "Toplu Taşıma",
+    "basic food and drink vocabulary": "Temel Yiyecek ve İçecek Kelimeleri",
+    "food and drink vocabulary": "Yiyecek ve İçecek Kelimeleri",
+    "food and drink": "Yiyecek ve İçecek",
+    "basic food and drinks": "Temel Yiyecek ve İçecekler",
     "numbers and basic math": "Sayılar ve Temel Matematik",
     "counting from 1 to 100": "1'den 100'e Sayma",
     "numbers in context": "Bağlam İçinde Sayılar",
@@ -56,7 +77,6 @@ CANONICAL_TITLE_MAP = {
     "common emergency phrases": "Acil Durum İfadeleri",
     "asking for help": "Yardım İsteme",
     "basic signs and warnings": "Temel İşaretler ve Uyarılar",
-    "describing yourself and others": "Kendini ve Başkalarını Tanımlama",
     "physical appearance": "Fiziksel Görünüş",
     "personality traits": "Kişilik Özellikleri",
     "forming basic sentences": "Temel Cümleler Oluşturma",
@@ -172,18 +192,44 @@ def save_title_cache(pairs: Dict[str, str]):
         except Exception as e:
             logger.error(f"Failed to save title pairs cache: {e}")
 
+def clean_stutter(text: str) -> str:
+    """Removes word duplication, stuttering, and awkward repetitive phrasing."""
+    if not text or not isinstance(text, str):
+        return ""
+    t = str(text).strip()
+    t = re.sub(r'\bGünlük\s+Hayatta\s+Hayatta\s+Kalma\b', 'Günlük Hayatta Kalma', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bHayatta\s+Hayatta\b', 'Hayatta', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bveya\s+veya\b', 'veya', t, flags=re.IGNORECASE)
+    t = re.sub(r'\biçin\s+için\b', 'için', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bde\s+de\b', 'de', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bda\s+da\b', 'da', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bile\s+ile\b', 'ile', t, flags=re.IGNORECASE)
+    def _repl_dup(m):
+        w = m.group(1)
+        if w.lower() in ('yavaş', 'adım', 'tek', 'ayrı', 'az'):
+            return m.group(0)
+        return w
+    t = re.sub(r'\b([a-zA-ZçğıöşüÇĞİÖŞÜâîû]+)\s+\1\b', _repl_dup, t, flags=re.IGNORECASE)
+    t = re.sub(r',\s*ve\b', ' ve', t, flags=re.IGNORECASE)
+    t = re.sub(r'\s{2,}', ' ', t).strip()
+    return t
+
 TR_LETTERS = re.compile(r'[çğıöşüÇĞİÖŞÜâîû]')
-TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar)\b', re.IGNORECASE)
+TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b', re.IGNORECASE)
 
 EN_WORDS = re.compile(
     r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|'
     r'describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|'
     r'review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|'
-    r'words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|questions|answers|'
+    r'words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|'
     r'math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|'
     r'pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|'
     r'functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|'
-    r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|places)\b',
+    r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|'
+    r'personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|'
+    r'objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|'
+    r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple)\b',
     re.IGNORECASE
 )
 
@@ -197,12 +243,12 @@ def is_hybrid(text: str) -> bool:
     low = t.lower()
     if re.search(r'\bve\s+ve\b', low) or "pratik application" in low or "ve pratik application" in low or "around us" in low:
         return True
-    if "celebratory" in low or "situations" in low or "functional language" in low:
-        if bool(TR_LETTERS.search(t) or TR_WORDS.search(t)):
-            return True
+    # Exclude target language terms in single quotes (like 'ser', 'estar', 'haben')
+    quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
+    matches = [m.lower() for m in EN_WORDS.findall(t)]
+    leaked = [m for m in matches if m not in quoted]
     has_tr = bool(TR_LETTERS.search(t) or TR_WORDS.search(t))
-    has_en = bool(EN_WORDS.search(t))
-    return has_tr and has_en
+    return bool(leaked) and has_tr
 
 def is_pure_english(text: str) -> bool:
     """Returns True if the string is in English."""
@@ -216,27 +262,33 @@ def is_pure_english(text: str) -> bool:
     low = t.lower()
     if low in ("functional language", "cultural context", "vocabulary", "grammar"):
         return True
-    return bool(EN_WORDS.search(t))
+    quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
+    matches = [m.lower() for m in EN_WORDS.findall(t)]
+    leaked = [m for m in matches if m not in quoted]
+    return bool(leaked)
 
 def is_clean_turkish(text: str) -> bool:
-    """Returns True if the string is genuine Turkish with no leaked English words."""
+    """Returns True if the string is genuine Turkish with no leaked English words and no stutter."""
     if not text or not isinstance(text, str):
         return False
     t = text.strip()
-    if not t or is_hybrid(t):
+    if not t or is_hybrid(t) or is_pure_english(t):
         return False
-    if is_pure_english(t):
+    if re.search(r'\b(ve\s+ve|veya\s+veya|için\s+için|hayatta\s+hayatta)\b', t, re.IGNORECASE):
         return False
-    if EN_WORDS.search(t):
+    quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
+    matches = [m.lower() for m in EN_WORDS.findall(t)]
+    leaked = [m for m in matches if m not in quoted]
+    if leaked:
         return False
     low = t.lower()
-    if "functional language" in low or "cultural context" in low:
+    if "functional language" in low or "cultural context" in low or "celebratory situations" in low:
         return False
     return True
 
 def is_hybrid_or_english(text: str) -> bool:
     """Returns True if text is either a hybrid or English."""
-    return is_hybrid(text) or is_pure_english(text)
+    return is_hybrid(text) or is_pure_english(text) or not is_clean_turkish(text)
 
 def _clean_title_key(title: str) -> str:
     """Normalizes title for cache lookup by stripping unit prefixes."""
@@ -322,11 +374,16 @@ def translate_titles_batch(titles: List[str], target_lang: str = "tr") -> Dict[s
 Translate each curriculum unit title or topic title into natural, fluent, grammatically correct {dest_name}.
 
 STRICT RULES:
-1. Every translation MUST be 100% fluent {dest_name}. Do NOT mix English and Turkish words together.
-2. If translating to Turkish, NEVER output hybrids like 'Review ve Pratik' or 'Cultural Insights: Understanding German Customs'.
-   Translate the ENTIRE phrase holistically (e.g. 'Tekrar ve Pratik Uygulama', 'Kültürel Bilgiler: Alman Geleneklerini Anlama').
-3. Keep target language foreign terms (like Spanish verbs 'ser vs estar' or French words) unchanged in single quotes.
-4. Return ONLY a JSON object mapping each string index ("0", "1", ...) to its translation string.
+1. Every translation MUST be 100% fluent {dest_name}. NEVER mix English and Turkish words together.
+2. Absolutely NO Frankenstein hybrids like 'Personal Description İçin Temel Sıfatlar' or 'Traveling İçin Temel Kelimeler'.
+   Translate the ENTIRE title holistically:
+   - 'Basic Adjectives for Personal Description' -> 'Kişisel Tanım İçin Temel Sıfatlar'
+   - 'Essential Vocabulary for Traveling' -> 'Seyahat İçin Temel Kelimeler'
+   - 'Everyday Survival Vocabulary' -> 'Günlük Hayatta Kalma Kelimeleri'
+   - 'Using Ser to Describe Identity' -> ''Ser' Kullanarak Kimliği Tanımlama'
+3. NEVER repeat or duplicate words (e.g. NEVER write 'Günlük Hayatta Hayatta Kalma' or 've ve').
+4. Keep target language foreign terms (like Spanish verbs 'ser', 'estar' or German verbs) unchanged in single quotes.
+5. Return ONLY a JSON object mapping each string index ("0", "1", ...) to its translation string.
 
 Input:
 {json.dumps(indexed_input, ensure_ascii=False, indent=2)}"""
@@ -345,10 +402,19 @@ Input:
                     idx = int(idx_str)
                     if 0 <= idx < len(chunk) and isinstance(trans, str):
                         orig = chunk[idx]
-                        trans_clean = trans.strip()
-                        if target_lang == "tr" and not is_hybrid_or_english(trans_clean):
-                            newly_translated[orig] = trans_clean
-                            results[orig] = trans_clean
+                        trans_clean = clean_stutter(trans.strip())
+                        if target_lang == "tr":
+                            if is_clean_turkish(trans_clean):
+                                newly_translated[orig] = trans_clean
+                                results[orig] = trans_clean
+                            else:
+                                try:
+                                    from services.language_data import UniversalCurriculumTranslator
+                                    uct_val = clean_stutter(UniversalCurriculumTranslator.translate(orig))
+                                    if is_clean_turkish(uct_val):
+                                        newly_translated[orig] = uct_val
+                                        results[orig] = uct_val
+                                except Exception: pass
                         elif target_lang == "en":
                             newly_translated[orig] = trans_clean
                             results[orig] = trans_clean
@@ -357,7 +423,7 @@ Input:
 
     # Fallback for anything that AI failed to translate
     for raw in unique_needed:
-        if raw not in results:
+        if raw not in results or (target_lang == "tr" and not is_clean_turkish(results[raw])):
             clean = _clean_title_key(raw)
             low_clean = clean.lower()
             if target_lang == "tr":
@@ -365,11 +431,11 @@ Input:
                 if not cand:
                     try:
                         from services.language_data import UniversalCurriculumTranslator
-                        uct_cand = UniversalCurriculumTranslator.translate(clean)
-                        if uct_cand and not is_pure_english(uct_cand) and not is_hybrid(uct_cand):
+                        uct_cand = clean_stutter(UniversalCurriculumTranslator.translate(clean))
+                        if uct_cand and is_clean_turkish(uct_cand):
                             cand = uct_cand
                     except Exception: pass
-                results[raw] = cand if (cand and not is_pure_english(cand)) else clean
+                results[raw] = clean_stutter(cand or CANONICAL_TITLE_MAP.get(low_clean) or clean)
             else:
                 results[raw] = clean
 
@@ -382,7 +448,7 @@ Input:
 def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Ensures every chapter and topic in chapters has both a valid English 'title'
-    and a valid Turkish 'title_tr' without any hybrid artifacts.
+    and a valid Turkish 'title_tr' without any hybrid artifacts or stutters.
     Performs batch translation for any missing or unclean titles.
     """
     if not chapters:
@@ -393,15 +459,15 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
 
     for ch in chapters:
         ch_title = ch.get("title", "").strip()
-        ch_tr = ch.get("title_tr", "").strip()
+        ch_tr = clean_stutter(ch.get("title_tr", "").strip())
+        ch["title_tr"] = ch_tr
 
         # Check chapter
         if not ch_tr or not is_clean_turkish(ch_tr) or ch_tr.lower() == ch_title.lower() or is_pure_english(ch_tr) or is_hybrid(ch_tr):
             if ch_title:
                 titles_needing_tr.append(ch_title)
         if not ch_title or is_clean_turkish(ch_title) or is_hybrid(ch_title):
-            # If title is in Turkish, we need English for title
-            if ch_tr and not is_hybrid(ch_tr):
+            if ch_tr and is_clean_turkish(ch_tr):
                 titles_needing_en.append(ch_tr)
             elif ch_title:
                 titles_needing_en.append(ch_title)
@@ -409,13 +475,15 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
         # Check topics
         for t in ch.get("topics", []):
             t_title = (t.get("title") if isinstance(t, dict) else str(t)).strip()
-            t_tr = (t.get("title_tr", "") if isinstance(t, dict) else "").strip()
+            t_tr = clean_stutter((t.get("title_tr", "") if isinstance(t, dict) else "").strip())
+            if isinstance(t, dict):
+                t["title_tr"] = t_tr
 
             if not t_tr or not is_clean_turkish(t_tr) or t_tr.lower() == t_title.lower() or is_pure_english(t_tr) or is_hybrid(t_tr):
                 if t_title:
                     titles_needing_tr.append(t_title)
             if not t_title or is_clean_turkish(t_title) or is_hybrid(t_title):
-                if t_tr and not is_hybrid(t_tr):
+                if t_tr and is_clean_turkish(t_tr):
                     titles_needing_en.append(t_tr)
                 elif t_title:
                     titles_needing_en.append(t_title)
@@ -430,14 +498,17 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
     if titles_needing_en:
         en_translations = translate_titles_batch(titles_needing_en, target_lang="en")
 
-    # Apply back
+    # Apply back and sanitize with clean_stutter
     for ch in chapters:
         curr_title = ch.get("title", "").strip()
-        curr_tr = ch.get("title_tr", "").strip()
+        curr_tr = clean_stutter(ch.get("title_tr", "").strip())
 
         # Heal Turkish
         if not curr_tr or not is_clean_turkish(curr_tr) or curr_tr.lower() == curr_title.lower() or is_pure_english(curr_tr) or is_hybrid(curr_tr):
-            ch["title_tr"] = tr_translations.get(curr_title, curr_tr or curr_title)
+            candidate = tr_translations.get(curr_title, curr_tr or curr_title)
+            ch["title_tr"] = clean_stutter(candidate)
+        else:
+            ch["title_tr"] = clean_stutter(curr_tr)
 
         # Heal English
         if not curr_title or is_clean_turkish(curr_title) or is_hybrid(curr_title):
@@ -448,10 +519,13 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
             if not isinstance(t, dict):
                 continue
             topic_title = t.get("title", "").strip()
-            topic_tr = t.get("title_tr", "").strip()
+            topic_tr = clean_stutter(t.get("title_tr", "").strip())
 
             if not topic_tr or not is_clean_turkish(topic_tr) or topic_tr.lower() == topic_title.lower() or is_pure_english(topic_tr) or is_hybrid(topic_tr):
-                t["title_tr"] = tr_translations.get(topic_title, topic_tr or topic_title)
+                candidate = tr_translations.get(topic_title, topic_tr or topic_title)
+                t["title_tr"] = clean_stutter(candidate)
+            else:
+                t["title_tr"] = clean_stutter(topic_tr)
 
             if not topic_title or is_clean_turkish(topic_title) or is_hybrid(topic_title):
                 t["title"] = en_translations.get(topic_tr, en_translations.get(topic_title, topic_title))

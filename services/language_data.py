@@ -3257,14 +3257,46 @@ class UniversalCurriculumTranslator:
         
         # Situations & survival
         "everyday survival vocabulary": "Günlük Hayatta Kalma Kelimeleri",
+        "everyday survival": "Günlük Hayatta Kalma",
         "survival vocabulary": "Hayatta Kalma Kelimeleri",
+        "essential vocabulary for traveling": "Seyahat İçin Temel Kelimeler",
+        "essential vocabulary for travel": "Seyahat İçin Temel Kelimeler",
+        "vocabulary for traveling": "Seyahat İçin Kelimeler",
+        "vocabulary for travel": "Seyahat İçin Kelimeler",
+        "essential vocabulary": "Temel Kelimeler",
+        "navigating public transportation": "Toplu Taşımada Yol Bulma",
+        "navigating public transport": "Toplu Taşımada Yol Bulma",
+        "public transportation": "Toplu Taşıma",
+        "public transport": "Toplu Taşıma",
+        "basic food and drink vocabulary": "Temel Yiyecek ve İçecek Kelimeleri",
+        "food and drink vocabulary": "Yiyecek ve İçecek Kelimeleri",
+        "food and drink": "Yiyecek ve İçecek",
+        "basic food and drinks": "Temel Yiyecek ve İçecekler",
         "daily routines": "Günlük Rutinler",
         "food and dining": "Yiyecek ve Yemek",
         "shopping essentials": "Alışveriş Temelleri",
         "emergency situations": "Acil Durumlar",
-        "public transportation": "Toplu Taşıma",
+        "seeking help: phrases for emergencies": "Yardım İsteme: Acil Durum İfadeleri",
+        "seeking help": "Yardım İsteme",
+        "phrases for emergencies": "Acil Durum İfadeleri",
+        "basic phrases for celebratory situations": "Kutlama Durumları İçin Temel İfadeler",
+        "celebratory situations": "Kutlama Durumları",
         "directions and transportation": "Yol Tarifi ve Ulaşım",
         "weather and seasons": "Hava Durumu ve Mevsimler",
+        
+        # Describing & identity
+        "describing yourself and others": "Kendinizi ve Başkalarını Tanımlama",
+        "describing yourself": "Kendinizi Tanımlama",
+        "describing others": "Başkalarını Tanımlama",
+        "basic adjectives for personal description": "Kişisel Tanım İçin Temel Sıfatlar",
+        "adjectives for personal description": "Kişisel Tanım İçin Sıfatlar",
+        "basic adjectives": "Temel Sıfatlar",
+        "personal description": "Kişisel Tanım",
+        "personal descriptions": "Kişisel Tanımlar",
+        "using 'ser' to describe identity": "'Ser' Kullanarak Kimliği Tanımlama",
+        "using ser to describe identity": "'Ser' Kullanarak Kimliği Tanımlama",
+        "talking about age and nationality": "Yaş ve Milliyet Hakkında Konuşma",
+        "age and nationality": "Yaş ve Milliyet",
     }
 
     VOCABULARY = {
@@ -3300,6 +3332,22 @@ class UniversalCurriculumTranslator:
         "expression": "İfade",
         "requests": "İstekler",
         "request": "İstek",
+        "description": "Tanım",
+        "descriptions": "Tanımlar",
+        "identity": "Kimlik",
+        "identities": "Kimlikler",
+        "survival": "Hayatta Kalma",
+        "travel": "Seyahat",
+        "traveling": "Seyahat",
+        "travelling": "Seyahat",
+        "transport": "Ulaşım",
+        "transportation": "Ulaşım",
+        "basics": "Temeller",
+        "foundations": "Temeller",
+        "celebratory": "Kutlama",
+        "celebration": "Kutlama",
+        "celebrations": "Kutlamalar",
+        "seeking": "İsteme",
         "others": "Başkaları",
         "yourself": "Kendiniz",
         "grammar": "Dilbilgisi",
@@ -3423,12 +3471,95 @@ class UniversalCurriculumTranslator:
         "giving": "Verme",
     }
 
+    TR_LETTERS = re.compile(r'[çğıöşüÇĞİÖŞÜâîû]')
+    TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b', re.IGNORECASE)
+    EN_WORDS = re.compile(
+        r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|'
+        r'describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|'
+        r'review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|'
+        r'words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|'
+        r'math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|'
+        r'pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|'
+        r'functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|'
+        r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|'
+        r'personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|'
+        r'objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|'
+        r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple)\b',
+        re.IGNORECASE
+    )
+
+    @classmethod
+    def clean_stutter(cls, text: str) -> str:
+        """Removes word duplication, stuttering, and awkward repetitive phrasing."""
+        if not text:
+            return ""
+        t = str(text).strip()
+        t = re.sub(r'\bGünlük\s+Hayatta\s+Hayatta\s+Kalma\b', 'Günlük Hayatta Kalma', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bHayatta\s+Hayatta\b', 'Hayatta', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bveya\s+veya\b', 'veya', t, flags=re.IGNORECASE)
+        t = re.sub(r'\biçin\s+için\b', 'için', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bde\s+de\b', 'de', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bda\s+da\b', 'da', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bile\s+ile\b', 'ile', t, flags=re.IGNORECASE)
+        def _repl_dup(m):
+            w = m.group(1)
+            if w.lower() in ('yavaş', 'adım', 'tek', 'ayrı', 'az'):
+                return m.group(0)
+            return w
+        t = re.sub(r'\b([a-zA-ZçğıöşüÇĞİÖŞÜâîû]+)\s+\1\b', _repl_dup, t, flags=re.IGNORECASE)
+        t = re.sub(r',\s*ve\b', ' ve', t, flags=re.IGNORECASE)
+        t = re.sub(r'\s{2,}', ' ', t).strip()
+        return t
+
+    @classmethod
+    def is_hybrid_or_english(cls, text: str) -> bool:
+        if not text or not isinstance(text, str):
+            return False
+        t = text.strip()
+        if not t:
+            return False
+        low = t.lower()
+        if re.search(r'\bve\s+ve\b', low) or re.search(r'\bhayatta\s+hayatta\b', low) or "pratik application" in low or "around us" in low:
+            return True
+        quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
+        matches = [m.lower() for m in cls.EN_WORDS.findall(t)]
+        leaked = [m for m in matches if m not in quoted]
+        has_tr = bool(cls.TR_LETTERS.search(t) or cls.TR_WORDS.search(t))
+        if leaked and has_tr:
+            return True
+        total_tokens = len(t.split())
+        if total_tokens > 0 and len(leaked) >= (total_tokens / 2):
+            return True
+        return False
+
+    @classmethod
+    def is_clean_turkish(cls, text: str) -> bool:
+        if not text or not isinstance(text, str):
+            return False
+        t = text.strip()
+        if not t:
+            return False
+        if re.search(r'\bHayatta\s+Hayatta\b', t, re.IGNORECASE) or re.search(r'\bve\s+ve\b', t, re.IGNORECASE):
+            return False
+        if cls.is_hybrid_or_english(t):
+            return False
+        has_tr_chars = bool(cls.TR_LETTERS.search(t))
+        has_tr_lexicon = bool(cls.TR_WORDS.search(t))
+        return has_tr_chars or has_tr_lexicon
+
     @classmethod
     def clean_hybrids(cls, text: str) -> str:
         if not text:
             return ""
         t = str(text).strip()
         hybrids = [
+            (r'Personal\s+Description\s+İçin', 'Kişisel Tanım İçin'),
+            (r'Personal\s+Description', 'Kişisel Tanım'),
+            (r'Traveling\s+İçin', 'Seyahat İçin'),
+            (r'Travel\s+İçin', 'Seyahat İçin'),
+            (r'Günlük\s+Hayatta\s+Hayatta\s+Kalma', 'Günlük Hayatta Kalma'),
+            (r'Hayatta\s+Hayatta', 'Hayatta'),
             (r'Dünya\s+Around\s+Us', 'Çevremizdeki Dünya'),
             (r'the\s+world\s+around\s+us', 'Çevremizdeki Dünya'),
             (r'world\s+around\s+us', 'Çevremizdeki Dünya'),
@@ -3453,11 +3584,7 @@ class UniversalCurriculumTranslator:
         ]
         for pat, repl in hybrids:
             t = re.sub(pat, repl, t, flags=re.IGNORECASE)
-        t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
-        t = re.sub(r'\bve\s+ve\b', 've', t, flags=re.IGNORECASE)
-        t = re.sub(r'\bveya\s+veya\b', 'veya', t, flags=re.IGNORECASE)
-        t = re.sub(r',\s*ve\b', ' ve', t, flags=re.IGNORECASE)
-        t = re.sub(r'\s{2,}', ' ', t).strip()
+        t = cls.clean_stutter(t)
         return t
 
     @classmethod
@@ -3473,42 +3600,44 @@ class UniversalCurriculumTranslator:
         clean = cls.clean_hybrids(clean)
         low = clean.lower()
 
-        # Check if already pure Turkish (must not have remaining English keywords)
-        english_words = r'\b(around|us|objects?|friends?|relationships?|social|situations?|traveling|basics?|getting|acquainted|with|greetings?|farewells?|who|are|you|sharing|personal|information|formulating|simple|questions?|essential|quantities|numbers?|present|tense|asking|seeking|clarifications?|cultural|contexts?|countries|world|geography|major|cities|celebrations?|traditions?|polite|ways?|dining|eating|out)\b'
-        if re.search(r'[çğıöşüÇĞİÖŞÜ]', clean) and not re.search(english_words, clean, re.IGNORECASE):
+        # Check if already pure Turkish (must not have remaining English keywords or stutter)
+        if cls.is_clean_turkish(clean) and not cls.is_hybrid_or_english(clean):
             m_half = re.match(r"^(\d+)'den\s+(\d+)'(?:ye|e)\s+sayma\s*[:\-]\s*(.*)$", clean, re.IGNORECASE)
             if m_half:
                 n1, n2, rest = m_half.group(1), m_half.group(2), m_half.group(3).strip()
-                return cls.clean_hybrids(f"{n1}'den {n2}'e Sayma: {cls.translate(rest)}")
-            return cls.clean_hybrids(clean)
+                return cls.clean_stutter(f"{n1}'den {n2}'e Sayma: {cls.translate(rest)}")
+            return cls.clean_stutter(clean)
 
-        # Check title map from bilingual_materials.json
-        tmap = _get_bm_title_map()
-        if t in tmap:
-            return tmap[t]
-        if clean in tmap:
-            return tmap[clean]
-        for k, v in tmap.items():
-            if k.lower() == low:
-                return v
-
-        # Direct exact match in phrase dictionary
+        # Check exact match in phrase dictionary FIRST
         if low in cls.PHRASES:
-            return cls.PHRASES[low]
+            return cls.clean_stutter(cls.PHRASES[low])
+
+        # Check title map from bilingual_materials.json (validated)
+        tmap = _get_bm_title_map()
+        cand = tmap.get(t) or tmap.get(clean)
+        if not cand:
+            for k, v in tmap.items():
+                if k.lower() == low:
+                    cand = v
+                    break
+        if cand:
+            cand_clean = cls.clean_stutter(cand)
+            if cls.is_clean_turkish(cand_clean) and not cls.is_hybrid_or_english(cand_clean):
+                return cand_clean
 
         # Handle colon compound "A: B"
         if ":" in clean:
             parts = [p.strip() for p in clean.split(":", 1)]
             p1 = cls.translate(parts[0])
             p2 = cls.translate(parts[1])
-            return f"{p1}: {p2}"
+            return cls.clean_stutter(f"{p1}: {p2}")
 
         # Handle "A vs. B" or "A versus B"
         m_vs = re.match(r'^(.*?)\s+(?:vs\.?|versus)\s+(.*)$', clean, re.IGNORECASE)
         if m_vs:
             s1 = cls.translate(m_vs.group(1).strip())
             s2 = cls.translate(m_vs.group(2).strip())
-            return f"{s1} ve {s2} Karşılaştırması"
+            return cls.clean_stutter(f"{s1} ve {s2} Karşılaştırması")
 
         # Handle "Getting Acquainted with (the\s+)?(Language/Topic)"
         m_acq = re.match(r'^getting\s+acquainted\s+with\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
@@ -3517,9 +3646,9 @@ class UniversalCurriculumTranslator:
             sub_clean = re.sub(r'\s+language$', '', sub, flags=re.IGNORECASE).strip().lower()
             if sub_clean in cls.LANGUAGES:
                 lang_name = cls.LANGUAGES[sub_clean][0]
-                return f"{lang_name} ile Tanışma"
+                return cls.clean_stutter(f"{lang_name} ile Tanışma")
             sub_tr = cls.translate(sub)
-            return f"{sub_tr} ile Tanışma"
+            return cls.clean_stutter(f"{sub_tr} ile Tanışma")
 
         # Handle "How to Ask and Answer 'X'" or "How to Ask and Answer X"
         m_ask_ans = re.match(r'^how\s+to\s+ask\s+and\s+answer\s+[\'"]?(.*?)[\'"]?$', clean, re.IGNORECASE)
@@ -3528,8 +3657,8 @@ class UniversalCurriculumTranslator:
             sub_low = sub.lower()
             if sub_low in cls.QUOTED_EXPRESSIONS:
                 sub_tr = cls.QUOTED_EXPRESSIONS[sub_low]
-                return f"'{sub_tr}' Diye Sorma ve Cevaplama"
-            return f"'{sub}' Diye Sorma ve Cevaplama"
+                return cls.clean_stutter(f"'{sub_tr}' Diye Sorma ve Cevaplama")
+            return cls.clean_stutter(f"'{sub}' Diye Sorma ve Cevaplama")
 
         # Handle "How to (Verb) (X)"
         m_howto = re.match(r'^how\s+to\s+(.*?)\s+(.*)$', clean, re.IGNORECASE)
@@ -3538,84 +3667,93 @@ class UniversalCurriculumTranslator:
             rest = m_howto.group(2).strip()
             rest_tr = cls.translate(rest)
             verb_tr = cls.VOCABULARY.get(verb.lower(), verb)
-            return f"{rest_tr} {verb_tr} Yolları"
+            return cls.clean_stutter(f"{rest_tr} {verb_tr} Yolları")
 
         # Handle "Sharing (X)"
         m_sharing = re.match(r'^sharing\s+(.*)$', clean, re.IGNORECASE)
         if m_sharing:
-            sub = m_sharing.group(1).strip()
-            sub_tr = cls.translate(sub)
-            return f"{sub_tr} Paylaşma"
+            sub = cls.translate(m_sharing.group(1).strip())
+            return cls.clean_stutter(f"{sub} Paylaşma")
 
         # Handle "Exploring (X)"
         m_exp = re.match(r'^exploring\s+(.*)$', clean, re.IGNORECASE)
         if m_exp:
-            sub = m_exp.group(1).strip()
-            sub_tr = cls.translate(sub)
-            return f"{sub_tr} Keşfetme"
+            sub = cls.translate(m_exp.group(1).strip())
+            return cls.clean_stutter(f"{sub} Keşfetme")
 
         # Handle "Mastering (X)"
         m_mas = re.match(r'^mastering\s+(.*)$', clean, re.IGNORECASE)
         if m_mas:
-            sub = m_mas.group(1).strip()
+            sub = cls.translate(m_mas.group(1).strip())
             sub_tr = cls.translate(sub)
-            return f"{sub_tr} Konusunda Uzmanlaşma"
+            return cls.clean_stutter(f"{sub_tr} Konusunda Uzmanlaşma")
 
         # Handle "Formulating (X) Questions"
         m_form_q = re.match(r'^formulating\s+(.*?)\s+questions$', clean, re.IGNORECASE)
         if m_form_q:
             sub = m_form_q.group(1).strip()
             sub_tr = cls.translate(sub)
-            return f"{sub_tr} Soruları Oluşturma"
+            return cls.clean_stutter(f"{sub_tr} Soruları Oluşturma")
 
         # Handle "Formulating (X)"
         m_form = re.match(r'^formulating\s+(.*)$', clean, re.IGNORECASE)
         if m_form:
             sub = m_form.group(1).strip()
             sub_tr = cls.translate(sub)
-            return f"{sub_tr} Oluşturma"
+            return cls.clean_stutter(f"{sub_tr} Oluşturma")
+
+        # Handle "Using 'X' to (Y)" or "Using X to (Y)"
+        m_using_to = re.match(r"^using\s+(.*?)\s+to\s+(.*)$", clean, re.IGNORECASE)
+        if m_using_to:
+            target_item = m_using_to.group(1).strip()
+            action_item = m_using_to.group(2).strip()
+            act_tr = cls.translate(action_item)
+            if cls.is_clean_turkish(act_tr) and not cls.is_hybrid_or_english(act_tr):
+                cleaned_target = target_item.replace("'", "").replace('"', '').capitalize()
+                return cls.clean_stutter(f"'{cleaned_target}' Kullanarak {act_tr}")
 
         # Handle "Constructing (X) in (the\s+)?(Y)"
         m_const_in = re.match(r'^constructing\s+(.*?)\s+in\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
         if m_const_in:
             s1 = cls.translate(m_const_in.group(1).strip())
             s2 = cls.translate(m_const_in.group(3).strip())
-            return f"{s2}'de {s1} Kurma"
+            if cls.is_clean_turkish(s1) and cls.is_clean_turkish(s2) and not cls.is_hybrid_or_english(s1) and not cls.is_hybrid_or_english(s2):
+                return cls.clean_stutter(f"{s2}'de {s1} Kurma")
 
         # Handle "Constructing (X)"
         m_const = re.match(r'^constructing\s+(.*)$', clean, re.IGNORECASE)
         if m_const:
-            sub = m_const.group(1).strip()
-            sub_tr = cls.translate(sub)
-            return f"{sub_tr} Kurma"
+            sub = cls.translate(m_const.group(1).strip())
+            if cls.is_clean_turkish(sub) and not cls.is_hybrid_or_english(sub):
+                return cls.clean_stutter(f"{sub} Kurma")
 
         # Handle "Polite Ways to (X)"
         m_polite = re.match(r'^polite\s+ways\s+to\s+(.*)$', clean, re.IGNORECASE)
         if m_polite:
-            sub = m_polite.group(1).strip()
-            sub_tr = cls.translate(sub)
-            return f"{sub_tr} İçin Nezaket İfadeleri"
+            sub = cls.translate(m_polite.group(1).strip())
+            if cls.is_clean_turkish(sub) and not cls.is_hybrid_or_english(sub):
+                return cls.clean_stutter(f"{sub} İçin Nezaket İfadeleri")
 
         # Handle "Geography and Major Cities of (the\s+)?(X)"
         m_geo = re.match(r'^geography\s+and\s+major\s+cities\s+of\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
         if m_geo:
             sub = m_geo.group(2).strip()
             sub_tr = cls.translate(sub)
-            return f"{sub_tr} Coğrafyası ve Başlıca Şehirleri"
+            return cls.clean_stutter(f"{sub_tr} Coğrafyası ve Başlıca Şehirleri")
 
         # Handle "Celebrations and Traditions in (the\s+)?(X)"
         m_cel = re.match(r'^celebrations\s+and\s+traditions\s+in\s+(the\s+)?(.*)$', clean, re.IGNORECASE)
         if m_cel:
             sub = m_cel.group(2).strip()
             sub_tr = cls.translate(sub)
-            return f"{sub_tr}'de Kutlamalar ve Gelenekler"
+            return cls.clean_stutter(f"{sub_tr}'de Kutlamalar ve Gelenekler")
 
         # Handle "Cultural Contexts: (X)" or "Cultural Contexts of (X)"
         m_cult = re.match(r'^cultural\s+contexts?\s*(?:of|in)?\s*(.*)$', clean, re.IGNORECASE)
         if m_cult and m_cult.group(1).strip():
             sub = m_cult.group(1).strip()
             sub_tr = cls.translate(sub)
-            return f"Kültürel Bağlamlar: {sub_tr}"
+            return cls.clean_stutter(f"Kültürel Bağlamlar: {sub_tr}")
 
         # Handle "Counting from (N1) to (N2)"
         m_count = re.match(r'^counting\s+from\s+(\d+)\s+to\s+(\d+)(.*)$', clean, re.IGNORECASE)
@@ -3626,46 +3764,52 @@ class UniversalCurriculumTranslator:
             extra_clean = re.sub(r'^[:\s\-]+', '', extra).strip()
             if extra_clean:
                 res += f": {cls.translate(extra_clean)}"
-            return res
+            return cls.clean_stutter(res)
 
         # Handle "Introduction to (X)"
         m_intro = re.match(r'^introduction\s+to\s+(.*)$', clean, re.IGNORECASE)
         if m_intro:
             sub = cls.translate(m_intro.group(1).strip())
-            return sub if sub.endswith("Giriş") else f"{sub}'e Giriş"
+            return cls.clean_stutter(sub if sub.endswith("Giriş") else f"{sub}'e Giriş")
 
         # Handle "Using (X) in (Y)"
         m_using_in = re.match(r'^using\s+(.*?)\s+in\s+(.*)$', clean, re.IGNORECASE)
         if m_using_in:
             s1 = cls.translate(m_using_in.group(1).strip())
             s2 = cls.translate(m_using_in.group(2).strip())
-            return f"{s2}'de {s1} Kullanımı"
+            if cls.is_clean_turkish(s1) and cls.is_clean_turkish(s2) and not cls.is_hybrid_or_english(s1) and not cls.is_hybrid_or_english(s2):
+                return cls.clean_stutter(f"{s2}'de {s1} Kullanımı")
 
         # Handle "Using (X)"
         m_using = re.match(r'^using\s+(.*)$', clean, re.IGNORECASE)
         if m_using:
             sub = cls.translate(m_using.group(1).strip())
-            return f"{sub} Kullanımı"
+            if cls.is_clean_turkish(sub) and not cls.is_hybrid_or_english(sub):
+                return cls.clean_stutter(f"{sub} Kullanımı")
 
         # Handle "Talking About (X)"
         m_talking = re.match(r'^talking\s+about\s+(.*)$', clean, re.IGNORECASE)
         if m_talking:
             sub = cls.translate(m_talking.group(1).strip())
-            return f"{sub} Hakkında Konuşma"
+            if cls.is_clean_turkish(sub) and not cls.is_hybrid_or_english(sub):
+                return cls.clean_stutter(f"{sub} Hakkında Konuşma")
 
         # Handle "Navigating (X)"
         m_nav = re.match(r'^navigating\s+(.*)$', clean, re.IGNORECASE)
         if m_nav:
             sub = cls.translate(m_nav.group(1).strip())
-            return f"{sub}'de Yol Bulma"
+            if cls.is_clean_turkish(sub) and not cls.is_hybrid_or_english(sub):
+                if "taşıma" in sub.lower():
+                    return cls.clean_stutter(f"{sub}da Yol Bulma")
+                return cls.clean_stutter(f"{sub}'de Yol Bulma")
 
-        # Handle "X for Y"
+        # Handle "X for Y" - SAFETY INVARIANT: both parts MUST be clean Turkish
         m_for = re.match(r'^(.*?)\s+for\s+(.*)$', clean, re.IGNORECASE)
         if m_for:
             s1 = cls.translate(m_for.group(1).strip())
             s2 = cls.translate(m_for.group(2).strip())
-            if s1.lower() != m_for.group(1).strip().lower() or s2.lower() != m_for.group(2).strip().lower():
-                return f"{s2} İçin {s1}"
+            if cls.is_clean_turkish(s1) and cls.is_clean_turkish(s2) and not cls.is_hybrid_or_english(s1) and not cls.is_hybrid_or_english(s2):
+                return cls.clean_stutter(f"{s2} İçin {s1}")
 
         # Handle "X in [Language]"
         for lang_en, (lang_nom, lang_adj, lang_loc) in cls.LANGUAGES.items():
@@ -3673,24 +3817,27 @@ class UniversalCurriculumTranslator:
             if m_lang:
                 sub = m_lang.group(1).strip()
                 sub_tr = cls.translate(sub)
-                return f"{lang_loc} {sub_tr}"
+                if cls.is_clean_turkish(sub_tr) and not cls.is_hybrid_or_english(sub_tr):
+                    return cls.clean_stutter(f"{lang_loc} {sub_tr}")
 
-        # Handle "X and Y" conjunction
+        # Handle "X and Y" conjunction - SAFETY INVARIANT: both parts MUST be clean Turkish
         if " and " in clean.lower():
             parts = re.split(r'\s+and\s+', clean, flags=re.IGNORECASE)
             if len(parts) == 2:
                 p1 = cls.translate(parts[0].strip())
                 p2 = cls.translate(parts[1].strip())
-                return f"{p1} ve {p2}"
+                if cls.is_clean_turkish(p1) and cls.is_clean_turkish(p2) and not cls.is_hybrid_or_english(p1) and not cls.is_hybrid_or_english(p2):
+                    return cls.clean_stutter(f"{p1} ve {p2}")
 
         # Handle comma-separated list "A, B, and C" or "A, B, C"
         if "," in clean:
             raw_items = re.split(r',\s*(?:and\s+)?', clean)
             if len(raw_items) > 1:
                 tr_items = [cls.translate(item.strip()) for item in raw_items]
-                if len(tr_items) == 2:
-                    return f"{tr_items[0]} ve {tr_items[1]}"
-                return ", ".join(tr_items[:-1]) + f" ve {tr_items[-1]}"
+                if all(cls.is_clean_turkish(ti) and not cls.is_hybrid_or_english(ti) for ti in tr_items):
+                    if len(tr_items) == 2:
+                        return cls.clean_stutter(f"{tr_items[0]} ve {tr_items[1]}")
+                    return cls.clean_stutter(", ".join(tr_items[:-1]) + f" ve {tr_items[-1]}")
 
         # Check Language + Noun (e.g. "German Language", "Spanish Alphabet")
         for lang_en, (lang_nom, lang_adj, lang_loc) in cls.LANGUAGES.items():
@@ -3700,7 +3847,7 @@ class UniversalCurriculumTranslator:
             if m_lang_noun:
                 sub = m_lang_noun.group(1).strip()
                 sub_tr = cls.translate(sub)
-                return f"{lang_adj} {sub_tr}"
+                return cls.clean_stutter(f"{lang_adj} {sub_tr}")
 
         # Check Adjective + Noun (e.g. "Basic Greetings", "Essential Quantities")
         words = clean.split()
@@ -3708,7 +3855,7 @@ class UniversalCurriculumTranslator:
             w1 = words[0].lower()
             w2 = words[1].lower()
             if w1 in cls.VOCABULARY and w2 in cls.VOCABULARY:
-                return f"{cls.VOCABULARY[w1]} {cls.VOCABULARY[w2]}"
+                return cls.clean_stutter(f"{cls.VOCABULARY[w1]} {cls.VOCABULARY[w2]}")
 
         # Word-by-word tokenized fallback
         translated_words = []
@@ -3730,7 +3877,7 @@ class UniversalCurriculumTranslator:
                 translated_words.append(w)
 
         res = " ".join(translated_words)
-        return res if res else clean
+        return cls.clean_stutter(res if res else clean)
 
 
 def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
