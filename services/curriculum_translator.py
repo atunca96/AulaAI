@@ -95,7 +95,33 @@ CANONICAL_TITLE_MAP = {
     "the world around us": "Çevremizdeki Dünya",
     "world around us": "Çevremizdeki Dünya",
     "weather and seasons": "Hava Durumu ve Mevsimler",
-    "nature and environment": "Doğa ve Çevre"
+    "nature and environment": "Doğa ve Çevre",
+    "health and emergencies": "Sağlık ve Acil Durumlar",
+    "common health issues and symptoms": "Yaygın Sağlık Sorunları ve Belirtiler",
+    "seeking help: phrases for emergencies": "Yardım İsteme: Acil Durum İfadeleri",
+    "seeking help": "Yardım İsteme",
+    "phrases for emergencies": "Acil Durum İfadeleri",
+    "visiting a doctor: key questions": "Doktora Gitmek: Anahtar Sorular",
+    "visiting a doctor": "Doktora Gitmek",
+    "key questions": "Anahtar Sorular",
+    "hobbies and free time activities": "Hobiler ve Boş Zaman Aktiviteleri",
+    "discussing hobbies: what do you like to do?": "Hobiler Üzerine Tartışmak: Ne Yapmayı Seversin?",
+    "common leisure activities: playing sports, reading": "Yaygın Boş Zaman Aktiviteleri: Spor Oynamak, Okumak",
+    "making plans with friends: invitations and suggestions": "Arkadaşlarla Plan Yapmak: Davetler ve Öneriler",
+    "cultural insights: festivals and traditions": "Kültürel Bilgiler: Festivaller ve Gelenekler",
+    "introduction to german festivals: oktoberfest, christmas": "Alman Festivallerine Giriş: Oktoberfest, Noel",
+    "common traditions: gifts, food, and celebrations": "Yaygın Gelenekler: Hediyeler, Yemek ve Kutlamalar",
+    "basic phrases for celebratory situations": "Kutlama Durumları İçin Temel İfadeler",
+    "celebratory situations": "Kutlama Durumları",
+    "asking for and giving recommendations": "Tavsiye İstemek ve Vermek",
+    "asking for prices and making simple transactions": "Fiyat Sormak ve Basit Alışveriş Yapmak",
+    "understanding menus: key phrases": "Menüleri Anlamak: Anahtar İfadeler",
+    "essential shopping vocabulary: clothes and accessories": "Temel Alışveriş Kelimeleri: Kıyafetler ve Aksesuarlar",
+    "understanding sizes and colors": "Bedenleri ve Renkleri Anlamak",
+    "navigating your community": "Toplulukta Yol Tarifi ve İletişim",
+    "asking for directions: where is...?": "Yol Tarifi Sormak: ... Nerede?",
+    "key places in the community: bank, post office, etc.": "Topluluktaki Önemli Yerler: Banka, Postane, vb.",
+    "using public transport: basic vocabulary and phrases": "Toplu Taşımayı Kullanmak: Temel Kelimeler ve İfadeler"
 }
 
 def load_title_cache() -> Dict[str, str]:
@@ -141,9 +167,19 @@ def save_title_cache(pairs: Dict[str, str]):
             logger.error(f"Failed to save title pairs cache: {e}")
 
 TR_LETTERS = re.compile(r'[çğıöşüÇĞİÖŞÜâîû]')
-TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler)\b', re.IGNORECASE)
+TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar)\b', re.IGNORECASE)
 
-EN_WORDS = re.compile(r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us)\b', re.IGNORECASE)
+EN_WORDS = re.compile(
+    r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|'
+    r'describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|'
+    r'review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|'
+    r'words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|questions|answers|'
+    r'math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|'
+    r'pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|'
+    r'functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|'
+    r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|places)\b',
+    re.IGNORECASE
+)
 
 def is_hybrid(text: str) -> bool:
     """Returns True if the string is a Frankenstein English-Turkish mixture."""
@@ -155,6 +191,9 @@ def is_hybrid(text: str) -> bool:
     low = t.lower()
     if "ve ve" in low or "pratik application" in low or "ve pratik application" in low or "around us" in low:
         return True
+    if "celebratory" in low or "situations" in low or "functional language" in low:
+        if bool(TR_LETTERS.search(t) or TR_WORDS.search(t)):
+            return True
     has_tr = bool(TR_LETTERS.search(t) or TR_WORDS.search(t))
     has_en = bool(EN_WORDS.search(t))
     return has_tr and has_en
@@ -168,6 +207,9 @@ def is_pure_english(text: str) -> bool:
         return False
     if TR_LETTERS.search(t):
         return False
+    low = t.lower()
+    if low in ("functional language", "cultural context", "vocabulary", "grammar"):
+        return True
     return bool(EN_WORDS.search(t))
 
 def is_clean_turkish(text: str) -> bool:
@@ -180,6 +222,9 @@ def is_clean_turkish(text: str) -> bool:
     if is_pure_english(t):
         return False
     if EN_WORDS.search(t):
+        return False
+    low = t.lower()
+    if "functional language" in low or "cultural context" in low:
         return False
     return True
 
@@ -328,12 +373,12 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
         ch_tr = ch.get("title_tr", "").strip()
 
         # Check chapter
-        if not ch_tr or not is_clean_turkish(ch_tr):
+        if not ch_tr or not is_clean_turkish(ch_tr) or ch_tr.lower() == ch_title.lower() or is_pure_english(ch_tr) or is_hybrid(ch_tr):
             if ch_title:
                 titles_needing_tr.append(ch_title)
-        if not ch_title or is_clean_turkish(ch_title):
+        if not ch_title or is_clean_turkish(ch_title) or is_hybrid(ch_title):
             # If title is in Turkish, we need English for title
-            if ch_tr:
+            if ch_tr and not is_hybrid(ch_tr):
                 titles_needing_en.append(ch_tr)
             elif ch_title:
                 titles_needing_en.append(ch_title)
@@ -343,11 +388,11 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
             t_title = (t.get("title") if isinstance(t, dict) else str(t)).strip()
             t_tr = (t.get("title_tr", "") if isinstance(t, dict) else "").strip()
 
-            if not t_tr or not is_clean_turkish(t_tr):
+            if not t_tr or not is_clean_turkish(t_tr) or t_tr.lower() == t_title.lower() or is_pure_english(t_tr) or is_hybrid(t_tr):
                 if t_title:
                     titles_needing_tr.append(t_title)
-            if not t_title or is_clean_turkish(t_title):
-                if t_tr:
+            if not t_title or is_clean_turkish(t_title) or is_hybrid(t_title):
+                if t_tr and not is_hybrid(t_tr):
                     titles_needing_en.append(t_tr)
                 elif t_title:
                     titles_needing_en.append(t_title)
@@ -368,11 +413,11 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
         curr_tr = ch.get("title_tr", "").strip()
 
         # Heal Turkish
-        if not curr_tr or not is_clean_turkish(curr_tr):
+        if not curr_tr or not is_clean_turkish(curr_tr) or curr_tr.lower() == curr_title.lower() or is_pure_english(curr_tr) or is_hybrid(curr_tr):
             ch["title_tr"] = tr_translations.get(curr_title, curr_tr or curr_title)
 
         # Heal English
-        if not curr_title or is_clean_turkish(curr_title):
+        if not curr_title or is_clean_turkish(curr_title) or is_hybrid(curr_title):
             ch["title"] = en_translations.get(curr_tr, en_translations.get(curr_title, curr_title))
 
         # Heal Topics
@@ -382,10 +427,10 @@ def ensure_bilingual_curriculum(chapters: List[Dict[str, Any]]) -> List[Dict[str
             topic_title = t.get("title", "").strip()
             topic_tr = t.get("title_tr", "").strip()
 
-            if not topic_tr or not is_clean_turkish(topic_tr):
+            if not topic_tr or not is_clean_turkish(topic_tr) or topic_tr.lower() == topic_title.lower() or is_pure_english(topic_tr) or is_hybrid(topic_tr):
                 t["title_tr"] = tr_translations.get(topic_title, topic_tr or topic_title)
 
-            if not topic_title or is_clean_turkish(topic_title):
+            if not topic_title or is_clean_turkish(topic_title) or is_hybrid(topic_title):
                 t["title"] = en_translations.get(topic_tr, en_translations.get(topic_title, topic_title))
 
     return chapters

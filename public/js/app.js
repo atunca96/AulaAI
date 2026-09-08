@@ -1845,14 +1845,24 @@ const BADGE_PAIRS = [
   ['PHONETICS', 'FONETİK'],
   ['GRAMMAR', 'DİLBİLGİSİ'],
   ['VOCABULARY', 'KELİME BİLGİSİ'],
+  ['FUNCTIONAL LANGUAGE', 'İŞLEVSEL DİL'],
+  ['FUNCTIONAL', 'İŞLEVSEL'],
+  ['CULTURAL CONTEXT', 'KÜLTÜREL BAĞLAM'],
   ['CULTURAL', 'KÜLTÜREL'],
+  ['COMMUNICATION', 'İLETİŞİM'],
+  ['PRONUNCIATION', 'TELAFFUZ'],
   ['EXAMPLES', 'ÖRNEKLER'],
   ['DIALOGUE', 'DİYALOG'],
+  ['CONVERSATION', 'SOHBET'],
   ['MCQ', 'ÇOKTAN SEÇMELİ'],
   ['MULTIPLE CHOICE', 'ÇOKTAN SEÇMELİ'],
   ['FILL IN THE BLANK', 'BOŞLUK DOLDURMA'],
   ['FILL_BLANK', 'BOŞLUK DOLDURMA'],
-  ['PRACTICE', 'ALIŞTIRMA']
+  ['PRACTICE', 'ALIŞTIRMA'],
+  ['LISTENING', 'DİNLEME'],
+  ['READING', 'OKUMA'],
+  ['WRITING', 'YAZMA'],
+  ['SPEAKING', 'KONUŞMA']
 ];
 
 function translateBadge(type, lang = currentLang) {
@@ -2555,7 +2565,14 @@ const UniversalCurriculumTranslator = {
       [/\bTravel\s+Basics\b/gi, 'Seyahat Temelleri'],
       [/Dışarıda\s+Yemek\s+Yeme/gi, 'Dışarıda Yemek'],
       [/\bDining\s+Out\b/gi, 'Dışarıda Yemek'],
-      [/\bEating\s+Out\b/gi, 'Dışarıda Yemek']
+      [/\bEating\s+Out\b/gi, 'Dışarıda Yemek'],
+      [/Celebratory\s+Situations/gi, 'Kutlama Durumları'],
+      [/Seeking\s+Help/gi, 'Yardım İsteme'],
+      [/Phrases\s+for\s+Emergencies/gi, 'Acil Durum İfadeleri'],
+      [/Visiting\s+a\s+Doctor/gi, 'Doktora Gitmek'],
+      [/Key\s+Questions/gi, 'Anahtar Sorular'],
+      [/Functional\s+Language/gi, 'İşlevsel Dil'],
+      [/Cultural\s+Context/gi, 'Kültürel Bağlam']
     ];
     for (const [pat, repl] of hybrids) {
       t = t.replace(pat, repl);
@@ -2849,8 +2866,12 @@ const UniversalCurriculumTranslator = {
     if (!t) return false;
     const low = t.toLowerCase();
     if (low.includes('ve ve') || low.includes('pratik application') || low.includes('around us')) return true;
+    if (low.includes('functional language') || low.includes('cultural context') || low.includes('celebratory') || low.includes('situations')) {
+      if (/[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için)\b/i.test(t)) return true;
+      return true;
+    }
     const hasTr = /[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|kültürel|bilgiler|dilbilgisi|kelimeler|cümleler|dünya)\b/i.test(t);
-    const hasEn = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us)\b/i.test(t);
+    const hasEn = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|hobbies)\b/i.test(t);
     return (hasTr && hasEn) || (hasEn && !/[çğıöşüÇĞİÖŞÜâîû]/.test(t));
   },
 
@@ -4374,6 +4395,27 @@ const FRONTEND_PRAGMATIC_MAP = {
   }
 };
 
+function safeStr(val) {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (Array.isArray(val)) return val.map(v => safeStr(v)).filter(Boolean).join(", ");
+  if (typeof val === "object") {
+    const displayKeys = ['text','name','value','label','character','hiragana','katakana','letter','symbol','word','term','phrase','romaji','pinyin','reading'];
+    for (const dk of displayKeys) {
+      if (val[dk] && typeof val[dk] === "string") return val[dk];
+    }
+    const vals = Object.values(val);
+    for (const v of vals) {
+      if (typeof v === "string" && v.length > 0) return v;
+    }
+    const strs = vals.filter(v => typeof v === "string" && v.length > 0);
+    if (strs.length > 0) return strs.join(" — ");
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const cleanTerm = safeStr(term).trim();
   // Single letters or alphabet character cards must NEVER match pronouns or pragmatic greetings
@@ -5555,24 +5597,34 @@ function renderAiSyllabusEditor(syllabus) {
   container.innerHTML = syllabus.map((chapter, i) => {
     const titleEn = chapter.title || '';
     const titleTr = chapter.title_tr || '';
-    const chTitle = getLocalizedCurriculumTitle(chapter, currentLang);
     return `
     <div class="syllabus-chapter" data-title-en="${esc(titleEn)}" data-title-tr="${esc(titleTr)}" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${i + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger);">${SVG_TRASH}</button>
       </div>
-      <input type="text" class="text-input syllabus-title" value="${esc(chTitle)}" oninput="this.closest('.syllabus-chapter').dataset[currentLang==='tr'?'titleTr':'titleEn']=this.value" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">English Unit Name</label>
+          <input type="text" class="text-input syllabus-title-en" placeholder="e.g. Health and Emergencies" value="${esc(titleEn)}" oninput="this.closest('.syllabus-chapter').dataset.titleEn=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">Türkçe Ünite Adı</label>
+          <input type="text" class="text-input syllabus-title-tr" placeholder="örn. Sağlık ve Acil Durumlar" value="${esc(titleTr)}" oninput="this.closest('.syllabus-chapter').dataset.titleTr=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+        </div>
+      </div>
       <div class="topics-list">
         ${(chapter.topics || []).map(topic => {
           const tEn = typeof topic === 'string' ? topic : (topic.title || '');
           const tTr = typeof topic === 'string' ? '' : (topic.title_tr || '');
-          const title = getLocalizedCurriculumTitle(topic, currentLang);
           const type = typeof topic === 'string' ? 'vocabulary' : (topic.type || 'vocabulary');
           return `
             <div class="topic-item" data-type="${type}" data-title-en="${esc(tEn)}" data-title-tr="${esc(tTr)}" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">${type === 'grammar' ? SVG_GEAR : '•'}</span>
-              <input type="text" class="text-input topic-title" value="${esc(title)}" oninput="this.closest('.topic-item').dataset[currentLang==='tr'?'titleTr':'titleEn']=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1;">
+                <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" value="${esc(tEn)}" oninput="this.closest('.topic-item').dataset.titleEn=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+                <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" value="${esc(tTr)}" oninput="this.closest('.topic-item').dataset.titleTr=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+              </div>
               <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
             </div>
           `;
@@ -5589,12 +5641,21 @@ function addUnitToAiArchitect() {
 
   const unitIdx = container.querySelectorAll('.syllabus-chapter').length;
   const unitHtml = `
-    <div class="syllabus-chapter" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-        <h4 style="margin:0; color:var(--accent-light);">${t('Unit')} ${unitIdx + 1}</h4>
+    <div class="syllabus-chapter" data-title-en="" data-title-tr="" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:16px; border-radius:12px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h4 style="margin:0; color:var(--accent-light);"><span data-i18n="Unit">${t('Unit')}</span> ${unitIdx + 1}</h4>
         <button class="btn btn-ghost btn-sm" onclick="this.closest('.syllabus-chapter').remove()" style="color:var(--danger)">${SVG_TRASH}</button>
       </div>
-      <input type="text" class="text-input syllabus-title" placeholder="${t('ai.new_unit_title')}" style="margin-bottom:12px; font-weight:700; background:rgba(0,0,0,0.2);">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <div>
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">English Unit Name</label>
+          <input type="text" class="text-input syllabus-title-en" placeholder="Unit title in English" oninput="this.closest('.syllabus-chapter').dataset.titleEn=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+        </div>
+        <div>
+          <label style="display:block; font-size:11px; font-weight:700; color:var(--accent-light); text-transform:uppercase; margin-bottom:4px; letter-spacing:0.5px;">Türkçe Ünite Adı</label>
+          <input type="text" class="text-input syllabus-title-tr" placeholder="Türkçe ünite başlığı" oninput="this.closest('.syllabus-chapter').dataset.titleTr=this.value" style="font-weight:600; background:rgba(0,0,0,0.25);">
+        </div>
+      </div>
       <div class="topics-list">
         <button class="btn btn-ghost btn-xs" style="font-size:11px; margin-top:4px;" onclick="addTopicToSyllabus(this)">+ ${t('class.add_topic') || 'Add Topic'}</button>
       </div>
@@ -5605,22 +5666,28 @@ function addUnitToAiArchitect() {
   tempDiv.innerHTML = unitHtml;
   container.appendChild(tempDiv.firstElementChild);
   container.scrollTop = container.scrollHeight;
-  const input = container.lastElementChild.querySelector('input');
+  const input = container.lastElementChild.querySelector('.syllabus-title-en') || container.lastElementChild.querySelector('input');
   if (input) input.focus();
 }
 
 function addTopicToSyllabus(btn) {
   const div = document.createElement('div');
   div.className = 'topic-item';
+  div.setAttribute('data-type', 'vocabulary');
+  div.setAttribute('data-title-en', '');
+  div.setAttribute('data-title-tr', '');
   div.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
   div.innerHTML = `
     <span style="font-size:12px; color:var(--accent); cursor:pointer;" onclick="toggleTopicType(this)" title="Toggle Grammar/Vocabulary">•</span>
-    <input type="text" class="text-input topic-title" placeholder="${t('class.topic_name_placeholder') || 'New Topic Name'}" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.1); flex:1;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex:1;">
+      <input type="text" class="text-input topic-title-en" placeholder="English Topic Title" oninput="this.closest('.topic-item').dataset.titleEn=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+      <input type="text" class="text-input topic-title-tr" placeholder="Türkçe Konu Başlığı" oninput="this.closest('.topic-item').dataset.titleTr=this.value" style="font-size:13px; padding:6px 10px; background:rgba(0,0,0,0.15);">
+    </div>
     <button class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">×</button>
   `;
-  div.setAttribute('data-type', 'vocabulary');
   btn.before(div);
-  div.querySelector('input').focus();
+  const inp = div.querySelector('.topic-title-en');
+  if (inp) inp.focus();
 }
 
 function toggleTopicType(span) {
@@ -5635,30 +5702,23 @@ async function buildAiClassroom() {
   const courseName = document.getElementById('ai-course-name').value;
   const chapters = [];
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
-    const inpVal = chapterEl.querySelector('.syllabus-title').value.trim();
-    let title_en = chapterEl.dataset.titleEn || inpVal;
-    let title_tr = chapterEl.dataset.titleTr || inpVal;
-    if (currentLang === 'tr') {
-      title_tr = inpVal;
-      if (!title_en || title_en === inpVal) title_en = inpVal;
-    } else {
-      title_en = inpVal;
-      if (!title_tr || title_tr === inpVal) title_tr = inpVal;
-    }
+    const enInp = chapterEl.querySelector('.syllabus-title-en');
+    const trInp = chapterEl.querySelector('.syllabus-title-tr');
+    const legacyInp = chapterEl.querySelector('.syllabus-title');
+    let title_en = (enInp ? enInp.value : (chapterEl.dataset.titleEn || (legacyInp ? legacyInp.value : ''))).trim();
+    let title_tr = (trInp ? trInp.value : (chapterEl.dataset.titleTr || (legacyInp ? legacyInp.value : ''))).trim();
+    if (!title_en && title_tr) title_en = title_tr;
+    if (!title_tr && title_en) title_tr = title_en;
 
     const topics = [];
     chapterEl.querySelectorAll('.topic-item').forEach(topicItem => {
-      const topicInp = topicItem.querySelector('.topic-title');
-      const tVal = (topicInp ? topicInp.value : '').trim();
-      let t_en = topicItem.dataset.titleEn || tVal;
-      let t_tr = topicItem.dataset.titleTr || tVal;
-      if (currentLang === 'tr') {
-        t_tr = tVal;
-        if (!t_en || t_en === tVal) t_en = tVal;
-      } else {
-        t_en = tVal;
-        if (!t_tr || t_tr === tVal) t_tr = tVal;
-      }
+      const tEnInp = topicItem.querySelector('.topic-title-en');
+      const tTrInp = topicItem.querySelector('.topic-title-tr');
+      const tLegacyInp = topicItem.querySelector('.topic-title');
+      let t_en = (tEnInp ? tEnInp.value : (topicItem.dataset.titleEn || (tLegacyInp ? tLegacyInp.value : ''))).trim();
+      let t_tr = (tTrInp ? tTrInp.value : (topicItem.dataset.titleTr || (tLegacyInp ? tLegacyInp.value : ''))).trim();
+      if (!t_en && t_tr) t_en = t_tr;
+      if (!t_tr && t_en) t_tr = t_en;
       const type = topicItem.getAttribute('data-type') || 'vocabulary';
       topics.push({ title: t_en, title_tr: t_tr, type: type });
     });

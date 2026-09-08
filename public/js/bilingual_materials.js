@@ -5050,5 +5050,21 @@ window.PAGE_TITLE_PAIRS = [
   [
     "Nature And Environment",
     "Doğa ve Çevre"
+  ],
+  [
+    "Seeking Help: Phrases for Emergencies",
+    "Yardım Arayışı: Acil Durumlar İçin İfadeler"
+  ],
+  [
+    "Celebratory Situations İçin Temel İfadeler",
+    "Kutlama Durumları İçin Temel İfadeler"
+  ],
+  [
+    "Basic Phrases for Celebratory Situations",
+    "Kutlama Durumları İçin Temel İfadeler"
+  ],
+  [
+    "functional language",
+    "Fonksiyonel Dil"
   ]
 ];

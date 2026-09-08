@@ -144,7 +144,8 @@
         },
         {
           "title": "Asking for and Giving Recommendations",
-          "title_tr": "functional language"
+          "title_tr": "Tavsiye İstemek ve Vermek",
+          "type": "functional language"
         },
         {
           "title": "Understanding Menus: Key Phrases",
@@ -165,7 +166,8 @@
         },
         {
           "title": "Asking for Prices and Making Simple Transactions",
-          "title_tr": "functional language"
+          "title_tr": "Fiyat Sormak ve Basit Alışveriş Yapmak",
+          "type": "functional language"
         },
         {
           "title": "Understanding Sizes and Colors",
