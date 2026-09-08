@@ -1680,6 +1680,25 @@ function applyTranslations() {
     el.textContent = t('Lecturer');
   });
 
+  // Dynamic Quiz and Assignment Cards in DOM
+  const rootEl = root || document;
+  rootEl.querySelectorAll('.quiz-item-title').forEach(el => {
+    const raw = el.getAttribute('data-raw-title');
+    if (raw) el.textContent = translateQuizTitle(raw, currentLang);
+  });
+  rootEl.querySelectorAll('.quiz-item-date').forEach(el => {
+    const d = el.getAttribute('data-created-at');
+    if (d) el.textContent = new Date(d).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+  });
+  rootEl.querySelectorAll('.assignment-item-title').forEach(el => {
+    const raw = el.getAttribute('data-raw-title');
+    if (raw) el.textContent = translateQuizTitle(raw, currentLang);
+  });
+  rootEl.querySelectorAll('.assignment-item-date').forEach(el => {
+    const d = el.getAttribute('data-created-at');
+    if (d) el.textContent = new Date(d).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+  });
+
   if (_lastReportData && document.getElementById('tab-reports')?.classList.contains('active')) {
     renderReport(_lastReportData);
   }
@@ -1704,81 +1723,105 @@ function toggleLanguage() {
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
 
-  // 1. Update all static UI elements immediately
-  applyTranslations();
+  // 1. Update all static and dynamic UI elements immediately
+  try { applyTranslations(); } catch (e) { console.warn(e); }
 
   // 2. Re-render curriculum tree if loaded
-  if (curriculum && document.getElementById('curriculum-tree')) {
-    renderCurriculum();
-  }
-  populateSelects();
+  try {
+    if (curriculum && document.getElementById('curriculum-tree')) {
+      renderCurriculum();
+    }
+    populateSelects();
+  } catch (e) { console.warn(e); }
 
   // 3. Re-render Study Material book & topic
-  renderStudyBook();
-  let lastTopic = localStorage.getItem('aula_last_topic');
-  let lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-  if (!lastTopic && curriculum && curriculum[0] && curriculum[0].topics && curriculum[0].topics[0]) {
-    lastTopic = curriculum[0].topics[0].id;
-    lastPage = 0;
-  }
-  if (lastTopic) {
-    showStudyTopic(lastTopic, lastPage);
-  }
+  try {
+    renderStudyBook();
+    let lastTopic = localStorage.getItem('aula_last_topic');
+    let lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+    if (!lastTopic && curriculum && curriculum[0] && curriculum[0].topics && curriculum[0].topics[0]) {
+      lastTopic = curriculum[0].topics[0].id;
+      lastPage = 0;
+    }
+    if (lastTopic) {
+      showStudyTopic(lastTopic, lastPage);
+    }
+  } catch (e) { console.warn(e); }
 
   // 4. Re-render role dashboard synchronously
-  if (currentUser) {
-    if (currentUser.role === 'lecturer') {
-      if (currentCourse) renderLecturerSync();
-      else if (_lastClassroomsData) {
-        renderClassroomSelection(_lastClassroomsData);
-        loadAdminStudentPanel();
+  try {
+    if (currentUser) {
+      if (currentUser.role === 'lecturer') {
+        renderLecturerSync();
+        if (_lastClassroomsData) {
+          renderClassroomSelection(_lastClassroomsData);
+          loadAdminStudentPanel();
+        }
+      } else {
+        renderStudentSync();
+        if (!_lastStudentHomeData) renderStudentPortal();
+        if (curriculum) loadStudentPractice();
       }
-    } else {
-      if (currentCourse) renderStudentSync();
-      else renderStudentPortal();
-      if (curriculum) loadStudentPractice();
     }
-  }
+  } catch (e) { console.warn(e); }
 
-  // 5. Reports
-  if (_lastReportData) renderReport(_lastReportData);
+  // 5. Explicitly sync Quiz and Assignment lists
+  try {
+    if (_lastQuizListData) renderQuizList(_lastQuizListData);
+    else if (courseId || currentCourse) loadQuizList();
+  } catch (e) { console.warn(e); }
+  try {
+    if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+    else if (courseId || currentCourse) loadAssignmentList();
+  } catch (e) { console.warn(e); }
 
-  // 6. Practice preview if visible
-  const preview = document.getElementById('activity-preview');
-  if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
-    preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
-  }
+  // 6. Reports
+  try { if (_lastReportData) renderReport(_lastReportData); } catch (e) { console.warn(e); }
 
-  // 7. Active quiz or assignment if in progress
-  const quizArea = document.getElementById('quiz-taking-area');
-  if (quizArea && !quizArea.classList.contains('hidden') && quizArea.dataset.questions) {
-    showQuizQuestion(quizArea);
-  }
-  const assignArea = document.getElementById('assignment-taking-area');
-  if (assignArea && !assignArea.classList.contains('hidden') && assignArea.dataset.questions) {
-    showAssignmentQuestion(assignArea);
-  }
-
-  // 8. Re-render active dictionary popup if open
-  const dictPopup = document.getElementById('aula-dict-popup');
-  if (dictPopup && dictPopup.style.display !== 'none' && window._lastDictWord && window._lastDictRes) {
-    renderDictContent(window._lastDictWord, window._lastDictLang || 'English', window._lastDictRes);
-  } else if (dictPopup && dictPopup.style.display !== 'none' && activeDictWord) {
-    showDict(activeDictWord, { pageX: parseInt(dictPopup.style.left) || 200, pageY: parseInt(dictPopup.style.top) || 200 });
-  }
-
-  // 9. Sync the Draft Review modal if open
-  renderDraftListSync();
-
-  // 10. Sync student detail modal if open (viewQuiz / viewAssignment)
-  const detailModal = document.getElementById('student-detail-modal');
-  if (detailModal && !detailModal.classList.contains('hidden')) {
-    if (window._currentViewingQuiz) {
-      viewQuiz(window._currentViewingQuiz.id, window._currentViewingQuiz.title);
-    } else if (window._currentViewingAssignment) {
-      viewAssignment(window._currentViewingAssignment.id, window._currentViewingAssignment.title);
+  // 7. Practice preview if visible
+  try {
+    const preview = document.getElementById('activity-preview');
+    if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
+      preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
     }
-  }
+  } catch (e) { console.warn(e); }
+
+  // 8. Active quiz or assignment if in progress
+  try {
+    const quizArea = document.getElementById('quiz-taking-area');
+    if (quizArea && !quizArea.classList.contains('hidden') && quizArea.dataset.questions) {
+      showQuizQuestion(quizArea);
+    }
+    const assignArea = document.getElementById('assignment-taking-area');
+    if (assignArea && !assignArea.classList.contains('hidden') && assignArea.dataset.questions) {
+      showAssignmentQuestion(assignArea);
+    }
+  } catch (e) { console.warn(e); }
+
+  // 9. Re-render active dictionary popup if open
+  try {
+    const dictPopup = document.getElementById('aula-dict-popup');
+    if (dictPopup && dictPopup.style.display !== 'none' && window._lastDictWord && window._lastDictRes) {
+      renderDictContent(window._lastDictWord, window._lastDictLang || 'English', window._lastDictRes);
+    } else if (dictPopup && dictPopup.style.display !== 'none' && activeDictWord) {
+      showDict(activeDictWord, { pageX: parseInt(dictPopup.style.left) || 200, pageY: parseInt(dictPopup.style.top) || 200 });
+    }
+  } catch (e) { console.warn(e); }
+
+  // 10. Sync the Draft Review modal if open
+  try { renderDraftListSync(); } catch (e) { console.warn(e); }
+
+  // 11. Sync student detail modal if open (viewQuiz / viewAssignment)
+  try {
+    const detailModal = document.getElementById('student-detail-modal');
+    if (detailModal && !detailModal.classList.contains('hidden')) {
+      if (window._currentViewingQuiz) {
+        viewQuiz(window._currentViewingQuiz.id, window._currentViewingQuiz.title);
+      } else if (window._currentViewingAssignment) {
+        viewAssignment(window._currentViewingAssignment.id, window._currentViewingAssignment.title);
+      }
+    }
+  } catch (e) { console.warn(e); }
 }
 
 function renderDraftListSync() {
@@ -1790,7 +1833,8 @@ function renderDraftListSync() {
 
 function renderLecturerSync() {
   if (!currentUser) return;
-  document.getElementById('nav-username').textContent = currentUser.name;
+  const navUser = document.getElementById('nav-username');
+  if (navUser) navUser.textContent = currentUser.name;
 
   const greetingEl = document.getElementById('overview-greeting');
   if (greetingEl) {
@@ -1798,14 +1842,18 @@ function renderLecturerSync() {
     greetingEl.setAttribute('data-i18n-data', JSON.stringify({ name: currentUser.name.split(' ').pop() }));
   }
 
-  if (_lastOverviewData) renderOverview(_lastOverviewData);
-  if (curriculum) renderCurriculum();
-  populateSelects();
-  if (_lastQuizListData) renderQuizList(_lastQuizListData);
-  else if (currentCourse) loadQuizList();
-  if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
-  else if (currentCourse) loadAssignmentList();
-  if (_lastStudentRosterData) renderStudentRoster(_lastStudentRosterData);
+  try { if (_lastOverviewData) renderOverview(_lastOverviewData); } catch (e) { console.warn(e); }
+  try { if (curriculum) renderCurriculum(); } catch (e) { console.warn(e); }
+  try { populateSelects(); } catch (e) { console.warn(e); }
+  try {
+    if (_lastQuizListData) renderQuizList(_lastQuizListData);
+    else if (currentCourse || courseId) loadQuizList();
+  } catch (e) { console.warn(e); }
+  try {
+    if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+    else if (currentCourse || courseId) loadAssignmentList();
+  } catch (e) { console.warn(e); }
+  try { if (_lastStudentRosterData) renderStudentRoster(_lastStudentRosterData); } catch (e) { console.warn(e); }
 }
 
 function renderStudentSync() {
@@ -1815,13 +1863,17 @@ function renderStudentSync() {
   const greeting = document.getElementById('student-greeting');
   if (greeting) greeting.textContent = t('welcomeBack', { name: currentUser.name }) + '!';
 
-  renderStudentHome(_lastStudentHomeData || { masteries: [] });
-  if (_lastQuizListData) renderQuizList(_lastQuizListData);
-  else if (currentCourse) loadQuizList();
-  if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
-  else if (currentCourse) loadAssignmentList();
-  if (_lastStudentHomeData) renderStudentProgress(_lastStudentHomeData);
-  if (curriculum) loadStudentPractice();
+  try { renderStudentHome(_lastStudentHomeData || { masteries: [] }); } catch (e) { console.warn(e); }
+  try {
+    if (_lastQuizListData) renderQuizList(_lastQuizListData);
+    else if (currentCourse || courseId) loadQuizList();
+  } catch (e) { console.warn(e); }
+  try {
+    if (_lastAssignmentListData) renderAssignmentList(_lastAssignmentListData);
+    else if (currentCourse || courseId) loadAssignmentList();
+  } catch (e) { console.warn(e); }
+  try { if (_lastStudentHomeData) renderStudentProgress(_lastStudentHomeData); } catch (e) { console.warn(e); }
+  try { if (curriculum) loadStudentPractice(); } catch (e) { console.warn(e); }
 }
 
 // ── Comprehensive Bidirectional Translation Engine ──
@@ -7881,18 +7933,26 @@ function renderQuizList(quizzes) {
         return `<div class="card" style="margin-bottom:12px">
             <div class="card-body flex-between">
               <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}',${escJS(q.title)})">
-                <strong>${displayTitle}</strong>
-                <div style="font-size:13px;color:var(--text-muted);margin-top:4px">${createdLabel}: ${formattedDate}</div>
+                <strong class="quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</strong>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px"><span data-i18n="Created">${createdLabel}</span>: <span class="quiz-item-date" data-created-at="${q.created_at}">${formattedDate}</span></div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">${SVG_TRASH} <span>${t('confirm.delete_quiz')}</span></button>
+                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span data-i18n="viewBtn">${t('viewBtn')}</span></button>
+                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">${SVG_TRASH} <span data-i18n="confirm.delete_quiz">${t('confirm.delete_quiz')}</span></button>
               </div>
             </div>
           </div>`;
       } else {
         const isCompleted = q.is_completed;
-        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}"><div class="card-body flex-between"><div><strong>${displayTitle}</strong><div style="font-size:13px;color:var(--text-muted);margin-top:4px">${createdLabel}: ${formattedDate} ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}</div></div><span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? t('completed') : t('takeQuizBtn')}</span></div></div>`;
+        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}">
+          <div class="card-body flex-between">
+            <div>
+              <strong class="quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</strong>
+              <div style="font-size:13px;color:var(--text-muted);margin-top:4px"><span data-i18n="Created">${createdLabel}</span>: <span class="quiz-item-date" data-created-at="${q.created_at}">${formattedDate}</span> ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}</div>
+            </div>
+            <span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? `<span data-i18n="completed">${t('completed')}</span>` : `<span data-i18n="takeQuizBtn">${t('takeQuizBtn')}</span>`}</span>
+          </div>
+        </div>`;
       }
     }).join('');
 }
@@ -8647,14 +8707,14 @@ function renderAssignmentList(assignments) {
       <div class="card" style="margin-bottom:12px">
         <div class="card-body flex-between">
           <div style="flex:1;cursor:pointer" onclick="viewAssignment('${a.id}',${escJS(a.title)})">
-            <strong style="font-size:15px">${displayTitle}</strong>
+            <strong class="assignment-item-title" data-raw-title="${esc(a.title)}" style="font-size:15px">${displayTitle}</strong>
             <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-              ${createdLabel}: ${formattedDate}
+              <span data-i18n="Created">${createdLabel}</span>: <span class="assignment-item-date" data-created-at="${a.created_at}">${formattedDate}</span>
             </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
-            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span>${t('viewBtn')}</span></button>
-            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">${SVG_TRASH} <span>${t('confirm.delete_assignment')}</span></button>
+            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span data-i18n="viewBtn">${t('viewBtn')}</span></button>
+            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">${SVG_TRASH} <span data-i18n="confirm.delete_assignment">${t('confirm.delete_assignment')}</span></button>
           </div>
         </div>
       </div>`;
@@ -8669,12 +8729,12 @@ function renderAssignmentList(assignments) {
         <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'};opacity:${done ? '0.6' : '1'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
           <div class="card-body flex-between">
             <div>
-              <strong style="font-size:15px">${displayTitle}</strong>
+              <strong class="assignment-item-title" data-raw-title="${esc(a.title)}" style="font-size:15px">${displayTitle}</strong>
               <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-                ${createdLabel}: ${formattedDate} ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} ${t('completed')}</span>` : ''}
+                <span data-i18n="Created">${createdLabel}</span>: <span class="assignment-item-date" data-created-at="${a.created_at}">${formattedDate}</span> ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}
               </div>
             </div>
-            <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? t('completed') : t('takeQuizBtn')}</span>
+            <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? `<span data-i18n="completed">${t('completed')}</span>` : `<span data-i18n="takeQuizBtn">${t('takeQuizBtn')}</span>`}</span>
           </div>
         </div>`;
     }).join('');
