@@ -1591,7 +1591,8 @@ function t(key, data = {}) {
   }
 }
 
-function applyTranslations() {
+function applyTranslations(root = document) {
+  const rootEl = root || document;
   // Sync open modal FIRST
   const modal = document.getElementById('confirm-modal');
   if (modal && !modal.classList.contains('hidden')) {
@@ -1615,7 +1616,7 @@ function applyTranslations() {
     if (canK && cancelEl) cancelEl.textContent = t(canK);
   }
 
-  document.querySelectorAll('[data-i18n]').forEach(el => {
+  rootEl.querySelectorAll('[data-i18n]').forEach(el => {
     try {
       const key = el.getAttribute('data-i18n');
       const dataStr = el.getAttribute('data-i18n-data');
@@ -1636,11 +1637,11 @@ function applyTranslations() {
     } catch (e) { console.error('Loop error:', e); }
   });
 
-  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+  rootEl.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     try { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); } catch (e) { }
   });
 
-  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+  rootEl.querySelectorAll('[data-i18n-title]').forEach(el => {
     try { el.title = t(el.getAttribute('data-i18n-title')); } catch (e) { }
   });
 
@@ -1676,12 +1677,11 @@ function applyTranslations() {
   }
 
   // Messaging chat-sender headers
-  document.querySelectorAll('.chat-sender').forEach(el => {
+  rootEl.querySelectorAll('.chat-sender').forEach(el => {
     el.textContent = t('Lecturer');
   });
 
   // Dynamic Quiz and Assignment Cards in DOM
-  const rootEl = root || document;
   rootEl.querySelectorAll('.quiz-item-title').forEach(el => {
     const raw = el.getAttribute('data-raw-title');
     if (raw) el.textContent = translateQuizTitle(raw, currentLang);
