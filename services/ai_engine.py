@@ -204,6 +204,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         content_str = json.dumps(topic_content, ensure_ascii=False)
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
+    from services.cefr_reference import get_cefr_conditioning
     is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     
     ref_data = ""
@@ -218,9 +219,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
+    cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
 
     system = f"""You are the {language} Pedagogic Engine (V5). 
     Your mission: Using the provided textbook content as your source, generate questions that test genuine communicative and linguistic understanding. Never repeat the same question pattern twice in a single set.
+    
+    {cefr_guidance}
     
     {pedagogy_guidance}
     
@@ -402,8 +406,13 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
                         return ensure_bilingual_curriculum(cached_data["chapters"])
             except Exception: pass
 
+    from services.cefr_reference import get_cefr_conditioning
+    cefr_curriculum_guidance = get_cefr_conditioning(language, level, "Curriculum Architecture", "syllabus")
+
     system = f"""You are a world-class bilingual curriculum architect and expert linguist specializing in the CEFR framework (A1-C2) for {language}. 
     Your mission: Design a comprehensive, pedagogically deep, and culturally rich roadmap for learning {language}.
+    
+    {cefr_curriculum_guidance}
     
     CRITICAL BILINGUAL GENERATION REQUIREMENT:
     You MUST generate BOTH language versions natively in the exact same output:
@@ -528,12 +537,14 @@ def ai_generate_report_insights(cohort_data):
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="en"):
     """Generates a complete structured lesson, using source_text as the primary source if provided."""
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines, ALPHABETS
+    from services.cefr_reference import get_cefr_conditioning, validate_cefr_level, get_curated_c1_items
     
     is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
+    cefr_conditioning = get_cefr_conditioning(language, level, topic, topic_type)
     
     lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in {instruction_lang_name}. All target language content (vocabulary, sentences, examples) MUST be in {language}."
     if is_beginner:
@@ -667,6 +678,8 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     
+    {cefr_conditioning}
+
     {pedagogy_guidance}
     
     DUAL BILINGUAL MANDATE: {dual_bilingual_mandate}
@@ -691,6 +704,12 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     NO CONVERSATION: Provide ONLY the JSON structure."""
 
     user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
+    
+    STRICT CEFR {level} MANDATE:
+    - This lesson MUST strictly adhere to the {level} proficiency standard defined in the system prompt.
+    - ABSOLUTE PROHIBITION ON BEGINNER LEXICON: Do NOT include elementary words, tourist clichés, or basic greetings for B2/C1/C2 courses!
+    - Adult learners at {level} require rich, authentic, domain-appropriate vocabulary, advanced syntax, and pragmatic depth.
+
     {source_rule}
     {alphabet_rule}
     {ref_data}
@@ -831,6 +850,11 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                             heal_concept_item(it, lang="tr")
 
                             term_str = str(it.get("term") or it.get("word") or it.get("letter") or "").strip()
+
+                            # 0. CEFR Level Invariant: Reject elementary/out-of-level items in higher levels
+                            if not validate_cefr_level(term_str, language, level):
+                                continue
+
                             # 1. Letter healing: alphabet phonetics & eliminate pronoun bleed
                             if is_alphabet_topic or len(term_str) == 1:
                                 phon_data = get_letter_phonetics(language, term_str)
@@ -879,7 +903,23 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                                     p["text"] = f"{existing_text}\n{s}".strip()
                             else:
                                 filtered_arr.append(it)
+
+                    # 4. CEFR Level Protection: Replenish curated items if C1/C2 list was depleted of bad items
+                    if p.get("type") == "vocabulary" and any(k in level.upper() for k in ["C1", "C2"]) and len(filtered_arr) < 4:
+                        curated = get_curated_c1_items(language, topic)
+                        if curated:
+                            existing_terms = {str(x.get("term", "")).lower() for x in filtered_arr if isinstance(x, dict)}
+                            for c_item in curated:
+                                if str(c_item.get("term", "")).lower() not in existing_terms:
+                                    filtered_arr.append(dict(c_item))
+
                     p[list_key] = filtered_arr
+
+            # Advanced title styling for C1/C2
+            if any(k in level.upper() for k in ["C1", "C2"]):
+                if p.get("title") == "Essential Vocabulary":
+                    p["title"] = "Advanced Lexicon & Nuances"
+                    p["title_tr"] = "İleri Düzey Kelime Bilgisi ve Nüanslar"
 
             cleaned.append(p)
         lesson_dict["pages"] = cleaned
