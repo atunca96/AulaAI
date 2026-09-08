@@ -582,17 +582,35 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
 - In instructional texts, always use native, idiomatic phrasing suitable for professional educational textbooks.
 """
 
+    dual_bilingual_mandate = f"""
+DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
+- You MUST author BOTH natural English and natural Turkish pedagogical content in EVERY page of the lesson.
+- Both language versions must be authored with authentic educational depth as an experienced language educator:
+  * English fields: 'title', 'text', 'explanation', 'translation', 'explanation' (in items), 'prompt' (in mcq).
+  * Turkish fields: 'title_tr', 'text_tr', 'explanation_tr', 'translation_tr', 'explanation_tr' (in items), 'prompt_tr' (in mcq).
+- STRICT ZERO-CALQUE MANDATE FOR TURKISH:
+  * NEVER write literal, robotic word-for-word machine translations!
+  * Write authentic Turkish grammar explanations using proper educational terminology:
+    - Example for 'gustar':
+      * Good Turkish: "• Sevilen veya hoşlanılan eylemleri belirtirken 'me gusta' kalıbından sonra mastar fiil (infinitive) kullanılır (örneğin: 'me gusta leer')."
+      * Good Turkish: "• Daha güçlü bir beğeni veya tutkuyu belirtmek için 'me encanta' ifadesi tercih edilir (örneğin: 'me encanta viajar')."
+      * Good Turkish: "• Hoşlanılan nesne çoğul olduğunda fiil 'me gustan' şeklinde çoğul kullanılır (örneğin: 'me gustan las películas')."
+      * Good Turkish: "• Gustar yapısında fiil çekiminin (gusta/gustan), beğenen kişiye göre değil, beğenilen nesnenin tekil ya da çoğul olmasına göre belirlendiğini unutmayın."
+    - Bad calques to strictly avoid: "me gusta + mastar fiil kullanarak keyif almak için ifade edin", "Fiil formunu öznenin tercihine göre eşleştirmeyi unutmayın".
+"""
+
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     
     {pedagogy_guidance}
     
+    DUAL BILINGUAL MANDATE: {dual_bilingual_mandate}
     FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. No walls of text.
     SMARTBOARD RULE: Lessons are taught on large smartboards. You MUST break all paragraphs into clear, scannable bullet points so students can read them from the back of a classroom. 
-    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in {instruction_lang_name}.
+    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in BOTH English ('explanation' / 'text') and Turkish ('explanation_tr' / 'text_tr').
     FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
     PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
-    MCQ RULE: In 'mcq' pages, 'explanation' is pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'The alternatives do not...'.
+    MCQ RULE: In 'mcq' pages, 'explanation' and 'explanation_tr' are pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'Doğru cevap...'.
     STRICT ANTI-GIVEAWAY MANDATE: The question prompt MUST NEVER contain the correct answer or give away the answer. Distractors must be homogeneous and plausible. NEVER ask shallow trivia about what string is inside a letter name.
     NATURAL PRAGMATICS RULE: {natural_pragmatics_rule}
     EXPLANATORY ITEMS MANDATE: {explanatory_items_mandate}
@@ -613,43 +631,71 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
     {ref_data}
 
     TECHNICAL SPECS:
-    1. {lang_guard}
-    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}. For A1-A2, 'title', 'text' (in grammar blocks), and 'prompt' MUST be in {instruction_lang_name}.
-    3. BULLET POINTS ONLY: Format all grammar and context 'text' or 'explanation' fields as a list of bullet points. NO LONG PARAGRAPHS.
+    1. DUAL BILINGUAL AUTHORING: Provide both English and natural Turkish pedagogical content for EVERY page.
+    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}.
+    3. BULLET POINTS ONLY: Format all grammar and context 'text' / 'text_tr' or 'explanation' / 'explanation_tr' fields as concise bullet points.
     4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. MEANINGFUL LENGTH: Generate ONLY as many pages as are naturally required. For most topics, 3-4 pages are sufficient. Aim for 4-6 high-density pages. Prioritize quality and density over quantity.
-    6. NO FILLER: Do not create nonsense or thin pages. Every page must be essential.
-    7. {instruction_lang_name.upper()}-ONLY EXPLANATIONS: ALL instructional text, tips, and explanations MUST be in {instruction_lang_name}. NEVER use {language} to explain {language}.
-    8. ALPHABET SPECIAL: If this is an alphabet topic, the first page MUST be the complete master list.
-    9. PEDAGOGICAL DEPTH: Use practical, everyday scenarios. Explain 'why' using bullets.
-    10. EXPLANATORY ITEMS: For every item in 'items', provide an 'explanation' field giving a brief 1-sentence explanation of what the word/phrase/concept is in {instruction_lang_name}.
+    5. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
+    6. NO FILLER: Every page must be packed with pedagogical value.
+    7. ZERO CALQUES: Ensure all Turkish explanations are authentic, idiomatic, and educational.
+    8. EXPLANATORY ITEMS: For every item in 'items', provide both 'explanation' (English) and 'explanation_tr' (Turkish).
+    
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
       "pages": [
         {{ 
           "type": "vocabulary", 
           "title": "Essential Vocabulary", 
+          "title_tr": "Temel Kelimeler", 
           "explanation": "• Deep English explanation of how to use these terms\\n• Cultural or grammatical nuances", 
+          "explanation_tr": "• Bu terimlerin kullanımını ve dilbilgisel inceliklerini açıklayan doğal Türkçe pedagojik rehber", 
           "items": [ 
-            {{ "term": "...", "translation": "...", "explanation": "Brief explanation of what this word/phrase is" }},
-            {{ "term": "...", "translation": "...", "explanation": "Brief explanation of what this word/phrase is" }}
+            {{ 
+              "term": "...", 
+              "translation": "English meaning", 
+              "translation_tr": "Doğal Türkçe anlamı", 
+              "explanation": "Brief English explanation of usage or concept", 
+              "explanation_tr": "Kullanım veya dilbilgisi kuralını açıklayan kısa Türkçe not" 
+            }}
           ] 
         }},
         {{ 
           "type": "grammar", 
           "title": "Structural Focus", 
-          "text": "• Clear bullet-point Rule 1\\n• Rule 2 with English context" 
+          "title_tr": "Yapısal Dilbilgisi Kuralları", 
+          "text": "• Clear bullet-point Rule 1 in English\\n• Rule 2 with English context", 
+          "text_tr": "• Net ve anlaşılır Türkçe kural maddesi 1\\n• Doğal öğretmen üslubuyla yazılmış Türkçe kural maddesi 2" 
         }},
         {{ 
           "type": "examples", 
           "title": "Practical Application", 
+          "title_tr": "Pratik Uygulama", 
           "explanation": "• How these sentences work in real life", 
+          "explanation_tr": "• Bu cümlelerin günlük hayattaki kullanımını anlatan Türkçe açıklama", 
           "list": [ 
-            {{ "speaker": "A", "text": "Sentence in {language}" }}, 
-            {{ "speaker": "B", "text": "Response in {language}" }} 
+            {{ 
+              "speaker": "A", 
+              "text": "Sentence in {language}", 
+              "translation": "English translation", 
+              "translation_tr": "Doğal Türkçe çeviri" 
+            }}, 
+            {{ 
+              "speaker": "B", 
+              "text": "Response in {language}", 
+              "translation": "English translation", 
+              "translation_tr": "Doğal Türkçe çeviri" 
+            }} 
           ] 
         }},
-        {{ "type": "mcq", "prompt": "...", "explanation": "• Reasoning", "answer": "...", "distractors": ["...", "...", "..."] }}
+        {{ 
+          "type": "mcq", 
+          "prompt": "Question prompt in English", 
+          "prompt_tr": "Doğal Türkçe soru metni", 
+          "explanation": "• Reasoning in English", 
+          "explanation_tr": "• Doğru cevabın dilbilgisel gerekçesini açıklayan Türkçe pedagojik açıklama", 
+          "answer": "...", 
+          "distractors": ["...", "...", "..."] 
+        }}
       ]
     }}"""
 
@@ -670,7 +716,28 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
                 trivia_indicators = ["nombre que incluye", "se llama", "name includes", "includes the word", "harfinin adı", "kelimesini içerir", "cuál de estas letras tiene un nombre"]
                 if any(x in clean_p for x in trivia_indicators):
                     continue  # Skip trivia
-            
+
+                # Clean MCQ feedback in both languages
+                for expl_field in ["explanation", "explanation_tr"]:
+                    if expl_field in p and isinstance(p[expl_field], str):
+                        expl_val = p[expl_field]
+                        expl_val = re.sub(r"(?i)\bthe\s+correct\s+answer\s+is\s+.*?(?:\.|$)", "", expl_val).strip()
+                        expl_val = re.sub(r"(?i)\bthe\s+alternatives?\s+(?:do\s+not|are)\s+.*?(?:\.|$)", "", expl_val).strip()
+                        expl_val = re.sub(r"(?i)\bdoğru\s+cevap\s+.*?(?:\.|$)", "", expl_val).strip()
+                        p[expl_field] = expl_val
+
+            # Ensure both title and title_tr exist
+            if not p.get("title_tr") and p.get("title"):
+                from services.language_data import _get_bm_title_map
+                bm_titles = _get_bm_title_map()
+                p["title_tr"] = bm_titles.get(p["title"], p["title"])
+
+            # Ensure both text and text_tr / explanation and explanation_tr exist
+            if p.get("text") and not p.get("text_tr"):
+                p["text_tr"] = p["text"]
+            if p.get("explanation") and not p.get("explanation_tr"):
+                p["explanation_tr"] = p["explanation"]
+
             # Pedagogical item explanation enrichment & self-healing
             for list_key in ["items", "vocabulary", "words", "list", "dialogue", "examples"]:
                 arr = p.get(list_key)
@@ -678,7 +745,8 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
                     filtered_arr = []
                     for it in arr:
                         if isinstance(it, dict):
-                            heal_concept_item(it, lang=material_language)
+                            heal_concept_item(it, lang="en")
+                            heal_concept_item(it, lang="tr")
                             filtered_arr.append(it)
                         elif isinstance(it, str):
                             s = it.strip()

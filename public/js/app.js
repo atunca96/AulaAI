@@ -8355,10 +8355,10 @@ function showStudyTopic(topicId, pageIdx = 0) {
             if (isMcq) {
               text = (currentLang === 'tr' && p.intro_tr) ? p.intro_tr : (p.intro || p.context || p.instructions || "");
             } else {
-              if (currentLang === 'tr' && (p.text_tr || p.explanation_tr)) {
-                text = p.text_tr || p.explanation_tr;
+              if (currentLang === 'tr') {
+                text = p.text_tr || p.explanation_tr || p.content_tr || p.description_tr;
               } else {
-                text = p.text || p.content || p.description || p.explanation || p.rule || p.intro || "";
+                text = p.text || p.explanation || p.content || p.description || p.rule || p.intro || "";
               }
               if (!text || (typeof text === "object" && !Array.isArray(text))) {
                  for(let key in p) {
@@ -8370,7 +8370,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
             }
 
             if (text && typeof text === "string") {
-              const translatedText = (currentLang === 'tr' && (p.text_tr || p.explanation_tr)) ? text : translateEducationalText(text);
+              const translatedText = (currentLang === 'tr')
+                ? ((p.text_tr || p.explanation_tr) ? text : translateEducationalText(text))
+                : (p.text || p.explanation || text);
               const fixDiacriticsText = fixDiacritics(translatedText);
               const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
               const badgeLabel = currentLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
@@ -8398,7 +8400,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
             }
 
             // 2. Data List Detection
-            let rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
+            let rawData = [];
+            if (currentLang === 'tr' && (p.items_tr || p.list_tr || p.examples_tr || p.rules_tr)) {
+              rawData = p.items_tr || p.list_tr || p.examples_tr || p.rules_tr;
+            } else {
+              rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
+            }
             if (!Array.isArray(rawData) || rawData.length === 0) {
               for (const key in p) {
                 if (Array.isArray(p[key]) && p[key].length > 0 && key !== 'pages' && key !== 'options' && key !== 'choices' && key !== 'distractors' && key !== 'answer') {
@@ -8435,14 +8442,21 @@ function showStudyTopic(topicId, pageIdx = 0) {
             // Prevent MCQs from double-rendering their options as vocab cards
             if (Array.isArray(rawData) && rawData.length > 0 && !isMcq) {
               html += `<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">`;
-              rawData.forEach(it => {
+              rawData.forEach((it, itIdx) => {
                 if (typeof it === "string") {
                   const sTrimmed = it.trim();
                   const isRuleOrSentence = sTrimmed.startsWith('•') || sTrimmed.startsWith('-') || sTrimmed.startsWith('*') || sTrimmed.split(/\s+/).length > 4 || sTrimmed.length > 35;
                   if (isRuleOrSentence) {
                     // Guideline rule / sentence — render as pedagogical guideline card, NOT as a vocab flashcard with TTS
                     const cleanLine = sTrimmed.replace(/^[•\-\*\s]+/, '').trim();
-                    const translatedLine = (currentLang === 'tr') ? translateEducationalText(cleanLine) : cleanLine;
+                    let translatedLine = cleanLine;
+                    if (currentLang === 'tr') {
+                      if (p.rules_tr && Array.isArray(p.rules_tr) && p.rules_tr[itIdx]) {
+                        translatedLine = p.rules_tr[itIdx].replace(/^[•\-\*\s]+/, '').trim();
+                      } else {
+                        translatedLine = translateEducationalText(cleanLine);
+                      }
+                    }
                     html += `
                       <div class="pedagogy-guide-block" style="margin-top:4px; margin-bottom:4px;">
                         <div class="pedagogy-rules-list">
@@ -8561,16 +8575,17 @@ function showStudyTopic(topicId, pageIdx = 0) {
               html += `</div>`;
             }
 
-            // 3. MCQ Support
+             // 3. MCQ Support
             if (p.type === 'mcq' || p.prompt) {
                const allOptions = Array.from(new Set((p.distractors || []).concat(p.answer))).filter(Boolean);
                allOptions.sort();
                const translatedPrompt = (currentLang === 'tr' && p.prompt_tr) ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:");
+               const mcqExpl = (currentLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
                html += `<div style="margin-top:${html ? '24px' : '0'}; background:var(--bg-input); padding:24px; border-radius:12px; border:1px solid var(--border);">
                  <div dir="auto" style="font-size:16px; font-weight:700; margin-bottom:16px; color:var(--text-primary); line-height:1.5;">${fixDiacritics(translatedPrompt)}</div>
                  <div style="display:flex; flex-direction:column; gap:10px;">
                    ${allOptions.map(opt => `
-                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(p.explanation || "")})">${fixDiacritics(translateOption(opt))}</button>
+                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)})">${fixDiacritics(translateOption(opt))}</button>
                    `).join('')}
                  </div>
                </div>`;
@@ -8617,7 +8632,11 @@ function showStudyTopic(topicId, pageIdx = 0) {
           </div>
           <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
-        <div style="display:flex; gap:10px; flex-shrink:0;">
+        <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
+          <button class="btn btn-outline btn-sm lang-toggle-pill" onclick="toggleLanguage()" title="${currentLang === 'en' ? 'Türkçe versiyona geç' : 'Switch to English version'}" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:12px; padding:6px 12px; border-radius:20px; border-color:var(--accent); color:var(--accent);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span>${currentLang.toUpperCase()}</span>
+          </button>
           ${pageIdx > 0 ? `<button class="btn btn-outline btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
           ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
@@ -8697,7 +8716,8 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
         expDiv.style.lineHeight = '1.6';
         expDiv.style.whiteSpace = 'pre-wrap';
         expDiv.style.color = 'var(--text-primary)';
-        const translatedExplanation = translateEducationalText(explanation);
+        const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explanation) || explanation.includes('doğru') || explanation.includes('çünkü') || explanation.includes('ifade'));
+        const translatedExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explanation : translateEducationalText(explanation)) : explanation;
         expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${t('Explanation') || 'Explanation'}</span></div>${fixDiacritics(translatedExplanation)}`;
         (parent.parentElement || parent).appendChild(expDiv);
     }

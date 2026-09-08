@@ -328,12 +328,15 @@ def finalize_course_bilingual_data(course_id: str):
             if p.get("title") and (not p.get("title_tr") or not is_clean_turkish(p.get("title_tr"))):
                 to_translate_to_tr.append(p["title"].strip())
             # Bullet points / explanation
-            txt = p.get("text") or p.get("explanation") or p.get("intro") or ""
-            if txt and isinstance(txt, str):
-                for line in txt.split("\n"):
-                    cl = re.sub(r'^[•\-\*\s]+', '', line).strip()
-                    if cl and len(cl) > 2:
-                        to_translate_to_tr.append(cl)
+            has_native_text = bool(p.get("text_tr") and p.get("text_tr").strip() and p.get("text_tr") != p.get("text"))
+            has_native_expl = bool(p.get("explanation_tr") and p.get("explanation_tr").strip() and p.get("explanation_tr") != p.get("explanation"))
+            if not has_native_text and not has_native_expl:
+                txt = p.get("text") or p.get("explanation") or p.get("intro") or ""
+                if txt and isinstance(txt, str):
+                    for line in txt.split("\n"):
+                        cl = re.sub(r'^[•\-\*\s]+', '', line).strip()
+                        if cl and len(cl) > 2:
+                            to_translate_to_tr.append(cl)
 
             # Vocab items
             items = p.get("items") or p.get("vocabulary") or p.get("words") or []
@@ -343,14 +346,16 @@ def finalize_course_bilingual_data(course_id: str):
                     if term_clean in SPANISH_ALPHABET_SPELLINGS:
                         continue
                     v = it.get("translation") or it.get("meaning") or it.get("english") or ""
-                    if v and isinstance(v, str) and len(v.strip()) > 1:
+                    if v and isinstance(v, str) and len(v.strip()) > 1 and (not it.get("translation_tr") or it.get("translation_tr") == v):
                         to_translate_to_tr.append(v.strip())
                     expl = it.get("explanation") or it.get("explanation_en") or ""
-                    if expl and isinstance(expl, str) and len(expl.strip()) > 2 and not it.get("explanation_tr"):
+                    if expl and isinstance(expl, str) and len(expl.strip()) > 2 and (not it.get("explanation_tr") or it.get("explanation_tr") == expl):
                         to_translate_to_tr.append(expl.strip())
             # MCQ
-            if p.get("prompt"): to_translate_to_tr.append(p["prompt"].strip())
-            if p.get("explanation"): to_translate_to_tr.append(p["explanation"].strip())
+            if p.get("prompt") and (not p.get("prompt_tr") or p.get("prompt_tr") == p.get("prompt")):
+                to_translate_to_tr.append(p["prompt"].strip())
+            if p.get("explanation") and (not p.get("explanation_tr") or p.get("explanation_tr") == p.get("explanation")):
+                to_translate_to_tr.append(p["explanation"].strip())
 
         topic_data_list.append((t["id"], t["title"], content))
 
@@ -395,24 +400,43 @@ def finalize_course_bilingual_data(course_id: str):
                 if p.get("title"):
                     if p["title"].strip() == "Essential Vocabulary":
                         p["title_tr"] = "Temel Kelimeler"
-                    else:
+                    elif not p.get("title_tr") or p.get("title_tr") == p.get("title"):
                         p["title_tr"] = trans_map.get(p["title"].strip(), p["title"])
                 # Text / bullets
-                txt = p.get("text") or p.get("explanation") or p.get("intro") or ""
-                if txt and isinstance(txt, str):
-                    lines = txt.split("\n")
-                    tr_lines = []
-                    for line in lines:
-                        cl = re.sub(r'^[•\-\*\s]+', '', line).strip()
-                        if not cl:
-                            tr_lines.append(line)
-                            continue
-                        bullet_match = re.match(r'^([•\-\*\s]+)', line)
-                        bullet = bullet_match.group(1) if bullet_match else "• "
-                        translated_cl = trans_map.get(cl, cl)
-                        tr_lines.append(bullet + translated_cl)
-                    p["text_tr"] = "\n".join(tr_lines)
-                    p["explanation_tr"] = p["text_tr"]
+                has_native_text = bool(p.get("text_tr") and p.get("text_tr").strip() and p.get("text_tr") != p.get("text"))
+                has_native_expl = bool(p.get("explanation_tr") and p.get("explanation_tr").strip() and p.get("explanation_tr") != p.get("explanation"))
+                if not has_native_text:
+                    txt = p.get("text") or p.get("intro") or ""
+                    if txt and isinstance(txt, str):
+                        lines = txt.split("\n")
+                        tr_lines = []
+                        for line in lines:
+                            cl = re.sub(r'^[•\-\*\s]+', '', line).strip()
+                            if not cl:
+                                tr_lines.append(line)
+                                continue
+                            bullet_match = re.match(r'^([•\-\*\s]+)', line)
+                            bullet = bullet_match.group(1) if bullet_match else "• "
+                            translated_cl = trans_map.get(cl, cl)
+                            tr_lines.append(bullet + translated_cl)
+                        p["text_tr"] = "\n".join(tr_lines)
+                if not has_native_expl:
+                    expl_txt = p.get("explanation") or ""
+                    if expl_txt and isinstance(expl_txt, str):
+                        lines = expl_txt.split("\n")
+                        tr_lines = []
+                        for line in lines:
+                            cl = re.sub(r'^[•\-\*\s]+', '', line).strip()
+                            if not cl:
+                                tr_lines.append(line)
+                                continue
+                            bullet_match = re.match(r'^([•\-\*\s]+)', line)
+                            bullet = bullet_match.group(1) if bullet_match else "• "
+                            translated_cl = trans_map.get(cl, cl)
+                            tr_lines.append(bullet + translated_cl)
+                        p["explanation_tr"] = "\n".join(tr_lines)
+                    elif p.get("text_tr"):
+                        p["explanation_tr"] = p["text_tr"]
                 # Vocab items
                 items = p.get("items") or p.get("vocabulary") or p.get("words") or []
                 for it in items:
@@ -428,14 +452,17 @@ def finalize_course_bilingual_data(course_id: str):
                         v = it.get("translation") or it.get("meaning") or it.get("english") or ""
                         if v and isinstance(v, str):
                             v_clean = v.strip()
-                            v_tr = trans_map.get(v_clean, v_clean)
+                            if not it.get("translation_tr") or it.get("translation_tr") == v_clean:
+                                v_tr = trans_map.get(v_clean, v_clean)
+                                it["translation_tr"] = v_tr
+                                it["turkish"] = v_tr
                             it["translation_en"] = v_clean
-                            it["translation_tr"] = v_tr
-                            it["turkish"] = v_tr
                         
                         # Explanation enrichment & translation
                         expl = it.get("explanation") or it.get("explanation_en") or ""
-                        if expl and isinstance(expl, str) and len(expl.strip()) > 2:
+                        if it.get("explanation_tr") and it.get("explanation_tr") != expl:
+                            it["explanation_en"] = expl or it.get("explanation") or ""
+                        elif expl and isinstance(expl, str) and len(expl.strip()) > 2:
                             expl_clean = expl.strip()
                             it["explanation_en"] = expl_clean
                             it["explanation_tr"] = trans_map.get(expl_clean, it.get("explanation_tr") or expl_clean)
@@ -448,9 +475,9 @@ def finalize_course_bilingual_data(course_id: str):
                                 it["explanation_en"] = c_en
                                 it["explanation_tr"] = c_tr
                 # MCQ
-                if p.get("prompt"):
+                if p.get("prompt") and (not p.get("prompt_tr") or p.get("prompt_tr") == p.get("prompt")):
                     p["prompt_tr"] = trans_map.get(p["prompt"].strip(), p["prompt"])
-                if p.get("explanation"):
+                if p.get("explanation") and (not p.get("explanation_tr") or p.get("explanation_tr") == p.get("explanation")):
                     p["explanation_tr"] = trans_map.get(p["explanation"].strip(), p["explanation"])
 
             # Save enriched bilingual content
