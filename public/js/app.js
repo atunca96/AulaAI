@@ -3841,8 +3841,7 @@ function translateOption(text, lang = currentLang) {
     // Target is English
     if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
     if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
-    if (enTr[trimmed] && enTr[trimmed].toLowerCase() !== lower) return enTr[trimmed];
-    if (enTr[lower] && enTr[lower].toLowerCase() !== lower) return enTr[lower];
+    // NOTE: do NOT lookup enTr[trimmed]/enTr[lower] here — those return Turkish values, wrong direction for EN target
     for (const [k, v] of Object.entries(enTr)) {
       if (v && v.toLowerCase() === lower && k) return k;
     }
@@ -10172,6 +10171,18 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     }
                     const rawResolved = translateOption(rawV, currentLang);
                     let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+
+                    // SAFETY GUARD: resolveDualLanguage catches any residual language mismatch on v
+                    if (v) {
+                      const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || '');
+                      v = resolveDualLanguage(
+                        currentLang !== 'tr' ? v : rawV,
+                        currentLang === 'tr' ? v : trRawV,
+                        currentLang,
+                        v
+                      );
+                      if (v) v = v.charAt(0).toUpperCase() + v.slice(1);
+                    }
 
                     // ROOT LANGUAGE MIXUP FIX: In EN mode, ensure any Turkish stored value is translated to English
                     if (currentLang !== 'tr' && v) {
