@@ -3039,18 +3039,372 @@ const SPANISH_LETTER_SPELLINGS = new Set([
   'a','be','ce','de','e','efe','ge','hache','i','jota','ka','ele','eme','ene','eñe','o','pe','cu','ere','erre','ese','te','u','uve','uve doble','equis','i griega','zeta'
 ]);
 
+const TAUTOLOGY_REGEX = /(?:\beylemini\s+ifade\s+eder|\betkinliğini\s+ifade\s+eder|\bifade\s+etmek\s+için\s+kullanılır|\beylemidir|\bveya\s+spor\s+etkinliklerini|\bresim\s+yaratmayı|\biçerir\.|\büretme\s+eylemidir|\brefers?\s+to\s+the\s+act\s+of|\bmeans?\s+the\s+act\s+of|\bis\s+the\s+act\s+of|\bused\s+to\s+express\s+the\s+action\s+of)/i;
+
+const ALPHABET_PHONETICS_MAP = {
+  "spanish": {
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Amigo", "example_en": "Friend", "example_tr": "Arkadaş" },
+    "B": { "name": "Be", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Bueno", "example_en": "Good", "example_tr": "İyi" },
+    "C": { "name": "Ce", "phonetic_en": "[seh / theh] (e/i) / [kah] (a/o/u)", "phonetic_tr": "[se / peltek s] (e/i) / [k] (a/o/u)", "example": "Casa", "example_en": "House", "example_tr": "Ev" },
+    "CH": { "name": "Che", "phonetic_en": "[cheh]", "phonetic_tr": "[çe]", "example": "Chico", "example_en": "Boy", "example_tr": "Çocuk" },
+    "D": { "name": "De", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Día", "example_en": "Day", "example_tr": "Gün" },
+    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Elefante", "example_en": "Elephant", "example_tr": "Fil" },
+    "F": { "name": "Efe", "phonetic_en": "[EH-feh]", "phonetic_tr": "[efe]", "example": "Familia", "example_en": "Family", "example_tr": "Aile" },
+    "G": { "name": "Ge", "phonetic_en": "[heh] (e/i) / [geh] (a/o/u)", "phonetic_tr": "[he] (boğazdan h, e/i) / [ge] (a/o/u)", "example": "Gato", "example_en": "Cat", "example_tr": "Kedi" },
+    "H": { "name": "Hache", "phonetic_en": "[AH-cheh] (always silent)", "phonetic_tr": "[açe] (daima sessiz, okunmaz)", "example": "Hola", "example_en": "Hello", "example_tr": "Merhaba" },
+    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Isla", "example_en": "Island", "example_tr": "Ada" },
+    "J": { "name": "Jota", "phonetic_en": "[HOH-tah] (raspy h)", "phonetic_tr": "[hota] (boğazdan h sesi)", "example": "Jardín", "example_en": "Garden", "example_tr": "Bahçe" },
+    "K": { "name": "Ka", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Kilo", "example_en": "Kilo", "example_tr": "Kilo" },
+    "L": { "name": "Ele", "phonetic_en": "[EH-leh]", "phonetic_tr": "[ele]", "example": "Libro", "example_en": "Book", "example_tr": "Kitap" },
+    "LL": { "name": "Elle", "phonetic_en": "[YEH / EH-lyeh]", "phonetic_tr": "[ye / elye]", "example": "Lluvia", "example_en": "Rain", "example_tr": "Yağmur" },
+    "M": { "name": "Eme", "phonetic_en": "[EH-meh]", "phonetic_tr": "[eme]", "example": "Madre", "example_en": "Mother", "example_tr": "Anne" },
+    "N": { "name": "Ene", "phonetic_en": "[EH-neh]", "phonetic_tr": "[ene]", "example": "Noche", "example_en": "Night", "example_tr": "Gece" },
+    "Ñ": { "name": "Eñe", "phonetic_en": "[EH-nyeh] (like canyon)", "phonetic_tr": "[enye] (n+y sesi)", "example": "Niño", "example_en": "Child", "example_tr": "Çocuk" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Ojo", "example_en": "Eye", "example_tr": "Göz" },
+    "P": { "name": "Pe", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Padre", "example_en": "Father", "example_tr": "Baba" },
+    "Q": { "name": "Cu", "phonetic_en": "[koo] (qu = k)", "phonetic_tr": "[ku] (qu = k sesi)", "example": "Queso", "example_en": "Cheese", "example_tr": "Peynir" },
+    "R": { "name": "Ere", "phonetic_en": "[EH-reh] (soft tap)", "phonetic_tr": "[ere] (yumuşak r)", "example": "Pero", "example_en": "But", "example_tr": "Ama" },
+    "RR": { "name": "Erre", "phonetic_en": "[EH-rreh] (trilled r)", "phonetic_tr": "[erre] (kuvvetli titrek r)", "example": "Perro", "example_en": "Dog", "example_tr": "Köpek" },
+    "S": { "name": "Ese", "phonetic_en": "[EH-seh]", "phonetic_tr": "[ese]", "example": "Sol", "example_en": "Sun", "example_tr": "Güneş" },
+    "T": { "name": "Te", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Tiempo", "example_en": "Time", "example_tr": "Zaman" },
+    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uva", "example_en": "Grape", "example_tr": "Üzüm" },
+    "V": { "name": "Uve", "phonetic_en": "[OO-beh] (b/v sound)", "phonetic_tr": "[uve] (b-v arası ses)", "example": "Vino", "example_en": "Wine", "example_tr": "Şarap" },
+    "W": { "name": "Uve doble", "phonetic_en": "[OO-beh DOH-bleh]", "phonetic_tr": "[uve doble] (çift v)", "example": "Web", "example_en": "Web", "example_tr": "Web" },
+    "X": { "name": "Equis", "phonetic_en": "[EH-kees]", "phonetic_tr": "[ekis]", "example": "Éxito", "example_en": "Success", "example_tr": "Başarı" },
+    "Y": { "name": "I griega / Ye", "phonetic_en": "[ee gryeh-gah / yeh]", "phonetic_tr": "[i griyega / ye]", "example": "Yo", "example_en": "I", "example_tr": "Ben" },
+    "Z": { "name": "Zeta", "phonetic_en": "[SEH-tah / THEH-tah]", "phonetic_tr": "[seta / peltek s]", "example": "Zapato", "example_en": "Shoe", "example_tr": "Ayakkabı" }
+  },
+  "german": {
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Apfel" },
+    "Ä": { "name": "Ä", "phonetic_en": "[eh] (open e)", "phonetic_tr": "[açık e]", "example": "Äpfel" },
+    "B": { "name": "Be", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Buch" },
+    "C": { "name": "Ce", "phonetic_en": "[tseh]", "phonetic_tr": "[tse]", "example": "Computer" },
+    "D": { "name": "De", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Danke" },
+    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Essen" },
+    "F": { "name": "Ef", "phonetic_en": "[eff]", "phonetic_tr": "[ef]", "example": "Freund" },
+    "G": { "name": "Ge", "phonetic_en": "[geh]", "phonetic_tr": "[ge]", "example": "Gut" },
+    "H": { "name": "Ha", "phonetic_en": "[hah] (aspirated)", "phonetic_tr": "[ha] (vurgulu)", "example": "Haus" },
+    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Insel" },
+    "J": { "name": "Jott", "phonetic_en": "[yot] (y-sound)", "phonetic_tr": "[yot] (y sesi)", "example": "Ja" },
+    "K": { "name": "Ka", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Katze" },
+    "L": { "name": "El", "phonetic_en": "[ell]", "phonetic_tr": "[el]", "example": "Liebe" },
+    "M": { "name": "Em", "phonetic_en": "[emm]", "phonetic_tr": "[em]", "example": "Mutter" },
+    "N": { "name": "En", "phonetic_en": "[enn]", "phonetic_tr": "[en]", "example": "Nacht" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Ohr" },
+    "Ö": { "name": "Ö", "phonetic_en": "[oe] (rounded lips)", "phonetic_tr": "[ö]", "example": "Öl" },
+    "P": { "name": "Pe", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Park" },
+    "Q": { "name": "Ku", "phonetic_en": "[koo] (qu = kv)", "phonetic_tr": "[ku] (qu = kv sesi)", "example": "Quelle" },
+    "R": { "name": "Er", "phonetic_en": "[err] (uvular r)", "phonetic_tr": "[er] (boğazdan r)", "example": "Rot" },
+    "S": { "name": "Es", "phonetic_en": "[ess] (z-sound at start)", "phonetic_tr": "[es] (başta z)", "example": "Sonne" },
+    "ß": { "name": "Eszett", "phonetic_en": "[es-TSET] (sharp double s)", "phonetic_tr": "[esset] (keskin çift s)", "example": "Straße" },
+    "T": { "name": "Te", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Tag" },
+    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uhr" },
+    "Ü": { "name": "Ü", "phonetic_en": "[ue] (rounded lips)", "phonetic_tr": "[ü]", "example": "Über" },
+    "V": { "name": "Vau", "phonetic_en": "[fow] (f-sound)", "phonetic_tr": "[fau] (f sesi)", "example": "Vater" },
+    "W": { "name": "We", "phonetic_en": "[veh] (v-sound)", "phonetic_tr": "[ve] (v sesi)", "example": "Wasser" },
+    "X": { "name": "Iks", "phonetic_en": "[iks]", "phonetic_tr": "[iks]", "example": "Taxi" },
+    "Y": { "name": "Ypsilon", "phonetic_en": "[UP-si-lon] (ü-sound)", "phonetic_tr": "[ipsilon] (ü sesi)", "example": "Typ" },
+    "Z": { "name": "Zett", "phonetic_en": "[tset] (ts-sound)", "phonetic_tr": "[tset] (ts sesi)", "example": "Zeit" }
+  },
+  "french": {
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Ami" },
+    "B": { "name": "Bé", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Bonjour" },
+    "C": { "name": "Cé", "phonetic_en": "[seh]", "phonetic_tr": "[se]", "example": "Ciel" },
+    "Ç": { "name": "C cédille", "phonetic_en": "[seh sey-dee] (always s)", "phonetic_tr": "[se sediy] (daima s)", "example": "Français" },
+    "D": { "name": "Dé", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Demain" },
+    "E": { "name": "E", "phonetic_en": "[uh]", "phonetic_tr": "[kapalı ö/e]", "example": "Enfant" },
+    "É": { "name": "E accent aigu", "phonetic_en": "[ay] (closed e)", "phonetic_tr": "[kapalı e]", "example": "Été" },
+    "È": { "name": "E accent grave", "phonetic_en": "[eh] (open e)", "phonetic_tr": "[açık e]", "example": "Père" },
+    "F": { "name": "Eff", "phonetic_en": "[eff]", "phonetic_tr": "[ef]", "example": "Femme" },
+    "G": { "name": "Gé", "phonetic_en": "[zheh]", "phonetic_tr": "[je]", "example": "Gare" },
+    "H": { "name": "Hache", "phonetic_en": "[AHSH] (silent)", "phonetic_tr": "[aş] (sessiz harf)", "example": "Homme" },
+    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Île" },
+    "J": { "name": "Ji", "phonetic_en": "[zhee]", "phonetic_tr": "[ji]", "example": "Jour" },
+    "K": { "name": "Ka", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Kilo" },
+    "L": { "name": "Elle", "phonetic_en": "[ell]", "phonetic_tr": "[el]", "example": "Livre" },
+    "M": { "name": "Emme", "phonetic_en": "[emm]", "phonetic_tr": "[em]", "example": "Maison" },
+    "N": { "name": "Enne", "phonetic_en": "[enn]", "phonetic_tr": "[en]", "example": "Nuit" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Oui" },
+    "P": { "name": "Pé", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Pain" },
+    "Q": { "name": "Ku", "phonetic_en": "[kew]", "phonetic_tr": "[kü]", "example": "Quatre" },
+    "R": { "name": "Erre", "phonetic_en": "[AIR] (french uvular r)", "phonetic_tr": "[er] (boğazdan g-r)", "example": "Rouge" },
+    "S": { "name": "Esse", "phonetic_en": "[ess]", "phonetic_tr": "[es]", "example": "Soleil" },
+    "T": { "name": "Té", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Temps" },
+    "U": { "name": "U", "phonetic_en": "[ew] (french rounded u)", "phonetic_tr": "[ü]", "example": "Un" },
+    "V": { "name": "Vé", "phonetic_en": "[veh]", "phonetic_tr": "[ve]", "example": "Vin" },
+    "W": { "name": "Double vé", "phonetic_en": "[DOO-bluh veh]", "phonetic_tr": "[dubl ve]", "example": "Weekend" },
+    "X": { "name": "Iks", "phonetic_en": "[eeks]", "phonetic_tr": "[iks]", "example": "Yeux" },
+    "Y": { "name": "I grec", "phonetic_en": "[ee GREK]", "phonetic_tr": "[i grek]", "example": "Yeux" },
+    "Z": { "name": "Zède", "phonetic_en": "[zed]", "phonetic_tr": "[zed]", "example": "Zéro" }
+  },
+  "italian": {
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Amore" },
+    "B": { "name": "Bi", "phonetic_en": "[bee]", "phonetic_tr": "[bi]", "example": "Bello" },
+    "C": { "name": "Ci", "phonetic_en": "[chee] (e/i) / [k] (a/o/u)", "phonetic_tr": "[çi] (e/i) / [k] (a/o/u)", "example": "Ciao / Casa" },
+    "D": { "name": "Di", "phonetic_en": "[dee]", "phonetic_tr": "[di]", "example": "Donna" },
+    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Estate" },
+    "F": { "name": "Effe", "phonetic_en": "[EF-feh]", "phonetic_tr": "[effe]", "example": "Famiglia" },
+    "G": { "name": "Gi", "phonetic_en": "[jee] (e/i) / [g] (a/o/u)", "phonetic_tr": "[ci] (e/i) / [g] (a/o/u)", "example": "Giorno / Gatto" },
+    "H": { "name": "Acca", "phonetic_en": "[AHK-kah] (silent)", "phonetic_tr": "[akka] (sessiz harf)", "example": "Hotel" },
+    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Isola" },
+    "L": { "name": "Elle", "phonetic_en": "[EL-leh]", "phonetic_tr": "[elle]", "example": "Libro" },
+    "M": { "name": "Emme", "phonetic_en": "[EM-meh]", "phonetic_tr": "[emme]", "example": "Madre" },
+    "N": { "name": "Enne", "phonetic_en": "[EN-neh]", "phonetic_tr": "[enne]", "example": "Notte" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Oggi" },
+    "P": { "name": "Pi", "phonetic_en": "[pee]", "phonetic_tr": "[pi]", "example": "Pane" },
+    "Q": { "name": "Qu", "phonetic_en": "[koo]", "phonetic_tr": "[ku]", "example": "Questo" },
+    "R": { "name": "Erre", "phonetic_en": "[ER-reh] (rolled r)", "phonetic_tr": "[erre] (titrek r)", "example": "Roma" },
+    "S": { "name": "Esse", "phonetic_en": "[ES-seh]", "phonetic_tr": "[esse]", "example": "Sole" },
+    "T": { "name": "Ti", "phonetic_en": "[tee]", "phonetic_tr": "[ti]", "example": "Tempo" },
+    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uomo" },
+    "V": { "name": "Vu / Vi", "phonetic_en": "[voo / vee]", "phonetic_tr": "[vu / vi]", "example": "Vino" },
+    "Z": { "name": "Zeta", "phonetic_en": "[DZEH-tah / TSEH-tah]", "phonetic_tr": "[dzeta / tseta]", "example": "Pizza" }
+  },
+  "russian": {
+    "А": { "name": "А", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Анна" },
+    "Б": { "name": "Бэ", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Брат" },
+    "В": { "name": "Вэ", "phonetic_en": "[veh]", "phonetic_tr": "[ve]", "example": "Вода" },
+    "Г": { "name": "Гэ", "phonetic_en": "[geh]", "phonetic_tr": "[ge]", "example": "Город" },
+    "Д": { "name": "Дэ", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Дом" },
+    "Е": { "name": "Е", "phonetic_en": "[yeh]", "phonetic_tr": "[ye]", "example": "Еда" },
+    "Ё": { "name": "Ё", "phonetic_en": "[yoh]", "phonetic_tr": "[yo]", "example": "Ёлка" },
+    "Ж": { "name": "Жэ", "phonetic_en": "[zheh]", "phonetic_tr": "[je]", "example": "Жизнь" },
+    "З": { "name": "Зэ", "phonetic_en": "[zeh]", "phonetic_tr": "[ze]", "example": "Зима" },
+    "И": { "name": "И", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Имя" },
+    "Й": { "name": "И краткое", "phonetic_en": "[ee KRAHT-koy-eh]", "phonetic_tr": "[kısa i]", "example": "Чай" },
+    "К": { "name": "Ка", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Книга" },
+    "Л": { "name": "Эль", "phonetic_en": "[el]", "phonetic_tr": "[el]", "example": "Любовь" },
+    "М": { "name": "Эм", "phonetic_en": "[em]", "phonetic_tr": "[em]", "example": "Мама" },
+    "Н": { "name": "Эн", "phonetic_en": "[en]", "phonetic_tr": "[en]", "example": "Ночь" },
+    "О": { "name": "О", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Окно" },
+    "П": { "name": "Пэ", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Папа" },
+    "Р": { "name": "Эр", "phonetic_en": "[er]", "phonetic_tr": "[er]", "example": "Россия" },
+    "С": { "name": "Эс", "phonetic_en": "[es]", "phonetic_tr": "[es]", "example": "Солнце" },
+    "Т": { "name": "Тэ", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Театр" },
+    "У": { "name": "У", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Утро" },
+    "Ф": { "name": "Эф", "phonetic_en": "[ef]", "phonetic_tr": "[ef]", "example": "Фото" },
+    "Х": { "name": "Ха", "phonetic_en": "[khah]", "phonetic_tr": "[ha]", "example": "Хлеб" },
+    "Ц": { "name": "Цэ", "phonetic_en": "[tseh]", "phonetic_tr": "[tse]", "example": "Центр" },
+    "Ч": { "name": "Че", "phonetic_en": "[cheh]", "phonetic_tr": "[çe]", "example": "Час" },
+    "Ш": { "name": "Ша", "phonetic_en": "[shah]", "phonetic_tr": "[şa]", "example": "Школа" },
+    "Щ": { "name": "Ща", "phonetic_en": "[shchah]", "phonetic_tr": "[şça]", "example": "Щи" },
+    "Ъ": { "name": "Твёрдый знак", "phonetic_en": "[hard sign]", "phonetic_tr": "[sert işaret]", "example": "Объект" },
+    "Ы": { "name": "Ы", "phonetic_en": "[ih / uh]", "phonetic_tr": "[ı]", "example": "Мы" },
+    "Ь": { "name": "Мягкий знак", "phonetic_en": "[soft sign]", "phonetic_tr": "[yumuşatma]", "example": "День" },
+    "Э": { "name": "Э", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Это" },
+    "Ю": { "name": "Ю", "phonetic_en": "[yoo]", "phonetic_tr": "[yu]", "example": "Юг" },
+    "Я": { "name": "Я", "phonetic_en": "[yah]", "phonetic_tr": "[ya]", "example": "Яблоко" }
+  },
+  "turkish": {
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Anne" },
+    "B": { "name": "Be", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Baba" },
+    "C": { "name": "Ce", "phonetic_en": "[jeh]", "phonetic_tr": "[ce]", "example": "Cam" },
+    "Ç": { "name": "Çe", "phonetic_en": "[cheh]", "phonetic_tr": "[çe]", "example": "Çay" },
+    "D": { "name": "De", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Dede" },
+    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Elma" },
+    "F": { "name": "Fe", "phonetic_en": "[feh]", "phonetic_tr": "[fe]", "example": "Fincan" },
+    "G": { "name": "Ge", "phonetic_en": "[geh]", "phonetic_tr": "[ge]", "example": "Güneş" },
+    "Ğ": { "name": "Yumuşak Ge", "phonetic_en": "[lengthens vowel]", "phonetic_tr": "[yumuşak ge] (uzatır)", "example": "Ağaç" },
+    "H": { "name": "He", "phonetic_en": "[heh]", "phonetic_tr": "[he]", "example": "Halı" },
+    "I": { "name": "I", "phonetic_en": "[uh] (dotless i)", "phonetic_tr": "[ı] (noktasız ı)", "example": "Işık" },
+    "İ": { "name": "İ", "phonetic_en": "[ee] (dotted i)", "phonetic_tr": "[i] (noktalı i)", "example": "İncir" },
+    "J": { "name": "Je", "phonetic_en": "[zheh]", "phonetic_tr": "[je]", "example": "Jeton" },
+    "K": { "name": "Ke", "phonetic_en": "[keh]", "phonetic_tr": "[ke]", "example": "Kitap" },
+    "L": { "name": "Le", "phonetic_en": "[leh]", "phonetic_tr": "[le]", "example": "Limon" },
+    "M": { "name": "Me", "phonetic_en": "[meh]", "phonetic_tr": "[me]", "example": "Masa" },
+    "N": { "name": "Ne", "phonetic_en": "[neh]", "phonetic_tr": "[ne]", "example": "Nane" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Okul" },
+    "Ö": { "name": "Ö", "phonetic_en": "[oe]", "phonetic_tr": "[ö]", "example": "Ördek" },
+    "P": { "name": "Pe", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Para" },
+    "R": { "name": "Re", "phonetic_en": "[reh]", "phonetic_tr": "[re]", "example": "Radyo" },
+    "S": { "name": "Se", "phonetic_en": "[seh]", "phonetic_tr": "[se]", "example": "Su" },
+    "Ş": { "name": "Şe", "phonetic_en": "[sheh]", "phonetic_tr": "[şe]", "example": "Şeker" },
+    "T": { "name": "Te", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Top" },
+    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uçak" },
+    "Ü": { "name": "Ü", "phonetic_en": "[ew]", "phonetic_tr": "[ü]", "example": "Üzüm" },
+    "V": { "name": "Ve", "phonetic_en": "[veh]", "phonetic_tr": "[ve]", "example": "Vazo" },
+    "Y": { "name": "Ye", "phonetic_en": "[yeh]", "phonetic_tr": "[ye]", "example": "Yol" },
+    "Z": { "name": "Ze", "phonetic_en": "[zeh]", "phonetic_tr": "[ze]", "example": "Zeytin" }
+  },
+  "english": {
+    "A": { "name": "A", "phonetic_en": "[ay]", "phonetic_tr": "[ey]", "example": "Apple" },
+    "B": { "name": "B", "phonetic_en": "[bee]", "phonetic_tr": "[bi]", "example": "Book" },
+    "C": { "name": "C", "phonetic_en": "[see]", "phonetic_tr": "[si]", "example": "Cat" },
+    "D": { "name": "D", "phonetic_en": "[dee]", "phonetic_tr": "[di]", "example": "Door" },
+    "E": { "name": "E", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Elephant" },
+    "F": { "name": "F", "phonetic_en": "[eff]", "phonetic_tr": "[ef]", "example": "Fish" },
+    "G": { "name": "G", "phonetic_en": "[jee]", "phonetic_tr": "[ci]", "example": "Green" },
+    "H": { "name": "H", "phonetic_en": "[aych]", "phonetic_tr": "[eyç]", "example": "House" },
+    "I": { "name": "I", "phonetic_en": "[eye]", "phonetic_tr": "[ay]", "example": "Island" },
+    "J": { "name": "J", "phonetic_en": "[jay]", "phonetic_tr": "[cey]", "example": "Juice" },
+    "K": { "name": "K", "phonetic_en": "[kay]", "phonetic_tr": "[key]", "example": "Key" },
+    "L": { "name": "L", "phonetic_en": "[ell]", "phonetic_tr": "[el]", "example": "Lion" },
+    "M": { "name": "M", "phonetic_en": "[emm]", "phonetic_tr": "[em]", "example": "Moon" },
+    "N": { "name": "N", "phonetic_en": "[enn]", "phonetic_tr": "[en]", "example": "Night" },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Orange" },
+    "P": { "name": "P", "phonetic_en": "[pee]", "phonetic_tr": "[pi]", "example": "Pen" },
+    "Q": { "name": "Q", "phonetic_en": "[kyoo]", "phonetic_tr": "[kyu]", "example": "Queen" },
+    "R": { "name": "R", "phonetic_en": "[ahr]", "phonetic_tr": "[ar]", "example": "Rain" },
+    "S": { "name": "S", "phonetic_en": "[ess]", "phonetic_tr": "[es]", "example": "Sun" },
+    "T": { "name": "T", "phonetic_en": "[tee]", "phonetic_tr": "[ti]", "example": "Table" },
+    "U": { "name": "U", "phonetic_en": "[yoo]", "phonetic_tr": "[yu]", "example": "Umbrella" },
+    "V": { "name": "V", "phonetic_en": "[vee]", "phonetic_tr": "[vi]", "example": "Voice" },
+    "W": { "name": "W", "phonetic_en": "[DUB-uhl-yoo]", "phonetic_tr": "[dabılyu]", "example": "Water" },
+    "X": { "name": "X", "phonetic_en": "[eks]", "phonetic_tr": "[eks]", "example": "Box" },
+    "Y": { "name": "Y", "phonetic_en": "[wye]", "phonetic_tr": "[vay]", "example": "Yellow" },
+    "Z": { "name": "Z", "phonetic_en": "[zee / zed]", "phonetic_tr": "[zi / zed]", "example": "Zoo" }
+  }
+};
+
+function getClientLetterPhonetics(lang, letter) {
+  if (!letter) return null;
+  const lKey = (lang || '').toLowerCase().trim();
+  const target = letter.trim().toUpperCase();
+  // Check exact language
+  for (const [k, dict] of Object.entries(ALPHABET_PHONETICS_MAP)) {
+    if (lKey.includes(k) && dict[target]) return dict[target];
+  }
+  // Fallback: check Spanish or default
+  if (ALPHABET_PHONETICS_MAP['spanish'][target]) return ALPHABET_PHONETICS_MAP['spanish'][target];
+  return null;
+}
+
+const FRONTEND_VOCAB_EXAMPLE_BANK = {
+  "spanish": {
+    "leer": {
+      "example": "Leo un libro fascinante cada noche.",
+      "example_en": "I read a fascinating book every night.",
+      "example_tr": "Her gece sürükleyici bir kitap okurum.",
+      "tip_en": "Irregular gerund: 'leyendo'. Common phrase: 'leer en voz alta' (read aloud).",
+      "tip_tr": "Ulaç hali kuralsızdır: 'leyendo'. Sık kullanılan kalıp: 'leer en voz alta' (sesli okumak)."
+    },
+    "escribir": {
+      "example": "Ella escribe un diario todos los días.",
+      "example_en": "She writes in a diary every day.",
+      "example_tr": "O her gün günlük yazar.",
+      "tip_en": "Past participle is irregular: 'escrito' (written).",
+      "tip_tr": "Geçmiş zaman sıfat-fiili kuralsızdır: 'escrito' (yazılmış)."
+    },
+    "jugar": {
+      "example": "Jugamos al fútbol los fines de semana.",
+      "example_en": "We play soccer on weekends.",
+      "example_tr": "Hafta sonları futbol oynarız.",
+      "tip_en": "Stem-changing verb (u -> ue). Always takes preposition 'a': 'jugar al fútbol'.",
+      "tip_tr": "Kök değişimi yapar (u -> ue). Sporlarda mutlaka 'a' edatı alır: 'jugar al fútbol'."
+    },
+    "nadar": {
+      "example": "Nado en la piscina olímpica cada sábado.",
+      "example_en": "I swim in the Olympic pool every Saturday.",
+      "example_tr": "Her cumartesi olimpik havuzda yüzerim.",
+      "tip_en": "Regular -ar verb. Pair with 'en': 'nadar en el mar' (swim in the sea).",
+      "tip_tr": "Düzenli -ar fiilidir. 'en' edatıyla kullanılır: 'nadar en el mar' (denizde yüzmek)."
+    },
+    "dibujar": {
+      "example": "Me gusta dibujar paisajes a lápiz.",
+      "example_en": "I like drawing landscapes in pencil.",
+      "example_tr": "Karakalemle manzara çizmeyi severim.",
+      "tip_en": "The noun form is 'el dibujo' (drawing/sketch).",
+      "tip_tr": "İsim formu 'el dibujo' (çizim/resim) şeklindedir."
+    },
+    "cocinar": {
+      "example": "Mi padre cocina una paella deliciosa.",
+      "example_en": "My father cooks a delicious paella.",
+      "example_tr": "Babam çok lezzetli bir paella pişirir.",
+      "tip_en": "Related to 'la cocina' (the kitchen).",
+      "tip_tr": "'La cocina' (mutfak) sözcüğüyle aynı köktendir."
+    },
+    "viajar": {
+      "example": "Quiero viajar por todo el mundo.",
+      "example_en": "I want to travel all over the world.",
+      "example_tr": "Bütün dünyayı gezmek istiyorum.",
+      "tip_en": "Transport requires 'en': 'viajar en tren / en avión'.",
+      "tip_tr": "Ulaşım araçlarında 'en' edatı kullanılır: 'viajar en tren / en avión'."
+    },
+    "bailar": {
+      "example": "Ellos bailan salsa los viernes por la noche.",
+      "example_en": "They dance salsa on Friday nights.",
+      "example_tr": "Cuma geceleri salsa dansı yaparlar.",
+      "tip_en": "Common phrase: 'bailar con' (dance with someone).",
+      "tip_tr": "'Bailar con' (biriyle dans etmek) yapısıyla sık kullanılır."
+    },
+    "cantar": {
+      "example": "Ella canta muy bien en el coro de la escuela.",
+      "example_en": "She sings very well in the school choir.",
+      "example_tr": "Okul korosunda çok güzel şarkı söyler.",
+      "tip_en": "The noun is 'la canción' (the song).",
+      "tip_tr": "İsim formu 'la canción' (şarkı) şeklindedir."
+    },
+    "escuchar musica": {
+      "example": "Escucho música relajante mientras estudio.",
+      "example_en": "I listen to relaxing music while studying.",
+      "example_tr": "Ders çalışırken dinlendirici müzik dinlerim.",
+      "tip_en": "No preposition needed for object: 'escuchar música'.",
+      "tip_tr": "Nesne alırken araya edat almaz: 'escuchar música'."
+    },
+    "ver peliculas": {
+      "example": "Los domingos vemos películas en casa.",
+      "example_en": "On Sundays we watch movies at home.",
+      "example_tr": "Pazar günleri evde film izleriz.",
+      "tip_en": "Irregular first-person present: 'yo veo'.",
+      "tip_tr": "'Ver' fiilinin ben çekimi kuralsızdır: 'yo veo'."
+    },
+    "hacer ejercicio": {
+      "example": "Hago ejercicio en el parque todas las mañanas.",
+      "example_en": "I exercise in the park every morning.",
+      "example_tr": "Her sabah parkta egzersiz yaparım.",
+      "tip_en": "First-person present is irregular: 'yo hago'.",
+      "tip_tr": "'Hacer' fiilinin şimdiki zaman 1. şahsı kuralsızdır: 'yo hago'."
+    },
+    "correr": {
+      "example": "Corro cinco kilómetros cada mañana.",
+      "example_en": "I run five kilometers every morning.",
+      "example_tr": "Her sabah beş kilometre koşarım.",
+      "tip_en": "Regular -er verb.",
+      "tip_tr": "Düzenli -er fiilidir."
+    },
+    "hobi": {
+      "example": "¿Cuál es tu pasatiempo favorito?",
+      "example_en": "What is your favorite hobby?",
+      "example_tr": "En sevdiğin hobi nedir?",
+      "tip_en": "Native Spanish term is 'el pasatiempo' (pasar + tiempo).",
+      "tip_tr": "İspanyolcada özgün karşılığı 'el pasatiempo' (vakit geçirme) sözcüğüdür."
+    },
+    "pasatiempo": {
+      "example": "La fotografía es mi pasatiempo principal.",
+      "example_en": "Photography is my main hobby.",
+      "example_tr": "Fotoğrafçılık benim başlıca hobimdir.",
+      "tip_en": "Compound word: 'pasar' (spend) + 'tiempo' (time). Plural: 'los pasatiempos'.",
+      "tip_tr": "'Pasar' (geçirmek) ve 'tiempo' (zaman) birleşimidir. Çoğulu: 'los pasatiempos'."
+    }
+  }
+};
+
+function getClientVocabExample(lang, term) {
+  if (!term) return null;
+  const lKey = (lang || '').toLowerCase().trim();
+  const norm = normalizeConceptStr(term);
+  for (const [k, dict] of Object.entries(FRONTEND_VOCAB_EXAMPLE_BANK)) {
+    if (lKey.includes(k)) {
+      if (dict[norm]) return dict[norm];
+      for (const [w, entry] of Object.entries(dict)) {
+        if (normalizeConceptStr(w) === norm) return entry;
+      }
+    }
+  }
+  // Global fallback in Spanish if term matches
+  if (FRONTEND_VOCAB_EXAMPLE_BANK['spanish'][norm]) return FRONTEND_VOCAB_EXAMPLE_BANK['spanish'][norm];
+  return null;
+}
+
+
+
 function translateOption(text, lang = currentLang) {
   if (!text) return '';
   const trimmed = text.trim();
   const isTr = (lang === 'tr');
 
-  // Handle English pronoun "I" -> "Ben"
-  if (trimmed === 'I') {
-    return isTr ? 'Ben' : 'I';
-  }
-
+  // Single characters / letters must NEVER be translated into pronouns (e.g. 'I' -> 'Ben' or 'o' -> 'she')
   if (trimmed.length <= 1) {
-    // Single characters / letters must never be translated into pronouns (e.g. 'o' -> 'she' or 'i' -> 'ben')
     return trimmed;
   }
   const lower = trimmed.toLowerCase();
@@ -3994,12 +4348,6 @@ const FRONTEND_PRAGMATIC_MAP = {
     desc_en: "Parting wish spoken before bed or upon leaving late at night.",
     desc_tr: "Yatmadan önce veya gece ayrılırken söylenen veda ifadesi."
   },
-  "i": {
-    en: "I",
-    tr: "Ben",
-    desc_en: "First-person singular subject pronoun.",
-    desc_tr: "1. tekil şahıs zamiri."
-  },
   "i am": {
     en: "I am",
     tr: "(Ben) ...yim / ...yım",
@@ -4027,7 +4375,13 @@ const FRONTEND_PRAGMATIC_MAP = {
 };
 
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
-  // Pragmatic check first
+  const cleanTerm = safeStr(term).trim();
+  // Single letters or alphabet character cards must NEVER match pronouns or pragmatic greetings
+  if (cleanTerm.length <= 1 || (it && (it.letter || it.character))) {
+    return '';
+  }
+
+  // Pragmatic check first (for multi-word greetings/phrases)
   const normTerm = normalizeConceptStr(term);
   if (normTerm && FRONTEND_PRAGMATIC_MAP[normTerm]) {
     const prag = FRONTEND_PRAGMATIC_MAP[normTerm];
@@ -4037,16 +4391,17 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const termKey = resolveConceptKey(term);
   const transKey = resolveConceptKey(translation);
 
-  // If item already has explicit language-specific explanation, verify it doesn't contradict the ground truth term
+  // If item already has explicit language-specific explanation, verify it is not tautological
   if (it && typeof it === 'object') {
     const rawLangExpl = (lang === 'tr')
       ? (it.explanation_tr || it.turkish_explanation || it.desc_tr)
       : (it.explanation_en || it.english_explanation || it.desc_en);
     if (rawLangExpl && typeof rawLangExpl === 'string' && rawLangExpl.trim().length > 2) {
-      const explKey = resolveConceptKey(rawLangExpl);
-      // Only return raw explanation if it doesn't contradict the authentic source term
-      if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
-        return rawLangExpl.trim();
+      if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
+        const explKey = resolveConceptKey(rawLangExpl);
+        if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
+          return rawLangExpl.trim();
+        }
       }
     }
   }
@@ -4054,7 +4409,6 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   // GROUND TRUTH: termKey (authentic foreign word being studied) ALWAYS takes precedence over transKey!
   let key = termKey;
   if (termKey && transKey && areConceptsIncompatible(termKey, transKey)) {
-    // Conflict detected: source term wins, translation hallucination ignored
     key = termKey;
   } else if (!key) {
     key = transKey;
@@ -4063,14 +4417,24 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   if (key && PEDAGOGICAL_CONCEPT_EXPLANATIONS[key]) {
     const entry = PEDAGOGICAL_CONCEPT_EXPLANATIONS[key];
     const val = lang === 'tr' ? (entry.tr || entry.en) : (entry.en || entry.tr);
-    if (val) return val;
+    if (val && !TAUTOLOGY_REGEX.test(val)) return val;
   }
 
-  // Fallback to generic item explanation
+  // Check vocab practical tips bank before generic fallback
+  const cLang = (currentCourse && currentCourse.language) || '';
+  const bankHit = getClientVocabExample(cLang, cleanTerm);
+  if (bankHit) {
+    const tip = (lang === 'tr') ? bankHit.tip_tr : bankHit.tip_en;
+    if (tip) return tip;
+  }
+
+  // Fallback to generic item explanation if not tautological
   if (it && typeof it === 'object') {
     const rawExpl = it.explanation || it.description || it.desc || it.note || it.usage;
     if (rawExpl && typeof rawExpl === 'string' && rawExpl.trim().length > 2) {
-      return lang === 'tr' ? translateEducationalText(rawExpl.trim()) : rawExpl.trim();
+      if (!TAUTOLOGY_REGEX.test(rawExpl)) {
+        return lang === 'tr' ? translateEducationalText(rawExpl.trim()) : rawExpl.trim();
+      }
     }
   }
 
@@ -8537,18 +8901,25 @@ function showStudyTopic(topicId, pageIdx = 0) {
                       </div>`;
                   } else {
                     const normStr = normalizeConceptStr(sTrimmed);
-                    const isPragmaticWord = Boolean(normStr && FRONTEND_PRAGMATIC_MAP[normStr]);
                     const isCJK = /[\u4e00-\u9fff]/.test(sTrimmed);
-                    const isLetter = !isPragmaticWord && !isCJK && (
-                      (sTrimmed.length === 1 && !['a', 'y', 'o', 'i', 'e', 'u', 'я', 'в', 'с', 'у', 'к'].includes(normStr)) ||
-                      SPANISH_LETTER_SPELLINGS.has(normStr)
-                    );
+                    const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                    const isLetter = !isCJK && (sTrimmed.length === 1 || SPANISH_LETTER_SPELLINGS.has(normStr));
                     if (isLetter) {
-                      // Single letter — no dict lookup, no translation
-                      html += `<div class="study-vocab-card">
+                      // Single letter with authentic phonetics guide
+                      const phonData = getClientLetterPhonetics(courseLang, sTrimmed) || {};
+                      const letterName = phonData.name || (SPANISH_LETTER_SPELLINGS.has(normStr) ? sTrimmed : '');
+                      const phoneticGuide = (currentLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
+                      const exampleWord = phonData.example || '';
+                      const exampleTrans = (currentLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
+                      html += `<div class="study-vocab-card alphabet-card">
                           <div class="vocab-term-wrapper">
                             <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                            <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                            <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                          </div>
+                          <div class="alphabet-pronunciation-block" style="text-align:right;">
+                            ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
+                            ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
+                            ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
                           </div>
                         </div>`;
                     } else {
@@ -8575,8 +8946,13 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
 
                   // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
-                  const normK = normalizeConceptStr(safeStr(k));
-                  if (normK && FRONTEND_PRAGMATIC_MAP[normK]) {
+                  const kStr = safeStr(k).trim();
+                  const isSingleChar = (kStr.length === 1 && !/[\u4e00-\u9fff]/.test(kStr));
+                  const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                  const normK = normalizeConceptStr(kStr);
+
+                  // Only match pragmatic map for multi-character phrases (never corrupt single letters like 'I')
+                  if (!isSingleChar && normK && FRONTEND_PRAGMATIC_MAP[normK]) {
                     const prag = FRONTEND_PRAGMATIC_MAP[normK];
                     v = (currentLang === 'tr') ? prag.tr : prag.en;
                   }
@@ -8587,11 +8963,10 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   }
 
                   // --- SEMANTIC CONCEPT SELF-HEALING ---
-                  // If k is an authentic pedagogical/linguistic concept, guarantee that v matches k and never contradicts it
-                  const termConceptKey = resolveConceptKey(safeStr(k));
+                  const termConceptKey = (!isSingleChar) ? resolveConceptKey(kStr) : '';
                   if (termConceptKey) {
                     const transConceptKey = resolveConceptKey(safeStr(v));
-                    if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === safeStr(k).toLowerCase()) {
+                    if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === kStr.toLowerCase()) {
                       const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][currentLang] : null;
                       if (canonicalTitle) {
                         v = canonicalTitle;
@@ -8599,10 +8974,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     }
                   }
 
-                  const isPragmaticWord = Boolean(normK && FRONTEND_PRAGMATIC_MAP[normK]);
-                  const isCJKChar = /[\u4e00-\u9fff]/.test(safeStr(k));
-                  const isLetter = !isPragmaticWord && !isCJKChar && typeof k === "string" && (
-                    (k.trim().length === 1 && !['a', 'y', 'o', 'i', 'e', 'u', 'я', 'в', 'с', 'у', 'к'].includes(normK)) ||
+                  const isCJKChar = /[\u4e00-\u9fff]/.test(kStr);
+                  const isLetter = !isCJKChar && (
+                    isSingleChar ||
                     SPANISH_LETTER_SPELLINGS.has(normK) ||
                     Boolean(it.letter || it.character)
                   );
@@ -8614,28 +8988,53 @@ function showStudyTopic(topicId, pageIdx = 0) {
                         <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:15.5px; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
                       </div>`;
                   } else if (isLetter) {
-                    // Single letter — render cleanly with its proper spelling pronunciation name
-                    const kStr = safeStr(k).trim();
-                    const vStr = safeStr(v).trim();
-                    const isRedundant = !vStr || ['she', 'he', 'ben'].includes(vStr.toLowerCase());
-                    html += `<div class="study-vocab-card">
+                    // Single letter — render cleanly with authentic name and phonetics guide
+                    const phonData = getClientLetterPhonetics(courseLang, kStr) || {};
+                    let letterName = it.name || phonData.name || (SPANISH_LETTER_SPELLINGS.has(normK) ? kStr : '') || safeStr(v);
+                    if (['she', 'he', 'ben', 'i'].includes(letterName.toLowerCase()) && letterName.length > 1) {
+                      letterName = phonData.name || kStr;
+                    }
+                    const phoneticGuide = (currentLang === 'tr')
+                      ? (it.phonetic_tr || phonData.phonetic_tr || '')
+                      : (it.phonetic_en || phonData.phonetic_en || '');
+                    const exampleWord = it.example || phonData.example || '';
+                    const exampleTrans = (currentLang === 'tr')
+                      ? (it.translation_tr || it.example_tr || phonData.example_tr || '')
+                      : (it.translation_en || it.example_en || phonData.example_en || '');
+
+                    html += `<div class="study-vocab-card alphabet-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" style="font-size:16px; font-weight:700; color:var(--text-primary);">${fixDiacritics(safeStr(k))}</div></div>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)">${TTS_SVG_IDLE}</button>
+                          <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(kStr)}</div></div>
                         </div>
-                        ${!isRedundant ? `<div class="english-translation" style="font-style:italic; font-size:14px; color:var(--accent-light);">${vStr}</div>` : ''}
+                        <div class="alphabet-pronunciation-block" style="text-align:right;">
+                          ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
+                          ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
+                          ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
+                        </div>
                       </div>`;
                   } else {
-                    // Regular word+translation with brief pedagogical explanation
-                    const briefExpl = resolveItemExplanation(it, safeStr(k), safeStr(v), currentLang);
+                    // Regular vocabulary item with authentic example sentence and practical usage tip
+                    const briefExpl = resolveItemExplanation(it, kStr, safeStr(v), currentLang);
+                    const bankHit = getClientVocabExample(courseLang, kStr) || {};
+                    const exampleTarget = it.example || bankHit.example || '';
+                    const exampleTrans = (currentLang === 'tr')
+                      ? (it.example_tr || bankHit.example_tr || '')
+                      : (it.example_en || bankHit.example_en || '');
+
                     html += `<div class="study-vocab-card">
                         <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(safeStr(k))}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16px; font-weight:600; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(safeStr(k))}</div></div>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)">${TTS_SVG_IDLE}</button>
+                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16px; font-weight:600; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
                         </div>
                         <div class="english-translation">
                           <div class="vocab-meaning-title">${safeStr(v)}</div>
-                          ${briefExpl ? `<div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div>` : ''}
+                          ${briefExpl ? `<div class="vocab-brief-explanation" style="font-size:12px; color:var(--accent-light); margin-top:2px;">${fixDiacritics(safeStr(briefExpl))}</div>` : ''}
+                          ${exampleTarget ? `
+                            <div class="vocab-example-block" style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08); text-align:left;">
+                              <div class="vocab-example-target" style="font-size:13px; color:var(--text-primary); font-style:italic;">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
+                              ${exampleTrans ? `<div class="vocab-example-trans" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
+                            </div>` : ''}
                         </div>
                       </div>`;
                   }

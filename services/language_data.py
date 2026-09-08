@@ -9,40 +9,127 @@ ALPHABETS = {
             {
                 "title": "Pinyin Initials (Consonants)",
                 "items": [
-                    {"term": "b - 播", "translation": "bō"},
-                    {"term": "p - 泼", "translation": "pō"},
-                    {"term": "m - 摸", "translation": "mō"},
-                    {"term": "f - 佛", "translation": "fó"},
-                    {"term": "d - 得", "translation": "de"},
-                    {"term": "t - 特", "translation": "te"},
-                    {"term": "n - 呢", "translation": "ne"},
-                    {"term": "l - 勒", "translation": "le"},
-                    {"term": "g - 哥", "translation": "gē"},
-                    {"term": "k - 科", "translation": "kē"},
-                    {"term": "h - 喝", "translation": "hē"},
-                    {"term": "j - 鸡", "translation": "jī"},
-                    {"term": "q - 七", "translation": "qī"},
-                    {"term": "x - 西", "translation": "xī"},
-                    {"term": "zh - 知", "translation": "zhī"},
-                    {"term": "ch - 吃", "translation": "chī"},
-                    {"term": "sh - 狮", "translation": "shī"},
-                    {"term": "r - 日", "translation": "rì"},
-                    {"term": "z - 资", "translation": "zī"},
-                    {"term": "c - 刺", "translation": "cì"},
-                    {"term": "s - 丝", "translation": "sī"},
-                    {"term": "y - 衣", "translation": "yī"},
-                    {"term": "w - 屋", "translation": "wū"}
+                    {
+                        "term": "b - 播",
+                        "translation": "bō"
+                    },
+                    {
+                        "term": "p - 泼",
+                        "translation": "pō"
+                    },
+                    {
+                        "term": "m - 摸",
+                        "translation": "mō"
+                    },
+                    {
+                        "term": "f - 佛",
+                        "translation": "fó"
+                    },
+                    {
+                        "term": "d - 得",
+                        "translation": "de"
+                    },
+                    {
+                        "term": "t - 特",
+                        "translation": "te"
+                    },
+                    {
+                        "term": "n - 呢",
+                        "translation": "ne"
+                    },
+                    {
+                        "term": "l - 勒",
+                        "translation": "le"
+                    },
+                    {
+                        "term": "g - 哥",
+                        "translation": "gē"
+                    },
+                    {
+                        "term": "k - 科",
+                        "translation": "kē"
+                    },
+                    {
+                        "term": "h - 喝",
+                        "translation": "hē"
+                    },
+                    {
+                        "term": "j - 鸡",
+                        "translation": "jī"
+                    },
+                    {
+                        "term": "q - 七",
+                        "translation": "qī"
+                    },
+                    {
+                        "term": "x - 西",
+                        "translation": "xī"
+                    },
+                    {
+                        "term": "zh - 知",
+                        "translation": "zhī"
+                    },
+                    {
+                        "term": "ch - 吃",
+                        "translation": "chī"
+                    },
+                    {
+                        "term": "sh - 狮",
+                        "translation": "shī"
+                    },
+                    {
+                        "term": "r - 日",
+                        "translation": "rì"
+                    },
+                    {
+                        "term": "z - 资",
+                        "translation": "zī"
+                    },
+                    {
+                        "term": "c - 刺",
+                        "translation": "cì"
+                    },
+                    {
+                        "term": "s - 丝",
+                        "translation": "sī"
+                    },
+                    {
+                        "term": "y - 衣",
+                        "translation": "yī"
+                    },
+                    {
+                        "term": "w - 屋",
+                        "translation": "wū"
+                    }
                 ]
             },
             {
                 "title": "Pinyin Finals (Vowels)",
                 "items": [
-                    {"term": "啊", "translation": "ā"},
-                    {"term": "哦", "translation": "ō"},
-                    {"term": "饿", "translation": "ē"},
-                    {"term": "衣", "translation": "ī"},
-                    {"term": "五", "translation": "ū"},
-                    {"term": "鱼", "translation": "ǘ"}
+                    {
+                        "term": "啊",
+                        "translation": "ā"
+                    },
+                    {
+                        "term": "哦",
+                        "translation": "ō"
+                    },
+                    {
+                        "term": "饿",
+                        "translation": "ē"
+                    },
+                    {
+                        "term": "衣",
+                        "translation": "ī"
+                    },
+                    {
+                        "term": "五",
+                        "translation": "ū"
+                    },
+                    {
+                        "term": "鱼",
+                        "translation": "ǘ"
+                    }
                 ]
             }
         ]
@@ -53,30 +140,200 @@ ALPHABETS = {
             {
                 "title": "Hiragana: Vowels & K-Group",
                 "items": [
-                    {"term": "あ", "translation": "a"},
-                    {"term": "い", "translation": "i"},
-                    {"term": "う", "translation": "u"},
-                    {"term": "え", "translation": "e"},
-                    {"term": "お", "translation": "o"},
-                    {"term": "か", "translation": "ka"}, {"term": "き", "translation": "ki"}, {"term": "く", "translation": "ku"}, {"term": "け", "translation": "ke"}, {"term": "こ", "translation": "ko"}
+                    {
+                        "term": "あ",
+                        "translation": "a"
+                    },
+                    {
+                        "term": "い",
+                        "translation": "i"
+                    },
+                    {
+                        "term": "う",
+                        "translation": "u"
+                    },
+                    {
+                        "term": "え",
+                        "translation": "e"
+                    },
+                    {
+                        "term": "お",
+                        "translation": "o"
+                    },
+                    {
+                        "term": "か",
+                        "translation": "ka"
+                    },
+                    {
+                        "term": "き",
+                        "translation": "ki"
+                    },
+                    {
+                        "term": "く",
+                        "translation": "ku"
+                    },
+                    {
+                        "term": "け",
+                        "translation": "ke"
+                    },
+                    {
+                        "term": "こ",
+                        "translation": "ko"
+                    }
                 ]
             },
             {
                 "title": "Hiragana: S, T, N Groups",
                 "items": [
-                    {"term": "さ", "translation": "sa"}, {"term": "し", "translation": "shi"}, {"term": "す", "translation": "su"}, {"term": "せ", "translation": "se"}, {"term": "そ", "translation": "so"},
-                    {"term": "た", "translation": "ta"}, {"term": "ち", "translation": "chi"}, {"term": "つ", "translation": "tsu"}, {"term": "て", "translation": "te"}, {"term": "と", "translation": "to"},
-                    {"term": "な", "translation": "na"}, {"term": "に", "translation": "ni"}, {"term": "ぬ", "translation": "nu"}, {"term": "ね", "translation": "ne"}, {"term": "の", "translation": "no"}
+                    {
+                        "term": "さ",
+                        "translation": "sa"
+                    },
+                    {
+                        "term": "し",
+                        "translation": "shi"
+                    },
+                    {
+                        "term": "す",
+                        "translation": "su"
+                    },
+                    {
+                        "term": "せ",
+                        "translation": "se"
+                    },
+                    {
+                        "term": "そ",
+                        "translation": "so"
+                    },
+                    {
+                        "term": "た",
+                        "translation": "ta"
+                    },
+                    {
+                        "term": "ち",
+                        "translation": "chi"
+                    },
+                    {
+                        "term": "つ",
+                        "translation": "tsu"
+                    },
+                    {
+                        "term": "て",
+                        "translation": "te"
+                    },
+                    {
+                        "term": "と",
+                        "translation": "to"
+                    },
+                    {
+                        "term": "な",
+                        "translation": "na"
+                    },
+                    {
+                        "term": "に",
+                        "translation": "ni"
+                    },
+                    {
+                        "term": "ぬ",
+                        "translation": "nu"
+                    },
+                    {
+                        "term": "ね",
+                        "translation": "ne"
+                    },
+                    {
+                        "term": "の",
+                        "translation": "no"
+                    }
                 ]
             },
             {
                 "title": "Hiragana: H, M, Y, R, W Groups",
                 "items": [
-                    {"term": "は", "translation": "ha"}, {"term": "ひ", "translation": "hi"}, {"term": "ふ", "translation": "fu"}, {"term": "へ", "translation": "he"}, {"term": "ほ", "translation": "ho"},
-                    {"term": "ま", "translation": "ma"}, {"term": "み", "translation": "mi"}, {"term": "む", "translation": "mu"}, {"term": "め", "translation": "me"}, {"term": "も", "translation": "mo"},
-                    {"term": "や", "translation": "ya"}, {"term": "ゆ", "translation": "yu"}, {"term": "よ", "translation": "yo"},
-                    {"term": "ら", "translation": "ra"}, {"term": "り", "translation": "ri"}, {"term": "る", "translation": "ru"}, {"term": "れ", "translation": "re"}, {"term": "ろ", "translation": "ro"},
-                    {"term": "わ", "translation": "wa"}, {"term": "を", "translation": "wo"}, {"term": "ん", "translation": "n"}
+                    {
+                        "term": "は",
+                        "translation": "ha"
+                    },
+                    {
+                        "term": "ひ",
+                        "translation": "hi"
+                    },
+                    {
+                        "term": "ふ",
+                        "translation": "fu"
+                    },
+                    {
+                        "term": "へ",
+                        "translation": "he"
+                    },
+                    {
+                        "term": "ほ",
+                        "translation": "ho"
+                    },
+                    {
+                        "term": "ま",
+                        "translation": "ma"
+                    },
+                    {
+                        "term": "み",
+                        "translation": "mi"
+                    },
+                    {
+                        "term": "む",
+                        "translation": "mu"
+                    },
+                    {
+                        "term": "め",
+                        "translation": "me"
+                    },
+                    {
+                        "term": "も",
+                        "translation": "mo"
+                    },
+                    {
+                        "term": "や",
+                        "translation": "ya"
+                    },
+                    {
+                        "term": "ゆ",
+                        "translation": "yu"
+                    },
+                    {
+                        "term": "よ",
+                        "translation": "yo"
+                    },
+                    {
+                        "term": "ら",
+                        "translation": "ra"
+                    },
+                    {
+                        "term": "り",
+                        "translation": "ri"
+                    },
+                    {
+                        "term": "る",
+                        "translation": "ru"
+                    },
+                    {
+                        "term": "れ",
+                        "translation": "re"
+                    },
+                    {
+                        "term": "ろ",
+                        "translation": "ro"
+                    },
+                    {
+                        "term": "わ",
+                        "translation": "wa"
+                    },
+                    {
+                        "term": "を",
+                        "translation": "wo"
+                    },
+                    {
+                        "term": "ん",
+                        "translation": "n"
+                    }
                 ]
             }
         ]
@@ -84,134 +341,2307 @@ ALPHABETS = {
     "Spanish": {
         "type": "Alfabeto",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"}, 
-            {"term": "F", "translation": "efe"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "hache"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jota"},
-            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "ele"}, {"term": "M", "translation": "eme"}, {"term": "N", "translation": "ene"}, {"term": "Ñ", "translation": "eñe"},
-            {"term": "O", "translation": "o"}, {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "cu"}, {"term": "R", "translation": "ere"}, {"term": "S", "translation": "ese"},
-            {"term": "T", "translation": "te"}, {"term": "U", "translation": "u"}, {"term": "V", "translation": "uve"}, {"term": "W", "translation": "uve doble"}, {"term": "X", "translation": "equis"},
-            {"term": "Y", "translation": "i griega"}, {"term": "Z", "translation": "zeta"}
+            {
+                "term": "A",
+                "translation": "a",
+                "name": "a",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "a",
+                "translation_tr": "a"
+            },
+            {
+                "term": "B",
+                "translation": "be",
+                "name": "be",
+                "phonetic_en": "[beh]",
+                "phonetic_tr": "[be]",
+                "translation_en": "be",
+                "translation_tr": "be"
+            },
+            {
+                "term": "C",
+                "translation": "ce",
+                "name": "ce",
+                "phonetic_en": "[seh / theh]",
+                "phonetic_tr": "[se / peltek se]",
+                "translation_en": "ce",
+                "translation_tr": "ce"
+            },
+            {
+                "term": "D",
+                "translation": "de",
+                "name": "de",
+                "phonetic_en": "[deh]",
+                "phonetic_tr": "[de]",
+                "translation_en": "de",
+                "translation_tr": "de"
+            },
+            {
+                "term": "E",
+                "translation": "e",
+                "name": "e",
+                "phonetic_en": "[eh]",
+                "phonetic_tr": "[e]",
+                "translation_en": "e",
+                "translation_tr": "e"
+            },
+            {
+                "term": "F",
+                "translation": "efe",
+                "name": "efe",
+                "phonetic_en": "[EH-feh]",
+                "phonetic_tr": "[efe]",
+                "translation_en": "efe",
+                "translation_tr": "efe"
+            },
+            {
+                "term": "G",
+                "translation": "ge",
+                "name": "ge",
+                "phonetic_en": "[heh (e/i) / geh]",
+                "phonetic_tr": "[he (e/i önünde) / ge]",
+                "translation_en": "ge",
+                "translation_tr": "ge"
+            },
+            {
+                "term": "H",
+                "translation": "hache",
+                "name": "hache",
+                "phonetic_en": "[AH-cheh] (silent)",
+                "phonetic_tr": "[açe] (sessiz harf, okunmaz)",
+                "translation_en": "hache",
+                "translation_tr": "hache"
+            },
+            {
+                "term": "I",
+                "translation": "i",
+                "name": "i",
+                "phonetic_en": "[ee]",
+                "phonetic_tr": "[i]",
+                "translation_en": "i",
+                "translation_tr": "i"
+            },
+            {
+                "term": "J",
+                "translation": "jota",
+                "name": "jota",
+                "phonetic_en": "[HOH-tah] (raspy h)",
+                "phonetic_tr": "[hota] (boğazdan h)",
+                "translation_en": "jota",
+                "translation_tr": "jota"
+            },
+            {
+                "term": "K",
+                "translation": "ka",
+                "name": "ka",
+                "phonetic_en": "[kah]",
+                "phonetic_tr": "[ka]",
+                "translation_en": "ka",
+                "translation_tr": "ka"
+            },
+            {
+                "term": "L",
+                "translation": "ele",
+                "name": "ele",
+                "phonetic_en": "[EH-leh]",
+                "phonetic_tr": "[ele]",
+                "translation_en": "ele",
+                "translation_tr": "ele"
+            },
+            {
+                "term": "M",
+                "translation": "eme",
+                "name": "eme",
+                "phonetic_en": "[EH-meh]",
+                "phonetic_tr": "[eme]",
+                "translation_en": "eme",
+                "translation_tr": "eme"
+            },
+            {
+                "term": "N",
+                "translation": "ene",
+                "name": "ene",
+                "phonetic_en": "[EH-neh]",
+                "phonetic_tr": "[ene]",
+                "translation_en": "ene",
+                "translation_tr": "ene"
+            },
+            {
+                "term": "Ñ",
+                "translation": "eñe",
+                "name": "eñe",
+                "phonetic_en": "[EH-nyeh] (like canyon)",
+                "phonetic_tr": "[enye]",
+                "translation_en": "eñe",
+                "translation_tr": "eñe"
+            },
+            {
+                "term": "O",
+                "translation": "o",
+                "name": "o",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "o",
+                "translation_tr": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pe",
+                "name": "pe",
+                "phonetic_en": "[peh]",
+                "phonetic_tr": "[pe]",
+                "translation_en": "pe",
+                "translation_tr": "pe"
+            },
+            {
+                "term": "Q",
+                "translation": "cu",
+                "name": "cu",
+                "phonetic_en": "[koo]",
+                "phonetic_tr": "[ku]",
+                "translation_en": "cu",
+                "translation_tr": "cu"
+            },
+            {
+                "term": "R",
+                "translation": "ere",
+                "name": "ere",
+                "phonetic_en": "[EH-reh] (tapped r)",
+                "phonetic_tr": "[ere]",
+                "translation_en": "ere",
+                "translation_tr": "ere"
+            },
+            {
+                "term": "S",
+                "translation": "ese",
+                "name": "ese",
+                "phonetic_en": "[EH-seh]",
+                "phonetic_tr": "[ese]",
+                "translation_en": "ese",
+                "translation_tr": "ese"
+            },
+            {
+                "term": "T",
+                "translation": "te",
+                "name": "te",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "te",
+                "translation_tr": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u",
+                "name": "u",
+                "phonetic_en": "[oo] (like boot)",
+                "phonetic_tr": "[u]",
+                "translation_en": "u",
+                "translation_tr": "u"
+            },
+            {
+                "term": "V",
+                "translation": "uve",
+                "name": "uve",
+                "phonetic_en": "[OO-beh] (soft b/v)",
+                "phonetic_tr": "[uve] (b-v arası yumuşak)",
+                "translation_en": "uve",
+                "translation_tr": "uve"
+            },
+            {
+                "term": "W",
+                "translation": "uve doble",
+                "name": "uve doble",
+                "phonetic_en": "[OO-beh DOH-bleh]",
+                "phonetic_tr": "[uve doble] (çift v)",
+                "translation_en": "uve doble",
+                "translation_tr": "uve doble"
+            },
+            {
+                "term": "X",
+                "translation": "equis",
+                "name": "equis",
+                "phonetic_en": "[EH-kees]",
+                "phonetic_tr": "[ekis]",
+                "translation_en": "equis",
+                "translation_tr": "equis"
+            },
+            {
+                "term": "Y",
+                "translation": "i griega",
+                "name": "i griega",
+                "phonetic_en": "[ee gryeh-gah / yeh]",
+                "phonetic_tr": "[i griega] (ye / yunan i'si)",
+                "translation_en": "i griega",
+                "translation_tr": "i griega"
+            },
+            {
+                "term": "Z",
+                "translation": "zeta",
+                "name": "zeta",
+                "phonetic_en": "[SEH-tah / THEH-tah]",
+                "phonetic_tr": "[seta / peltek s]",
+                "translation_en": "zeta",
+                "translation_tr": "zeta"
+            }
         ]
     },
     "Russian": {
         "type": "Alphabet",
         "items": [
-            {"term": "А", "translation": "а"}, {"term": "Б", "translation": "бэ"}, {"term": "В", "translation": "вэ"}, {"term": "Г", "translation": "гэ"}, {"term": "Д", "translation": "дэ"},
-            {"term": "Е", "translation": "е"}, {"term": "Ё", "translation": "ё"}, {"term": "Ж", "translation": "жэ"}, {"term": "З", "translation": "зэ"}, {"term": "И", "translation": "и"},
-            {"term": "Й", "translation": "ий"}, {"term": "К", "translation": "ка"}, {"term": "Л", "translation": "эль"}, {"term": "М", "translation": "эм"}, {"term": "Н", "translation": "эн"},
-            {"term": "О", "translation": "о"}, {"term": "П", "translation": "пэ"}, {"term": "Р", "translation": "эр"}, {"term": "С", "translation": "эс"}, {"term": "Т", "translation": "тэ"},
-            {"term": "У", "translation": "у"}, {"term": "Ф", "translation": "эф"}, {"term": "Х", "translation": "ха"}, {"term": "Ц", "translation": "цэ"}, {"term": "Ч", "translation": "че"},
-            {"term": "Ш", "translation": "ша"}, {"term": "Щ", "translation": "ща"}, {"term": "Ъ", "translation": "ъ"}, {"term": "Ы", "translation": "ы"}, {"term": "Ь", "translation": "ь"},
-            {"term": "Э", "translation": "э"}, {"term": "Ю", "translation": "ю"}, {"term": "Я", "translation": "я"}
+            {
+                "term": "А",
+                "translation": "а",
+                "name": "а",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "а",
+                "translation_tr": "а"
+            },
+            {
+                "term": "Б",
+                "translation": "бэ",
+                "name": "бэ",
+                "phonetic_en": "[beh]",
+                "phonetic_tr": "[be]",
+                "translation_en": "бэ",
+                "translation_tr": "бэ"
+            },
+            {
+                "term": "В",
+                "translation": "вэ",
+                "name": "вэ",
+                "phonetic_en": "[veh]",
+                "phonetic_tr": "[ve]",
+                "translation_en": "вэ",
+                "translation_tr": "вэ"
+            },
+            {
+                "term": "Г",
+                "translation": "гэ",
+                "name": "гэ",
+                "phonetic_en": "[geh]",
+                "phonetic_tr": "[ge]",
+                "translation_en": "гэ",
+                "translation_tr": "гэ"
+            },
+            {
+                "term": "Д",
+                "translation": "дэ",
+                "name": "дэ",
+                "phonetic_en": "[deh]",
+                "phonetic_tr": "[de]",
+                "translation_en": "дэ",
+                "translation_tr": "дэ"
+            },
+            {
+                "term": "Е",
+                "translation": "е",
+                "name": "е",
+                "phonetic_en": "[yeh]",
+                "phonetic_tr": "[ye]",
+                "translation_en": "е",
+                "translation_tr": "е"
+            },
+            {
+                "term": "Ё",
+                "translation": "ё",
+                "name": "ё",
+                "phonetic_en": "[yoh]",
+                "phonetic_tr": "[yo]",
+                "translation_en": "ё",
+                "translation_tr": "ё"
+            },
+            {
+                "term": "Ж",
+                "translation": "жэ",
+                "name": "жэ",
+                "phonetic_en": "[zheh] (like measure)",
+                "phonetic_tr": "[je] (j sesi)",
+                "translation_en": "жэ",
+                "translation_tr": "жэ"
+            },
+            {
+                "term": "З",
+                "translation": "зэ",
+                "name": "зэ",
+                "phonetic_en": "[zeh]",
+                "phonetic_tr": "[ze]",
+                "translation_en": "зэ",
+                "translation_tr": "зэ"
+            },
+            {
+                "term": "И",
+                "translation": "и",
+                "name": "и",
+                "phonetic_en": "[ee]",
+                "phonetic_tr": "[i]",
+                "translation_en": "и",
+                "translation_tr": "и"
+            },
+            {
+                "term": "Й",
+                "translation": "и краткое",
+                "name": "и краткое",
+                "phonetic_en": "[ee krat-koye] (short y)",
+                "phonetic_tr": "[kısa i] (y sesi)",
+                "translation_en": "и краткое",
+                "translation_tr": "и краткое"
+            },
+            {
+                "term": "К",
+                "translation": "ка",
+                "name": "ка",
+                "phonetic_en": "[kah]",
+                "phonetic_tr": "[ka]",
+                "translation_en": "ка",
+                "translation_tr": "ка"
+            },
+            {
+                "term": "Л",
+                "translation": "эль",
+                "name": "эль",
+                "phonetic_en": "[ehl]",
+                "phonetic_tr": "[el]",
+                "translation_en": "эль",
+                "translation_tr": "эль"
+            },
+            {
+                "term": "М",
+                "translation": "эм",
+                "name": "эм",
+                "phonetic_en": "[ehm]",
+                "phonetic_tr": "[em]",
+                "translation_en": "эм",
+                "translation_tr": "эм"
+            },
+            {
+                "term": "Н",
+                "translation": "эн",
+                "name": "эн",
+                "phonetic_en": "[ehn]",
+                "phonetic_tr": "[en]",
+                "translation_en": "эн",
+                "translation_tr": "эн"
+            },
+            {
+                "term": "О",
+                "translation": "о",
+                "name": "о",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "о",
+                "translation_tr": "о"
+            },
+            {
+                "term": "П",
+                "translation": "пэ",
+                "name": "пэ",
+                "phonetic_en": "[peh]",
+                "phonetic_tr": "[pe]",
+                "translation_en": "пэ",
+                "translation_tr": "пэ"
+            },
+            {
+                "term": "Р",
+                "translation": "эр",
+                "name": "эр",
+                "phonetic_en": "[ehr] (rolled r)",
+                "phonetic_tr": "[er] (titrek r)",
+                "translation_en": "эр",
+                "translation_tr": "эр"
+            },
+            {
+                "term": "С",
+                "translation": "эс",
+                "name": "эс",
+                "phonetic_en": "[ess]",
+                "phonetic_tr": "[es]",
+                "translation_en": "эс",
+                "translation_tr": "эс"
+            },
+            {
+                "term": "Т",
+                "translation": "тэ",
+                "name": "тэ",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "тэ",
+                "translation_tr": "тэ"
+            },
+            {
+                "term": "У",
+                "translation": "у",
+                "name": "у",
+                "phonetic_en": "[oo]",
+                "phonetic_tr": "[u]",
+                "translation_en": "у",
+                "translation_tr": "у"
+            },
+            {
+                "term": "Ф",
+                "translation": "эф",
+                "name": "эф",
+                "phonetic_en": "[ehf]",
+                "phonetic_tr": "[ef]",
+                "translation_en": "эф",
+                "translation_tr": "эф"
+            },
+            {
+                "term": "Х",
+                "translation": "ха",
+                "name": "ха",
+                "phonetic_en": "[khah] (raspy h)",
+                "phonetic_tr": "[ha] (hırıltılı h)",
+                "translation_en": "ха",
+                "translation_tr": "ха"
+            },
+            {
+                "term": "Ц",
+                "translation": "цэ",
+                "name": "цэ",
+                "phonetic_en": "[tseh]",
+                "phonetic_tr": "[tse]",
+                "translation_en": "цэ",
+                "translation_tr": "цэ"
+            },
+            {
+                "term": "Ч",
+                "translation": "че",
+                "name": "че",
+                "phonetic_en": "[cheh]",
+                "phonetic_tr": "[çe]",
+                "translation_en": "че",
+                "translation_tr": "че"
+            },
+            {
+                "term": "Ш",
+                "translation": "ша",
+                "name": "ша",
+                "phonetic_en": "[shah] (hard sh)",
+                "phonetic_tr": "[şa] (kalın ş)",
+                "translation_en": "ша",
+                "translation_tr": "ша"
+            },
+            {
+                "term": "Щ",
+                "translation": "ща",
+                "name": "ща",
+                "phonetic_en": "[shcha] (soft shch)",
+                "phonetic_tr": "[şça] (yumuşak şç)",
+                "translation_en": "ща",
+                "translation_tr": "ща"
+            },
+            {
+                "term": "Ъ",
+                "translation": "твёрдый знак",
+                "name": "твёрдый знак",
+                "phonetic_en": "[hard sign] (pause)",
+                "phonetic_tr": "[sertlik işareti]",
+                "translation_en": "твёрдый знак",
+                "translation_tr": "твёрдый знак"
+            },
+            {
+                "term": "Ы",
+                "translation": "ы",
+                "name": "ы",
+                "phonetic_en": "[ih] (deep back i)",
+                "phonetic_tr": "[ı] (ı sesi)",
+                "translation_en": "ы",
+                "translation_tr": "ы"
+            },
+            {
+                "term": "Ь",
+                "translation": "мягкий знак",
+                "name": "мягкий знак",
+                "phonetic_en": "[soft sign] (softens)",
+                "phonetic_tr": "[inceltme işareti]",
+                "translation_en": "мягкий знак",
+                "translation_tr": "мягкий знак"
+            },
+            {
+                "term": "Э",
+                "translation": "э",
+                "name": "э",
+                "phonetic_en": "[eh]",
+                "phonetic_tr": "[açık e]",
+                "translation_en": "э",
+                "translation_tr": "э"
+            },
+            {
+                "term": "Ю",
+                "translation": "ю",
+                "name": "ю",
+                "phonetic_en": "[yoo]",
+                "phonetic_tr": "[yu]",
+                "translation_en": "ю",
+                "translation_tr": "ю"
+            },
+            {
+                "term": "Я",
+                "translation": "я",
+                "name": "я",
+                "phonetic_en": "[yah]",
+                "phonetic_tr": "[ya]",
+                "translation_en": "я",
+                "translation_tr": "я"
+            }
         ]
     },
     "Turkish": {
         "type": "Alfabe",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "Ç", "translation": "çe"}, {"term": "D", "translation": "de"},
-            {"term": "E", "translation": "e"}, {"term": "F", "translation": "fe"}, {"term": "G", "translation": "ge"}, {"term": "Ğ", "translation": "yumuşak ge"}, {"term": "H", "translation": "he"},
-            {"term": "I", "translation": "ı"}, {"term": "İ", "translation": "i"}, {"term": "J", "translation": "je"}, {"term": "K", "translation": "ke"}, {"term": "L", "translation": "le"},
-            {"term": "M", "translation": "me"}, {"term": "N", "translation": "ne"}, {"term": "O", "translation": "o"}, {"term": "Ö", "translation": "ö"}, {"term": "P", "translation": "pe"},
-            {"term": "R", "translation": "re"}, {"term": "S", "translation": "se"}, {"term": "Ş", "translation": "şe"}, {"term": "T", "translation": "te"}, {"term": "U", "translation": "u"},
-            {"term": "Ü", "translation": "ü"}, {"term": "V", "translation": "ve"}, {"term": "Y", "translation": "ye"}, {"term": "Z", "translation": "ze"}
+            {
+                "term": "A",
+                "translation": "a",
+                "name": "a",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "a",
+                "translation_tr": "a"
+            },
+            {
+                "term": "B",
+                "translation": "be",
+                "name": "be",
+                "phonetic_en": "[beh]",
+                "phonetic_tr": "[be]",
+                "translation_en": "be",
+                "translation_tr": "be"
+            },
+            {
+                "term": "C",
+                "translation": "ce",
+                "name": "ce",
+                "phonetic_en": "[jeh] (like j in joy)",
+                "phonetic_tr": "[ce]",
+                "translation_en": "ce",
+                "translation_tr": "ce"
+            },
+            {
+                "term": "Ç",
+                "translation": "çe",
+                "name": "çe",
+                "phonetic_en": "[cheh] (like ch in chair)",
+                "phonetic_tr": "[çe]",
+                "translation_en": "çe",
+                "translation_tr": "çe"
+            },
+            {
+                "term": "D",
+                "translation": "de",
+                "name": "de",
+                "phonetic_en": "[deh]",
+                "phonetic_tr": "[de]",
+                "translation_en": "de",
+                "translation_tr": "de"
+            },
+            {
+                "term": "E",
+                "translation": "e",
+                "name": "e",
+                "phonetic_en": "[eh]",
+                "phonetic_tr": "[e]",
+                "translation_en": "e",
+                "translation_tr": "e"
+            },
+            {
+                "term": "F",
+                "translation": "fe",
+                "name": "fe",
+                "phonetic_en": "[feh]",
+                "phonetic_tr": "[fe]",
+                "translation_en": "fe",
+                "translation_tr": "fe"
+            },
+            {
+                "term": "G",
+                "translation": "ge",
+                "name": "ge",
+                "phonetic_en": "[geh]",
+                "phonetic_tr": "[ge]",
+                "translation_en": "ge",
+                "translation_tr": "ge"
+            },
+            {
+                "term": "Ğ",
+                "translation": "yumuşak ge",
+                "name": "yumuşak ge",
+                "phonetic_en": "[silent / lengthens vowel]",
+                "phonetic_tr": "[yumuşak ge] (önceki ünlüyü uzatır)",
+                "translation_en": "yumuşak ge",
+                "translation_tr": "yumuşak ge"
+            },
+            {
+                "term": "H",
+                "translation": "he",
+                "name": "he",
+                "phonetic_en": "[heh]",
+                "phonetic_tr": "[he]",
+                "translation_en": "he",
+                "translation_tr": "he"
+            },
+            {
+                "term": "I",
+                "translation": "ı",
+                "name": "ı",
+                "phonetic_en": "[uh] (dotless i)",
+                "phonetic_tr": "[ı] (noktasız ı)",
+                "translation_en": "ı",
+                "translation_tr": "ı"
+            },
+            {
+                "term": "İ",
+                "translation": "i",
+                "name": "i",
+                "phonetic_en": "[ee] (dotted i)",
+                "phonetic_tr": "[i] (noktalı i)",
+                "translation_en": "i",
+                "translation_tr": "i"
+            },
+            {
+                "term": "J",
+                "translation": "je",
+                "name": "je",
+                "phonetic_en": "[zheh] (like s in measure)",
+                "phonetic_tr": "[je]",
+                "translation_en": "je",
+                "translation_tr": "je"
+            },
+            {
+                "term": "K",
+                "translation": "ke",
+                "name": "ke",
+                "phonetic_en": "[keh]",
+                "phonetic_tr": "[ke]",
+                "translation_en": "ke",
+                "translation_tr": "ke"
+            },
+            {
+                "term": "L",
+                "translation": "le",
+                "name": "le",
+                "phonetic_en": "[leh]",
+                "phonetic_tr": "[le]",
+                "translation_en": "le",
+                "translation_tr": "le"
+            },
+            {
+                "term": "M",
+                "translation": "me",
+                "name": "me",
+                "phonetic_en": "[meh]",
+                "phonetic_tr": "[me]",
+                "translation_en": "me",
+                "translation_tr": "me"
+            },
+            {
+                "term": "N",
+                "translation": "ne",
+                "name": "ne",
+                "phonetic_en": "[neh]",
+                "phonetic_tr": "[ne]",
+                "translation_en": "ne",
+                "translation_tr": "ne"
+            },
+            {
+                "term": "O",
+                "translation": "o",
+                "name": "o",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "o",
+                "translation_tr": "o"
+            },
+            {
+                "term": "Ö",
+                "translation": "ö",
+                "name": "ö",
+                "phonetic_en": "[er] (like bird)",
+                "phonetic_tr": "[ö]",
+                "translation_en": "ö",
+                "translation_tr": "ö"
+            },
+            {
+                "term": "P",
+                "translation": "pe",
+                "name": "pe",
+                "phonetic_en": "[peh]",
+                "phonetic_tr": "[pe]",
+                "translation_en": "pe",
+                "translation_tr": "pe"
+            },
+            {
+                "term": "R",
+                "translation": "re",
+                "name": "re",
+                "phonetic_en": "[reh]",
+                "phonetic_tr": "[re]",
+                "translation_en": "re",
+                "translation_tr": "re"
+            },
+            {
+                "term": "S",
+                "translation": "se",
+                "name": "se",
+                "phonetic_en": "[seh]",
+                "phonetic_tr": "[se]",
+                "translation_en": "se",
+                "translation_tr": "se"
+            },
+            {
+                "term": "Ş",
+                "translation": "şe",
+                "name": "şe",
+                "phonetic_en": "[sheh] (like sh in shoe)",
+                "phonetic_tr": "[şe]",
+                "translation_en": "şe",
+                "translation_tr": "şe"
+            },
+            {
+                "term": "T",
+                "translation": "te",
+                "name": "te",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "te",
+                "translation_tr": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u",
+                "name": "u",
+                "phonetic_en": "[oo]",
+                "phonetic_tr": "[u]",
+                "translation_en": "u",
+                "translation_tr": "u"
+            },
+            {
+                "term": "Ü",
+                "translation": "ü",
+                "name": "ü",
+                "phonetic_en": "[ew] (like French u)",
+                "phonetic_tr": "[ü]",
+                "translation_en": "ü",
+                "translation_tr": "ü"
+            },
+            {
+                "term": "V",
+                "translation": "ve",
+                "name": "ve",
+                "phonetic_en": "[veh]",
+                "phonetic_tr": "[ve]",
+                "translation_en": "ve",
+                "translation_tr": "ve"
+            },
+            {
+                "term": "Y",
+                "translation": "ye",
+                "name": "ye",
+                "phonetic_en": "[yeh]",
+                "phonetic_tr": "[ye]",
+                "translation_en": "ye",
+                "translation_tr": "ye"
+            },
+            {
+                "term": "Z",
+                "translation": "ze",
+                "name": "ze",
+                "phonetic_en": "[zeh]",
+                "phonetic_tr": "[ze]",
+                "translation_en": "ze",
+                "translation_tr": "ze"
+            }
         ]
     },
     "Arabic": {
         "type": "Alphabet",
         "items": [
-            {"term": "ا", "translation": "Alif"}, {"term": "ب", "translation": "Ba"}, {"term": "ت", "translation": "Ta"}, {"term": "ث", "translation": "Tha"}, {"term": "ج", "translation": "Jim"},
-            {"term": "ح", "translation": "Ha"}, {"term": "خ", "translation": "Kha"}, {"term": "د", "translation": "Dal"}, {"term": "ذ", "translation": "Dhal"}, {"term": "ر", "translation": "Ra"},
-            {"term": "ز", "translation": "Zay"}, {"term": "س", "translation": "Sin"}, {"term": "ش", "translation": "Shin"}, {"term": "ص", "translation": "Sad"}, {"term": "ض", "translation": "Dad"},
-            {"term": "ط", "translation": "Ta"}, {"term": "ظ", "translation": "Za"}, {"term": "ع", "translation": "Ayn"}, {"term": "غ", "translation": "Ghayn"}, {"term": "ف", "translation": "Fa"},
-            {"term": "ق", "translation": "Qaf"}, {"term": "ك", "translation": "Kaf"}, {"term": "ل", "translation": "Lam"}, {"term": "م", "translation": "Mim"}, {"term": "ن", "translation": "Nun"},
-            {"term": "ه", "translation": "Ha"}, {"term": "و", "translation": "Waw"}, {"term": "ي", "translation": "Ya"}
+            {
+                "term": "ا",
+                "translation": "Alif"
+            },
+            {
+                "term": "ب",
+                "translation": "Ba"
+            },
+            {
+                "term": "ت",
+                "translation": "Ta"
+            },
+            {
+                "term": "ث",
+                "translation": "Tha"
+            },
+            {
+                "term": "ج",
+                "translation": "Jim"
+            },
+            {
+                "term": "ح",
+                "translation": "Ha"
+            },
+            {
+                "term": "خ",
+                "translation": "Kha"
+            },
+            {
+                "term": "د",
+                "translation": "Dal"
+            },
+            {
+                "term": "ذ",
+                "translation": "Dhal"
+            },
+            {
+                "term": "ر",
+                "translation": "Ra"
+            },
+            {
+                "term": "ز",
+                "translation": "Zay"
+            },
+            {
+                "term": "س",
+                "translation": "Sin"
+            },
+            {
+                "term": "ش",
+                "translation": "Shin"
+            },
+            {
+                "term": "ص",
+                "translation": "Sad"
+            },
+            {
+                "term": "ض",
+                "translation": "Dad"
+            },
+            {
+                "term": "ط",
+                "translation": "Ta"
+            },
+            {
+                "term": "ظ",
+                "translation": "Za"
+            },
+            {
+                "term": "ع",
+                "translation": "Ayn"
+            },
+            {
+                "term": "غ",
+                "translation": "Ghayn"
+            },
+            {
+                "term": "ف",
+                "translation": "Fa"
+            },
+            {
+                "term": "ق",
+                "translation": "Qaf"
+            },
+            {
+                "term": "ك",
+                "translation": "Kaf"
+            },
+            {
+                "term": "ل",
+                "translation": "Lam"
+            },
+            {
+                "term": "م",
+                "translation": "Mim"
+            },
+            {
+                "term": "ن",
+                "translation": "Nun"
+            },
+            {
+                "term": "ه",
+                "translation": "Ha"
+            },
+            {
+                "term": "و",
+                "translation": "Waw"
+            },
+            {
+                "term": "ي",
+                "translation": "Ya"
+            }
         ]
     },
     "German": {
         "type": "Alphabet",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
-            {"term": "F", "translation": "ef"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "ha"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jot"},
-            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "el"}, {"term": "M", "translation": "em"}, {"term": "N", "translation": "en"}, {"term": "O", "translation": "o"},
-            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "er"}, {"term": "S", "translation": "es"}, {"term": "T", "translation": "te"},
-            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vau"}, {"term": "W", "translation": "we"}, {"term": "X", "translation": "ix"}, {"term": "Y", "translation": "ypsilon"}, {"term": "Z", "translation": "zett"},
-            {"term": "Ä", "translation": "a-umlaut"}, {"term": "Ö", "translation": "o-umlaut"}, {"term": "Ü", "translation": "u-umlaut"}, {"term": "ß", "translation": "eszett"}
+            {
+                "term": "A",
+                "translation": "a",
+                "name": "a",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "a",
+                "translation_tr": "a"
+            },
+            {
+                "term": "B",
+                "translation": "be",
+                "name": "be",
+                "phonetic_en": "[beh]",
+                "phonetic_tr": "[be]",
+                "translation_en": "be",
+                "translation_tr": "be"
+            },
+            {
+                "term": "C",
+                "translation": "tse",
+                "name": "tse",
+                "phonetic_en": "[tseh]",
+                "phonetic_tr": "[tse]",
+                "translation_en": "tse",
+                "translation_tr": "tse"
+            },
+            {
+                "term": "D",
+                "translation": "de",
+                "name": "de",
+                "phonetic_en": "[deh]",
+                "phonetic_tr": "[de]",
+                "translation_en": "de",
+                "translation_tr": "de"
+            },
+            {
+                "term": "E",
+                "translation": "e",
+                "name": "e",
+                "phonetic_en": "[eh]",
+                "phonetic_tr": "[e]",
+                "translation_en": "e",
+                "translation_tr": "e"
+            },
+            {
+                "term": "F",
+                "translation": "ef",
+                "name": "ef",
+                "phonetic_en": "[eff]",
+                "phonetic_tr": "[ef]",
+                "translation_en": "ef",
+                "translation_tr": "ef"
+            },
+            {
+                "term": "G",
+                "translation": "ge",
+                "name": "ge",
+                "phonetic_en": "[geh]",
+                "phonetic_tr": "[ge]",
+                "translation_en": "ge",
+                "translation_tr": "ge"
+            },
+            {
+                "term": "H",
+                "translation": "ha",
+                "name": "ha",
+                "phonetic_en": "[hah]",
+                "phonetic_tr": "[ha]",
+                "translation_en": "ha",
+                "translation_tr": "ha"
+            },
+            {
+                "term": "I",
+                "translation": "i",
+                "name": "i",
+                "phonetic_en": "[ee]",
+                "phonetic_tr": "[i]",
+                "translation_en": "i",
+                "translation_tr": "i"
+            },
+            {
+                "term": "J",
+                "translation": "jot",
+                "name": "jot",
+                "phonetic_en": "[yot] (like y in yes)",
+                "phonetic_tr": "[yot] ('y' sesiyle)",
+                "translation_en": "jot",
+                "translation_tr": "jot"
+            },
+            {
+                "term": "K",
+                "translation": "ka",
+                "name": "ka",
+                "phonetic_en": "[kah]",
+                "phonetic_tr": "[ka]",
+                "translation_en": "ka",
+                "translation_tr": "ka"
+            },
+            {
+                "term": "L",
+                "translation": "el",
+                "name": "el",
+                "phonetic_en": "[ell]",
+                "phonetic_tr": "[el]",
+                "translation_en": "el",
+                "translation_tr": "el"
+            },
+            {
+                "term": "M",
+                "translation": "em",
+                "name": "em",
+                "phonetic_en": "[emm]",
+                "phonetic_tr": "[em]",
+                "translation_en": "em",
+                "translation_tr": "em"
+            },
+            {
+                "term": "N",
+                "translation": "en",
+                "name": "en",
+                "phonetic_en": "[enn]",
+                "phonetic_tr": "[en]",
+                "translation_en": "en",
+                "translation_tr": "en"
+            },
+            {
+                "term": "O",
+                "translation": "o",
+                "name": "o",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "o",
+                "translation_tr": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pe",
+                "name": "pe",
+                "phonetic_en": "[peh]",
+                "phonetic_tr": "[pe]",
+                "translation_en": "pe",
+                "translation_tr": "pe"
+            },
+            {
+                "term": "Q",
+                "translation": "ku",
+                "name": "ku",
+                "phonetic_en": "[koo]",
+                "phonetic_tr": "[ku]",
+                "translation_en": "ku",
+                "translation_tr": "ku"
+            },
+            {
+                "term": "R",
+                "translation": "er",
+                "name": "er",
+                "phonetic_en": "[err] (throat r)",
+                "phonetic_tr": "[er] (genizden r)",
+                "translation_en": "er",
+                "translation_tr": "er"
+            },
+            {
+                "term": "S",
+                "translation": "es",
+                "name": "es",
+                "phonetic_en": "[ess] (or z initial)",
+                "phonetic_tr": "[es] (başta z sesi)",
+                "translation_en": "es",
+                "translation_tr": "es"
+            },
+            {
+                "term": "T",
+                "translation": "te",
+                "name": "te",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "te",
+                "translation_tr": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u",
+                "name": "u",
+                "phonetic_en": "[oo]",
+                "phonetic_tr": "[u]",
+                "translation_en": "u",
+                "translation_tr": "u"
+            },
+            {
+                "term": "V",
+                "translation": "vau",
+                "name": "vau",
+                "phonetic_en": "[fow] (f-sound)",
+                "phonetic_tr": "[fau] ('f' sesiyle)",
+                "translation_en": "vau",
+                "translation_tr": "vau"
+            },
+            {
+                "term": "W",
+                "translation": "we",
+                "name": "we",
+                "phonetic_en": "[veh] (v-sound)",
+                "phonetic_tr": "[ve] ('v' sesiyle)",
+                "translation_en": "we",
+                "translation_tr": "we"
+            },
+            {
+                "term": "X",
+                "translation": "ix",
+                "name": "ix",
+                "phonetic_en": "[iks]",
+                "phonetic_tr": "[iks]",
+                "translation_en": "ix",
+                "translation_tr": "ix"
+            },
+            {
+                "term": "Y",
+                "translation": "ypsilon",
+                "name": "ypsilon",
+                "phonetic_en": "[OOP-si-lon] (ü-sound)",
+                "phonetic_tr": "[üpsilon] ('ü' sesiyle)",
+                "translation_en": "ypsilon",
+                "translation_tr": "ypsilon"
+            },
+            {
+                "term": "Z",
+                "translation": "zett",
+                "name": "zett",
+                "phonetic_en": "[tsett] (ts-sound)",
+                "phonetic_tr": "[tset] ('ts' sesiyle)",
+                "translation_en": "zett",
+                "translation_tr": "zett"
+            },
+            {
+                "term": "Ä",
+                "translation": "a-umlaut",
+                "name": "ä",
+                "phonetic_en": "[eh-umlaut] (open e)",
+                "phonetic_tr": "[açık e]",
+                "translation_en": "ä",
+                "translation_tr": "ä"
+            },
+            {
+                "term": "Ö",
+                "translation": "o-umlaut",
+                "name": "ö",
+                "phonetic_en": "[er-umlaut] (rounded ö)",
+                "phonetic_tr": "[ö sesi]",
+                "translation_en": "ö",
+                "translation_tr": "ö"
+            },
+            {
+                "term": "Ü",
+                "translation": "u-umlaut",
+                "name": "ü",
+                "phonetic_en": "[ew-umlaut] (rounded ü)",
+                "phonetic_tr": "[ü sesi]",
+                "translation_en": "ü",
+                "translation_tr": "ü"
+            },
+            {
+                "term": "ß",
+                "translation": "eszett",
+                "name": "eszett",
+                "phonetic_en": "[ess-tsett] (sharp ss)",
+                "phonetic_tr": "[es-tset] (keskin çift s)",
+                "translation_en": "eszett",
+                "translation_tr": "eszett"
+            }
         ]
     },
     "French": {
         "type": "Alphabet",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "bé"}, {"term": "C", "translation": "cé"}, {"term": "D", "translation": "dé"}, {"term": "E", "translation": "e"},
-            {"term": "F", "translation": "effe"}, {"term": "G", "translation": "gé"}, {"term": "H", "translation": "hache"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "ji"},
-            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "elle"}, {"term": "M", "translation": "emme"}, {"term": "N", "translation": "enne"}, {"term": "O", "translation": "o"},
-            {"term": "P", "translation": "pé"}, {"term": "Q", "translation": "qu"}, {"term": "R", "translation": "erre"}, {"term": "S", "translation": "esse"}, {"term": "T", "translation": "té"},
-            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vé"}, {"term": "W", "translation": "double vé"}, {"term": "X", "translation": "ics"}, {"term": "Y", "translation": "i grec"}, {"term": "Z", "translation": "zède"}
+            {
+                "term": "A",
+                "translation": "a",
+                "name": "a",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "a",
+                "translation_tr": "a"
+            },
+            {
+                "term": "B",
+                "translation": "bé",
+                "name": "bé",
+                "phonetic_en": "[beh]",
+                "phonetic_tr": "[be]",
+                "translation_en": "bé",
+                "translation_tr": "bé"
+            },
+            {
+                "term": "C",
+                "translation": "cé",
+                "name": "cé",
+                "phonetic_en": "[seh]",
+                "phonetic_tr": "[se]",
+                "translation_en": "cé",
+                "translation_tr": "cé"
+            },
+            {
+                "term": "D",
+                "translation": "dé",
+                "name": "dé",
+                "phonetic_en": "[deh]",
+                "phonetic_tr": "[de]",
+                "translation_en": "dé",
+                "translation_tr": "dé"
+            },
+            {
+                "term": "E",
+                "translation": "e",
+                "name": "e",
+                "phonetic_en": "[uh]",
+                "phonetic_tr": "[ö/e arası ses]",
+                "translation_en": "e",
+                "translation_tr": "e"
+            },
+            {
+                "term": "F",
+                "translation": "effe",
+                "name": "effe",
+                "phonetic_en": "[eff]",
+                "phonetic_tr": "[ef]",
+                "translation_en": "effe",
+                "translation_tr": "effe"
+            },
+            {
+                "term": "G",
+                "translation": "gé",
+                "name": "gé",
+                "phonetic_en": "[zheh]",
+                "phonetic_tr": "[je]",
+                "translation_en": "gé",
+                "translation_tr": "gé"
+            },
+            {
+                "term": "H",
+                "translation": "hache",
+                "name": "hache",
+                "phonetic_en": "[ahsh] (silent)",
+                "phonetic_tr": "[aş] (sessiz harf, okunmaz)",
+                "translation_en": "hache",
+                "translation_tr": "hache"
+            },
+            {
+                "term": "I",
+                "translation": "i",
+                "name": "i",
+                "phonetic_en": "[ee]",
+                "phonetic_tr": "[i]",
+                "translation_en": "i",
+                "translation_tr": "i"
+            },
+            {
+                "term": "J",
+                "translation": "ji",
+                "name": "ji",
+                "phonetic_en": "[zhee]",
+                "phonetic_tr": "[ji]",
+                "translation_en": "ji",
+                "translation_tr": "ji"
+            },
+            {
+                "term": "K",
+                "translation": "ka",
+                "name": "ka",
+                "phonetic_en": "[kah]",
+                "phonetic_tr": "[ka]",
+                "translation_en": "ka",
+                "translation_tr": "ka"
+            },
+            {
+                "term": "L",
+                "translation": "elle",
+                "name": "elle",
+                "phonetic_en": "[ell]",
+                "phonetic_tr": "[el]",
+                "translation_en": "elle",
+                "translation_tr": "elle"
+            },
+            {
+                "term": "M",
+                "translation": "emme",
+                "name": "emme",
+                "phonetic_en": "[emm]",
+                "phonetic_tr": "[em]",
+                "translation_en": "emme",
+                "translation_tr": "emme"
+            },
+            {
+                "term": "N",
+                "translation": "enne",
+                "name": "enne",
+                "phonetic_en": "[enn]",
+                "phonetic_tr": "[en]",
+                "translation_en": "enne",
+                "translation_tr": "enne"
+            },
+            {
+                "term": "O",
+                "translation": "o",
+                "name": "o",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "o",
+                "translation_tr": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pé",
+                "name": "pé",
+                "phonetic_en": "[peh]",
+                "phonetic_tr": "[pe]",
+                "translation_en": "pé",
+                "translation_tr": "pé"
+            },
+            {
+                "term": "Q",
+                "translation": "qu",
+                "name": "qu",
+                "phonetic_en": "[kew]",
+                "phonetic_tr": "[kü]",
+                "translation_en": "qu",
+                "translation_tr": "qu"
+            },
+            {
+                "term": "R",
+                "translation": "erre",
+                "name": "erre",
+                "phonetic_en": "[ehr] (guttural r)",
+                "phonetic_tr": "[er] (boğazdan r)",
+                "translation_en": "erre",
+                "translation_tr": "erre"
+            },
+            {
+                "term": "S",
+                "translation": "esse",
+                "name": "esse",
+                "phonetic_en": "[ess]",
+                "phonetic_tr": "[es]",
+                "translation_en": "esse",
+                "translation_tr": "esse"
+            },
+            {
+                "term": "T",
+                "translation": "té",
+                "name": "té",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "té",
+                "translation_tr": "té"
+            },
+            {
+                "term": "U",
+                "translation": "u",
+                "name": "u",
+                "phonetic_en": "[ew] (rounded u)",
+                "phonetic_tr": "[ü]",
+                "translation_en": "u",
+                "translation_tr": "u"
+            },
+            {
+                "term": "V",
+                "translation": "vé",
+                "name": "vé",
+                "phonetic_en": "[veh]",
+                "phonetic_tr": "[ve]",
+                "translation_en": "vé",
+                "translation_tr": "vé"
+            },
+            {
+                "term": "W",
+                "translation": "double vé",
+                "name": "double vé",
+                "phonetic_en": "[doobl-veh]",
+                "phonetic_tr": "[dubl ve]",
+                "translation_en": "double vé",
+                "translation_tr": "double vé"
+            },
+            {
+                "term": "X",
+                "translation": "ics",
+                "name": "ics",
+                "phonetic_en": "[eeks]",
+                "phonetic_tr": "[iks]",
+                "translation_en": "ics",
+                "translation_tr": "ics"
+            },
+            {
+                "term": "Y",
+                "translation": "i grec",
+                "name": "i grec",
+                "phonetic_en": "[ee-grek]",
+                "phonetic_tr": "[i grek]",
+                "translation_en": "i grec",
+                "translation_tr": "i grec"
+            },
+            {
+                "term": "Z",
+                "translation": "zède",
+                "name": "zède",
+                "phonetic_en": "[zed]",
+                "phonetic_tr": "[zed]",
+                "translation_en": "zède",
+                "translation_tr": "zède"
+            }
         ]
     },
     "Italian": {
         "type": "Alfabeto",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "bi"}, {"term": "C", "translation": "ci"}, {"term": "D", "translation": "di"}, {"term": "E", "translation": "e"},
-            {"term": "F", "translation": "effe"}, {"term": "G", "translation": "gi"}, {"term": "H", "translation": "acca"}, {"term": "I", "translation": "i"}, {"term": "L", "translation": "elle"},
-            {"term": "M", "translation": "emme"}, {"term": "N", "translation": "enne"}, {"term": "O", "translation": "o"}, {"term": "P", "translation": "pi"}, {"term": "Q", "translation": "cu"},
-            {"term": "R", "translation": "erre"}, {"term": "S", "translation": "esse"}, {"term": "T", "translation": "te"}, {"term": "U", "translation": "u"}, {"term": "V", "translation": "vi/vu"}, {"term": "Z", "translation": "zeta"}
+            {
+                "term": "A",
+                "translation": "a",
+                "name": "a",
+                "phonetic_en": "[ah]",
+                "phonetic_tr": "[a]",
+                "translation_en": "a",
+                "translation_tr": "a"
+            },
+            {
+                "term": "B",
+                "translation": "bi",
+                "name": "bi",
+                "phonetic_en": "[bee]",
+                "phonetic_tr": "[bi]",
+                "translation_en": "bi",
+                "translation_tr": "bi"
+            },
+            {
+                "term": "C",
+                "translation": "ci",
+                "name": "ci",
+                "phonetic_en": "[chee (e/i) / k (a/o/u)]",
+                "phonetic_tr": "[çi (e/i) / k (a/o/u)]",
+                "translation_en": "ci",
+                "translation_tr": "ci"
+            },
+            {
+                "term": "D",
+                "translation": "di",
+                "name": "di",
+                "phonetic_en": "[dee]",
+                "phonetic_tr": "[di]",
+                "translation_en": "di",
+                "translation_tr": "di"
+            },
+            {
+                "term": "E",
+                "translation": "e",
+                "name": "e",
+                "phonetic_en": "[eh]",
+                "phonetic_tr": "[e]",
+                "translation_en": "e",
+                "translation_tr": "e"
+            },
+            {
+                "term": "F",
+                "translation": "effe",
+                "name": "effe",
+                "phonetic_en": "[EH-feh]",
+                "phonetic_tr": "[effe]",
+                "translation_en": "effe",
+                "translation_tr": "effe"
+            },
+            {
+                "term": "G",
+                "translation": "gi",
+                "name": "gi",
+                "phonetic_en": "[jee (e/i) / g (a/o/u)]",
+                "phonetic_tr": "[ci (e/i) / g (a/o/u)]",
+                "translation_en": "gi",
+                "translation_tr": "gi"
+            },
+            {
+                "term": "H",
+                "translation": "acca",
+                "name": "acca",
+                "phonetic_en": "[AHK-kah] (silent)",
+                "phonetic_tr": "[akka] (sessiz harf, okunmaz)",
+                "translation_en": "acca",
+                "translation_tr": "acca"
+            },
+            {
+                "term": "I",
+                "translation": "i",
+                "name": "i",
+                "phonetic_en": "[ee]",
+                "phonetic_tr": "[i]",
+                "translation_en": "i",
+                "translation_tr": "i"
+            },
+            {
+                "term": "L",
+                "translation": "elle",
+                "name": "elle",
+                "phonetic_en": "[EH-leh]",
+                "phonetic_tr": "[elle]",
+                "translation_en": "elle",
+                "translation_tr": "elle"
+            },
+            {
+                "term": "M",
+                "translation": "emme",
+                "name": "emme",
+                "phonetic_en": "[EH-meh]",
+                "phonetic_tr": "[emme]",
+                "translation_en": "emme",
+                "translation_tr": "emme"
+            },
+            {
+                "term": "N",
+                "translation": "enne",
+                "name": "enne",
+                "phonetic_en": "[EH-neh]",
+                "phonetic_tr": "[enne]",
+                "translation_en": "enne",
+                "translation_tr": "enne"
+            },
+            {
+                "term": "O",
+                "translation": "o",
+                "name": "o",
+                "phonetic_en": "[oh]",
+                "phonetic_tr": "[o]",
+                "translation_en": "o",
+                "translation_tr": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pi",
+                "name": "pi",
+                "phonetic_en": "[pee]",
+                "phonetic_tr": "[pi]",
+                "translation_en": "pi",
+                "translation_tr": "pi"
+            },
+            {
+                "term": "Q",
+                "translation": "cu",
+                "name": "cu",
+                "phonetic_en": "[koo]",
+                "phonetic_tr": "[ku]",
+                "translation_en": "cu",
+                "translation_tr": "cu"
+            },
+            {
+                "term": "R",
+                "translation": "erre",
+                "name": "erre",
+                "phonetic_en": "[EH-rreh] (rolled r)",
+                "phonetic_tr": "[erre] (titrek r)",
+                "translation_en": "erre",
+                "translation_tr": "erre"
+            },
+            {
+                "term": "S",
+                "translation": "esse",
+                "name": "esse",
+                "phonetic_en": "[EH-seh]",
+                "phonetic_tr": "[esse]",
+                "translation_en": "esse",
+                "translation_tr": "esse"
+            },
+            {
+                "term": "T",
+                "translation": "te",
+                "name": "te",
+                "phonetic_en": "[teh]",
+                "phonetic_tr": "[te]",
+                "translation_en": "te",
+                "translation_tr": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u",
+                "name": "u",
+                "phonetic_en": "[oo]",
+                "phonetic_tr": "[u]",
+                "translation_en": "u",
+                "translation_tr": "u"
+            },
+            {
+                "term": "V",
+                "translation": "vi",
+                "name": "vi",
+                "phonetic_en": "[vee]",
+                "phonetic_tr": "[vi]",
+                "translation_en": "vi",
+                "translation_tr": "vi"
+            },
+            {
+                "term": "Z",
+                "translation": "zeta",
+                "name": "zeta",
+                "phonetic_en": "[DZEH-tah / TSEH-tah]",
+                "phonetic_tr": "[dzeta / tseta]",
+                "translation_en": "zeta",
+                "translation_tr": "zeta"
+            }
         ]
     },
     "Portuguese": {
         "type": "Alfabeto",
         "items": [
-            {"term": "A", "translation": "á"}, {"term": "B", "translation": "bê"}, {"term": "C", "translation": "cê"}, {"term": "D", "translation": "dê"}, {"term": "E", "translation": "é"},
-            {"term": "F", "translation": "éfe"}, {"term": "G", "translation": "gê"}, {"term": "H", "translation": "agá"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jota"},
-            {"term": "K", "translation": "capa"}, {"term": "L", "translation": "éle"}, {"term": "M", "translation": "éme"}, {"term": "N", "translation": "éne"}, {"term": "O", "translation": "ó"},
-            {"term": "P", "translation": "pê"}, {"term": "Q", "translation": "quê"}, {"term": "R", "translation": "ére"}, {"term": "S", "translation": "ésse"}, {"term": "T", "translation": "tê"},
-            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vê"}, {"term": "W", "translation": "dáblio"}, {"term": "X", "translation": "xis"}, {"term": "Y", "translation": "ípsilon"}, {"term": "Z", "translation": "zê"}
+            {
+                "term": "A",
+                "translation": "á"
+            },
+            {
+                "term": "B",
+                "translation": "bê"
+            },
+            {
+                "term": "C",
+                "translation": "cê"
+            },
+            {
+                "term": "D",
+                "translation": "dê"
+            },
+            {
+                "term": "E",
+                "translation": "é"
+            },
+            {
+                "term": "F",
+                "translation": "éfe"
+            },
+            {
+                "term": "G",
+                "translation": "gê"
+            },
+            {
+                "term": "H",
+                "translation": "agá"
+            },
+            {
+                "term": "I",
+                "translation": "i"
+            },
+            {
+                "term": "J",
+                "translation": "jota"
+            },
+            {
+                "term": "K",
+                "translation": "capa"
+            },
+            {
+                "term": "L",
+                "translation": "éle"
+            },
+            {
+                "term": "M",
+                "translation": "éme"
+            },
+            {
+                "term": "N",
+                "translation": "éne"
+            },
+            {
+                "term": "O",
+                "translation": "ó"
+            },
+            {
+                "term": "P",
+                "translation": "pê"
+            },
+            {
+                "term": "Q",
+                "translation": "quê"
+            },
+            {
+                "term": "R",
+                "translation": "ére"
+            },
+            {
+                "term": "S",
+                "translation": "ésse"
+            },
+            {
+                "term": "T",
+                "translation": "tê"
+            },
+            {
+                "term": "U",
+                "translation": "u"
+            },
+            {
+                "term": "V",
+                "translation": "vê"
+            },
+            {
+                "term": "W",
+                "translation": "dáblio"
+            },
+            {
+                "term": "X",
+                "translation": "xis"
+            },
+            {
+                "term": "Y",
+                "translation": "ípsilon"
+            },
+            {
+                "term": "Z",
+                "translation": "zê"
+            }
         ]
     },
     "Dutch": {
         "type": "Alfabet",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "ce"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
-            {"term": "F", "translation": "ef"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "ha"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "jee"},
-            {"term": "K", "translation": "ka"}, {"term": "L", "translation": "el"}, {"term": "M", "translation": "em"}, {"term": "N", "translation": "en"}, {"term": "O", "translation": "o"},
-            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "er"}, {"term": "S", "translation": "es"}, {"term": "T", "translation": "te"},
-            {"term": "U", "translation": "u"}, {"term": "V", "translation": "vee"}, {"term": "W", "translation": "wee"}, {"term": "X", "translation": "iks"}, {"term": "Y", "translation": "ij/ypsilon"}, {"term": "Z", "translation": "zet"}
+            {
+                "term": "A",
+                "translation": "a"
+            },
+            {
+                "term": "B",
+                "translation": "be"
+            },
+            {
+                "term": "C",
+                "translation": "ce"
+            },
+            {
+                "term": "D",
+                "translation": "de"
+            },
+            {
+                "term": "E",
+                "translation": "e"
+            },
+            {
+                "term": "F",
+                "translation": "ef"
+            },
+            {
+                "term": "G",
+                "translation": "ge"
+            },
+            {
+                "term": "H",
+                "translation": "ha"
+            },
+            {
+                "term": "I",
+                "translation": "i"
+            },
+            {
+                "term": "J",
+                "translation": "jee"
+            },
+            {
+                "term": "K",
+                "translation": "ka"
+            },
+            {
+                "term": "L",
+                "translation": "el"
+            },
+            {
+                "term": "M",
+                "translation": "em"
+            },
+            {
+                "term": "N",
+                "translation": "en"
+            },
+            {
+                "term": "O",
+                "translation": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pe"
+            },
+            {
+                "term": "Q",
+                "translation": "ku"
+            },
+            {
+                "term": "R",
+                "translation": "er"
+            },
+            {
+                "term": "S",
+                "translation": "es"
+            },
+            {
+                "term": "T",
+                "translation": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u"
+            },
+            {
+                "term": "V",
+                "translation": "vee"
+            },
+            {
+                "term": "W",
+                "translation": "wee"
+            },
+            {
+                "term": "X",
+                "translation": "iks"
+            },
+            {
+                "term": "Y",
+                "translation": "ij/ypsilon"
+            },
+            {
+                "term": "Z",
+                "translation": "zet"
+            }
         ]
     },
     "Swedish": {
         "type": "Alfabet",
         "items": [
-            {"term": "A", "translation": "a"}, {"term": "B", "translation": "be"}, {"term": "C", "translation": "se"}, {"term": "D", "translation": "de"}, {"term": "E", "translation": "e"},
-            {"term": "F", "translation": "eff"}, {"term": "G", "translation": "ge"}, {"term": "H", "translation": "hå"}, {"term": "I", "translation": "i"}, {"term": "J", "translation": "ji"},
-            {"term": "K", "translation": "kå"}, {"term": "L", "translation": "ell"}, {"term": "M", "translation": "emm"}, {"term": "N", "translation": "enn"}, {"term": "O", "translation": "o"},
-            {"term": "P", "translation": "pe"}, {"term": "Q", "translation": "ku"}, {"term": "R", "translation": "ärr"}, {"term": "S", "translation": "ess"}, {"term": "T", "translation": "te"},
-            {"term": "U", "translation": "u"}, {"term": "V", "translation": "ve"}, {"term": "W", "translation": "dubbel-ve"}, {"term": "X", "translation": "eks"}, {"term": "Y", "translation": "y"}, {"term": "Z", "translation": "säta"},
-            {"term": "Å", "translation": "å"}, {"term": "Ä", "translation": "ä"}, {"term": "Ö", "translation": "ö"}
+            {
+                "term": "A",
+                "translation": "a"
+            },
+            {
+                "term": "B",
+                "translation": "be"
+            },
+            {
+                "term": "C",
+                "translation": "se"
+            },
+            {
+                "term": "D",
+                "translation": "de"
+            },
+            {
+                "term": "E",
+                "translation": "e"
+            },
+            {
+                "term": "F",
+                "translation": "eff"
+            },
+            {
+                "term": "G",
+                "translation": "ge"
+            },
+            {
+                "term": "H",
+                "translation": "hå"
+            },
+            {
+                "term": "I",
+                "translation": "i"
+            },
+            {
+                "term": "J",
+                "translation": "ji"
+            },
+            {
+                "term": "K",
+                "translation": "kå"
+            },
+            {
+                "term": "L",
+                "translation": "ell"
+            },
+            {
+                "term": "M",
+                "translation": "emm"
+            },
+            {
+                "term": "N",
+                "translation": "enn"
+            },
+            {
+                "term": "O",
+                "translation": "o"
+            },
+            {
+                "term": "P",
+                "translation": "pe"
+            },
+            {
+                "term": "Q",
+                "translation": "ku"
+            },
+            {
+                "term": "R",
+                "translation": "ärr"
+            },
+            {
+                "term": "S",
+                "translation": "ess"
+            },
+            {
+                "term": "T",
+                "translation": "te"
+            },
+            {
+                "term": "U",
+                "translation": "u"
+            },
+            {
+                "term": "V",
+                "translation": "ve"
+            },
+            {
+                "term": "W",
+                "translation": "dubbel-ve"
+            },
+            {
+                "term": "X",
+                "translation": "eks"
+            },
+            {
+                "term": "Y",
+                "translation": "y"
+            },
+            {
+                "term": "Z",
+                "translation": "säta"
+            },
+            {
+                "term": "Å",
+                "translation": "å"
+            },
+            {
+                "term": "Ä",
+                "translation": "ä"
+            },
+            {
+                "term": "Ö",
+                "translation": "ö"
+            }
         ]
     },
     "Korean": {
         "type": "Hangul",
         "items": [
-            {"term": "ㄱ", "translation": "giyeok"}, {"term": "ㄴ", "translation": "nieun"}, {"term": "ㄷ", "translation": "digeut"}, {"term": "ㄹ", "translation": "rieul"}, {"term": "ㅁ", "translation": "mieun"},
-            {"term": "ㅂ", "translation": "bieup"}, {"term": "ㅅ", "translation": "siot"}, {"term": "ㅇ", "translation": "ieung"}, {"term": "ㅈ", "translation": "jieut"}, {"term": "ㅊ", "translation": "chieut"},
-            {"term": "ㅋ", "translation": "kieuk"}, {"term": "ㅌ", "translation": "tieut"}, {"term": "ㅍ", "translation": "pieup"}, {"term": "ㅎ", "translation": "hieut"},
-            {"term": "ㅏ", "translation": "a"}, {"term": "ㅑ", "translation": "ya"}, {"term": "ㅓ", "translation": "eo"}, {"term": "ㅕ", "translation": "yeo"}, {"term": "ㅗ", "translation": "o"},
-            {"term": "ㅛ", "translation": "yo"}, {"term": "ㅜ", "translation": "u"}, {"term": "ㅠ", "translation": "yu"}, {"term": "ㅡ", "translation": "eu"}, {"term": "ㅣ", "translation": "i"}
+            {
+                "term": "ㄱ",
+                "translation": "giyeok"
+            },
+            {
+                "term": "ㄴ",
+                "translation": "nieun"
+            },
+            {
+                "term": "ㄷ",
+                "translation": "digeut"
+            },
+            {
+                "term": "ㄹ",
+                "translation": "rieul"
+            },
+            {
+                "term": "ㅁ",
+                "translation": "mieun"
+            },
+            {
+                "term": "ㅂ",
+                "translation": "bieup"
+            },
+            {
+                "term": "ㅅ",
+                "translation": "siot"
+            },
+            {
+                "term": "ㅇ",
+                "translation": "ieung"
+            },
+            {
+                "term": "ㅈ",
+                "translation": "jieut"
+            },
+            {
+                "term": "ㅊ",
+                "translation": "chieut"
+            },
+            {
+                "term": "ㅋ",
+                "translation": "kieuk"
+            },
+            {
+                "term": "ㅌ",
+                "translation": "tieut"
+            },
+            {
+                "term": "ㅍ",
+                "translation": "pieup"
+            },
+            {
+                "term": "ㅎ",
+                "translation": "hieut"
+            },
+            {
+                "term": "ㅏ",
+                "translation": "a"
+            },
+            {
+                "term": "ㅑ",
+                "translation": "ya"
+            },
+            {
+                "term": "ㅓ",
+                "translation": "eo"
+            },
+            {
+                "term": "ㅕ",
+                "translation": "yeo"
+            },
+            {
+                "term": "ㅗ",
+                "translation": "o"
+            },
+            {
+                "term": "ㅛ",
+                "translation": "yo"
+            },
+            {
+                "term": "ㅜ",
+                "translation": "u"
+            },
+            {
+                "term": "ㅠ",
+                "translation": "yu"
+            },
+            {
+                "term": "ㅡ",
+                "translation": "eu"
+            },
+            {
+                "term": "ㅣ",
+                "translation": "i"
+            }
         ]
     },
     "Greek": {
         "type": "Alphabet",
         "items": [
-            {"term": "Α", "translation": "Alpha"}, {"term": "Β", "translation": "Beta"}, {"term": "Γ", "translation": "Gamma"}, {"term": "Δ", "translation": "Delta"}, {"term": "Ε", "translation": "Epsilon"},
-            {"term": "Ζ", "translation": "Zeta"}, {"term": "Η", "translation": "Eta"}, {"term": "Θ", "translation": "Theta"}, {"term": "Ι", "translation": "Iota"}, {"term": "Κ", "translation": "Kappa"},
-            {"term": "Λ", "translation": "Lambda"}, {"term": "Μ", "translation": "Mu"}, {"term": "Ν", "translation": "Nu"}, {"term": "Ξ", "translation": "Xi"}, {"term": "Ο", "translation": "Omicron"},
-            {"term": "Π", "translation": "Pi"}, {"term": "Ρ", "translation": "Rho"}, {"term": "Σ", "translation": "Sigma"}, {"term": "Τ", "translation": "Tau"}, {"term": "Υ", "translation": "Upsilon"},
-            {"term": "Φ", "translation": "Phi"}, {"term": "Χ", "translation": "Chi"}, {"term": "Ψ", "translation": "Psi"}, {"term": "Ω", "translation": "Omega"}
+            {
+                "term": "Α",
+                "translation": "Alpha",
+                "name": "Alpha",
+                "phonetic_en": "[AH-fah]",
+                "phonetic_tr": "[alfa]",
+                "translation_en": "Alpha",
+                "translation_tr": "Alpha"
+            },
+            {
+                "term": "Β",
+                "translation": "Beta",
+                "name": "Vita",
+                "phonetic_en": "[VEE-tah] (v-sound in modern Greek)",
+                "phonetic_tr": "[vita] ('v' sesiyle)",
+                "translation_en": "Vita",
+                "translation_tr": "Vita"
+            },
+            {
+                "term": "Γ",
+                "translation": "Gamma",
+                "name": "Gamma",
+                "phonetic_en": "[GHAH-mah]",
+                "phonetic_tr": "[gama] (boğazdan g/y)",
+                "translation_en": "Gamma",
+                "translation_tr": "Gamma"
+            },
+            {
+                "term": "Δ",
+                "translation": "Delta",
+                "name": "Delta",
+                "phonetic_en": "[THEL-tah] (like th in the)",
+                "phonetic_tr": "[delta] (peltek d/th)",
+                "translation_en": "Delta",
+                "translation_tr": "Delta"
+            },
+            {
+                "term": "Ε",
+                "translation": "Epsilon",
+                "name": "Epsilon",
+                "phonetic_en": "[EHP-see-lon]",
+                "phonetic_tr": "[epsilon]",
+                "translation_en": "Epsilon",
+                "translation_tr": "Epsilon"
+            },
+            {
+                "term": "Ζ",
+                "translation": "Zeta",
+                "name": "Zita",
+                "phonetic_en": "[ZEE-tah]",
+                "phonetic_tr": "[zita]",
+                "translation_en": "Zita",
+                "translation_tr": "Zita"
+            },
+            {
+                "term": "Η",
+                "translation": "Eta",
+                "name": "Ita",
+                "phonetic_en": "[EE-tah] (ee-sound)",
+                "phonetic_tr": "[ita] ('i' sesiyle)",
+                "translation_en": "Ita",
+                "translation_tr": "Ita"
+            },
+            {
+                "term": "Θ",
+                "translation": "Theta",
+                "name": "Thita",
+                "phonetic_en": "[THEE-tah] (like th in think)",
+                "phonetic_tr": "[teta] (peltek t/th)",
+                "translation_en": "Thita",
+                "translation_tr": "Thita"
+            },
+            {
+                "term": "Ι",
+                "translation": "Iota",
+                "name": "Iota",
+                "phonetic_en": "[ee-OH-tah]",
+                "phonetic_tr": "[yota] ('i' sesiyle)",
+                "translation_en": "Iota",
+                "translation_tr": "Iota"
+            },
+            {
+                "term": "Κ",
+                "translation": "Kappa",
+                "name": "Kappa",
+                "phonetic_en": "[KAH-pah]",
+                "phonetic_tr": "[kapa]",
+                "translation_en": "Kappa",
+                "translation_tr": "Kappa"
+            },
+            {
+                "term": "Λ",
+                "translation": "Lambda",
+                "name": "Lamda",
+                "phonetic_en": "[LAHM-thah]",
+                "phonetic_tr": "[lamda]",
+                "translation_en": "Lamda",
+                "translation_tr": "Lamda"
+            },
+            {
+                "term": "Μ",
+                "translation": "Mu",
+                "name": "Mi",
+                "phonetic_en": "[mee]",
+                "phonetic_tr": "[mi]",
+                "translation_en": "Mi",
+                "translation_tr": "Mi"
+            },
+            {
+                "term": "Ν",
+                "translation": "Nu",
+                "name": "Ni",
+                "phonetic_en": "[nee]",
+                "phonetic_tr": "[ni]",
+                "translation_en": "Ni",
+                "translation_tr": "Ni"
+            },
+            {
+                "term": "Ξ",
+                "translation": "Xi",
+                "name": "Ksi",
+                "phonetic_en": "[ksee]",
+                "phonetic_tr": "[ksi]",
+                "translation_en": "Ksi",
+                "translation_tr": "Ksi"
+            },
+            {
+                "term": "Ο",
+                "translation": "Omicron",
+                "name": "Omikron",
+                "phonetic_en": "[OH-mee-kron]",
+                "phonetic_tr": "[omikron]",
+                "translation_en": "Omikron",
+                "translation_tr": "Omikron"
+            },
+            {
+                "term": "Π",
+                "translation": "Pi",
+                "name": "Pi",
+                "phonetic_en": "[pee]",
+                "phonetic_tr": "[pi]",
+                "translation_en": "Pi",
+                "translation_tr": "Pi"
+            },
+            {
+                "term": "Ρ",
+                "translation": "Rho",
+                "name": "Ro",
+                "phonetic_en": "[roh] (rolled r)",
+                "phonetic_tr": "[ro] (titrek r)",
+                "translation_en": "Ro",
+                "translation_tr": "Ro"
+            },
+            {
+                "term": "Σ",
+                "translation": "Sigma",
+                "name": "Sigma",
+                "phonetic_en": "[SEEG-mah]",
+                "phonetic_tr": "[sigma]",
+                "translation_en": "Sigma",
+                "translation_tr": "Sigma"
+            },
+            {
+                "term": "Τ",
+                "translation": "Tau",
+                "name": "Taf",
+                "phonetic_en": "[tahf]",
+                "phonetic_tr": "[taf]",
+                "translation_en": "Taf",
+                "translation_tr": "Taf"
+            },
+            {
+                "term": "Υ",
+                "translation": "Upsilon",
+                "name": "Ipsilon",
+                "phonetic_en": "[EEP-see-lon] (ee-sound)",
+                "phonetic_tr": "[ipsilon] ('i' sesiyle)",
+                "translation_en": "Ipsilon",
+                "translation_tr": "Ipsilon"
+            },
+            {
+                "term": "Φ",
+                "translation": "Phi",
+                "name": "Fi",
+                "phonetic_en": "[fee]",
+                "phonetic_tr": "[fi]",
+                "translation_en": "Fi",
+                "translation_tr": "Fi"
+            },
+            {
+                "term": "Χ",
+                "translation": "Chi",
+                "name": "Hi",
+                "phonetic_en": "[khee] (raspy h)",
+                "phonetic_tr": "[hi] (boğazdan h)",
+                "translation_en": "Hi",
+                "translation_tr": "Hi"
+            },
+            {
+                "term": "Ψ",
+                "translation": "Psi",
+                "name": "Psi",
+                "phonetic_en": "[psee]",
+                "phonetic_tr": "[psi]",
+                "translation_en": "Psi",
+                "translation_tr": "Psi"
+            },
+            {
+                "term": "Ω",
+                "translation": "Omega",
+                "name": "Omega",
+                "phonetic_en": "[oh-MEH-ghah]",
+                "phonetic_tr": "[omega]",
+                "translation_en": "Omega",
+                "translation_tr": "Omega"
+            }
         ]
     }
 }
 
-# Language-Specific Special Characters, Accent Marks, and Pronunciation Notes
-# Used for topics like "Accent Marks and Special Characters", "Vowel Sounds", etc.
-# This prevents the AI from generating a generic European accent list for languages that don't use those characters.
 SPECIAL_CHARACTERS = {
     "Dutch": {
         "title": "Dutch Special Characters & Diacritics",
@@ -1315,3 +3745,255 @@ def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:
 
 
 
+
+
+# ── PRACTICAL VOCABULARY EXAMPLES & COLLOCATIONS BANK ──
+VOCAB_EXAMPLE_BANK = {
+    "Spanish": {
+        "leer": {
+            "example": "Leo un libro fascinante cada noche.",
+            "example_en": "I read a fascinating book every night.",
+            "example_tr": "Her gece sürükleyici bir kitap okurum.",
+            "tip_en": "Irregular gerund: 'leyendo'. Common phrase: 'leer en voz alta' (read aloud).",
+            "tip_tr": "Ulaç hali kuralsızdır: 'leyendo'. Sık kullanılan kalıp: 'leer en voz alta' (sesli okumak)."
+        },
+        "escribir": {
+            "example": "Ella escribe un diario todos los días.",
+            "example_en": "She writes in a diary every day.",
+            "example_tr": "O her gün günlük yazar.",
+            "tip_en": "Past participle is irregular: 'escrito' (written).",
+            "tip_tr": "Geçmiş zaman sıfat-fiili kuralsızdır: 'escrito' (yazılmış)."
+        },
+        "jugar": {
+            "example": "Jugamos al fútbol los fines de semana.",
+            "example_en": "We play soccer on weekends.",
+            "example_tr": "Hafta sonları futbol oynarız.",
+            "tip_en": "Stem-changing verb (u -> ue). Always takes preposition 'a' with sports: 'jugar al tenis'.",
+            "tip_tr": "Kök değişimi yapar (u -> ue). Spor ve oyunlarda daima 'a' edatı alır: 'jugar al fútbol'."
+        },
+        "nadar": {
+            "example": "Nado en la piscina olímpica cada sábado.",
+            "example_en": "I swim in the Olympic pool every Saturday.",
+            "example_tr": "Her cumartesi olimpik havuzda yüzerim.",
+            "tip_en": "Regular -ar verb. Pair with 'en': 'nadar en el mar' (swim in the sea).",
+            "tip_tr": "Düzenli -ar fiilidir. 'en' edatıyla kullanılır: 'nadar en el mar' (denizde yüzmek)."
+        },
+        "dibujar": {
+            "example": "Me gusta dibujar paisajes a lápiz.",
+            "example_en": "I like drawing landscapes in pencil.",
+            "example_tr": "Karakalemle manzara çizmeyi severim.",
+            "tip_en": "The noun form is 'el dibujo' (drawing/sketch).",
+            "tip_tr": "İsim formu 'el dibujo' (çizim/resim) şeklindedir."
+        },
+        "cocinar": {
+            "example": "Mi padre cocina una paella deliciosa.",
+            "example_en": "My father cooks a delicious paella.",
+            "example_tr": "Babam çok lezzetli bir paella pişirir.",
+            "tip_en": "Related to 'la cocina' (the kitchen).",
+            "tip_tr": "'La cocina' (mutfak) sözcüğüyle aynı köktendir."
+        },
+        "viajar": {
+            "example": "Quiero viajar por todo el mundo.",
+            "example_en": "I want to travel all over the world.",
+            "example_tr": "Bütün dünyayı gezmek istiyorum.",
+            "tip_en": "Transport requires preposition 'en': 'viajar en tren / en avión'.",
+            "tip_tr": "Ulaşım araçlarında 'en' edatı kullanılır: 'viajar en tren / en avión'."
+        },
+        "bailar": {
+            "example": "Ellos bailan salsa los viernes por la noche.",
+            "example_en": "They dance salsa on Friday nights.",
+            "example_tr": "Cuma geceleri salsa dansı yaparlar.",
+            "tip_en": "Common phrase: 'bailar con' (dance with someone).",
+            "tip_tr": "'Bailar con' (biriyle dans etmek) yapısıyla sık kullanılır."
+        },
+        "cantar": {
+            "example": "Ella canta muy bien en el coro de la escuela.",
+            "example_en": "She sings very well in the school choir.",
+            "example_tr": "Okul korosunda çok güzel şarkı söyler.",
+            "tip_en": "The noun is 'la canción' (the song).",
+            "tip_tr": "İsim formu 'la canción' (şarkı) şeklindedir."
+        },
+        "escuchar musica": {
+            "example": "Escucho música relajante mientras estudio.",
+            "example_en": "I listen to relaxing music while studying.",
+            "example_tr": "Ders çalışırken dinlendirici müzik dinlerim.",
+            "tip_en": "Does not take a preposition for objects: 'escuchar música' (NOT 'escuchar a música').",
+            "tip_tr": "Nesne alırken araya edat almaz: 'escuchar música'."
+        },
+        "ver peliculas": {
+            "example": "Los domingos vemos películas en casa.",
+            "example_en": "On Sundays we watch movies at home.",
+            "example_tr": "Pazar günleri evde film izleriz.",
+            "tip_en": "Irregular first-person present: 'yo veo'.",
+            "tip_tr": "'Ver' fiilinin ben çekimi kuralsızdır: 'yo veo'."
+        },
+        "hacer ejercicio": {
+            "example": "Hago ejercicio en el parque todas las mañanas.",
+            "example_en": "I exercise in the park every morning.",
+            "example_tr": "Her sabah parkta egzersiz yaparım.",
+            "tip_en": "First-person present is irregular: 'yo hago'.",
+            "tip_tr": "'Hacer' fiilinin şimdiki zaman 1. şahsı kuralsızdır: 'yo hago'."
+        },
+        "correr": {
+            "example": "Corro cinco kilómetros cada mañana.",
+            "example_en": "I run five kilometers every morning.",
+            "example_tr": "Her sabah beş kilometre koşarım.",
+            "tip_en": "Regular -er verb.",
+            "tip_tr": "Düzenli -er fiilidir."
+        },
+        "hobi": {
+            "example": "¿Cuál es tu pasatiempo favorito?",
+            "example_en": "What is your favorite hobby?",
+            "example_tr": "En sevdiğin hobi nedir?",
+            "tip_en": "Native Spanish term is 'el pasatiempo' (pasar + tiempo).",
+            "tip_tr": "İspanyolcada özgün karşılığı 'el pasatiempo' (vakit geçirme) sözcüğüdür."
+        },
+        "pasatiempo": {
+            "example": "La fotografía es mi pasatiempo principal.",
+            "example_en": "Photography is my main hobby.",
+            "example_tr": "Fotoğrafçılık benim başlıca hobimdir.",
+            "tip_en": "Compound word: 'pasar' (spend) + 'tiempo' (time). Plural: 'los pasatiempos'.",
+            "tip_tr": "'Pasar' (geçirmek) ve 'tiempo' (zaman) birleşimidir. Çoğulu: 'los pasatiempos'."
+        }
+    },
+    "German": {
+        "lesen": {
+            "example": "Ich lese jeden Abend ein deutsches Buch.",
+            "example_en": "I read a German book every evening.",
+            "example_tr": "Her akşam Almanca bir kitap okurum.",
+            "tip_en": "Stem-changing verb: du liest, er/sie liest.",
+            "tip_tr": "Kök değişimi yapan fiildir: du liest, er liest."
+        },
+        "schreiben": {
+            "example": "Er schreibt eine E-Mail an seinen Lehrer.",
+            "example_en": "He writes an email to his teacher.",
+            "example_tr": "Öğretmenine bir e-posta yazıyor.",
+            "tip_en": "Takes dative for person: 'jemandem schreiben'.",
+            "tip_tr": "Kişi belirtirken ismin -e halini (Dativ) alır."
+        },
+        "spielen": {
+            "example": "Wir spielen am Wochenende gern Fußball.",
+            "example_en": "We like playing soccer on the weekend.",
+            "example_tr": "Hafta sonu severek futbol oynarız.",
+            "tip_en": "Instrument requires 'auf' or direct: 'Klavier spielen'.",
+            "tip_tr": "Müzik aletleriyle doğrudan kullanılır: 'Klavier spielen' (piyano çalmak)."
+        },
+        "schwimmen": {
+            "example": "Im Sommer schwimme ich oft im See.",
+            "example_en": "In summer I often swim in the lake.",
+            "example_tr": "Yazın sık sık gölde yüzerim.",
+            "tip_en": "Forms perfect with 'sein': 'Ich bin geschwommen'.",
+            "tip_tr": "Geçmiş zamanda 'sein' yardımcı fiiliyle çekimlenir."
+        },
+        "reisen": {
+            "example": "Ich möchte durch ganz Europa reisen.",
+            "example_en": "I would like to travel through all of Europe.",
+            "example_tr": "Bütün Avrupa'yı gezmek istiyorum.",
+            "tip_en": "Forms perfect with 'sein': 'Ich bin gereist'.",
+            "tip_tr": "Hareket bildirdiği için 'sein' ile kullanılır."
+        }
+    },
+    "French": {
+        "lire": {
+            "example": "Je lis un roman passionnant avant de dormir.",
+            "example_en": "I read an exciting novel before sleeping.",
+            "example_tr": "Uyumadan önce heyecanlı bir roman okurum.",
+            "tip_en": "Irregular 3rd group verb: je lis, nous lisons.",
+            "tip_tr": "3. grup kuralsız fiildir: je lis, nous lisons."
+        },
+        "écrire": {
+            "example": "Elle écrit une lettre à sa grand-mère.",
+            "example_en": "She writes a letter to her grandmother.",
+            "example_tr": "Büyükannesine bir mektup yazıyor.",
+            "tip_en": "Past participle: 'écrit'.",
+            "tip_tr": "Geçmiş zaman hali: 'écrit'."
+        },
+        "jouer": {
+            "example": "Nous jouons au football le samedi matin.",
+            "example_en": "We play soccer on Saturday mornings.",
+            "example_tr": "Cumartesi sabahları futbol oynarız.",
+            "tip_en": "Sports take 'à': 'jouer au foot'. Instruments take 'de': 'jouer du piano'.",
+            "tip_tr": "Sporlarda 'à' (jouer au foot), enstrümanlarda 'de' (jouer du piano) alır."
+        },
+        "nager": {
+            "example": "Je nage dans la piscine municipale.",
+            "example_en": "I swim in the municipal pool.",
+            "example_tr": "Belediye havuzunda yüzerim.",
+            "tip_en": "Spelling change before 'o/a': 'nous nageons'.",
+            "tip_tr": "'Nous' çekiminde 'e' harfi korunur: 'nous nageons'."
+        },
+        "voyager": {
+            "example": "J'adore voyager et découvrir de nouvelles cultures.",
+            "example_en": "I love traveling and discovering new cultures.",
+            "example_tr": "Seyahat etmeyi ve yeni kültürler keşfetmeyi çok severim.",
+            "tip_en": "Transport uses 'en': 'voyager en train'.",
+            "tip_tr": "Taşıtlarla 'en' edatı kullanılır: 'voyager en train'."
+        }
+    },
+    "Italian": {
+        "leggere": {
+            "example": "Leggo un bel libro ogni sera.",
+            "example_en": "I read a nice book every evening.",
+            "example_tr": "Her akşam güzel bir kitap okurum.",
+            "tip_en": "Past participle is irregular: 'letto'.",
+            "tip_tr": "Geçmiş zaman hali kuralsızdır: 'letto'."
+        },
+        "scrivere": {
+            "example": "Scrive una cartolina dall'Italia.",
+            "example_en": "He writes a postcard from Italy.",
+            "example_tr": "İtalya'dan bir kartpostal yazıyor.",
+            "tip_en": "Past participle: 'scritto'.",
+            "tip_tr": "Geçmiş zaman hali: 'scritto'."
+        },
+        "giocare": {
+            "example": "Giochiamo a calcio la domenica.",
+            "example_en": "We play soccer on Sundays.",
+            "example_tr": "Pazar günleri futbol oynarız.",
+            "tip_en": "Always takes preposition 'a': 'giocare a tennis'.",
+            "tip_tr": "Spor ve oyunlarda 'a' edatı alır: 'giocare a calcio'."
+        },
+        "viaggiare": {
+            "example": "Mi piace viaggiare in treno attraverso la Toscana.",
+            "example_en": "I like traveling by train through Tuscany.",
+            "example_tr": "Toskana boyunca trenle seyahat etmeyi severim.",
+            "tip_en": "Preposition 'in' for transport: 'in aereo', 'in treno'.",
+            "tip_tr": "Ulaşım araçlarında 'in' edatı kullanılır: 'in treno'."
+        }
+    }
+}
+
+def get_vocab_example(language: str, term: str) -> dict:
+    """Returns a practical authentic example sentence and collocation tip for a vocabulary term."""
+    if not language or not term:
+        return {}
+    lang_bank = VOCAB_EXAMPLE_BANK.get(language, {})
+    term_clean = term.strip().lower()
+    # Direct match
+    if term_clean in lang_bank:
+        return lang_bank[term_clean]
+    # Match without accents
+    from services.concept_explanations import _normalize
+    norm = _normalize(term_clean)
+    for k, v in lang_bank.items():
+        if _normalize(k) == norm:
+            return v
+    return {}
+
+def get_letter_phonetics(language: str, letter: str) -> dict:
+    """Returns authentic letter name, english phonetics, and turkish phonetics for a letter."""
+    if not language or not letter:
+        return {}
+    alph = ALPHABETS.get(language, {})
+    items = alph.get("items", [])
+    target = letter.strip().upper()
+    for it in items:
+        if str(it.get("term", "")).strip().upper() == target or str(it.get("letter", "")).strip().upper() == target:
+            return {
+                "name": it.get("name") or it.get("translation") or target,
+                "phonetic_en": it.get("phonetic_en", ""),
+                "phonetic_tr": it.get("phonetic_tr", ""),
+                "example": it.get("example", ""),
+                "translation": it.get("translation", ""),
+                "translation_tr": it.get("translation_tr", "")
+            }
+    return {}

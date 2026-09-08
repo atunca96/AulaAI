@@ -515,6 +515,7 @@ def init_db():
             
             # Permanent Student Accounts & Universal Auto-Enrollment (Yusuf, Zehra, Yaren, Ecrin, Ela Naz, Buket, Beren, Alper)
             sync_permanent_students_and_enrollments(db)
+            heal_pedagogical_content(db)
         except Exception as e:
             print(f"[DB] Notice during user seeding: {e}")
         
@@ -761,6 +762,118 @@ def _get_demo_curriculum():
             "topics": [{"type": "vocabulary", "title": "Greetings & Basics", "difficulty": "A1", "content": {"words": {"Merhaba": "Hello"}}}]
         }
     ]
+
+def heal_pedagogical_content(conn):
+    """
+    Self-healing migration that ensures:
+    1. Alphabet letters have authentic pronunciations and accurate phonetics in both EN and TR.
+    2. Letter 'I' is never corrupted with pronoun definitions.
+    3. Tautological definitions ('... eylemini ifade eder', 'refers to the act of...') are stripped.
+    4. Practical examples and collocation tips are populated for common vocabulary words.
+    """
+    import json
+    import re
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from services.language_data import get_letter_phonetics, get_vocab_example
+    except Exception as e:
+        print(f"[MIGRATION ERROR] Failed to load language_data: {e}")
+        return
+
+    tautology_re = re.compile(
+        r'(?i)\b(?:eylemini\s+ifade\s+eder|etkinliğini\s+ifade\s+eder|ifade\s+etmek\s+için\s+kullanılır|'
+        r'eylemidir|yapma\s+eylemi|resim\s+yaratmayı|üretme\s+eylemidir|gitmeyi\s+içerir|'
+        r'refers?\s+to\s+the\s+act\s+of|means?\s+the\s+act\s+of|is\s+the\s+act\s+of|used\s+to\s+express\s+the\s+action\s+of)\b'
+    )
+
+    c = conn.cursor()
+    try:
+        rows = c.execute("""
+            SELECT t.id, t.title, co.language, t.content
+            FROM topics t
+            JOIN chapters ch ON t.chapter_id = ch.id
+            JOIN courses co ON ch.course_id = co.id
+        """).fetchall()
+    except Exception:
+        return
+
+    for r in rows:
+        tid = r[0]
+        title = r[1] or ''
+        lang = r[2] or 'Spanish'
+        raw_content = r[3]
+        if not raw_content:
+            continue
+        try:
+            data = json.loads(raw_content)
+        except Exception:
+            continue
+
+        is_alphabet = any(x in title.lower() for x in ['alphabet', 'alfabet', 'letter', 'harf', 'phonetic', 'ses'])
+        modified = False
+
+        for p in data.get('pages', []):
+            for list_key in ['items', 'vocabulary', 'words', 'list']:
+                arr = p.get(list_key)
+                if not isinstance(arr, list):
+                    continue
+                for it in arr:
+                    if not isinstance(it, dict):
+                        continue
+                    term = str(it.get('term') or it.get('word') or it.get('letter') or '').strip()
+
+                    if is_alphabet or len(term) == 1:
+                        phon = get_letter_phonetics(lang, term)
+                        if phon:
+                            if not it.get('phonetic_en') or not it.get('phonetic_tr'):
+                                it['name'] = phon['name']
+                                it['phonetic_en'] = phon['phonetic_en']
+                                it['phonetic_tr'] = phon['phonetic_tr']
+                                if not it.get('example') and phon.get('example'):
+                                    it['example'] = phon['example']
+                                modified = True
+
+                        if term.upper() == 'I':
+                            for expl_k in ['explanation', 'explanation_en', 'explanation_tr']:
+                                if expl_k in it and any(w in str(it[expl_k]).lower() for w in ['pronoun', 'zamir']):
+                                    it[expl_k] = ''
+                                    modified = True
+                            if it.get('translation') == 'Ben':
+                                it['translation'] = 'i'
+                                modified = True
+                            if it.get('translation_tr') == 'Ben':
+                                it['translation_tr'] = 'i'
+                                modified = True
+
+                    for expl_k in ['explanation', 'explanation_en', 'explanation_tr']:
+                        if expl_k in it and isinstance(it[expl_k], str) and tautology_re.search(it[expl_k]):
+                            it[expl_k] = ''
+                            modified = True
+
+                    bank_hit = get_vocab_example(lang, term)
+                    if bank_hit:
+                        if not it.get('example'):
+                            it['example'] = bank_hit['example']
+                            modified = True
+                        if not it.get('example_en'):
+                            it['example_en'] = bank_hit['example_en']
+                            modified = True
+                        if not it.get('example_tr'):
+                            it['example_tr'] = bank_hit['example_tr']
+                            modified = True
+                        if not it.get('explanation') or tautology_re.search(str(it.get('explanation', ''))):
+                            it['explanation'] = bank_hit['tip_en']
+                            modified = True
+                        if not it.get('explanation_tr') or tautology_re.search(str(it.get('explanation_tr', ''))):
+                            it['explanation_tr'] = bank_hit['tip_tr']
+                            modified = True
+
+        if modified:
+            c.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(data, ensure_ascii=False), tid))
+
+    conn.commit()
 
 if __name__ == "__main__":
     init_db()

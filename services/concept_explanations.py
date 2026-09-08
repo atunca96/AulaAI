@@ -946,11 +946,6 @@ PRAGMATIC_DICTIONARY = {
         "desc_en": "Parting wish spoken before bed or upon leaving late at night.",
         "desc_tr": "Yatmadan önce veya gece ayrılırken söylenen veda ifadesi."
     },
-    "i": {
-        "en": "I", "tr": "Ben",
-        "desc_en": "First-person singular subject pronoun.",
-        "desc_tr": "1. tekil şahıs zamiri."
-    },
     "i am": {
         "en": "I am", "tr": "(Ben) ...yim / ...yım",
         "desc_en": "First-person singular present of 'to be'.",
@@ -982,6 +977,9 @@ def heal_pragmatic_item(item: dict, lang: str = "en") -> dict:
         return item
     
     term = str(item.get("term") or item.get("word") or item.get("key") or "").strip()
+    # Single letters or items marked as letters must NEVER be treated as pragmatic greetings or pronouns
+    if len(term) <= 1 or item.get("type") == "letter" or item.get("name") or item.get("phonetic_en") or item.get("phonetic_tr"):
+        return item
     norm = _normalize(term)
     target_lang = "tr" if lang == "tr" else "en"
 
@@ -1071,6 +1069,16 @@ def heal_concept_item(item: dict, lang: str = "en") -> dict:
             item["explanation"] = CONCEPT_EXPLANATIONS.get(trans_key, {}).get(target_lang, "")
             item["explanation_en"] = CONCEPT_EXPLANATIONS.get(trans_key, {}).get("en", "")
             item["explanation_tr"] = CONCEPT_EXPLANATIONS.get(trans_key, {}).get("tr", "")
+
+    # Sanitize tautological definitions (e.g. "... eylemini ifade eder", "refers to the act of...")
+    tautology_re = re.compile(
+        r'(?i)\b(?:eylemini\s+ifade\s+eder|etkinliğini\s+ifade\s+eder|ifade\s+etmek\s+için\s+kullanılır|'
+        r'eylemidir|yapma\s+eylemi|resim\s+yaratmayı|üretme\s+eylemidir|gitmeyi\s+içerir|'
+        r'refers?\s+to\s+the\s+act\s+of|means?\s+the\s+act\s+of|is\s+the\s+act\s+of|used\s+to\s+express\s+the\s+action\s+of)\b'
+    )
+    for expl_k in ["explanation", "explanation_tr", "explanation_en"]:
+        if expl_k in item and isinstance(item[expl_k], str) and tautology_re.search(item[expl_k]):
+            item[expl_k] = ""
 
     return item
 

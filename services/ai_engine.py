@@ -526,11 +526,30 @@ NO {instruction_lang_name.upper()} IN LISTS (CRITICAL):
 - If you want to provide a translation, use the OBJECT format: {{'term': '...', 'translation': '...', 'explanation': '...'}} or {{'text': '...', 'meaning': '...'}}. 
 - ALWAYS generate: [{{'term': 'Word', 'translation': 'Translation', 'explanation': 'Brief 1-sentence pedagogical explanation'}}, ...]."""
     explanatory_items_mandate = f"""
-EXPLANATORY ITEMS MANDATE (CRITICAL):
-- In 'items' arrays, every item MUST be an object with 'term', 'translation', and 'explanation'.
-- FORMAT: {{"term": "Target word/phrase", "translation": "Direct {instruction_lang_name} meaning", "explanation": "Brief 1-sentence pedagogical explanation of what this word/phrase is, how it functions, or when it is used."}}
-- For grammatical concepts, phonetic terms, and linguistic words (e.g. vowels, consonants, umlauts, syllables, accents, articles, nouns): NEVER leave them as bare one-word labels. ALWAYS explain what the concept is in {instruction_lang_name}.
-- For vocabulary words or expressions: Provide a concise usage tip, cultural nuance, or context tip in 'explanation'.
+PEDAGOGICALLY USEFUL ITEMS MANDATE (CRITICAL):
+- In 'items' arrays, every item MUST provide practical language learning value.
+- STRICT BAN ON TAUTOLOGICAL DEFINITIONS:
+  * NEVER write circular dictionary definitions that explain basic human activities or physical reality!
+  * FORBIDDEN EXAMPLES:
+    - "Okumak: Kitap, makale vb. okumak eylemini ifade eder." (USELESS TAUTOLOGY)
+    - "Çizmek: Bir yüzey üzerinde resim yaratmayı ifade eder." (USELESS TAUTOLOGY)
+    - "Oynamak: Oyun veya spor etkinliklerini ifade etmek için kullanılır." (USELESS TAUTOLOGY)
+    - "Refers to the act of reading/drawing/playing." (USELESS TAUTOLOGY)
+  * Adult learners already know what reading, drawing, or playing means in real life.
+- INSTEAD, every vocabulary item MUST include:
+  1. 'example': A natural, authentic target-language example sentence in {language} showing the word in everyday context.
+  2. 'example_en': Natural English translation of the example sentence.
+  3. 'example_tr': Natural Turkish translation of the example sentence.
+  4. 'explanation' (English) & 'explanation_tr' (Turkish): A PRACTICAL LINGUISTIC TIP ONLY (such as prepositions used with it e.g. 'jugar a', 'viajar en', irregular forms, common collocations, or false friends). If no special collocation applies, leave concise or provide a key phrase.
+- ALPHABET & LETTER ITEMS:
+  * For alphabet topics or letter items:
+    - 'term': The uppercase letter (e.g. 'H', 'I', 'J', 'Ñ', 'Z')
+    - 'name': Authentic native name of the letter (e.g. 'Hache', 'I', 'Jota', 'Eñe', 'Zeta')
+    - 'phonetic_en': English-speaker phonetic pronunciation guide (e.g. '[AH-cheh] (silent)', '[ee]', '[HOH-tah]', '[EH-nyeh]', '[SEH-tah / THEH-tah]')
+    - 'phonetic_tr': Turkish-speaker phonetic pronunciation guide (e.g. '[açe] (sessiz harf, okunmaz)', '[i]', '[hota] (boğazdan h)', '[enye]', '[seta / peltek s]')
+    - 'example': An authentic target-language example word (e.g. 'Hola', 'Isla', 'Jardín', 'Niño')
+    - 'translation': English meaning of the example word
+    - 'translation_tr': Turkish meaning of the example word
 """
     density_mandate = """
 CONTENT DENSITY MANDATE (CRITICAL): 
@@ -654,8 +673,11 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
               "term": "...", 
               "translation": "English meaning", 
               "translation_tr": "Doğal Türkçe anlamı", 
-              "explanation": "Brief English explanation of usage or concept", 
-              "explanation_tr": "Kullanım veya dilbilgisi kuralını açıklayan kısa Türkçe not" 
+              "example": "Natural example sentence in {language}",
+              "example_en": "Natural English translation of the example sentence",
+              "example_tr": "Örnek cümlenin doğal Türkçe çevirisi",
+              "explanation": "Practical tip: prepositions, collocations, or irregular forms (NEVER say 'refers to the act of...')", 
+              "explanation_tr": "Kullanım püf noktası: edatlar, kalıplar veya kural (ASLA '... eylemini ifade eder' gibi gereksiz tanımlar yazmayın)" 
             }}
           ] 
         }},
@@ -739,6 +761,13 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                 p["explanation_tr"] = p["explanation"]
 
             # Pedagogical item explanation enrichment & self-healing
+            from services.language_data import get_letter_phonetics, get_vocab_example
+            tautology_re = re.compile(
+                r'(?i)\b(?:eylemini\s+ifade\s+eder|etkinliğini\s+ifade\s+eder|ifade\s+etmek\s+için\s+kullanılır|'
+                r'eylemidir|yapma\s+eylemi|resim\s+yaratmayı|üretme\s+eylemidir|gitmeyi\s+içerir|'
+                r'refers?\s+to\s+the\s+act\s+of|means?\s+the\s+act\s+of|is\s+the\s+act\s+of|used\s+to\s+express\s+the\s+action\s+of)\b'
+            )
+
             for list_key in ["items", "vocabulary", "words", "list", "dialogue", "examples"]:
                 arr = p.get(list_key)
                 if isinstance(arr, list):
@@ -747,6 +776,46 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                         if isinstance(it, dict):
                             heal_concept_item(it, lang="en")
                             heal_concept_item(it, lang="tr")
+
+                            term_str = str(it.get("term") or it.get("word") or it.get("letter") or "").strip()
+                            # 1. Letter healing: alphabet phonetics & eliminate pronoun bleed
+                            if is_alphabet_topic or len(term_str) == 1:
+                                phon_data = get_letter_phonetics(language, term_str)
+                                if phon_data:
+                                    it["name"] = phon_data["name"]
+                                    it["phonetic_en"] = phon_data["phonetic_en"]
+                                    it["phonetic_tr"] = phon_data["phonetic_tr"]
+                                    if not it.get("example") and phon_data.get("example"):
+                                        it["example"] = phon_data["example"]
+                                # Strip pronoun bleed from letter I
+                                if term_str.upper() == "I":
+                                    for k in ["explanation", "explanation_en", "explanation_tr"]:
+                                        if "pronoun" in str(it.get(k, "")).lower() or "zamir" in str(it.get(k, "")).lower():
+                                            it[k] = ""
+                                    if it.get("translation") == "Ben":
+                                        it["translation"] = "i"
+                                    if it.get("translation_tr") == "Ben":
+                                        it["translation_tr"] = "i"
+
+                            # 2. Strip tautologies
+                            for k in ["explanation", "explanation_en", "explanation_tr"]:
+                                if k in it and isinstance(it[k], str) and tautology_re.search(it[k]):
+                                    it[k] = ""
+
+                            # 3. Enrich vocabulary with authentic example sentence & practical tip if missing
+                            bank_hit = get_vocab_example(language, term_str)
+                            if bank_hit:
+                                if not it.get("example"):
+                                    it["example"] = bank_hit["example"]
+                                if not it.get("example_en"):
+                                    it["example_en"] = bank_hit["example_en"]
+                                if not it.get("example_tr"):
+                                    it["example_tr"] = bank_hit["example_tr"]
+                                if not it.get("explanation") or tautology_re.search(str(it.get("explanation", ""))):
+                                    it["explanation"] = bank_hit["tip_en"]
+                                if not it.get("explanation_tr") or tautology_re.search(str(it.get("explanation_tr", ""))):
+                                    it["explanation_tr"] = bank_hit["tip_tr"]
+
                             filtered_arr.append(it)
                         elif isinstance(it, str):
                             s = it.strip()
