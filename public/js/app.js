@@ -4888,6 +4888,107 @@ const EDUCATIONAL_SENTENCE_PAIRS = [
   ["Months and seasons are essential for discussing plans and dates.", "Aylar ve mevsimler planları ve tarihleri konuşmak için gereklidir."]
 ];
 
+function translateFormulaBrackets(formulaStr, targetLang = currentLang) {
+  if (!formulaStr || typeof formulaStr !== 'string') return formulaStr;
+  const isTr = (targetLang === 'tr');
+  const termMap = {
+    'sujeto': isTr ? 'Özne' : 'Subject',
+    'subject': isTr ? 'Özne' : 'Subject',
+    'özne': isTr ? 'Özne' : 'Subject',
+    'verbo en presente': isTr ? 'Şimdiki / Geniş Zaman Fiili' : 'Present Tense Verb',
+    'present tense verb': isTr ? 'Şimdiki / Geniş Zaman Fiili' : 'Present Tense Verb',
+    'verbo en pasado': isTr ? 'Geçmiş Zaman Fiili' : 'Past Tense Verb',
+    'past tense verb': isTr ? 'Geçmiş Zaman Fiili' : 'Past Tense Verb',
+    'verbo en futuro': isTr ? 'Gelecek Zaman Fiili' : 'Future Tense Verb',
+    'future tense verb': isTr ? 'Gelecek Zaman Fiili' : 'Future Tense Verb',
+    'verbo principal': isTr ? 'Ana Eylem / Fiil' : 'Main Verb',
+    'main verb': isTr ? 'Ana Eylem / Fiil' : 'Main Verb',
+    'verbo': isTr ? 'Fiil' : 'Verb',
+    'verb': isTr ? 'Fiil' : 'Verb',
+    'fiil': isTr ? 'Fiil' : 'Verb',
+    'verbo conjugado': isTr ? 'Çekimli Fiil' : 'Conjugated Verb',
+    'conjugated verb': isTr ? 'Çekimli Fiil' : 'Conjugated Verb',
+    'çekimli fiil': isTr ? 'Çekimli Fiil' : 'Conjugated Verb',
+    'verbo auxiliar': isTr ? 'Yardımcı Fiil' : 'Auxiliary Verb',
+    'auxiliary verb': isTr ? 'Yardımcı Fiil' : 'Auxiliary Verb',
+    'yardımcı fiil': isTr ? 'Yardımcı Fiil' : 'Auxiliary Verb',
+    'şimdiki zaman fiili': isTr ? 'Şimdiki Zaman Fiili' : 'Present Tense Verb',
+    'geniş zaman fiili': isTr ? 'Geniş Zaman Fiili' : 'Present / Simple Tense Verb',
+    'ana eylem': isTr ? 'Ana Eylem' : 'Main Verb',
+    'ana cümle': isTr ? 'Ana Cümle' : 'Main Clause',
+    'main clause': isTr ? 'Ana Cümle' : 'Main Clause',
+    'cláusula principal': isTr ? 'Ana Cümle' : 'Main Clause',
+    'yan cümle': isTr ? 'Yan Cümle' : 'Subordinate Clause',
+    'subordinate clause': isTr ? 'Yan Cümle' : 'Subordinate Clause',
+    'cláusula subordinada': isTr ? 'Yan Cümle' : 'Subordinate Clause',
+    'cláusula': isTr ? 'Cümlecik' : 'Clause',
+    'clause': isTr ? 'Cümlecik' : 'Clause',
+    'cümlecik': isTr ? 'Cümlecik' : 'Clause',
+    'objeto directo': isTr ? 'Belirtili Nesne' : 'Direct Object',
+    'direct object': isTr ? 'Belirtili Nesne' : 'Direct Object',
+    'objeto indirecto': isTr ? 'Dolaylı Tümleç' : 'Indirect Object',
+    'indirect object': isTr ? 'Dolaylı Tümleç' : 'Indirect Object',
+    'objeto': isTr ? 'Nesne' : 'Object',
+    'object': isTr ? 'Nesne' : 'Object',
+    'nesne': isTr ? 'Nesne' : 'Object',
+    'complemento': isTr ? 'Tümleç' : 'Complement',
+    'complement': isTr ? 'Tümleç' : 'Complement',
+    'tümleç': isTr ? 'Tümleç' : 'Complement',
+    'sustantivo': isTr ? 'İsim' : 'Noun',
+    'noun': isTr ? 'İsim' : 'Noun',
+    'isim': isTr ? 'İsim' : 'Noun',
+    'ad': isTr ? 'Ad' : 'Noun',
+    'adjetivo': isTr ? 'Sıfat' : 'Adjective',
+    'adjective': isTr ? 'Sıfat' : 'Adjective',
+    'sıfat': isTr ? 'Sıfat' : 'Adjective',
+    'adverbio': isTr ? 'Zarf' : 'Adverb',
+    'adverb': isTr ? 'Zarf' : 'Adverb',
+    'zarf': isTr ? 'Zarf' : 'Adverb',
+    'preposición': isTr ? 'Edat' : 'Preposition',
+    'preposition': isTr ? 'Edat' : 'Preposition',
+    'edat': isTr ? 'Edat' : 'Preposition',
+    'pronombre': isTr ? 'Zamir' : 'Pronoun',
+    'pronoun': isTr ? 'Zamir' : 'Pronoun',
+    'zamir': isTr ? 'Zamir' : 'Pronoun',
+    'infinitivo': isTr ? 'Mastar' : 'Infinitive',
+    'infinitive': isTr ? 'Mastar' : 'Infinitive',
+    'mastar': isTr ? 'Mastar' : 'Infinitive',
+    'gerundio': isTr ? 'Ulaç (Gerund)' : 'Gerund',
+    'gerund': isTr ? 'Ulaç (Gerund)' : 'Gerund',
+    'ulaç': isTr ? 'Ulaç' : 'Gerund',
+    'participio': isTr ? 'Sıfat-Fiil (Participle)' : 'Participle',
+    'participle': isTr ? 'Sıfat-Fiil' : 'Participle',
+    'sıfat-fiil': isTr ? 'Sıfat-Fiil' : 'Participle',
+    'participio pasado': isTr ? 'Geçmiş Zaman Sıfat-Fiili' : 'Past Participle',
+    'past participle': isTr ? 'Geçmiş Zaman Sıfat-Fiili' : 'Past Participle',
+    'conjunción': isTr ? 'Bağlaç' : 'Conjunction',
+    'conjunction': isTr ? 'Bağlaç' : 'Conjunction',
+    'bağlaç': isTr ? 'Bağlaç' : 'Conjunction',
+    'negación': isTr ? 'Olumsuzluk' : 'Negation',
+    'negation': isTr ? 'Olumsuzluk' : 'Negation',
+    'olumsuzluk': isTr ? 'Olumsuzluk' : 'Negation',
+    'subyuntivo': isTr ? 'Dilek-Şart Kipi (Subjunctive)' : 'Subjunctive Mood',
+    'subjuntivo': isTr ? 'Dilek-Şart Kipi (Subjunctive)' : 'Subjunctive Mood',
+    'subjunctive': isTr ? 'Dilek-Şart Kipi' : 'Subjunctive Mood',
+    'dilek-şart kipi': isTr ? 'Dilek-Şart Kipi' : 'Subjunctive Mood',
+    'zarf-fiil': isTr ? 'Zarf-Fiil' : 'Adverbial Suffix / Converb',
+    'converb': isTr ? 'Zarf-Fiil' : 'Converb / Adverbial',
+    'kök': isTr ? 'Kök' : 'Stem',
+    'gövde': isTr ? 'Gövde' : 'Stem / Base',
+    'stem': isTr ? 'Gövde' : 'Stem',
+    'suffix': isTr ? 'Ek' : 'Suffix',
+    'ek': isTr ? 'Ek' : 'Suffix'
+  };
+
+  return formulaStr.replace(/\[(.*?)\]/g, (match, inner) => {
+    const cleanKey = inner.trim().toLowerCase();
+    if (termMap[cleanKey]) {
+      return `[${termMap[cleanKey]}]`;
+    }
+    return match;
+  });
+}
+
 function translateEducationalText(text, lang = currentLang) {
   if (!text || typeof text !== 'string') return text;
   
@@ -4926,6 +5027,24 @@ function translateEducationalText(text, lang = currentLang) {
     // 3. Dynamic Pedagogical Template Regex Engine (covers future / AI-generated lessons)
     let processed = cleanContent;
     if (isTr) {
+      // Grammatical Analysis & Breakdown Patterns
+      processed = processed.replace(/^The verb '(.*)' changes according to the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
+      processed = processed.replace(/^The verb '(.*)' conjugates based on the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
+      processed = processed.replace(/^The verb '(.*)' conjugates based on the subject\.?$/i, "'$1' fiili özneye göre çekimlenir.");
+      processed = processed.replace(/^The verb '(.*)' changes according to (.*)\.?$/i, "'$1' fiili $2 durumuna göre değişir.");
+      processed = processed.replace(/changes according to the subject pronoun/i, "özne zamirine göre çekimlenir");
+      processed = processed.replace(/changes according to the subject/i, "özneye göre çekimlenir");
+      processed = processed.replace(/^Breakdown of the (.*) in the example\.?$/i, "Örnekteki $1 yapısının analizi.");
+      processed = processed.replace(/^Standard conversational formulation\.?$/i, "Standart günlük konuşma kalıbı.");
+      processed = processed.replace(/^Sophisticated formal or literary expression\.?$/i, "Zengin ve incelikli edebi veya resmi anlatım.");
+      processed = processed.replace(/^Sophisticated formal\/literary expression\.?$/i, "Zengin ve incelikli edebi/resmi anlatım.");
+      processed = processed.replace(/^Direct\s*\/\s*Conversational$/i, "Doğrudan / Günlük Konuşma");
+      processed = processed.replace(/^Elevated\s*\/\s*Nuanced$/i, "İleri Düzey / Edebi Nüans");
+      processed = processed.replace(/^Formal\s*\/\s*Academic$/i, "Resmi / Akademik");
+      processed = processed.replace(/^Standard\s*\/\s*Neutral$/i, "Standart / Nötr");
+      processed = processed.replace(/^Common Error\s*\/\s*Incorrect$/i, "Sık Yapılan Hata / Yanlış");
+      processed = processed.replace(/^Authentic\s*\/\s*Correct$/i, "Doğal / Doğru Kullanım");
+
       processed = processed.replace(/^These terms are (crucial|essential|fundamental|important) for understanding (.*) in (.*)\.?$/i, 
         "$3 dilinde $2 konusunu anlamak için bu terimler çok önemlidir.");
       processed = processed.replace(/^These terms are (crucial|essential|fundamental|important) for (.*)\.?$/i, 
@@ -4947,6 +5066,13 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/The correct answer is '(.*)'/i, "Doğru cevap: '$1'");
       processed = processed.replace(/Other options do not fit the context\.?/i, "Diğer seçenekler bağlama uymaz.");
     } else {
+      // Reverse TR -> EN
+      processed = processed.replace(/^'(.*)' fiili özne zamirine göre çekimlenir\.?$/i, "The verb '$1' changes according to the subject pronoun.");
+      processed = processed.replace(/^Doğrudan\s*\/\s*Günlük Konuşma$/i, "Direct / Conversational");
+      processed = processed.replace(/^İleri Düzey\s*\/\s*Edebi Nüans$/i, "Elevated / Nuanced");
+      processed = processed.replace(/^Standart günlük konuşma kalıbı\.?$/i, "Standard conversational formulation.");
+      processed = processed.replace(/^Zengin ve incelikli edebi\/resmi anlatım\.?$/i, "Sophisticated formal/literary expression.");
+      processed = processed.replace(/^Zengin ve incelikli edebi veya resmi anlatım\.?$/i, "Sophisticated formal or literary expression.");
       processed = processed.replace(/^Bu terimler (.*) için çok önemlidir\.?$/i, "These terms are essential for $1.");
       processed = processed.replace(/^Bu terimler günlük yaşamda sıkça kullanılır\.?$/i, "These terms are frequently used in daily life.");
       processed = processed.replace(/^Bu cümleler günlük hayatta nasıl kullanılır\.?$/i, "How these sentences are used in everyday life.");
@@ -9337,8 +9463,9 @@ function showStudyTopic(topicId, pageIdx = 0) {
             let html = "";
             
             // 0. Syntactic Formula / Pattern Detection
-            const formulaVal = (currentLang === 'tr' && p.formula_tr) ? p.formula_tr : (p.formula || p.pattern || p.structure || "");
-            if (formulaVal && typeof formulaVal === "string" && formulaVal.trim().length > 0) {
+            const rawFormula = (currentLang === 'tr' && p.formula_tr) ? p.formula_tr : (p.formula || p.pattern || p.structure || "");
+            if (rawFormula && typeof rawFormula === "string" && rawFormula.trim().length > 0) {
+              const formulaVal = translateFormulaBrackets(rawFormula, currentLang);
               const formulaLabel = currentLang === 'tr' ? 'Sözdizimsel Yapı ve Formül' : 'Syntactic Pattern & Formula';
               html += `
                 <div class="pedagogy-formula-banner">
@@ -9429,7 +9556,14 @@ function showStudyTopic(topicId, pageIdx = 0) {
                 const rEx = rObj.example || rObj.target || "";
                 const rExEn = rObj.example_en || rObj.translation || "";
                 const rExTr = rObj.example_tr || (rObj.translation_tr || rObj.turkish || "");
-                const rAnalysis = (currentLang === 'tr' && rObj.analysis_tr) ? rObj.analysis_tr : (rObj.analysis || rObj.breakdown || "");
+                let rAnalysis = "";
+                if (currentLang === 'tr') {
+                  const rawA = rObj.analysis_tr || rObj.analysis || rObj.breakdown || "";
+                  rAnalysis = rObj.analysis_tr || (rawA ? translateEducationalText(rawA, 'tr') : "");
+                } else {
+                  const rawA = rObj.analysis || rObj.analysis_tr || rObj.breakdown || "";
+                  rAnalysis = rObj.analysis || (rawA ? translateEducationalText(rawA, 'en') : "");
+                }
                 const resolvedTrans = (currentLang === 'tr') ? (rExTr || (rExEn ? translateEducationalText(rExEn) : "")) : (rExEn || rExTr);
 
                 html += `
@@ -9468,10 +9602,25 @@ function showStudyTopic(topicId, pageIdx = 0) {
                   </div>
                   <div class="pedagogy-contrast-grid">
                     ${compList.map(c => {
-                      const cContext = (currentLang === 'tr' && c.context_tr) ? c.context_tr : (c.context || c.label || "Contrast");
+                      let cContext = "";
+                      if (currentLang === 'tr') {
+                        cContext = c.context_tr || (c.context ? translateEducationalText(c.context, 'tr') : (c.label ? translateEducationalText(c.label, 'tr') : "Karşılaştırma"));
+                      } else {
+                        cContext = c.context || (c.context_tr ? translateEducationalText(c.context_tr, 'en') : (c.label || "Contrast"));
+                      }
                       const cTarget = c.target || c.sentence || c.text || "";
-                      const cTrans = (currentLang === 'tr' && c.translation_tr) ? c.translation_tr : (c.translation || c.meaning || "");
-                      const cNote = (currentLang === 'tr' && c.note_tr) ? c.note_tr : (c.note || c.explanation || "");
+                      let cTrans = "";
+                      if (currentLang === 'tr') {
+                        cTrans = c.translation_tr || (c.translation ? translateEducationalText(c.translation, 'tr') : (c.meaning ? translateEducationalText(c.meaning, 'tr') : ""));
+                      } else {
+                        cTrans = c.translation || (c.translation_tr ? translateEducationalText(c.translation_tr, 'en') : (c.meaning || ""));
+                      }
+                      let cNote = "";
+                      if (currentLang === 'tr') {
+                        cNote = c.note_tr || (c.note ? translateEducationalText(c.note, 'tr') : (c.explanation ? translateEducationalText(c.explanation, 'tr') : ""));
+                      } else {
+                        cNote = c.note || (c.note_tr ? translateEducationalText(c.note_tr, 'en') : (c.explanation || ""));
+                      }
                       return `
                         <div class="pedagogy-contrast-card">
                           <div class="pedagogy-contrast-tag">${fixDiacritics(cContext)}</div>
@@ -9502,33 +9651,6 @@ function showStudyTopic(topicId, pageIdx = 0) {
                     <span>${pitfallTitle}</span>
                   </div>
                   <div class="pedagogy-pitfall-body">${highlightPedagogicalTerms(fixDiacritics(pitfallVal))}</div>
-                </div>
-              `;
-            }
-
-            // Smartboard Density Expander for Legacy / Brief Slides
-            const hasRichComponents = Boolean(formulaVal || hasRenderedStructuredRules || compList.length > 0 || pitfallVal);
-            if (!hasRichComponents && linesArr.length > 0 && linesArr.length <= 3 && !isMcq) {
-              const teacherTipTitle = currentLang === 'tr' ? 'Sınıf İçi Pedagojik Uygulama & Öğretmen Notu' : 'Classroom Pedagogical Guidance & Teaching Focus';
-              const teacherTipText = currentLang === 'tr'
-                ? 'Bu dilbilgisi ve yapı kurallarını incelerken, biçimbirimsel eklerin cümledeki anlamsal işlevine ve resmi/edebi dildeki kullanım sıklığına dikkat ediniz. Öğrencilerin bu yapıları hem yazılı hem de sözlü bağlamda kontrastlı örneklerle pekiştirmesi önerilir.'
-                : 'When exploring these structural nuances, focus on how subtle grammatical variations modulate formal register and speaker stance. Practice contrasting everyday conversational syntax with elevated literary expression.';
-              const practicePromptTitle = currentLang === 'tr' ? 'Etkileşimli Pekiştirme' : 'Classroom Practice Cue';
-              const practicePromptText = currentLang === 'tr'
-                ? 'Yukarıdaki kuralları temsil eden en az iki özgün cümle kurarak bağlamsal nüansı sınıfta tartışınız.'
-                : 'Formulate at least two authentic sentences applying these principles and discuss their register with peers.';
-
-              html += `
-                <div class="pedagogy-smartboard-expansion">
-                  <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--accent); margin-bottom:8px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
-                    <span>${teacherTipTitle}</span>
-                  </div>
-                  <div style="font-size:14px; line-height:1.65; color:var(--text-secondary); margin-bottom:12px;">${teacherTipText}</div>
-                  <div style="background:rgba(0,0,0,0.15); border-radius:8px; padding:10px 14px; border:1px dashed var(--border); display:flex; align-items:center; gap:10px;">
-                    <span style="font-size:18px;">💡</span>
-                    <div style="font-size:13.5px; color:var(--text-primary); line-height:1.45;"><strong style="color:var(--accent);">${practicePromptTitle}:</strong> ${practicePromptText}</div>
-                  </div>
                 </div>
               `;
             }

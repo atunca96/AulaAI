@@ -2637,19 +2637,6 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   color: var(--text-primary);
 }
 
-.pedagogy-smartboard-expansion {
-  margin-top: 18px;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(99, 102, 241, 0.03) 100%);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-}
-
-[data-theme="light"] .pedagogy-smartboard-expansion {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
 .pedagogy-scene-banner {
   background: var(--bg-input);
   border: 1px solid var(--border);

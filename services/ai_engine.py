@@ -683,8 +683,8 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
   * Minimum 8-12 comprehensive vocabulary items.
   * Every item MUST contain: authentic target example sentence in {language}, English & Turkish translations, and practical collocation/usage note.
 - For GRAMMAR / STRUCTURAL FOCUS pages (MANDATORY STRUCTURE):
-  * 'formula': The syntactic / morphological pattern (e.g. '[Subject] + [Clause + -dıkça / -dikçe] + [Main Verb]' or '[Verbo principal] + que + [Subjuntivo]').
-  * 'formula_tr': The formula explained in natural Turkish.
+  * 'formula': Syntactic pattern with bracket terms in English instructional terms (e.g. '[Subject] + [Present Tense Verb] + [Object]' or '[Main Clause] + que + [Subjunctive Verb]'). Brackets MUST be in English.
+  * 'formula_tr': Syntactic pattern with bracket terms in Turkish instructional terms (e.g. '[Özne] + [Şimdiki / Geniş Zaman Fiili] + [Nesne]'). Brackets MUST be in Turkish.
   * 'rules': Array of 3 to 4 structured rules. Each rule MUST have:
     - 'rule': Concise rule name and principle in English.
     - 'rule_tr': Concise rule name and principle in Turkish.
@@ -693,9 +693,9 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
     - 'example': Authentic target language example sentence in {language}.
     - 'example_en': Natural English translation.
     - 'example_tr': Natural Turkish translation.
-    - 'analysis': Grammatical breakdown explaining the specific morpheme or syntax in the example.
-  * 'comparisons': Array of 2 contrast pairs demonstrating:
-    - Standard vs Elevated/Literary, or Colloquial vs Formal, or Common Pitfall vs Correct Native Form.
+    - 'analysis': Grammatical breakdown explaining the specific morpheme or syntax in the example in English.
+    - 'analysis_tr': Grammatical breakdown explaining the specific morpheme or syntax in the example in Turkish.
+  * 'comparisons': Array of 2 contrast pairs. Each MUST have 'context', 'context_tr', 'target', 'translation', 'translation_tr', 'note', 'note_tr'.
   * 'pitfall' & 'pitfall_tr': Teacher's Warning highlighting the #1 mistake students make with this rule.
   * 'text' & 'text_tr': Comprehensive overview with at least 4-6 detailed bullet points.
 - For EXAMPLES / DIALOGUE pages:
@@ -780,8 +780,8 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
           "type": "grammar", 
           "title": "Structural Focus", 
           "title_tr": "Yapısal Dilbilgisi Kuralları", 
-          "formula": "[Syntactic Pattern in {language}]",
-          "formula_tr": "[Türkçe Sözdizimsel Kalıp ve Formül]",
+          "formula": "[Subject] + [Present Tense Verb] + [Object]",
+          "formula_tr": "[Özne] + [Şimdiki / Geniş Zaman Fiili] + [Nesne]",
           "text": "• Core Syntactic Principle 1 in English\\n• Morphological inflection and agreement Rule 2\\n• Subordination or clause chaining Rule 3\\n• Stylistic modulation and register nuance Rule 4", 
           "text_tr": "• Temel Sözdizimsel İlke 1 (Doğal Türkçe öğretmen anlatımı)\\n• Biçimbirimsel çekim ve uyum Kuralı 2\\n• Yan cümle ve bağlaç Kuralı 3\\n• Üslup ve ileri düzey kullanım Kuralı 4",
           "rules": [
@@ -793,7 +793,8 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
               "example": "Authentic example sentence in {language}",
               "example_en": "Natural English translation",
               "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "Breakdown of the specific morpheme or verb form in the example."
+              "analysis": "The verb '...' conjugates based on the subject pronoun.",
+              "analysis_tr": "'...' fiili özne zamirine göre çekimlenir."
             }},
             {{
               "rule": "2. Syntactic Subordination & Meaning Dependency",
@@ -803,7 +804,8 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
               "example": "Second authentic example sentence in {language}",
               "example_en": "Natural English translation",
               "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "Breakdown of the second example."
+              "analysis": "Breakdown of the second example.",
+              "analysis_tr": "İkinci örneğin sözdizimsel analizi."
             }},
             {{
               "rule": "3. Register Modulation & Stylistic Nuance",
@@ -813,23 +815,28 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
               "example": "Third authentic high-register example sentence in {language}",
               "example_en": "Natural English translation",
               "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "Analysis of the stylistic elevation."
+              "analysis": "Analysis of the stylistic elevation.",
+              "analysis_tr": "Üslup yükseltiminin analizi."
             }}
           ],
           "comparisons": [
             {{
               "context": "Direct / Conversational",
+              "context_tr": "Doğrudan / Günlük Konuşma",
               "target": "Everyday colloquial sentence in {language}",
               "translation": "English translation",
               "translation_tr": "Türkçe çeviri",
-              "note": "Standard conversational formulation"
+              "note": "Standard conversational formulation.",
+              "note_tr": "Standart günlük konuşma kalıbı."
             }},
             {{
               "context": "Elevated / Nuanced",
+              "context_tr": "İleri Düzey / Edebi Nüans",
               "target": "Advanced nuanced sentence in {language}",
               "translation": "English translation",
               "translation_tr": "Türkçe çeviri",
-              "note": "Sophisticated formal/literary expression"
+              "note": "Sophisticated formal/literary expression.",
+              "note_tr": "Zengin ve incelikli edebi/resmi anlatım."
             }}
           ],
           "pitfall": "Crucial learner pitfall to avoid (e.g. overusing literal translations or misapplying tense concordance).",
@@ -926,6 +933,25 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                 r_it["explanation_tr"] = r_it["explanation"]
                             if not r_it.get("example_tr") and r_it.get("example_en"):
                                 r_it["example_tr"] = r_it["example_en"]
+                            if not r_it.get("analysis_tr") and r_it.get("analysis"):
+                                r_it["analysis_tr"] = r_it["analysis"]
+                            if not r_it.get("analysis") and r_it.get("analysis_tr"):
+                                r_it["analysis"] = r_it["analysis_tr"]
+                if isinstance(p.get("comparisons"), list):
+                    for c_it in p["comparisons"]:
+                        if isinstance(c_it, dict):
+                            if not c_it.get("context_tr") and c_it.get("context"):
+                                c_it["context_tr"] = c_it["context"]
+                            if not c_it.get("context") and c_it.get("context_tr"):
+                                c_it["context"] = c_it["context_tr"]
+                            if not c_it.get("translation_tr") and c_it.get("translation"):
+                                c_it["translation_tr"] = c_it["translation"]
+                            if not c_it.get("translation") and c_it.get("translation_tr"):
+                                c_it["translation"] = c_it["translation_tr"]
+                            if not c_it.get("note_tr") and c_it.get("note"):
+                                c_it["note_tr"] = c_it["note"]
+                            if not c_it.get("note") and c_it.get("note_tr"):
+                                c_it["note"] = c_it["note_tr"]
 
             # Pedagogical item explanation enrichment & self-healing
             from services.language_data import get_letter_phonetics, get_vocab_example
