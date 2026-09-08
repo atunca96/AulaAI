@@ -8467,37 +8467,102 @@ async function loadStudentRoster() {
     }
   }
 
-  // Render approved students into grid
-  document.getElementById('student-roster').innerHTML = students.map(s => {
-    const pct = Math.round(s.avg_mastery * 100);
+  // Save cache and render approved students into grid
+  _lastStudentRosterData = students;
+  renderStudentRoster(students);
+}
+
+function getStudentInitials(name) {
+  if (!name) return 'S';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+const STUDENT_AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  'linear-gradient(135deg, #3b82f6, #06b6d4)',
+  'linear-gradient(135deg, #10b981, #059669)',
+  'linear-gradient(135deg, #f59e0b, #d97706)',
+  'linear-gradient(135deg, #ec4899, #8b5cf6)',
+  'linear-gradient(135deg, #8b5cf6, #d946ef)',
+  'linear-gradient(135deg, #14b8a6, #0284c7)',
+  'linear-gradient(135deg, #f43f5e, #fb7185)'
+];
+
+function getStudentAvatarBg(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return STUDENT_AVATAR_GRADIENTS[Math.abs(hash) % STUDENT_AVATAR_GRADIENTS.length];
+}
+
+function renderStudentRoster(students) {
+  const container = document.getElementById('student-roster');
+  if (!container) return;
+  if (!Array.isArray(students) || students.length === 0) {
+    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:32px; color:var(--text-muted); background:var(--bg-card); border:1px solid var(--border); border-radius:12px;">${t('admin.no_students') || 'No students enrolled yet.'}</div>`;
+    return;
+  }
+
+  container.innerHTML = students.map(s => {
+    const pct = Math.round((s.avg_mastery || 0) * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
-    const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
     const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
     const kickBtn = !isPermanent
-      ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>`
+      ? `<button class="student-btn-kick" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('Kick')}"><span data-i18n="Kick">${t('Kick')}</span></button>`
       : '';
+    const avatarBg = getStudentAvatarBg(s.name);
+    const initials = getStudentInitials(s.name);
+    const color = masteryColor(s.avg_mastery || 0);
+
     return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
-      <div class="flex-between" style="margin-bottom:8px; gap:12px">
-        <div class="student-name" style="margin-bottom:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
-          ${s.name}${schoolNumHtml}
+      <!-- Top Row: Avatar + Name & ID -->
+      <div class="student-card-header">
+        <div class="student-avatar" style="background: ${avatarBg};">
+          ${initials}
         </div>
-        <div style="display:flex; gap:6px; flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 8px; border-radius:6px; font-size:12px" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})">${SVG_KEY} <span data-i18n="admin.set_password">${t('admin.set_password')}</span></button>
-          <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-          ${kickBtn}
+        <div class="student-info-block">
+          <div class="student-name-title" title="${esc(s.name)}">${esc(s.name)}</div>
+          <div class="student-id-row">
+            ${schoolNum ? `<span class="student-school-num">#${esc(schoolNum)}</span>` : ''}
+            <span class="student-status-indicator">${t('admin.active') || 'Active'}</span>
+          </div>
         </div>
       </div>
-      <div class="student-mastery-bar">
-        <div class="student-mastery-fill" style="width:${pct}%; background:${masteryColor(s.avg_mastery)}"></div>
+
+      <!-- Middle: Mastery Progress & Metrics -->
+      <div class="student-metrics-box">
+        <div class="student-metrics-header">
+          <span class="metric-badge">
+            <span class="metric-indicator" style="background: ${color};"></span>
+            <span data-i18n="Mastery:">${t('Mastery:')}</span> <strong style="color: var(--text-primary); margin-left: 2px;">${pct}%</strong>
+          </span>
+          <span class="metric-count">
+            <strong>${s.total_responses || 0}</strong> <span data-i18n="responses">${t('responses')}</span>
+          </span>
+        </div>
+        <div class="student-mastery-bar">
+          <div class="student-mastery-fill" style="width:${pct}%; background:${color}"></div>
+        </div>
       </div>
-      <div class="student-meta-row">
-        <span><span data-i18n="Mastery:">${t('Mastery:')}</span> ${pct}%</span>
-        <span>${s.total_responses} <span data-i18n="responses">${t('responses')}</span></span>
+
+      <!-- Bottom: Action Buttons -->
+      <div class="student-card-actions">
+        <button class="student-btn-action student-btn-pw" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})" title="${t('admin.set_password')}">
+          ${SVG_KEY} <span data-i18n="admin.set_password">${t('admin.set_password')}</span>
+        </button>
+        <button class="student-btn-action student-btn-msg" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('messageStudent')}">
+          ${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span>
+        </button>
+        ${kickBtn}
       </div>
     </div>`;
   }).join('');
   applyTranslations();
 }
+window.renderStudentRoster = renderStudentRoster;
 
 window.openChatFromRoster = async (studentId, studentName) => {
   const tabBtn = document.querySelector('button[data-tab="inbox"]');
