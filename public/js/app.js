@@ -9252,116 +9252,182 @@ function showStudyTopic(topicId, pageIdx = 0) {
               rawData.forEach((it, itIdx) => {
                 if (typeof it === "string") {
                   const sTrimmed = it.trim();
-                  const isRuleOrSentence = sTrimmed.startsWith('•') || sTrimmed.startsWith('-') || sTrimmed.startsWith('*') || sTrimmed.split(/\s+/).length > 4 || sTrimmed.length > 35;
-                  if (isRuleOrSentence) {
-                    // Guideline rule / sentence — render as pedagogical guideline card, NOT as a vocab flashcard with TTS
-                    const cleanLine = sTrimmed.replace(/^[•\-\*\s]+/, '').trim();
-                    let translatedLine = cleanLine;
-                    if (currentLang === 'tr') {
-                      if (p.rules_tr && Array.isArray(p.rules_tr) && p.rules_tr[itIdx]) {
-                        translatedLine = p.rules_tr[itIdx].replace(/^[•\-\*\s]+/, '').trim();
-                      } else {
-                        translatedLine = translateEducationalText(cleanLine);
-                      }
-                    }
+                  // 1. Dialogue line formatted as string, e.g. "A: ¿Cómo te llamas?" or "Carlos: Me llamo Carlos."
+                  const speakerMatch = sTrimmed.match(/^([A-Za-z0-9\u00C0-\u017F\s]{1,12})\s*[:\-]\s*(.+)$/);
+                  if (speakerMatch && !sTrimmed.startsWith('•') && !sTrimmed.startsWith('*')) {
+                    const speaker = speakerMatch[1].trim();
+                    const targetLine = speakerMatch[2].trim();
                     html += `
-                      <div class="pedagogy-guide-block" style="margin-top:4px; margin-bottom:4px;">
-                        <div class="pedagogy-rules-list">
-                          <div class="pedagogy-rule-item">
-                            <div class="pedagogy-rule-bullet"></div>
-                            <div class="pedagogy-rule-content">${highlightPedagogicalTerms(fixDiacritics(translatedLine))}</div>
-                          </div>
+                      <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                          <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.6px;">${safeStr(speaker)}</div>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetLine)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
                         </div>
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(targetLine))}&rdquo;</div>
                       </div>`;
                   } else {
-                    const normStr = normalizeConceptStr(sTrimmed);
-                    const isCJK = /[\u4e00-\u9fff]/.test(sTrimmed);
-                    const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
-                    const isLetter = !isCJK && (sTrimmed.length === 1 || SPANISH_LETTER_SPELLINGS.has(normStr));
-                    if (isLetter) {
-                      // Single letter with authentic phonetics guide
-                      const phonData = getClientLetterPhonetics(courseLang, sTrimmed) || {};
-                      const letterName = phonData.name || (SPANISH_LETTER_SPELLINGS.has(normStr) ? sTrimmed : '');
-                      const phoneticGuide = (currentLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
-                      const exampleWord = phonData.example || '';
-                      const exampleTrans = (currentLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
-                      html += `<div class="study-vocab-card alphabet-card">
-                          <div class="vocab-term-wrapper">
-                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                            <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                    const isExampleOrDialoguePage = (p.type === 'examples' || p.type === 'dialogue' || (p.title && /practical|application|pratik|uygulama|dialogue|diyalog/i.test(p.title)));
+                    const isExplicitRule = sTrimmed.startsWith('•') || sTrimmed.startsWith('-') || sTrimmed.startsWith('*');
+
+                    if (isExplicitRule || (!isExampleOrDialoguePage && (sTrimmed.split(/\s+/).length > 4 || sTrimmed.length > 35))) {
+                      // Guideline rule / sentence — render as pedagogical guideline card, NOT as a vocab flashcard with TTS
+                      const cleanLine = sTrimmed.replace(/^[•\-\*\s]+/, '').trim();
+                      let translatedLine = cleanLine;
+                      if (currentLang === 'tr') {
+                        if (p.rules_tr && Array.isArray(p.rules_tr) && p.rules_tr[itIdx]) {
+                          translatedLine = p.rules_tr[itIdx].replace(/^[•\-\*\s]+/, '').trim();
+                        } else {
+                          translatedLine = translateEducationalText(cleanLine);
+                        }
+                      }
+                      html += `
+                        <div class="pedagogy-guide-block" style="margin-top:4px; margin-bottom:4px;">
+                          <div class="pedagogy-rules-list">
+                            <div class="pedagogy-rule-item">
+                              <div class="pedagogy-rule-bullet"></div>
+                              <div class="pedagogy-rule-content">${highlightPedagogicalTerms(fixDiacritics(translatedLine))}</div>
+                            </div>
                           </div>
-                          <div class="alphabet-pronunciation-block" style="text-align:right;">
-                            ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
-                            ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
-                            ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
+                        </div>`;
+                    } else if (isExampleOrDialoguePage && (sTrimmed.split(/\s+/).length > 2 || sTrimmed.length > 15)) {
+                      // Standalone target language example sentence
+                      html += `
+                        <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
+                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                            <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(sTrimmed)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
                           </div>
+                          <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(sTrimmed)}&rdquo;</div>
                         </div>`;
                     } else {
-                      // Multi-char word — dict-clickable, but only over the word text itself
-                      const briefExpl = resolveItemExplanation(null, it, '', currentLang);
-                      html += `<div class="study-vocab-card">
-                          <div class="vocab-term-wrapper">
-                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                            <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
-                          </div>
-                          ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
-                        </div>`;
+                      const normStr = normalizeConceptStr(sTrimmed);
+                      const isCJK = /[\u4e00-\u9fff]/.test(sTrimmed);
+                      const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                      const isLetter = !isCJK && (sTrimmed.length === 1 || SPANISH_LETTER_SPELLINGS.has(normStr));
+                      if (isLetter) {
+                        // Single letter with authentic phonetics guide
+                        const phonData = getClientLetterPhonetics(courseLang, sTrimmed) || {};
+                        const letterName = phonData.name || (SPANISH_LETTER_SPELLINGS.has(normStr) ? sTrimmed : '');
+                        const phoneticGuide = (currentLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
+                        const exampleWord = phonData.example || '';
+                        const exampleTrans = (currentLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
+                        html += `<div class="study-vocab-card alphabet-card">
+                            <div class="vocab-term-wrapper">
+                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                              <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                            </div>
+                            <div class="alphabet-pronunciation-block" style="text-align:right;">
+                              ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
+                              ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
+                              ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
+                            </div>
+                          </div>`;
+                      } else {
+                        // Multi-char word — dict-clickable, but only over the word text itself
+                        const briefExpl = resolveItemExplanation(null, it, '', currentLang);
+                        html += `<div class="study-vocab-card">
+                            <div class="vocab-term-wrapper">
+                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                              <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                            </div>
+                            ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
+                          </div>`;
+                      }
                     }
                   }
                 } else if (typeof it === "object" && it !== null) {
-                  const k = safeStr(it.term || it.word || it.phrase || it.character || it.letter || it.symbol || it.speaker || it.sentence || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                  let rawV = "";
-                  if (currentLang === 'tr') {
-                    rawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.translation || it.meaning || it.value || Object.values(it)[1]);
+                  // Check if it is a dialogue item
+                  if (it.speaker || it.role || it.actor || it.person) {
+                    const speaker = safeStr(it.speaker || it.role || it.actor || it.person || "A");
+                    const targetText = safeStr(
+                      it.text || it.sentence || it.phrase || it.line || it.dialogue ||
+                      it.target || it.spanish || it.german || it.french || it.italian ||
+                      it.japanese || it.chinese || it.korean || it.term || it.word ||
+                      Object.values(it).find(val => typeof val === 'string' && val !== it.speaker && val !== it.role && val !== it.translation && val !== it.translation_tr && val !== it.translation_en) || ""
+                    );
+                    let transText = "";
+                    if (currentLang === 'tr') {
+                      transText = safeStr(it.translation_tr || it.turkish || it.meaning_tr);
+                      if (!transText && (it.translation || it.translation_en || it.english || it.meaning)) {
+                        transText = translateEducationalText(safeStr(it.translation || it.translation_en || it.english || it.meaning));
+                      }
+                    } else {
+                      transText = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning);
+                    }
+                    if (transText && transText.trim().toLowerCase() === targetText.trim().toLowerCase()) {
+                      transText = "";
+                    }
+
+                    html += `
+                      <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                          <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.6px;">${safeStr(speaker)}</div>
+                          ${targetText ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetText)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                        </div>
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(targetText))}&rdquo;</div>
+                        ${transText ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:6px; line-height:1.45;">${fixDiacritics(safeStr(transText))}</div>` : ''}
+                      </div>`;
                   } else {
-                    rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
-                  }
-                  const rawResolved = translateOption(rawV);
-                  let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+                    const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
+                    let rawV = "";
+                    if (currentLang === 'tr') {
+                      rawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.translation || it.meaning || it.value || Object.values(it)[1]);
+                    } else {
+                      rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
+                    }
+                    const rawResolved = translateOption(rawV);
+                    let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
 
-                  // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
-                  const kStr = safeStr(k).trim();
-                  const isSingleChar = (kStr.length === 1 && !/[\u4e00-\u9fff]/.test(kStr));
-                  const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
-                  const normK = normalizeConceptStr(kStr);
+                    // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
+                    const kStr = safeStr(k).trim();
+                    const isSingleChar = (kStr.length === 1 && !/[\u4e00-\u9fff]/.test(kStr));
+                    const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                    const normK = normalizeConceptStr(kStr);
 
-                  // Only match pragmatic map for multi-character phrases (never corrupt single letters like 'I')
-                  if (!isSingleChar && normK && FRONTEND_PRAGMATIC_MAP[normK]) {
-                    const prag = FRONTEND_PRAGMATIC_MAP[normK];
-                    v = (currentLang === 'tr') ? prag.tr : prag.en;
-                  }
+                    // Only match pragmatic map for multi-character phrases (never corrupt single letters like 'I')
+                    if (!isSingleChar && normK && FRONTEND_PRAGMATIC_MAP[normK]) {
+                      const prag = FRONTEND_PRAGMATIC_MAP[normK];
+                      v = (currentLang === 'tr') ? prag.tr : prag.en;
+                    }
 
-                  // Eliminate calque 'öğleden sonra' if present in v
-                  if (typeof v === 'string' && (v.toLowerCase().includes('öğleden sonra') || v.toLowerCase().includes('ogleden sonra'))) {
-                    v = (currentLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
-                  }
+                    // Eliminate calque 'öğleden sonra' if present in v
+                    if (typeof v === 'string' && (v.toLowerCase().includes('öğleden sonra') || v.toLowerCase().includes('ogleden sonra'))) {
+                      v = (currentLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
+                    }
 
-                  // --- SEMANTIC CONCEPT SELF-HEALING ---
-                  const termConceptKey = (!isSingleChar) ? resolveConceptKey(kStr) : '';
-                  if (termConceptKey) {
-                    const transConceptKey = resolveConceptKey(safeStr(v));
-                    if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === kStr.toLowerCase()) {
-                      const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][currentLang] : null;
-                      if (canonicalTitle) {
-                        v = canonicalTitle;
+                    // --- SEMANTIC CONCEPT SELF-HEALING ---
+                    const termConceptKey = (!isSingleChar) ? resolveConceptKey(kStr) : '';
+                    if (termConceptKey) {
+                      const transConceptKey = resolveConceptKey(safeStr(v));
+                      if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === kStr.toLowerCase()) {
+                        const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][currentLang] : null;
+                        if (canonicalTitle) {
+                          v = canonicalTitle;
+                        }
                       }
                     }
-                  }
 
-                  const isCJKChar = /[\u4e00-\u9fff]/.test(kStr);
-                  const isLetter = !isCJKChar && (
-                    isSingleChar ||
-                    SPANISH_LETTER_SPELLINGS.has(normK) ||
-                    Boolean(it.letter || it.character)
-                  );
-                  
-                  if (it.speaker || (typeof k === "string" && k.length > 50)) {
-                    // Dialogue/long-sentence card — cursor:default on card, pointer only on word
-                    html += `<div dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:3px solid var(--accent); cursor:default;">
-                        ${(it.speaker && k) ? `<div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; margin-bottom:6px; letter-spacing:0.5px;">${safeStr(k)}</div>` : ""}
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:15.5px; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(v || k))}&rdquo;</div>
-                      </div>`;
-                  } else if (isLetter) {
+                    const isCJKChar = /[\u4e00-\u9fff]/.test(kStr);
+                    const isLetter = !isCJKChar && (
+                      isSingleChar ||
+                      SPANISH_LETTER_SPELLINGS.has(normK) ||
+                      Boolean(it.letter || it.character)
+                    );
+
+                    const isSentenceCard = Boolean(it.sentence || (it.text && !it.term && !it.word) || (typeof k === "string" && k.length > 50) || p.type === 'examples');
+
+                    if (isSentenceCard && !isLetter) {
+                      // Authentic target-language example sentence
+                      html += `
+                        <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
+                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                            <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                            ${kStr ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                          </div>
+                          <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(kStr))}&rdquo;</div>
+                          ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:6px; line-height:1.45;">${fixDiacritics(safeStr(v))}</div>` : ''}
+                        </div>`;
+                    } else if (isLetter) {
                     // Single letter — render cleanly with authentic name and phonetics guide
                     const phonData = getClientLetterPhonetics(courseLang, kStr) || {};
                     let letterName = it.name || phonData.name || (SPANISH_LETTER_SPELLINGS.has(normK) ? kStr : '') || safeStr(v);
@@ -9413,7 +9479,8 @@ function showStudyTopic(topicId, pageIdx = 0) {
                       </div>`;
                   }
                 }
-              });
+              }
+            });
               html += `</div>`;
             }
 

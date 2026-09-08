@@ -698,8 +698,9 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     TECHNICAL SPECS:
     1. DUAL BILINGUAL AUTHORING: Provide both English and natural Turkish pedagogical content for EVERY page.
     2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}.
-    3. BULLET POINTS ONLY: Format all grammar and context 'text' / 'text_tr' or 'explanation' / 'explanation_tr' fields as concise bullet points.
-    4. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
+    3. DIALOGUE TARGET LANGUAGE MANDATE: In 'examples' and dialogue lists, spoken dialogue lines ('text') MUST ALWAYS be authentic sentences in {language}. NEVER write English or Turkish sentences in 'text'. English translation goes strictly in 'translation', Turkish translation goes strictly in 'translation_tr'.
+    4. BULLET POINTS ONLY: Format all grammar and context 'text' / 'text_tr' or 'explanation' / 'explanation_tr' fields as concise bullet points.
+    5. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
     5. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
     6. NO FILLER: Every page must be packed with pedagogical value.
     7. ZERO CALQUES: Ensure all Turkish explanations are authentic, idiomatic, and educational.
@@ -820,6 +821,12 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                     filtered_arr = []
                     for it in arr:
                         if isinstance(it, dict):
+                            # Ensure dialogue item has target text assigned
+                            if it.get("speaker") and not it.get("text"):
+                                for alt_key in ["sentence", "phrase", "line", "dialogue", "target", language.lower()]:
+                                    if it.get(alt_key):
+                                        it["text"] = it[alt_key]
+                                        break
                             heal_concept_item(it, lang="en")
                             heal_concept_item(it, lang="tr")
 
