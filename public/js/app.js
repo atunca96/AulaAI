@@ -4793,6 +4793,50 @@ function safeStr(val) {
   return String(val);
 }
 
+function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal = "") {
+  let enStr = safeStr(enVal).trim();
+  let trStr = safeStr(trVal).trim();
+  
+  const hasTurkishMarkers = (txt) => {
+    if (!txt || typeof txt !== 'string') return false;
+    return /[çğıöşüÇĞİÖŞÜ]/.test(txt) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik|argümanlara|dinleyin)\b/i.test(txt);
+  };
+  
+  const hasEnglishMarkers = (txt) => {
+    if (!txt || typeof txt !== 'string') return false;
+    return /\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be|discussion|open|dialogue|arguments|listen|encourage)\b/i.test(txt);
+  };
+
+  if (targetLang === 'tr') {
+    // We want Turkish
+    if (trStr && (!hasEnglishMarkers(trStr) || hasTurkishMarkers(trStr))) {
+      return trStr;
+    }
+    // If trStr is missing or English, try translating enStr or trStr to Turkish
+    const src = trStr || enStr || defaultVal;
+    if (src) {
+      const trRes = translateEducationalText(src, 'tr');
+      if (trRes) return trRes;
+      return src;
+    }
+    return defaultVal;
+  } else {
+    // We want English
+    // If enStr is available AND doesn't have Turkish markers, use it
+    if (enStr && !hasTurkishMarkers(enStr)) {
+      return enStr;
+    }
+    // If enStr is contaminated with Turkish, or missing, translate to English
+    const src = enStr || trStr || defaultVal;
+    if (src) {
+      const enRes = translateEducationalText(src, 'en');
+      if (enRes) return enRes;
+      return src;
+    }
+    return defaultVal;
+  }
+}
+
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const cleanTerm = safeStr(term).trim();
   // Single letters or alphabet character cards must NEVER match pronouns or pragmatic greetings
@@ -4819,8 +4863,21 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
       if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
         const explKey = resolveConceptKey(rawLangExpl);
         if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
-          return rawLangExpl.trim();
+          // Language guard: if in EN mode but contains Turkish, or in TR mode but contains English
+          return resolveDualLanguage(rawLangExpl.trim(), rawLangExpl.trim(), lang, rawLangExpl.trim());
         }
+      }
+    }
+
+    // Bidirectional fallback if one language is missing
+    if (lang === 'en' && it.explanation_tr && typeof it.explanation_tr === 'string' && it.explanation_tr.trim().length > 2) {
+      if (!TAUTOLOGY_REGEX.test(it.explanation_tr)) {
+        return translateEducationalText(it.explanation_tr.trim(), 'en');
+      }
+    } else if (lang === 'tr' && (it.explanation_en || it.explanation) && typeof (it.explanation_en || it.explanation) === 'string') {
+      const enVal = (it.explanation_en || it.explanation).trim();
+      if (enVal.length > 2 && !TAUTOLOGY_REGEX.test(enVal)) {
+        return translateEducationalText(enVal, 'tr');
       }
     }
   }
@@ -4852,7 +4909,7 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
     const rawExpl = it.explanation || it.description || it.desc || it.note || it.usage;
     if (rawExpl && typeof rawExpl === 'string' && rawExpl.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(rawExpl)) {
-        return lang === 'tr' ? translateEducationalText(rawExpl.trim()) : rawExpl.trim();
+        return resolveDualLanguage(rawExpl.trim(), rawExpl.trim(), lang, rawExpl.trim());
       }
     }
   }
@@ -5188,6 +5245,8 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/'(.*)' specifically refers to (.*)\.?/i, "'$1' özellikle $2 anlamına gelir.");
       processed = processed.replace(/The correct answer is '(.*)'/i, "Doğru cevap: '$1'");
       processed = processed.replace(/Other options do not fit the context\.?/i, "Diğer seçenekler bağlama uymaz.");
+      processed = processed.replace(/^(The\s+)?discussion should be constructive and respectful\.?$/i, "Tartışma yapıcı ve saygılı olmalıdır.");
+      processed = processed.replace(/^Encourage open dialogue;? actively listen to counterarguments\.?$/i, "Açık bir diyalogu teşvik edin; karşı argümanlara aktif olarak dinleyin.");
     } else {
       // Reverse TR -> EN
       processed = processed.replace(/^Günlük\s*\/\s*Samimi$/i, "Colloquial");
@@ -5238,6 +5297,15 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Her harfin belirli bir sesi vardır\.?$/i, "Each letter has a specific sound.");
       processed = processed.replace(/^Cada letra tiene un sonido único\.?$/i, "Each letter has its own sound.");
       processed = processed.replace(/^Cada letra tiene un sonido particular\.?$/i, "Each letter has a specific sound.");
+
+      // Pragmatic & Lexical Example Sentences / Advice
+      processed = processed.replace(/^Tartışma yapıcı ve saygılı olmalıdır\.?$/i, "A discussion should be constructive and respectful.");
+      processed = processed.replace(/^Açık bir diyalogu teşvik edin;? karşı argümanlara aktif olarak dinleyin\.?$/i, "Encourage open dialogue; actively listen to counterarguments.");
+      processed = processed.replace(/^Açık bir diyalog teşvik edin;? karşı argümanları aktif olarak dinleyin\.?$/i, "Encourage open dialogue; actively listen to counterarguments.");
+      processed = processed.replace(/^(.*) yapıcı ve saygılı olmalıdır\.?$/i, "$1 should be constructive and respectful.");
+      processed = processed.replace(/^(.*) olmalıdır\.?$/i, "$1 should be.");
+      processed = processed.replace(/^Açık bir diyalogu teşvik edin\.?$/i, "Encourage open dialogue.");
+      processed = processed.replace(/^Karşı argümanlara aktif olarak dinleyin\.?$/i, "Actively listen to counterarguments.");
 
       processed = processed.replace(/^Örnek:\s*(.*)\s*\((.*)\)/i, (m, phrase, paren) => {
         const enParen = translateOption(paren, 'en');
@@ -9633,6 +9701,51 @@ function highlightPedagogicalTerms(text) {
   return res;
 }
 
+const CEFR_LEVEL_METAS = {
+  'A1': {
+    name: 'A1 · Breakthrough',
+    name_tr: 'A1 · Başlangıç',
+    focus: 'Foundations, Phonetics & Immediate Survival Chunks',
+    focus_tr: 'Temel Bilgiler, Fonetik ve Günlük Hayatta Kalma Kalıpları',
+    color: '#10b981'
+  },
+  'A2': {
+    name: 'A2 · Waystage',
+    name_tr: 'A2 · Temel Seviye',
+    focus: 'Routine Exchanges, Timeframes & Everyday Collocations',
+    focus_tr: 'Rutin İletişim, Zaman Kipleri ve Günlük Kalıplar',
+    color: '#06b6d4'
+  },
+  'B1': {
+    name: 'B1 · Threshold',
+    name_tr: 'B1 · Orta Seviye',
+    focus: 'Independence, Aspectual Contrast & Connective Discourse',
+    focus_tr: 'Bağımsız İfade, Görünüş Karşıtlıkları ve Bağlaçlar',
+    color: '#3b82f6'
+  },
+  'B2': {
+    name: 'B2 · Vantage',
+    name_tr: 'B2 · İleri-Orta Seviye',
+    focus: 'Fluency, Subjunctive Nuances & Register Flexibility',
+    focus_tr: 'Akıcılık, Dilek-Şart Nüansları ve Üslup Esnekliği',
+    color: '#6366f1'
+  },
+  'C1': {
+    name: 'C1 · Effective Proficiency',
+    name_tr: 'C1 · İleri Seviye',
+    focus: 'Implicit Meaning, Pragmatic Nuance & Stylistic Elevation',
+    focus_tr: 'Örtük Anlam, Edimbilimsel Nüans ve Üslup Yükseltimi',
+    color: '#8b5cf6'
+  },
+  'C2': {
+    name: 'C2 · Mastery',
+    name_tr: 'C2 · Üstün Ustalık',
+    focus: 'Near-Native Precision, Rhetorical Trope & Sociolinguistic Subtlety',
+    focus_tr: 'Anadili Düzeyinde Kesinlik, Retorik ve Toplumbilimsel İncelik',
+    color: '#f59e0b'
+  }
+};
+
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   const isStudent = currentUser && currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
@@ -9689,34 +9802,6 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
           render: () => {
             let html = "";
             
-            // 0. Syntactic Formula / Pattern Detection
-            let rawFormula = "";
-            if (currentLang === 'tr') {
-              rawFormula = p.formula_tr || p.formula || p.pattern || p.structure || "";
-            } else {
-              rawFormula = p.formula_en || p.formula || p.pattern || p.structure || (p.formula_tr ? translateEducationalText(p.formula_tr, 'en') : "");
-            }
-            if (rawFormula && typeof rawFormula === "string" && rawFormula.trim().length > 0) {
-              let formulaVal = translateFormulaBrackets(rawFormula, currentLang);
-              if (currentLang === 'en') {
-                const trToEn = translateEducationalText(formulaVal, 'en');
-                if (trToEn && trToEn !== formulaVal) formulaVal = trToEn;
-              } else if (currentLang === 'tr') {
-                const enToTr = translateEducationalText(formulaVal, 'tr');
-                if (enToTr && enToTr !== formulaVal) formulaVal = enToTr;
-              }
-              const formulaLabel = currentLang === 'tr' ? 'Sözdizimsel Yapı ve Formül' : 'Syntactic Pattern & Formula';
-              html += `
-                <div class="pedagogy-formula-banner">
-                  <div class="pedagogy-formula-badge">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><polyline points="10 9 9 9 8 9"></polyline><line x1="12" y1="13" x2="8" y2="13"></line><line x1="12" y1="17" x2="8" y2="17"></line></svg>
-                    <span>${formulaLabel}</span>
-                  </div>
-                  <div class="pedagogy-formula-text">${fixDiacritics(formulaVal)}</div>
-                </div>
-              `;
-            }
-
             // Communicative Scene Context (for dialogues/examples)
             const sceneContext = (currentLang === 'tr' && p.context_tr) ? p.context_tr : (p.context || p.scene || "");
             if (sceneContext && typeof sceneContext === "string" && sceneContext.trim().length > 0 && !isMcq) {
@@ -10061,15 +10146,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       it.japanese || it.chinese || it.korean || it.term || it.word ||
                       Object.values(it).find(val => typeof val === 'string' && val !== it.speaker && val !== it.role && val !== it.translation && val !== it.translation_tr && val !== it.translation_en) || ""
                     );
-                    let transText = "";
-                    if (currentLang === 'tr') {
-                      transText = safeStr(it.translation_tr || it.turkish || it.meaning_tr);
-                      if (!transText && (it.translation || it.translation_en || it.english || it.meaning)) {
-                        transText = translateEducationalText(safeStr(it.translation || it.translation_en || it.english || it.meaning));
-                      }
-                    } else {
-                      transText = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning);
-                    }
+                    const rawTransEn = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning);
+                    const rawTransTr = safeStr(it.translation_tr || it.turkish || it.meaning_tr);
+                    let transText = resolveDualLanguage(rawTransEn, rawTransTr, currentLang, (currentLang === 'tr' ? rawTransTr : rawTransEn));
                     if (transText && transText.trim().toLowerCase() === targetText.trim().toLowerCase()) {
                       transText = "";
                     }
@@ -10167,9 +10246,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       ? (it.phonetic_tr || phonData.phonetic_tr || '')
                       : (it.phonetic_en || phonData.phonetic_en || '');
                     const exampleWord = it.example || phonData.example || '';
-                    const exampleTrans = (currentLang === 'tr')
-                      ? (it.translation_tr || it.example_tr || phonData.example_tr || '')
-                      : (it.translation_en || it.example_en || phonData.example_en || '');
+                    const rawExEn = it.translation_en || it.example_en || phonData.example_en || '';
+                    const rawExTr = it.translation_tr || it.example_tr || phonData.example_tr || '';
+                    const exampleTrans = resolveDualLanguage(rawExEn, rawExTr, currentLang, (currentLang === 'tr' ? rawExTr : rawExEn));
 
                     html += `<div class="study-vocab-card alphabet-card">
                         <div class="vocab-term-wrapper">
@@ -10187,22 +10266,32 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const briefExpl = resolveItemExplanation(it, kStr, safeStr(v), currentLang);
                     const bankHit = getClientVocabExample(courseLang, kStr) || {};
                     const exampleTarget = it.example || bankHit.example || '';
-                    const exampleTrans = (currentLang === 'tr')
-                      ? (it.example_tr || bankHit.example_tr || '')
-                      : (it.example_en || bankHit.example_en || '');
+                    const rawExEn = it.example_en || bankHit.example_en || '';
+                    const rawExTr = it.example_tr || bankHit.example_tr || '';
+                    const exampleTrans = resolveDualLanguage(rawExEn, rawExTr, currentLang, (currentLang === 'tr' ? rawExTr : rawExEn));
+
+                    // Part of speech / grammatical category badge if available
+                    const posBadge = safeStr(it.pos || it.part_of_speech || it.type || it.category || '').trim();
 
                     html += `<div class="study-vocab-card">
-                        <div class="vocab-term-wrapper">
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)">${TTS_SVG_IDLE}</button>
-                          <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16px; font-weight:600; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
+                        <div class="vocab-card-top-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:4px;">
+                          <div class="vocab-term-wrapper">
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)">${TTS_SVG_IDLE}</button>
+                            <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16.5px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
+                          </div>
+                          ${posBadge ? `<span class="vocab-pos-badge" style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.12); color:var(--accent); border:1px solid rgba(99,102,241,0.25);">${esc(posBadge)}</span>` : ''}
                         </div>
                         <div class="english-translation">
                           <div class="vocab-meaning-title">${safeStr(v)}</div>
-                          ${briefExpl ? `<div class="vocab-brief-explanation" style="font-size:12px; color:var(--accent-light); margin-top:2px;">${fixDiacritics(safeStr(briefExpl))}</div>` : ''}
+                          ${briefExpl ? `
+                            <div class="vocab-brief-explanation" style="font-size:12.5px; color:var(--accent-light); margin-top:3px; display:flex; align-items:flex-start; gap:5px; line-height:1.45;">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px; opacity:0.85;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                              <span>${fixDiacritics(safeStr(briefExpl))}</span>
+                            </div>` : ''}
                           ${exampleTarget ? `
-                            <div class="vocab-example-block" style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.08); text-align:left;">
-                              <div class="vocab-example-target" style="font-size:13px; color:var(--text-primary); font-style:italic;">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
-                              ${exampleTrans ? `<div class="vocab-example-trans" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
+                            <div class="vocab-example-block" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08); text-align:left;">
+                              <div class="vocab-example-target" style="font-size:13.5px; color:var(--text-primary); font-style:italic; line-height:1.45;">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
+                              ${exampleTrans ? `<div class="vocab-example-trans" style="font-size:12.5px; color:var(--text-secondary); margin-top:3px; line-height:1.4;">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
                             </div>` : ''}
                         </div>
                       </div>`;
@@ -10259,16 +10348,26 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   }
 
   const headerTopicTitle = getLocalizedCurriculumTitle(topic, currentLang);
+  const courseLevel = (currentCourse && currentCourse.level) ? currentCourse.level.toUpperCase() : (topic.difficulty ? String(topic.difficulty).toUpperCase() : 'A1');
+  let lvlKey = 'A1';
+  for (const k of ['C2', 'C1', 'B2', 'B1', 'A2', 'A1']) {
+    if (courseLevel.includes(k)) { lvlKey = k; break; }
+  }
+  const lvlMeta = CEFR_LEVEL_METAS[lvlKey] || CEFR_LEVEL_METAS['A1'];
+
   container.innerHTML = `
     <div class="study-topic-wrapper">
       <div class="study-topic-header">
         <div>
           <div class="study-breadcrumb-pill">
+            <span class="cefr-level-badge" style="background:${lvlMeta.color}22; color:${lvlMeta.color}; border:1px solid ${lvlMeta.color}55;">${currentLang === 'tr' ? lvlMeta.name_tr : lvlMeta.name}</span>
+            <span class="study-badge-divider">•</span>
             <span class="study-badge-tag">${esc(headerTopicTitle)}</span>
             <span class="study-badge-divider">•</span>
             <span class="study-badge-page"><span data-i18n="page">${currentLang === 'tr' ? 'SAYFA' : 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</span>
           </div>
           <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
+          <div class="cefr-level-subtitle">${currentLang === 'tr' ? lvlMeta.focus_tr : lvlMeta.focus}</div>
         </div>
         <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
           ${pageIdx > 0 ? `<button class="btn btn-outline btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}

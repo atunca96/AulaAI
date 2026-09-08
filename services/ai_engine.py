@@ -661,9 +661,17 @@ NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
     dual_bilingual_mandate = f"""
 DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
 - You MUST author BOTH natural English and natural Turkish pedagogical content in EVERY page of the lesson.
-- Both language versions must be authored with authentic educational depth as an experienced language educator:
-  * English fields: 'title', 'text', 'explanation', 'translation', 'explanation' (in items), 'prompt' (in mcq).
-  * Turkish fields: 'title_tr', 'text_tr', 'explanation_tr', 'translation_tr', 'explanation_tr' (in items), 'prompt_tr' (in mcq).
+- English fields ('title', 'text', 'explanation', 'translation', 'example_en', 'prompt', 'rule', 'analysis', 'pitfall'): MUST be written in 100% pure, natural, professional English. NEVER write Turkish words in English fields!
+- Turkish fields ('title_tr', 'text_tr', 'explanation_tr', 'translation_tr', 'example_tr', 'prompt_tr', 'rule_tr', 'analysis_tr', 'pitfall_tr'): MUST be written in 100% natural, authentic educational Turkish. NEVER write English words or unnatural calques in Turkish fields!
+- FOR VOCABULARY ITEMS:
+  * 'term': Target word in {language}
+  * 'translation': English meaning ONLY (e.g. 'Discussion')
+  * 'translation_tr': Turkish meaning ONLY (e.g. 'Tartışma')
+  * 'example': Target example sentence in {language}
+  * 'example_en': English translation of the example sentence ONLY (NEVER Turkish)
+  * 'example_tr': Turkish translation of the example sentence ONLY (NEVER English)
+  * 'explanation': Practical linguistic tip in English ONLY (e.g. collocations, prepositions, false friends)
+  * 'explanation_tr': Practical linguistic tip in Turkish ONLY
 - STRICT ZERO-CALQUE MANDATE FOR TURKISH:
   * NEVER write literal, robotic word-for-word machine translations!
   * Write authentic Turkish grammar explanations using proper educational terminology:
@@ -683,8 +691,6 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
   * Minimum 8-12 comprehensive vocabulary items.
   * Every item MUST contain: authentic target example sentence in {language}, English & Turkish translations, and practical collocation/usage note.
 - For GRAMMAR / STRUCTURAL FOCUS pages (MANDATORY STRUCTURE):
-  * 'formula': Syntactic pattern with bracket terms in English instructional terms (e.g. '[Subject] + [Present Tense Verb] + [Object]' or '[Main Clause] + que + [Subjunctive Verb]'). Brackets MUST be in English.
-  * 'formula_tr': Syntactic pattern with bracket terms in Turkish instructional terms (e.g. '[Özne] + [Şimdiki / Geniş Zaman Fiili] + [Nesne]'). Brackets MUST be in Turkish.
   * 'rules': Array of 3 to 4 structured rules. Each rule MUST have:
     - 'rule': Concise rule name and principle in English.
     - 'rule_tr': Concise rule name and principle in Turkish.
@@ -780,8 +786,6 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
           "type": "grammar", 
           "title": "Structural Focus", 
           "title_tr": "Yapısal Dilbilgisi Kuralları", 
-          "formula": "[Subject] + [Present Tense Verb] + [Object]",
-          "formula_tr": "[Özne] + [Şimdiki / Geniş Zaman Fiili] + [Nesne]",
           "text": "• Core Syntactic Principle 1 in English\\n• Morphological inflection and agreement Rule 2\\n• Subordination or clause chaining Rule 3\\n• Stylistic modulation and register nuance Rule 4", 
           "text_tr": "• Temel Sözdizimsel İlke 1 (Doğal Türkçe öğretmen anlatımı)\\n• Biçimbirimsel çekim ve uyum Kuralı 2\\n• Yan cümle ve bağlaç Kuralı 3\\n• Üslup ve ileri düzey kullanım Kuralı 4",
           "rules": [
@@ -916,10 +920,14 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
             if p.get("explanation") and not p.get("explanation_tr"):
                 p["explanation_tr"] = p["explanation"]
 
-            # Preserve & clean formula, rules, comparisons, pitfall for grammar pages
-            if p.get("type") == "grammar" or p.get("formula") or p.get("rules"):
-                if p.get("formula") and not p.get("formula_tr"):
-                    p["formula_tr"] = p["formula"]
+            # Remove obsolete formula banners if present
+            if "formula" in p:
+                del p["formula"]
+            if "formula_tr" in p:
+                del p["formula_tr"]
+
+            # Preserve & clean rules, comparisons, pitfall for grammar pages
+            if p.get("type") == "grammar" or p.get("rules"):
                 if p.get("pitfall") and not p.get("pitfall_tr"):
                     p["pitfall_tr"] = p["pitfall"]
                 if p.get("context") and not p.get("context_tr"):
@@ -1001,10 +1009,28 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                     if it.get("translation_tr") == "Ben":
                                         it["translation_tr"] = "i"
 
-                            # 2. Strip tautologies
+                            # 2. Strip tautologies & enforce strict bilingual segregation
                             for k in ["explanation", "explanation_en", "explanation_tr"]:
                                 if k in it and isinstance(it[k], str) and tautology_re.search(it[k]):
                                     it[k] = ""
+
+                            # 2b. Strict Language Segregation: Prevent Turkish leaking into English fields
+                            expl_en = str(it.get("explanation") or it.get("explanation_en") or "").strip()
+                            expl_tr = str(it.get("explanation_tr") or "").strip()
+                            tr_markers = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', expl_en) or re.search(r'\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik)\b', expl_en, re.IGNORECASE))
+                            if tr_markers:
+                                if not expl_tr:
+                                    it["explanation_tr"] = expl_en
+                                it["explanation"] = ""
+                                it["explanation_en"] = ""
+
+                            ex_en = str(it.get("example_en") or "").strip()
+                            ex_tr = str(it.get("example_tr") or "").strip()
+                            ex_tr_markers = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', ex_en) or re.search(r'\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı)\b', ex_en, re.IGNORECASE))
+                            if ex_tr_markers:
+                                if not ex_tr:
+                                    it["example_tr"] = ex_en
+                                it["example_en"] = ""
 
                             # 3. Enrich vocabulary with authentic example sentence & practical tip if missing
                             bank_hit = get_vocab_example(language, term_str)
