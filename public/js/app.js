@@ -1963,6 +1963,16 @@ const CURRICULUM_PAIRS = [
   ["All chapters", "Tüm Konular"],
   ["All Chapters", "Tüm Bölümler"],
   ["All lessons", "Tüm Dersler"],
+  ["Essential Vocabulary for Daily Life", "Günlük Yaşam İçin Temel Kelimeler"],
+  ["Daily Life", "Günlük Yaşam"],
+  ["Everyday Life", "Günlük Yaşam"],
+  ["Common Objects at Home", "Evde Yaygın Nesneler"],
+  ["Common Objects", "Yaygın Nesneler"],
+  ["Objects at Home", "Evdeki Nesneler"],
+  ["Food and Drink Words", "Yiyecek ve İçecek Kelimeleri"],
+  ["Places in Society", "Toplumdaki Yerler"],
+  ["Places in the Community", "Toplumdaki Yerler"],
+  ["Places in Community", "Toplumdaki Yerler"],
   ["Alphabet and Foundations", "Alfabe ve Temeller"],
   ["The Alphabet", "Alfabe"],
   ["Vowels and Consonants", "Sesli Harfler ve Sessiz Harfler"],
@@ -2469,6 +2479,20 @@ const UniversalCurriculumTranslator = {
     "survival vocabulary": "Hayatta Kalma Kelimeleri",
     "essential vocabulary for traveling": "Seyahat İçin Temel Kelimeler",
     "essential vocabulary for travel": "Seyahat İçin Temel Kelimeler",
+    "essential vocabulary for daily life": "Günlük Yaşam İçin Temel Kelimeler",
+    "essential vocabulary for everyday life": "Günlük Yaşam İçin Temel Kelimeler",
+    "vocabulary for daily life": "Günlük Yaşam İçin Kelimeler",
+    "vocabulary for everyday life": "Günlük Yaşam İçin Kelimeler",
+    "daily life": "Günlük Yaşam",
+    "everyday life": "Günlük Yaşam",
+    "daily life and routines": "Günlük Yaşam ve Rutinler",
+    "common objects at home": "Evde Yaygın Nesneler",
+    "common objects": "Yaygın Nesneler",
+    "objects at home": "Evdeki Nesneler",
+    "food and drink words": "Yiyecek ve İçecek Kelimeleri",
+    "places in society": "Toplumdaki Yerler",
+    "places in the community": "Toplumdaki Yerler",
+    "places in community": "Toplumdaki Yerler",
     "vocabulary for traveling": "Seyahat İçin Kelimeler",
     "vocabulary for travel": "Seyahat İçin Kelimeler",
     "essential vocabulary": "Temel Kelimeler",
@@ -2622,6 +2646,7 @@ const UniversalCurriculumTranslator = {
     "polite": "Nazik",
     "personal": "Kişisel",
     "daily": "Günlük",
+    "life": "Yaşam",
     "cultural": "Kültürel",
     "practical": "Pratik",
     "structural": "Yapısal",
@@ -3098,7 +3123,7 @@ const UniversalCurriculumTranslator = {
     // Strip target language foreign words inside quotes (e.g. 'ser', 'estar') so they are allowed
     const unquoted = t.replace(/['"][^'"]+['"]/g, '');
 
-    const enPattern = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple|who|what|where|when|why|how|which|whose|whom)\b/i;
+    const enPattern = /(?<![\p{L}\p{N}])(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple|who|what|where|when|why|how|which|whose|whom)(?![\p{L}\p{N}])/iu;
 
     const hasTr = /[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|kelime|kelimeleri|cümleler|cümle|cümleleri|ifadeler|ifade|ifadeleri|fiiller|fiil|sıfatlar|sıfat|zamirler|zamir|sorular|soru|soruları|sorusu|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik|kim|ne|nerede|nereli|nasıl|neden|yanıt|yanıtlar|cevap|cevaplar|kurma|oluşturma|kullanma|kullanımı|anlatma|sorma|konuşma)\b/i.test(t);
 
