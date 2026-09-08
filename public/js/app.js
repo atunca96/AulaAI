@@ -740,6 +740,7 @@ const i18n = {
     Lecturer: 'Lecturer', Student: 'Student',
     'Lecturer': 'Lecturer', 'Student': 'Student',
     select_study_topic: 'Select a topic to start studying',
+    page: 'PAGE',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
     keepUp: 'Keep up the great work!', overallMastery: 'Overall Mastery', strongTopics: 'Strong Topics', needsWork: 'Needs Work', topicsStudied: 'Topics Studied', currentChapter: 'Current Chapter',
@@ -1141,6 +1142,7 @@ const i18n = {
     'privacy.p2': 'Tüm kayıtlar yerel veri tabanı sunucularında güvenli bir şekilde saklanır. Standart KVKK ve GDPR veri minimizasyonu gerekliliklerine uyuyoruz. Verileriniz asla satılmaz veya reklam hedeflemesi amacıyla kullanılmaz.',
     'privacy.h3': '3. Haklarınız',
     'privacy.p3': 'Öğrenciler ve öğretim elemanları, PIN kodlarının sıfırlanmasını talep etme, müfredat geçmişlerini görüntüleme veya hesap veri tabanlarının kalıcı olarak silinmesini isteme hakkına sahiptir. Sorularınız için rkahraman@marmara.edu.tr adresine e-posta gönderebilirsiniz.',
+    page: 'SAYFA',
     'ai.select_lang': '1. Dil Seçin',
     'ai.target_level': '2. Hedef Seviye',
     'ai.course_name': '3. Kurs Adı',
@@ -1720,6 +1722,18 @@ function applyTranslations(root = document) {
 }
 
 function toggleLanguage() {
+  // Capture scroll positions before any DOM updates
+  const savedScroll = {
+    windowX: window.scrollX || window.pageXOffset || 0,
+    windowY: window.scrollY || window.pageYOffset || 0,
+    docScrollTop: document.documentElement.scrollTop || document.body.scrollTop || 0,
+    studyCard: document.querySelector('.study-card')?.scrollTop || 0,
+    studyCardLeft: document.querySelector('.study-card')?.scrollLeft || 0,
+    contentArea: document.querySelector('#ai-book-content-area, #s-ai-book-content-area')?.scrollTop || 0,
+    main: document.querySelector('main')?.scrollTop || 0,
+    activeTab: document.querySelector('.tab-panel.active')?.scrollTop || 0
+  };
+
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
 
@@ -1744,7 +1758,7 @@ function toggleLanguage() {
       lastPage = 0;
     }
     if (lastTopic) {
-      showStudyTopic(lastTopic, lastPage);
+      showStudyTopic(lastTopic, lastPage, { preserveScroll: true });
     }
   } catch (e) { console.warn(e); }
 
@@ -1822,6 +1836,34 @@ function toggleLanguage() {
       }
     }
   } catch (e) { console.warn(e); }
+
+  // Restore scroll positions smoothly to stay in place
+  requestAnimationFrame(() => {
+    if (savedScroll.studyCard) {
+      const card = document.querySelector('.study-card');
+      if (card) {
+        card.scrollTop = savedScroll.studyCard;
+        card.scrollLeft = savedScroll.studyCardLeft;
+      }
+    }
+    if (savedScroll.contentArea) {
+      const ca = document.querySelector('#ai-book-content-area, #s-ai-book-content-area');
+      if (ca) ca.scrollTop = savedScroll.contentArea;
+    }
+    if (savedScroll.main) {
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = savedScroll.main;
+    }
+    if (savedScroll.activeTab) {
+      const tab = document.querySelector('.tab-panel.active');
+      if (tab) tab.scrollTop = savedScroll.activeTab;
+    }
+    window.scrollTo({
+      left: savedScroll.windowX,
+      top: savedScroll.windowY || savedScroll.docScrollTop,
+      behavior: 'instant'
+    });
+  });
 }
 
 function renderDraftListSync() {
@@ -5027,7 +5069,41 @@ function translateEducationalText(text, lang = currentLang) {
     // 3. Dynamic Pedagogical Template Regex Engine (covers future / AI-generated lessons)
     let processed = cleanContent;
     if (isTr) {
-      // Grammatical Analysis & Breakdown Patterns
+      // Comparison Context Tags & Contrast Labels (Image 1)
+      processed = processed.replace(/^Colloquial$/i, "Günlük / Samimi");
+      processed = processed.replace(/^Formal$/i, "Resmi / Saygılı");
+      processed = processed.replace(/^Informal$/i, "Samimi / Günlük");
+      processed = processed.replace(/^Standard$/i, "Standart / Genel");
+      processed = processed.replace(/^Slang$/i, "Argo / Sokak Dili");
+      processed = processed.replace(/^Literary$/i, "Edebi / Sanatsal");
+      processed = processed.replace(/^Polite$/i, "Kibar / Nezaket");
+      processed = processed.replace(/^Conversational$/i, "Günlük Konuşma");
+      processed = processed.replace(/^Direct\s*\/\s*Conversational$/i, "Doğrudan / Günlük Konuşma");
+      processed = processed.replace(/^Elevated\s*\/\s*Nuanced$/i, "İleri Düzey / Edebi Nüans");
+      processed = processed.replace(/^Formal\s*\/\s*Academic$/i, "Resmi / Akademik");
+      processed = processed.replace(/^Standard\s*\/\s*Neutral$/i, "Standart / Nötr");
+      processed = processed.replace(/^Common Error\s*\/\s*Incorrect$/i, "Sık Yapılan Hata / Yanlış");
+      processed = processed.replace(/^Authentic\s*\/\s*Correct$/i, "Doğal / Doğru Kullanım");
+
+      // Contrast Notes & Descriptions (Image 1)
+      processed = processed.replace(/^Standard informal greeting\.?$/i, "Standart samimi / günlük selamlama.");
+      processed = processed.replace(/^Standard formal greeting\.?$/i, "Standart resmi selamlama.");
+      processed = processed.replace(/^Standard greeting\.?$/i, "Standart selamlama ifadesi.");
+      processed = processed.replace(/^Informal greeting\.?$/i, "Samimi selamlama ifadesi.");
+      processed = processed.replace(/^Formal greeting\.?$/i, "Resmi selamlama ifadesi.");
+      processed = processed.replace(/^Casual conversational style\.?$/i, "Günlük ve samimi konuşma üslubu.");
+      processed = processed.replace(/^Polite and respectful address\.?$/i, "Kibar ve saygılı hitap biçimi.");
+      processed = processed.replace(/^Common spoken phrasing\.?$/i, "Konuşma dilinde yaygın kullanım.");
+      processed = processed.replace(/^Everyday conversational phrasing\.?$/i, "Günlük konuşma dili kalıbı.");
+      processed = processed.replace(/^Everyday conversational formulation\.?$/i, "Günlük konuşma dili kalıbı.");
+      processed = processed.replace(/^Standard conversational formulation\.?$/i, "Standart günlük konuşma kalıbı.");
+      processed = processed.replace(/^Formal written expression\.?$/i, "Resmi yazı dili ifadesi.");
+      processed = processed.replace(/^Sophisticated formal or literary expression\.?$/i, "Zengin ve incelikli edebi veya resmi anlatım.");
+      processed = processed.replace(/^Sophisticated formal\/literary expression\.?$/i, "Zengin ve incelikli edebi/resmi anlatım.");
+      processed = processed.replace(/^Everyday colloquial sentence in (.*)\.?$/i, "$1 dilinde günlük samimi cümle.");
+      processed = processed.replace(/^Advanced nuanced sentence in (.*)\.?$/i, "$1 dilinde ileri düzey nüanslı cümle.");
+
+      // Grammatical Analysis & Breakdown Patterns (Image 3)
       processed = processed.replace(/^The verb '(.*)' changes according to the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
       processed = processed.replace(/^The verb '(.*)' conjugates based on the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
       processed = processed.replace(/^The verb '(.*)' conjugates based on the subject\.?$/i, "'$1' fiili özneye göre çekimlenir.");
@@ -5035,15 +5111,21 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/changes according to the subject pronoun/i, "özne zamirine göre çekimlenir");
       processed = processed.replace(/changes according to the subject/i, "özneye göre çekimlenir");
       processed = processed.replace(/^Breakdown of the (.*) in the example\.?$/i, "Örnekteki $1 yapısının analizi.");
-      processed = processed.replace(/^Standard conversational formulation\.?$/i, "Standart günlük konuşma kalıbı.");
-      processed = processed.replace(/^Sophisticated formal or literary expression\.?$/i, "Zengin ve incelikli edebi veya resmi anlatım.");
-      processed = processed.replace(/^Sophisticated formal\/literary expression\.?$/i, "Zengin ve incelikli edebi/resmi anlatım.");
-      processed = processed.replace(/^Direct\s*\/\s*Conversational$/i, "Doğrudan / Günlük Konuşma");
-      processed = processed.replace(/^Elevated\s*\/\s*Nuanced$/i, "İleri Düzey / Edebi Nüans");
-      processed = processed.replace(/^Formal\s*\/\s*Academic$/i, "Resmi / Akademik");
-      processed = processed.replace(/^Standard\s*\/\s*Neutral$/i, "Standart / Nötr");
-      processed = processed.replace(/^Common Error\s*\/\s*Incorrect$/i, "Sık Yapılan Hata / Yanlış");
-      processed = processed.replace(/^Authentic\s*\/\s*Correct$/i, "Doğal / Doğru Kullanım");
+      processed = processed.replace(/^The vowels (.*) are pronounced distinctly\.?$/i, "$1 sesli harfleri belirgin ve net şekilde telaffuz edilir.");
+      processed = processed.replace(/^The vowels (.*) are pronounced (.*)\.?$/i, "$1 sesli harfleri $2 şekilde telaffuz edilir.");
+      processed = processed.replace(/^The '([^']+)' in '([^']+)' is pronounced as '([^']+)' while in '([^']+)' it is pronounced as '([^']+)'\.?$/i, 
+        "'$2' içindeki '$1', '$3' olarak; '$4' içindeki ise '$5' olarak telaffuz edilir.");
+      processed = processed.replace(/^Consonants can have different sounds depending on their position in a word\.?$/i, 
+        "Sessiz harfler kelimedeki konumlarına göre farklı sesler çıkarabilir.");
+      processed = processed.replace(/^Consonant Variability$/i, "Sessiz Harf Değişkenliği");
+      processed = processed.replace(/^Syllable Structure$/i, "Hece Yapısı");
+      processed = processed.replace(/^Vowel Clarity$/i, "Sesli Harf Netliği");
+      processed = processed.replace(/^Pronunciation Rules$/i, "Telaffuz Kuralları");
+      processed = processed.replace(/^Stress and Accentuation$/i, "Vurgu ve Tonlama");
+      processed = processed.replace(/^Sound-Symbol Association$/i, "Ses-Harf Eşleşmesi");
+      processed = processed.replace(/^Suffix Mechanics & Morphological Trigger$/i, "Biçimbirimsel Tetikleyici ve Ek Mekaniği");
+      processed = processed.replace(/^Syntactic Subordination & Meaning Dependency$/i, "Yan Cümle Bağımlılığı ve Anlamsal İlişki");
+      processed = processed.replace(/^Register Modulation & Stylistic Nuance$/i, "Üslup ve İleri Düzey Nüans");
 
       processed = processed.replace(/^These terms are (crucial|essential|fundamental|important) for understanding (.*) in (.*)\.?$/i, 
         "$3 dilinde $2 konusunu anlamak için bu terimler çok önemlidir.");
@@ -5067,6 +5149,27 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/Other options do not fit the context\.?/i, "Diğer seçenekler bağlama uymaz.");
     } else {
       // Reverse TR -> EN
+      processed = processed.replace(/^Günlük\s*\/\s*Samimi$/i, "Colloquial");
+      processed = processed.replace(/^Resmi\s*\/\s*Saygılı$/i, "Formal");
+      processed = processed.replace(/^Samimi\s*\/\s*Günlük$/i, "Informal");
+      processed = processed.replace(/^Standart\s*\/\s*Genel$/i, "Standard");
+      processed = processed.replace(/^Standart samimi\s*\/\s*günlük selamlama\.?$/i, "Standard informal greeting.");
+      processed = processed.replace(/^Standart resmi selamlama\.?$/i, "Standard formal greeting.");
+      processed = processed.replace(/^Standart selamlama ifadesi\.?$/i, "Standard greeting.");
+      processed = processed.replace(/^Samimi selamlama ifadesi\.?$/i, "Informal greeting.");
+      processed = processed.replace(/^Resmi selamlama ifadesi\.?$/i, "Formal greeting.");
+      processed = processed.replace(/^Günlük ve samimi konuşma üslubu\.?$/i, "Casual conversational style.");
+      processed = processed.replace(/^Kibar ve saygılı hitap biçimi\.?$/i, "Polite and respectful address.");
+      processed = processed.replace(/^Sessiz Harf Değişkenliği$/i, "Consonant Variability");
+      processed = processed.replace(/^Hece Yapısı$/i, "Syllable Structure");
+      processed = processed.replace(/^Sesli Harf Netliği$/i, "Vowel Clarity");
+      processed = processed.replace(/^Telaffuz Kuralları$/i, "Pronunciation Rules");
+      processed = processed.replace(/^Vurgu ve Tonlama$/i, "Stress and Accentuation");
+      processed = processed.replace(/^Biçimbirimsel Tetikleyici ve Ek Mekaniği$/i, "Suffix Mechanics & Morphological Trigger");
+      processed = processed.replace(/^Yan Cümle Bağımlılığı ve Anlamsal İlişki$/i, "Syntactic Subordination & Meaning Dependency");
+      processed = processed.replace(/^Üslup ve İleri Düzey Nüans$/i, "Register Modulation & Stylistic Nuance");
+      processed = processed.replace(/^(.*) sesli harfleri belirgin ve net şekilde telaffuz edilir\.?$/i, "The vowels $1 are pronounced distinctly.");
+      processed = processed.replace(/^Sessiz harfler kelimedeki konumlarına göre farklı sesler çıkarabilir\.?$/i, "Consonants can have different sounds depending on their position in a word.");
       processed = processed.replace(/^'(.*)' fiili özne zamirine göre çekimlenir\.?$/i, "The verb '$1' changes according to the subject pronoun.");
       processed = processed.replace(/^Doğrudan\s*\/\s*Günlük Konuşma$/i, "Direct / Conversational");
       processed = processed.replace(/^İleri Düzey\s*\/\s*Edebi Nüans$/i, "Elevated / Nuanced");
@@ -9406,7 +9509,7 @@ function highlightPedagogicalTerms(text) {
   return res;
 }
 
-function showStudyTopic(topicId, pageIdx = 0) {
+function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   const isStudent = currentUser && currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
   const container = document.getElementById(contentId) || document.getElementById('ai-book-content');
@@ -9657,16 +9760,38 @@ function showStudyTopic(topicId, pageIdx = 0) {
 
             // 2. Data List Detection
             let rawData = [];
-            if (currentLang === 'tr' && (p.items_tr || p.list_tr || p.examples_tr || (hasRenderedStructuredRules ? null : p.rules_tr))) {
-              rawData = p.items_tr || p.list_tr || p.examples_tr || (hasRenderedStructuredRules ? [] : p.rules_tr);
-            } else {
-              rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || (hasRenderedStructuredRules ? [] : (p.rules || []));
+            if (currentLang === 'tr') {
+              rawData = p.items_tr || p.list_tr || p.examples_tr || p.dialogue_tr || (hasRenderedStructuredRules ? null : p.rules_tr);
+            }
+            if (!Array.isArray(rawData) || rawData.length === 0) {
+              rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || p.conversation || p.turns || p.lines || (hasRenderedStructuredRules ? [] : (p.rules || []));
             }
             if (!Array.isArray(rawData) || rawData.length === 0) {
               for (const key in p) {
                 if (Array.isArray(p[key]) && p[key].length > 0 && key !== 'pages' && key !== 'options' && key !== 'choices' && key !== 'distractors' && key !== 'answer' && key !== 'rules' && key !== 'comparisons') {
                   rawData = p[key]; break;
                 }
+              }
+            }
+
+            // Fallback for dialogue / practical application pages if list is empty
+            const isExampleOrDialoguePage = (p.type === 'examples' || p.type === 'dialogue' || (p.title && /practical|application|pratik|uygulama|dialogue|diyalog/i.test(p.title || '')));
+            if (isExampleOrDialoguePage && (!Array.isArray(rawData) || rawData.length === 0) && !isMcq) {
+              const tTitleLower = ((topic && topic.title) || '').toLowerCase();
+              if (tTitleLower.includes('vowel') || tTitleLower.includes('consonant') || tTitleLower.includes('sesli') || tTitleLower.includes('sessiz') || tTitleLower.includes('alphabet') || tTitleLower.includes('pronunciation')) {
+                rawData = [
+                  { speaker: "A", text: "¡Hola! ¿Cómo se escribe tu nombre?", translation: "Hello! How do you spell your name?", translation_tr: "Merhaba! Adın nasıl yazılıyor?" },
+                  { speaker: "B", text: "Se escribe con 'e', 'l', 'e', 'n', 'a': Elena.", translation: "It is spelled with 'e', 'l', 'e', 'n', 'a': Elena.", translation_tr: "'e', 'l', 'e', 'n', 'a' harfleriyle yazılır: Elena." },
+                  { speaker: "A", text: "¿Todas las vocales suenan claras en español?", translation: "Do all vowels sound clear in Spanish?", translation_tr: "İspanyolcada tüm sesli harfler net mi okunur?" },
+                  { speaker: "B", text: "Sí, exactamente. Cada vocal tiene un sonido único.", translation: "Yes, exactly. Each vowel has a unique sound.", translation_tr: "Evet, aynen öyle. Her sesli harfin tek ve net bir sesi vardır." }
+                ];
+              } else {
+                rawData = [
+                  { speaker: "A", text: "Buenos días, ¿podemos repasar la lección?", translation: "Good morning, can we review the lesson?", translation_tr: "Günaydın, dersi gözden geçirebilir miyiz?" },
+                  { speaker: "B", text: "Por supuesto, practiquemos estos conceptos juntos.", translation: "Of course, let's practice these concepts together.", translation_tr: "Elbette, bu kavramları birlikte pratik edelim." },
+                  { speaker: "A", text: "¿Es común usar estas frases a diario?", translation: "Is it common to use these phrases daily?", translation_tr: "Bu ifadeleri günlük hayatta kullanmak yaygın mıdır?" },
+                  { speaker: "B", text: "Sí, son expresiones fundamentales en la conversación.", translation: "Yes, they are fundamental expressions in conversation.", translation_tr: "Evet, konuşma dilinde temel ifadelerdir." }
+                ];
               }
             }
 
@@ -9986,15 +10111,11 @@ function showStudyTopic(topicId, pageIdx = 0) {
           <div class="study-breadcrumb-pill">
             <span class="study-badge-tag">${esc(headerTopicTitle)}</span>
             <span class="study-badge-divider">•</span>
-            <span class="study-badge-page"><span data-i18n="page">${t('page') || 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</span>
+            <span class="study-badge-page"><span data-i18n="page">${currentLang === 'tr' ? 'SAYFA' : 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</span>
           </div>
           <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
         </div>
         <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
-          <button class="btn btn-outline btn-sm lang-toggle-pill" onclick="toggleLanguage()" title="${currentLang === 'en' ? 'Türkçe versiyona geç' : 'Switch to English version'}" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; font-size:12px; padding:6px 12px; border-radius:20px; border-color:var(--accent); color:var(--accent);">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-            <span>${currentLang.toUpperCase()}</span>
-          </button>
           ${pageIdx > 0 ? `<button class="btn btn-outline btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
           ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
         </div>
@@ -10018,10 +10139,12 @@ function showStudyTopic(topicId, pageIdx = 0) {
     </div>
   `;
 
-  // Always reset scroll to top of the study card on page navigation
-  const studyCardEl = container.querySelector('.study-card');
-  if (studyCardEl) {
-    studyCardEl.scrollTop = 0;
+  // Reset scroll to top of the study card on page navigation, unless preserving scroll
+  if (!options || !options.preserveScroll) {
+    const studyCardEl = container.querySelector('.study-card');
+    if (studyCardEl) {
+      studyCardEl.scrollTop = 0;
+    }
   }
 
   // Preload TTS immediately for all foreign words on this page
