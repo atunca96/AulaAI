@@ -5134,6 +5134,15 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Used before (.*) sounds\./i, "$1 sesleri öncesinde kullanılır.");
       processed = processed.replace(/^Used before the vowels? (.*)\./i, "$1 sesli harfi\/harfleri öncesinde kullanılır.");
 
+      // Syntactic & Phonetic Formula Sentences
+      processed = processed.replace(/^Each letter has its own sound\.?$/i, "Her harfin kendine özgü bir sesi vardır.");
+      processed = processed.replace(/^Every letter has its own sound\.?$/i, "Her harfin kendine özgü bir sesi vardır.");
+      processed = processed.replace(/^Every letter has a unique sound\.?$/i, "Her harfin kendine özgü bir sesi vardır.");
+      processed = processed.replace(/^Each letter has a specific sound in (.*)\.?$/i, "$1 dilinde her harfin belirli bir sesi vardır.");
+      processed = processed.replace(/^Each letter has a specific sound\.?$/i, "Her harfin belirli bir sesi vardır.");
+      processed = processed.replace(/^Cada letra tiene un sonido único\.?$/i, "Her harfin kendine özgü bir sesi vardır.");
+      processed = processed.replace(/^Cada letra tiene un sonido particular\.?$/i, "Her harfin kendine özgü bir sesi vardır.");
+
 
       // Grammatical Analysis & Breakdown Patterns (Image 3)
       processed = processed.replace(/^The verb '(.*)' changes according to the subject pronoun\.?$/i, "'$1' fiili özne zamirine göre çekimlenir.");
@@ -5222,6 +5231,14 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/^Bu terimler günlük yaşamda sıkça kullanılır\.?$/i, "These terms are frequently used in daily life.");
       processed = processed.replace(/^Bu cümleler günlük hayatta nasıl kullanılır\.?$/i, "How these sentences are used in everyday life.");
       processed = processed.replace(/^Bu cümleler günlük hayatta nasıl kullanılabilir\.?$/i, "How these sentences can be used in everyday life.");
+      // Syntactic & Phonetic Formula Sentences
+      processed = processed.replace(/^Her harfin kendine özgü bir sesi vardır\.?$/i, "Each letter has its own sound.");
+      processed = processed.replace(/^Her harfin, telaffuz için önemli olan benzersiz bir sesi vardır\.?$/i, "Each letter has a unique sound that is important for pronunciation.");
+      processed = processed.replace(/^Her harfin, konuşma ve yazım için önemli olan benzersiz bir telaffuzu vardır\.?$/i, "Each letter has a unique pronunciation that is important for speaking and spelling.");
+      processed = processed.replace(/^Her harfin belirli bir sesi vardır\.?$/i, "Each letter has a specific sound.");
+      processed = processed.replace(/^Cada letra tiene un sonido único\.?$/i, "Each letter has its own sound.");
+      processed = processed.replace(/^Cada letra tiene un sonido particular\.?$/i, "Each letter has a specific sound.");
+
       processed = processed.replace(/^Örnek:\s*(.*)\s*\((.*)\)/i, (m, phrase, paren) => {
         const enParen = translateOption(paren, 'en');
         return `Example: ${phrase} (${enParen})`;
@@ -9608,17 +9625,21 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             let html = "";
             
             // 0. Syntactic Formula / Pattern Detection
-            // In EN mode: prefer formula_en if present, else only use formula if it has bracket notation [...]
-            // (plain target-language sentences stored in p.formula from old materials must NOT show in EN mode)
-            const isStructuralFormula = (str) => typeof str === 'string' && /\[/.test(str);
             let rawFormula = "";
             if (currentLang === 'tr') {
-              rawFormula = (p.formula_tr) ? p.formula_tr : (isStructuralFormula(p.formula) ? p.formula : (p.pattern || p.structure || ""));
+              rawFormula = p.formula_tr || p.formula || p.pattern || p.structure || "";
             } else {
-              rawFormula = (p.formula_en) ? p.formula_en : (isStructuralFormula(p.formula) ? p.formula : (isStructuralFormula(p.pattern) ? p.pattern : (isStructuralFormula(p.structure) ? p.structure : "")));
+              rawFormula = p.formula_en || p.formula || p.pattern || p.structure || (p.formula_tr ? translateEducationalText(p.formula_tr, 'en') : "");
             }
             if (rawFormula && typeof rawFormula === "string" && rawFormula.trim().length > 0) {
-              const formulaVal = translateFormulaBrackets(rawFormula, currentLang);
+              let formulaVal = translateFormulaBrackets(rawFormula, currentLang);
+              if (currentLang === 'en') {
+                const trToEn = translateEducationalText(formulaVal, 'en');
+                if (trToEn && trToEn !== formulaVal) formulaVal = trToEn;
+              } else if (currentLang === 'tr') {
+                const enToTr = translateEducationalText(formulaVal, 'tr');
+                if (enToTr && enToTr !== formulaVal) formulaVal = enToTr;
+              }
               const formulaLabel = currentLang === 'tr' ? 'Sözdizimsel Yapı ve Formül' : 'Syntactic Pattern & Formula';
               html += `
                 <div class="pedagogy-formula-banner">
