@@ -228,13 +228,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         
         if uid:
             try:
-                # Fire and forget update (throttled)
                 with db_connection() as db:
+                    row = db.execute("""
+                        SELECT (last_seen IS NULL OR (strftime('%s','now') - strftime('%s',last_seen) > 12)) as was_inactive
+                        FROM users WHERE id = ?
+                    """, (uid,)).fetchone()
+                    was_inactive = bool(row and row[0])
                     db.execute("""
                         UPDATE users SET last_seen = CURRENT_TIMESTAMP 
-                        WHERE id = ? AND (last_seen IS NULL OR (strftime('%s','now') - strftime('%s',last_seen) > 60))
+                        WHERE id = ? AND (last_seen IS NULL OR (strftime('%s','now') - strftime('%s',last_seen) >= 3))
                     """, (uid,))
                     db.commit()
+                    if was_inactive:
+                        bump_version()
             except: pass
         return uid
 
@@ -449,6 +455,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/user/status":
             user_id = params.get("user_id", [None])[0]
             return self._get_user_status(user_id)
+        elif path == "/api/user/heartbeat":
+            return self._user_heartbeat()
         elif path == "/api/version":
             return self._send_json({"version": get_version()})
         elif path == "/api/blueprints":
@@ -885,6 +893,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._register()
         elif path == "/api/user/logout":
             return self._logout()
+        elif path == "/api/user/heartbeat":
+            return self._user_heartbeat()
         elif path == "/api/user/delete":
             return self._delete_user_account()
         elif path == "/api/students/pending":
@@ -1095,6 +1105,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         with db_connection() as db:
             students = db.execute("""
                 SELECT u.id, u.name, u.email, u.status, u.created_at, u.last_seen,
+                       CASE 
+                           WHEN u.last_seen IS NOT NULL AND (strftime('%s','now') - strftime('%s', u.last_seen)) <= 12 THEN 1 
+                           ELSE 0 
+                       END as is_active,
                        GROUP_CONCAT(DISTINCT c.name) as enrolled_in,
                        COUNT(DISTINCT e.course_id) as course_count,
                        COALESCE((SELECT COUNT(*) FROM responses r WHERE r.student_id = u.id), 0) as total_responses
@@ -1105,7 +1119,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 GROUP BY u.id
                 ORDER BY u.created_at DESC
             """).fetchall()
-            return self._send_json([dict(s) for s in students])
+            
+            from database import PERMANENT_STUDENTS
+            perm_numbers = {s['number'] for s in PERMANENT_STUDENTS}
+            perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+
+            res = []
+            for s in students:
+                item = dict(s)
+                num = (item.get('email') or '').split('@')[0]
+                item['is_permanent'] = bool(item.get('email') in perm_emails or num in perm_numbers or str(item.get('id', '')).replace('student-', '') in perm_numbers)
+                res.append(item)
+            return self._send_json(res)
 
     def _admin_reset_student_pin(self):
         """Resets the PIN for a specific student across all their enrollments. Admin only."""
@@ -1143,22 +1168,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if confirm != "RESET ALL STUDENTS":
             return self._send_error("Confirmation failed")
         try:
+            from database import sync_permanent_students_and_enrollments, PERMANENT_STUDENTS
+            perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+            perm_nums = {s['number'] for s in PERMANENT_STUDENTS}
             with db_connection() as db:
-                # Get all student IDs
-                student_ids = [r[0] for r in db.execute("SELECT id FROM users WHERE role = 'student'").fetchall()]
-                if not student_ids:
-                    return self._send_json({"success": True, "deleted": 0})
-                placeholders = ','.join('?' * len(student_ids))
-                # Delete student data
-                db.execute(f"DELETE FROM responses WHERE student_id IN ({placeholders})", student_ids)
-                db.execute(f"DELETE FROM mastery_scores WHERE student_id IN ({placeholders})", student_ids)
-                db.execute(f"DELETE FROM messages WHERE student_id IN ({placeholders})", student_ids)
-                db.execute(f"DELETE FROM enrollments WHERE student_id IN ({placeholders})", student_ids)
-                db.execute(f"DELETE FROM sessions WHERE user_id IN ({placeholders})", student_ids)
-                # Delete student accounts
-                db.execute(f"DELETE FROM users WHERE id IN ({placeholders})", student_ids)
-                db.commit()
-                return self._send_json({"success": True, "deleted": len(student_ids)})
+                all_students = db.execute("SELECT id, email FROM users WHERE role = 'student'").fetchall()
+                non_perm_ids = [
+                    r[0] for r in all_students 
+                    if r[1] not in perm_emails and r[1].split('@')[0] not in perm_nums and str(r[0]).replace('student-', '') not in perm_nums
+                ]
+                if non_perm_ids:
+                    placeholders = ','.join('?' * len(non_perm_ids))
+                    db.execute(f"DELETE FROM responses WHERE student_id IN ({placeholders})", non_perm_ids)
+                    db.execute(f"DELETE FROM mastery_scores WHERE student_id IN ({placeholders})", non_perm_ids)
+                    db.execute(f"DELETE FROM messages WHERE student_id IN ({placeholders})", non_perm_ids)
+                    db.execute(f"DELETE FROM enrollments WHERE student_id IN ({placeholders})", non_perm_ids)
+                    db.execute(f"DELETE FROM sessions WHERE user_id IN ({placeholders})", non_perm_ids)
+                    db.execute(f"DELETE FROM users WHERE id IN ({placeholders})", non_perm_ids)
+                    db.commit()
+                # Re-synchronize permanent students
+                sync_permanent_students_and_enrollments(db)
+            bump_version()
+            return self._send_json({"success": True, "deleted": len(non_perm_ids)})
         except Exception as e:
             return self._send_error(f"Reset failed: {str(e)}")
 
@@ -1193,14 +1224,36 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(f"Reset failed: {str(e)}")
 
     def _logout(self):
-        body = self._read_body_silent()
-        user_id = body.get("user_id")
+        body = self._read_body_silent() or {}
+        user_id = body.get("user_id") if isinstance(body, dict) else None
+        if not user_id:
+            user_id = self._get_user_id()
         if user_id:
             with db_connection() as db:
                 db.execute("UPDATE users SET last_seen = NULL WHERE id = ?", (user_id,))
                 db.commit()
             bump_version()
         return self._send_json({"success": True})
+
+    def _user_heartbeat(self):
+        body = self._read_body_silent() or {}
+        user_id = body.get("user_id") if isinstance(body, dict) else None
+        if not user_id:
+            user_id = self._get_user_id()
+        if not user_id:
+            return self._send_error("user_id required", 400)
+        
+        with db_connection() as db:
+            row = db.execute("""
+                SELECT (last_seen IS NULL OR (strftime('%s','now') - strftime('%s', last_seen)) > 12) as was_inactive
+                FROM users WHERE id = ?
+            """, (user_id,)).fetchone()
+            was_inactive = bool(row and row[0])
+            db.execute("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (user_id,))
+            db.commit()
+            if was_inactive:
+                bump_version()
+        return self._send_json({"success": True, "active": True})
 
     def _delete_user_account(self):
         user_id = self._get_user_id()
@@ -1305,15 +1358,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not student_id:
             return self._send_error("student_id required")
             
+        from database import PERMANENT_STUDENTS
+        perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+        perm_nums = {s['number'] for s in PERMANENT_STUDENTS}
+
         with db_connection() as db:
-            # Delete related data for this student in this course context
-            # (Note: Usually _delete_student is called for a specific course removal in the UI)
-            # If we want a true 'Kick', we only remove enrollment.
+            user = db.execute("SELECT email FROM users WHERE id = ?", (student_id,)).fetchone()
+            if user:
+                email = user[0] or ""
+                num = email.split('@')[0]
+                if email in perm_emails or num in perm_nums or str(student_id).replace('student-', '') in perm_nums:
+                    return self._send_error("Permanent student accounts cannot be removed", 400)
+
             db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
             db.execute("DELETE FROM messages WHERE student_id = ?", (student_id,))
-            # DO NOT DELETE USER: db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
+            db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
         bump_version()
@@ -1500,6 +1561,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
                     db.commit()
 
+                # Set last_seen activity immediately on login
+                db.execute("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
+                db.commit()
+                bump_version()
+
                 self._send_json({
                     "success": True,
                     "user": {"id": user["id"], "name": user["name"],
@@ -1618,6 +1684,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 elif existing_enroll[1] != 'approved':
                     db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing_enroll[0],))
             db.commit()
+
+            # Set last_seen activity immediately on student portal login
+            db.execute("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
+            db.commit()
+            bump_version()
 
             # Fetch all enrollments
             enrollments = db.execute("""
@@ -1856,6 +1927,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     WHERE r.student_id = ? AND ch.course_id = ?
                 """, (s["id"], course_id)).fetchone()["cnt"]
                 s_dict["total_responses"] = resp_count
+
+                from database import PERMANENT_STUDENTS
+                perm_numbers = {ps['number'] for ps in PERMANENT_STUDENTS}
+                perm_emails = {f"{ps['number']}@student.aulaai" for ps in PERMANENT_STUDENTS}
+                s_email = s_dict.get("email") or ""
+                s_num = s_email.split('@')[0]
+                s_dict["is_permanent"] = bool(s_email in perm_emails or s_num in perm_numbers or str(s_dict.get("id", "")).replace("student-", "") in perm_numbers)
 
                 result.append(s_dict)
 

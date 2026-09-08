@@ -28,6 +28,7 @@ let currentStudentAssignments = [];
 // ── TTS Audio Engine (Google Translate TTS — Direct, no server proxy) ──
 const _ttsAudioCache = new Map();
 let _ttsPlaying = false;
+const PERMANENT_STUDENT_NUMBERS = ['176724049', '176725007', '176725019', '176725005', '176725038', '176725853', '176725029', '176725004'];
 
 // Language name → ISO code for Google TTS
 const _langCodes = {
@@ -357,17 +358,65 @@ function confirmDeleteAccount() {
 }
 
 // ── Live-sync: poll for data changes every 1 second ──
+let _syncTick = 0;
+let _heartbeatInterval = null;
+
+function startUserHeartbeat() {
+  if (_heartbeatInterval) clearInterval(_heartbeatInterval);
+  const sendPing = () => {
+    if (!currentUser || !currentUser.id) return;
+    fetch('/api/user/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id })
+    }).catch(() => {});
+  };
+  sendPing();
+  _heartbeatInterval = setInterval(sendPing, 3000);
+}
+
+// Immediately notify server when student closes tab or leaves
+window.addEventListener('beforeunload', () => {
+  if (currentUser && currentUser.id && currentUser.role === 'student') {
+    try {
+      const payload = JSON.stringify({ user_id: currentUser.id });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon('/api/user/logout', blob);
+      } else {
+        fetch('/api/user/logout', { method: 'POST', body: payload, keepalive: true });
+      }
+    } catch (e) {}
+  }
+});
+
 function startLiveSync() {
   if (_syncInterval) clearInterval(_syncInterval);
+  startUserHeartbeat();
   _syncInterval = setInterval(async () => {
     if (!currentUser) return;
     try {
+      _syncTick++;
+      // Continuous heartbeat ping every 3 seconds for active user
+      if (currentUser && currentUser.id && (_syncTick % 3 === 0)) {
+        fetch('/api/user/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUser.id })
+        }).catch(() => {});
+      }
+
       const res = await fetch('/api/version');
       const data = await res.json();
       if (_lastVersion === -1) { _lastVersion = data.version; return; }
       if (data.version !== _lastVersion) {
         _lastVersion = data.version;
         console.log('[LiveSync] Data changed, refreshing...');
+
+        // If admin panel is open, refresh students list immediately
+        if (currentUser && (currentUser.role === 'lecturer' || currentUser.email === 'atunca96@gmail.com') && document.getElementById('classroom-selection-screen')?.classList.contains('active')) {
+          loadAdminStudentPanel(true);
+        }
 
         // If data changed, ensure we weren't just kicked
         const statusCheck = await api('/user/status?user_id=' + currentUser.id + (currentUser.course_id ? '&course_id=' + currentUser.course_id : ''));
@@ -459,7 +508,7 @@ function startLiveSync() {
       }
 
       // Continuous background polling for Admin Students Panel to update status LIVE without refreshing
-      if (currentUser && currentUser.role === 'lecturer' && document.getElementById('classroom-selection-screen').classList.contains('active')) {
+      if (currentUser && (currentUser.role === 'lecturer' || currentUser.email === 'atunca96@gmail.com') && document.getElementById('classroom-selection-screen')?.classList.contains('active')) {
         const pnl = document.getElementById('admin-students-panel');
         if (pnl && !pnl.classList.contains('hidden')) {
           loadAdminStudentPanel(true);
@@ -471,6 +520,7 @@ function startLiveSync() {
 
 function stopLiveSync() {
   if (_syncInterval) { clearInterval(_syncInterval); _syncInterval = null; }
+  if (_heartbeatInterval) { clearInterval(_heartbeatInterval); _heartbeatInterval = null; }
 }
 
 function refreshCurrentView() {
@@ -4561,6 +4611,7 @@ function initRouter() {
 async function completeLogin(user, isFresh = false) {
   currentUser = user;
   if (user.course_id) courseId = user.course_id;
+  startUserHeartbeat();
 
   if (isFresh) {
     localStorage.removeItem('aula_last_tab');
@@ -7193,7 +7244,11 @@ async function loadStudentRoster() {
     const pct = Math.round(s.avg_mastery * 100);
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const schoolNumHtml = schoolNum ? `<span style="font-size:12px; color:var(--text-muted); margin-left:8px; font-weight:normal">#${schoolNum}</span>` : '';
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}')">
+    const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
+    const kickBtn = !isPermanent
+      ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>`
+      : '';
+    return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
       <div class="flex-between" style="margin-bottom:8px; gap:12px">
         <div class="student-name" style="margin-bottom:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">
           ${s.name}${schoolNumHtml}
@@ -7201,7 +7256,7 @@ async function loadStudentRoster() {
         <div style="display:flex; gap:6px; flex-shrink:0">
           <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 8px; border-radius:6px; font-size:12px" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})">${SVG_KEY} <span data-i18n="admin.set_password">${t('admin.set_password')}</span></button>
           <button class="btn btn-sm" style="background:var(--accent); color:#fff; border:none; padding:4px 8px; border-radius:6px; font-size:14px" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})">${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-          <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 8px; border-radius:6px" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})"><span data-i18n="Kick">${t('Kick')}</span></button>
+          ${kickBtn}
         </div>
       </div>
       <div class="student-mastery-bar">
@@ -7336,10 +7391,19 @@ async function confirmCancelAssignment() {
 }
 
 async function deleteStudent(sid, name) {
+  const isPerm = PERMANENT_STUDENT_NUMBERS.includes(String(sid || '').replace('student-', ''));
+  if (isPerm) {
+    showAlert('cancel', 'Permanent students cannot be removed.', true);
+    return;
+  }
   const confirmed = await showConfirmModal('confirm.kick_student_title', 'confirm.kick_student_msg', true, null, false, 'ok', 'cancel', { name });
   if (confirmed) {
     const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
-    if (!res.error) loadStudentRoster();
+    if (res && res.error) {
+      showAlert('cancel', res.error, true);
+    } else {
+      loadStudentRoster();
+    }
   }
 }
 
@@ -7379,7 +7443,12 @@ async function resetData(targetCourseId = null) {
   }
 }
 
-async function showStudentDetail(sid, name, studentId = '') {
+async function showStudentDetail(sid, name, studentId = '', isPermanent = false) {
+  const isPerm = Boolean(isPermanent || PERMANENT_STUDENT_NUMBERS.includes(studentId) || PERMANENT_STUDENT_NUMBERS.includes(String(sid || '').replace('student-', '')));
+  const kickBtn = !isPerm
+    ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}',${escJS(name).replace(/'/g, "\\'")})">${SVG_BAN} <span data-i18n="Kick">${t('Kick')}</span></button>`
+    : '';
+
   const data = await api('/student/progress?student_id=' + sid);
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
@@ -7391,7 +7460,7 @@ async function showStudentDetail(sid, name, studentId = '') {
       <h2 style="margin:0">${name}${idHtml}</h2>
       <div style="display:flex; gap:8px">
         <button class="btn btn-primary btn-sm" onclick="openChatFromRoster('${sid}',${escJS(name).replace(/'/g, "\\'")})">${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span></button>
-        <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger)" onclick="deleteStudent('${sid}',${escJS(name).replace(/'/g, "\\'")})">${SVG_BAN} <span data-i18n="Kick">${t('Kick')}</span></button>
+        ${kickBtn}
       </div>
     </div>
 
@@ -8979,9 +9048,9 @@ async function loadAdminStudentPanel(isRefresh = false) {
   try {
     const students = await api('/admin/all-students');
     const currentLang = localStorage.getItem('aula_lang') || 'en';
-    const dataHash = JSON.stringify(students || []) + currentLang;
-    if (panel.dataset.hash === dataHash) return; // Skip re-render if nothing changed
-    panel.dataset.hash = dataHash;
+    const stateSignature = (students || []).map(s => `${s.id}:${s.is_active}:${s.status}:${s.course_count}:${s.total_responses}`).join('|') + currentLang;
+    if (panel.dataset.hash === stateSignature) return; // Skip re-render if nothing changed
+    panel.dataset.hash = stateSignature;
 
     if (!students || students.length === 0) {
       panel.innerHTML = `
@@ -8996,24 +9065,30 @@ async function loadAdminStudentPanel(isRefresh = false) {
 
     const rows = students.map(s => {
       const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
+      const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
       
-      // Real-time Online Status Logic
+      // Real-time Online Status Logic (server calculated with UTC precision)
       let isOnline = false;
-      if (s.last_seen) {
-        const lastSeen = new Date(s.last_seen + ' UTC').getTime();
+      if (s.is_active !== undefined) {
+        isOnline = Boolean(s.is_active);
+      } else if (s.last_seen) {
+        const lastSeen = new Date(s.last_seen.replace(' ', 'T') + 'Z').getTime();
         const now = new Date().getTime();
-        // If active in last 5 minutes (allowing for clock skew and sync interval)
-        if (now - lastSeen < 5 * 60 * 1000) isOnline = true;
+        if (now - lastSeen < 12 * 1000) isOnline = true;
       }
 
       const statusBadge = isOnline 
-        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">\u2022 ${t('admin.active')}</span>`
+        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="width:6px; height:6px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 8px #22c55e;"></span>${t('admin.active')}</span>`
         : (s.status === 'pending'
            ? `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`
            : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.inactive')}</span>`);
       
       // Prettify comma-separated list from SQL
       const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
+      
+      const removeBtn = !isPermanent
+        ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>`
+        : '';
       
       return `
         <tr style="border-bottom:1px solid var(--border);">
@@ -9025,7 +9100,7 @@ async function loadAdminStudentPanel(isRefresh = false) {
           <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
             <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
             <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
-            <button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>
+            ${removeBtn}
           </td>
         </tr>`;
     }).join('');
@@ -9080,10 +9155,19 @@ async function adminResetStudentProgress(sid, name) {
 }
 
 async function adminKickStudent(sid, name) {
+  const isPerm = PERMANENT_STUDENT_NUMBERS.includes(String(sid || '').replace('student-', ''));
+  if (isPerm) {
+    showAlert('cancel', 'Permanent students cannot be removed.', true);
+    return;
+  }
   const confirmed = await showConfirmModal('confirm.kick_student_title', 'confirm.kick_student_msg', true, null, false, 'ok', 'cancel', { name });
   if (confirmed) {
-    await api('/student/delete', { method: 'POST', body: { student_id: sid } });
-    loadAdminStudentPanel();
+    const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
+    if (res && res.error) {
+      showAlert('cancel', res.error, true);
+    } else {
+      loadAdminStudentPanel(true);
+    }
   }
 }
 
