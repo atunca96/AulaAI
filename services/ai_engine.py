@@ -675,6 +675,34 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     - Bad calques to strictly avoid: "me gusta + mastar fiil kullanarak keyif almak için ifade edin", "Fiil formunu öznenin tercihine göre eşleştirmeyi unutmayın".
 """
 
+    classroom_density_mandate = f"""
+CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
+- You are authoring master slides for university language departments and premier language institutes.
+- Every slide will be projected onto a large classroom smartboard. Thin, empty slides with 1-2 generic bullet points are a CRITICAL DEFECT.
+- For VOCABULARY pages:
+  * Minimum 8-12 comprehensive vocabulary items.
+  * Every item MUST contain: authentic target example sentence in {language}, English & Turkish translations, and practical collocation/usage note.
+- For GRAMMAR / STRUCTURAL FOCUS pages (MANDATORY STRUCTURE):
+  * 'formula': The syntactic / morphological pattern (e.g. '[Subject] + [Clause + -dıkça / -dikçe] + [Main Verb]' or '[Verbo principal] + que + [Subjuntivo]').
+  * 'formula_tr': The formula explained in natural Turkish.
+  * 'rules': Array of 3 to 4 structured rules. Each rule MUST have:
+    - 'rule': Concise rule name and principle in English.
+    - 'rule_tr': Concise rule name and principle in Turkish.
+    - 'explanation': Deep pedagogical mechanics in English.
+    - 'explanation_tr': Deep pedagogical mechanics in Turkish.
+    - 'example': Authentic target language example sentence in {language}.
+    - 'example_en': Natural English translation.
+    - 'example_tr': Natural Turkish translation.
+    - 'analysis': Grammatical breakdown explaining the specific morpheme or syntax in the example.
+  * 'comparisons': Array of 2 contrast pairs demonstrating:
+    - Standard vs Elevated/Literary, or Colloquial vs Formal, or Common Pitfall vs Correct Native Form.
+  * 'pitfall' & 'pitfall_tr': Teacher's Warning highlighting the #1 mistake students make with this rule.
+  * 'text' & 'text_tr': Comprehensive overview with at least 4-6 detailed bullet points.
+- For EXAMPLES / DIALOGUE pages:
+  * Situated authentic dialogue with 6-10 turns showing the target structures in communicative use.
+  * 'context' & 'context_tr': Setting, social relationships, and communicative goal.
+"""
+
     system = f"""You are a master {language} pedagogical designer. 
     STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
     
@@ -699,6 +727,7 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     CONTRAST RULE: {contrast_rule}
     SIMPLICITY RULE: {simplicity_rule}
     DENSITY MANDATE: {density_mandate}
+    CLASSROOM MANDATE: {classroom_density_mandate}
     NO {instruction_lang_name.upper()} IN LISTS: {no_english_in_lists}
     JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
     NO CONVERSATION: Provide ONLY the JSON structure."""
@@ -720,10 +749,10 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
     3. DIALOGUE TARGET LANGUAGE MANDATE: In 'examples' and dialogue lists, spoken dialogue lines ('text') MUST ALWAYS be authentic sentences in {language}. NEVER write English or Turkish sentences in 'text'. English translation goes strictly in 'translation', Turkish translation goes strictly in 'translation_tr'.
     4. BULLET POINTS ONLY: Format all grammar and context 'text' / 'text_tr' or 'explanation' / 'explanation_tr' fields as concise bullet points.
     5. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    5. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
-    6. NO FILLER: Every page must be packed with pedagogical value.
-    7. ZERO CALQUES: Ensure all Turkish explanations are authentic, idiomatic, and educational.
-    8. EXPLANATORY ITEMS: For every item in 'items', provide both 'explanation' (English) and 'explanation_tr' (Turkish).
+    6. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
+    7. NO FILLER: Every page must be packed with pedagogical value.
+    8. ZERO CALQUES: Ensure all Turkish explanations are authentic, idiomatic, and educational.
+    9. EXPLANATORY ITEMS: For every item in 'items', provide both 'explanation' (English) and 'explanation_tr' (Turkish).
     
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
@@ -751,13 +780,67 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
           "type": "grammar", 
           "title": "Structural Focus", 
           "title_tr": "Yapısal Dilbilgisi Kuralları", 
-          "text": "• Clear bullet-point Rule 1 in English\\n• Rule 2 with English context", 
-          "text_tr": "• Net ve anlaşılır Türkçe kural maddesi 1\\n• Doğal öğretmen üslubuyla yazılmış Türkçe kural maddesi 2" 
+          "formula": "[Syntactic Pattern in {language}]",
+          "formula_tr": "[Türkçe Sözdizimsel Kalıp ve Formül]",
+          "text": "• Core Syntactic Principle 1 in English\\n• Morphological inflection and agreement Rule 2\\n• Subordination or clause chaining Rule 3\\n• Stylistic modulation and register nuance Rule 4", 
+          "text_tr": "• Temel Sözdizimsel İlke 1 (Doğal Türkçe öğretmen anlatımı)\\n• Biçimbirimsel çekim ve uyum Kuralı 2\\n• Yan cümle ve bağlaç Kuralı 3\\n• Üslup ve ileri düzey kullanım Kuralı 4",
+          "rules": [
+            {{
+              "rule": "1. Suffix Mechanics & Morphological Trigger",
+              "rule_tr": "1. Biçimbirimsel Tetikleyici ve Ek Mekaniği",
+              "explanation": "Detailed explanation of when and why this grammatical structure is triggered.",
+              "explanation_tr": "Bu dilbilgisel yapının hangi bağlamlarda ve neden devreye girdiğini açıklayan detaylı rehber.",
+              "example": "Authentic example sentence in {language}",
+              "example_en": "Natural English translation",
+              "example_tr": "Doğal Türkçe çeviri",
+              "analysis": "Breakdown of the specific morpheme or verb form in the example."
+            }},
+            {{
+              "rule": "2. Syntactic Subordination & Meaning Dependency",
+              "rule_tr": "2. Yan Cümle Bağımlılığı ve Anlamsal İlişki",
+              "explanation": "How the secondary clause modulates the matrix clause meaning.",
+              "explanation_tr": "Yan cümlenin ana cümleye kattığı anlamsal boyut ve zaman uyumu.",
+              "example": "Second authentic example sentence in {language}",
+              "example_en": "Natural English translation",
+              "example_tr": "Doğal Türkçe çeviri",
+              "analysis": "Breakdown of the second example."
+            }},
+            {{
+              "rule": "3. Register Modulation & Stylistic Nuance",
+              "rule_tr": "3. Üslup ve İleri Düzey Nüans",
+              "explanation": "How native speakers elevate their speech using this structure.",
+              "explanation_tr": "Anadili konuşurlarının bu yapıyı resmi veya edebi dilde nasıl kullandığı.",
+              "example": "Third authentic high-register example sentence in {language}",
+              "example_en": "Natural English translation",
+              "example_tr": "Doğal Türkçe çeviri",
+              "analysis": "Analysis of the stylistic elevation."
+            }}
+          ],
+          "comparisons": [
+            {{
+              "context": "Direct / Conversational",
+              "target": "Everyday colloquial sentence in {language}",
+              "translation": "English translation",
+              "translation_tr": "Türkçe çeviri",
+              "note": "Standard conversational formulation"
+            }},
+            {{
+              "context": "Elevated / Nuanced",
+              "target": "Advanced nuanced sentence in {language}",
+              "translation": "English translation",
+              "translation_tr": "Türkçe çeviri",
+              "note": "Sophisticated formal/literary expression"
+            }}
+          ],
+          "pitfall": "Crucial learner pitfall to avoid (e.g. overusing literal translations or misapplying tense concordance).",
+          "pitfall_tr": "Öğrencilerin en sık düştüğü hata ve dikkat edilmesi gereken püf noktası."
         }},
         {{ 
           "type": "examples", 
           "title": "Practical Application", 
           "title_tr": "Pratik Uygulama", 
+          "context": "Communicative setting and social roles in English",
+          "context_tr": "İletişimsel bağlam ve konuşmacıların rolleri (Türkçe)",
           "explanation": "• How these sentences work in real life", 
           "explanation_tr": "• Bu cümlelerin günlük hayattaki kullanımını anlatan Türkçe açıklama", 
           "list": [ 
@@ -825,6 +908,24 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
                 p["text_tr"] = p["text"]
             if p.get("explanation") and not p.get("explanation_tr"):
                 p["explanation_tr"] = p["explanation"]
+
+            # Preserve & clean formula, rules, comparisons, pitfall for grammar pages
+            if p.get("type") == "grammar" or p.get("formula") or p.get("rules"):
+                if p.get("formula") and not p.get("formula_tr"):
+                    p["formula_tr"] = p["formula"]
+                if p.get("pitfall") and not p.get("pitfall_tr"):
+                    p["pitfall_tr"] = p["pitfall"]
+                if p.get("context") and not p.get("context_tr"):
+                    p["context_tr"] = p["context"]
+                if isinstance(p.get("rules"), list):
+                    for r_it in p["rules"]:
+                        if isinstance(r_it, dict):
+                            if not r_it.get("rule_tr") and r_it.get("rule"):
+                                r_it["rule_tr"] = r_it["rule"]
+                            if not r_it.get("explanation_tr") and r_it.get("explanation"):
+                                r_it["explanation_tr"] = r_it["explanation"]
+                            if not r_it.get("example_tr") and r_it.get("example_en"):
+                                r_it["example_tr"] = r_it["example_en"]
 
             # Pedagogical item explanation enrichment & self-healing
             from services.language_data import get_letter_phonetics, get_vocab_example
@@ -925,12 +1026,12 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
         lesson_dict["pages"] = cleaned
         return lesson_dict
 
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=4000, temperature=0.4)
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=5000, temperature=0.4)
     if res and "pages" in res:
         return _clean_pages(res)
     # If primary model failed entirely, try fallback once
     if MODEL_FALLBACK:
-        res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4000, temperature=0.4)
+        res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=5000, temperature=0.4)
         if res2 and "pages" in res2:
             return _clean_pages(res2)
     return {"pages": []}

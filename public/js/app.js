@@ -9336,6 +9336,36 @@ function showStudyTopic(topicId, pageIdx = 0) {
           render: () => {
             let html = "";
             
+            // 0. Syntactic Formula / Pattern Detection
+            const formulaVal = (currentLang === 'tr' && p.formula_tr) ? p.formula_tr : (p.formula || p.pattern || p.structure || "");
+            if (formulaVal && typeof formulaVal === "string" && formulaVal.trim().length > 0) {
+              const formulaLabel = currentLang === 'tr' ? 'Sözdizimsel Yapı ve Formül' : 'Syntactic Pattern & Formula';
+              html += `
+                <div class="pedagogy-formula-banner">
+                  <div class="pedagogy-formula-badge">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><polyline points="10 9 9 9 8 9"></polyline><line x1="12" y1="13" x2="8" y2="13"></line><line x1="12" y1="17" x2="8" y2="17"></line></svg>
+                    <span>${formulaLabel}</span>
+                  </div>
+                  <div class="pedagogy-formula-text">${fixDiacritics(formulaVal)}</div>
+                </div>
+              `;
+            }
+
+            // Communicative Scene Context (for dialogues/examples)
+            const sceneContext = (currentLang === 'tr' && p.context_tr) ? p.context_tr : (p.context || p.scene || "");
+            if (sceneContext && typeof sceneContext === "string" && sceneContext.trim().length > 0 && !isMcq) {
+              const sceneLabel = currentLang === 'tr' ? 'İletişimsel Bağlam ve Sahne' : 'Communicative Scenario & Setting';
+              html += `
+                <div class="pedagogy-scene-banner">
+                  <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--accent); display:flex; align-items:center; gap:6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span>${sceneLabel}</span>
+                  </div>
+                  <div style="font-size:14px; line-height:1.5; color:var(--text-secondary);">${fixDiacritics(sceneContext)}</div>
+                </div>
+              `;
+            }
+
             // 1. Text/Explanation Detection
             // For MCQs, NEVER display the answer explanation beforehand; only display explicit intro or instructions if present.
             let text = "";
@@ -9349,19 +9379,20 @@ function showStudyTopic(topicId, pageIdx = 0) {
               }
               if (!text || (typeof text === "object" && !Array.isArray(text))) {
                  for(let key in p) {
-                   if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "title_tr" && key !== "type" && key !== "explanation" && key !== "answer") {
+                   if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "title_tr" && key !== "type" && key !== "explanation" && key !== "answer" && key !== "formula" && key !== "formula_tr" && key !== "pitfall" && key !== "pitfall_tr") {
                      text = p[key]; break;
                    }
                  }
               }
             }
 
+            let linesArr = [];
             if (text && typeof text === "string") {
               const translatedText = (currentLang === 'tr')
                 ? ((p.text_tr || p.explanation_tr) ? text : translateEducationalText(text))
                 : (p.text || p.explanation || text);
               const fixDiacriticsText = fixDiacritics(translatedText);
-              const linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
+              linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
               const badgeLabel = currentLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
               if (linesArr.length > 1) {
                 html += `
@@ -9386,16 +9417,132 @@ function showStudyTopic(topicId, pageIdx = 0) {
               }
             }
 
+            // Structured Rules Detection (Interactive Rule Cards)
+            let hasRenderedStructuredRules = false;
+            const rawRules = (currentLang === 'tr' && p.rules_tr && Array.isArray(p.rules_tr) && typeof p.rules_tr[0] === 'object') ? p.rules_tr : p.rules;
+            if (Array.isArray(rawRules) && rawRules.length > 0 && typeof rawRules[0] === 'object') {
+              hasRenderedStructuredRules = true;
+              html += `<div class="pedagogy-rules-container">`;
+              rawRules.forEach((rObj, rIdx) => {
+                const rTitle = (currentLang === 'tr' && rObj.rule_tr) ? rObj.rule_tr : (rObj.rule || rObj.name || `Rule ${rIdx + 1}`);
+                const rExpl = (currentLang === 'tr' && rObj.explanation_tr) ? rObj.explanation_tr : (rObj.explanation || rObj.desc || "");
+                const rEx = rObj.example || rObj.target || "";
+                const rExEn = rObj.example_en || rObj.translation || "";
+                const rExTr = rObj.example_tr || (rObj.translation_tr || rObj.turkish || "");
+                const rAnalysis = (currentLang === 'tr' && rObj.analysis_tr) ? rObj.analysis_tr : (rObj.analysis || rObj.breakdown || "");
+                const resolvedTrans = (currentLang === 'tr') ? (rExTr || (rExEn ? translateEducationalText(rExEn) : "")) : (rExEn || rExTr);
+
+                html += `
+                  <div class="pedagogy-rule-card">
+                    <div class="pedagogy-rule-title">
+                      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent);"></span>
+                      <span>${fixDiacritics(rTitle)}</span>
+                    </div>
+                    ${rExpl ? `<div class="pedagogy-rule-explanation">${highlightPedagogicalTerms(fixDiacritics(rExpl))}</div>` : ''}
+                    ${rEx ? `
+                      <div class="pedagogy-rule-example-box">
+                        <div class="pedagogy-rule-example-top">
+                          <span class="pedagogy-rule-example-label">${currentLang === 'tr' ? 'Örnek Kullanım' : 'Example Usage'}</span>
+                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(rEx)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                        </div>
+                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(rEx)}&rdquo;</div>
+                        ${resolvedTrans ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:5px; line-height:1.45;">${fixDiacritics(resolvedTrans)}</div>` : ''}
+                        ${rAnalysis ? `<div style="font-size:12px; color:var(--accent-light); margin-top:6px; padding-top:6px; border-top:1px dashed var(--border); line-height:1.4;"><strong style="text-transform:uppercase; font-size:10px; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Dilbilgisi Analizi' : 'Structural Breakdown'}:</strong> ${fixDiacritics(rAnalysis)}</div>` : ''}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              });
+              html += `</div>`;
+            }
+
+            // Register / Nuance Contrast Section
+            const compList = (currentLang === 'tr' && p.comparisons_tr) ? p.comparisons_tr : (p.comparisons || p.contrasts || []);
+            if (Array.isArray(compList) && compList.length > 0) {
+              const compHeader = currentLang === 'tr' ? 'Üslup ve Nüans Karşılaştırması' : 'Register & Nuance Contrast';
+              html += `
+                <div class="pedagogy-contrast-section">
+                  <div class="pedagogy-formula-badge" style="color:var(--accent-light); margin-bottom:8px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+                    <span>${compHeader}</span>
+                  </div>
+                  <div class="pedagogy-contrast-grid">
+                    ${compList.map(c => {
+                      const cContext = (currentLang === 'tr' && c.context_tr) ? c.context_tr : (c.context || c.label || "Contrast");
+                      const cTarget = c.target || c.sentence || c.text || "";
+                      const cTrans = (currentLang === 'tr' && c.translation_tr) ? c.translation_tr : (c.translation || c.meaning || "");
+                      const cNote = (currentLang === 'tr' && c.note_tr) ? c.note_tr : (c.note || c.explanation || "");
+                      return `
+                        <div class="pedagogy-contrast-card">
+                          <div class="pedagogy-contrast-tag">${fixDiacritics(cContext)}</div>
+                          ${cTarget ? `
+                            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px;">
+                              <div class="foreign-word pedagogy-contrast-target" role="button" tabindex="0" style="cursor:pointer; display:inline;">&ldquo;${fixDiacritics(cTarget)}&rdquo;</div>
+                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(cTarget)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                            </div>
+                          ` : ''}
+                          ${cTrans ? `<div class="pedagogy-contrast-trans">${fixDiacritics(cTrans)}</div>` : ''}
+                          ${cNote ? `<div class="pedagogy-contrast-note">${fixDiacritics(cNote)}</div>` : ''}
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            }
+
+            // Teacher's Pitfall & Caution Box
+            const pitfallVal = (currentLang === 'tr' && p.pitfall_tr) ? p.pitfall_tr : (p.pitfall || p.caution || p.teacher_note || "");
+            if (pitfallVal && typeof pitfallVal === "string" && pitfallVal.trim().length > 0) {
+              const pitfallTitle = currentLang === 'tr' ? 'Öğretmenin Notu & Sık Yapılan Hatalar' : 'Teacher’s Caution & Common Pitfalls';
+              html += `
+                <div class="pedagogy-pitfall-card">
+                  <div class="pedagogy-pitfall-header">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <span>${pitfallTitle}</span>
+                  </div>
+                  <div class="pedagogy-pitfall-body">${highlightPedagogicalTerms(fixDiacritics(pitfallVal))}</div>
+                </div>
+              `;
+            }
+
+            // Smartboard Density Expander for Legacy / Brief Slides
+            const hasRichComponents = Boolean(formulaVal || hasRenderedStructuredRules || compList.length > 0 || pitfallVal);
+            if (!hasRichComponents && linesArr.length > 0 && linesArr.length <= 3 && !isMcq) {
+              const teacherTipTitle = currentLang === 'tr' ? 'Sınıf İçi Pedagojik Uygulama & Öğretmen Notu' : 'Classroom Pedagogical Guidance & Teaching Focus';
+              const teacherTipText = currentLang === 'tr'
+                ? 'Bu dilbilgisi ve yapı kurallarını incelerken, biçimbirimsel eklerin cümledeki anlamsal işlevine ve resmi/edebi dildeki kullanım sıklığına dikkat ediniz. Öğrencilerin bu yapıları hem yazılı hem de sözlü bağlamda kontrastlı örneklerle pekiştirmesi önerilir.'
+                : 'When exploring these structural nuances, focus on how subtle grammatical variations modulate formal register and speaker stance. Practice contrasting everyday conversational syntax with elevated literary expression.';
+              const practicePromptTitle = currentLang === 'tr' ? 'Etkileşimli Pekiştirme' : 'Classroom Practice Cue';
+              const practicePromptText = currentLang === 'tr'
+                ? 'Yukarıdaki kuralları temsil eden en az iki özgün cümle kurarak bağlamsal nüansı sınıfta tartışınız.'
+                : 'Formulate at least two authentic sentences applying these principles and discuss their register with peers.';
+
+              html += `
+                <div class="pedagogy-smartboard-expansion">
+                  <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--accent); margin-bottom:8px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    <span>${teacherTipTitle}</span>
+                  </div>
+                  <div style="font-size:14px; line-height:1.65; color:var(--text-secondary); margin-bottom:12px;">${teacherTipText}</div>
+                  <div style="background:rgba(0,0,0,0.15); border-radius:8px; padding:10px 14px; border:1px dashed var(--border); display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:18px;">💡</span>
+                    <div style="font-size:13.5px; color:var(--text-primary); line-height:1.45;"><strong style="color:var(--accent);">${practicePromptTitle}:</strong> ${practicePromptText}</div>
+                  </div>
+                </div>
+              `;
+            }
+
             // 2. Data List Detection
             let rawData = [];
-            if (currentLang === 'tr' && (p.items_tr || p.list_tr || p.examples_tr || p.rules_tr)) {
-              rawData = p.items_tr || p.list_tr || p.examples_tr || p.rules_tr;
+            if (currentLang === 'tr' && (p.items_tr || p.list_tr || p.examples_tr || (hasRenderedStructuredRules ? null : p.rules_tr))) {
+              rawData = p.items_tr || p.list_tr || p.examples_tr || (hasRenderedStructuredRules ? [] : p.rules_tr);
             } else {
-              rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || [];
+              rawData = p.items || p.vocabulary || p.words || p.list || p.phrases || p.examples || p.dialogue || (hasRenderedStructuredRules ? [] : (p.rules || []));
             }
             if (!Array.isArray(rawData) || rawData.length === 0) {
               for (const key in p) {
-                if (Array.isArray(p[key]) && p[key].length > 0 && key !== 'pages' && key !== 'options' && key !== 'choices' && key !== 'distractors' && key !== 'answer') {
+                if (Array.isArray(p[key]) && p[key].length > 0 && key !== 'pages' && key !== 'options' && key !== 'choices' && key !== 'distractors' && key !== 'answer' && key !== 'rules' && key !== 'comparisons') {
                   rawData = p[key]; break;
                 }
               }
