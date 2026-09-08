@@ -4306,12 +4306,12 @@ function switchLoginTab(tab) {
 
 function fillDemo(role) {
   if (role === 'lecturer') {
-    document.getElementById('login-email').value = 'garcia@university.edu';
-    document.getElementById('login-password').value = 'demo123';
+    document.getElementById('login-email').value = 'atunca96@gmail.com';
+    document.getElementById('login-password').value = 'ALper2002@';
   } else {
-    document.getElementById('student-number').value = '2023001';
+    document.getElementById('student-number').value = '176725004';
     const pwdEl = document.getElementById('student-password');
-    if (pwdEl) pwdEl.value = 'demo123';
+    if (pwdEl) pwdEl.value = '1234';
   }
 }
 

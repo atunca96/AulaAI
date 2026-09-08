@@ -428,6 +428,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = ?, total_steps = ?, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, topic_count, course_id, gen_id, gen_id))
             db.commit()
+        from database import enroll_permanent_students_in_course
+        enroll_permanent_students_in_course(course_id)
         bump_version()
 
     except Exception as e:
@@ -454,6 +456,8 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
         db.execute("INSERT INTO courses (id, name, semester, textbook, language, level, code, is_building, lecturer_id, generation_id, material_language, build_stage, build_message, build_started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                    (course_id, course_name, "Fall 2026", textbook_url, language or "Detecting...", level or "A1", code, 1, lecturer_id, gen_id, material_language, "analyzing", "Analyzing textbook syllabus...", time.time()))
         db.commit()
+    from database import enroll_permanent_students_in_course
+    enroll_permanent_students_in_course(course_id)
     
     manual_toc_file = None
     if manual_toc:
@@ -526,6 +530,9 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
             db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id, material_language, build_stage, build_message, build_started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language, "structuring", "Building curriculum structure...", time.time()))
             db.commit()
+
+    from database import enroll_permanent_students_in_course
+    enroll_permanent_students_in_course(course_id)
 
     # Ensure all chapters and topics have clean bilingual titles (EN and TR)
     from services.curriculum_translator import ensure_bilingual_curriculum

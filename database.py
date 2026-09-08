@@ -6,10 +6,125 @@ import uuid
 import threading
 import contextlib
 import time
+import hashlib
 from datetime import datetime, timezone
 
 def _uid():
     return str(uuid.uuid4())
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256((password + "AulaAI_Salt").encode('utf-8')).hexdigest()
+
+PERMANENT_STUDENTS = [
+    {"number": "176724049", "name": "Yusuf Arabacı"},
+    {"number": "176725007", "name": "Zehra Küçükelvan"},
+    {"number": "176725019", "name": "Yaren Korkut"},
+    {"number": "176725005", "name": "Ecrin Bektaş"},
+    {"number": "176725038", "name": "Ela Naz Doğan"},
+    {"number": "176725853", "name": "Buket Kabak"},
+    {"number": "176725029", "name": "Beren Kibar"},
+    {"number": "176725004", "name": "Alper Tunca"},
+]
+
+def enroll_permanent_students_in_course(course_id, db=None):
+    """Auto-enrolls all permanent student accounts in the given course_id with status 'approved'."""
+    if not course_id:
+        return
+
+    def _do_enroll(conn):
+        c = conn.cursor()
+        for s in PERMANENT_STUDENTS:
+            email_key = f"{s['number']}@student.aulaai"
+            user_row = c.execute("SELECT id FROM users WHERE email = ? AND role = 'student'", (email_key,)).fetchone()
+            if not user_row:
+                continue
+            student_id = user_row[0]
+            existing = c.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id)).fetchone()
+            if not existing:
+                enroll_id = str(uuid.uuid4())
+                c.execute("""
+                    INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                    VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                """, (enroll_id, student_id, course_id))
+            elif existing[1] != 'approved':
+                c.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
+        conn.commit()
+
+    if db is not None:
+        _do_enroll(db)
+    else:
+        with db_connection() as conn:
+            _do_enroll(conn)
+
+
+def sync_permanent_students_and_enrollments(db=None):
+    """
+    1. Removes all existing student accounts that are not in PERMANENT_STUDENTS.
+    2. Creates/updates all 8 permanent students with password '1234' (status='approved').
+    3. Auto-enrolls all 8 permanent students into EVERY classroom in the database.
+    """
+    def _do_sync(conn):
+        c = conn.cursor()
+        hashed_pwd_1234 = hash_password("1234")
+        valid_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+        
+        # 1. Delete already existing non-permanent student accounts
+        obsolete_students = c.execute("SELECT id, email FROM users WHERE role = 'student'").fetchall()
+        for stu in obsolete_students:
+            stu_id, stu_email = stu[0], stu[1]
+            if stu_email not in valid_emails:
+                print(f"[DB] Purging obsolete student account: {stu_email} ({stu_id})")
+                c.execute("DELETE FROM enrollments WHERE student_id = ?", (stu_id,))
+                c.execute("DELETE FROM responses WHERE student_id = ?", (stu_id,))
+                c.execute("DELETE FROM messages WHERE student_id = ?", (stu_id,))
+                c.execute("DELETE FROM mastery_scores WHERE student_id = ?", (stu_id,))
+                c.execute("DELETE FROM sessions WHERE user_id = ?", (stu_id,))
+                c.execute("DELETE FROM users WHERE id = ?", (stu_id,))
+
+        # 2. Ensure all 8 permanent student accounts exist with password '1234'
+        for s in PERMANENT_STUDENTS:
+            email_key = f"{s['number']}@student.aulaai"
+            existing = c.execute("SELECT id FROM users WHERE email = ?", (email_key,)).fetchone()
+            if existing:
+                c.execute("""
+                    UPDATE users
+                    SET name = ?, password = ?, role = 'student', status = 'approved'
+                    WHERE id = ?
+                """, (s["name"], hashed_pwd_1234, existing[0]))
+            else:
+                stu_id = f"student-{s['number']}"
+                c.execute("""
+                    INSERT INTO users (id, name, email, password, role, status, created_at)
+                    VALUES (?, ?, ?, ?, 'student', 'approved', datetime('now'))
+                """, (stu_id, s["name"], email_key, hashed_pwd_1234))
+
+        # 3. Auto-enroll all 8 students in every existing classroom
+        courses = c.execute("SELECT id FROM courses").fetchall()
+        for course in courses:
+            cid = course[0]
+            for s in PERMANENT_STUDENTS:
+                email_key = f"{s['number']}@student.aulaai"
+                user_row = c.execute("SELECT id FROM users WHERE email = ?", (email_key,)).fetchone()
+                if not user_row:
+                    continue
+                stu_id = user_row[0]
+                existing_enroll = c.execute("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ?", (stu_id, cid)).fetchone()
+                if not existing_enroll:
+                    c.execute("""
+                        INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                        VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                    """, (str(uuid.uuid4()), stu_id, cid))
+                else:
+                    c.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing_enroll[0],))
+
+        conn.commit()
+        print(f"[DB] Successfully synchronized {len(PERMANENT_STUDENTS)} permanent students across {len(courses)} classrooms.")
+
+    if db is not None:
+        _do_sync(db)
+    else:
+        with db_connection() as conn:
+            _do_sync(conn)
 
 # ── PATHING (Absolute for Persistence) ───────────────────
 # We use absolute paths to ensure the Railway volume remains mounted correctly.
@@ -398,21 +513,8 @@ def init_db():
                 c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
                           ("ela-lecturer-id", "Ela", "ela94216@gmail.com", hashed_pwd_ela, "lecturer"))
             
-            # Demo Student (Alex Rivera)
-            hashed_pwd_student = hashlib.sha256(("demo123" + "AulaAI_Salt").encode('utf-8')).hexdigest()
-            c.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at) VALUES (?,?,?,?,?,'approved','2024-01-01 00:00:00')",
-                      ("student-demo-id", "Alex Rivera", "2023001@student.aulaai", hashed_pwd_student, "student"))
-            
-            # Student 176725004 (Alper Tunca)
-            hashed_pwd_1767 = hashlib.sha256(("ALper2002@" + "AulaAI_Salt").encode('utf-8')).hexdigest()
-            student_1767_row = c.execute("SELECT id FROM users WHERE email = '176725004@student.aulaai'").fetchone()
-            if student_1767_row:
-                c.execute("UPDATE users SET password = ?, status = 'approved' WHERE id = ?", (hashed_pwd_1767, student_1767_row[0]))
-            else:
-                c.execute("""
-                    INSERT OR IGNORE INTO users (id, name, email, password, role, status, created_at)
-                    VALUES (?, 'Alper Tunca', '176725004@student.aulaai', ?, 'student', 'approved', '2024-01-01 00:00:00')
-                """, (str(uuid.uuid4()), hashed_pwd_1767))
+            # Permanent Student Accounts & Universal Auto-Enrollment (Yusuf, Zehra, Yaren, Ecrin, Ela Naz, Buket, Beren, Alper)
+            sync_permanent_students_and_enrollments(db)
         except Exception as e:
             print(f"[DB] Notice during user seeding: {e}")
         
@@ -451,6 +553,7 @@ def init_db():
                                       (new_t_id, new_ch_id, t["title"], t["type"], t["content"], t["difficulty"], t["title_tr"], t["sort_order"], t["pdf_url"]))
                     
                     print(f"[MIGRATION] Successfully duplicated Spanish Marmara to Ela's portal.")
+                    enroll_permanent_students_in_course(new_course_id, db)
 
         # AUTOMATED RESILIENCE: Ensure all courses in DB have clean bilingual titles (title=EN, title_tr=TR)
         try:
@@ -582,6 +685,9 @@ def init_db():
             print("[DB] Seeding demo course...")
             _seed_course_only(c)
             db.commit()
+
+        # Final guarantee: sync permanent students across all courses
+        sync_permanent_students_and_enrollments(db)
 
 def _run_migrations():
     """Sequentially apply missing columns for production stability."""

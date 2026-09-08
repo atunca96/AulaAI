@@ -1470,24 +1470,43 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
     def _login(self):
         body = self._read_body()
-        email = body.get("email", "")
-        password = body.get("password", "")
+        email = (body.get("email") or "").strip()
+        password = (body.get("password") or "").strip()
         
         hashed_pwd = hash_password(password)
+        clean_num = email.split('@')[0].strip()
+        email_key = f"{clean_num}@student.aulaai"
+        stu_id = f"student-{clean_num}"
 
         with db_connection() as db:
-            user = db.execute("SELECT * FROM users WHERE email = ? AND password = ?",
-                              (email, hashed_pwd)).fetchone()
+            user = db.execute(
+                "SELECT * FROM users WHERE (email = ? OR email = ? OR id = ?) AND password = ?",
+                (email, email_key, stu_id, hashed_pwd)
+            ).fetchone()
 
-        if user:
-            user = dict(user)
-            self._send_json({
-                "success": True,
-                "user": {"id": user["id"], "name": user["name"],
-                         "email": user["email"], "role": user["role"], "status": user.get("status", "approved")}
-            })
-        else:
-            self._send_error("Invalid credentials", 401)
+            if user:
+                user = dict(user)
+                # Universal auto-enrollment for students
+                if user.get("role") == "student":
+                    from database import enroll_permanent_students_in_course
+                    courses = db.execute("SELECT id FROM courses").fetchall()
+                    for c_row in courses:
+                        cid = c_row[0]
+                        existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
+                        if not existing:
+                            import uuid
+                            db.execute("INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active) VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))", (str(uuid.uuid4()), user["id"], cid))
+                        elif existing[1] != 'approved':
+                            db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
+                    db.commit()
+
+                self._send_json({
+                    "success": True,
+                    "user": {"id": user["id"], "name": user["name"],
+                             "email": user["email"], "role": user["role"], "status": user.get("status", "approved")}
+                })
+            else:
+                self._send_error("Invalid credentials", 401)
 
     def _register(self):
         body = self._read_body()
@@ -1528,6 +1547,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not student_id:
             return self._send_error("student_id is required")
         with db_connection() as db:
+            # Self-healing: auto-enroll in all courses
+            courses = db.execute("SELECT id FROM courses").fetchall()
+            for c_row in courses:
+                cid = c_row[0]
+                existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, cid)).fetchone()
+                if not existing:
+                    import uuid
+                    db.execute("""
+                        INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                        VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                    """, (str(uuid.uuid4()), student_id, cid))
+                elif existing[1] != 'approved':
+                    db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
+            db.commit()
+
             enrollments = db.execute("""
                 SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
                 FROM enrollments e
@@ -1541,8 +1575,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         """Student enters portal with student number and password."""
         body = self._read_body()
         student_id = body.get("student_id")
-        student_number = body.get("student_number", "").strip()
-        password = body.get("password", "").strip()
+        student_number = (body.get("student_number") or "").strip()
+        password = (body.get("password") or "").strip()
 
         if student_id and not password:
             return self._get_student_enrollments(student_id)
@@ -1552,12 +1586,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not password:
             return self._send_error("Password is required")
 
-        # Use student number as the email key (internal)
-        email_key = f"{student_number}@student.aulaai"
+        clean_num = student_number.split('@')[0].strip()
+        email_key = f"{clean_num}@student.aulaai"
         hashed_pwd = hash_password(password)
         
         with db_connection() as db:
-            user = db.execute("SELECT * FROM users WHERE email = ? AND role = 'student'", (email_key,)).fetchone()
+            user = db.execute(
+                "SELECT * FROM users WHERE (email = ? OR email = ? OR id = ?) AND role = 'student'",
+                (student_number, email_key, f"student-{clean_num}")
+            ).fetchone()
             if not user:
                 return self._send_error("Invalid student number or password", 401)
             
@@ -1567,6 +1604,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not user_pwd or user_pwd == "[STUDENT_PORTAL]" or user_pwd != hashed_pwd:
                 return self._send_error("Invalid student number or password", 401)
             
+            # Universal auto-enrollment: ensure student is enrolled in every single course
+            all_courses = db.execute("SELECT id FROM courses").fetchall()
+            for c_row in all_courses:
+                cid = c_row[0]
+                existing_enroll = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
+                if not existing_enroll:
+                    import uuid
+                    db.execute("""
+                        INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                        VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                    """, (str(uuid.uuid4()), user["id"], cid))
+                elif existing_enroll[1] != 'approved':
+                    db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing_enroll[0],))
+            db.commit()
+
             # Fetch all enrollments
             enrollments = db.execute("""
                 SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
@@ -2990,6 +3042,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         
         from services.legacy.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id, material_language=material_language)
+        if isinstance(result, dict) and result.get("course_id"):
+            from database import enroll_permanent_students_in_course
+            enroll_permanent_students_in_course(result["course_id"])
         return self._send_json(result)
 
     def _translate_material(self):
@@ -3151,6 +3206,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             file_log(f"[DEBUG] Pipeline result: {result}")
 
             if result.get("success"):
+                if result.get("course_id"):
+                    from database import enroll_permanent_students_in_course
+                    enroll_permanent_students_in_course(result["course_id"])
                 bump_version()
                 self._send_json(result)
         except Exception as e:

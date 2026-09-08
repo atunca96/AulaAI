@@ -115,6 +115,8 @@ def main():
                 with db_connection() as db:
                     db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', build_message = 'Classroom is ready!' WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                     db.commit()
+                from database import enroll_permanent_students_in_course
+                enroll_permanent_students_in_course(course_id)
 
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Finished REGENERATE mode for Course {course_id}\n")
@@ -186,6 +188,8 @@ def main():
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
+        from database import enroll_permanent_students_in_course
+        enroll_permanent_students_in_course(course_id)
             
         print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")
 
