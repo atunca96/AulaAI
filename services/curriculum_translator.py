@@ -84,6 +84,19 @@ CANONICAL_TITLE_MAP = {
     "subject pronouns": "Özne Zamirleri",
     "basic sentence structure": "Temel Cümle Yapısı",
     "negation and questions": "Olumsuzluk ve Soru Cümleleri",
+    "basic questions and responses": "Temel Sorular ve Yanıtlar",
+    "forming yes/no questions": "Evet/Hayır Soruları Oluşturma",
+    "yes/no questions": "Evet/Hayır Soruları",
+    "wh- questions": "Soru Kelimeleri ile Sorular",
+    "wh- questions: who, what, where": "Soru Kelimeleri: Kim, Ne, Nerede",
+    "wh- questions: who, what, where, when, why": "Soru Kelimeleri: Kim, Ne, Nerede, Ne Zaman, Neden",
+    "question words": "Soru Kelimeleri",
+    "question words: who, what, where": "Soru Kelimeleri: Kim, Ne, Nerede",
+    "question words: who, what, where, when, why": "Soru Kelimeleri: Kim, Ne, Nerede, Ne Zaman, Neden",
+    "asking questions: wh- questions": "Soru Sorma: Soru Kelimeleri",
+    "asking questions: question words": "Soru Sorma: Soru Kelimeleri",
+    "simple responses and clarifications": "Basit Yanıtlar ve Açıklamalar",
+    "simple responses": "Basit Yanıtlar",
     "daily activities and routines": "Günlük Aktiviteler ve Rutinler",
     "everyday routines": "Günlük Rutinler",
     "morning to night routines": "Sabahtan Akşama Rutinler",
@@ -205,6 +218,9 @@ def clean_stutter(text: str) -> str:
     t = re.sub(r'\bde\s+de\b', 'de', t, flags=re.IGNORECASE)
     t = re.sub(r'\bda\s+da\b', 'da', t, flags=re.IGNORECASE)
     t = re.sub(r'\bile\s+ile\b', 'ile', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bWh-\s*Soruları\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bWh-\s*Questions\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bWh-\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
     def _repl_dup(m):
         w = m.group(1)
         if w.lower() in ('yavaş', 'adım', 'tek', 'ayrı', 'az'):
@@ -216,7 +232,7 @@ def clean_stutter(text: str) -> str:
     return t
 
 TR_LETTERS = re.compile(r'[çğıöşüÇĞİÖŞÜâîû]')
-TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b', re.IGNORECASE)
+TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|kelime|kelimeleri|cümleler|cümle|cümleleri|ifadeler|ifade|ifadeleri|fiiller|fiil|sıfatlar|sıfat|zamirler|zamir|sorular|soru|soruları|sorusu|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik|kim|ne|nerede|nereli|nasıl|neden|yanıt|yanıtlar|cevap|cevaplar|kurma|oluşturma|kullanma|kullanımı|anlatma|sorma|konuşma)\b', re.IGNORECASE)
 
 EN_WORDS = re.compile(
     r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|'
@@ -229,7 +245,8 @@ EN_WORDS = re.compile(
     r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|'
     r'personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|'
     r'objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|'
-    r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple)\b',
+    r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple|'
+    r'who|what|where|when|why|how|which|whose|whom)\b',
     re.IGNORECASE
 )
 
@@ -241,7 +258,7 @@ def is_hybrid(text: str) -> bool:
     if not t:
         return False
     low = t.lower()
-    if re.search(r'\bve\s+ve\b', low) or "pratik application" in low or "ve pratik application" in low or "around us" in low:
+    if re.search(r'\bve\s+ve\b', low) or "pratik application" in low or "ve pratik application" in low or "around us" in low or re.search(r'\bwh[- ]', low):
         return True
     # Exclude target language terms in single quotes (like 'ser', 'estar', 'haben')
     quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
@@ -282,7 +299,7 @@ def is_clean_turkish(text: str) -> bool:
     if leaked:
         return False
     low = t.lower()
-    if "functional language" in low or "cultural context" in low or "celebratory situations" in low:
+    if "functional language" in low or "cultural context" in low or "celebratory situations" in low or re.search(r'\bwh[- ]', low):
         return False
     return True
 

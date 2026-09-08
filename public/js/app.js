@@ -2343,13 +2343,20 @@ const UniversalCurriculumTranslator = {
     "formulating simple questions": "Basit Sorular Oluşturma",
     "formulating questions": "Soru Cümleleri Oluşturma",
     "formulating yes/no questions": "Evet/Hayır Soruları Oluşturma",
-    "yes/no and wh- questions": "Evet/Hayır ve Wh- Soruları",
+    "yes/no and wh- questions": "Evet/Hayır ve Soru Kelimeleri ile Sorular",
     "yes/no questions": "Evet/Hayır Soruları",
-    "wh- questions": "Wh- Soruları (Soru Kelimeleri)",
+    "wh- questions": "Soru Kelimeleri ile Sorular",
+    "wh- questions: who, what, where": "Soru Kelimeleri: Kim, Ne, Nerede",
+    "wh- questions: who, what, where, when, why": "Soru Kelimeleri: Kim, Ne, Nerede, Ne Zaman, Neden",
+    "asking questions: wh- questions": "Soru Sorma: Soru Kelimeleri",
+    "asking questions: question words": "Soru Sorma: Soru Kelimeleri",
     "asking questions and seeking clarifications": "Soru Sorma ve Açıklama İsteme",
     "asking questions": "Soru Sorma",
     "seeking clarifications": "Açıklama İsteme",
     "question words": "Soru Kelimeleri",
+    "question words: who, what, where": "Soru Kelimeleri: Kim, Ne, Nerede",
+    "who, what, where": "Kim, Ne, Nerede",
+    "who, what, where, when": "Kim, Ne, Nerede, Ne Zaman",
     "who, what, where, when, why": "Kim, Ne, Nerede, Ne Zaman, Neden",
     "constructing simple sentences": "Basit Cümleler Kurma",
     "simple sentences": "Basit Cümleler",
@@ -2604,7 +2611,11 @@ const UniversalCurriculumTranslator = {
          .replace(/\biçin\s+için\b/gi, 'için')
          .replace(/\bde\s+de\b/gi, 'de')
          .replace(/\bda\s+da\b/gi, 'da')
-         .replace(/\bile\s+ile\b/gi, 'ile');
+         .replace(/\bile\s+ile\b/gi, 'ile')
+         .replace(/Wh-\s*Sorular[ıi](?:n[ıi]n?)?/gi, 'Soru Kelimeleri')
+         .replace(/Wh-\s*Sorusu/gi, 'Soru Kelimesi')
+         .replace(/Wh-\s*Questions?/gi, 'Soru Kelimeleri')
+         .replace(/Wh-/gi, 'Soru Kelimeleri');
     t = t.replace(/\b([a-zA-ZçğıöşüÇĞİÖŞÜâîû]+)\s+\1\b/gi, (m, w) => {
       if (['yavaş', 'adım', 'tek', 'ayrı', 'az'].includes(w.toLowerCase())) return m;
       return w;
@@ -2617,6 +2628,10 @@ const UniversalCurriculumTranslator = {
     if (!text) return '';
     let t = String(text).trim();
     const hybrids = [
+      [/Wh-\s*Sorular[ıi](?:n[ıi]n?)?/gi, 'Soru Kelimeleri'],
+      [/Wh-\s*Sorusu/gi, 'Soru Kelimesi'],
+      [/Wh-\s*Questions?/gi, 'Soru Kelimeleri'],
+      [/Wh-/gi, 'Soru Kelimeleri'],
       [/Personal\s+Description\s+İçin/gi, 'Kişisel Tanım İçin'],
       [/Personal\s+Description/gi, 'Kişisel Tanım'],
       [/Traveling\s+İçin/gi, 'Seyahat İçin'],
@@ -3007,14 +3022,14 @@ const UniversalCurriculumTranslator = {
     const t = text.trim();
     if (!t) return false;
     const low = t.toLowerCase();
-    if (/\bve\s+ve\b/i.test(low) || /\bhayatta\s+hayatta\b/i.test(low) || low.includes('pratik application') || low.includes('around us')) return true;
+    if (/\bve\s+ve\b/i.test(low) || /\bhayatta\s+hayatta\b/i.test(low) || low.includes('pratik application') || low.includes('around us') || /\bwh[- ]/i.test(low)) return true;
 
     // Strip target language foreign words inside quotes (e.g. 'ser', 'estar') so they are allowed
     const unquoted = t.replace(/['"][^'"]+['"]/g, '');
 
-    const enPattern = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple)\b/i;
+    const enPattern = /\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|review|practice|practical|application|foundations|basics|intermediate|advanced|grammar|vocabulary|words|phrases|sentences|daily|activities|routines|food|dining|shopping|environment|travel|traveling|travelling|questions|answers|math|operations|culture|insights|context|customs|survival|numbers|counting|alphabet|vowels|consonants|pronunciation|phonetics|rules|check|guide|overview|summary|world|around|us|functional|language|situations|celebratory|emergencies|emergency|health|traditions|festivals|leisure|sports|hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple|who|what|where|when|why|how|which|whose|whom)\b/i;
 
-    const hasTr = /[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b/i.test(t);
+    const hasTr = /[çğıöşüÇĞİÖŞÜâîû]/.test(t) || /\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|kelime|kelimeleri|cümleler|cümle|cümleleri|ifadeler|ifade|ifadeleri|fiiller|fiil|sıfatlar|sıfat|zamirler|zamir|sorular|soru|soruları|sorusu|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik|kim|ne|nerede|nereli|nasıl|neden|yanıt|yanıtlar|cevap|cevaplar|kurma|oluşturma|kullanma|kullanımı|anlatma|sorma|konuşma)\b/i.test(t);
 
     const hasEn = enPattern.test(unquoted);
     return (hasTr && hasEn) || (hasEn && !/[çğıöşüÇĞİÖŞÜâîû]/.test(t));
@@ -3027,7 +3042,7 @@ const UniversalCurriculumTranslator = {
     if (/\bHayatta\s+Hayatta\b/i.test(t) || /\bve\s+ve\b/i.test(t)) return false;
     if (this.isHybridOrEnglish(t)) return false;
     const hasTrChars = /[çğıöşüÇĞİÖŞÜâîû]/.test(t);
-    const hasTrWords = /\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b/i.test(t);
+    const hasTrWords = /\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|kelime|kelimeleri|cümleler|cümle|cümleleri|ifadeler|ifade|ifadeleri|fiiller|fiil|sıfatlar|sıfat|zamirler|zamir|sorular|soru|soruları|sorusu|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik|kim|ne|nerede|nereli|nasıl|neden|yanıt|yanıtlar|cevap|cevaplar|kurma|oluşturma|kullanma|kullanımı|anlatma|sorma|konuşma)\b/i.test(t);
     return hasTrChars || hasTrWords;
   }
 };

@@ -413,6 +413,8 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     STRICT LINGUISTIC RULES FOR 'title_tr':
     - Every 'title_tr' must be 100% natural, grammatically correct Turkish as written by an educated Turkish teacher.
     - NEVER leave English words in 'title_tr' (e.g. NEVER write 'Nazik İfadeler for Conversation' or 'Traveling İçin Temel Kelimeler').
+    - NEVER use English-specific terms like 'Wh- Questions' or 'Wh- Soruları'. In Turkish, use 'Soru Kelimeleri' or 'Soru Sözcükleri' (e.g., 'Soru Kelimeleri: Kim, Ne, Nerede').
+    - In non-English target languages, do NOT write 'Wh- Questions' in English titles either; use 'Question Words (Who, What, Where)' or 'Information Questions'.
     - NEVER duplicate words (e.g. NEVER write 'Günlük Hayatta Hayatta Kalma' or 've ve').
     - Target language verbs or grammatical markers (like 'ser', 'estar') stay in single quotes: e.g. "'Ser' Kullanarak Kimliği Tanımlama".
     - PEDAGOGIC DEPTH: Go beyond simple vocabulary. Each topic should feel like a real lesson that covers functional usage, nuances, and situational grammar."""
@@ -445,7 +447,8 @@ RULES:
    - Example 3: 'title': 'Everyday Survival Vocabulary' -> 'title_tr': 'Günlük Hayatta Kalma Kelimeleri'
    - Example 4: 'title': 'Essential Vocabulary for Traveling' -> 'title_tr': 'Seyahat İçin Temel Kelimeler'
    - Example 5: 'title': "Using 'Ser' to Describe Identity" -> 'title_tr': "'Ser' Kullanarak Kimliği Tanımlama"
-   - Every word in 'title_tr' must be 100% Turkish. No English leakages. No word duplications.
+   - Example 6: 'title': 'Question Words: Who, What, Where' -> 'title_tr': 'Soru Kelimeleri: Kim, Ne, Nerede'
+   - Every word in 'title_tr' must be 100% Turkish. No English leakages. No 'Wh- Soruları'. No word duplications.
 
 Return ONLY valid JSON:
 {{

@@ -3204,13 +3204,19 @@ class UniversalCurriculumTranslator:
         "formulating simple questions": "Basit Sorular Oluşturma",
         "formulating questions": "Soru Cümleleri Oluşturma",
         "formulating yes/no questions": "Evet/Hayır Soruları Oluşturma",
-        "yes/no and wh- questions": "Evet/Hayır ve Wh- Soruları",
+        "yes/no and wh- questions": "Evet/Hayır ve Soru Kelimeleri ile Sorular",
         "yes/no questions": "Evet/Hayır Soruları",
-        "wh- questions": "Wh- Soruları (Soru Kelimeleri)",
+        "wh- questions": "Soru Kelimeleri ile Sorular",
+        "wh- questions: who, what, where": "Soru Kelimeleri: Kim, Ne, Nerede",
+        "wh- questions: who, what, where, when, why": "Soru Kelimeleri: Kim, Ne, Nerede, Ne Zaman, Neden",
         "asking questions and seeking clarifications": "Soru Sorma ve Açıklama İsteme",
         "asking questions": "Soru Sorma",
+        "asking questions: wh- questions": "Soru Sorma: Soru Kelimeleri",
+        "asking questions: question words": "Soru Sorma: Soru Kelimeleri",
         "seeking clarifications": "Açıklama İsteme",
         "question words": "Soru Kelimeleri",
+        "who, what, where": "Kim, Ne, Nerede",
+        "who, what, where, when": "Kim, Ne, Nerede, Ne Zaman",
         "who, what, where, when, why": "Kim, Ne, Nerede, Ne Zaman, Neden",
         "constructing simple sentences": "Basit Cümleler Kurma",
         "simple sentences": "Basit Cümleler",
@@ -3472,7 +3478,7 @@ class UniversalCurriculumTranslator:
     }
 
     TR_LETTERS = re.compile(r'[çğıöşüÇĞİÖŞÜâîû]')
-    TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|cümleler|ifadeler|fiiller|sıfatlar|zamirler|sorular|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik)\b', re.IGNORECASE)
+    TR_WORDS = re.compile(r'\b(ve|veya|ile|için|göre|kadar|temel|pratik|uygulama|tekrar|alfabe|selamlaşma|tanıtım|tanıtımlar|günlük|rutinler|sayılar|zaman|saat|aile|ilişkiler|hobiler|yiyecek|yemek|alışveriş|kıyafet|şehir|ulaşım|seyahat|tatil|kültür|kültürel|bilgiler|bağlam|dilbilgisi|kelimeler|kelime|kelimeleri|cümleler|cümle|cümleleri|ifadeler|ifade|ifadeleri|fiiller|fiil|sıfatlar|sıfat|zamirler|zamir|sorular|soru|soruları|sorusu|çevremizdeki|dünya|doğa|sağlık|iş|okul|ev|yerler|yol|tarifi|hava|durumu|mevsimler|doktora|gitmek|kutlama|durumları|işlevsel|topluluk|hediyeler|kutlamalar|tanım|tanımlama|kimlik|kim|ne|nerede|nereli|nasıl|neden|yanıt|yanıtlar|cevap|cevaplar|kurma|oluşturma|kullanma|kullanımı|anlatma|sorma|konuşma)\b', re.IGNORECASE)
     EN_WORDS = re.compile(
         r'\b(the|and|of|to|in|for|with|on|at|from|by|about|your|our|their|my|his|her|its|you|we|they|'
         r'describing|talking|using|navigating|understanding|introducing|asking|making|expressing|telling|visiting|seeking|'
@@ -3484,7 +3490,8 @@ class UniversalCurriculumTranslator:
         r'hobbies|community|recommendations|transactions|menus|accessories|sizes|colors|transport|transportation|places|'
         r'personal|description|identity|adjectives|adjective|nouns|noun|verbs|verb|conversation|dialogues|dialogue|'
         r'objects|friends|friendship|free|time|interests|ordering|buying|giving|directions|family|members|'
-        r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple)\b',
+        r'feelings|emotions|workplace|office|home|school|weather|seasons|calendar|dates|essential|everyday|simple|'
+        r'who|what|where|when|why|how|which|whose|whom)\b',
         re.IGNORECASE
     )
 
@@ -3502,6 +3509,9 @@ class UniversalCurriculumTranslator:
         t = re.sub(r'\bde\s+de\b', 'de', t, flags=re.IGNORECASE)
         t = re.sub(r'\bda\s+da\b', 'da', t, flags=re.IGNORECASE)
         t = re.sub(r'\bile\s+ile\b', 'ile', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bWh-\s*Soruları\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bWh-\s*Questions\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
+        t = re.sub(r'\bWh-\b', 'Soru Kelimeleri', t, flags=re.IGNORECASE)
         def _repl_dup(m):
             w = m.group(1)
             if w.lower() in ('yavaş', 'adım', 'tek', 'ayrı', 'az'):
@@ -3520,7 +3530,7 @@ class UniversalCurriculumTranslator:
         if not t:
             return False
         low = t.lower()
-        if re.search(r'\bve\s+ve\b', low) or re.search(r'\bhayatta\s+hayatta\b', low) or "pratik application" in low or "around us" in low:
+        if re.search(r'\bve\s+ve\b', low) or re.search(r'\bhayatta\s+hayatta\b', low) or "pratik application" in low or "around us" in low or re.search(r'\bwh[- ]', low):
             return True
         quoted = set(m.strip("'\"").lower() for m in re.findall(r"['\"][^'\"]+['\"]", t))
         matches = [m.lower() for m in cls.EN_WORDS.findall(t)]
@@ -3554,6 +3564,9 @@ class UniversalCurriculumTranslator:
             return ""
         t = str(text).strip()
         hybrids = [
+            (r'\bWh-\s*Soruları\b', 'Soru Kelimeleri'),
+            (r'\bWh-\s*Questions\b', 'Soru Kelimeleri'),
+            (r'\bWh-\b', 'Soru Kelimeleri'),
             (r'Personal\s+Description\s+İçin', 'Kişisel Tanım İçin'),
             (r'Personal\s+Description', 'Kişisel Tanım'),
             (r'Traveling\s+İçin', 'Seyahat İçin'),
@@ -3630,7 +3643,8 @@ class UniversalCurriculumTranslator:
             parts = [p.strip() for p in clean.split(":", 1)]
             p1 = cls.translate(parts[0])
             p2 = cls.translate(parts[1])
-            return cls.clean_stutter(f"{p1}: {p2}")
+            if cls.is_clean_turkish(p1) and cls.is_clean_turkish(p2) and not cls.is_hybrid_or_english(p1) and not cls.is_hybrid_or_english(p2):
+                return cls.clean_stutter(f"{p1}: {p2}")
 
         # Handle "A vs. B" or "A versus B"
         m_vs = re.match(r'^(.*?)\s+(?:vs\.?|versus)\s+(.*)$', clean, re.IGNORECASE)
