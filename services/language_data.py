@@ -3857,8 +3857,9 @@ class UniversalCurriculumTranslator:
             if w1 in cls.VOCABULARY and w2 in cls.VOCABULARY:
                 return cls.clean_stutter(f"{cls.VOCABULARY[w1]} {cls.VOCABULARY[w2]}")
 
-        # Word-by-word tokenized fallback
+        # Only if ALL tokens are recognized vocabulary words (never create mixed-language hybrids)
         translated_words = []
+        all_translated = True
         for w in words:
             w_low = w.lower().strip(".,!?:;")
             if w_low in cls.VOCABULARY:
@@ -3874,10 +3875,15 @@ class UniversalCurriculumTranslator:
             elif w_low == "with":
                 translated_words.append("ile")
             else:
-                translated_words.append(w)
+                all_translated = False
+                break
 
-        res = " ".join(translated_words)
-        return cls.clean_stutter(res if res else clean)
+        if all_translated and translated_words:
+            res = " ".join(translated_words)
+            if cls.is_clean_turkish(res) and not cls.is_hybrid_or_english(res):
+                return cls.clean_stutter(res)
+
+        return clean
 
 
 def resolve_curriculum_tr(title: str, current_tr: str = None) -> str:

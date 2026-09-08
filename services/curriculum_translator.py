@@ -331,15 +331,6 @@ def translate_titles_batch(titles: List[str], target_lang: str = "tr") -> Dict[s
             if cached_val and is_clean_turkish(cached_val):
                 results[raw] = cached_val
                 continue
-            # Check UniversalCurriculumTranslator deterministic engine
-            try:
-                from services.language_data import UniversalCurriculumTranslator
-                uct_val = UniversalCurriculumTranslator.translate(clean)
-                if uct_val and is_clean_turkish(uct_val):
-                    results[raw] = uct_val
-                    continue
-            except Exception:
-                pass
         elif target_lang == "en":
             # Reverse canonical match
             rev = next((k for k, v in CANONICAL_TITLE_MAP.items() if v.lower() == low_clean), None)

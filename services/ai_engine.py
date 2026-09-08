@@ -389,21 +389,33 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    """Generates course structure, using a local blueprint cache to eliminate recurring costs."""
-    cache_file = _get_blueprint_path(language, level)
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                cached_data = json.load(f)
-                if cached_data and "chapters" in cached_data:
-                    from services.curriculum_translator import ensure_bilingual_curriculum
-                    return ensure_bilingual_curriculum(cached_data["chapters"])
-        except: pass
+    """Generates course structure, creating both English and Turkish versions natively via AI."""
+    # Only use blueprint cache if no custom course name / prompt_extra is provided
+    if not prompt_extra:
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    if cached_data and "chapters" in cached_data:
+                        from services.curriculum_translator import ensure_bilingual_curriculum
+                        return ensure_bilingual_curriculum(cached_data["chapters"])
+            except Exception: pass
 
-    system = f"""You are a world-class curriculum architect and expert linguist specializing in the CEFR framework (A1-C2) for {language}. 
+    system = f"""You are a world-class bilingual curriculum architect and expert linguist specializing in the CEFR framework (A1-C2) for {language}. 
     Your mission: Design a comprehensive, pedagogically deep, and culturally rich roadmap for learning {language}.
-    STRICT RULE: ALL unit titles and topic titles MUST be written in English.
-    PEDAGOGIC DEPTH: Go beyond simple vocabulary. Each topic should feel like a real lesson that covers functional usage, nuances, and situational grammar."""
+    
+    CRITICAL BILINGUAL GENERATION REQUIREMENT:
+    You MUST generate BOTH language versions natively in the exact same output:
+    1. 'title': The professional English curriculum title (e.g., 'Polite Expressions for Conversation', 'Everyday Survival Vocabulary').
+    2. 'title_tr': The authentic, natural Turkish curriculum title (e.g., 'Sohbet İçin Nezaket İfadeleri', 'Günlük Hayatta Kalma Kelimeleri').
+    
+    STRICT LINGUISTIC RULES FOR 'title_tr':
+    - Every 'title_tr' must be 100% natural, grammatically correct Turkish as written by an educated Turkish teacher.
+    - NEVER leave English words in 'title_tr' (e.g. NEVER write 'Nazik İfadeler for Conversation' or 'Traveling İçin Temel Kelimeler').
+    - NEVER duplicate words (e.g. NEVER write 'Günlük Hayatta Hayatta Kalma' or 've ve').
+    - Target language verbs or grammatical markers (like 'ser', 'estar') stay in single quotes: e.g. "'Ser' Kullanarak Kimliği Tanımlama".
+    - PEDAGOGIC DEPTH: Go beyond simple vocabulary. Each topic should feel like a real lesson that covers functional usage, nuances, and situational grammar."""
     
     level_guidelines = {
         "A1": "Focus on absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, immediate survival vocabulary, and personal info.",
@@ -417,7 +429,7 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     # Determine the closest CEFR guideline
     current_guideline = next((v for k, v in level_guidelines.items() if k in level.upper()), "Follow general CEFR progression.")
 
-    user = f"""Create a comprehensive {level} {language} course syllabus.
+    user = f"""Create a comprehensive {level} {language} course syllabus{f' focusing on: {prompt_extra}' if prompt_extra else ''}.
 LEVEL-SPECIFIC FOCUS: {current_guideline}
 
 RULES:
@@ -427,15 +439,31 @@ RULES:
 4. VARIETY: Mix functional language, grammar, and cultural context.
 5. MANDATORY SCOPE: Generate EXACTLY 8 to 12 chapters to ensure full curriculum coverage. A roadmap with fewer than 8 units is unacceptable.
 6. TOPIC DENSITY: Each chapter MUST have at least 3-4 descriptive topics.
-7. ENGLISH TITLES ONLY: ALL unit titles ('title' field) and topic titles ('title' field) MUST be in English. Never use {language} for titles. Example: use 'Greetings and Introductions' NOT 'Saludos y Presentaciones'.
-8. TURKISH TRANSLATIONS: For EVERY chapter and topic, include a 'title_tr' field with a natural, grammatically correct Turkish translation.
-   - Example 1: 'Basic Adjectives for Personal Description' → 'Kişisel Tanım İçin Temel Sıfatlar' (NEVER leave English words like 'Personal Description İçin...')
-   - Example 2: 'Everyday Survival Vocabulary' → 'Günlük Hayatta Kalma Kelimeleri' (NEVER stutter or duplicate words like 'Günlük Hayatta Hayatta Kalma...')
-   - Example 3: 'Essential Vocabulary for Traveling' → 'Seyahat İçin Temel Kelimeler' (NEVER write 'Traveling İçin...')
-   - Example 4: "Using 'Ser' to Describe Identity" → "'Ser' Kullanarak Kimliği Tanımlama"
-   - STRICT: NEVER mix English words into Turkish titles. Every word in 'title_tr' must be 100% Turkish. NEVER duplicate words (e.g. NEVER write 've ve', 'Hayatta Hayatta').
+7. BILINGUAL PAIRS (MANDATORY): For every chapter and topic, provide BOTH English ('title') and Turkish ('title_tr'):
+   - Example 1: 'title': 'Polite Expressions for Conversation' -> 'title_tr': 'Sohbet İçin Nezaket İfadeleri'
+   - Example 2: 'title': 'Basic Adjectives for Personal Description' -> 'title_tr': 'Kişisel Tanım İçin Temel Sıfatlar'
+   - Example 3: 'title': 'Everyday Survival Vocabulary' -> 'title_tr': 'Günlük Hayatta Kalma Kelimeleri'
+   - Example 4: 'title': 'Essential Vocabulary for Traveling' -> 'title_tr': 'Seyahat İçin Temel Kelimeler'
+   - Example 5: 'title': "Using 'Ser' to Describe Identity" -> 'title_tr': "'Ser' Kullanarak Kimliği Tanımlama"
+   - Every word in 'title_tr' must be 100% Turkish. No English leakages. No word duplications.
 
-Return ONLY valid JSON: {{'chapters': [{{'number': 1, 'title': '...', 'title_tr': '...', 'topics': [{{'title': '...', 'title_tr': '...', 'type': 'vocabulary|grammar'}}]}}]}}"""
+Return ONLY valid JSON:
+{{
+  "chapters": [
+    {{
+      "number": 1,
+      "title": "Everyday Survival Vocabulary",
+      "title_tr": "Günlük Hayatta Kalma Kelimeleri",
+      "topics": [
+        {{
+          "title": "Polite Expressions for Conversation",
+          "title_tr": "Sohbet İçin Nezaket İfadeleri",
+          "type": "vocabulary"
+        }}
+      ]
+    }}
+  ]
+}}"""
     res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.7)
     chapters = res.get("chapters", []) if res else []
     

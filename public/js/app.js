@@ -2967,29 +2967,39 @@ const UniversalCurriculumTranslator = {
       }
     }
 
-    // Word-by-word tokenized fallback
+    // Word-by-word fallback — SAFE: only translate if ALL tokens are recognized vocabulary
+    // (Never produce Frankenstein hybrids like 'Nazik İfadeler for Conversation')
+    let allTranslated = true;
     const translatedWords = [];
     for (const w of words) {
       const wLow = w.toLowerCase().replace(/[.,!?:;]/g, '');
       if (this.VOCABULARY[wLow]) {
-        translatedWords.append ? translatedWords.append(this.VOCABULARY[wLow]) : translatedWords.push(this.VOCABULARY[wLow]);
+        translatedWords.push(this.VOCABULARY[wLow]);
       } else if (this.LANGUAGES[wLow]) {
         translatedWords.push(this.LANGUAGES[wLow][0]);
-      } else if (wLow === "and") {
-        translatedWords.push("ve");
-      } else if (wLow === "or") {
-        translatedWords.push("veya");
-      } else if (wLow === "the") {
-        continue;
-      } else if (wLow === "with") {
-        translatedWords.push("ile");
+      } else if (wLow === 'and') {
+        translatedWords.push('ve');
+      } else if (wLow === 'or') {
+        translatedWords.push('veya');
+      } else if (wLow === 'the') {
+        continue; // skip article
+      } else if (wLow === 'with') {
+        translatedWords.push('ile');
       } else {
-        translatedWords.push(w);
+        allTranslated = false;
+        break; // Unknown token — abort rather than produce a hybrid
       }
     }
 
-    const res = translatedWords.join(' ');
-    return this.cleanStutter(res || clean);
+    if (allTranslated && translatedWords.length > 0) {
+      const res = translatedWords.join(' ');
+      if (this.isCleanTurkish(res) && !this.isHybridOrEnglish(res)) {
+        return this.cleanStutter(res);
+      }
+    }
+
+    // Return the original clean English title — the server AI will translate properly
+    return clean;
   },
 
   isHybridOrEnglish: function(text) {
@@ -5718,7 +5728,7 @@ async function generateAiCurriculum() {
   btn.innerHTML = '<div class="spinner-small" style="display:inline-block"></div> ' + t('loading');
 
   try {
-    const data = await api('/draft/curriculum', { method: 'POST', body: { language: _selectedAiLanguage, level: _selectedAiLevel } });
+    const data = await api('/draft/curriculum', { method: 'POST', body: { language: _selectedAiLanguage, level: _selectedAiLevel, course_name: courseName } });
     if (data.syllabus) {
       renderAiSyllabusEditor(data.syllabus);
       nextAiStep();
@@ -5783,6 +5793,28 @@ function renderAiSyllabusEditor(syllabus) {
   `;}).join('');
 }
 
+// Debounce helper for AI title translation calls
+const _aiTitleTranslateTimers = new WeakMap();
+function _debounceAiTitleTranslation(targetEl, englishText, onResult) {
+  if (_aiTitleTranslateTimers.has(targetEl)) {
+    clearTimeout(_aiTitleTranslateTimers.get(targetEl));
+  }
+  const tid = setTimeout(async () => {
+    _aiTitleTranslateTimers.delete(targetEl);
+    if (!englishText || !englishText.trim()) return;
+    try {
+      const res = await api('/translate/material', {
+        method: 'POST',
+        body: { text: englishText.trim(), target_lang: 'tr' }
+      });
+      if (res && res.translated && typeof res.translated === 'string') {
+        onResult(res.translated);
+      }
+    } catch (_e) { /* silently fail — user can type Turkish manually */ }
+  }, 650); // 650 ms debounce
+  _aiTitleTranslateTimers.set(targetEl, tid);
+}
+
 function onAiChapterEnInput(input) {
   const chapter = input.closest('.syllabus-chapter');
   if (!chapter) return;
@@ -5792,10 +5824,22 @@ function onAiChapterEnInput(input) {
   if (trInp) {
     const curTr = trInp.value.trim();
     if (!curTr || curTr === (chapter.dataset.lastAutoTr || '') || curTr.toLowerCase() === val.trim().toLowerCase()) {
-      const autoTr = UniversalCurriculumTranslator.translate(val);
-      trInp.value = autoTr;
-      chapter.dataset.titleTr = autoTr;
-      chapter.dataset.lastAutoTr = autoTr;
+      // Immediate optimistic fill with local dictionary (safe: returns English if unknown)
+      const optimistic = UniversalCurriculumTranslator.translate(val);
+      if (optimistic && optimistic !== val && UniversalCurriculumTranslator.isCleanTurkish(optimistic)) {
+        trInp.value = optimistic;
+        chapter.dataset.titleTr = optimistic;
+        chapter.dataset.lastAutoTr = optimistic;
+      }
+      // Debounced AI call for accurate translation
+      _debounceAiTitleTranslation(trInp, val, (translated) => {
+        const stillAutoTr = trInp.value.trim() === '' || trInp.value.trim() === (chapter.dataset.lastAutoTr || '') || trInp.value.trim().toLowerCase() === val.trim().toLowerCase();
+        if (stillAutoTr || UniversalCurriculumTranslator.isHybridOrEnglish(trInp.value)) {
+          trInp.value = translated;
+          chapter.dataset.titleTr = translated;
+          chapter.dataset.lastAutoTr = translated;
+        }
+      });
     }
   }
 }
@@ -5817,10 +5861,22 @@ function onAiTopicEnInput(input) {
   if (trInp) {
     const curTr = trInp.value.trim();
     if (!curTr || curTr === (item.dataset.lastAutoTr || '') || curTr.toLowerCase() === val.trim().toLowerCase()) {
-      const autoTr = UniversalCurriculumTranslator.translate(val);
-      trInp.value = autoTr;
-      item.dataset.titleTr = autoTr;
-      item.dataset.lastAutoTr = autoTr;
+      // Immediate optimistic fill with local dictionary (safe: returns English if unknown)
+      const optimistic = UniversalCurriculumTranslator.translate(val);
+      if (optimistic && optimistic !== val && UniversalCurriculumTranslator.isCleanTurkish(optimistic)) {
+        trInp.value = optimistic;
+        item.dataset.titleTr = optimistic;
+        item.dataset.lastAutoTr = optimistic;
+      }
+      // Debounced AI call for accurate translation
+      _debounceAiTitleTranslation(trInp, val, (translated) => {
+        const stillAutoTr = trInp.value.trim() === '' || trInp.value.trim() === (item.dataset.lastAutoTr || '') || trInp.value.trim().toLowerCase() === val.trim().toLowerCase();
+        if (stillAutoTr || UniversalCurriculumTranslator.isHybridOrEnglish(trInp.value)) {
+          trInp.value = translated;
+          item.dataset.titleTr = translated;
+          item.dataset.lastAutoTr = translated;
+        }
+      });
     }
   }
 }
