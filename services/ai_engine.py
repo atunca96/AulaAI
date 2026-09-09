@@ -914,52 +914,22 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                 bm_titles = _get_bm_title_map()
                 p["title_tr"] = bm_titles.get(p["title"], p["title"])
 
-            # Ensure both text and text_tr / explanation and explanation_tr exist
-            if p.get("text") and not p.get("text_tr"):
-                p["text_tr"] = p["text"]
-            if p.get("explanation") and not p.get("explanation_tr"):
-                p["explanation_tr"] = p["explanation"]
-
             # Remove obsolete formula banners if present
             if "formula" in p:
                 del p["formula"]
             if "formula_tr" in p:
                 del p["formula_tr"]
 
-            # Preserve & clean rules, comparisons, pitfall for grammar pages
+            # Preserve & clean rules, comparisons, pitfall for grammar pages (DO NOT copy English into _tr fields)
             if p.get("type") == "grammar" or p.get("rules"):
-                if p.get("pitfall") and not p.get("pitfall_tr"):
-                    p["pitfall_tr"] = p["pitfall"]
-                if p.get("context") and not p.get("context_tr"):
-                    p["context_tr"] = p["context"]
                 if isinstance(p.get("rules"), list):
                     for r_it in p["rules"]:
                         if isinstance(r_it, dict):
-                            if not r_it.get("rule_tr") and r_it.get("rule"):
-                                r_it["rule_tr"] = r_it["rule"]
-                            if not r_it.get("explanation_tr") and r_it.get("explanation"):
-                                r_it["explanation_tr"] = r_it["explanation"]
-                            if not r_it.get("example_tr") and r_it.get("example_en"):
-                                r_it["example_tr"] = r_it["example_en"]
-                            if not r_it.get("analysis_tr") and r_it.get("analysis"):
-                                r_it["analysis_tr"] = r_it["analysis"]
-                            if not r_it.get("analysis") and r_it.get("analysis_tr"):
-                                r_it["analysis"] = r_it["analysis_tr"]
+                            pass
                 if isinstance(p.get("comparisons"), list):
                     for c_it in p["comparisons"]:
                         if isinstance(c_it, dict):
-                            if not c_it.get("context_tr") and c_it.get("context"):
-                                c_it["context_tr"] = c_it["context"]
-                            if not c_it.get("context") and c_it.get("context_tr"):
-                                c_it["context"] = c_it["context_tr"]
-                            if not c_it.get("translation_tr") and c_it.get("translation"):
-                                c_it["translation_tr"] = c_it["translation"]
-                            if not c_it.get("translation") and c_it.get("translation_tr"):
-                                c_it["translation"] = c_it["translation_tr"]
-                            if not c_it.get("note_tr") and c_it.get("note"):
-                                c_it["note_tr"] = c_it["note"]
-                            if not c_it.get("note") and c_it.get("note_tr"):
-                                c_it["note"] = c_it["note_tr"]
+                            pass
 
             # Pedagogical item explanation enrichment & self-healing
             from services.language_data import get_letter_phonetics, get_vocab_example
@@ -1014,7 +984,7 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                 if k in it and isinstance(it[k], str) and tautology_re.search(it[k]):
                                     it[k] = ""
 
-                            # 2b. Strict Language Segregation: Prevent Turkish leaking into English fields
+                            # 2b. Strict Bidirectional Language Segregation
                             expl_en = str(it.get("explanation") or it.get("explanation_en") or "").strip()
                             expl_tr = str(it.get("explanation_tr") or "").strip()
                             tr_markers = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', expl_en) or re.search(r'\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik)\b', expl_en, re.IGNORECASE))
@@ -1023,6 +993,11 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                     it["explanation_tr"] = expl_en
                                 it["explanation"] = ""
                                 it["explanation_en"] = ""
+                            en_in_tr = bool(re.search(r'\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be|discussion|open|dialogue|arguments|listen|encourage)\b', expl_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', expl_tr))
+                            if en_in_tr:
+                                if not it.get("explanation"):
+                                    it["explanation"] = expl_tr
+                                it["explanation_tr"] = ""
 
                             ex_en = str(it.get("example_en") or "").strip()
                             ex_tr = str(it.get("example_tr") or "").strip()
@@ -1031,6 +1006,24 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                 if not ex_tr:
                                     it["example_tr"] = ex_en
                                 it["example_en"] = ""
+                            ex_en_in_tr = bool(re.search(r'\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be)\b', ex_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', ex_tr))
+                            if ex_en_in_tr:
+                                if not it.get("example_en"):
+                                    it["example_en"] = ex_tr
+                                it["example_tr"] = ""
+
+                            # Meaning / Translation segregation
+                            trans_en = str(it.get("translation") or it.get("translation_en") or it.get("meaning") or "").strip()
+                            trans_tr = str(it.get("translation_tr") or it.get("meaning_tr") or "").strip()
+                            if trans_en and re.search(r'[çğıöşüÇĞİÖŞÜ]', trans_en):
+                                if not trans_tr:
+                                    it["translation_tr"] = trans_en
+                                it["translation"] = ""
+                                it["translation_en"] = ""
+                            if trans_tr and re.search(r'\b(the|and|is|are|in|for|with|of|to|discussion|logic|conclusion|result|meeting)\b', trans_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', trans_tr):
+                                if not it.get("translation"):
+                                    it["translation"] = trans_tr
+                                it["translation_tr"] = ""
 
                             # 3. Enrich vocabulary with authentic example sentence & practical tip if missing
                             bank_hit = get_vocab_example(language, term_str)

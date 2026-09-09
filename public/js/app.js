@@ -3822,31 +3822,27 @@ function translateOption(text, lang = currentLang) {
     if (lower === tr.toLowerCase()) return isTr ? tr : en;
   }
 
-  // 2. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN with bidirectional awareness
+  // 2. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN with strict direction isolation
   const enTr = window.VOCAB_MAP_EN_TR || {};
   const trEn = window.VOCAB_MAP_TR_EN || {};
 
   if (isTr) {
+    // Target is Turkish: ONLY return Turkish strings
+    // Direct lookup in EN->TR map (input is English key -> returns Turkish value)
     if (enTr[trimmed] && enTr[trimmed].toLowerCase() !== lower) return enTr[trimmed];
     if (enTr[lower] && enTr[lower].toLowerCase() !== lower) return enTr[lower];
-    if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
-    if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
-    for (const [k, v] of Object.entries(trEn)) {
-      if (v && v.toLowerCase() === lower && k) return k;
-    }
-    for (const [k, v] of Object.entries(enTr)) {
-      if (k && k.toLowerCase() === lower && v) return v;
+    // Reverse lookup in TR->EN map (input is English value -> returns Turkish key)
+    for (const [trKey, enVal] of Object.entries(trEn)) {
+      if (enVal && enVal.toLowerCase() === lower && trKey) return trKey;
     }
   } else {
-    // Target is English
+    // Target is English: ONLY return English strings
+    // Direct lookup in TR->EN map (input is Turkish key -> returns English value)
     if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
     if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
-    // NOTE: do NOT lookup enTr[trimmed]/enTr[lower] here — those return Turkish values, wrong direction for EN target
-    for (const [k, v] of Object.entries(enTr)) {
-      if (v && v.toLowerCase() === lower && k) return k;
-    }
-    for (const [k, v] of Object.entries(trEn)) {
-      if (v && v.toLowerCase() === lower && k) return k;
+    // Reverse lookup in EN->TR map (input is Turkish value -> returns English key)
+    for (const [enKey, trVal] of Object.entries(enTr)) {
+      if (trVal && trVal.toLowerCase() === lower && enKey) return enKey;
     }
   }
 
@@ -4798,38 +4794,51 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
   
   const hasTurkishMarkers = (txt) => {
     if (!txt || typeof txt !== 'string') return false;
-    return /[çğıöşüÇĞİÖŞÜ]/.test(txt) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik|argümanlara|dinleyin)\b/i.test(txt);
+    return /[çğıöşüÇĞİÖŞÜ]/.test(txt) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik|argümanlara|dinleyin|sonuç|mantık|tanışırken|öğleden|günaydın|tünaydın)\b/i.test(txt);
   };
   
   const hasEnglishMarkers = (txt) => {
     if (!txt || typeof txt !== 'string') return false;
-    return /\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be|discussion|open|dialogue|arguments|listen|encourage)\b/i.test(txt);
+    return /\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be|discussion|open|dialogue|arguments|listen|encourage|conclusion|logic|result|meeting|someone|used|when|first|time)\b/i.test(txt);
   };
 
   if (targetLang === 'tr') {
     // We want Turkish
-    if (trStr && (!hasEnglishMarkers(trStr) || hasTurkishMarkers(trStr))) {
+    if (trStr && !hasEnglishMarkers(trStr) && (hasTurkishMarkers(trStr) || trStr.length > 0)) {
+      // Check if trStr is actually an English word masquerading in trStr
+      const autoTr = translateOption(trStr, 'tr');
+      if (autoTr && autoTr.toLowerCase() !== trStr.toLowerCase()) {
+        return autoTr;
+      }
       return trStr;
     }
     // If trStr is missing or English, try translating enStr or trStr to Turkish
     const src = trStr || enStr || defaultVal;
     if (src) {
+      const optTr = translateOption(src, 'tr');
+      if (optTr && optTr.toLowerCase() !== src.toLowerCase()) return optTr;
       const trRes = translateEducationalText(src, 'tr');
-      if (trRes) return trRes;
+      if (trRes && trRes.toLowerCase() !== src.toLowerCase()) return trRes;
       return src;
     }
     return defaultVal;
   } else {
     // We want English
-    // If enStr is available AND doesn't have Turkish markers, use it
-    if (enStr && !hasTurkishMarkers(enStr)) {
+    if (enStr && !hasTurkishMarkers(enStr) && (hasEnglishMarkers(enStr) || enStr.length > 0)) {
+      // Check if enStr is actually a Turkish word in enStr
+      const autoEn = translateOption(enStr, 'en');
+      if (autoEn && autoEn.toLowerCase() !== enStr.toLowerCase()) {
+        return autoEn;
+      }
       return enStr;
     }
     // If enStr is contaminated with Turkish, or missing, translate to English
     const src = enStr || trStr || defaultVal;
     if (src) {
+      const optEn = translateOption(src, 'en');
+      if (optEn && optEn.toLowerCase() !== src.toLowerCase()) return optEn;
       const enRes = translateEducationalText(src, 'en');
-      if (enRes) return enRes;
+      if (enRes && enRes.toLowerCase() !== src.toLowerCase()) return enRes;
       return src;
     }
     return defaultVal;
@@ -4862,8 +4871,9 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
       if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
         const explKey = resolveConceptKey(rawLangExpl);
         if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
-          // Language guard: if in EN mode but contains Turkish, or in TR mode but contains English
-          return resolveDualLanguage(rawLangExpl.trim(), rawLangExpl.trim(), lang, rawLangExpl.trim());
+          const enExpl = safeStr(it.explanation_en || it.english_explanation || it.explanation || it.desc_en || it.desc);
+          const trExpl = safeStr(it.explanation_tr || it.turkish_explanation || it.desc_tr);
+          return resolveDualLanguage(enExpl, trExpl, lang, rawLangExpl.trim());
         }
       }
     }
@@ -4871,12 +4881,12 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
     // Bidirectional fallback if one language is missing
     if (lang === 'en' && it.explanation_tr && typeof it.explanation_tr === 'string' && it.explanation_tr.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(it.explanation_tr)) {
-        return translateEducationalText(it.explanation_tr.trim(), 'en');
+        return resolveDualLanguage('', it.explanation_tr.trim(), 'en');
       }
     } else if (lang === 'tr' && (it.explanation_en || it.explanation) && typeof (it.explanation_en || it.explanation) === 'string') {
       const enVal = (it.explanation_en || it.explanation).trim();
       if (enVal.length > 2 && !TAUTOLOGY_REGEX.test(enVal)) {
-        return translateEducationalText(enVal, 'tr');
+        return resolveDualLanguage(enVal, '', 'tr');
       }
     }
   }
@@ -10163,38 +10173,16 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       </div>`;
                   } else {
                     const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                    let rawV = "";
-                    if (currentLang === 'tr') {
-                      rawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.translation || it.meaning || it.value || Object.values(it)[1]);
-                    } else {
-                      rawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.value || Object.values(it)[1]);
-                    }
-                    const rawResolved = translateOption(rawV, currentLang);
-                    let v = rawResolved ? rawResolved.charAt(0).toUpperCase() + rawResolved.slice(1) : rawResolved;
+                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || '');
+                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || '');
 
-                    // SAFETY GUARD: resolveDualLanguage catches any residual language mismatch on v
+                    let v = resolveDualLanguage(enRawV, trRawV, currentLang, (currentLang === 'tr' ? (trRawV || enRawV) : (enRawV || trRawV)));
+                    if (!v) {
+                      v = (currentLang === 'tr') ? (trRawV || enRawV) : (enRawV || trRawV);
+                    }
                     if (v) {
-                      const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || '');
-                      v = resolveDualLanguage(
-                        currentLang !== 'tr' ? v : rawV,
-                        currentLang === 'tr' ? v : trRawV,
-                        currentLang,
-                        v
-                      );
-                      if (v) v = v.charAt(0).toUpperCase() + v.slice(1);
-                    }
-
-                    // ROOT LANGUAGE MIXUP FIX: In EN mode, ensure any Turkish stored value is translated to English
-                    if (currentLang !== 'tr' && v) {
-                      const autoEN = translateOption(v, 'en');
-                      if (autoEN && autoEN.toLowerCase() !== v.toLowerCase()) {
-                        v = autoEN.charAt(0).toUpperCase() + autoEN.slice(1);
-                      } else {
-                        const eduEN = translateEducationalText(v, 'en');
-                        if (eduEN && eduEN.toLowerCase() !== v.toLowerCase()) {
-                          v = eduEN.charAt(0).toUpperCase() + eduEN.slice(1);
-                        }
-                      }
+                      v = translateOption(v, currentLang);
+                      v = v.charAt(0).toUpperCase() + v.slice(1);
                     }
 
                     // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
