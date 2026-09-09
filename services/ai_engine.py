@@ -672,15 +672,34 @@ DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
   * 'example_tr': Turkish translation of the example sentence ONLY (NEVER English)
   * 'explanation': Practical linguistic tip in English ONLY (e.g. collocations, prepositions, false friends)
   * 'explanation_tr': Practical linguistic tip in Turkish ONLY
-- STRICT ZERO-CALQUE MANDATE FOR TURKISH:
-  * NEVER write literal, robotic word-for-word machine translations!
-  * Write authentic Turkish grammar explanations using proper educational terminology:
-    - Example for 'gustar':
+- STRICT ZERO-CALQUE & AUTHENTIC TURKISH SYNTAX MANDATE (ABSOLUTE MANDATE):
+  * You MUST write authentic, idiomatic, natural Turkish sentences as written by a native university linguist or literary translator.
+  * CONCESSIVE CLAUSE RULES (CRITICAL):
+    - NEVER write mechanical calques like "Her ne kadar [subject] çok meşguldü, yine de..." or "Her ne kadar yorgundu..."!
+    - In authentic Turkish, concessive clauses MUST use natural subordinate structures:
+      * EXCELLENT: "Çok meşgul olmasına rağmen, yine de benimle görüşmek için zaman ayırdı."
+      * EXCELLENT: "Her ne kadar çok meşgul olsa da, yine de benimle görüşmeye vakit ayırdı."
+      * EXCELLENT: "Çok meşguldü ama yine de benimle görüşmeye vakit ayırdı."
+      * STRICTLY FORBIDDEN / CRITICAL DEFECT: "Her ne kadar çok meşguldü, yine de..." (Grammatically defective machine calque).
+  * IDIOMS & COLLOCATIONS RULES:
+    - NEVER translate English/foreign idioms literally:
+      * "make time" -> "vakit ayırmak" / "zaman ayırmak" (NEVER "zaman yapmak")
+      * "make sense" -> "mantıklı gelmek" / "anlamlı olmak" (NEVER "anlam yapmak")
+      * "pay attention" -> "dikkat etmek" / "özen göstermek" (NEVER "dikkat ödemek")
+      * "take a look" -> "göz atmak" / "bakmak" (NEVER "bir bakış almak")
+      * "take a shower" -> "duş almak" (NEVER "bir duş almak")
+      * "play a role" -> "önemli bir rol üstlenmek" / "etkili olmak"
+      * "have breakfast" -> "kahvaltı yapmak" (NEVER "kahvaltıya sahip olmak")
+  * ZERO TAUTOLOGY & NATURAL GRAMMAR EXPLANATIONS:
+    - Write authentic Turkish grammar explanations using proper educational terminology:
       * Good Turkish: "• Sevilen veya hoşlanılan eylemleri belirtirken 'me gusta' kalıbından sonra mastar fiil (infinitive) kullanılır (örneğin: 'me gusta leer')."
       * Good Turkish: "• Daha güçlü bir beğeni veya tutkuyu belirtmek için 'me encanta' ifadesi tercih edilir (örneğin: 'me encanta viajar')."
       * Good Turkish: "• Hoşlanılan nesne çoğul olduğunda fiil 'me gustan' şeklinde çoğul kullanılır (örneğin: 'me gustan las películas')."
       * Good Turkish: "• Gustar yapısında fiil çekiminin (gusta/gustan), beğenen kişiye göre değil, beğenilen nesnenin tekil ya da çoğul olmasına göre belirlendiğini unutmayın."
     - Bad calques to strictly avoid: "me gusta + mastar fiil kullanarak keyif almak için ifade edin", "Fiil formunu öznenin tercihine göre eşleştirmeyi unutmayın".
+  * WORD ORDER & NATURAL PRO-DROP:
+    - Obey standard Turkish Subject-Object-Verb (SOV) order.
+    - Omit repetitive subject pronouns ('o', 'ben', 'onlar') unless needed for deliberate contrast or emphasis.
 """
 
     classroom_density_mandate = f"""
@@ -881,6 +900,47 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
       ]
     }}"""
 
+    def heal_turkish_syntax(text: str) -> str:
+        if not text or not isinstance(text, str):
+            return text
+        # 1. Concessive clause healing:
+        # Transforms unnatural machine calques like "Her ne kadar çok meşguldü, yine de..."
+        # into natural Turkish "Her ne kadar çok meşgul olsa da, yine de..."
+        def repl_concessive(m):
+            prefix = m.group(1)
+            stem = m.group(2)
+            comma = m.group(3) or ''
+            return f"{prefix}{stem} olsa da{comma}"
+
+        concessive_pat = r'(?i)\b(her\s+ne\s+kadar\s+(?:.*?\s+)?)([a-zçğıöşüA-ZÇĞİÖŞÜ]+?)(?:y(?:dı|di|du|dü)|dı|di|du|dü|tı|ti|tu|tü)(,)?(?=\s+(?:yine\s+de|ancak|fakat|hâlâ|hala|ama)|\s+[a-zçğıöşüA-ZÇĞİÖŞÜ])'
+        text = re.sub(concessive_pat, repl_concessive, text)
+        text = re.sub(r'(?i)\b(her\s+ne\s+kadar\s+.*?)\s+olsa(?!\s+da|\s+de)(,)?', r'\1 olsa da\2', text)
+
+        # 2. Systemic anti-calque replacements (English/foreign collocations translated literally)
+        calques = [
+            (r'(?i)\bzaman\s+yapmak\b', 'vakit ayırmak'),
+            (r'(?i)\bzaman\s+yaptı\b', 'vakit ayırdı'),
+            (r'(?i)\bzaman\s+yapıyor\b', 'vakit ayırıyor'),
+            (r'(?i)\bzaman\s+yapacağız\b', 'vakit ayıracağız'),
+            (r'(?i)\banlam\s+yapmak\b', 'mantıklı gelmek'),
+            (r'(?i)\banlam\s+yapmıyor\b', 'mantıklı gelmiyor'),
+            (r'(?i)\banlam\s+yapıyor\b', 'mantıklı geliyor'),
+            (r'(?i)\bdikkat\s+ödemek\b', 'dikkat etmek'),
+            (r'(?i)\bdikkat\s+ödeyin\b', 'dikkat edin'),
+            (r'(?i)\bbir\s+bakış\s+almak\b', 'göz atmak'),
+            (r'(?i)\bbir\s+duş\s+almak\b', 'duş almak'),
+            (r'(?i)\bbanyo\s+almak\b', 'banyo yapmak'),
+            (r'(?i)\bbir\s+karar\s+yapmak\b', 'karar vermek'),
+            (r'(?i)\bkarar\s+yapmak\b', 'karar vermek'),
+            (r'(?i)\biyi\s+öğleden\s+sonralar\b', 'Tünaydın'),
+            (r'(?i)\biyi\s+öğleden\s+sonra\b', 'Tünaydın'),
+            (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın')
+        ]
+        for cp, repl in calques:
+            text = re.sub(cp, repl, text)
+
+        return text
+
     def _clean_pages(lesson_dict):
         if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
         from services.concept_explanations import heal_concept_item, heal_pragmatic_item
@@ -925,11 +985,20 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                 if isinstance(p.get("rules"), list):
                     for r_it in p["rules"]:
                         if isinstance(r_it, dict):
-                            pass
+                            for rf in ["rule_tr", "explanation_tr", "example_tr", "analysis_tr"]:
+                                if r_it.get(rf):
+                                    r_it[rf] = heal_turkish_syntax(r_it[rf])
                 if isinstance(p.get("comparisons"), list):
                     for c_it in p["comparisons"]:
                         if isinstance(c_it, dict):
-                            pass
+                            for cf in ["context_tr", "translation_tr", "note_tr"]:
+                                if c_it.get(cf):
+                                    c_it[cf] = heal_turkish_syntax(c_it[cf])
+
+            # Apply syntax healing to page-level Turkish fields
+            for f_tr in ["text_tr", "explanation_tr", "pitfall_tr", "context_tr", "intro_tr", "prompt_tr"]:
+                if p.get(f_tr):
+                    p[f_tr] = heal_turkish_syntax(p[f_tr])
 
             # Pedagogical item explanation enrichment & self-healing
             from services.language_data import get_letter_phonetics, get_vocab_example
@@ -1038,6 +1107,11 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
                                     it["explanation"] = bank_hit["tip_en"]
                                 if not it.get("explanation_tr") or tautology_re.search(str(it.get("explanation_tr", ""))):
                                     it["explanation_tr"] = bank_hit["tip_tr"]
+
+                            # 4. Enforce authentic Turkish syntax on vocabulary item Turkish fields
+                            for it_tr_k in ["example_tr", "explanation_tr", "translation_tr"]:
+                                if it.get(it_tr_k):
+                                    it[it_tr_k] = heal_turkish_syntax(it[it_tr_k])
 
                             filtered_arr.append(it)
                         elif isinstance(it, str):

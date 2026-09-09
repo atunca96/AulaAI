@@ -3784,6 +3784,46 @@ function getClientVocabExample(lang, term) {
 
 
 
+function healTurkishSyntax(s) {
+  if (!s || typeof s !== 'string') return s;
+  
+  // 1. Concessive clause healing:
+  // Transforms unnatural machine calques like "Her ne kadar çok meşguldü, yine de..."
+  // into natural authentic Turkish "Her ne kadar çok meşgul olsa da, yine de..."
+  const concessivePat = /\b(her\s+ne\s+kadar\s+(?:.*?\s+)?)([\p{L}]+?)(?:y(?:dı|di|du|dü)|dı|di|du|dü|tı|ti|tu|tü)(,)?(?=\s+(?:yine\s+de|ancak|fakat|hâlâ|hala|ama)|\s+[\p{L}])/giu;
+  s = s.replace(concessivePat, (match, prefix, stem, comma) => {
+    return prefix + stem + ' olsa da' + (comma || '');
+  });
+
+  // Clean missing 'da/de' after 'olsa' in 'Her ne kadar ... olsa,'
+  s = s.replace(/\b(her\s+ne\s+kadar\s+.*?)\s+olsa(?!\s+da|\s+de)(,)?/giu, '$1 olsa da$2');
+
+  // 2. Idiomatic collocations & anti-calques
+  const calques = [
+    [/\bzaman\s+yapmak\b/giu, 'vakit ayırmak'],
+    [/\bzaman\s+yaptı\b/giu, 'vakit ayırdı'],
+    [/\bzaman\s+yapıyor\b/giu, 'vakit ayırıyor'],
+    [/\bzaman\s+yapacağız\b/giu, 'vakit ayıracağız'],
+    [/\banlam\s+yapmak\b/giu, 'mantıklı gelmek'],
+    [/\banlam\s+yapmıyor\b/giu, 'mantıklı gelmiyor'],
+    [/\banlam\s+yapıyor\b/giu, 'mantıklı geliyor'],
+    [/\bdikkat\s+ödemek\b/giu, 'dikkat etmek'],
+    [/\bdikkat\s+ödeyin\b/giu, 'dikkat edin'],
+    [/\bbir\s+bakış\s+almak\b/giu, 'göz atmak'],
+    [/\bbir\s+duş\s+almak\b/giu, 'duş almak'],
+    [/\bbanyo\s+almak\b/giu, 'banyo yapmak'],
+    [/\bbir\s+karar\s+yapmak\b/giu, 'karar vermek'],
+    [/\bkarar\s+yapmak\b/giu, 'karar vermek'],
+    [/\biyi\s+öğleden\s+sonralar\b/giu, 'Tünaydın'],
+    [/\biyi\s+öğleden\s+sonra\b/giu, 'Tünaydın'],
+    [/\böğleden\s+sonralar\b/giu, 'Tünaydın']
+  ];
+  for (const [re, repl] of calques) {
+    s = s.replace(re, repl);
+  }
+  return s;
+}
+
 function translateOption(text, lang = currentLang) {
   if (!text) return '';
   const trimmed = text.trim();
@@ -4803,25 +4843,25 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
   };
 
   if (targetLang === 'tr') {
+    let res = defaultVal;
     // We want Turkish
     if (trStr && !hasEnglishMarkers(trStr) && (hasTurkishMarkers(trStr) || trStr.length > 0)) {
       // Check if trStr is actually an English word masquerading in trStr
       const autoTr = translateOption(trStr, 'tr');
-      if (autoTr && autoTr.toLowerCase() !== trStr.toLowerCase()) {
-        return autoTr;
+      res = (autoTr && autoTr.toLowerCase() !== trStr.toLowerCase()) ? autoTr : trStr;
+    } else {
+      // If trStr is missing or English, try translating enStr or trStr to Turkish
+      const src = trStr || enStr || defaultVal;
+      if (src) {
+        const optTr = translateOption(src, 'tr');
+        if (optTr && optTr.toLowerCase() !== src.toLowerCase()) res = optTr;
+        else {
+          const trRes = translateEducationalText(src, 'tr');
+          res = (trRes && trRes.toLowerCase() !== src.toLowerCase()) ? trRes : src;
+        }
       }
-      return trStr;
     }
-    // If trStr is missing or English, try translating enStr or trStr to Turkish
-    const src = trStr || enStr || defaultVal;
-    if (src) {
-      const optTr = translateOption(src, 'tr');
-      if (optTr && optTr.toLowerCase() !== src.toLowerCase()) return optTr;
-      const trRes = translateEducationalText(src, 'tr');
-      if (trRes && trRes.toLowerCase() !== src.toLowerCase()) return trRes;
-      return src;
-    }
-    return defaultVal;
+    return healTurkishSyntax(res);
   } else {
     // We want English
     if (enStr && !hasTurkishMarkers(enStr) && (hasEnglishMarkers(enStr) || enStr.length > 0)) {
@@ -9791,6 +9831,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
+      if (currentLang === 'tr') {
+        res = healTurkishSyntax(res);
+      }
       return '\u200E' + res;
     };
 
