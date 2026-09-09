@@ -205,6 +205,17 @@ function handleTTSClick(btn, text, lang, event) {
   });
 }
 
+function toggleDialogueTrans(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isHidden = (el.style.display === 'none');
+  el.style.display = isHidden ? 'block' : 'none';
+  if (btn) {
+    btn.classList.toggle('active', !isHidden);
+    btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+  }
+}
+
 // ── Message Sync Engine ──
 let messagePollingInterval = null;
 
@@ -3821,21 +3832,218 @@ function healTurkishSyntax(s) {
   for (const [re, repl] of calques) {
     s = s.replace(re, repl);
   }
+  s = humanizeTurkishExplanation(s);
   return s;
+}
+
+function humanizeTurkishExplanation(s) {
+  if (!s || typeof s !== 'string') return s;
+
+  let res = s;
+
+  // 1. "X terimini/kelimesini/sözcüğünü ... ifade etmek için kullanın" -> "... tanımlar;"
+  res = res.replace(/(?:'[^']+'|"[^"]+"|[a-zçğıöşüA-ZÇĞİÖŞÜ0-9\s'-]+?)\s+(?:terimini|kelimesini|sözcüğünü|ifadesini)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|ifade\s+ederken\s+kullanın|için\s+kullanın)\.?/giu, (match, topic) => {
+    let clean = topic.trim().replace(/^,\s*/, '');
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return `${clean} tanımlar;`;
+  });
+
+  // 2. "Bu terimleri / Bu kelimeleri / Bu sıfatları / Bunları ... ifade etmek için kullanın"
+  res = res.replace(/\b(?:bu\s+(?:terimleri|kelimeleri|sıfatları|ifadeleri)|bunları)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|için\s+kullanın)\.?/giu, (match, topic) => {
+    let clean = topic.trim().replace(/^,\s*/, '');
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return `${clean} belirtirken kullanılır.`;
+  });
+
+  // 3. Standalone "... ifade etmek için kullanın" -> "... belirtirken kullanılır."
+  res = res.replace(/([^.]+?)\s+ifade\s+etmek\s+için\s+kullanın\.?/giu, (match, topic) => {
+    let clean = topic.trim().replace(/^,\s*/, '');
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return `${clean} belirtirken kullanılır.`;
+  });
+
+  // 4. "Bu terim/kelime/sözcük, ... ifade eder. Günlük konuşmalarda sıkça kullanılır."
+  res = res.replace(/\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+eder\.?\s*(?:günlük\s+konuşmalarda\s+sıkça\s+kullanılır\.?)?/giu, (match, topic) => {
+    let clean = topic.trim().replace(/^,\s*/, '');
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return `${clean} tanımlar; günlük dilde ve pratik iletişimde yaygın olarak kullanılır. `;
+  });
+
+  // 5. "Bu terim/kelime, ... ifade etmek için kullanılır."
+  res = res.replace(/\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+etmek\s+için\s+kullanılır\.?/giu, (match, topic) => {
+    let clean = topic.trim().replace(/^,\s*/, '');
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    return `${clean} tanımlar;`;
+  });
+
+  // 6. "... kuralları ve düzenlemeleri anlamak için önemlidir"
+  res = res.replace(/\bkuralları\s+ve\s+düzenlemeleri\s+anlamak\s+için\s+önemlidir\.?/giu, 'seyahat ve günlük iletişim kuralları açısından temel bir kavramdır.');
+
+  // 7. "... için temel bir terimdir / ... için önemli bir terimdir"
+  res = res.replace(/([^.]+?)\s+için\s+(?:temel|önemli)\s+bir\s+terimdir\.?/giu, (match, topic) => {
+    let clean = topic.trim();
+    return `${clean} açısından temel bir kavramdır.`;
+  });
+
+  // 8. "Toplu taşımada yaygın bir terimdir."
+  res = res.replace(/\btoplu\s+taşımada\s+yaygın\s+bir\s+terimdir\.?/giu, 'Ulaşım ağlarında ve bilet işlemlerinde sıkça kullanılır.');
+
+  // 9. "... durumunu ifade eder" / "... eylemini ifade eder" -> "... tanımlar."
+  res = res.replace(/([a-zçğıöşüA-ZÇĞİÖŞÜ]+(leri|ları|i|ı|u|ü))\s+ifade\s+eder\.?/giu, '$1 tanımlar.');
+
+  // Clean formatting artifacts
+  res = res
+    .replace(/;\s*;/g, ';')
+    .replace(/;\s*\./g, '.')
+    .replace(/\.\s*\./g, '.')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/([.!?])(?=[a-zçğıöşüA-ZÇĞİÖŞÜ])/g, '$1 ')
+    .replace(/;\s*(?=[A-ZÇĞİÖŞÜ])/g, '; ')
+    .trim();
+
+  return res;
+}
+
+let SANITY_EN_TO_TR = null;
+let SANITY_TR_TO_EN = null;
+
+const SANITY_TR_CHARS = /[çğıöşüÇĞİÖŞÜ]/;
+
+const SANITY_CORE_EN_WORDS = new Set([
+  'the', 'a', 'an', 'to', 'in', 'on', 'at', 'for', 'of', 'with', 'from',
+  'stop', 'train', 'ticket', 'timetable', 'bus', 'passenger', 'station',
+  'subway', 'airport', 'hotel', 'restaurant', 'car', 'street', 'city',
+  'day', 'night', 'morning', 'afternoon', 'evening', 'hello', 'goodbye',
+  'please', 'thank', 'thanks', 'welcome', 'yes', 'no', 'what', 'where',
+  'how', 'who', 'why', 'when', 'my', 'your', 'his', 'her', 'our', 'their',
+  'nice', 'meet', 'pleased', 'friend', 'family', 'brother', 'sister',
+  'mother', 'father', 'son', 'daughter', 'water', 'bread', 'food',
+  'drink', 'eat', 'see', 'go', 'come', 'have', 'do', 'make', 'take',
+  'good', 'bad', 'big', 'small', 'new', 'old', 'cheap', 'expensive',
+  'open', 'closed', 'left', 'right', 'near', 'far', 'help', 'time',
+  'discussion', 'logic', 'conclusion', 'result', 'schedule', 'journey', 'platform'
+]);
+
+const SANITY_CORE_TR_WORDS = new Set([
+  'durak', 'tren', 'bilet', 'sefer', 'tablosu', 'otobüs', 'yolcu', 'istasyon',
+  'metro', 'havalimanı', 'otel', 'restoran', 'araba', 'cadde', 'şehir',
+  'gün', 'gece', 'sabah', 'öğleden', 'akşam', 'merhaba', 'hoşça', 'kal',
+  'lütfen', 'teşekkür', 'teşekkürler', 'rica', 'ederim', 'evet', 'hayır',
+  'ne', 'nerede', 'nasıl', 'kim', 'neden', 'ne zaman', 'benim', 'senin',
+  'onun', 'bizim', 'sizin', 'onların', 'memnun', 'oldum', 'arkadaş',
+  'aile', 'kardeş', 'kız', 'erkek', 'anne', 'baba', 'oğul', 'su', 'ekmek',
+  'yemek', 'içmek', 'görmek', 'gitmek', 'gelmek', 'sahip', 'olmak',
+  'yapmak', 'almak', 'iyi', 'kötü', 'büyük', 'küçük', 'yeni', 'eski', 'ucuz',
+  'pahalı', 'açık', 'kapalı', 'sol', 'sağ', 'yakın', 'uzak', 'yardım', 'zaman',
+  'vakit', 'tartışma', 'mantık', 'sonuç', 'görüşme', 'tarife', 'çizelge', 'peron'
+]);
+
+function isSanityTR(s) {
+  if (!s || typeof s !== 'string') return false;
+  if (SANITY_TR_CHARS.test(s)) return true;
+  const words = s.toLowerCase().trim().split(/\s+/);
+  for (const w of words) {
+    if (SANITY_CORE_TR_WORDS.has(w)) return true;
+    if (SANITY_CORE_EN_WORDS.has(w)) return false;
+  }
+  return false;
+}
+
+function isSanityEN(s) {
+  if (!s || typeof s !== 'string') return false;
+  if (SANITY_TR_CHARS.test(s)) return false;
+  const words = s.toLowerCase().trim().split(/\s+/);
+  for (const w of words) {
+    if (SANITY_CORE_EN_WORDS.has(w)) return true;
+    if (SANITY_CORE_TR_WORDS.has(w)) return false;
+  }
+  return false;
+}
+
+function registerSanityPair(a, b) {
+  if (!a || !b) return;
+  const strA = String(a).trim();
+  const strB = String(b).trim();
+  if (!strA || !strB || strA.toLowerCase() === strB.toLowerCase()) return;
+
+  let en = '', tr = '';
+  if (isSanityTR(strA) && !isSanityTR(strB)) {
+    tr = strA; en = strB;
+  } else if (isSanityTR(strB) && !isSanityTR(strA)) {
+    en = strA; tr = strB;
+  } else if (isSanityEN(strA) && !isSanityEN(strB)) {
+    en = strA; tr = strB;
+  } else if (isSanityEN(strB) && !isSanityEN(strA)) {
+    tr = strA; en = strB;
+  }
+
+  if (en && tr) {
+    SANITY_EN_TO_TR[en.toLowerCase()] = tr;
+    SANITY_TR_TO_EN[tr.toLowerCase()] = en;
+  }
+}
+
+function deinflectTurkishNoun(w) {
+  if (!w || typeof w !== 'string') return '';
+  let s = w.toLowerCase().trim();
+  if (s.endsWith('ler') || s.endsWith('lar')) s = s.slice(0, -3);
+  s = s.replace(/ğ([ıiuüae])$/, 'k');
+  s = s.replace(/[ys]?([ıiuüae])$/, '');
+  s = s.replace(/(?:d[ae]|d[ae]n|t[ae]|t[ae]n)$/, '');
+  return s;
+}
+
+function initSanitizedBilingualDictionaries() {
+  if (SANITY_EN_TO_TR && SANITY_TR_TO_EN) return;
+  SANITY_EN_TO_TR = Object.create(null);
+  SANITY_TR_TO_EN = Object.create(null);
+
+  // 1. Foundational transport and core vocabulary pairs
+  const FOUNDATIONAL_PAIRS = [
+    ["stop", "durak"],
+    ["bus stop", "otobüs durağı"],
+    ["train", "tren"],
+    ["ticket", "bilet"],
+    ["timetable", "sefer tablosu"],
+    ["schedule", "tarife"],
+    ["bus", "otobüs"],
+    ["passenger", "yolcu"],
+    ["station", "istasyon"],
+    ["subway", "metro"],
+    ["airport", "havalimanı"],
+    ["platform", "peron"],
+    ["discussion", "tartışma"],
+    ["logic", "mantık"],
+    ["conclusion", "sonuç"],
+    ["argument", "argüman"],
+    ["pleased to meet you", "tanıştığıma memnun oldum"],
+    ["nice to meet you", "memnun oldum"]
+  ];
+  for (const [e, t] of FOUNDATIONAL_PAIRS) registerSanityPair(e, t);
+
+  // 2. Register VOCAB_PAIRS
+  if (typeof VOCAB_PAIRS !== 'undefined' && Array.isArray(VOCAB_PAIRS)) {
+    for (const [e, t] of VOCAB_PAIRS) registerSanityPair(e, t);
+  }
+
+  // 3. Register and sanitize VOCAB_MAP_EN_TR and VOCAB_MAP_TR_EN (re-routing polluted entries)
+  const enTr = (typeof window !== 'undefined' && window.VOCAB_MAP_EN_TR) || {};
+  const trEn = (typeof window !== 'undefined' && window.VOCAB_MAP_TR_EN) || {};
+  for (const [k, v] of Object.entries(enTr)) registerSanityPair(k, v);
+  for (const [k, v] of Object.entries(trEn)) registerSanityPair(k, v);
 }
 
 function translateOption(text, lang = currentLang) {
   if (!text) return '';
   const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
   const isTr = (lang === 'tr');
 
   // Single characters / letters must NEVER be translated into pronouns (e.g. 'I' -> 'Ben' or 'o' -> 'she')
   if (trimmed.length <= 1) {
     return trimmed;
   }
-  const lower = trimmed.toLowerCase();
-  if (SPANISH_LETTER_SPELLINGS.has(lower)) {
-    // Spanish alphabet letter spellings are proper pronunciation names, never machine-translated
+  if (typeof SPANISH_LETTER_SPELLINGS !== 'undefined' && SPANISH_LETTER_SPELLINGS.has(lower)) {
     return trimmed;
   }
 
@@ -3855,38 +4063,55 @@ function translateOption(text, lang = currentLang) {
   if (lower === 'good night' || lower === 'good night.') {
     return isTr ? 'İyi geceler' : 'Good night';
   }
-
-  // 1. Check unambiguous VOCAB_PAIRS array first
-  for (const [en, tr] of VOCAB_PAIRS) {
-    if (lower === en.toLowerCase()) return isTr ? tr : en;
-    if (lower === tr.toLowerCase()) return isTr ? tr : en;
+  if (lower === 'nice to meet you' || lower === 'pleased to meet you') {
+    return isTr ? 'Memnun oldum' : 'Nice to meet you';
   }
 
-  // 2. Check window.VOCAB_MAP_EN_TR and window.VOCAB_MAP_TR_EN with strict direction isolation
-  const enTr = window.VOCAB_MAP_EN_TR || {};
-  const trEn = window.VOCAB_MAP_TR_EN || {};
+  initSanitizedBilingualDictionaries();
 
   if (isTr) {
-    // Target is Turkish: ONLY return Turkish strings
-    // Direct lookup in EN->TR map (input is English key -> returns Turkish value)
-    if (enTr[trimmed] && enTr[trimmed].toLowerCase() !== lower) return enTr[trimmed];
-    if (enTr[lower] && enTr[lower].toLowerCase() !== lower) return enTr[lower];
-    // Reverse lookup in TR->EN map (input is English value -> returns Turkish key)
-    for (const [trKey, enVal] of Object.entries(trEn)) {
-      if (enVal && enVal.toLowerCase() === lower && trKey) return trKey;
+    // Target is Turkish: STRICT DIRECTION ISOLATION (NEVER return English!)
+    // Check if it is an inflected noun needing base lemma (e.g. durağı -> Durak)
+    const deinflected = deinflectTurkishNoun(lower);
+    if (deinflected && deinflected !== lower && SANITY_TR_TO_EN[deinflected]) {
+      return deinflected.charAt(0).toUpperCase() + deinflected.slice(1);
     }
+    // If text is already Turkish, return it
+    if (SANITY_TR_CHARS.test(lower) || SANITY_TR_TO_EN[lower]) {
+      return text;
+    }
+    // Translate from English
+    if (SANITY_EN_TO_TR[lower]) return SANITY_EN_TO_TR[lower];
+    // Check unambiguous VOCAB_PAIRS array
+    if (typeof VOCAB_PAIRS !== 'undefined' && Array.isArray(VOCAB_PAIRS)) {
+      for (const [en, tr] of VOCAB_PAIRS) {
+        if (lower === en.toLowerCase()) return tr;
+        if (lower === tr.toLowerCase()) return tr;
+      }
+    }
+    return text;
   } else {
-    // Target is English: ONLY return English strings
-    // Direct lookup in TR->EN map (input is Turkish key -> returns English value)
-    if (trEn[trimmed] && trEn[trimmed].toLowerCase() !== lower) return trEn[trimmed];
-    if (trEn[lower] && trEn[lower].toLowerCase() !== lower) return trEn[lower];
-    // Reverse lookup in EN->TR map (input is Turkish value -> returns English key)
-    for (const [enKey, trVal] of Object.entries(enTr)) {
-      if (trVal && trVal.toLowerCase() === lower && enKey) return enKey;
+    // Target is English: STRICT DIRECTION ISOLATION (NEVER return Turkish!)
+    // If text is already English, return it directly
+    if (SANITY_EN_TO_TR[lower] && !SANITY_TR_CHARS.test(lower)) {
+      return text;
     }
+    // Translate from Turkish
+    if (SANITY_TR_TO_EN[lower]) return SANITY_TR_TO_EN[lower];
+    // Check Turkish noun case endings: -ı/-i/-u/-ü, -yı/-yi/-yu/-yü, -a/-e (e.g. durağı -> durak -> stop)
+    const deinflected = deinflectTurkishNoun(lower);
+    if (deinflected && SANITY_TR_TO_EN[deinflected]) {
+      return SANITY_TR_TO_EN[deinflected];
+    }
+    // Check unambiguous VOCAB_PAIRS array
+    if (typeof VOCAB_PAIRS !== 'undefined' && Array.isArray(VOCAB_PAIRS)) {
+      for (const [en, tr] of VOCAB_PAIRS) {
+        if (lower === tr.toLowerCase()) return en;
+        if (lower === en.toLowerCase()) return en;
+      }
+    }
+    return text;
   }
-
-  return text;
 }
 
 const PEDAGOGICAL_CONCEPT_EXPLANATIONS = {
@@ -4846,12 +5071,12 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
     let res = defaultVal;
     // We want Turkish
     if (trStr && !hasEnglishMarkers(trStr) && (hasTurkishMarkers(trStr) || trStr.length > 0)) {
-      // Check if trStr is actually an English word masquerading in trStr
+      // Check if trStr needs deinflection to base lemma or is an English word masquerading in trStr
       const autoTr = translateOption(trStr, 'tr');
       res = (autoTr && autoTr.toLowerCase() !== trStr.toLowerCase()) ? autoTr : trStr;
     } else {
       // If trStr is missing or English, try translating enStr or trStr to Turkish
-      const src = trStr || enStr || defaultVal;
+      const src = (enStr && !hasTurkishMarkers(enStr)) ? enStr : (trStr || defaultVal);
       if (src) {
         const optTr = translateOption(src, 'tr');
         if (optTr && optTr.toLowerCase() !== src.toLowerCase()) res = optTr;
@@ -4861,24 +5086,24 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
         }
       }
     }
-    return healTurkishSyntax(res);
+    return healTurkishSyntax(humanizeTurkishExplanation(res));
   } else {
     // We want English
     if (enStr && !hasTurkishMarkers(enStr) && (hasEnglishMarkers(enStr) || enStr.length > 0)) {
-      // Check if enStr is actually a Turkish word in enStr
+      // Confirmed English string without Turkish markers
       const autoEn = translateOption(enStr, 'en');
-      if (autoEn && autoEn.toLowerCase() !== enStr.toLowerCase()) {
+      if (autoEn && autoEn.toLowerCase() !== enStr.toLowerCase() && !hasTurkishMarkers(autoEn)) {
         return autoEn;
       }
       return enStr;
     }
     // If enStr is contaminated with Turkish, or missing, translate to English
-    const src = enStr || trStr || defaultVal;
+    const src = trStr || enStr || defaultVal;
     if (src) {
       const optEn = translateOption(src, 'en');
-      if (optEn && optEn.toLowerCase() !== src.toLowerCase()) return optEn;
+      if (optEn && optEn.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(optEn)) return optEn;
       const enRes = translateEducationalText(src, 'en');
-      if (enRes && enRes.toLowerCase() !== src.toLowerCase()) return enRes;
+      if (enRes && enRes.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(enRes)) return enRes;
       return src;
     }
     return defaultVal;
@@ -10110,13 +10335,22 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                   if (speakerMatch && !sTrimmed.startsWith('•') && !sTrimmed.startsWith('*')) {
                     const speaker = speakerMatch[1].trim();
                     const targetLine = speakerMatch[2].trim();
+                    const isSpeakerB = (speaker.toUpperCase() === 'B' || speaker.toLowerCase().includes('2') || speaker.toLowerCase().startsWith('b:'));
+                    const speakerClass = isSpeakerB ? 'speaker-b' : 'speaker-a';
+                    const avatarLetter = (speaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
+
                     html += `
-                      <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                          <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.6px;">${safeStr(speaker)}</div>
-                          <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetLine)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                      <div class="study-dialogue-card ${speakerClass}" dir="auto">
+                        <div class="dialogue-card-header">
+                          <div class="dialogue-speaker-badge">
+                            <div class="dialogue-speaker-avatar">${avatarLetter}</div>
+                            <div class="dialogue-speaker-name">${safeStr(speaker)}</div>
+                          </div>
+                          <div class="dialogue-card-actions">
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetLine)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                          </div>
                         </div>
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(targetLine))}&rdquo;</div>
+                        <div class="foreign-word dialogue-phrase" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(targetLine))}&rdquo;</div>
                       </div>`;
                   } else {
                     const isExampleOrDialoguePage = (p.type === 'examples' || p.type === 'dialogue' || (p.title && /practical|application|pratik|uygulama|dialogue|diyalog/i.test(p.title)));
@@ -10145,12 +10379,17 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     } else if (isExampleOrDialoguePage && (sTrimmed.split(/\s+/).length > 2 || sTrimmed.length > 15)) {
                       // Standalone target language example sentence
                       html += `
-                        <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
-                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                            <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
-                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(sTrimmed)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                        <div class="study-dialogue-card speaker-a" dir="auto">
+                          <div class="dialogue-card-header">
+                            <div class="dialogue-speaker-badge">
+                              <div class="dialogue-speaker-avatar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>
+                              <div class="dialogue-speaker-name">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                            </div>
+                            <div class="dialogue-card-actions">
+                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(sTrimmed)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                            </div>
                           </div>
-                          <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(sTrimmed)}&rdquo;</div>
+                          <div class="foreign-word dialogue-phrase" role="button" tabindex="0">&ldquo;${fixDiacritics(sTrimmed)}&rdquo;</div>
                         </div>`;
                     } else {
                       const normStr = normalizeConceptStr(sTrimmed);
@@ -10205,14 +10444,29 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       transText = "";
                     }
 
+                    const isSpeakerB = (speaker.trim().toUpperCase() === 'B' || speaker.trim().toLowerCase().includes('2') || speaker.trim().toLowerCase().startsWith('b:'));
+                    const speakerClass = isSpeakerB ? 'speaker-b' : 'speaker-a';
+                    const avatarLetter = (speaker.trim().charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
+                    const diagId = `diag-bubble-${Math.random().toString(36).slice(2, 9)}`;
+
                     html += `
-                      <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                          <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.6px;">${safeStr(speaker)}</div>
-                          ${targetText ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetText)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                      <div class="study-dialogue-card ${speakerClass}" dir="auto">
+                        <div class="dialogue-card-header">
+                          <div class="dialogue-speaker-badge">
+                            <div class="dialogue-speaker-avatar">${avatarLetter}</div>
+                            <div class="dialogue-speaker-name">${safeStr(speaker)}</div>
+                          </div>
+                          <div class="dialogue-card-actions">
+                            ${transText ? `
+                              <button class="dialogue-trans-toggle-btn" onclick="toggleDialogueTrans('${diagId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                <span>${currentLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
+                              </button>` : ''}
+                            ${targetText ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetText)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                          </div>
                         </div>
-                        <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(targetText))}&rdquo;</div>
-                        ${transText ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:6px; line-height:1.45;">${fixDiacritics(safeStr(transText))}</div>` : ''}
+                        <div class="foreign-word dialogue-phrase" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(targetText))}&rdquo;</div>
+                        ${transText ? `<div id="${diagId}" class="dialogue-translation-box">${fixDiacritics(safeStr(transText))}</div>` : ''}
                       </div>`;
                   } else {
                     const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
@@ -10267,15 +10521,25 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const isSentenceCard = Boolean(it.sentence || (it.text && !it.term && !it.word) || (typeof k === "string" && k.length > 50) || p.type === 'examples');
 
                     if (isSentenceCard && !isLetter) {
-                      // Authentic target-language example sentence
+                      const exTransId = `diag-ex-${Math.random().toString(36).slice(2, 9)}`;
                       html += `
-                        <div class="study-dialogue-card" dir="auto" style="background:var(--bg-input); padding:16px 20px; border-radius:10px; border:1px solid var(--border); border-left:4px solid var(--accent); margin-bottom:4px;">
-                          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                            <div style="font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
-                            ${kStr ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                        <div class="study-dialogue-card speaker-a" dir="auto">
+                          <div class="dialogue-card-header">
+                            <div class="dialogue-speaker-badge">
+                              <div class="dialogue-speaker-avatar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>
+                              <div class="dialogue-speaker-name">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                            </div>
+                            <div class="dialogue-card-actions">
+                              ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `
+                                <button class="dialogue-trans-toggle-btn" onclick="toggleDialogueTrans('${exTransId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                  <span>${currentLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
+                                </button>` : ''}
+                              ${kStr ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
+                            </div>
                           </div>
-                          <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(safeStr(kStr))}&rdquo;</div>
-                          ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:6px; line-height:1.45;">${fixDiacritics(safeStr(v))}</div>` : ''}
+                          <div class="foreign-word dialogue-phrase" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(kStr))}&rdquo;</div>
+                          ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `<div id="${exTransId}" class="dialogue-translation-box">${fixDiacritics(safeStr(v))}</div>` : ''}
                         </div>`;
                     } else if (isLetter) {
                     // Single letter — render cleanly with authentic name and phonetics guide
@@ -10328,7 +10592,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           ${briefExpl ? `
                             <div class="vocab-brief-explanation" style="font-size:12.5px; color:var(--accent-light); margin-top:3px; display:flex; align-items:flex-start; gap:5px; line-height:1.45;">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px; opacity:0.85;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                              <span>${fixDiacritics(safeStr(briefExpl))}</span>
+                              <span>${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : safeStr(briefExpl))}</span>
                             </div>` : ''}
                           ${exampleTarget ? `
                             <div class="vocab-example-block" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08); text-align:left;">

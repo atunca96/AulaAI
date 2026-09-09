@@ -3297,5 +3297,158 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   animation: shine 1.8s infinite;
 }
 
+/* ==========================================================================
+   CONVERSATIONAL DIALOGUE OVERLAY / CHAT THREAD REDESIGN
+   ========================================================================== */
+.dialogue-thread-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  position: relative;
+}
 
+.study-dialogue-card {
+  position: relative;
+  background: var(--bg-card, var(--bg-input));
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
 
+.study-dialogue-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.study-dialogue-card.speaker-a {
+  border-left: 4px solid var(--accent);
+  border-radius: 16px 16px 16px 6px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, rgba(0, 0, 0, 0) 100%), var(--bg-input);
+}
+
+.study-dialogue-card.speaker-b {
+  border-left: 4px solid #10b981;
+  border-radius: 16px 16px 6px 16px;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(0, 0, 0, 0) 100%), var(--bg-input);
+}
+
+.dialogue-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.dialogue-speaker-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialogue-speaker-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.speaker-a .dialogue-speaker-avatar {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--accent);
+  border: 1.5px solid rgba(99, 102, 241, 0.45);
+}
+
+.speaker-b .dialogue-speaker-avatar {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border: 1.5px solid rgba(16, 185, 129, 0.45);
+}
+
+.dialogue-speaker-name {
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.speaker-a .dialogue-speaker-name {
+  color: var(--accent);
+}
+
+.speaker-b .dialogue-speaker-name {
+  color: #10b981;
+}
+
+.dialogue-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialogue-phrase {
+  font-style: italic;
+  font-size: 16.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--text-primary);
+  display: block;
+}
+
+.dialogue-translation-box {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+[data-theme="light"] .dialogue-translation-box {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.dialogue-trans-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.dialogue-trans-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.dialogue-trans-toggle-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+  border-color: rgba(99, 102, 241, 0.4);
+}

@@ -776,8 +776,12 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
     5. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
     6. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
     7. NO FILLER: Every page must be packed with pedagogical value.
-    8. ZERO CALQUES: Ensure all Turkish explanations are authentic, idiomatic, and educational.
+    8. ZERO CALQUES & HUMAN TURKISH MANDATE: Ensure all Turkish explanations are 100% authentic, idiomatic, natural human teacher Turkish.
+       ABSOLUTE PROHIBITION ON ROBOTIC FORMULAS:
+       - NEVER use robotic templates like "[X] terimini ... ifade etmek için kullanın" or "Bu terim ... ifade eder. Günlük konuşmalarda sıkça kullanılır." or "... kuralları ve düzenlemeleri anlamak için önemlidir."
+       - Write as a natural, expert human language instructor explaining authentic usage, collocations, nuances, and communicative context.
     9. EXPLANATORY ITEMS: For every item in 'items', provide both 'explanation' (English) and 'explanation_tr' (Turkish).
+       In 'explanation_tr', NEVER write robotic definitions; write genuine practical usage guidance and tips.
     
     RESPONSE FORMAT (VALID JSON ONLY):
     {{
@@ -900,6 +904,83 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
       ]
     }}"""
 
+    def humanize_turkish_explanation(text: str) -> str:
+        if not text or not isinstance(text, str):
+            return text
+
+        # 1. 'X terimini/kelimesini/sözcüğünü ... ifade etmek için kullanın' -> '... tanımlar;'
+        text = re.sub(
+            r"(?i)(?:'[^']+'|\"[^\"]+\"|[a-zçğıöşüA-ZÇĞİÖŞÜ0-9\s'-]+?)\s+(?:terimini|kelimesini|sözcüğünü|ifadesini)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|ifade\s+ederken\s+kullanın|için\s+kullanın)\.?",
+            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar;",
+            text
+        )
+
+        # 2. 'Bu terimleri / Bu kelimeleri / Bu sıfatları / Bunları ... ifade etmek için kullanın'
+        text = re.sub(
+            r"(?i)\b(?:bu\s+(?:terimleri|kelimeleri|sıfatları|ifadeleri)|bunları)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|için\s+kullanın)\.?",
+            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} belirtirken kullanılır.",
+            text
+        )
+
+        # 3. Standalone '... ifade etmek için kullanın' -> '... belirtirken kullanılır.'
+        text = re.sub(
+            r"(?i)([^.]+?)\s+ifade\s+etmek\s+için\s+kullanın\.?",
+            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} belirtirken kullanılır.",
+            text
+        )
+
+        # 4. 'Bu terim/kelime/sözcük, ... ifade eder. Günlük konuşmalarda sıkça kullanılır.'
+        text = re.sub(
+            r"(?i)\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+eder\.?\s*(?:günlük\s+konuşmalarda\s+sıkça\s+kullanılır\.?)?",
+            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar; günlük dilde ve pratik iletişimde yaygın olarak kullanılır. ",
+            text
+        )
+
+        # 5. 'Bu terim/kelime, ... ifade etmek için kullanılır.'
+        text = re.sub(
+            r"(?i)\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+etmek\s+için\s+kullanılır\.?",
+            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar;",
+            text
+        )
+
+        # 6. '... kuralları ve düzenlemeleri anlamak için önemlidir'
+        text = re.sub(
+            r"(?i)\bkuralları\s+ve\s+düzenlemeleri\s+anlamak\s+için\s+önemlidir\.?",
+            "seyahat ve günlük iletişim kuralları açısından temel bir kavramdır.",
+            text
+        )
+
+        # 7. '... için temel bir terimdir / ... için önemli bir terimdir'
+        text = re.sub(
+            r"(?i)([^.]+?)\s+için\s+(?:temel|önemli)\s+bir\s+terimdir\.?",
+            lambda m: f"{m.group(1).strip()} açısından temel bir kavramdır.",
+            text
+        )
+
+        # 8. 'Toplu taşımada yaygın bir terimdir.'
+        text = re.sub(
+            r"(?i)\btoplu\s+taşımada\s+yaygın\s+bir\s+terimdir\.?",
+            "Ulaşım ağlarında ve bilet işlemlerinde sıkça kullanılır.",
+            text
+        )
+
+        # 9. '... durumunu ifade eder' / '... eylemini ifade eder' -> '... tanımlar.'
+        text = re.sub(
+            r"(?i)([a-zçğıöşüA-ZÇĞİÖŞÜ]+(?:leri|ları|i|ı|u|ü))\s+ifade\s+eder\.?",
+            r"\1 tanımlar.",
+            text
+        )
+
+        # Clean formatting artifacts
+        text = re.sub(r';\s*;', ';', text)
+        text = re.sub(r';\s*\.', '.', text)
+        text = re.sub(r'\.\s*\.', '.', text)
+        text = re.sub(r'\s{2,}', ' ', text)
+        text = re.sub(r'([.!?])(?=[a-zçğıöşüA-ZÇĞİÖŞÜ])', r'\1 ', text)
+        text = re.sub(r';\s*(?=[A-ZÇĞİÖŞÜ])', '; ', text)
+
+        return text.strip()
+
     def heal_turkish_syntax(text: str) -> str:
         if not text or not isinstance(text, str):
             return text
@@ -938,6 +1019,9 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
         ]
         for cp, repl in calques:
             text = re.sub(cp, repl, text)
+
+        # 3. Universal Turkish pedagogical humanizer
+        text = humanize_turkish_explanation(text)
 
         return text
 
