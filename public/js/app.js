@@ -208,11 +208,21 @@ function handleTTSClick(btn, text, lang, event) {
 function toggleDialogueTrans(id, btn) {
   const el = document.getElementById(id);
   if (!el) return;
-  const isHidden = (el.style.display === 'none');
-  el.style.display = isHidden ? 'block' : 'none';
-  if (btn) {
-    btn.classList.toggle('active', !isHidden);
-    btn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+  const isHidden = el.classList.contains('hidden-trans') || el.style.display === 'none';
+  if (isHidden) {
+    el.classList.remove('hidden-trans');
+    el.style.display = 'block';
+    if (btn) {
+      btn.classList.add('active');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+  } else {
+    el.classList.add('hidden-trans');
+    el.style.display = 'none';
+    if (btn) {
+      btn.classList.remove('active');
+      btn.setAttribute('aria-expanded', 'false');
+    }
   }
 }
 
@@ -3832,6 +3842,28 @@ function healTurkishSyntax(s) {
   for (const [re, repl] of calques) {
     s = s.replace(re, repl);
   }
+
+  // 3. Typo & calque healer: doktar -> doktor with vowel harmony
+  s = s.replace(/\bdoktar(sınız|siniz|sın|sin|ım|im|ız|iz|dır|dir|lar|ler|[a-zçğıöşü]+)?\b/giu, (match, suffix) => {
+    const isCap = match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase();
+    const prefix = isCap ? 'Doktor' : 'doktor';
+    if (!suffix) return prefix;
+    const sLow = suffix.toLowerCase();
+    const map = {
+      'sın': 'sun', 'sin': 'sun',
+      'sınız': 'sunuz', 'siniz': 'sunuz',
+      'ım': 'um', 'im': 'um',
+      'ız': 'uz', 'iz': 'uz',
+      'dır': 'dur', 'dir': 'dur',
+      'lar': 'lar', 'ler': 'lar',
+      'a': 'a', 'e': 'a',
+      'dan': 'dan', 'den': 'dan',
+      'ı': 'u', 'i': 'u',
+      'un': 'un', 'in': 'un'
+    };
+    return prefix + (map[sLow] || sLow);
+  });
+
   s = humanizeTurkishExplanation(s);
   return s;
 }
@@ -3921,7 +3953,9 @@ const SANITY_CORE_EN_WORDS = new Set([
   'drink', 'eat', 'see', 'go', 'come', 'have', 'do', 'make', 'take',
   'good', 'bad', 'big', 'small', 'new', 'old', 'cheap', 'expensive',
   'open', 'closed', 'left', 'right', 'near', 'far', 'help', 'time',
-  'discussion', 'logic', 'conclusion', 'result', 'schedule', 'journey', 'platform'
+  'discussion', 'logic', 'conclusion', 'result', 'schedule', 'journey', 'platform',
+  'doctor', 'physician', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh',
+  'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'twentieth', 'thirtieth', 'hundredth'
 ]);
 
 const SANITY_CORE_TR_WORDS = new Set([
@@ -3935,7 +3969,9 @@ const SANITY_CORE_TR_WORDS = new Set([
   'yemek', 'içmek', 'görmek', 'gitmek', 'gelmek', 'sahip', 'olmak',
   'yapmak', 'almak', 'iyi', 'kötü', 'büyük', 'küçük', 'yeni', 'eski', 'ucuz',
   'pahalı', 'açık', 'kapalı', 'sol', 'sağ', 'yakın', 'uzak', 'yardım', 'zaman',
-  'vakit', 'tartışma', 'mantık', 'sonuç', 'görüşme', 'tarife', 'çizelge', 'peron'
+  'vakit', 'tartışma', 'mantık', 'sonuç', 'görüşme', 'tarife', 'çizelge', 'peron',
+  'doktor', 'hekim', 'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci', 'altıncı',
+  'yedinci', 'sekizinci', 'dokuzuncu', 'onuncu', 'yirminci', 'otuzuncu', 'yüzüncü'
 ]);
 
 function isSanityTR(s) {
@@ -4017,7 +4053,33 @@ function initSanitizedBilingualDictionaries() {
     ["conclusion", "sonuç"],
     ["argument", "argüman"],
     ["pleased to meet you", "tanıştığıma memnun oldum"],
-    ["nice to meet you", "memnun oldum"]
+    ["nice to meet you", "memnun oldum"],
+    ["doctor", "doktor"],
+    ["physician", "hekim"],
+    ["first", "birinci"],
+    ["second", "ikinci"],
+    ["third", "üçüncü"],
+    ["fourth", "dördüncü"],
+    ["fifth", "beşinci"],
+    ["sixth", "altıncı"],
+    ["seventh", "yedinci"],
+    ["eighth", "sekizinci"],
+    ["ninth", "dokuzuncu"],
+    ["tenth", "onuncu"],
+    ["eleventh", "on birinci"],
+    ["twelfth", "on ikinci"],
+    ["thirteenth", "on üçüncü"],
+    ["fourteenth", "on dördüncü"],
+    ["fifteenth", "on beşinci"],
+    ["sixteenth", "on altıncı"],
+    ["seventeenth", "on yedinci"],
+    ["eighteenth", "on sekizinci"],
+    ["nineteenth", "on dokuzuncu"],
+    ["twentieth", "yirminci"],
+    ["thirtieth", "otuzuncu"],
+    ["fortieth", "kırkıncı"],
+    ["fiftieth", "ellinci"],
+    ["hundredth", "yüzüncü"]
   ];
   for (const [e, t] of FOUNDATIONAL_PAIRS) registerSanityPair(e, t);
 
@@ -4606,9 +4668,21 @@ const FRONTEND_PRAGMATIC_MAP = {
   },
   "hasta luego": {
     en: "See you later",
+    tr: "Sonra görüşürüz",
+    desc_en: "Common parting phrase: until later / see you later.",
+    desc_tr: "Ayrılırken 'sonra görüşmek üzere' anlamında kullanılan yaygın veda ifadesi."
+  },
+  "hasta pronto": {
+    en: "See you soon",
+    tr: "Yakında görüşürüz",
+    desc_en: "Parting phrase used when expecting to see someone again soon.",
+    desc_tr: "Kısa bir süre içinde yeniden bir araya gelineceğini bildiren veda ifadesi."
+  },
+  "nos vemos": {
+    en: "See you",
     tr: "Görüşmek üzere",
-    desc_en: "Common parting phrase when expecting to see someone again soon.",
-    desc_tr: "Yakın zamanda tekrar karşılaşılacağı durumlarda söylenen veda sözü."
+    desc_en: "Friendly parting expression: we will see each other.",
+    desc_tr: "Samimi ve günlük vedalaşmalarda kullanılan 'görüşmek üzere' ifadesi."
   },
   "hasta manana": {
     en: "See you tomorrow",
@@ -4616,6 +4690,24 @@ const FRONTEND_PRAGMATIC_MAP = {
     desc_en: "Parting phrase specifically for the following day.",
     desc_tr: "Ertesi gün yeniden bir araya gelineceğini bildiren veda ifadesi."
   },
+  "primero": { en: "First", tr: "Birinci", desc_en: "Precedes all others in order or position.", desc_tr: "Bir dizideki ilk pozisyonu veya sırayı belirtir." },
+  "primera": { en: "First", tr: "Birinci", desc_en: "Feminine form: precedes all others in order.", desc_tr: "Bir dizideki ilk sırayı veya konumu belirtir." },
+  "segundo": { en: "Second", tr: "İkinci", desc_en: "Coming next after the first in order.", desc_tr: "Bir dizideki ikinci konumu veya sırayı belirtir." },
+  "segunda": { en: "Second", tr: "İkinci", desc_en: "Feminine form: coming next after the first.", desc_tr: "Bir dizideki ikinci sırayı veya konumu belirtir." },
+  "tercero": { en: "Third", tr: "Üçüncü", desc_en: "Coming next after the second in order.", desc_tr: "Bir dizideki üçüncü konumu veya sırayı belirtir." },
+  "tercera": { en: "Third", tr: "Üçüncü", desc_en: "Feminine form: coming next after the second.", desc_tr: "Bir dizideki üçüncü sırayı veya konumu belirtir." },
+  "cuarto": { en: "Fourth", tr: "Dördüncü", desc_en: "Coming next after the third in order.", desc_tr: "Bir dizideki dördüncü konumu veya sırayı belirtir." },
+  "cuarta": { en: "Fourth", tr: "Dördüncü", desc_en: "Feminine form: fourth in order.", desc_tr: "Bir dizideki dördüncü konumu veya sırayı belirtir." },
+  "quinto": { en: "Fifth", tr: "Beşinci", desc_en: "Coming next after the fourth in order.", desc_tr: "Beşinci sırayı veya konumu belirtmek için kullanılır." },
+  "quinta": { en: "Fifth", tr: "Beşinci", desc_en: "Feminine form: fifth in order.", desc_tr: "Beşinci sırayı veya konumu belirtmek için kullanılır." },
+  "sexto": { en: "Sixth", tr: "Altıncı", desc_en: "Coming next after the fifth in order.", desc_tr: "Altıncı sırayı veya konumu belirtir." },
+  "sexta": { en: "Sixth", tr: "Altıncı", desc_en: "Feminine form: sixth in order.", desc_tr: "Altıncı sırayı veya konumu belirtir." },
+  "septimo": { en: "Seventh", tr: "Yedinci", desc_en: "Coming next after the sixth in order.", desc_tr: "Yedinci sırayı veya konumu belirtir." },
+  "séptimo": { en: "Seventh", tr: "Yedinci", desc_en: "Coming next after the sixth in order.", desc_tr: "Yedinci sırayı veya konumu belirtir." },
+  "octavo": { en: "Eighth", tr: "Sekizinci", desc_en: "Coming next after the seventh in order.", desc_tr: "Sekizinci sırayı veya konumu belirtir." },
+  "noveno": { en: "Ninth", tr: "Dokuzuncu", desc_en: "Coming next after the eighth in order.", desc_tr: "Dokuzuncu sırayı veya konumu belirtir." },
+  "decimo": { en: "Tenth", tr: "Onuncu", desc_en: "Coming next after the ninth in order.", desc_tr: "Onuncu sırayı veya konumu belirtir." },
+  "décimo": { en: "Tenth", tr: "Onuncu", desc_en: "Coming next after the ninth in order.", desc_tr: "Onuncu sırayı veya konumu belirtir." },
   "mucho gusto": {
     en: "Nice to meet you",
     tr: "Tanıştığımıza memnun oldum",
@@ -10335,16 +10427,21 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                   if (speakerMatch && !sTrimmed.startsWith('•') && !sTrimmed.startsWith('*')) {
                     const speaker = speakerMatch[1].trim();
                     const targetLine = speakerMatch[2].trim();
-                    const isSpeakerB = (speaker.toUpperCase() === 'B' || speaker.toLowerCase().includes('2') || speaker.toLowerCase().startsWith('b:'));
+                    const rawSpeaker = safeStr(speaker).trim();
+                    const isSpeakerB = (rawSpeaker.toUpperCase() === 'B' || rawSpeaker.toLowerCase().includes('2') || rawSpeaker.toLowerCase().startsWith('b:'));
                     const speakerClass = isSpeakerB ? 'speaker-b' : 'speaker-a';
-                    const avatarLetter = (speaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
+                    const avatarLetter = (rawSpeaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
+                    const isSingleLetterSpeaker = (rawSpeaker.toUpperCase() === avatarLetter || /^(speaker|konuşmacı|hablante)\s*[a-z0-9]$/i.test(rawSpeaker));
+                    const speakerDisplayName = isSingleLetterSpeaker
+                      ? (currentLang === 'tr' ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
+                      : rawSpeaker;
 
                     html += `
                       <div class="study-dialogue-card ${speakerClass}" dir="auto">
                         <div class="dialogue-card-header">
                           <div class="dialogue-speaker-badge">
                             <div class="dialogue-speaker-avatar">${avatarLetter}</div>
-                            <div class="dialogue-speaker-name">${safeStr(speaker)}</div>
+                            <div class="dialogue-speaker-name">${speakerDisplayName}</div>
                           </div>
                           <div class="dialogue-card-actions">
                             <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetLine)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
@@ -10404,25 +10501,32 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         const exampleWord = phonData.example || '';
                         const exampleTrans = (currentLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
                         html += `<div class="study-vocab-card alphabet-card">
-                            <div class="vocab-term-wrapper">
-                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                              <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                            <div class="vocab-card-header">
+                              <div class="vocab-term-wrapper">
+                                <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                                <div class="vocab-term-text"><div dir="auto" style="font-size:18px; font-weight:700; color:var(--text-primary);">${fixDiacritics(it)}</div></div>
+                              </div>
+                              <div class="vocab-header-actions">
+                                ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
+                                ${phoneticGuide ? `<div class="phonetic-badge">${fixDiacritics(phoneticGuide)}</div>` : ''}
+                              </div>
                             </div>
-                            <div class="alphabet-pronunciation-block" style="text-align:right;">
-                              ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
-                              ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
-                              ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
-                            </div>
+                            ${exampleWord ? `
+                              <div class="vocab-pedagogy-section" style="border-left-color: #a5b4fc;">
+                                <div style="font-size:13px; color:var(--text-secondary);">${currentLang === 'tr' ? 'Örnek Sözcük' : 'Example Word'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.85;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>
+                              </div>` : ''}
                           </div>`;
                       } else {
                         // Multi-char word — dict-clickable, but only over the word text itself
                         const briefExpl = resolveItemExplanation(null, it, '', currentLang);
                         html += `<div class="study-vocab-card">
-                            <div class="vocab-term-wrapper">
-                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
-                              <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                            <div class="vocab-card-header">
+                              <div class="vocab-term-wrapper">
+                                <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(it)}, null, event)">${TTS_SVG_IDLE}</button>
+                                <div class="vocab-term-text"><div class="foreign-word" role="button" tabindex="0" style="cursor:pointer; font-size:16px; font-weight:600; color:var(--text-primary); display:inline;">${fixDiacritics(it)}</div></div>
+                              </div>
+                              ${briefExpl ? `<span class="vocab-meaning-pill">${fixDiacritics(safeStr(briefExpl))}</span>` : ''}
                             </div>
-                            ${briefExpl ? `<div class="english-translation"><div class="vocab-brief-explanation">${fixDiacritics(safeStr(briefExpl))}</div></div>` : ''}
                           </div>`;
                       }
                     }
@@ -10444,21 +10548,26 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       transText = "";
                     }
 
-                    const isSpeakerB = (speaker.trim().toUpperCase() === 'B' || speaker.trim().toLowerCase().includes('2') || speaker.trim().toLowerCase().startsWith('b:'));
+                    const rawSpeaker = safeStr(speaker).trim();
+                    const isSpeakerB = (rawSpeaker.toUpperCase() === 'B' || rawSpeaker.toLowerCase().includes('2') || rawSpeaker.toLowerCase().startsWith('b:'));
                     const speakerClass = isSpeakerB ? 'speaker-b' : 'speaker-a';
-                    const avatarLetter = (speaker.trim().charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
-                    const diagId = `diag-bubble-${Math.random().toString(36).slice(2, 9)}`;
+                    const avatarLetter = (rawSpeaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
+                    const isSingleLetterSpeaker = (rawSpeaker.toUpperCase() === avatarLetter || /^(speaker|konuşmacı|hablante)\s*[a-z0-9]$/i.test(rawSpeaker));
+                    const speakerDisplayName = isSingleLetterSpeaker
+                      ? (currentLang === 'tr' ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
+                      : rawSpeaker;
+                    const diagId = `diag-bubble-${p.type || 'p'}-${itIdx}`;
 
                     html += `
                       <div class="study-dialogue-card ${speakerClass}" dir="auto">
                         <div class="dialogue-card-header">
                           <div class="dialogue-speaker-badge">
                             <div class="dialogue-speaker-avatar">${avatarLetter}</div>
-                            <div class="dialogue-speaker-name">${safeStr(speaker)}</div>
+                            <div class="dialogue-speaker-name">${speakerDisplayName}</div>
                           </div>
                           <div class="dialogue-card-actions">
                             ${transText ? `
-                              <button class="dialogue-trans-toggle-btn" onclick="toggleDialogueTrans('${diagId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}">
+                              <button class="dialogue-trans-toggle-btn active" onclick="toggleDialogueTrans('${diagId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}" aria-expanded="true">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                                 <span>${currentLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
                               </button>` : ''}
@@ -10576,30 +10685,48 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const rawExTr = it.example_tr || bankHit.example_tr || '';
                     const exampleTrans = resolveDualLanguage(rawExEn, rawExTr, currentLang, (currentLang === 'tr' ? rawExTr : rawExEn));
 
+                    // --- STRICT ENGLISH LEAK HEALER FOR TURKISH MODE ---
+                    if (currentLang === 'tr') {
+                      if (isSanityEN(v) || /^(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|stop|train|ticket|doctor)$/i.test(v)) {
+                        const trTrans = translateOption(v, 'tr');
+                        if (trTrans && trTrans.toLowerCase() !== v.toLowerCase()) {
+                          v = trTrans.charAt(0).toUpperCase() + trTrans.slice(1);
+                        } else if (it.explanation_tr && typeof it.explanation_tr === 'string') {
+                          const matchWord = it.explanation_tr.match(/^([A-ZÇĞİÖŞÜ][a-zçğıöşü]+)/);
+                          if (matchWord && isSanityTR(matchWord[1])) {
+                            v = matchWord[1];
+                          }
+                        }
+                      }
+                    }
+
                     // Part of speech / grammatical category badge if available
                     const posBadge = safeStr(it.pos || it.part_of_speech || it.type || it.category || '').trim();
 
                     html += `<div class="study-vocab-card">
-                        <div class="vocab-card-top-row" style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:4px;">
+                        <div class="vocab-card-header">
                           <div class="vocab-term-wrapper">
-                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)">${TTS_SVG_IDLE}</button>
-                            <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="font-size:16.5px; font-weight:700; color:var(--text-primary); cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
+                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                            <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
                           </div>
-                          ${posBadge ? `<span class="vocab-pos-badge" style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 7px; border-radius:4px; background:rgba(99,102,241,0.12); color:var(--accent); border:1px solid rgba(99,102,241,0.25);">${esc(posBadge)}</span>` : ''}
+                          <div class="vocab-header-actions">
+                            ${posBadge ? `<span class="vocab-pos-badge">${esc(posBadge)}</span>` : ''}
+                            <span class="vocab-meaning-pill">${fixDiacritics(safeStr(v))}</span>
+                          </div>
                         </div>
-                        <div class="english-translation">
-                          <div class="vocab-meaning-title">${safeStr(v)}</div>
-                          ${briefExpl ? `
-                            <div class="vocab-brief-explanation" style="font-size:12.5px; color:var(--accent-light); margin-top:3px; display:flex; align-items:flex-start; gap:5px; line-height:1.45;">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px; opacity:0.85;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                              <span>${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : safeStr(briefExpl))}</span>
-                            </div>` : ''}
-                          ${exampleTarget ? `
-                            <div class="vocab-example-block" style="margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.08); text-align:left;">
-                              <div class="vocab-example-target" style="font-size:13.5px; color:var(--text-primary); font-style:italic; line-height:1.45;">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
-                              ${exampleTrans ? `<div class="vocab-example-trans" style="font-size:12.5px; color:var(--text-secondary); margin-top:3px; line-height:1.4;">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
-                            </div>` : ''}
-                        </div>
+                        ${briefExpl ? `
+                          <div class="vocab-pedagogy-section">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : safeStr(briefExpl))}</div>
+                          </div>` : ''}
+                        ${exampleTarget ? `
+                          <div class="vocab-example-card">
+                            <div class="vocab-example-target-row">
+                              <div class="foreign-word vocab-example-target" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
+                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(exampleTarget)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
+                            </div>
+                            ${exampleTrans ? `<div class="vocab-example-trans">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
+                          </div>` : ''}
                       </div>`;
                   }
                 }

@@ -86,7 +86,27 @@ CANONICAL_CONCEPT_NAMES = {
     "imperative": { "en": "Imperative", "tr": "Emir Kipi" },
     "subjunctive": { "en": "Subjunctive", "tr": "Dilek / İstek Kipi" },
     "synonym": { "en": "Synonym", "tr": "Eş Anlamlı" },
-    "antonym": { "en": "Antonym", "tr": "Zıt Anlamlı" }
+    "antonym": { "en": "Antonym", "tr": "Zıt Anlamlı" },
+    "first": { "en": "First", "tr": "Birinci" },
+    "second": { "en": "Second", "tr": "İkinci" },
+    "third": { "en": "Third", "tr": "Üçüncü" },
+    "fourth": { "en": "Fourth", "tr": "Dördüncü" },
+    "fifth": { "en": "Fifth", "tr": "Beşinci" },
+    "sixth": { "en": "Sixth", "tr": "Altıncı" },
+    "seventh": { "en": "Seventh", "tr": "Yedinci" },
+    "eighth": { "en": "Eighth", "tr": "Sekizinci" },
+    "ninth": { "en": "Ninth", "tr": "Dokuzuncu" },
+    "tenth": { "en": "Tenth", "tr": "Onuncu" },
+    "primero": { "en": "First", "tr": "Birinci" },
+    "segundo": { "en": "Second", "tr": "İkinci" },
+    "tercero": { "en": "Third", "tr": "Üçüncü" },
+    "cuarto": { "en": "Fourth", "tr": "Dördüncü" },
+    "quinto": { "en": "Fifth", "tr": "Beşinci" },
+    "sexto": { "en": "Sixth", "tr": "Altıncı" },
+    "septimo": { "en": "Seventh", "tr": "Yedinci" },
+    "octavo": { "en": "Eighth", "tr": "Sekizinci" },
+    "noveno": { "en": "Ninth", "tr": "Dokuzuncu" },
+    "decimo": { "en": "Tenth", "tr": "Onuncu" }
 }
 
 # Master dictionary: maps normalized concept keys to { "en": "...", "tr": "..." }
@@ -335,6 +355,46 @@ CONCEPT_EXPLANATIONS = {
     "antonym": {
         "en": "A word with opposite meaning to another word in the same language.",
         "tr": "Anlamca birbiriyle çelişen ve karşıt anlam taşıyan sözcük."
+    },
+    "first": {
+        "en": "Precedes all others in order, sequence, or series.",
+        "tr": "Bir dizideki ilk pozisyonu veya konumu belirtmek için kullanılır."
+    },
+    "second": {
+        "en": "Coming next after the first in order.",
+        "tr": "Bir dizideki ikinci sırayı veya konumu belirtir."
+    },
+    "third": {
+        "en": "Coming next after the second in order.",
+        "tr": "Üçüncü pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "fourth": {
+        "en": "Coming next after the third in order.",
+        "tr": "Dördüncü pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "fifth": {
+        "en": "Coming next after the fourth in order.",
+        "tr": "Beşinci pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "sixth": {
+        "en": "Coming next after the fifth in order.",
+        "tr": "Altıncı pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "seventh": {
+        "en": "Coming next after the sixth in order.",
+        "tr": "Yedinci pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "eighth": {
+        "en": "Coming next after the seventh in order.",
+        "tr": "Sekizinci pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "ninth": {
+        "en": "Coming next after the eighth in order.",
+        "tr": "Dokuzuncu pozisyonu veya sırayı belirtmek için kullanılır."
+    },
+    "tenth": {
+        "en": "Coming next after the ninth in order.",
+        "tr": "Onuncu pozisyonu veya sırayı belirtmek için kullanılır."
     }
 }
 
@@ -482,7 +542,23 @@ ALIASES = {
     "sostantivo": "noun", "nome": "noun", "verbo": "verb", "aggettivo": "adjective",
     "avverbio": "adverb", "pronome": "pronoun", "articolo": "article", "preposizione": "preposition",
     "genere": "gender", "maschile": "masculine", "femminile": "feminine",
-    "singolare": "singular", "plurale": "plural"
+    "singolare": "singular", "plurale": "plural",
+
+    # Ordinals
+    "primero": "first", "primera": "first",
+    "segundo": "second", "segunda": "second",
+    "tercero": "third", "tercera": "third",
+    "cuarto": "fourth", "cuarta": "fourth",
+    "quinto": "fifth", "quinta": "fifth",
+    "sexto": "sixth", "sexta": "sixth",
+    "septimo": "seventh", "séptimo": "seventh", "septima": "seventh",
+    "octavo": "eighth", "octava": "eighth",
+    "noveno": "ninth", "novena": "ninth",
+    "decimo": "tenth", "décimo": "tenth", "decima": "tenth",
+    "birinci": "first", "ikinci": "second", "üçüncü": "third", "ucuncu": "third",
+    "dördüncü": "fourth", "dorduncu": "fourth", "beşinci": "fifth", "besinci": "fifth",
+    "altıncı": "sixth", "altinci": "sixth", "yedinci": "seventh", "sekizinci": "eighth",
+    "dokuzuncu": "ninth", "onuncu": "tenth"
 }
 
 def resolve_concept_key(text: str) -> str:
@@ -574,9 +650,21 @@ PRAGMATIC_DICTIONARY = {
     },
     "hasta luego": {
         "en": "See you later",
+        "tr": "Sonra görüşürüz",
+        "desc_en": "Common parting phrase: until later / see you later.",
+        "desc_tr": "Ayrılırken 'sonra görüşmek üzere' anlamında kullanılan yaygın veda ifadesi."
+    },
+    "hasta pronto": {
+        "en": "See you soon",
+        "tr": "Yakında görüşürüz",
+        "desc_en": "Parting phrase used when expecting to see someone again soon.",
+        "desc_tr": "Kısa bir süre içinde yeniden bir araya gelineceğini bildiren veda ifadesi."
+    },
+    "nos vemos": {
+        "en": "See you",
         "tr": "Görüşmek üzere",
-        "desc_en": "Common parting phrase when expecting to see someone again soon.",
-        "desc_tr": "Yakın zamanda tekrar karşılaşılacağı durumlarda söylenen veda sözü."
+        "desc_en": "Friendly parting expression: we will see each other.",
+        "desc_tr": "Samimi ve günlük vedalaşmalarda kullanılan 'görüşmek üzere' ifadesi."
     },
     "hasta manana": {
         "en": "See you tomorrow",
@@ -607,6 +695,68 @@ PRAGMATIC_DICTIONARY = {
         "tr": "Nasılsınız?",
         "desc_en": "Formal, respectful inquiry about well-being.",
         "desc_tr": "Resmi veya saygı gerektiren durumlarda sorulan hal hatır kalıbı."
+    },
+
+    # Spanish Ordinals
+    "primero": {
+        "en": "First",
+        "tr": "Birinci",
+        "desc_en": "Precedes all others in order or position.",
+        "desc_tr": "Bir dizideki ilk konumu veya sırayı belirtir."
+    },
+    "segundo": {
+        "en": "Second",
+        "tr": "İkinci",
+        "desc_en": "Coming next after the first in order.",
+        "desc_tr": "Bir dizideki ikinci konumu veya sırayı belirtir."
+    },
+    "tercero": {
+        "en": "Third",
+        "tr": "Üçüncü",
+        "desc_en": "Coming next after the second in order.",
+        "desc_tr": "Bir dizideki üçüncü konumu veya sırayı belirtir."
+    },
+    "cuarto": {
+        "en": "Fourth",
+        "tr": "Dördüncü",
+        "desc_en": "Coming next after the third in order.",
+        "desc_tr": "Bir dizideki dördüncü konumu veya sırayı belirtir."
+    },
+    "quinto": {
+        "en": "Fifth",
+        "tr": "Beşinci",
+        "desc_en": "Coming next after the fourth in order.",
+        "desc_tr": "Beşinci sırayı veya konumu belirtmek için kullanılır."
+    },
+    "sexto": {
+        "en": "Sixth",
+        "tr": "Altıncı",
+        "desc_en": "Coming next after the fifth in order.",
+        "desc_tr": "Altıncı sırayı veya konumu belirtir."
+    },
+    "septimo": {
+        "en": "Seventh",
+        "tr": "Yedinci",
+        "desc_en": "Coming next after the sixth in order.",
+        "desc_tr": "Yedinci sırayı veya konumu belirtir."
+    },
+    "octavo": {
+        "en": "Eighth",
+        "tr": "Sekizinci",
+        "desc_en": "Coming next after the seventh in order.",
+        "desc_tr": "Sekizinci sırayı veya konumu belirtir."
+    },
+    "noveno": {
+        "en": "Ninth",
+        "tr": "Dokuzuncu",
+        "desc_en": "Coming next after the eighth in order.",
+        "desc_tr": "Dokuzuncu sırayı veya konumu belirtir."
+    },
+    "decimo": {
+        "en": "Tenth",
+        "tr": "Onuncu",
+        "desc_en": "Coming next after the ninth in order.",
+        "desc_tr": "Onuncu sırayı veya konumu belirtir."
     },
 
     # Subject Pronouns vs Auxiliary Verbs

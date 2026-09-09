@@ -839,14 +839,30 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 /* Study Vocab Card Styling */
 .study-vocab-card {
   background: var(--bg-input);
-  padding: 14px 20px;
-  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  border-radius: 12px;
   border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  cursor: default;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.study-vocab-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.vocab-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  cursor: default;
+  gap: 12px;
+  width: 100%;
 }
 .vocab-term-wrapper {
   display: flex;
@@ -854,34 +870,136 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   gap: 12px;
   flex: 1;
 }
+
 .vocab-term-text {
   flex: 1;
   padding: 0 4px;
 }
+
+.vocab-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vocab-meaning-pill {
+  font-weight: 700;
+  font-size: 14.5px;
+  line-height: 1.3;
+  color: var(--text-primary);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .vocab-meaning-pill {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: var(--accent);
+}
+
+.vocab-pos-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.vocab-pedagogy-section {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+  text-align: left;
+}
+
+[data-theme="light"] .vocab-pedagogy-section {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.vocab-pedagogy-section svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.vocab-example-card {
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+[data-theme="light"] .vocab-example-card {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.vocab-example-target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vocab-example-target {
+  font-size: 14px;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.vocab-example-trans {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .study-vocab-card .english-translation {
   color: var(--text-secondary);
   font-weight: 500;
-  font-size: 15px;
-  text-align: right;
-  max-width: 65%;
-  min-width: 80px;
+  font-size: 14px;
+  text-align: left;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 3px;
 }
+
 .study-vocab-card .vocab-meaning-title {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   font-size: 14.5px;
   line-height: 1.3;
 }
+
 .study-vocab-card .vocab-brief-explanation {
   font-size: 12.5px;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--text-secondary);
   font-weight: 400;
   opacity: 0.9;
+  text-align: left;
 }
 .alphabet-pronunciation-block {
   display: flex;
@@ -3296,7 +3414,6 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
   animation: shine 1.8s infinite;
 }
-
 /* ==========================================================================
    CONVERSATIONAL DIALOGUE OVERLAY / CHAT THREAD REDESIGN
    ========================================================================== */
@@ -3418,7 +3535,11 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   color: var(--text-secondary);
   line-height: 1.45;
   margin-top: 8px;
-  animation: fadeIn 0.2s ease-out;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.dialogue-translation-box.hidden-trans {
+  display: none !important;
 }
 
 [data-theme="light"] .dialogue-translation-box {

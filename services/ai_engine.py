@@ -1017,11 +1017,30 @@ CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
             (r'(?i)\biyi\s+öğleden\s+sonra\b', 'Tünaydın'),
             (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın')
         ]
-        for cp, repl in calques:
-            text = re.sub(cp, repl, text)
-
         # 3. Universal Turkish pedagogical humanizer
         text = humanize_turkish_explanation(text)
+
+        # 4. Orthographic & Calque Typo Healer: doktar -> doktor
+        def repl_doktor(m):
+            suffix = m.group(1)
+            if not suffix:
+                return 'doktor'
+            suffix_lower = suffix.lower()
+            suffix_map = {
+                'sın': 'sun', 'sin': 'sun',
+                'sınız': 'sunuz', 'siniz': 'sunuz',
+                'ım': 'um', 'im': 'um',
+                'ız': 'uz', 'iz': 'uz',
+                'dır': 'dur', 'dir': 'dur',
+                'lar': 'lar', 'ler': 'lar',
+                'a': 'a', 'e': 'a',
+                'dan': 'dan', 'den': 'dan',
+                'ı': 'u', 'i': 'u',
+                'un': 'un', 'in': 'un'
+            }
+            return 'doktor' + suffix_map.get(suffix_lower, suffix_lower)
+
+        text = re.sub(r'(?i)\bdoktar(sınız|siniz|sın|sin|ım|im|ız|iz|dır|dir|lar|ler|[a-zçğıöşü]+)?\b', repl_doktor, text)
 
         return text
 
@@ -1299,3 +1318,61 @@ def list_blueprint_cache():
     cache_dir = os.path.join("services", "blueprints")
     if not os.path.exists(cache_dir): return []
     return [{"language": f.split('_')[0], "level": f.split('_')[1].replace('.json','')} for f in os.listdir(cache_dir) if f.endswith('.json')]
+
+def heal_turkish_syntax(text: str) -> str:
+    if not text or not isinstance(text, str):
+        return text
+
+    def repl_concessive(m):
+        prefix = m.group(1)
+        stem = m.group(2)
+        comma = m.group(3) or ''
+        return f"{prefix}{stem} olsa da{comma}"
+
+    concessive_pat = r'(?i)\b(her\s+ne\s+kadar\s+(?:.*?\s+)?)([a-zçğıöşüA-ZÇĞİÖŞÜ]+?)(?:y(?:dı|di|du|dü)|dı|di|du|dü|tı|ti|tu|tü)(,)?(?=\s+(?:yine\s+de|ancak|fakat|hâlâ|hala|ama)|\s+[a-zçğıöşüA-ZÇĞİÖŞÜ])'
+    text = re.sub(concessive_pat, repl_concessive, text)
+    text = re.sub(r'(?i)\b(her\s+ne\s+kadar\s+.*?)\s+olsa(?!\s+da|\s+de)(,)?', r'\1 olsa da\2', text)
+
+    calques = [
+        (r'(?i)\bzaman\s+yapmak\b', 'vakit ayırmak'),
+        (r'(?i)\bzaman\s+yaptı\b', 'vakit ayırdı'),
+        (r'(?i)\bzaman\s+yapıyor\b', 'vakit ayırıyor'),
+        (r'(?i)\bzaman\s+yapacağız\b', 'vakit ayıracağız'),
+        (r'(?i)\banlam\s+yapmak\b', 'mantıklı gelmek'),
+        (r'(?i)\banlam\s+yapmıyor\b', 'mantıklı gelmiyor'),
+        (r'(?i)\banlam\s+yapıyor\b', 'mantıklı geliyor'),
+        (r'(?i)\bdikkat\s+ödemek\b', 'dikkat etmek'),
+        (r'(?i)\bdikkat\s+ödeyin\b', 'dikkat edin'),
+        (r'(?i)\bbir\s+bakış\s+almak\b', 'göz atmak'),
+        (r'(?i)\bbir\s+duş\s+almak\b', 'duş almak'),
+        (r'(?i)\bbanyo\s+almak\b', 'banyo yapmak'),
+        (r'(?i)\bbir\s+karar\s+yapmak\b', 'karar vermek'),
+        (r'(?i)\bkarar\s+yapmak\b', 'karar vermek'),
+        (r'(?i)\biyi\s+öğleden\s+sonralar\b', 'Tünaydın'),
+        (r'(?i)\biyi\s+öğleden\s+sonra\b', 'Tünaydın'),
+        (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın')
+    ]
+    for cp, repl in calques:
+        text = re.sub(cp, repl, text)
+
+    def repl_doktor(m):
+        suffix = m.group(1)
+        if not suffix:
+            return 'doktor'
+        suffix_lower = suffix.lower()
+        suffix_map = {
+            'sın': 'sun', 'sin': 'sun',
+            'sınız': 'sunuz', 'siniz': 'sunuz',
+            'ım': 'um', 'im': 'um',
+            'ız': 'uz', 'iz': 'uz',
+            'dır': 'dur', 'dir': 'dur',
+            'lar': 'lar', 'ler': 'lar',
+            'a': 'a', 'e': 'a',
+            'dan': 'dan', 'den': 'dan',
+            'ı': 'u', 'i': 'u',
+            'un': 'un', 'in': 'un'
+        }
+        return 'doktor' + suffix_map.get(suffix_lower, suffix_lower)
+
+    text = re.sub(r'(?i)\bdoktar(sınız|siniz|sın|sin|ım|im|ız|iz|dır|dir|lar|ler|[a-zçğıöşü]+)?\b', repl_doktor, text)
+    return text
