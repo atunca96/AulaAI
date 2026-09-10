@@ -2169,6 +2169,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 set_activity_task(f"{course_id}_{user_id}_{topic_id}", task_dict)
 
         update_prog(10)
+        class ProgressState:
+            def __init__(self): self.is_done = False
+        state = ProgressState()
+
         try:
             with db_connection() as db:
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
@@ -2183,36 +2187,32 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
 
-            # ── V4 ACTIVITY ENGINE (GEMINI 2.0 FLASH) ──
+            # ── V4 ACTIVITY ENGINE (GEMINI 2.0 FLASH WITH DETERMINISTIC FALLBACK) ──
             count = 10
-            
-            class ProgressState:
-                def __init__(self): self.is_done = False
-            state = ProgressState()
 
             def ticker_worker():
                 import math
                 start_time = time.time()
-                est_time = 25.0
+                est_time = 18.0
                 while not state.is_done:
-                    time.sleep(0.8)
+                    time.sleep(0.6)
                     elapsed = time.time() - start_time
                     k = 2.0 / est_time
                     p = 5 + 85 * (1 - math.exp(-k * elapsed))
                     update_prog(int(min(p, 90)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
-            update_prog(5)
+            update_prog(15)
 
             raw_activities = []
             try:
                 from services.ai_engine import ai_generate_activity_batch
                 batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=None, material_language=material_language)
-                if batch: raw_activities = batch
+                if batch: raw_activities = list(batch)
             except Exception as e:
                 print(f"[BG] Activity Generation Failed: {e}")
             
-            # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages
+            # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages & items
             if len(raw_activities) < count and isinstance(content, dict):
                 for p in content.get("pages", []):
                     if len(raw_activities) >= count: break
@@ -2234,21 +2234,57 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                 "why": p.get("explanation_tr" if material_language == "tr" else "explanation", "Doğru seçenek.")
                             })
             
-            state.is_done = True
+            if len(raw_activities) < count:
+                try:
+                    from services.ai_engine import ai_generate_activity_batch
+                    fb_batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count, level=topic.get("difficulty", "A1"), model_override="none", material_language=material_language)
+                    for item in (fb_batch or []):
+                        if len(raw_activities) >= count: break
+                        if not any(a.get("prompt") == item.get("prompt") for a in raw_activities):
+                            raw_activities.append(item)
+                except Exception as ex_fb:
+                    print(f"[BG] Fallback batch error: {ex_fb}")
 
-            # Use ONLY fresh activities
+            state.is_done = True
             final_questions = raw_activities[:count]
-            
-            # Deliver to this task specifically — DO NOT overwrite global topic content or course table!
             update_prog(100, status='done', results=final_questions)
             print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} fresh questions.")
 
         except Exception as e:
+            state.is_done = True
             msg = f"BG Activity Error: {str(e)}"
             print(f"[CRITICAL] {msg}")
             file_log(msg)
             file_log(traceback.format_exc())
+            # Final fallback: try to return whatever we have or synthesized questions instead of 0
+            try:
+                from services.ai_engine import ai_generate_activity_batch
+                fb = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content if 'content' in locals() else {}, "Spanish", count=10, level="A1", model_override="none")
+                if fb:
+                    update_prog(100, status='done', results=fb)
+                    return
+            except Exception:
+                pass
             update_prog(0, status='error')
+        finally:
+            state.is_done = True
+
+    def _get_activity(self, topic_id):
+        if not topic_id:
+            return self._send_json([])
+        with db_connection() as db:
+            row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+            if not row:
+                return self._send_json([])
+            topic = dict(row)
+            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else (topic.get("content") or {})
+            
+            if isinstance(content, dict) and content.get("activities"):
+                return self._send_json(content["activities"][:10])
+            
+            from services.ai_engine import ai_generate_activity_batch
+            batch = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content, "Spanish", count=10, level=topic.get("difficulty", "A1"), model_override="none")
+            return self._send_json(batch or [])
 
     def _activity_progress(self, course_id=None):
         parsed = urlparse(self.path)
@@ -2270,6 +2306,20 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 "percentage": task.get("percentage", 0),
                 "results": task.get("results")
             })
+
+        # Self-healing fallback: if task expired or container restarted, synthesize and return done
+        if topic_id:
+            with db_connection() as db:
+                row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
+                if row:
+                    topic = dict(row)
+                    content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else (topic.get("content") or {})
+                    from services.ai_engine import ai_generate_activity_batch
+                    batch = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content, "Spanish", count=10, level=topic.get("difficulty", "A1"), model_override="none")
+                    if batch:
+                        heal_task = {"status": "done", "percentage": 100, "results": batch}
+                        if task_id: set_activity_task(task_id, heal_task)
+                        return self._send_json(heal_task)
 
         # Fallback to DB courses table for legacy compatibility
         if cid:
@@ -2318,7 +2368,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 q_dict = dict(q)
                 if student_id:
                     completed = db.execute(
-                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND answer != '[STARTED]' LIMIT 1",
+                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
                         (student_id, q["id"])
                     ).fetchone()
                     q_dict["is_completed"] = True if completed else False

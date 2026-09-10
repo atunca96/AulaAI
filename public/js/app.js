@@ -7853,6 +7853,21 @@ window.addEventListener('DOMContentLoaded', () => {
     const savedTheme = localStorage.getItem('aula_theme') || 'dark';
     setTheme(savedTheme);
 
+    // Check if a quiz was interrupted by page reload
+    const abandonedQuiz = localStorage.getItem('aula_taking_quiz');
+    if (abandonedQuiz) {
+      localStorage.removeItem('aula_taking_quiz');
+      setTimeout(() => {
+        showAlert(
+          currentLang === 'tr' ? 'Sınav Sonlandırıldı' : 'Quiz Terminated',
+          currentLang === 'tr'
+            ? 'Sınav sırasında sayfa yenilendiği için quiz sonlandırıldı ve tekrar giriş hakkınız kapatıldı.'
+            : 'The quiz was ended because the page was refreshed, and retaking is not permitted.',
+          true
+        );
+      }, 1000);
+    }
+
     const savedUser = localStorage.getItem('aula_user') || sessionStorage.getItem('aula_user');
     if (savedUser) {
       try { completeLogin(JSON.parse(savedUser)).catch(() => showScreen('login-screen')); }
@@ -8822,19 +8837,22 @@ function showGenerationLoading(el) {
   `;
 }
 
-function startActivityPolling(targetId, title, taskId = null) {
+function startActivityPolling(targetId, title, taskId = null, topicId = null) {
   const el = document.getElementById(targetId);
   if (!el) return;
   const fill = el.querySelector('#activity-progress-fill');
   const text = el.querySelector('#activity-progress-text');
 
   window._retryEmptyPoll = 0;
+  window._actPollErrors = 0;
+  window._actTotalPolls = 0;
   if (activityProgressInterval) clearInterval(activityProgressInterval);
 
   const activeCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
   const uid = currentUser ? currentUser.id : null;
 
   activityProgressInterval = setInterval(async () => {
+    window._actTotalPolls = (window._actTotalPolls || 0) + 1;
     try {
       let pollUrl = `/activity/progress?course_id=${activeCourseId}&v=${Date.now()}`;
       if (taskId) {
@@ -8843,8 +8861,12 @@ function startActivityPolling(targetId, title, taskId = null) {
       if (uid) {
         pollUrl += `&user_id=${encodeURIComponent(uid)}`;
       }
+      if (topicId) {
+        pollUrl += `&topic_id=${encodeURIComponent(topicId)}`;
+      }
       const data = await api(pollUrl);
       if (data && !data.error) {
+        window._actPollErrors = 0;
         if (fill) fill.style.width = data.percentage + '%';
         if (text) text.textContent = data.percentage + '%';
         if (data.status === 'done') {
@@ -8852,7 +8874,7 @@ function startActivityPolling(targetId, title, taskId = null) {
             clearInterval(activityProgressInterval);
             // Retrieve current topic title if available (without polluting content.activities cache)
             const actSelect = document.getElementById('activity-topic-select');
-            const curTid = actSelect ? actSelect.value : null;
+            const curTid = topicId || (actSelect ? actSelect.value : null);
             let currentTopic = null;
             if (curTid && (window.curriculum || curriculum)) {
               for (const ch of (window.curriculum || curriculum)) {
@@ -8874,6 +8896,7 @@ function startActivityPolling(targetId, title, taskId = null) {
               genBtn.disabled = false;
               genBtn.removeAttribute('data-generating');
             }
+            return;
           } else {
             // Done but no results - wait a few more polls or show error
             if (!window._retryEmptyPoll) window._retryEmptyPoll = 0;
@@ -8891,6 +8914,7 @@ function startActivityPolling(targetId, title, taskId = null) {
                     <div style="font-weight:700; margin-bottom:8px;">${currentLang === 'tr' ? 'Soru bulunamadı' : 'No questions found'}</div>
                     <div style="font-size:14px;">${currentLang === 'tr' ? 'Yapay zeka bu konu içeriği için geçerli sorular üretemedi. Farklı bir konu deneyin.' : 'The AI couldn\'t generate valid questions for this specific topic content. Try a different topic or build the curriculum again.'}</div>
                 </div>`;
+                return;
             }
           }
         } else if (data.status === 'error') {
@@ -8902,9 +8926,44 @@ function startActivityPolling(targetId, title, taskId = null) {
             genBtn.removeAttribute('data-generating');
           }
           document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${currentLang === 'tr' ? 'Aktivite oluşturulurken bir hata oluştu.' : 'Error generating activities.'}</div>`;
+          return;
+        }
+      } else {
+        window._actPollErrors = (window._actPollErrors || 0) + 1;
+      }
+
+      // Safety timeout fallback: if stuck for > 40 polls (~12s) or multiple poll errors, pull direct activities
+      if ((window._actTotalPolls > 40 || window._actPollErrors >= 4) && topicId) {
+        try {
+          const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
+          if (Array.isArray(directData) && directData.length > 0) {
+            clearInterval(activityProgressInterval);
+            _lastActivityData = { activities: directData, topic: null };
+            const isStudent = currentUser && currentUser.role === 'student';
+            const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
+            document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+            return;
+          }
+        } catch (fbErr) {
+          console.warn("Activity safety fallback error:", fbErr);
         }
       }
-    } catch (e) { console.error("Poll Error:", e); }
+    } catch (e) {
+      console.error("Poll Error:", e);
+      window._actPollErrors = (window._actPollErrors || 0) + 1;
+      if (window._actPollErrors >= 5 && topicId) {
+        try {
+          const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
+          if (Array.isArray(directData) && directData.length > 0) {
+            clearInterval(activityProgressInterval);
+            _lastActivityData = { activities: directData, topic: null };
+            const isStudent = currentUser && currentUser.role === 'student';
+            const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
+            document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+          }
+        } catch (e2) {}
+      }
+    }
   }, 300);
 }
 
@@ -8989,7 +9048,7 @@ async function launchActivity() {
       body: { topic_id: topicId, course_id: activeCourseId, count: 10, ui_lang: currentLang, user_id: currentUser ? currentUser.id : null }
     });
     // 2. Start polling AFTER the task is successfully initiated
-    startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'), res ? res.task_id : null);
+    startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'), res ? res.task_id : null, topicId);
   } catch (err) {
     if (btn) {
       btn.disabled = false;
@@ -9669,6 +9728,12 @@ function switchQuizViewTab(btn, panelId) {
   }
 }
 
+function _quizBeforeUnloadHandler(e) {
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
+}
+
 async function takeQuiz(quizId) {
   const confirmed = await showConfirmModal('confirm.start_quiz_title', 'confirm.start_quiz_msg');
   if (!confirmed) return;
@@ -9679,6 +9744,22 @@ async function takeQuiz(quizId) {
     loadQuizList();
     return;
   }
+
+  // Pre-shuffle options ONCE so language switching NEVER shuffles or changes option order!
+  if (Array.isArray(data.questions)) {
+    data.questions.forEach(q => {
+      if (q.type === 'mcq' && !q._shuffledOptions) {
+        const rawOpts = (Array.isArray(q.options) && q.options.length > 1)
+          ? q.options
+          : (q.distractors || []).concat([q.answer]);
+        q._shuffledOptions = rawOpts.slice().sort(() => Math.random() - 0.5);
+      }
+    });
+  }
+
+  // Register browser beforeunload reload warning & track in localStorage
+  window.addEventListener('beforeunload', _quizBeforeUnloadHandler);
+  localStorage.setItem('aula_taking_quiz', quizId);
 
   const area = document.getElementById('quiz-taking-area');
   area.classList.remove('hidden');
@@ -9694,9 +9775,10 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
-  const qMcqOpts = (Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]);
+  // Stable option list - never re-shuffles on render or language toggle
+  const qMcqOpts = q._shuffledOptions || ((Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]));
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
-    (q.type === 'mcq' ? `<div class="options-grid">${(qMcqOpts.slice().sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${qMcqOpts.map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -9709,6 +9791,8 @@ function quizAnswer(btn, qid, ans) {
 }
 
 async function submitQuizAnswers(area) {
+  window.removeEventListener('beforeunload', _quizBeforeUnloadHandler);
+  localStorage.removeItem('aula_taking_quiz');
   await api('/quiz/submit', { method: 'POST', body: { quiz_id: area.dataset.quizId, student_id: currentUser.id, answers: JSON.parse(area.dataset.answers) } });
   location.reload();
 }
@@ -10327,7 +10411,7 @@ async function startPractice(tid, title) {
     if (res && res.error) throw new Error(res.error);
 
     // 2. Start polling
-    startActivityPolling(targetId, `${t('practice')}: ${title}`, res ? res.task_id : null);
+    startActivityPolling(targetId, `${t('practice')}: ${title}`, res ? res.task_id : null, tid);
   } catch (err) {
     console.error("Practice Start Error:", err);
     if (area) {
@@ -10808,6 +10892,16 @@ async function takeAssignment(aid) {
     return;
   }
 
+  // Pre-shuffle options ONCE so language switching never changes assignment option positions
+  if (Array.isArray(data.questions)) {
+    data.questions.forEach(q => {
+      if (q.type === 'mcq' && !q._shuffledOptions) {
+        const rawOpts = (Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]);
+        q._shuffledOptions = rawOpts.slice().sort(() => Math.random() - 0.5);
+      }
+    });
+  }
+
   const area = document.getElementById('assignment-taking-area');
   area.classList.remove('hidden');
   area.dataset.assignmentId = aid;
@@ -10831,7 +10925,7 @@ function showAssignmentQuestion(area) {
 
   let answerHTML;
   if (q.type === 'mcq') {
-    const options = (q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5);
+    const options = q._shuffledOptions || (Array.isArray(q.options) && q.options.length > 1 ? q.options : (q.distractors || []).concat([q.answer]));
     answerHTML = `<div class="options-grid" style="margin-top:16px">
       ${options.map(o => `<button class="option-btn" onclick="assignmentAnswer(${escJS(o)})"
         style="text-align:left;padding:14px 18px;font-size:14px">${fixDiacritics(safeStr(o))}</button>`).join('')}
@@ -11012,6 +11106,56 @@ const CEFR_LEVEL_METAS = {
     color: '#f59e0b'
   }
 };
+
+function isLevelB1OrAbove(topic) {
+  let lvl = '';
+  if (topic && topic.difficulty) {
+    lvl = String(topic.difficulty).toUpperCase();
+  } else if (currentCourse && currentCourse.level) {
+    lvl = String(currentCourse.level).toUpperCase();
+  }
+  return lvl.includes('B1') || lvl.includes('B2') || lvl.includes('C1') || lvl.includes('C2');
+}
+
+function getSpanishStudyPrompt(basePrompt, promptTr) {
+  if (basePrompt) {
+    let s = basePrompt.trim();
+    // Common instruction replacements to natural Spanish if basePrompt was authored in English or Turkish
+    s = s.replace(/^Identify the correct option:?/i, 'Identifica la opción correcta:');
+    s = s.replace(/^Identify the correct answer:?/i, 'Identifica la respuesta correcta:');
+    s = s.replace(/^Select the correct answer:?/i, 'Selecciona la respuesta correcta:');
+    s = s.replace(/^Choose the correct answer:?/i, 'Elige la respuesta correcta:');
+    s = s.replace(/^Choose the correct option:?/i, 'Selecciona la opción correcta:');
+    s = s.replace(/^Fill in the blank:?/i, 'Completa el espacio en blanco:');
+    s = s.replace(/^Choose the correct translation:?/i, 'Elige la traducción correcta:');
+    s = s.replace(/^Which word best completes the sentence\?/i, '¿Qué palabra completa mejor la frase?');
+    s = s.replace(/^Choose the grammatically correct sentence:?/i, 'Elige la frase gramaticalmente correcta:');
+    s = s.replace(/^What does '(.*)' mean\?/i, "¿Qué significa '$1'?");
+    s = s.replace(/^How do you say '(.*)' in Spanish\?/i, "¿Cómo se dice '$1' en español?");
+    s = s.replace(/^Doğru seçeneği belirleyin:?/i, 'Identifica la opción correcta:');
+    s = s.replace(/^Doğru cevabı belirleyin:?/i, 'Identifica la respuesta correcta:');
+    s = s.replace(/^Doğru cevabı seçin:?/i, 'Selecciona la respuesta correcta:');
+    s = s.replace(/^Doğru seçeneği seçin:?/i, 'Selecciona la opción correcta:');
+    s = s.replace(/^Boşluğu doldurun:?/i, 'Completa el espacio en blanco:');
+    s = s.replace(/^Cümleyi tamamlayınız:?/i, 'Completa la frase:');
+    s = s.replace(/^Cümleyi tamamlayın:?/i, 'Completa la frase:');
+    return s;
+  }
+  return 'Selecciona la opción correcta:';
+}
+
+function resolveStudyPrompt(p, topic) {
+  if (isLevelB1OrAbove(topic)) {
+    // B1 and above: Question prompt is ALWAYS in Spanish
+    if (p.prompt_es) return p.prompt_es;
+    return getSpanishStudyPrompt(p.prompt || p.question || '', p.prompt_tr);
+  }
+  // A1-A2: Turkish / English system
+  if (currentLang === 'tr') {
+    return p.prompt_tr ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:", 'tr');
+  }
+  return p.prompt_en ? p.prompt_en : translatePrompt(p.prompt || "Identify the correct option:", 'en');
+}
 
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   const isStudent = currentUser && currentUser.role === 'student';
@@ -11728,7 +11872,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                if (!Array.isArray(p.options) || p.options.length <= 1) {
                  allOptions.sort();
                }
-               const translatedPrompt = (currentLang === 'tr' && p.prompt_tr) ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:");
+               const translatedPrompt = resolveStudyPrompt(p, topic);
                const mcqExpl = (currentLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
                const studyKey = 'study_' + (topic ? topic.id : 'unknown') + '_' + pIdx;
                const savedAnswer = _answeredQuestionsState[studyKey];

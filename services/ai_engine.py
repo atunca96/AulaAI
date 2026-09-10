@@ -404,7 +404,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     
     try:
         target_model = model_override if model_override else MODEL_STRUCTURAL
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=6000, temperature=0.4, json_mode=True, allow_fallback=False)
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=0.4, json_mode=True, allow_fallback=True)
         
         raw_list = []
         if isinstance(res, list):
