@@ -6,24 +6,22 @@ language/CEFR agnostic, Unicode-safe, and does not require embeddings or extra
 model calls.
 """
 
+import threading
 import unicodedata
 from difflib import SequenceMatcher
 
 
 _GENERIC_WORDS = {
-    # Spanish framing / glue
     "que", "quien", "quienes", "cual", "cuales", "como", "cuando", "donde",
     "esta", "este", "estas", "estos", "esa", "ese", "esas", "esos", "una", "uno",
     "unos", "unas", "del", "las", "los", "por", "para", "con", "sin", "sobre",
     "entre", "segun", "correcta", "correcto", "opcion", "frase", "completa",
     "selecciona", "indica", "persona", "alguien", "amigo", "amiga", "dice",
     "pregunta", "respuesta", "relacion", "parentesco", "familia", "familiar",
-    # English framing / glue
     "what", "which", "who", "whom", "whose", "where", "when", "how", "the",
     "this", "that", "these", "those", "your", "their", "with", "from", "into",
     "correct", "answer", "option", "sentence", "complete", "choose", "select",
     "person", "someone", "friend", "says", "question", "relationship", "family",
-    # Turkish framing / glue
     "hangi", "nedir", "kimdir", "nasil", "dogru", "cevap", "secenek", "cumle",
     "tamamla", "sec", "kisi", "birisi", "arkadas", "diyor", "soru", "iliski",
     "aile", "icin", "ile", "olan", "olarak", "sonra", "gore", "kendi",
@@ -34,6 +32,23 @@ _ANSWER_GLUE = {
     "es", "son", "my", "your", "his", "her", "their", "the", "a", "an", "is", "are",
     "benim", "senin", "onun", "bir", "bu", "o", "dir", "dır", "dur", "dür",
 }
+
+# Process-lifetime history closes the gap created by the frontend's short rolling
+# list. Keying by language + CEFR level + topic keeps unrelated classrooms/topics
+# isolated while preserving regeneration memory for the same pedagogical target.
+_TOPIC_HISTORY = {}
+_HISTORY_LOCK = threading.Lock()
+_HISTORY_LIMIT = 120
+
+# Conservative shallow-form trivia markers. This supplements (not replaces) the
+# prompt-level ban and catches obvious questions about spelling/visual properties
+# rather than language use.
+_META_MARKERS = (
+    "tilde", "acento grafico", "acento gráfico", "se escribe como una sola palabra",
+    "cuantas letras", "cuántas letras", "que letra", "qué letra",
+    "written as one word", "how many letters", "which letter", "has an accent mark",
+    "tek kelime olarak yaz", "kac harf", "kaç harf", "hangi harf",
+)
 
 
 def _norm(text):
@@ -49,10 +64,7 @@ def _norm(text):
 
 def _tokens(text, answer=False):
     stop = _ANSWER_GLUE if answer else _GENERIC_WORDS
-    return {
-        token for token in _norm(text).split()
-        if len(token) >= 2 and token not in stop
-    }
+    return {token for token in _norm(text).split() if len(token) >= 2 and token not in stop}
 
 
 def _compact(text):
@@ -60,18 +72,15 @@ def _compact(text):
 
 
 def _is_dense_script_text(text):
-    """Detect text whose lexical boundaries are not reliably represented by spaces."""
     n = _norm(text)
     compact = _compact(n)
     if len(compact) < 4:
         return False
     spaces = n.count(" ")
-    # CJK/Hangul/Kana typically have very few spaces relative to visible characters.
     return spaces <= 1 and any(ord(ch) > 0x2E7F for ch in compact)
 
 
 def _char_ngrams(text, n=3):
-    """Script-agnostic fallback for Chinese/Japanese and other no-space text."""
     compact = _compact(text)
     if not compact:
         return set()
@@ -93,7 +102,6 @@ def _containment(a, b):
 
 
 def _semantic_overlap(text1, text2):
-    """Use word overlap when useful, otherwise Unicode character n-grams."""
     if _is_dense_script_text(text1) or _is_dense_script_text(text2):
         g1, g2 = _char_ngrams(text1), _char_ngrams(text2)
         return max(_jaccard(g1, g2), 0.8 * _containment(g1, g2))
@@ -119,12 +127,10 @@ def _answer_overlap(answer1, answer2):
 
 
 def _same_semantic_target(q1, q2):
-    """Conservative duplicate detector for paraphrased assessment questions."""
     p1, p2 = _norm(q1.get("prompt")), _norm(q2.get("prompt"))
     a1, a2 = _norm(q1.get("answer")), _norm(q2.get("answer"))
     if not p1 or not p2:
         return False
-
     if p1 == p2 or SequenceMatcher(None, p1, p2).ratio() >= 0.88:
         return True
 
@@ -132,19 +138,20 @@ def _same_semantic_target(q1, q2):
     answer_overlap = _answer_overlap(a1, a2)
     dense_script = _is_dense_script_text(p1) or _is_dense_script_text(p2)
 
-    # Same/wrapper-equivalent target + meaningful scenario overlap.
-    if answer_overlap >= 0.95:
-        threshold = 0.15 if dense_script else 0.20
-        if prompt_overlap >= threshold:
-            return True
-
+    if answer_overlap >= 0.95 and prompt_overlap >= (0.15 if dense_script else 0.20):
+        return True
     if answer_overlap >= 0.70 and prompt_overlap >= (0.28 if dense_script else 0.34):
         return True
-
     if prompt_overlap >= (0.56 if dense_script else 0.62):
         return True
-
     return False
+
+
+def _is_shallow_meta_question(q):
+    prompt = _norm(q.get("prompt"))
+    if not prompt:
+        return False
+    return any(_norm(marker) in prompt for marker in _META_MARKERS)
 
 
 def dedupe_questions(candidates, prior=None, limit=None):
@@ -153,12 +160,49 @@ def dedupe_questions(candidates, prior=None, limit=None):
     for q in candidates or []:
         if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
             continue
+        if _is_shallow_meta_question(q):
+            continue
         if any(_same_semantic_target(q, old) for old in references + accepted):
             continue
         accepted.append(q)
         if limit and len(accepted) >= limit:
             break
     return accepted
+
+
+def _arg(args, kwargs, name, index, default=None):
+    if name in kwargs:
+        return kwargs[name]
+    if len(args) > index:
+        return args[index]
+    return default
+
+
+def _history_key(args, kwargs):
+    topic_title = _norm(_arg(args, kwargs, "topic_title", 0, ""))
+    topic_type = _norm(_arg(args, kwargs, "topic_type", 1, ""))
+    language = _norm(_arg(args, kwargs, "language", 3, ""))
+    level = _norm(_arg(args, kwargs, "level", 5, ""))
+    return "|".join((language, level, topic_type, topic_title))
+
+
+def _get_history(key):
+    if not key:
+        return []
+    with _HISTORY_LOCK:
+        return list(_TOPIC_HISTORY.get(key, []))
+
+
+def _remember(key, questions):
+    if not key:
+        return
+    with _HISTORY_LOCK:
+        history = _TOPIC_HISTORY.setdefault(key, [])
+        for q in questions or []:
+            if isinstance(q, dict) and q.get("prompt") and q.get("answer"):
+                history.append({"prompt": q.get("prompt", ""), "answer": q.get("answer", "")})
+        if len(history) > _HISTORY_LIMIT:
+            del history[:-_HISTORY_LIMIT]
 
 
 def install(ai_engine_module):
@@ -169,20 +213,29 @@ def install(ai_engine_module):
     original = ai_engine_module.ai_generate_questions
 
     def guarded_ai_generate_questions(*args, **kwargs):
-        requested = kwargs.get("count")
-        if requested is None and len(args) >= 5:
-            requested = args[4]
+        requested = _arg(args, kwargs, "count", 4, 10)
         try:
             requested = max(1, int(requested or 10))
         except Exception:
             requested = 10
 
-        prior = kwargs.get("existing_questions")
-        if prior is None and len(args) >= 7:
-            prior = args[6]
-        prior = [q for q in (prior or []) if isinstance(q, dict)]
+        supplied_prior = _arg(args, kwargs, "existing_questions", 6, []) or []
+        supplied_prior = [q for q in supplied_prior if isinstance(q, dict)]
+        h_key = _history_key(args, kwargs)
+        history = _get_history(h_key)
+        prior = supplied_prior + history
 
-        first = original(*args, **kwargs)
+        # Ensure the underlying generator also sees the full history, not only the
+        # frontend's rolling subset, so it can avoid repeats before filtering.
+        first_kwargs = dict(kwargs)
+        first_args = list(args)
+        if len(first_args) >= 7:
+            first_args[6] = prior
+            first_kwargs.pop("existing_questions", None)
+        else:
+            first_kwargs["existing_questions"] = prior
+
+        first = original(*first_args, **first_kwargs)
         accepted = dedupe_questions(first, prior=prior, limit=requested)
         rejected = max(0, len(first or []) - len(accepted))
 
@@ -192,9 +245,8 @@ def install(ai_engine_module):
             repair_round += 1
             missing = requested - len(accepted)
             repair_kwargs = dict(kwargs)
-            repair_kwargs["count"] = min(requested, missing + 2)
+            repair_kwargs["count"] = min(requested, missing + 3)
             repair_kwargs["existing_questions"] = prior + accepted + seen_generated
-
             repair_args = list(args)
             if len(repair_args) >= 5:
                 repair_args[4] = repair_kwargs.pop("count")
@@ -206,11 +258,14 @@ def install(ai_engine_module):
             fresh = dedupe_questions(extra, prior=prior + accepted, limit=missing)
             accepted.extend(fresh)
 
+        _remember(h_key, accepted)
+
         try:
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(
                     f"[ASSESSMENT-DIVERSITY] requested={requested} first={len(first or [])} "
-                    f"semantic_rejected={rejected} final={len(accepted)} repairs={repair_round}\n"
+                    f"semantic_rejected={rejected} history={len(history)} "
+                    f"final={len(accepted)} repairs={repair_round}\n"
                 )
         except Exception:
             pass
