@@ -30,7 +30,6 @@ _GENERIC_WORDS = {
 }
 
 _ANSWER_GLUE = {
-    # Common answer wrappers; content words remain intact.
     "mi", "mis", "tu", "tus", "su", "sus", "el", "la", "los", "las", "un", "una",
     "es", "son", "my", "your", "his", "her", "their", "the", "a", "an", "is", "are",
     "benim", "senin", "onun", "bir", "bu", "o", "dir", "dır", "dur", "dür",
@@ -60,6 +59,17 @@ def _compact(text):
     return "".join(ch for ch in _norm(text) if not ch.isspace())
 
 
+def _is_dense_script_text(text):
+    """Detect text whose lexical boundaries are not reliably represented by spaces."""
+    n = _norm(text)
+    compact = _compact(n)
+    if len(compact) < 4:
+        return False
+    spaces = n.count(" ")
+    # CJK/Hangul/Kana typically have very few spaces relative to visible characters.
+    return spaces <= 1 and any(ord(ch) > 0x2E7F for ch in compact)
+
+
 def _char_ngrams(text, n=3):
     """Script-agnostic fallback for Chinese/Japanese and other no-space text."""
     compact = _compact(text)
@@ -84,6 +94,9 @@ def _containment(a, b):
 
 def _semantic_overlap(text1, text2):
     """Use word overlap when useful, otherwise Unicode character n-grams."""
+    if _is_dense_script_text(text1) or _is_dense_script_text(text2):
+        g1, g2 = _char_ngrams(text1), _char_ngrams(text2)
+        return max(_jaccard(g1, g2), 0.8 * _containment(g1, g2))
     t1, t2 = _tokens(text1), _tokens(text2)
     if len(t1) >= 2 and len(t2) >= 2:
         return max(_jaccard(t1, t2), 0.8 * _containment(t1, t2))
@@ -112,25 +125,23 @@ def _same_semantic_target(q1, q2):
     if not p1 or not p2:
         return False
 
-    # Exact/near-exact prompt duplicates are always duplicates.
     if p1 == p2 or SequenceMatcher(None, p1, p2).ratio() >= 0.88:
         return True
 
     prompt_overlap = _semantic_overlap(p1, p2)
     answer_overlap = _answer_overlap(a1, a2)
+    dense_script = _is_dense_script_text(p1) or _is_dense_script_text(p2)
 
-    # Identical or wrapper-equivalent targets plus a meaningful scenario overlap.
-    # This catches e.g. "mi sobrino" / "es tu sobrino" without globally banning
-    # reuse of a grammatical form in genuinely different communicative contexts.
-    if answer_overlap >= 0.95 and prompt_overlap >= 0.20:
+    # Same/wrapper-equivalent target + meaningful scenario overlap.
+    if answer_overlap >= 0.95:
+        threshold = 0.15 if dense_script else 0.20
+        if prompt_overlap >= threshold:
+            return True
+
+    if answer_overlap >= 0.70 and prompt_overlap >= (0.28 if dense_script else 0.34):
         return True
 
-    # Strongly related target wording + stronger scenario overlap.
-    if answer_overlap >= 0.70 and prompt_overlap >= 0.34:
-        return True
-
-    # Different surface answers can still be the same exact question concept.
-    if prompt_overlap >= 0.62:
+    if prompt_overlap >= (0.56 if dense_script else 0.62):
         return True
 
     return False
@@ -175,8 +186,6 @@ def install(ai_engine_module):
         accepted = dedupe_questions(first, prior=prior, limit=requested)
         rejected = max(0, len(first or []) - len(accepted))
 
-        # Spend extra tokens only when filtering creates a gap. Two bounded repair
-        # rounds avoid infinite loops when a source topic is inherently narrow.
         repair_round = 0
         seen_generated = [q for q in (first or []) if isinstance(q, dict)]
         while len(accepted) < requested and repair_round < 2:
@@ -186,8 +195,6 @@ def install(ai_engine_module):
             repair_kwargs["count"] = min(requested, missing + 2)
             repair_kwargs["existing_questions"] = prior + accepted + seen_generated
 
-            # Keep positional callers compatible: override positional count/existing
-            # values instead of passing duplicate keyword arguments.
             repair_args = list(args)
             if len(repair_args) >= 5:
                 repair_args[4] = repair_kwargs.pop("count")
