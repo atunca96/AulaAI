@@ -2234,8 +2234,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             raw_activities = []
             try:
                 from services.ai_engine import ai_generate_activity_batch
-                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=None, material_language=material_language)
-                if batch: raw_activities = list(batch)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    fut = executor.submit(ai_generate_activity_batch, topic["title"], topic_type, content, language, 10, topic.get("difficulty", "A1"), None, False, None, material_language)
+                    try:
+                        batch = fut.result(timeout=20.0)
+                        if batch: raw_activities = list(batch)
+                    except concurrent.futures.TimeoutError:
+                        print(f"[BG] Activity generation timed out after 20s. Proceeding to fallback.")
             except Exception as e:
                 print(f"[BG] Activity Generation Failed: {e}")
             
@@ -2286,7 +2291,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Final fallback: try to return whatever we have or synthesized questions instead of 0
             try:
                 from services.ai_engine import ai_generate_activity_batch
-                fb = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content if 'content' in locals() else {}, "Spanish", count=10, level="A1", model_override="none")
+                lang_val = language if 'language' in locals() else "Spanish"
+                mat_lang = material_language if 'material_language' in locals() else "en"
+                fb = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content if 'content' in locals() else {}, lang_val, count=10, level="A1", model_override="none", material_language=mat_lang)
                 if fb:
                     update_prog(100, status='done', results=fb)
                     return

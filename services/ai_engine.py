@@ -193,6 +193,9 @@ def _extract_and_parse_json(content: str) -> Optional[Any]:
 
 def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True) -> Optional[Dict]:
     """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota."""
+    if not model or str(model).lower() in ["none", "offline", "skip", "disabled"]:
+        return None
+
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
 
     if not openrouter_key:
@@ -202,6 +205,10 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
     models_to_try = [model] if model else [MODEL_STRUCTURAL]
     if allow_fallback and MODEL_FALLBACK and MODEL_FALLBACK not in models_to_try:
         models_to_try.append(MODEL_FALLBACK)
+
+    models_to_try = [m for m in models_to_try if m and str(m).lower() not in ["none", "offline", "skip", "disabled"]]
+    if not models_to_try:
+        return None
 
     for target_model in models_to_try:
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -238,10 +245,11 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
         try:
             req = urllib.request.Request(url, data=json.dumps(req_payload).encode("utf-8"), headers=headers)
 
-            for attempt in range(4):
+            max_attempts = 2 if max_tokens <= 2500 else 4
+            for attempt in range(max_attempts):
                 try:
                     # Generous timeout for lesson generation (Gemini can take 60-120s for long outputs)
-                    _timeout = 180 if max_tokens > 4000 else (90 if max_tokens > 2000 else 30)
+                    _timeout = 180 if max_tokens > 4000 else (90 if max_tokens > 2000 else 25)
                     with urllib.request.urlopen(req, timeout=_timeout) as response:
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
@@ -256,20 +264,27 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                 return data
                             # JSON parse failed on this attempt; retry on the same model instead of falling back
                             with open("pipeline.log", "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-PARSE-FAIL] Could not parse JSON from {target_model} (attempt {attempt+1}/4). Retrying {target_model}...\n")
-                            time.sleep(2.0 * (attempt + 1))
+                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-PARSE-FAIL] Could not parse JSON from {target_model} (attempt {attempt+1}/{max_attempts}). Retrying {target_model}...\n")
+                            time.sleep(1.5 * (attempt + 1))
                             continue
                 except Exception as e:
+                    err_str = str(e)
+                    # If client error (invalid model, unauthorized, bad request), break immediately without retrying
+                    if any(c in err_str for c in ["400", "401", "403", "404", "not a valid model"]):
+                        with open("pipeline.log", "a", encoding="utf-8") as f:
+                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-CLIENT-ERROR] {target_model}: {err_str}. Skipping retries.\n")
+                        break
+
                     err_body = ""
                     if hasattr(e, "read"):
                         try:
                             err_body = e.read().decode("utf-8", errors="ignore")
                         except: pass
-                    sleep_time = 3.0 * (attempt + 1)
+                    sleep_time = 2.0 * (attempt + 1)
                     if "429" in str(e) or "402" in str(e):
-                        sleep_time = 5.0 * (attempt + 1)
+                        sleep_time = 3.0 * (attempt + 1)
                     with open("pipeline.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1}/4 ({target_model}): {e} | Body: {err_body[:300]}. Sleep {sleep_time}s\n")
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1}/{max_attempts} ({target_model}): {e} | Body: {err_body[:300]}. Sleep {sleep_time}s\n")
                     time.sleep(sleep_time)
 
         except Exception as e:
@@ -403,8 +418,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
-        target_model = model_override if model_override else MODEL_STRUCTURAL
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=0.4, json_mode=True, allow_fallback=True)
+        if model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"]:
+            res = None
+        else:
+            target_model = model_override if model_override else MODEL_STRUCTURAL
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=0.4, json_mode=True, allow_fallback=True)
         
         raw_list = []
         if isinstance(res, list):

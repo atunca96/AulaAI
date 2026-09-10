@@ -8761,7 +8761,16 @@ function populateSelects() {
   }
 }
 
+function clearActivityAnsweredState() {
+  for (const k of Object.keys(_answeredQuestionsState)) {
+    if (k.startsWith('act_')) {
+      delete _answeredQuestionsState[k];
+    }
+  }
+}
+
 function handleActivityTopicChange() {
+  clearActivityAnsweredState();
   const select = document.getElementById('activity-topic-select');
   const topicId = select ? select.value : '';
   const preview = document.getElementById('activity-preview');
@@ -8860,6 +8869,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
         if (data.status === 'done') {
           if (data.results && data.results.length > 0) {
             clearInterval(activityProgressInterval);
+            clearActivityAnsweredState();
             // Retrieve current topic title if available (without polluting content.activities cache)
             const actSelect = document.getElementById('activity-topic-select');
             const curTid = topicId || (actSelect ? actSelect.value : null);
@@ -8900,7 +8910,8 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
                 document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
                     <div style="margin-bottom:16px;">${SVG_SEARCH}</div>
                     <div style="font-weight:700; margin-bottom:8px;">${currentLang === 'tr' ? 'Soru bulunamadı' : 'No questions found'}</div>
-                    <div style="font-size:14px;">${currentLang === 'tr' ? 'Yapay zeka bu konu içeriği için geçerli sorular üretemedi. Farklı bir konu deneyin.' : 'The AI couldn\'t generate valid questions for this specific topic content. Try a different topic or build the curriculum again.'}</div>
+                    <div style="font-size:14px; margin-bottom:16px;">${currentLang === 'tr' ? 'Bu konu içeriği için sorular henüz üretilemedi. Lütfen tekrar deneyin.' : 'Questions could not be generated for this topic content. Please try again.'}</div>
+                    <button class="btn btn-primary btn-sm" onclick="launchActivity()">${currentLang === 'tr' ? 'Tekrar Dene' : 'Try Again'}</button>
                 </div>`;
                 return;
             }
@@ -8913,28 +8924,53 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
             genBtn.disabled = false;
             genBtn.removeAttribute('data-generating');
           }
-          document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${currentLang === 'tr' ? 'Aktivite oluşturulurken bir hata oluştu.' : 'Error generating activities.'}</div>`;
+          document.getElementById(targetId).innerHTML = `<div style="padding:30px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:12px; border:1px solid var(--border);">
+            <div style="margin-bottom:12px; font-weight:700;">${currentLang === 'tr' ? 'Aktivite oluşturulurken bir hata oluştu.' : 'Error generating activities.'}</div>
+            <button class="btn btn-primary btn-sm" onclick="launchActivity()">${currentLang === 'tr' ? 'Tekrar Dene' : 'Try Again'}</button>
+          </div>`;
           return;
         }
       } else {
         window._actPollErrors = (window._actPollErrors || 0) + 1;
       }
 
-      // Safety timeout fallback: if stuck for > 40 polls (~12s) or multiple poll errors, pull direct activities
-      if ((window._actTotalPolls > 40 || window._actPollErrors >= 4) && topicId) {
+      // Safety fallback: if background generation is taking longer than 22s (55 polls), try direct activities
+      if ((window._actTotalPolls > 55 || window._actPollErrors >= 4) && topicId) {
         try {
           const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
           if (Array.isArray(directData) && directData.length > 0) {
             clearInterval(activityProgressInterval);
+            clearActivityAnsweredState();
             _lastActivityData = { activities: directData, topic: null };
             const isStudent = currentUser && currentUser.role === 'student';
             const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
             document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+            const genBtn = document.getElementById('generate-activity-btn');
+            if (genBtn) {
+              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
+              genBtn.disabled = false;
+              genBtn.removeAttribute('data-generating');
+            }
             return;
           }
         } catch (fbErr) {
           console.warn("Activity safety fallback error:", fbErr);
         }
+      }
+
+      // Hard timeout fallback after ~30s (75 polls): don't freeze indefinitely
+      if (window._actTotalPolls > 75) {
+        clearInterval(activityProgressInterval);
+        const genBtn = document.getElementById('generate-activity-btn');
+        if (genBtn) {
+          genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+          genBtn.disabled = false;
+          genBtn.removeAttribute('data-generating');
+        }
+        document.getElementById(targetId).innerHTML = `<div style="padding:30px; text-align:center; background:var(--bg-card); border-radius:12px; border:1px solid var(--border);">
+          <p style="color:var(--text-muted); margin-bottom:16px;">${currentLang === 'tr' ? 'Aktivite oluşturma zaman aşımına uğradı.' : 'Activity generation timed out.'}</p>
+          <button class="btn btn-primary btn-sm" onclick="launchActivity()">${currentLang === 'tr' ? 'Yeniden Dene' : 'Retry'}</button>
+        </div>`;
       }
     } catch (e) {
       console.error("Poll Error:", e);
@@ -8944,15 +8980,22 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
           const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
           if (Array.isArray(directData) && directData.length > 0) {
             clearInterval(activityProgressInterval);
+            clearActivityAnsweredState();
             _lastActivityData = { activities: directData, topic: null };
             const isStudent = currentUser && currentUser.role === 'student';
             const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
             document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+            const genBtn = document.getElementById('generate-activity-btn');
+            if (genBtn) {
+              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
+              genBtn.disabled = false;
+              genBtn.removeAttribute('data-generating');
+            }
           }
         } catch (e2) {}
       }
     }
-  }, 300);
+  }, 400);
 }
 
 let draftProgressInterval = null;
@@ -9011,6 +9054,7 @@ function startDraftPolling(type, btn, originalText, callback) {
 }
 
 async function launchActivity() {
+  clearActivityAnsweredState();
   const topicId = document.getElementById('activity-topic-select').value;
   if (!topicId) return showAlert(t('missing_info'), t('class.select_topic_msg') || (currentLang === 'tr' ? 'Lütfen bir konu seçin' : 'Please select a topic'), true);
 
@@ -9097,8 +9141,9 @@ function renderActivityCard(a, idx, ctx) {
     </div>
   ` : '';
 
-  const cardKey = `${ctx}-${idx}`;
-  const savedState = _answeredQuestionsState[`act_card_${cardKey}`] || (a.id ? _answeredQuestionsState[`act_q_${a.id}`] : null);
+  // Look up saved state strictly by question identity, NEVER by generic DOM slot index
+  const qKey = a.id ? `act_q_${a.id}` : (a.prompt ? `act_p_${encodeURIComponent(a.prompt.trim())}` : null);
+  const savedState = qKey ? _answeredQuestionsState[qKey] : null;
 
   const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
   const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explText) || explText.includes('doğru') || explText.includes('çünkü') || explText.includes('ifade'));
@@ -9315,8 +9360,10 @@ async function checkMCQ(btn, answer, cardId, qid) {
     explanation,
     qid
   };
-  _answeredQuestionsState[`act_card_${cardId}`] = stateObj;
-  if (qid) _answeredQuestionsState[`act_q_${qid}`] = stateObj;
+  const promptEl = card.querySelector('.activity-prompt');
+  const promptTxt = promptEl ? promptEl.textContent.trim() : '';
+  const qKey = qid ? `act_q_${qid}` : (promptTxt ? `act_p_${encodeURIComponent(promptTxt)}` : null);
+  if (qKey) _answeredQuestionsState[qKey] = stateObj;
 
   card.querySelectorAll('.option-btn').forEach(b => {
     b.disabled = true;
@@ -9377,8 +9424,10 @@ async function checkFill(id, answer, qid) {
     explanation,
     qid
   };
-  _answeredQuestionsState[`act_card_${id}`] = stateObj;
-  if (qid) _answeredQuestionsState[`act_q_${qid}`] = stateObj;
+  const promptEl = card.querySelector('.activity-prompt');
+  const promptTxt = promptEl ? promptEl.textContent.trim() : '';
+  const qKey = qid ? `act_q_${qid}` : (promptTxt ? `act_p_${encodeURIComponent(promptTxt)}` : null);
+  if (qKey) _answeredQuestionsState[qKey] = stateObj;
 
   const fb = document.getElementById('fb-' + id);
   fb.classList.remove('hidden');
@@ -10366,6 +10415,7 @@ function startStudyFirst(topicId) {
 }
 
 async function startPractice(tid, title) {
+  clearActivityAnsweredState();
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const targetId = isLecturer ? 'activity-preview' : 'practice-area';
   const topicsGrid = isLecturer ? null : document.getElementById('practice-topics');
