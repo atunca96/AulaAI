@@ -2185,8 +2185,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         import re
         import random as py_random
         import time
-        import concurrent.futures
-        import threading
+        import traceback
         
         def update_prog(p, status='generating', results=None, message=None):
             task_dict = {"percentage": p, "status": status}
@@ -2202,110 +2201,30 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         update_prog(15, message=msg_init)
 
         try:
-            with db_connection() as db:
-                row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
-                if not row: raise Exception(f"Topic {topic_id} not found")
-                topic = dict(row)
-                row_c = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
-                language = row_c["language"] if row_c else "Unknown"
-                material_language = row_c["material_language"] if row_c and "material_language" in row_c.keys() else "en"
-                if ui_lang and ui_lang in ["tr", "en"]:
-                    material_language = ui_lang
+            from services.content_engine import generate_assessment_set
 
-            content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
-            topic_type = topic.get("type", "vocabulary")
-            count = 10
+            def progress_cb(pct, msg=None):
+                update_prog(pct, message=msg)
 
-            msg_gen = "Yapay zekâ ile özgün sorular üretiliyor..." if ui_lang == "tr" else "AI generating unique questions..."
-            update_prog(40, message=msg_gen)
+            final_questions = generate_assessment_set(
+                topic_ids=[topic_id],
+                count=count,
+                is_quiz=False,
+                ui_lang=ui_lang,
+                existing_questions=existing_questions,
+                progress_callback=progress_cb
+            )
 
-            existing_prompts = set(q.get("prompt", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("prompt"))
-            existing_answers = set(q.get("answer", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("answer"))
-
-            raw_activities = []
-            try:
-                from services.ai_engine import ai_generate_activity_batch
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    fut = executor.submit(ai_generate_activity_batch, topic["title"], topic_type, content, language, 10, topic.get("difficulty", "A1"), existing_questions, False, None, material_language)
-                    try:
-                        batch = fut.result(timeout=15.0)
-                        if batch: raw_activities = list(batch)
-                    except concurrent.futures.TimeoutError:
-                        print(f"[BG] Activity generation timed out after 15s. Proceeding to fallback.")
-            except Exception as e:
-                print(f"[BG] Activity Generation Failed: {e}")
-            
-            msg_val = "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy..."
-            update_prog(75, message=msg_val)
-
-            # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages & items
-            if len(raw_activities) < count and isinstance(content, dict):
-                pages = list(content.get("pages", []))
-                py_random.shuffle(pages)
-                for p in pages:
-                    if len(raw_activities) >= count: break
-                    if p.get("type") == "mcq" and p.get("prompt") and p.get("answer"):
-                        prompt_text = p.get("prompt_tr") if material_language == "tr" and p.get("prompt_tr") else p.get("prompt")
-                        ans_text = p.get("answer")
-                        if existing_prompts and prompt_text in existing_prompts:
-                            continue
-                        if existing_answers and ans_text in existing_answers:
-                            continue
-                        if not any(a.get("prompt") == prompt_text for a in raw_activities):
-                            opts = list(p.get("options", []))
-                            if not opts:
-                                opts = [p.get("answer")] + p.get("distractors", [])
-                            py_random.shuffle(opts)
-                            raw_activities.append({
-                                "id": _uid(),
-                                "type": "mcq",
-                                "prompt": prompt_text,
-                                "translation": "",
-                                "answer": p.get("answer"),
-                                "distractors": [x for x in opts if x != p.get("answer")][:3],
-                                "options": opts,
-                                "why": p.get("explanation_tr" if material_language == "tr" else "explanation", "Doğru seçenek.")
-                            })
-            
-            if len(raw_activities) < count:
-                try:
-                    from services.ai_engine import ai_generate_activity_batch
-                    fb_batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count, level=topic.get("difficulty", "A1"), existing_questions=existing_questions, model_override="none", material_language=material_language)
-                    for item in (fb_batch or []):
-                        if len(raw_activities) >= count: break
-                        if not any(a.get("prompt") == item.get("prompt") for a in raw_activities):
-                            raw_activities.append(item)
-                except Exception as ex_fb:
-                    print(f"[BG] Fallback batch error: {ex_fb}")
-
-            msg_opt = "Çeviriler ve açıklamalar optimize ediliyor..." if ui_lang == "tr" else "Optimizing translations and hints..."
-            update_prog(90, message=msg_opt)
-
-            final_questions = raw_activities[:count]
             msg_done = "Sorular hazır!" if ui_lang == "tr" else "Questions ready!"
             update_prog(100, status='done', results=final_questions, message=msg_done)
             print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} fresh questions.")
 
         except Exception as e:
-            state.is_done = True
             msg = f"BG Activity Error: {str(e)}"
             print(f"[CRITICAL] {msg}")
             file_log(msg)
             file_log(traceback.format_exc())
-            # Final fallback: try to return whatever we have or synthesized questions instead of 0
-            try:
-                from services.ai_engine import ai_generate_activity_batch
-                lang_val = language if 'language' in locals() else "Spanish"
-                mat_lang = material_language if 'material_language' in locals() else "en"
-                fb = ai_generate_activity_batch(topic.get("title", ""), topic.get("type", "vocabulary"), content if 'content' in locals() else {}, lang_val, count=10, level="A1", model_override="none", material_language=mat_lang)
-                if fb:
-                    update_prog(100, status='done', results=fb)
-                    return
-            except Exception:
-                pass
-            update_prog(0, status='error')
-        finally:
-            state.is_done = True
+            update_prog(0, status='error', message=str(e))
 
     def _get_activity(self, topic_id):
         if not topic_id:

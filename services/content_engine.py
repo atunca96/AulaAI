@@ -200,199 +200,249 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=False, ui_lang="en"):
+def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None):
     """
-    Generate a quiz pulling questions from given topics.
-    If student_mastery is provided, adjusts difficulty.
+    Unified assessment generation engine for both Quizzes and Activities.
+    - If single topic (Activities): loads topic directly with 100% topic fidelity.
+    - If multiple topics (Quizzes / Drafts): balances across curriculum units.
+    - Enforces diverse communicative question types (dialogues, situational, cloze).
+    - Eliminates shallow translation questions entirely.
+    - Generates full explanations ('why' and 'why_tr') for interactive student feedback.
     """
-    from database import db_connection, get_db
+    from database import db_connection
     import uuid
+    import random as py_random
     
-    # 1. Discovery
-    topic_to_chapter = {}
-    all_chapter_ids = set()
-    forbidden_questions = []
-    
+    if not topic_ids:
+        return []
+
+    c_count = int(count)
+    if progress_callback:
+        progress_callback(15, "Ders içeriği taranıyor..." if ui_lang == "tr" else "Scanning lesson content...")
+
+    forbidden_questions = list(existing_questions or [])
+
     with db_connection() as db_conn:
-        c = db_conn.cursor()
+        cursor = db_conn.cursor()
         for tid in topic_ids:
-            row_ch = c.execute("SELECT chapter_id FROM topics WHERE id = ?", (tid,)).fetchone()
-            cid = row_ch["chapter_id"] if row_ch else "unknown"
-            topic_to_chapter[tid] = cid
-            all_chapter_ids.add(cid)
-            
-            # LIVE-ONLY: Pull the last 20 questions generated for this topic to use as a "Forbidden List"
-            # This ensures the AI doesn't repeat itself even if we don't use these questions in the quiz.
-            recent = c.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
+            # Pull recent questions for this topic to forbid exact repeats
+            recent = cursor.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
             for r in recent:
                 forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
-        
-        print(f"[LIVE-ONLY] Quiz generation started. Forbidden pool size: {len(forbidden_questions)}")
 
-    # 2. Skip DB recycling - Always use AI for maximum variety
+    # Base language & level discovery
+    base_lang = "Unknown"
+    material_language = "en"
+    course_level = "A1"
+    with db_connection() as db_conn:
+        first_tid = topic_ids[0]
+        l_row = db_conn.execute("""
+            SELECT co.language, co.material_language, co.level FROM courses co
+            JOIN chapters ch ON co.id = ch.course_id
+            JOIN topics t ON ch.id = t.chapter_id
+            WHERE t.id = ?
+        """, (first_tid,)).fetchone()
+        if l_row:
+            base_lang = l_row["language"] if l_row["language"] else "Unknown"
+            if "material_language" in l_row.keys() and l_row["material_language"]:
+                material_language = l_row["material_language"]
+            if "level" in l_row.keys() and l_row["level"]:
+                course_level = l_row["level"]
+
+    if ui_lang and ui_lang in ["tr", "en"]:
+        material_language = ui_lang
+
     questions = []
 
-    # 3. BIG BATCH AI Generation
+    if progress_callback:
+        progress_callback(40, "Yapay zekâ ile özgün sorular üretiliyor..." if ui_lang == "tr" else "AI generating unique questions...")
+
     if is_ai_available():
-        needed = count
-        print(f"[AI] Live-Only Batch: Requesting {needed} fresh questions for {len(topic_ids)} topics")
-        
-        # Surgically sample up to 6 topics and extract only key terms (prevents 1.2M char token blowout)
-        target_ids = random.sample(topic_ids, min(6, len(topic_ids))) if len(topic_ids) > 6 else list(topic_ids)
-        topics_summary = []
-        with db_connection() as db_conn:
-            for tid in target_ids:
+        from services.ai_engine import ai_generate_questions
+
+        # Case A: Single topic assessment (e.g. Activity) -> 100% topic fidelity
+        if len(topic_ids) == 1:
+            tid = topic_ids[0]
+            with db_connection() as db_conn:
                 t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
-                if t_row:
-                    key_terms = []
-                    if t_row["content"]:
-                        try:
-                            tc = json.loads(t_row["content"])
-                            for p in tc.get("pages", []):
-                                for it in p.get("items", []):
-                                    if it.get("term"):
-                                        tr_val = it.get("translation_tr") or it.get("translation")
-                                        key_terms.append(f"{it.get('term')} ({tr_val})")
-                                    if len(key_terms) >= 5: break
-                        except: pass
-                    topics_summary.append({
-                        "id": tid,
-                        "title": t_row["title"],
-                        "type": t_row["type"],
-                        "key_vocab": key_terms[:5]
-                    })
-        
-        # Use first topic's language and level as base
-        base_lang = "Unknown"
-        material_language = "en"
-        course_level = "A1"
-        if topics_summary:
-            with db_connection() as db_conn:
-                l_row = db_conn.execute("""
-                    SELECT co.language, co.material_language, co.level FROM courses co
-                    JOIN chapters ch ON co.id = ch.course_id
-                    JOIN topics t ON ch.id = t.chapter_id
-                    WHERE t.id = ?
-                """, (topics_summary[0]["id"],)).fetchone()
-                if l_row:
-                    base_lang = l_row["language"] if l_row["language"] else "Unknown"
-                    if "material_language" in l_row.keys() and l_row["material_language"]:
-                        material_language = l_row["material_language"]
-                    if "level" in l_row.keys() and l_row["level"]:
-                        course_level = l_row["level"]
-        
-        if ui_lang and ui_lang in ["tr", "en"]:
-            material_language = ui_lang
+            
+            if t_row:
+                topic_title = t_row["title"]
+                topic_type = t_row["type"] or "vocabulary"
+                try:
+                    topic_content = json.loads(t_row["content"]) if isinstance(t_row["content"], str) else (t_row["content"] or {})
+                except Exception:
+                    topic_content = {}
 
-        # Call the unified engine
-        from services.ai_engine import ai_generate_questions
-        new_qs = ai_generate_questions(
-            topic_title="Quiz/Review", 
-            topic_type="mixed_curriculum",
-            topic_content={"topics": topics_summary},
-            language=base_lang,
-            count=needed,
-            level=course_level,
-            existing_questions=forbidden_questions,
-            is_quiz=is_quiz,
-            material_language=material_language
-        )
-        if new_qs:
+                new_qs = ai_generate_questions(
+                    topic_title=topic_title,
+                    topic_type=topic_type,
+                    topic_content=topic_content,
+                    language=base_lang,
+                    count=c_count,
+                    level=course_level,
+                    existing_questions=forbidden_questions,
+                    is_quiz=is_quiz,
+                    material_language=material_language
+                )
+                if new_qs:
+                    for q in new_qs:
+                        if len(questions) >= c_count: break
+                        q_id = str(uuid.uuid4())
+                        distractors = q.get("distractors", [])
+                        options = [q.get("answer", "")] + distractors
+                        py_random.shuffle(options)
+                        t_en = q.get("translation_en") or q.get("translation", "")
+                        t_tr = q.get("translation_tr") or q.get("translation", "")
+                        why_en = q.get("why", "Correct answer based on the lesson.")
+                        why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
+                        
+                        if is_quiz:
+                            with db_connection() as db_conn:
+                                db_conn.execute(
+                                    "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                    (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
+                                )
+                                db_conn.commit()
+
+                        questions.append({
+                            "id": q_id,
+                            "topic_id": tid,
+                            "type": q.get("type", "mcq"),
+                            "prompt": q.get("prompt", ""),
+                            "translation": t_tr if material_language == "tr" else t_en,
+                            "translation_en": t_en,
+                            "translation_tr": t_tr,
+                            "answer": q.get("answer", ""),
+                            "distractors": distractors,
+                            "options": options,
+                            "difficulty": course_level,
+                            "why": why_en,
+                            "why_tr": why_tr
+                        })
+
+        # Case B: Multi-topic assessment (e.g. Quiz / Review) -> Balanced cross-topic curriculum
+        else:
+            target_ids = py_random.sample(topic_ids, min(6, len(topic_ids))) if len(topic_ids) > 6 else list(topic_ids)
+            topics_summary = []
             with db_connection() as db_conn:
+                for tid in target_ids:
+                    t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+                    if t_row:
+                        key_terms = []
+                        if t_row["content"]:
+                            try:
+                                tc = json.loads(t_row["content"])
+                                for p in tc.get("pages", []):
+                                    for it in p.get("items", []):
+                                        if it.get("term"):
+                                            tr_val = it.get("translation_tr") or it.get("translation")
+                                            key_terms.append(f"{it.get('term')} ({tr_val})")
+                                        if len(key_terms) >= 6: break
+                            except Exception: pass
+                        topics_summary.append({
+                            "id": tid,
+                            "title": t_row["title"],
+                            "type": t_row["type"],
+                            "key_vocab": key_terms[:6]
+                        })
+
+            new_qs = ai_generate_questions(
+                topic_title="Quiz/Review",
+                topic_type="mixed_curriculum",
+                topic_content={"topics": topics_summary},
+                language=base_lang,
+                count=c_count,
+                level=course_level,
+                existing_questions=forbidden_questions,
+                is_quiz=is_quiz,
+                material_language=material_language
+            )
+            if new_qs:
                 for q in new_qs:
-                    if len(questions) >= count:
-                        break
-                    tid = q.get("topic_id") or random.choice(topic_ids)
-                    q_id = str(uuid.uuid4())
-                    distractors = q.get("distractors", [])
-                    # Ensure options are assembled and shuffled for the UI
-                    options = [q.get("answer", "")] + distractors
-                    random.shuffle(options)
-                    
-                    db_conn.execute(
-                        "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
-                         json.dumps(distractors), course_level)
-                    )
-                    questions.append({
-                        "id": q_id, "topic_id": tid,
-                        "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
-                        "answer": q.get("answer", ""), "distractors": distractors, 
-                        "options": options, "difficulty": course_level
-                    })
-                db_conn.commit()
-            from services.state import bump_version
-            bump_version()
-
-        print(f"[QUIZ] After first AI call: have {len(questions)}/{count}")
-
-    # ── DETERMINISTIC FILL (Prevents Runaway Retries & Credit Drain) ──
-    if len(questions) < count and is_ai_available():
-        # Single extra pass if needed
-        still_needed = count - len(questions)
-        from services.ai_engine import ai_generate_questions
-        extra_qs = ai_generate_questions(
-            topic_title="Quiz/Review",
-            topic_type="mixed_curriculum",
-            topic_content={"topics": topics_summary},
-            language=base_lang,
-            count=still_needed,
-            level=course_level,
-            existing_questions=forbidden_questions + questions,
-            is_quiz=is_quiz,
-            material_language=material_language
-        )
-        if extra_qs:
-            with db_connection() as db_conn:
-                for q in extra_qs:
-                    if len(questions) >= count:
-                        break
-                    tid = q.get("topic_id") or (random.choice(topic_ids) if topic_ids else "")
+                    if len(questions) >= c_count: break
+                    tid = q.get("topic_id") or py_random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
                     options = [q.get("answer", "")] + distractors
-                    random.shuffle(options)
-                    
-                    db_conn.execute(
-                        "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                        (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""),
-                         json.dumps(distractors), course_level)
-                    )
-                    questions.append({
-                        "id": q_id, "topic_id": tid,
-                        "type": q.get("type", "mcq"), "prompt": q.get("prompt", ""),
-                        "answer": q.get("answer", ""), "distractors": distractors, 
-                        "options": options, "difficulty": course_level
-                    })
-                db_conn.commit()
-            from services.state import bump_version
-            bump_version()
+                    py_random.shuffle(options)
+                    t_en = q.get("translation_en") or q.get("translation", "")
+                    t_tr = q.get("translation_tr") or q.get("translation", "")
+                    why_en = q.get("why", "Correct answer based on the lesson.")
+                    why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
 
-    # Deterministic safety net: if still needed, pull from existing approved DB questions
-    if len(questions) < count:
+                    if is_quiz:
+                        with db_connection() as db_conn:
+                            db_conn.execute(
+                                "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
+                            )
+                            db_conn.commit()
+
+                    questions.append({
+                        "id": q_id,
+                        "topic_id": tid,
+                        "type": q.get("type", "mcq"),
+                        "prompt": q.get("prompt", ""),
+                        "translation": t_tr if material_language == "tr" else t_en,
+                        "translation_en": t_en,
+                        "translation_tr": t_tr,
+                        "answer": q.get("answer", ""),
+                        "distractors": distractors,
+                        "options": options,
+                        "difficulty": course_level,
+                        "why": why_en,
+                        "why_tr": why_tr
+                    })
+
+    if progress_callback:
+        progress_callback(75, "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy...")
+
+    # Strict Topic-Isolated Safety Net (Only if questions < count)
+    if len(questions) < c_count:
         with db_connection() as db_conn:
+            placeholders = ",".join("?" * len(topic_ids))
             existing_rows = db_conn.execute(
-                "SELECT id, topic_id, type, prompt, answer, distractors, difficulty FROM questions WHERE approved = 1 ORDER BY RANDOM() LIMIT ?",
-                (count - len(questions),)
+                f"SELECT id, topic_id, type, prompt, answer, distractors, difficulty FROM questions WHERE topic_id IN ({placeholders}) AND approved = 1 ORDER BY RANDOM() LIMIT ?",
+                list(topic_ids) + [c_count - len(questions)]
             ).fetchall()
             for r in existing_rows:
-                if len(questions) >= count: break
+                if len(questions) >= c_count: break
                 if not any(q["prompt"] == r["prompt"] for q in questions):
                     d_list = json.loads(r["distractors"]) if r["distractors"] else []
                     opts = [r["answer"]] + d_list
-                    random.shuffle(opts)
+                    py_random.shuffle(opts)
                     questions.append({
-                        "id": r["id"], "topic_id": r["topic_id"],
-                        "type": r["type"], "prompt": r["prompt"],
-                        "answer": r["answer"], "distractors": d_list,
-                        "options": opts, "difficulty": r["difficulty"]
+                        "id": r["id"],
+                        "topic_id": r["topic_id"],
+                        "type": r["type"],
+                        "prompt": r["prompt"],
+                        "translation": "",
+                        "translation_en": "",
+                        "translation_tr": "",
+                        "answer": r["answer"],
+                        "distractors": d_list,
+                        "options": opts,
+                        "difficulty": r["difficulty"],
+                        "why": "Correct answer based on the lesson.",
+                        "why_tr": "Ders içeriğine göre doğru seçenek."
                     })
 
-    final_quiz = questions[:count]
-    print(f"[QUIZ] FINAL: requested={count} returned={len(final_quiz)}")
     if progress_callback:
-        progress_callback(100)
-    return final_quiz
+        progress_callback(90, "Çeviriler ve açıklamalar optimize ediliyor..." if ui_lang == "tr" else "Optimizing translations and hints...")
+
+    from services.state import bump_version
+    bump_version()
+
+    final_set = questions[:c_count]
+    if progress_callback:
+        progress_callback(100, "Sorular hazır!" if ui_lang == "tr" else "Questions ready!")
+
+    return final_set
+
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en"):
+    """Backward compatibility wrapper delegating to unified generate_assessment_set."""
+    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, progress_callback=progress_callback)
 
 
 def generate_dialogue_activity(language="Unknown"):

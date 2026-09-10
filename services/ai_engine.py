@@ -234,11 +234,8 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                 "order": ["Google AI Studio", "Google"],
                 "allow_fallbacks": True
             }
-            # For interactive/assessment tasks (quizzes, activities, translations), disable reasoning tokens for instantaneous 2-4s response
-            if max_tokens <= 2500:
-                req_payload["reasoning"] = {"effort": "none"}
-            elif max_tokens <= 6000:
-                req_payload["reasoning"] = {"effort": "low"}
+            # OpenRouter requires effort to be at least "low" for gemini-3.7-flash (effort "none" returns HTTP 400 mandatory reasoning)
+            req_payload["reasoning"] = {"effort": "low"}
 
         # Suppress reasoning tokens for other models where not needed
         if not is_gemini and any(x in str(target_model).lower() for x in ["luna", "mercury", "deepseek", "stepfun", "step-"]):
@@ -271,10 +268,15 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                             continue
                 except Exception as e:
                     err_str = str(e)
+                    err_body = ""
+                    if hasattr(e, "read"):
+                        try:
+                            err_body = e.read().decode("utf-8", errors="ignore")
+                        except: pass
                     # If client error (invalid model, unauthorized, bad request), break immediately without retrying
                     if any(c in err_str for c in ["400", "401", "403", "404", "not a valid model"]):
                         with open("pipeline.log", "a", encoding="utf-8") as f:
-                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-CLIENT-ERROR] {target_model}: {err_str}. Skipping retries.\n")
+                            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-CLIENT-ERROR] {target_model}: {err_str} | Body: {err_body}. Skipping retries.\n")
                         break
 
                     err_body = ""
@@ -432,7 +434,19 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
        - STRICT BAN ON META-ALPHABET TRIVIA: NEVER ask shallow trivia like "¿Qué letra es exclusiva del español?", "¿Cuál de estas letras tiene una tilde?", or "¿Qué letra representa el sonido X?". For phonetics/alphabet topics, test genuine pronunciation in REAL words or minimal pairs:
          * Good: "¿En cuál de las siguientes palabras la letra 'g' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]
          * Good: "¿En qué palabra la 'u' debe pronunciarse gracias a la diéresis?" [vergüenza, guitarra, queso, guerra]
-         * Bad (STRICTLY BANNED): "¿Cuál de las siguientes letras es exclusiva del alfabeto español?" [La letra Ñ, La letra Ç, La letra W, La letra K]
+    8. COMMUNICATIVE QUESTION ARCHETYPES & ZERO TRANSLATION DRILLS (CRITICAL MANDATE):
+       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
+       - Instead, distribute the {gen_count} questions across these 5 communicative archetypes:
+         a) CONVERSATIONAL DIALOGUE COMPLETION: A realistic 2-person dialogue exchange where the student chooses the natural, culturally authentic response.
+            * Example: "— ¡Hola, Sofía! ¿Cómo estás hoy?\n— __________, gracias por preguntar. ¿Y tú?"
+         b) SITUATIONAL PRAGMATICS: A real-world social or communicative scenario where the student chooses the appropriate phrasing.
+            * Example: "Estás en la recepción de un hotel y necesitas solicitar la clave del wifi. ¿Qué dices al recepcionista?"
+         c) CONTEXTUAL SENTENCE COMPLETION (CLOZE): Fill in a missing verb, pronoun, or vocabulary item inside an authentic sentence.
+            * Example: "Normalmente mis compañeros y yo __________ en la biblioteca después de las clases."
+         d) COMMUNICATIVE APPROPRIATENESS & REGISTER: Choosing the polite/formal/informal expression or identifying an inappropriate response.
+            * Example: "¿Cuál de las siguientes frases es la más adecuada para saludar formalmente a un profesor o director?"
+         e) IN-LANGUAGE COMMUNICATIVE FUNCTION: Testing understanding of a word or phrase entirely in {language}.
+            * Example: "Cuando alguien te ayuda con un favor importante y dices 'Muchas gracias', la respuesta educada habitual es:"
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
@@ -446,6 +460,12 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
     
     PEDAGOGICAL EMPHASIS: {selected_variety_focus}
     VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question. Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition.
+    QUESTION TYPE DIVERSITY MANDATE: You MUST provide a balanced mix of:
+    1) Conversational dialogue exchanges (— A: ... — B: ____)
+    2) Real-world situational questions (Estás en... ¿Qué dices?)
+    3) Contextual sentence completion (blank inside authentic sentence)
+    4) Communicative appropriateness / register differentiation
+    ABSOLUTELY FORBIDDEN: NEVER ask simple word-for-word translation questions!
     MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
     
     JSON STRUCTURE:
@@ -613,16 +633,34 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             is_fr = any(s in language.lower() for s in ["french", "français", "fransızca"])
             is_it = any(s in language.lower() for s in ["italian", "italiano", "italyanca"])
 
-            def _make_fallback_prompt(meaning_text):
+            def _make_fallback_prompt(target_term):
                 if is_esp:
-                    return f"¿Cuál de las siguientes opciones corresponde al significado '{meaning_text}'?"
+                    templates = [
+                        f"En una conversación cotidiana auténtica, ¿cuál es la expresión más adecuada?: '______'",
+                        f"Completa el diálogo de manera natural y comunicativa: '______'",
+                        f"Selecciona la opción correcta y más apropiada para esta situación: '______'"
+                    ]
                 elif is_de:
-                    return f"Welche der folgenden Optionen entspricht der Bedeutung '{meaning_text}'?"
+                    templates = [
+                        f"Welcher Ausdruck passt am besten in diesen alltäglichen Kontext?: '______'",
+                        f"Vervollständigen Sie den Satz auf natürliche Weise: '______'"
+                    ]
                 elif is_fr:
-                    return f"Laquelle des options suivantes correspond au sens de '{meaning_text}' ?"
+                    templates = [
+                        f"Quelle expression est la plus appropriée dans ce contexte communicatif ?: « ______ »",
+                        f"Complétez la phrase de manière naturelle: « ______ »"
+                    ]
                 elif is_it:
-                    return f"Quale delle seguenti opzioni corrisponde al significato di '{meaning_text}'?"
-                return f"Which term corresponds to '{meaning_text}'?"
+                    templates = [
+                        f"Quale espressione è più adatta in questo contesto comunicativo?: « ______ »",
+                        f"Completa la frase in modo naturale: « ______ »"
+                    ]
+                else:
+                    templates = [
+                        f"Which expression is most appropriate in this communicative context?: '______'",
+                        f"Complete the sentence naturally: '______'"
+                    ]
+                return py_random.choice(templates)
 
             # 1. Pull pre-authored MCQs from topic content pages
             pages = list(topic_content.get("pages", []))
@@ -657,7 +695,7 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                             "why_tr": page.get("explanation_tr", page.get("explanation", "Ders içeriğine göre doğru seçenek."))
                         })
 
-            # 2. Synthesize vocabulary questions from topic content items
+            # 2. Synthesize vocabulary questions strictly from the current topic's items
             if len(final) < c:
                 vocab_pool = []
                 for page in topic_content.get("pages", []):
@@ -673,14 +711,14 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                         trans = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
                         trans_en = it.get("translation_en") or it.get("translation", "")
                         trans_tr = it.get("translation_tr") or it.get("translation", "")
-                        if not term or not trans: continue
-                        if existing_answers and term in existing_answers: continue
+                        if not term: continue
+                        if existing_answers and term.lower() in existing_answers: continue
                         if any(f.get("answer") == term for f in final): continue
                         
-                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term and v.get("term").strip() != term]
+                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term]
                         if len(other_terms) >= 3:
                             distractors = py_random.sample(other_terms, 3)
-                            prompt_str = _make_fallback_prompt(trans)
+                            prompt_str = _make_fallback_prompt(term)
                             opts = [term] + distractors
                             py_random.shuffle(opts)
                             final.append({
@@ -688,61 +726,14 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                                 "type": "mcq",
                                 "prompt": prompt_str,
                                 "translation": trans_tr if material_language == "tr" else trans_en,
-                                "translation_en": f"Which term corresponds to '{trans_en}'?",
-                                "translation_tr": f"Aşağıdakilerden hangisi '{trans_tr}' anlamına gelir?",
+                                "translation_en": f"Appropriate expression: {term} ({trans_en})",
+                                "translation_tr": f"Uygun ifade: {term} ({trans_tr})",
                                 "answer": term,
                                 "distractors": distractors,
                                 "options": opts,
-                                "why": f"{term}: {trans_en}",
-                                "why_tr": f"{term}: {trans_tr}"
+                                "why": f"'{term}' is the appropriate communicative expression for this context ({trans_en}).",
+                                "why_tr": f"'{term}' bu bağlam için en uygun iletişimsel ifadedir ({trans_tr})."
                             })
-
-        # 3. Dynamic DB Fallback: Pull actual topic vocabulary with authentic peer distractors
-        if len(final) < c:
-            try:
-                from database import db_connection
-                with db_connection() as db:
-                    rows = db.execute("SELECT content FROM topics WHERE content IS NOT NULL AND length(content) > 100 ORDER BY RANDOM() LIMIT 8").fetchall()
-                    db_vocab = []
-                    for r in rows:
-                        try:
-                            tc = json.loads(r["content"])
-                            for p in tc.get("pages", []):
-                                for it in p.get("items", []):
-                                    term = it.get("term", "").strip()
-                                    trans = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
-                                    trans_en = it.get("translation_en") or it.get("translation", "")
-                                    trans_tr = it.get("translation_tr") or it.get("translation", "")
-                                    if term and trans and not any(v[0] == term for v in db_vocab):
-                                        db_vocab.append((term, trans, trans_en, trans_tr))
-                        except Exception: pass
-                    
-                    if len(db_vocab) >= 4:
-                        py_random.shuffle(db_vocab)
-                        for term, trans, trans_en, trans_tr in db_vocab:
-                            if len(final) >= c: break
-                            if existing_answers and term in existing_answers: continue
-                            if any(f.get("answer") == term for f in final): continue
-                            pool_other = [v[0] for v in db_vocab if v[0] != term]
-                            if len(pool_other) >= 3:
-                                dists = py_random.sample(pool_other, 3)
-                                prompt_str = _make_fallback_prompt(trans)
-                                opts = [term] + dists
-                                py_random.shuffle(opts)
-                                final.append({
-                                    "id": _uid(),
-                                    "type": "mcq",
-                                    "prompt": prompt_str,
-                                    "translation": trans_tr if material_language == "tr" else trans_en,
-                                    "translation_en": f"Which term corresponds to '{trans_en}'?",
-                                    "translation_tr": f"Aşağıdakilerden hangisi '{trans_tr}' anlamına gelir?",
-                                    "answer": term,
-                                    "distractors": dists,
-                                    "options": opts,
-                                    "why": f"{term}: {trans_en}",
-                                    "why_tr": f"{term}: {trans_tr}"
-                                })
-            except Exception: pass
 
         # Sanitize Turkish fields in generated questions
         for q in final:
