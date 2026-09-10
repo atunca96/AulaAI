@@ -395,6 +395,74 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "why_tr": why_tr
                     })
 
+        # Supplementary AI pass if first batch yielded fewer than requested
+        if len(questions) < c_count:
+            still_needed = c_count - len(questions)
+            sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
+            if len(topic_ids) == 1 and 'topic_title' in locals():
+                extra_qs = ai_generate_questions(
+                    topic_title=topic_title,
+                    topic_type=topic_type,
+                    topic_content=topic_content,
+                    language=base_lang,
+                    count=still_needed,
+                    level=course_level,
+                    existing_questions=sub_forbidden,
+                    is_quiz=is_quiz,
+                    material_language=material_language
+                )
+            elif 'topics_summary' in locals():
+                extra_qs = ai_generate_questions(
+                    topic_title="Quiz/Review",
+                    topic_type="mixed_curriculum",
+                    topic_content={"topics": topics_summary},
+                    language=base_lang,
+                    count=still_needed,
+                    level=course_level,
+                    existing_questions=sub_forbidden,
+                    is_quiz=is_quiz,
+                    material_language=material_language
+                )
+            else:
+                extra_qs = []
+
+            if extra_qs:
+                for q in extra_qs:
+                    if len(questions) >= c_count: break
+                    tid = q.get("topic_id") or topic_ids[0]
+                    q_id = str(uuid.uuid4())
+                    distractors = q.get("distractors", [])
+                    options = [q.get("answer", "")] + distractors
+                    py_random.shuffle(options)
+                    t_en = q.get("translation_en") or q.get("translation", "")
+                    t_tr = q.get("translation_tr") or q.get("translation", "")
+                    why_en = q.get("why", "Correct answer based on the lesson.")
+                    why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
+
+                    if is_quiz:
+                        with db_connection() as db_conn:
+                            db_conn.execute(
+                                "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
+                                (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
+                            )
+                            db_conn.commit()
+
+                    questions.append({
+                        "id": q_id,
+                        "topic_id": tid,
+                        "type": q.get("type", "mcq"),
+                        "prompt": q.get("prompt", ""),
+                        "translation": t_tr if material_language == "tr" else t_en,
+                        "translation_en": t_en,
+                        "translation_tr": t_tr,
+                        "answer": q.get("answer", ""),
+                        "distractors": distractors,
+                        "options": options,
+                        "difficulty": course_level,
+                        "why": why_en,
+                        "why_tr": why_tr
+                    })
+
     if progress_callback:
         progress_callback(75, "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy...")
 

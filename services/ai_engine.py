@@ -496,7 +496,7 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.85 if (existing_questions or not is_quiz) else 0.7
-            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=target_temp, json_mode=True, allow_fallback=True)
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=4000, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []
         if isinstance(res, list):
@@ -695,45 +695,8 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                             "why_tr": page.get("explanation_tr", page.get("explanation", "Ders içeriğine göre doğru seçenek."))
                         })
 
-            # 2. Synthesize vocabulary questions strictly from the current topic's items
-            if len(final) < c:
-                vocab_pool = []
-                for page in topic_content.get("pages", []):
-                    for it in page.get("items", []):
-                        if isinstance(it, dict) and it.get("term"):
-                            vocab_pool.append(it)
-                
-                py_random.shuffle(vocab_pool)
-                if len(vocab_pool) >= 4:
-                    for it in vocab_pool:
-                        if len(final) >= c: break
-                        term = it.get("term", "").strip()
-                        trans = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
-                        trans_en = it.get("translation_en") or it.get("translation", "")
-                        trans_tr = it.get("translation_tr") or it.get("translation", "")
-                        if not term: continue
-                        if existing_answers and term.lower() in existing_answers: continue
-                        if any(f.get("answer") == term for f in final): continue
-                        
-                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term]
-                        if len(other_terms) >= 3:
-                            distractors = py_random.sample(other_terms, 3)
-                            prompt_str = _make_fallback_prompt(term)
-                            opts = [term] + distractors
-                            py_random.shuffle(opts)
-                            final.append({
-                                "id": _uid(),
-                                "type": "mcq",
-                                "prompt": prompt_str,
-                                "translation": trans_tr if material_language == "tr" else trans_en,
-                                "translation_en": f"Appropriate expression: {term} ({trans_en})",
-                                "translation_tr": f"Uygun ifade: {term} ({trans_tr})",
-                                "answer": term,
-                                "distractors": distractors,
-                                "options": opts,
-                                "why": f"'{term}' is the appropriate communicative expression for this context ({trans_en}).",
-                                "why_tr": f"'{term}' bu bağlam için en uygun iletişimsel ifadedir ({trans_tr})."
-                            })
+            # Pre-authored MCQs are pulled if any exist in the topic pages; no broken dummy templates synthesized.
+            pass
 
         # Sanitize Turkish fields in generated questions
         for q in final:
