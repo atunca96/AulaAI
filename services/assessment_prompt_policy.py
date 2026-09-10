@@ -1,8 +1,10 @@
 """Runtime policy for assessment generation.
 
-Keeps the large legacy ai_engine stable while injecting a universal V6.2 policy
-for every supported language, CEFR level, topic, and assessment call.
+Injects a compact universal assessment policy without touching lesson/material
+generation. The policy applies only to Pedagogic Assessment Engine calls.
 """
+
+import re
 
 
 def install(ai_engine_module):
@@ -28,43 +30,24 @@ def install(ai_engine_module):
         rewritten = [dict(m) if isinstance(m, dict) else m for m in messages]
         old_system = str(rewritten[system_idx].get("content", ""))
 
-        v62_policy = """
-ASSESSMENT ENGINE V6.2 — UNIVERSAL COVERAGE POLICY
+        # Remove the two legacy sections that most strongly conflict with objective-first
+        # generation. They rewarded cosmetic scenario variety and supplied archetypes the
+        # model repeatedly imitated. All language/CEFR/translation/distractor rules remain.
+        old_system = re.sub(
+            r"\n\s*6\. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:.*?(?=\n\s*7\. DISTRACTOR)",
+            "\n",
+            old_system,
+            flags=re.S,
+        )
+        old_system = re.sub(
+            r"\n\s*8\. COMMUNICATIVE QUESTION ARCHETYPES & FORMAT VARIETY \(CRITICAL\):.*?(?=\n\s*RESPONSE FORMAT:)",
+            "\n",
+            old_system,
+            flags=re.S,
+        )
 
-These rules apply to EVERY supported language, CEFR level, topic, and source type. They override weaker or conflicting diversity wording below.
-
-1. BUILD A TOPIC-SPECIFIC COVERAGE MAP FIRST
-Before writing questions, silently identify the distinct teachable targets actually present in the topic/source: vocabulary meanings and contrasts, grammar rules/forms, communicative functions, pragmatic choices, pronunciation distinctions, orthographic rules when explicitly taught, discourse patterns, comprehension targets, and other language skills appropriate to the CEFR level. Build the batch from different targets in that map.
-
-2. ONE LEARNING OBJECTIVE PER QUESTION
-Every question must test a different underlying language-learning objective. Changing names, numbers, nouns, sentence order, direction, examples, locations, stories, or surface wording does NOT create a new objective. If two questions could share the same one-line learning objective, keep only one.
-
-3. PRIOR QUESTIONS EXHAUST THEIR OBJECTIVES
-Treat all previous prompts and answers supplied in the request as already-used learning objectives. Do not paraphrase, reverse, re-skin, rename, renumber, or otherwise recreate the same target in a new scenario.
-
-4. TARGET-LANGUAGE KNOWLEDGE MUST BE NECESSARY
-A learner should need knowledge of the target language and the lesson content to answer correctly. Reject questions whose answer can be derived mainly from arithmetic, general/world knowledge, geography, trivia, visual pattern recognition, common-sense logic, counting, or information explicitly revealed by the prompt itself.
-
-5. STAY INSIDE THE PEDAGOGICAL SCOPE
-Do not invent unrelated knowledge just to create variety. Expand only to natural, CEFR-appropriate uses of the same lesson theme. For narrow topics, vary the linguistic skill being tested rather than importing outside facts.
-
-6. NO SHALLOW META-TRIVIA
-Do not ask about string length, number of letters, which option merely looks correctly spelled, whether a word is written as one word, accent/tilde presence, character shape, or similar visual/meta properties unless that exact orthographic feature is explicitly the lesson objective. For alphabet/pronunciation lessons, test genuine sound-letter use in authentic language, not trivia about symbols.
-
-7. FORMAT DIVERSITY MUST FOLLOW OBJECTIVE DIVERSITY
-Use a natural mix of situational choice, dialogue response, contextual comprehension, form/meaning discrimination, sentence completion, interpretation, and production-oriented recognition as appropriate to the topic. Do not reuse one question archetype more than twice, and do not use format variation to disguise a repeated learning objective.
-
-8. ANSWER AND DISTRACTOR QUALITY
-The correct answer and all distractors must belong to the same grammatical/semantic class, be plausible at the learner's level, and avoid visual or length giveaways. Distractors should represent realistic learner confusions related to the exact target, not random wrong answers.
-
-9. TOPIC-TYPE ADAPTATION
-Adapt the assessment method to the content instead of forcing every topic into the same templates. Vocabulary should test use/contrast/context; grammar should test form-function distinctions in context; pronunciation should test authentic sound distinctions; communicative topics should test what a speaker would naturally understand or say; reading/comprehension should test meaning from context. Apply the equivalent principle to any other topic type.
-
-10. FINAL PAIRWISE AUDIT
-Before returning JSON, compare every pair of questions and silently label each with its one-line learning objective. Replace any pair whose objectives overlap materially. Also replace any item that tests outside knowledge more than language knowledge, leaks its answer, falls outside the source/topic, or would remain answerable by a non-speaker.
-"""
-
-        # Remove legacy examples that can anchor generation to one language or exercise style.
+        # Remove individual legacy examples that can anchor generation to a specific
+        # language or shallow exercise style.
         legacy_examples = [
             '* Example: "¿Cuánto es setenta más treinta?"\n',
             '* Example: "¿En cuál de las siguientes palabras la letra \'g\' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]\n',
@@ -72,23 +55,70 @@ Before returning JSON, compare every pair of questions and silently label each w
         for example in legacy_examples:
             old_system = old_system.replace(example, "")
 
-        rewritten[system_idx]["content"] = v62_policy + old_system.replace(
-            "Pedagogic Assessment Engine (V5)",
-            "Pedagogic Assessment Engine (V6.2)",
-            1,
+        v63_policy = """
+ASSESSMENT ENGINE V6.3 — UNIVERSAL OBJECTIVE-FIRST POLICY
+
+This policy applies to every supported language, CEFR level, topic, source type, quiz and activity. It overrides weaker or conflicting variety instructions.
+
+1. DERIVE THE LEARNING TARGETS FIRST
+Before writing any question, silently map the distinct teachable targets actually supported by THIS topic/source. Targets may include vocabulary use/contrast, grammar form-function, communicative function, pragmatics, pronunciation, orthography only when explicitly taught, discourse, and comprehension. Do not invent unrelated targets merely to fill the batch.
+
+2. ONE TARGET PER QUESTION; ONE QUESTION PER TARGET
+Each question must test one clear target, and no two questions may test materially the same target. Changing names, numbers, nouns, examples, direction, setting, or story does not create a new target. If the learner performs essentially the same mental/language operation twice, replace one.
+
+3. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
+Treat supplied previous questions as already-used objectives. Do not paraphrase, reverse, rename, renumber, or re-skin them. Reuse a broad theme only when the new question tests a genuinely different language distinction.
+
+4. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
+The correct option must depend primarily on knowledge of the target language and the lesson. Reject ideas solvable mainly by arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic, or facts explicitly stated in the prompt unless that exact skill is explicitly taught by the source.
+
+5. SOURCE-FAITHFUL EXPANSION
+Stay within the pedagogical scope of the topic. Natural CEFR-appropriate contextualization is allowed, but do not introduce outside facts just to create apparent variety. Narrow topics should vary linguistic distinctions, usage, register, form, comprehension or communicative purpose rather than unrelated content.
+
+6. FORMAT SERVES THE TARGET
+Choose the question format that best tests the target: situational choice, dialogue response, contextual comprehension, form/meaning discrimination, sentence completion, interpretation, or another appropriate form. Do not force every topic into the same template. No single archetype should dominate the batch.
+
+7. NO SHALLOW META QUESTIONS
+Do not test string length, letter count, which answer merely looks correctly spelled, one-word-vs-multiple-word trivia, accent/tilde presence, character shape, or similar visual properties unless that exact orthographic distinction is explicitly taught. Pronunciation/alphabet topics must test authentic sound-letter use, not symbol trivia.
+
+8. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
+Correct answer and distractors must share the same grammatical/semantic class and be plausible at the learner's level. Distractors should reflect realistic confusions around the target, not random wrong answers, absurd alternatives, or obvious visual/length giveaways.
+
+9. FINAL AUDIT BEFORE JSON
+Silently label every proposed question with its one-line learning objective. Compare every pair. Replace any pair with overlapping objectives. Replace any item that depends more on outside knowledge than language knowledge, leaks its answer, drifts outside the topic/source, or can be solved reliably by a non-speaker.
+"""
+
+        rewritten[system_idx]["content"] = (
+            v63_policy
+            + old_system.replace(
+                "Pedagogic Assessment Engine (V5)",
+                "Pedagogic Assessment Engine (V6.3)",
+                1,
+            )
         )
 
         for i, m in enumerate(rewritten):
-            if isinstance(m, dict) and m.get("role") == "user":
-                content = str(m.get("content", ""))
-                if "TASK: Generate EXACTLY" in content:
-                    rewritten[i]["content"] = (
-                        "UNIVERSAL COVERAGE REQUIREMENT: First derive distinct learning objectives from THIS topic/source, then write one question per objective. "
-                        "Do not use different scenarios to disguise the same task. Every item must primarily test target-language knowledge, stay inside the topic, and remain CEFR-appropriate. "
-                        "Avoid outside-knowledge, arithmetic, trivia, visual-pattern, and meta-spelling questions unless such knowledge is explicitly the lesson target.\n\n"
-                        + content
-                    )
-                    break
+            if not isinstance(m, dict) or m.get("role") != "user":
+                continue
+            content = str(m.get("content", ""))
+            if "TASK: Generate EXACTLY" not in content:
+                continue
+
+            # Remove legacy random emphasis/format blocks that compete with the universal
+            # objective-first policy. Keep task, topic, source, history and JSON schema.
+            content = re.sub(
+                r"\n\s*PEDAGOGICAL EMPHASIS:.*?(?=\n\s*JSON STRUCTURE:)",
+                "\n",
+                content,
+                flags=re.S,
+            )
+            rewritten[i]["content"] = (
+                "OBJECTIVE-FIRST REQUIREMENT: Derive distinct teachable targets from THIS topic/source before writing questions. "
+                "Each item must test a different target-language objective; cosmetic scenario changes do not count as diversity. "
+                "Do not substitute arithmetic, general knowledge, trivia, or visual pattern tasks unless the source explicitly teaches that skill.\n\n"
+                + content
+            )
+            break
 
         return original_call(rewritten, *args, **kwargs)
 
