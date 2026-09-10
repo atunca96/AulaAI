@@ -1,11 +1,10 @@
 """Semantic diversity guard for AI-generated assessments.
 
 Filters paraphrased duplicates inside the same generated set and across prior
-questions, then requests only the missing replacements. This is intentionally
-language-agnostic and does not depend on embeddings or extra model calls.
+questions, then requests only the missing replacements. The detector is
+conservative, Unicode-safe, and does not require embeddings or extra model calls.
 """
 
-import re
 import unicodedata
 from difflib import SequenceMatcher
 
@@ -31,16 +30,20 @@ _GENERIC_WORDS = {
 
 
 def _norm(text):
+    """Normalize while preserving letters/digits from every Unicode script."""
     text = unicodedata.normalize("NFKD", str(text or "").lower())
-    text = "".join(ch for ch in text if not unicodedata.combining(ch))
-    text = re.sub(r"[^a-z0-9\s]", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
+    chars = []
+    for ch in text:
+        if unicodedata.combining(ch):
+            continue
+        chars.append(ch if (ch.isalnum() or ch.isspace()) else " ")
+    return " ".join("".join(chars).split())
 
 
 def _tokens(text):
     return {
-        t for t in _norm(text).split()
-        if len(t) >= 3 and t not in _GENERIC_WORDS
+        token for token in _norm(text).split()
+        if len(token) >= 3 and token not in _GENERIC_WORDS
     }
 
 
@@ -124,17 +127,16 @@ def install(ai_engine_module):
         # Two small repair rounds are enough to fill normal 10-question assessments
         # while avoiding an infinite generation loop if the source topic is too narrow.
         repair_round = 0
+        seen_generated = [q for q in (first or []) if isinstance(q, dict)]
         while len(accepted) < requested and repair_round < 2:
             repair_round += 1
             missing = requested - len(accepted)
             repair_kwargs = dict(kwargs)
             repair_kwargs["count"] = min(requested, missing + 2)
-            repair_kwargs["existing_questions"] = prior + accepted + [
-                q for q in (first or []) if isinstance(q, dict)
-            ]
+            repair_kwargs["existing_questions"] = prior + accepted + seen_generated
 
-            # Keep positional callers compatible: remove positional count/existing
-            # values before overriding them through kwargs.
+            # Keep positional callers compatible: override positional count/existing
+            # values instead of passing duplicate keyword arguments.
             repair_args = list(args)
             if len(repair_args) >= 5:
                 repair_args[4] = repair_kwargs.pop("count")
@@ -142,6 +144,7 @@ def install(ai_engine_module):
                 repair_args[6] = repair_kwargs.pop("existing_questions")
 
             extra = original(*repair_args, **repair_kwargs)
+            seen_generated.extend(q for q in (extra or []) if isinstance(q, dict))
             fresh = dedupe_questions(extra, prior=prior + accepted, limit=missing)
             accepted.extend(fresh)
 
