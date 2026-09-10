@@ -1934,27 +1934,30 @@ function toggleLanguage() {
   // 6. Reports
   try { if (_lastReportData) renderReport(_lastReportData); } catch (e) { console.warn(e); }
 
-  // 7. Practice preview or active student practice if visible
+  // 7. Practice preview or active student practice if visible (never overwrite during active generation!)
   try {
-    const preview = document.getElementById('activity-preview');
-    if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
-      preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
-    }
-    const practiceArea = document.getElementById('practice-area');
-    if (practiceArea && !practiceArea.classList.contains('hidden') && _lastActivityData) {
-      const isStudent = currentUser && currentUser.role === 'student';
-      const actSelect = document.getElementById('activity-topic-select');
-      const curTid = actSelect ? actSelect.value : null;
-      let currentTopic = _lastActivityData.topic || null;
-      if (!currentTopic && curTid && (window.curriculum || curriculum)) {
-        for (const ch of (window.curriculum || curriculum)) {
-          const tp = ch.topics ? ch.topics.find(t => t.id === curTid) : null;
-          if (tp) { currentTopic = tp; break; }
-        }
+    const isActGenerating = window._isGeneratingActivities || !!document.querySelector('#activity-progress-bar');
+    if (!isActGenerating) {
+      const preview = document.getElementById('activity-preview');
+      if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
+        preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
       }
-      const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : (_lastActivityData.topic?.title || (currentLang === 'tr' ? 'Alıştırma' : 'Practice'));
-      const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : "this.closest('#practice-area').classList.add('hidden')"}">${t('close')}</button></div>`;
-      practiceArea.innerHTML = header + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'practice-area')).join('');
+      const practiceArea = document.getElementById('practice-area');
+      if (practiceArea && !practiceArea.classList.contains('hidden') && _lastActivityData) {
+        const isStudent = currentUser && currentUser.role === 'student';
+        const actSelect = document.getElementById('activity-topic-select');
+        const curTid = actSelect ? actSelect.value : null;
+        let currentTopic = _lastActivityData.topic || null;
+        if (!currentTopic && curTid && (window.curriculum || curriculum)) {
+          for (const ch of (window.curriculum || curriculum)) {
+            const tp = ch.topics ? ch.topics.find(t => t.id === curTid) : null;
+            if (tp) { currentTopic = tp; break; }
+          }
+        }
+        const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : (_lastActivityData.topic?.title || (currentLang === 'tr' ? 'Alıştırma' : 'Practice'));
+        const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : "this.closest('#practice-area').classList.add('hidden')"}">${t('close')}</button></div>`;
+        practiceArea.innerHTML = header + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'practice-area')).join('');
+      }
     }
   } catch (e) { console.warn(e); }
 
@@ -8841,6 +8844,8 @@ let activityProgressInterval = null;
 
 function showGenerationLoading(el) {
   if (activityProgressInterval) clearInterval(activityProgressInterval);
+  window._isGeneratingActivities = true;
+  _lastActivityData = null;
   const isTr = currentLang === 'tr';
   el.innerHTML = `
     <div style="padding:36px 24px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top:24px;">
@@ -8906,6 +8911,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
         if (data.status === 'done') {
           if (data.results && data.results.length > 0) {
             clearInterval(activityProgressInterval);
+            window._isGeneratingActivities = false;
             if (fill) fill.style.width = '100%';
             if (text) text.textContent = '100%';
             if (statusEl) statusEl.textContent = currentLang === 'tr' ? 'Sorular hazır!' : 'Questions ready!';
@@ -8947,6 +8953,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
             window._retryEmptyPoll++;
             if (window._retryEmptyPoll > 10) {
               clearInterval(activityProgressInterval);
+              window._isGeneratingActivities = false;
               const genBtn = document.getElementById('generate-activity-btn');
               if (genBtn) {
                 genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
@@ -8964,6 +8971,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
           }
         } else if (data.status === 'error') {
           clearInterval(activityProgressInterval);
+          window._isGeneratingActivities = false;
           const genBtn = document.getElementById('generate-activity-btn');
           if (genBtn) {
             genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
@@ -8983,6 +8991,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
       // Hard timeout fallback after ~30s (100 polls): don't freeze indefinitely
       if (window._actTotalPolls > 100) {
         clearInterval(activityProgressInterval);
+        window._isGeneratingActivities = false;
         const genBtn = document.getElementById('generate-activity-btn');
         if (genBtn) {
           genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';

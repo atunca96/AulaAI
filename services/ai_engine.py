@@ -529,19 +529,19 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
        - NO TRIVIAL VISUAL GIVEAWAYS: A beginner or non-speaker must NOT be able to identify the correct answer at a glance using visual elimination, option length difference, or obvious foreign elements.
        - STRICT BAN ON META-ALPHABET TRIVIA: NEVER ask shallow trivia like "¿Qué letra es exclusiva del español?", "¿Cuál de estas letras tiene una tilde?", or "¿Qué letra representa el sonido X?". For phonetics/alphabet topics, test genuine pronunciation in REAL words or minimal pairs:
          * Good: "¿En cuál de las siguientes palabras la letra 'g' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]
-    8. COMMUNICATIVE QUESTION ARCHETYPES & ZERO TRANSLATION DRILLS (CRITICAL MANDATE):
+    8. COMMUNICATIVE QUESTION ARCHETYPES & FORMAT VARIETY (CRITICAL):
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
-       - Instead, distribute the {gen_count} questions across these 5 communicative archetypes:
-         a) CONVERSATIONAL DIALOGUE COMPLETION: A realistic 2-person dialogue exchange where the student chooses the natural, culturally authentic response.
-            * Example: "— ¡Hola, Sofía! ¿Cómo estás hoy?\n— __________, gracias por preguntar. ¿Y tú?"
-         b) SITUATIONAL PRAGMATICS: A real-world social or communicative scenario where the student chooses the appropriate phrasing.
-            * Example: "Estás en la recepción de un hotel y necesitas solicitar la clave del wifi. ¿Qué dices al recepcionista?"
-         c) CONTEXTUAL SENTENCE COMPLETION (CLOZE): Fill in a missing verb, pronoun, or vocabulary item inside an authentic sentence.
+       - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
+         Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
+         a) SITUATIONAL PRAGMATICS (NO BLANK): Real-world social scenario where the student chooses what to say.
+            * Example: "Estás en la recepción de un hotel y necesitas la clave del wifi. ¿Qué dices al recepcionista?"
+         b) COMMUNICATIVE REACTION (NO BLANK): Choosing the natural response to a person.
+            * Example: "— Muchísimas gracias por tu ayuda con la maleta.\n— ¿Cuál es la respuesta educada habitual?"
+         c) CONCEPTUAL & COMMUNICATIVE UNDERSTANDING (NO BLANK):
+            * Example: "¿Cuánto es setenta más treinta?"
+            * Example: "¿Cuál de las siguientes expresiones se usa exclusivamente para despedirse por la noche?"
+         d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK):
             * Example: "Normalmente mis compañeros y yo __________ en la biblioteca después de las clases."
-         d) COMMUNICATIVE APPROPRIATENESS & REGISTER: Choosing the polite/formal/informal expression or identifying an inappropriate response.
-            * Example: "¿Cuál de las siguientes frases es la más adecuada para saludar formalmente a un profesor o director?"
-         e) IN-LANGUAGE COMMUNICATIVE FUNCTION: Testing understanding of a word or phrase entirely in {language}.
-            * Example: "Cuando alguien te ayuda con un favor importante y dices 'Muchas gracias', la respuesta educada habitual es:"
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
@@ -555,13 +555,11 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
     
     PEDAGOGICAL EMPHASIS: {selected_variety_focus}
     VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question. Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition.
-    QUESTION TYPE DIVERSITY MANDATE: You MUST provide a balanced mix of:
-    1) Conversational dialogue exchanges (— A: ... — B: ____)
-    2) Real-world situational questions (Estás in... ¿Qué dices?)
-    3) Contextual sentence completion (blank inside authentic sentence)
-    4) Communicative appropriateness / register differentiation
-    ABSOLUTELY FORBIDDEN: NEVER ask simple word-for-word translation questions!
-    MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
+    
+    QUESTION FORMAT VARIETY MANDATE (CRITICAL):
+    - Provide a RICH MIX of question types!
+    - DO NOT make all questions fill-in-the-blank! At most 2 questions should have a blank ('_____').
+    - The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
     
     JSON STRUCTURE:
     {{
@@ -569,8 +567,8 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
         {{
           "type": "mcq",
           "prompt": "Authentic question 100% in {language}",
-          "translation_en": "Natural English translation of the prompt (MUST keep '_____' if prompt has a blank)",
-          "translation_tr": "Doğal Türkçe çevirisi (soruda boşluk varsa mutlaka '_____' olarak kalmalıdır)",
+          "translation_en": "Natural English translation of the prompt",
+          "translation_tr": "Doğal Türkçe çevirisi",
           "answer": "Correct answer in {language}",
           "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
           "why": "Pedagogical explanation in English",
@@ -581,8 +579,9 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
     
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS REQUIRED: Every MCQ question MUST have 1 correct 'answer' and EXACTLY 3 distinct, plausible 'distractors' in the 'distractors' array (total of 4 options). NEVER provide only 2 distractors!
-    3) BLANK PRESERVATION: If 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST ALSO KEEP THE BLANK AS '_____'. NEVER reveal or translate the answer word inside translations!"""
+    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible 'distractors' in the 'distractors' array.
+    3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
+    4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -735,9 +734,6 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             # If prompt has a blank, preserve the blank in translations
             if re.search(r'_{2,}', p):
                 t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
-                # If translations still do not preserve blanks, reject to protect student experience
-                if not re.search(r'_{2,}', t_en) or not re.search(r'_{2,}', t_tr):
-                    continue
 
             # Assemble options with deduplicated distractors (ALWAYS 4 OPTIONS)
             opts = [a] + clean_d[:3]
