@@ -1205,8 +1205,15 @@ def heal_concept_item(item: dict, lang: str = "en") -> dict:
             item["explanation"] = CONCEPT_EXPLANATIONS.get(term_key, {}).get(target_lang, expl)
 
         # 3. Always enforce bilingual fields
-        item["explanation_en"] = CONCEPT_EXPLANATIONS.get(term_key, {}).get("en", item.get("explanation_en", item["explanation"]))
-        item["explanation_tr"] = CONCEPT_EXPLANATIONS.get(term_key, {}).get("tr", item.get("explanation_tr", item["explanation"]))
+        c_en = CONCEPT_EXPLANATIONS.get(term_key, {}).get("en")
+        c_tr = CONCEPT_EXPLANATIONS.get(term_key, {}).get("tr")
+        curr_en = item.get("explanation_en") or ""
+        curr_tr = item.get("explanation_tr") or ""
+        base_expl = item.get("explanation") or ""
+        is_base_tr = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]|\b(sesi|gibi|açık|net|okunur|asla|harfi)\b', base_expl, re.I))
+
+        item["explanation_en"] = c_en or (curr_en if not bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', curr_en)) else "") or (base_expl if not is_base_tr else "")
+        item["explanation_tr"] = c_tr or curr_tr or (base_expl if is_base_tr else "")
 
         if not item.get("translation_en") or are_concepts_incompatible(term_key, resolve_concept_key(item.get("translation_en"))):
             item["translation_en"] = CANONICAL_CONCEPT_NAMES.get(term_key, {}).get("en", item.get("translation"))

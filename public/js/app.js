@@ -3597,36 +3597,36 @@ const TAUTOLOGY_REGEX = /(?:\beylemini\s+ifade\s+eder|\betkinliğini\s+ifade\s+e
 
 const ALPHABET_PHONETICS_MAP = {
   "spanish": {
-    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Amigo", "example_en": "Friend", "example_tr": "Arkadaş" },
-    "B": { "name": "Be", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Bueno", "example_en": "Good", "example_tr": "İyi" },
-    "C": { "name": "Ce", "phonetic_en": "[seh / theh] (e/i) / [kah] (a/o/u)", "phonetic_tr": "[se / peltek s] (e/i) / [k] (a/o/u)", "example": "Casa", "example_en": "House", "example_tr": "Ev" },
-    "CH": { "name": "Che", "phonetic_en": "[cheh]", "phonetic_tr": "[çe]", "example": "Chico", "example_en": "Boy", "example_tr": "Çocuk" },
-    "D": { "name": "De", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Día", "example_en": "Day", "example_tr": "Gün" },
-    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Elefante", "example_en": "Elephant", "example_tr": "Fil" },
-    "F": { "name": "Efe", "phonetic_en": "[EH-feh]", "phonetic_tr": "[efe]", "example": "Familia", "example_en": "Family", "example_tr": "Aile" },
-    "G": { "name": "Ge", "phonetic_en": "[heh] (e/i) / [geh] (a/o/u)", "phonetic_tr": "[he] (boğazdan h, e/i) / [ge] (a/o/u)", "example": "Gato", "example_en": "Cat", "example_tr": "Kedi" },
-    "H": { "name": "Hache", "phonetic_en": "[AH-cheh] (always silent)", "phonetic_tr": "[açe] (daima sessiz, okunmaz)", "example": "Hola", "example_en": "Hello", "example_tr": "Merhaba" },
-    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Isla", "example_en": "Island", "example_tr": "Ada" },
-    "J": { "name": "Jota", "phonetic_en": "[HOH-tah] (raspy h)", "phonetic_tr": "[hota] (boğazdan h sesi)", "example": "Jardín", "example_en": "Garden", "example_tr": "Bahçe" },
-    "K": { "name": "Ka", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Kilo", "example_en": "Kilo", "example_tr": "Kilo" },
-    "L": { "name": "Ele", "phonetic_en": "[EH-leh]", "phonetic_tr": "[ele]", "example": "Libro", "example_en": "Book", "example_tr": "Kitap" },
-    "LL": { "name": "Elle", "phonetic_en": "[YEH / EH-lyeh]", "phonetic_tr": "[ye / elye]", "example": "Lluvia", "example_en": "Rain", "example_tr": "Yağmur" },
-    "M": { "name": "Eme", "phonetic_en": "[EH-meh]", "phonetic_tr": "[eme]", "example": "Madre", "example_en": "Mother", "example_tr": "Anne" },
-    "N": { "name": "Ene", "phonetic_en": "[EH-neh]", "phonetic_tr": "[ene]", "example": "Noche", "example_en": "Night", "example_tr": "Gece" },
-    "Ñ": { "name": "Eñe", "phonetic_en": "[EH-nyeh] (like canyon)", "phonetic_tr": "[enye] (n+y sesi)", "example": "Niño", "example_en": "Child", "example_tr": "Çocuk" },
-    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Ojo", "example_en": "Eye", "example_tr": "Göz" },
-    "P": { "name": "Pe", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Padre", "example_en": "Father", "example_tr": "Baba" },
-    "Q": { "name": "Cu", "phonetic_en": "[koo] (qu = k)", "phonetic_tr": "[ku] (qu = k sesi)", "example": "Queso", "example_en": "Cheese", "example_tr": "Peynir" },
-    "R": { "name": "Ere", "phonetic_en": "[EH-reh] (soft tap)", "phonetic_tr": "[ere] (yumuşak r)", "example": "Pero", "example_en": "But", "example_tr": "Ama" },
-    "RR": { "name": "Erre", "phonetic_en": "[EH-rreh] (trilled r)", "phonetic_tr": "[erre] (kuvvetli titrek r)", "example": "Perro", "example_en": "Dog", "example_tr": "Köpek" },
-    "S": { "name": "Ese", "phonetic_en": "[EH-seh]", "phonetic_tr": "[ese]", "example": "Sol", "example_en": "Sun", "example_tr": "Güneş" },
-    "T": { "name": "Te", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Tiempo", "example_en": "Time", "example_tr": "Zaman" },
-    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uva", "example_en": "Grape", "example_tr": "Üzüm" },
-    "V": { "name": "Uve", "phonetic_en": "[OO-beh] (b/v sound)", "phonetic_tr": "[uve] (b-v arası ses)", "example": "Vino", "example_en": "Wine", "example_tr": "Şarap" },
-    "W": { "name": "Uve doble", "phonetic_en": "[OO-beh DOH-bleh]", "phonetic_tr": "[uve doble] (çift v)", "example": "Web", "example_en": "Web", "example_tr": "Web" },
-    "X": { "name": "Equis", "phonetic_en": "[EH-kees]", "phonetic_tr": "[ekis]", "example": "Éxito", "example_en": "Success", "example_tr": "Başarı" },
-    "Y": { "name": "I griega / Ye", "phonetic_en": "[ee gryeh-gah / yeh]", "phonetic_tr": "[i griyega / ye]", "example": "Yo", "example_en": "I", "example_tr": "Ben" },
-    "Z": { "name": "Zeta", "phonetic_en": "[SEH-tah / THEH-tah]", "phonetic_tr": "[seta / peltek s]", "example": "Zapato", "example_en": "Shoe", "example_tr": "Ayakkabı" }
+    "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Amigo", "example_en": "Friend", "example_tr": "Arkadaş", "explanation_en": "Open and bright vowel sound, pronounced cleanly like the 'a' in 'father'; never slurred or weakened.", "explanation_tr": "Türkçedeki 'a' sesi gibi açık ve net okunur; asla yuvarlanmaz veya zayıflatılmaz." },
+    "B": { "name": "Be", "phonetic_en": "[beh]", "phonetic_tr": "[be]", "example": "Bueno", "example_en": "Good", "example_tr": "İyi", "explanation_en": "Pronounced as a soft bilabial stop [b] at the start of a phrase, and a gentle approximant [β] between vowels.", "explanation_tr": "Kelime başında Türkçedeki 'b' gibidir; iki ünlü arasında dudaklar birbirine tam değmeden yumuşakça çıkar." },
+    "C": { "name": "Ce", "phonetic_en": "[seh / theh] (e/i) / [kah] (a/o/u)", "phonetic_tr": "[se / peltek s] (e/i) / [k] (a/o/u)", "example": "Casa", "example_en": "House", "example_tr": "Ev", "explanation_en": "Hard [k] before a, o, u (casa, coche, cuna); soft [s] or [θ] before e, i (cero, cine).", "explanation_tr": "a, o, u önünde 'k' sesi verir (casa, coche); e ve i önünde ise 's' veya peltek 's' olarak okunur (cero, cine)." },
+    "CH": { "name": "Che", "phonetic_en": "[cheh]", "phonetic_tr": "[çe]", "example": "Chico", "example_en": "Boy", "example_tr": "Çocuk", "explanation_en": "Voiceless postalveolar affricate, pronounced crisply like 'ch' in 'chocolate' or 'cheese'.", "explanation_tr": "Türkçedeki 'ç' sesi gibi net ve sert bir sestir (chico, chocolate)." },
+    "D": { "name": "De", "phonetic_en": "[deh]", "phonetic_tr": "[de]", "example": "Día", "example_en": "Day", "example_tr": "Gün", "explanation_en": "Dental stop [d] at word start; softens to a gentle approximant [ð] (like 'th' in 'this') between vowels.", "explanation_tr": "Kelime başında net 'd' sesi verir; ünlüler arasında ise yumuşayarak peltek bir ton alır." },
+    "E": { "name": "E", "phonetic_en": "[eh]", "phonetic_tr": "[e]", "example": "Elefante", "example_en": "Elephant", "example_tr": "Fil", "explanation_en": "Mid-front invariant vowel, pronounced cleanly like 'e' in 'bed'; never gliding into an 'ee' sound.", "explanation_tr": "Türkçedeki 'e' sesi gibi sabit ve nettir; asla diftonglaşmaz veya uzatılmaz." },
+    "F": { "name": "Efe", "phonetic_en": "[EH-feh]", "phonetic_tr": "[efe]", "example": "Familia", "example_en": "Family", "example_tr": "Aile", "explanation_en": "Voiceless labiodental fricative, pronounced exactly like 'f' in 'father' or 'fine'.", "explanation_tr": "Türkçedeki 'f' sesiyle aynıdır; üst dişler alt dudağa hafifçe değer." },
+    "G": { "name": "Ge", "phonetic_en": "[heh] (e/i) / [geh] (a/o/u)", "phonetic_tr": "[he] (boğazdan h, e/i) / [ge] (a/o/u)", "example": "Gato", "example_en": "Cat", "example_tr": "Kedi", "explanation_en": "Hard [g] before a, o, u (gato, gusto); raspy fricative [x] from the throat before e, i (gente, girasol).", "explanation_tr": "a, o, u önünde sert 'g' (gato); e ve i önünde ise boğazdan hırıltılı 'h' sesi verir (gente)." },
+    "H": { "name": "Hache", "phonetic_en": "[AH-cheh] (always silent)", "phonetic_tr": "[açe] (daima sessiz, okunmaz)", "example": "Hola", "example_en": "Hello", "example_tr": "Merhaba", "explanation_en": "Always completely silent in Spanish; never pronounced under any circumstances (hola sounds like 'ola').", "explanation_tr": "İspanyolcada daima sessizdir, asla okunmaz (hola sözcüğü 'ola' şeklinde okunur)." },
+    "I": { "name": "I", "phonetic_en": "[ee]", "phonetic_tr": "[i]", "example": "Isla", "example_en": "Island", "example_tr": "Ada", "explanation_en": "Close front vowel, pronounced like 'ee' in 'see' or 'machine'; crisp and distinct.", "explanation_tr": "Türkçedeki 'i' sesi gibi net ve kısadır; asla yuvarlanmaz veya zayıflatılmaz." },
+    "J": { "name": "Jota", "phonetic_en": "[HOH-tah] (raspy h)", "phonetic_tr": "[hota] (boğazdan h sesi)", "example": "Jardín", "example_en": "Garden", "example_tr": "Bahçe", "explanation_en": "Voiceless velar/uvular fricative from the throat, like the Scottish 'ch' in 'loch' or strong 'h' in 'hotel'.", "explanation_tr": "Boğazın arkasından gelen hırıltılı bir 'h' sesidir (Almanca 'ach' gibi)." },
+    "K": { "name": "Ka", "phonetic_en": "[kah]", "phonetic_tr": "[ka]", "example": "Kilo", "example_en": "Kilo", "example_tr": "Kilo", "explanation_en": "Found only in foreign loanwords; pronounced as a crisp [k] as in 'kite'.", "explanation_tr": "Yabancı kökenli sözcüklerde bulunur; sert ve net 'k' sesi verir." },
+    "L": { "name": "Ele", "phonetic_en": "[EH-leh]", "phonetic_tr": "[ele]", "example": "Libro", "example_en": "Book", "example_tr": "Kitap", "explanation_en": "Voiced alveolar lateral, pronounced with the tongue tip against the upper gum ridge like 'l' in 'light'.", "explanation_tr": "Türkçedeki ince 'l' sesi gibi dil ucu üst damağa değerek berrak çıkar." },
+    "LL": { "name": "Elle", "phonetic_en": "[YEH / EH-lyeh]", "phonetic_tr": "[ye / elye]", "example": "Lluvia", "example_en": "Rain", "example_tr": "Yağmur", "explanation_en": "Pronounced like the 'y' in 'yes' across most Hispanic dialects; historically a palatal lateral [ʎ].", "explanation_tr": "Günümüz İspanyolcasında çoğunlukla 'y' sesi (yağmur gibi) olarak telaffuz edilir." },
+    "M": { "name": "Eme", "phonetic_en": "[EH-meh]", "phonetic_tr": "[eme]", "example": "Madre", "example_en": "Mother", "example_tr": "Anne", "explanation_en": "Bilabial nasal, pronounced cleanly like the 'm' in 'mother'.", "explanation_tr": "Türkçedeki 'm' sesi ile tamamen aynıdır; dudaklar kapatılarak çıkarılır." },
+    "N": { "name": "Ene", "phonetic_en": "[EH-neh]", "phonetic_tr": "[ene]", "example": "Noche", "example_en": "Night", "example_tr": "Gece", "explanation_en": "Alveolar nasal, pronounced cleanly like the 'n' in 'night'.", "explanation_tr": "Türkçedeki 'n' sesi ile tamamen aynıdır; dil ucu üst damağa değer." },
+    "Ñ": { "name": "Eñe", "phonetic_en": "[EH-nyeh] (like canyon)", "phonetic_tr": "[enye] (n+y sesi)", "example": "Niño", "example_en": "Child", "example_tr": "Çocuk", "explanation_en": "Voiced palatal nasal, pronounced like the 'ny' in 'canyon' or 'onion'.", "explanation_tr": "Damaktan çıkan 'n+y' birleşik sesidir (kanyon sözcüğündeki 'ny' gibi)." },
+    "O": { "name": "O", "phonetic_en": "[oh]", "phonetic_tr": "[o]", "example": "Ojo", "example_en": "Eye", "example_tr": "Göz", "explanation_en": "Back mid rounded vowel, pronounced cleanly like the 'o' in 'for' or 'order'; never diphthongized.", "explanation_tr": "Türkçedeki 'o' sesi gibi yuvarlak ve nettir; asla diftonglaşmaz." },
+    "P": { "name": "Pe", "phonetic_en": "[peh]", "phonetic_tr": "[pe]", "example": "Padre", "example_en": "Father", "example_tr": "Baba", "explanation_en": "Voiceless bilabial stop, pronounced crisply like 'p' in 'spot' without heavy aspiration.", "explanation_tr": "Türkçedeki 'p' sesi gibi nefes patlaması olmadan net çıkar." },
+    "Q": { "name": "Cu", "phonetic_en": "[koo] (qu = k)", "phonetic_tr": "[ku] (qu = k sesi)", "example": "Queso", "example_en": "Cheese", "example_tr": "Peynir", "explanation_en": "Always followed by silent 'u' (qu) before e or i, pronounced as [k] (queso sounds like 'keso').", "explanation_tr": "Daima 'qu' şeklinde e veya i önünde gelir; 'u' okunmaz, sert 'k' sesi verir (queso -> keso)." },
+    "R": { "name": "Ere", "phonetic_en": "[EH-reh] (soft tap)", "phonetic_tr": "[ere] (yumuşak r)", "example": "Pero", "example_en": "But", "example_tr": "Ama", "explanation_en": "A single alveolar tap, like the rapid 'tt' in American English 'butter' or 'city'.", "explanation_tr": "Hafif ve tek bir dil vuruşuyla çıkan yumuşak 'r' sesidir." },
+    "RR": { "name": "Erre", "phonetic_en": "[EH-rreh] (trilled r)", "phonetic_tr": "[erre] (kuvvetli titrek r)", "example": "Perro", "example_en": "Dog", "example_tr": "Köpek", "explanation_en": "A multi-tap vibrant trill produced by vibrating the tip of the tongue against the alveolar ridge.", "explanation_tr": "Dil ucunun üst damakta hızla titretilmesiyle oluşan kuvvetli, çift 'r' sesidir." },
+    "S": { "name": "Ese", "phonetic_en": "[EH-seh]", "phonetic_tr": "[ese]", "example": "Sol", "example_en": "Sun", "example_tr": "Güneş", "explanation_en": "Voiceless alveolar sibilant, pronounced cleanly like the 's' in 'sun'.", "explanation_tr": "Türkçedeki 's' sesi gibi temiz ve nettir." },
+    "T": { "name": "Te", "phonetic_en": "[teh]", "phonetic_tr": "[te]", "example": "Tiempo", "example_en": "Time", "example_tr": "Zaman", "explanation_en": "Dental stop, pronounced with the tongue directly against the back of the upper front teeth, like 't' in 'stop'.", "explanation_tr": "Dil ucu üst dişlerin arkasına basılarak çıkan sert 't' sesidir." },
+    "U": { "name": "U", "phonetic_en": "[oo]", "phonetic_tr": "[u]", "example": "Uva", "example_en": "Grape", "example_tr": "Üzüm", "explanation_en": "Close back rounded vowel, pronounced cleanly like the 'oo' in 'moon' or 'lunar'.", "explanation_tr": "Türkçedeki 'u' sesi gibi dudaklar öne uzatılarak net çıkarılır." },
+    "V": { "name": "Uve", "phonetic_en": "[OO-beh] (b/v sound)", "phonetic_tr": "[uve] (b-v arası ses)", "example": "Vino", "example_en": "Wine", "example_tr": "Şarap", "explanation_en": "Phonetically identical to 'b' in Spanish; pronounced with both lips, without biting the lower lip.", "explanation_tr": "İspanyolcada 'b' ile tamamen aynıdır; alt dudak ısırılmadan yumuşakça telaffuz edilir." },
+    "W": { "name": "Uve doble", "phonetic_en": "[OO-beh DOH-bleh]", "phonetic_tr": "[uve doble] (çift v)", "example": "Web", "example_en": "Web", "example_tr": "Web", "explanation_en": "Appears exclusively in loanwords; pronounced like English [w] in 'water' or [b].", "explanation_tr": "Yalnızca yabancı sözcüklerde bulunur; İngilizce 'w' sesi gibi okunur." },
+    "X": { "name": "Equis", "phonetic_en": "[EH-kees]", "phonetic_tr": "[ekis]", "example": "Éxito", "example_en": "Success", "example_tr": "Başarı", "explanation_en": "Pronounced as [ks] between vowels (éxito) and often as [s] before consonants (extra).", "explanation_tr": "İki ünlü arasında 'ks' (éxito), sessiz harflerden önce ise genellikle 's' okunur." },
+    "Y": { "name": "I griega / Ye", "phonetic_en": "[ee gryeh-gah / yeh]", "phonetic_tr": "[i griyega / ye]", "example": "Yo", "example_en": "I", "example_tr": "Ben", "explanation_en": "Pronounced like the 'y' in 'yes' before vowels; sounds like 'ee' in 'see' at word ends (hoy, rey).", "explanation_tr": "Ünlü önünde 'y' sesi, tek başına veya kelime sonunda ise 'i' gibi okunur." },
+    "Z": { "name": "Zeta", "phonetic_en": "[SEH-tah / THEH-tah]", "phonetic_tr": "[seta / peltek s]", "example": "Zapato", "example_en": "Shoe", "example_tr": "Ayakkabı", "explanation_en": "Pronounced as voiceless [θ] ('th' in 'thin') in Spain, and as [s] in Latin America.", "explanation_tr": "İspanya'da peltek 's' (İngilizce 'think' gibi), Latin Amerika'da ise düz 's' okunur." }
   },
   "german": {
     "A": { "name": "A", "phonetic_en": "[ah]", "phonetic_tr": "[a]", "example": "Apfel" },
@@ -3810,16 +3810,106 @@ const ALPHABET_PHONETICS_MAP = {
   }
 };
 
+function extractBaseLetter(str) {
+  if (!str || typeof str !== 'string') return '';
+  const s = str.trim();
+  const letters = s.replace(/[^a-zA-ZñÑáéíóúüÁÉÍÓÚÜ]/g, '');
+  if (!letters) return '';
+  const u = letters.toUpperCase();
+  if (u === 'CH' || u === 'CHCH') return 'CH';
+  if (u === 'LL' || u === 'LLLL') return 'LL';
+  if (u === 'RR' || u === 'RRRR') return 'RR';
+  if (new Set(u).size === 1 && u.length <= 4) return u[0];
+  const firstPart = s.split(/[\s,/-]+/)[0].toUpperCase();
+  const cleanP = firstPart.replace(/[^a-zA-ZñÑáéíóúüÁÉÍÓÚÜ]/g, '');
+  if (cleanP === 'CH' || cleanP === 'LL' || cleanP === 'RR' || (cleanP.length === 1 && cleanP in (ALPHABET_PHONETICS_MAP['spanish'] || {}))) {
+    return cleanP;
+  }
+  return u.slice(0, 2);
+}
+
+function isLetterLike(str) {
+  if (!str || typeof str !== 'string') return false;
+  const s = str.trim();
+  if (s.length === 1 && !/[\u4e00-\u9fff]/.test(s)) return true;
+  const clean = s.replace(/[^a-zA-ZñÑáéíóúüÁÉÍÓÚÜ]/g, '');
+  if (!clean) return false;
+  const u = clean.toUpperCase();
+  if (u === 'CH' || u === 'CHCH' || u === 'LL' || u === 'LLLL' || u === 'RR' || u === 'RRRR') return true;
+  if (clean.length <= 4 && new Set(clean.toLowerCase()).size === 1) return true;
+  if (/^(ch|ll|rr)$/i.test(s)) return true;
+  return false;
+}
+
+function sanitizeEnglishExplanation(text, term = '') {
+  if (!text || typeof text !== 'string') return text;
+  let s = text.trim();
+
+  // If term is an alphabet letter, check canonical explanation
+  if (term && isLetterLike(term)) {
+    const baseL = extractBaseLetter(term);
+    const phon = getClientLetterPhonetics('spanish', baseL);
+    if (phon && phon.explanation_en) {
+      if (/[çğıöşüÇĞİÖŞÜ]/.test(s) || /\b(turkish|türkçe|türkçedeki|turkcedeki)\b/i.test(s)) {
+        return phon.explanation_en;
+      }
+    }
+  }
+
+  // Regex replacements for English explanations that refer to Turkish:
+  s = s.replace(/like\s+(?:the\s+)?(?:sound\s+of\s+)?(?:['"]?([a-zA-Z])['"]?\s+)?(?:sound\s+)?in\s+Turkish/gi, (m, char) => {
+    if (char) {
+      const c = char.toLowerCase();
+      if (c === 'a') return "like the 'a' in 'father'";
+      if (c === 'b') return "like the 'b' in 'boy'";
+      if (c === 'e') return "like the 'e' in 'bed'";
+      if (c === 'i') return "like the 'ee' in 'see'";
+      if (c === 'o') return "like the 'o' in 'for'";
+      if (c === 'u') return "like the 'oo' in 'moon'";
+      if (c === 'r') return "like a soft tap";
+      return `like '${char}' in English`;
+    }
+    return "clearly and distinctly";
+  });
+
+  s = s.replace(/similar\s+to\s+(?:the\s+)?(?:Turkish\s+)?['"]?([a-zA-Z])['"]?(?:\s+sound)?(?:\s+in\s+Turkish)?/gi, (m, char) => {
+    const c = (char || '').toLowerCase();
+    if (c === 'a') return "similar to the 'a' in 'father'";
+    if (c === 'b') return "similar to the 'b' in 'boy'";
+    if (c === 'e') return "similar to the 'e' in 'bed'";
+    if (c === 'i') return "similar to the 'ee' in 'see'";
+    if (c === 'o') return "similar to the 'o' in 'for'";
+    if (c === 'u') return "similar to the 'oo' in 'moon'";
+    return "clear and distinct";
+  });
+
+  s = s.replace(/\b(?:as|just\s+like|like)\s+in\s+Turkish\b/gi, "clean and distinct");
+  s = s.replace(/\bin\s+Turkish\b/gi, "in standard pronunciation");
+  s = s.replace(/\bTurkish\s+sound\b/gi, "clear phonetic sound");
+
+  return s;
+}
+
 function getClientLetterPhonetics(lang, letter) {
   if (!letter) return null;
   const lKey = (lang || '').toLowerCase().trim();
-  const target = letter.trim().toUpperCase();
-  // Check exact language
+  const rawTarget = letter.trim().toUpperCase();
+  const baseTarget = extractBaseLetter(letter);
+  const targets = Array.from(new Set([rawTarget, baseTarget])).filter(Boolean);
+
   for (const [k, dict] of Object.entries(ALPHABET_PHONETICS_MAP)) {
-    if (lKey.includes(k) && dict[target]) return dict[target];
+    if (lKey.includes(k)) {
+      for (const t of targets) {
+        if (dict[t]) return dict[t];
+      }
+    }
   }
   // Fallback: check Spanish or default
-  if (ALPHABET_PHONETICS_MAP['spanish'][target]) return ALPHABET_PHONETICS_MAP['spanish'][target];
+  for (const t of targets) {
+    if (ALPHABET_PHONETICS_MAP['spanish'] && ALPHABET_PHONETICS_MAP['spanish'][t]) {
+      return ALPHABET_PHONETICS_MAP['spanish'][t];
+    }
+  }
   return null;
 }
 
@@ -5404,7 +5494,7 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
   
   const hasTurkishMarkers = (txt) => {
     if (!txt || typeof txt !== 'string') return false;
-    return /[çğıöşüÇĞİÖŞÜ]/.test(txt) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik|argümanlara|dinleyin|sonuç|mantık|tanışırken|öğleden|günaydın|tünaydın)\b/i.test(txt);
+    return /[çğıöşüÇĞİÖŞÜ]/.test(txt) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik|argümanlara|dinleyin|sonuç|mantık|tanışırken|öğleden|günaydın|tünaydın|sesi|gibi|okunur)\b/i.test(txt);
   };
   
   const hasEnglishMarkers = (txt) => {
@@ -5437,26 +5527,48 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
     if (enStr && !hasTurkishMarkers(enStr) && (hasEnglishMarkers(enStr) || enStr.length > 0)) {
       // Confirmed English string without Turkish markers
       const autoEn = translateOption(enStr, 'en');
-      if (autoEn && autoEn.toLowerCase() !== enStr.toLowerCase() && !hasTurkishMarkers(autoEn)) {
-        return autoEn;
-      }
-      return enStr;
+      const cand = (autoEn && autoEn.toLowerCase() !== enStr.toLowerCase() && !hasTurkishMarkers(autoEn)) ? autoEn : enStr;
+      return sanitizeEnglishExplanation(cand);
     }
     // If enStr is contaminated with Turkish, or missing, translate to English
-    const src = trStr || enStr || defaultVal;
+    const src = (trStr && trStr.trim()) ? trStr : ((enStr && enStr.trim()) ? enStr : defaultVal);
     if (src) {
       const optEn = translateOption(src, 'en');
-      if (optEn && optEn.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(optEn)) return optEn;
+      if (optEn && optEn.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(optEn)) return sanitizeEnglishExplanation(optEn);
       const enRes = translateEducationalText(src, 'en');
-      if (enRes && enRes.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(enRes)) return enRes;
-      return src;
+      if (enRes && enRes.toLowerCase() !== src.toLowerCase() && !hasTurkishMarkers(enRes)) return sanitizeEnglishExplanation(enRes);
+      return sanitizeEnglishExplanation(enRes || src);
     }
-    return defaultVal;
+    return sanitizeEnglishExplanation(defaultVal);
   }
 }
 
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const cleanTerm = safeStr(term).trim();
+  const cLang = (currentCourse && currentCourse.language) || 'Spanish';
+
+  // 1. Alphabet letter / phonetics check (handles "A", "a", "A, a", "B, b", "Ch, ch", etc.)
+  if (isLetterLike(cleanTerm) || (it && (it.letter || it.character))) {
+    const baseL = extractBaseLetter(cleanTerm);
+    const phon = getClientLetterPhonetics(cLang, baseL) || {};
+    if (lang === 'tr') {
+      const rawTr = it && (it.explanation_tr || it.turkish_explanation);
+      if (rawTr && typeof rawTr === 'string' && rawTr.trim().length > 2 && !TAUTOLOGY_REGEX.test(rawTr)) {
+        return healTurkishSyntax(humanizeTurkishExplanation(rawTr.trim()));
+      }
+      if (phon.explanation_tr) return phon.explanation_tr;
+    } else {
+      const rawEn = it && (it.explanation_en || it.english_explanation);
+      if (rawEn && typeof rawEn === 'string' && rawEn.trim().length > 2 && !TAUTOLOGY_REGEX.test(rawEn)) {
+        const isTrText = /[çğıöşüÇĞİÖŞÜ]/.test(rawEn) || /\b(sesi|gibi|açık|net|okunur|asla|harfi)\b/i.test(rawEn);
+        if (!isTrText) {
+          return sanitizeEnglishExplanation(rawEn.trim(), cleanTerm);
+        }
+      }
+      if (phon.explanation_en) return phon.explanation_en;
+    }
+  }
+
   // Single letters or alphabet character cards must NEVER match pronouns or pragmatic greetings
   if (cleanTerm.length <= 1 || (it && (it.letter || it.character))) {
     return '';
@@ -5479,24 +5591,33 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
       : (it.explanation_en || it.english_explanation || it.desc_en);
     if (rawLangExpl && typeof rawLangExpl === 'string' && rawLangExpl.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
-        return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(rawLangExpl.trim())) : rawLangExpl.trim();
+        if (lang === 'tr') {
+          return healTurkishSyntax(humanizeTurkishExplanation(rawLangExpl.trim()));
+        } else {
+          const isTr = /[çğıöşüÇĞİÖŞÜ]/.test(rawLangExpl) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|sesi|gibi|okunur|açık|net)\b/i.test(rawLangExpl);
+          if (!isTr) {
+            return sanitizeEnglishExplanation(rawLangExpl.trim(), cleanTerm);
+          }
+        }
       }
     }
   }
 
   // Check vocab practical tips bank before generic fallback
-  const cLang = (currentCourse && currentCourse.language) || 'Spanish';
   const bankHit = getClientVocabExample(cLang, cleanTerm);
   if (bankHit) {
     const tip = (lang === 'tr') ? bankHit.tip_tr : bankHit.tip_en;
-    if (tip && !TAUTOLOGY_REGEX.test(tip)) return tip;
+    if (tip && !TAUTOLOGY_REGEX.test(tip)) return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(tip)) : sanitizeEnglishExplanation(tip, cleanTerm);
   }
 
   // Bidirectional fallback if one language is missing
   if (it && typeof it === 'object') {
     if (lang === 'en' && it.explanation_tr && typeof it.explanation_tr === 'string' && it.explanation_tr.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(it.explanation_tr)) {
-        return resolveDualLanguage('', it.explanation_tr.trim(), 'en');
+        const dual = resolveDualLanguage('', it.explanation_tr.trim(), 'en');
+        if (dual && !/[çğıöşüÇĞİÖŞÜ]/.test(dual)) {
+          return sanitizeEnglishExplanation(dual, cleanTerm);
+        }
       }
     } else if (lang === 'tr' && (it.explanation_en || it.explanation) && typeof (it.explanation_en || it.explanation) === 'string') {
       const enVal = (it.explanation_en || it.explanation).trim();
@@ -5517,7 +5638,7 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   if (key && PEDAGOGICAL_CONCEPT_EXPLANATIONS[key]) {
     const entry = PEDAGOGICAL_CONCEPT_EXPLANATIONS[key];
     const val = lang === 'tr' ? (entry.tr || entry.en) : (entry.en || entry.tr);
-    if (val && !TAUTOLOGY_REGEX.test(val)) return val;
+    if (val && !TAUTOLOGY_REGEX.test(val)) return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(val)) : sanitizeEnglishExplanation(val, cleanTerm);
   }
 
   // Fallback to generic item explanation if not tautological
@@ -5525,7 +5646,8 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
     const rawExpl = it.explanation || it.description || it.desc || it.note || it.usage;
     if (rawExpl && typeof rawExpl === 'string' && rawExpl.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(rawExpl)) {
-        return resolveDualLanguage(rawExpl.trim(), rawExpl.trim(), lang, rawExpl.trim());
+        const resolved = resolveDualLanguage(rawExpl.trim(), rawExpl.trim(), lang, rawExpl.trim());
+        return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(resolved)) : sanitizeEnglishExplanation(resolved, cleanTerm);
       }
     }
   }
@@ -5931,6 +6053,7 @@ function translateEducationalText(text, lang = currentLang) {
       processed = processed.replace(/'(.*)' ifadesi (.*) için kullanılır\.?/i, "The phrase '$1' is used for $2.");
       processed = processed.replace(/Diğer seçenekler (.*) uygun değildir\.?/i, "Other options are not suitable in this context.");
       processed = processed.replace(/Doğru cevap (.*)\.?/i, "The correct answer $1.");
+      processed = sanitizeEnglishExplanation(processed);
     }
 
     if (processed !== cleanContent) {
@@ -5947,6 +6070,7 @@ function translateEducationalText(text, lang = currentLang) {
       for (const [en, tr] of (window.EDUCATIONAL_SENTENCE_PAIRS || [])) {
         if (subStr.includes(tr)) subStr = subStr.split(tr).join(en);
       }
+      subStr = sanitizeEnglishExplanation(subStr);
     }
 
     // 5. On-Demand Background Translation for brand new future classrooms
@@ -11401,8 +11525,8 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       </div>`;
                   } else {
                     const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.example_en || it.sentence_en || it.translation || it.meaning || '');
-                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.example_tr || it.sentence_tr || it.tr || '');
+                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || '');
+                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.tr || '');
 
                     let v = '';
                     if (currentLang === 'tr') {
@@ -11440,6 +11564,21 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       v = (currentLang === 'tr') ? prag.tr : prag.en;
                     }
 
+                    // Letter self-healing for meaning pill badge (never show example sentence in pill)
+                    const isLetterCard = isLetterLike(kStr) || Boolean(it.letter || it.character);
+                    if (isLetterCard) {
+                      const baseL = extractBaseLetter(kStr);
+                      const phon = getClientLetterPhonetics(courseLang, baseL) || {};
+                      const isVEmptyOrEcho = !v || v.toLowerCase() === kStr.toLowerCase() || (normK && normK === normalizeConceptStr(v));
+                      if (isVEmptyOrEcho) {
+                        const hasDistinctName = phon.name && phon.name.trim().toUpperCase() !== baseL.toUpperCase();
+                        const lName = hasDistinctName ? ` (${phon.name})` : '';
+                        v = (currentLang === 'tr')
+                          ? `${baseL} harfi${lName}`
+                          : `Letter ${baseL}${lName}`;
+                      }
+                    }
+
                     // Eliminate calque 'öğleden sonra' if present in v
                     if (typeof v === 'string' && (v.toLowerCase().includes('öğleden sonra') || v.toLowerCase().includes('ogleden sonra'))) {
                       v = (currentLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
@@ -11459,7 +11598,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
                     const isCJKChar = /[\u4e00-\u9fff]/.test(kStr);
                     const isLetter = !isCJKChar && (
-                      isSingleChar ||
+                      isLetterLike(kStr) ||
                       SPANISH_LETTER_SPELLINGS.has(normK) ||
                       Boolean(it.letter || it.character)
                     );
@@ -11487,8 +11626,8 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           <div class="foreign-word dialogue-phrase" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(kStr))}&rdquo;</div>
                           ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `<div id="${exTransId}" class="dialogue-translation-box">${fixDiacritics(safeStr(v))}</div>` : ''}
                         </div>`;
-                    } else if (isLetter) {
-                    // Single letter — render cleanly with authentic name and phonetics guide
+                    } else if (isLetter && !it.explanation && !it.explanation_en && !it.explanation_tr && !it.example) {
+                    // Minimal single letter — render compact card
                     const phonData = getClientLetterPhonetics(courseLang, kStr) || {};
                     let letterName = it.name || phonData.name || (SPANISH_LETTER_SPELLINGS.has(normK) ? kStr : '') || safeStr(v);
                     if (['she', 'he', 'ben', 'i'].includes(letterName.toLowerCase()) && letterName.length > 1) {
@@ -11498,8 +11637,8 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       ? (it.phonetic_tr || phonData.phonetic_tr || '')
                       : (it.phonetic_en || phonData.phonetic_en || '');
                     const exampleWord = it.example || phonData.example || '';
-                    const rawExEn = it.translation_en || it.example_en || phonData.example_en || '';
-                    const rawExTr = it.translation_tr || it.example_tr || phonData.example_tr || '';
+                    const rawExEn = it.example_en || phonData.example_en || it.translation_en || '';
+                    const rawExTr = it.example_tr || phonData.example_tr || it.translation_tr || '';
                     const exampleTrans = (currentLang === 'tr') ? (rawExTr || (rawExEn ? translateEducationalText(rawExEn, 'tr') : '')) : (rawExEn || rawExTr);
 
                     html += `<div class="study-vocab-card alphabet-card">
@@ -11514,7 +11653,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         </div>
                       </div>`;
                   } else {
-                    // Regular vocabulary item with authentic example sentence and practical usage tip
+                    // Regular vocabulary item or enriched pronunciation card with authentic pedagogy tip and example sentence
                     const briefExpl = resolveItemExplanation(it, kStr, safeStr(v), currentLang);
                     const bankHit = getClientVocabExample(courseLang, kStr) || {};
                     const exampleTarget = it.example || bankHit.example || '';
@@ -11562,7 +11701,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         ${briefExpl ? `
                           <div class="vocab-pedagogy-section">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : safeStr(briefExpl))}</div>
+                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : sanitizeEnglishExplanation(safeStr(briefExpl), kStr))}</div>
                           </div>` : ''}
                         ${exampleTarget ? `
                           <div class="vocab-example-card">

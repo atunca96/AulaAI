@@ -12,14 +12,245 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CACHE_FILE = os.path.join(ROOT_DIR, "bilingual_materials.json")
 BUNDLE_FILE = os.path.join(ROOT_DIR, "public", "js", "bilingual_materials.js")
 
-SPANISH_ALPHABET_SPELLINGS = {
-    "A": "a", "B": "be", "C": "ce", "D": "de", "E": "e", "F": "efe",
-    "G": "ge", "H": "hache", "I": "i", "J": "jota", "K": "ka",
-    "L": "ele", "M": "eme", "N": "ene", "Ñ": "eñe", "O": "o",
-    "P": "pe", "Q": "cu", "R": "ere", "RR": "erre", "S": "ese",
-    "T": "te", "U": "u", "V": "uve", "W": "uve doble", "X": "equis",
-    "Y": "i griega", "Z": "zeta"
+SPANISH_ALPHABET_DATA = {
+    "A": {
+        "spelling": "la a",
+        "name_tr": "a harfi (la a)",
+        "name_en": "Letter A (la a)",
+        "expl_en": "Open and bright vowel sound, pronounced cleanly like the 'a' in 'father'; never slurred or weakened.",
+        "expl_tr": "Türkçedeki 'a' sesi gibi açık ve net okunur; asla yuvarlanmaz veya zayıflatılmaz."
+    },
+    "B": {
+        "spelling": "la be",
+        "name_tr": "b harfi (la be)",
+        "name_en": "Letter B (la be)",
+        "expl_en": "Pronounced as a soft bilabial stop [b] at the start of a phrase, and a gentle approximant [β] between vowels.",
+        "expl_tr": "Kelime başında Türkçedeki 'b' gibidir; iki ünlü arasında dudaklar birbirine tam değmeden yumuşakça çıkar."
+    },
+    "C": {
+        "spelling": "la ce",
+        "name_tr": "c harfi (la ce)",
+        "name_en": "Letter C (la ce)",
+        "expl_en": "Hard [k] before a, o, u (casa, coche, cuna); soft [s] or [θ] before e, i (cero, cine).",
+        "expl_tr": "a, o, u önünde 'k' sesi verir (casa, coche); e ve i önünde ise 's' veya peltek 's' olarak okunur (cero, cine)."
+    },
+    "CH": {
+        "spelling": "la che",
+        "name_tr": "ch harfi (la che)",
+        "name_en": "Letter CH (la che)",
+        "expl_en": "Voiceless postalveolar affricate, pronounced crisply like 'ch' in 'chocolate' or 'cheese'.",
+        "expl_tr": "Türkçedeki 'ç' sesi gibi net ve sert bir sestir (chico, chocolate)."
+    },
+    "D": {
+        "spelling": "la de",
+        "name_tr": "d harfi (la de)",
+        "name_en": "Letter D (la de)",
+        "expl_en": "Dental stop [d] at word start; softens to a gentle approximant [ð] (like 'th' in 'this') between vowels.",
+        "expl_tr": "Kelime başında net 'd' sesi verir; ünlüler arasında ise yumuşayarak peltek bir ton alır."
+    },
+    "E": {
+        "spelling": "la e",
+        "name_tr": "e harfi (la e)",
+        "name_en": "Letter E (la e)",
+        "expl_en": "Mid-front invariant vowel, pronounced cleanly like 'e' in 'bed'; never gliding into an 'ee' sound.",
+        "expl_tr": "Türkçedeki 'e' sesi gibi sabit ve nettir; asla diftonglaşmaz veya uzatılmaz."
+    },
+    "F": {
+        "spelling": "la efe",
+        "name_tr": "f harfi (la efe)",
+        "name_en": "Letter F (la efe)",
+        "expl_en": "Voiceless labiodental fricative, pronounced exactly like 'f' in 'father' or 'fine'.",
+        "expl_tr": "Türkçedeki 'f' sesiyle aynıdır; üst dişler alt dudağa hafifçe değer."
+    },
+    "G": {
+        "spelling": "la ge",
+        "name_tr": "g harfi (la ge)",
+        "name_en": "Letter G (la ge)",
+        "expl_en": "Hard [g] before a, o, u (gato, gusto); raspy fricative [x] from the throat before e, i (gente, girasol).",
+        "expl_tr": "a, o, u önünde sert 'g' (gato); e ve i önünde ise boğazdan hırıltılı 'h' sesi verir (gente)."
+    },
+    "H": {
+        "spelling": "la hache",
+        "name_tr": "h harfi (la hache)",
+        "name_en": "Letter H (la hache)",
+        "expl_en": "Always completely silent in Spanish; never pronounced under any circumstances (hola sounds like 'ola').",
+        "expl_tr": "İspanyolcada daima sessizdir, asla okunmaz (hola sözcüğü 'ola' şeklinde okunur)."
+    },
+    "I": {
+        "spelling": "la i",
+        "name_tr": "i harfi (la i)",
+        "name_en": "Letter I (la i)",
+        "expl_en": "Close front vowel, pronounced like 'ee' in 'see' or 'machine'; crisp and distinct.",
+        "expl_tr": "Türkçedeki 'i' sesi gibi net ve kısadır; asla yuvarlanmaz veya zayıflatılmaz."
+    },
+    "J": {
+        "spelling": "la jota",
+        "name_tr": "j harfi (la jota)",
+        "name_en": "Letter J (la jota)",
+        "expl_en": "Voiceless velar/uvular fricative from the throat, like the Scottish 'ch' in 'loch' or strong 'h' in 'hotel'.",
+        "expl_tr": "Boğazın arkasından gelen hırıltılı bir 'h' sesidir (Almanca 'ach' gibi)."
+    },
+    "K": {
+        "spelling": "la ka",
+        "name_tr": "k harfi (la ka)",
+        "name_en": "Letter K (la ka)",
+        "expl_en": "Found only in foreign loanwords; pronounced as a crisp [k] as in 'kite'.",
+        "expl_tr": "Yabancı kökenli sözcüklerde bulunur; sert ve net 'k' sesi verir."
+    },
+    "L": {
+        "spelling": "la ele",
+        "name_tr": "l harfi (la ele)",
+        "name_en": "Letter L (la ele)",
+        "expl_en": "Voiced alveolar lateral, pronounced with the tongue tip against the upper gum ridge like 'l' in 'light'.",
+        "expl_tr": "Türkçedeki ince 'l' sesi gibi dil ucu üst damağa değerek berrak çıkar."
+    },
+    "LL": {
+        "spelling": "la elle",
+        "name_tr": "ll harfi (la elle)",
+        "name_en": "Letter LL (la elle)",
+        "expl_en": "Pronounced like the 'y' in 'yes' across most Hispanic dialects; historically a palatal lateral [ʎ].",
+        "expl_tr": "Günümüz İspanyolcasında çoğunlukla 'y' sesi (yağmur gibi) olarak telaffuz edilir."
+    },
+    "M": {
+        "spelling": "la eme",
+        "name_tr": "m harfi (la eme)",
+        "name_en": "Letter M (la eme)",
+        "expl_en": "Bilabial nasal, pronounced cleanly like the 'm' in 'mother'.",
+        "expl_tr": "Türkçedeki 'm' sesi ile tamamen aynıdır; dudaklar kapatılarak çıkarılır."
+    },
+    "N": {
+        "spelling": "la ene",
+        "name_tr": "n harfi (la ene)",
+        "name_en": "Letter N (la ene)",
+        "expl_en": "Alveolar nasal, pronounced cleanly like the 'n' in 'night'.",
+        "expl_tr": "Türkçedeki 'n' sesi ile tamamen aynıdır; dil ucu üst damağa değer."
+    },
+    "Ñ": {
+        "spelling": "la eñe",
+        "name_tr": "ñ harfi (la eñe)",
+        "name_en": "Letter Ñ (la eñe)",
+        "expl_en": "Voiced palatal nasal, pronounced like the 'ny' in 'canyon' or 'onion'.",
+        "expl_tr": "Damaktan çıkan 'n+y' birleşik sesidir (kanyon sözcüğündeki 'ny' gibi)."
+    },
+    "O": {
+        "spelling": "la o",
+        "name_tr": "o harfi (la o)",
+        "name_en": "Letter O (la o)",
+        "expl_en": "Back mid rounded vowel, pronounced cleanly like the 'o' in 'for' or 'order'; never diphthongized.",
+        "expl_tr": "Türkçedeki 'o' sesi gibi yuvarlak ve nettir; asla diftonglaşmaz."
+    },
+    "P": {
+        "spelling": "la pe",
+        "name_tr": "p harfi (la pe)",
+        "name_en": "Letter P (la pe)",
+        "expl_en": "Voiceless bilabial stop, pronounced crisply like 'p' in 'spot' without heavy aspiration.",
+        "expl_tr": "Türkçedeki 'p' sesi gibi nefes patlaması olmadan net çıkar."
+    },
+    "Q": {
+        "spelling": "la cu",
+        "name_tr": "q harfi (la cu)",
+        "name_en": "Letter Q (la cu)",
+        "expl_en": "Always followed by silent 'u' (qu) before e or i, pronounced as [k] (queso sounds like 'keso').",
+        "expl_tr": "Daima 'qu' şeklinde e veya i önünde gelir; 'u' okunmaz, sert 'k' sesi verir (queso -> keso)."
+    },
+    "R": {
+        "spelling": "la ere",
+        "name_tr": "r harfi (la ere)",
+        "name_en": "Letter R (la ere)",
+        "expl_en": "A single alveolar tap, like the rapid 'tt' in American English 'butter' or 'city'.",
+        "expl_tr": "Hafif ve tek bir dil vuruşuyla çıkan yumuşak 'r' sesidir."
+    },
+    "RR": {
+        "spelling": "la erre",
+        "name_tr": "rr harfi (la erre)",
+        "name_en": "Letter RR (la erre)",
+        "expl_en": "A multi-tap vibrant trill produced by vibrating the tip of the tongue against the alveolar ridge.",
+        "expl_tr": "Dil ucunun üst damakta hızla titretilmesiyle oluşan kuvvetli, çift 'r' sesidir."
+    },
+    "S": {
+        "spelling": "la ese",
+        "name_tr": "s harfi (la ese)",
+        "name_en": "Letter S (la ese)",
+        "expl_en": "Voiceless alveolar sibilant, pronounced cleanly like the 's' in 'sun'.",
+        "expl_tr": "Türkçedeki 's' sesi gibi temiz ve nettir."
+    },
+    "T": {
+        "spelling": "la te",
+        "name_tr": "t harfi (la te)",
+        "name_en": "Letter T (la te)",
+        "expl_en": "Dental stop, pronounced with the tongue directly against the back of the upper front teeth, like 't' in 'stop'.",
+        "expl_tr": "Dil ucu üst dişlerin arkasına basılarak çıkan sert 't' sesidir."
+    },
+    "U": {
+        "spelling": "la u",
+        "name_tr": "u harfi (la u)",
+        "name_en": "Letter U (la u)",
+        "expl_en": "Close back rounded vowel, pronounced cleanly like the 'oo' in 'moon' or 'lunar'.",
+        "expl_tr": "Türkçedeki 'u' sesi gibi dudaklar öne uzatılarak net çıkarılır."
+    },
+    "V": {
+        "spelling": "la uve",
+        "name_tr": "v harfi (la uve)",
+        "name_en": "Letter V (la uve)",
+        "expl_en": "Phonetically identical to 'b' in Spanish; pronounced with both lips, without biting the lower lip.",
+        "expl_tr": "İspanyolcada 'b' ile tamamen aynıdır; alt dudak ısırılmadan yumuşakça telaffuz edilir."
+    },
+    "W": {
+        "spelling": "la uve doble",
+        "name_tr": "w harfi (la uve doble)",
+        "name_en": "Letter W (la uve doble)",
+        "expl_en": "Appears exclusively in loanwords; pronounced like English [w] in 'water' or [b].",
+        "expl_tr": "Yalnızca yabancı sözcüklerde bulunur; İngilizce 'w' sesi gibi okunur."
+    },
+    "X": {
+        "spelling": "la equis",
+        "name_tr": "x harfi (la equis)",
+        "name_en": "Letter X (la equis)",
+        "expl_en": "Pronounced as [ks] between vowels (éxito) and often as [s] before consonants (extra).",
+        "expl_tr": "İki ünlü arasında 'ks' (éxito), sessiz harflerden önce ise genellikle 's' okunur."
+    },
+    "Y": {
+        "spelling": "la i griega / ye",
+        "name_tr": "y harfi (la i griega / ye)",
+        "name_en": "Letter Y (la i griega / ye)",
+        "expl_en": "Pronounced like the 'y' in 'yes' before vowels; sounds like 'ee' in 'see' at word ends (hoy, rey).",
+        "expl_tr": "Ünlü önünde 'y' sesi, tek başına veya kelime sonunda ise 'i' gibi okunur."
+    },
+    "Z": {
+        "spelling": "la zeta",
+        "name_tr": "z harfi (la zeta)",
+        "name_en": "Letter Z (la zeta)",
+        "expl_en": "Pronounced as voiceless [θ] ('th' in 'thin') in Spain, and as [s] in Latin America.",
+        "expl_tr": "İspanya'da peltek 's' (İngilizce 'think' gibi), Latin Amerika'da ise düz 's' okunur."
+    }
 }
+
+SPANISH_ALPHABET_SPELLINGS = {k: v["spelling"] for k, v in SPANISH_ALPHABET_DATA.items()}
+
+def extract_letter_key(term):
+    if not term or not isinstance(term, str):
+        return None
+    s = term.strip()
+    if len(s) == 1:
+        u = s.upper()
+        return u if u in SPANISH_ALPHABET_DATA else None
+    letters = re.sub(r'[^A-Za-zÑñÁÉÍÓÚÜáéíóúü]', '', s)
+    if not letters:
+        return None
+    u = letters.upper()
+    if u in ["CH", "CHCH"]:
+        return "CH"
+    if u in ["LL", "LLLL"]:
+        return "LL"
+    if u in ["RR", "RRRR"]:
+        return "RR"
+    if len(set(u)) == 1 and len(u) <= 4:
+        return u[0] if u[0] in SPANISH_ALPHABET_DATA else None
+    first_part = re.split(r'[\s,/-]+', s)[0].upper()
+    clean_p = re.sub(r'[^A-Za-zÑñ]', '', first_part)
+    if clean_p in SPANISH_ALPHABET_DATA:
+        return clean_p
+    return None
 
 def _load_cache():
     if os.path.exists(CACHE_FILE):
@@ -174,8 +405,17 @@ def rebuild_bilingual_bundle():
         if k and v:
             tr_en_map[k.strip()] = v.strip()
             tr_nobullet = re.sub(r'^[•\-\*\s]+', '', k.strip()).strip()
-            en_nobullet = re.sub(r'^[•\-\*\s]+', '', v.strip()).strip()
             tr_en_map[tr_nobullet] = en_nobullet
+
+    # Ensure all alphabet phonetics explanations are registered in bilingual sentence maps
+    for let, adata in SPANISH_ALPHABET_DATA.items():
+        expl_en = adata["expl_en"].strip()
+        expl_tr = adata["expl_tr"].strip()
+        en_tr_map[expl_en] = expl_tr
+        tr_en_map[expl_tr] = expl_en
+        # Also clean versions
+        en_tr_map[re.sub(r'^[•\-\*\s]+', '', expl_en)] = re.sub(r'^[•\-\*\s]+', '', expl_tr)
+        tr_en_map[re.sub(r'^[•\-\*\s]+', '', expl_tr)] = re.sub(r'^[•\-\*\s]+', '', expl_en)
 
     # Vocab directional maps
     vocab_en_tr = {}
@@ -352,8 +592,9 @@ def finalize_course_bilingual_data(course_id: str):
             items = p.get("items") or p.get("vocabulary") or p.get("words") or []
             for it in items:
                 if isinstance(it, dict):
-                    term_clean = (it.get("term") or it.get("word") or "").strip().upper()
-                    if term_clean in SPANISH_ALPHABET_SPELLINGS:
+                    raw_term = it.get("term") or it.get("word") or ""
+                    letter_key = extract_letter_key(raw_term)
+                    if letter_key and letter_key in SPANISH_ALPHABET_DATA:
                         continue
                     v = it.get("translation") or it.get("meaning") or it.get("english") or ""
                     if v and isinstance(v, str) and len(v.strip()) > 1 and (not it.get("translation_tr") or it.get("translation_tr") == v):
@@ -451,14 +692,19 @@ def finalize_course_bilingual_data(course_id: str):
                 items = p.get("items") or p.get("vocabulary") or p.get("words") or []
                 for it in items:
                     if isinstance(it, dict):
-                        term_clean = (it.get("term") or it.get("word") or "").strip().upper()
-                        if term_clean in SPANISH_ALPHABET_SPELLINGS:
-                            spelling = SPANISH_ALPHABET_SPELLINGS[term_clean]
-                            it["translation"] = spelling
-                            it["translation_en"] = spelling
-                            it["translation_tr"] = spelling
-                            it["turkish"] = spelling
+                        raw_term = (it.get("term") or it.get("word") or "").strip()
+                        letter_key = extract_letter_key(raw_term)
+                        if letter_key and letter_key in SPANISH_ALPHABET_DATA:
+                            adata = SPANISH_ALPHABET_DATA[letter_key]
+                            it["translation"] = adata["spelling"]
+                            it["translation_en"] = adata["name_en"]
+                            it["translation_tr"] = adata["name_tr"]
+                            it["turkish"] = adata["name_tr"]
+                            it["explanation_en"] = adata["expl_en"]
+                            it["explanation_tr"] = adata["expl_tr"]
+                            it["explanation"] = adata["expl_en"]
                             continue
+
                         v = it.get("translation") or it.get("meaning") or it.get("english") or ""
                         if v and isinstance(v, str):
                             v_clean = v.strip()
@@ -470,7 +716,19 @@ def finalize_course_bilingual_data(course_id: str):
                         
                         # Explanation enrichment & translation
                         expl = it.get("explanation") or it.get("explanation_en") or ""
-                        if it.get("explanation_tr") and it.get("explanation_tr") != expl:
+                        is_tr_expl = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]|\b(sesi|gibi|açık|net|okunur|asla|harfi|anlamına|gelir)\b', expl, re.I))
+                        if is_tr_expl:
+                            it["explanation_tr"] = expl.strip()
+                            en_expl = trans_map.get(expl.strip()) or it.get("explanation_en") or ""
+                            if not en_expl or en_expl == expl.strip() or bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', en_expl)):
+                                en_expl = get_concept_explanation(it.get("term"), v, "en") or ""
+                            if en_expl:
+                                en_expl = re.sub(r'like\s+the\s+[\'"]?([a-zA-Z])[\'"]?\s+sound\s+in\s+Turkish', r"like '\1' in English", en_expl, flags=re.I)
+                                en_expl = re.sub(r'like\s+in\s+Turkish|as\s+in\s+Turkish', 'clean and distinct', en_expl, flags=re.I)
+                                en_expl = re.sub(r'in\s+Turkish', 'in standard pronunciation', en_expl, flags=re.I)
+                                it["explanation_en"] = en_expl
+                                it["explanation"] = en_expl
+                        elif it.get("explanation_tr") and it.get("explanation_tr") != expl:
                             it["explanation_en"] = expl or it.get("explanation") or ""
                         elif expl and isinstance(expl, str) and len(expl.strip()) > 2:
                             expl_clean = expl.strip()
