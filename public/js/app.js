@@ -9108,6 +9108,45 @@ async function launchActivity() {
   }
 }
 
+function maskBlankTranslation(promptText, transText, answer) {
+  if (!promptText || !transText) return transText || '';
+  if (!/_{2,}/.test(promptText)) return transText;
+  if (/_{2,}/.test(transText)) return transText;
+
+  let res = String(transText);
+  const ans = String(answer || '').trim();
+  if (ans) {
+    const regAns = new RegExp('\\b' + ans.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (regAns.test(res)) {
+      return res.replace(regAns, '_____');
+    }
+    const NUMS = {
+      'cero': ['zero', 'sıfır'], 'uno': ['one', 'bir'], 'un': ['one', 'bir'], 'una': ['one', 'bir'],
+      'dos': ['two', 'iki'], 'tres': ['three', 'üç'], 'cuatro': ['four', 'dört'], 'cinco': ['five', 'beş'],
+      'seis': ['six', 'altı'], 'siete': ['seven', 'yedi'], 'ocho': ['eight', 'sekiz'], 'nueve': ['nine', 'dokuz'],
+      'diez': ['ten', 'on'], 'once': ['eleven', 'on bir'], 'doce': ['twelve', 'on iki'], 'trece': ['thirteen', 'on üç'],
+      'catorce': ['fourteen', 'on dört'], 'quince': ['fifteen', 'on beş'], 'dieciséis': ['sixteen', 'on altı'],
+      'diecisiete': ['seventeen', 'on yedi'], 'dieciocho': ['eighteen', 'on sekiz'], 'diecinueve': ['nineteen', 'on dokuz'],
+      'veinte': ['twenty', 'yirmi'], 'veintiuno': ['twenty-one', 'yirmi bir'], 'veintidós': ['twenty-two', 'yirmi iki'],
+      'veintitrés': ['twenty-three', 'yirmi üç'], 'veinticuatro': ['twenty-four', 'yirmi dört'], 'veinticinco': ['twenty-five', 'yirmi beş'],
+      'veintiséis': ['twenty-six', 'yirmi altı'], 'veintisiete': ['twenty-seven', 'yirmi yedi'], 'veintiocho': ['twenty-eight', 'yirmi sekiz'],
+      'veintinueve': ['twenty-nine', 'yirmi dokuz'], 'treinta': ['thirty', 'otuz'], 'cuarenta': ['forty', 'kırk'],
+      'cincuenta': ['fifty', 'elli'], 'sesenta': ['sixty', 'altmış'], 'setenta': ['seventy', 'yetmiş'],
+      'ochenta': ['eighty', 'seksen'], 'noventa': ['ninety', 'doksan'], 'cien': ['hundred', 'yüz'], 'ciento': ['hundred', 'yüz']
+    };
+    const mapped = NUMS[ans.toLowerCase()];
+    if (mapped) {
+      for (const mWord of mapped) {
+        const regWord = new RegExp('\\b' + mWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+        if (regWord.test(res)) {
+          return res.replace(regWord, '_____');
+        }
+      }
+    }
+  }
+  return res;
+}
+
 function renderPromptHTML(a, isQuiz = false) {
   let p = formatActivityData(a.prompt);
   
@@ -9115,8 +9154,11 @@ function renderPromptHTML(a, isQuiz = false) {
     return `<div class="activity-prompt">${esc(p)}</div>`;
   }
   
-  const transTr = a.translation_tr || a.turkish || translateEducationalText(a.translation || '') || a.translation || '';
-  const transEn = a.translation_en || a.english || a.translation || '';
+  let transTr = a.translation_tr || a.turkish || translateEducationalText(a.translation || '') || a.translation || '';
+  let transEn = a.translation_en || a.english || a.translation || '';
+  transTr = maskBlankTranslation(p, transTr, a.answer);
+  transEn = maskBlankTranslation(p, transEn, a.answer);
+
   if (transTr || transEn) {
     return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
       data-trans-tr="${esc(transTr)}" data-trans-en="${esc(transEn)}"
@@ -9172,6 +9214,22 @@ function renderActivityCard(a, idx, ctx) {
   ` : '';
 
   if (a.type === 'mcq') {
+    // Guarantee 4 options: if an activity only has 3 options, borrow a 4th option from sibling activities
+    if (Array.isArray(a.options) && a.options.length === 3 && Array.isArray(_lastActivityData?.activities)) {
+      for (const otherAct of _lastActivityData.activities) {
+        if (otherAct && Array.isArray(otherAct.options)) {
+          const cand = otherAct.options.find(opt => opt && !a.options.some(co => String(co).trim().toLowerCase() === String(opt).trim().toLowerCase()));
+          if (cand) {
+            a.options.push(cand);
+            if (Array.isArray(a.distractors) && !a.distractors.includes(cand) && String(cand).toLowerCase() !== String(a.answer || '').toLowerCase()) {
+              a.distractors.push(cand);
+            }
+            break;
+          }
+        }
+      }
+    }
+
     let cardClass = "activity-card";
     let fbClass = "feedback-msg hidden";
     let fbContent = "";
@@ -9828,7 +9886,20 @@ function showQuizQuestion(area) {
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
   // Stable option list - never re-shuffles on render or language toggle
-  const qMcqOpts = q._shuffledOptions || ((Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]));
+  let qMcqOpts = q._shuffledOptions || ((Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]));
+  if (Array.isArray(qMcqOpts) && qMcqOpts.length === 3 && Array.isArray(qs)) {
+    for (const otherQ of qs) {
+      const otherOpts = otherQ.options || (otherQ.distractors || []).concat([otherQ.answer]);
+      if (Array.isArray(otherOpts)) {
+        const cand = otherOpts.find(opt => opt && !qMcqOpts.some(co => String(co).trim().toLowerCase() === String(opt).trim().toLowerCase()));
+        if (cand) {
+          qMcqOpts.push(cand);
+          q._shuffledOptions = qMcqOpts;
+          break;
+        }
+      }
+    }
+  }
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
     (q.type === 'mcq' ? `<div class="options-grid">${qMcqOpts.map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }

@@ -90,6 +90,96 @@ def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) 
                 return True
     return False
 
+SPANISH_NUMBER_WORDS = {
+    "cero": ("zero", "sıfır"), "uno": ("one", "bir"), "un": ("one", "bir"), "una": ("one", "bir"),
+    "dos": ("two", "iki"), "tres": ("three", "üç"), "cuatro": ("four", "dört"),
+    "cinco": ("five", "beş"), "seis": ("six", "altı"), "siete": ("seven", "yedi"),
+    "ocho": ("eight", "sekiz"), "nueve": ("nine", "dokuz"), "diez": ("ten", "on"),
+    "once": ("eleven", "on bir"), "doce": ("twelve", "on iki"), "trece": ("thirteen", "on üç"),
+    "catorce": ("fourteen", "on dört"), "quince": ("fifteen", "on beş"),
+    "dieciséis": ("sixteen", "on altı"), "diecisiete": ("seventeen", "on yedi"),
+    "dieciocho": ("eighteen", "on sekiz"), "diecinueve": ("nineteen", "on dokuz"),
+    "veinte": ("twenty", "yirmi"), "veintiuno": ("twenty-one", "yirmi bir"),
+    "veintidós": ("twenty-two", "yirmi iki"), "veintitrés": ("twenty-three", "yirmi üç"),
+    "veinticuatro": ("twenty-four", "yirmi dört"), "veinticinco": ("twenty-five", "yirmi beş"),
+    "veintiséis": ("twenty-six", "yirmi altı"), "veintisiete": ("twenty-seven", "yirmi yedi"),
+    "veintiocho": ("twenty-eight", "yirmi sekiz"), "veintinueve": ("twenty-nine", "yirmi dokuz"),
+    "treinta": ("thirty", "otuz"), "cuarenta": ("forty", "kırk"),
+    "cincuenta": ("fifty", "elli"), "sesenta": ("sixty", "altmış"),
+    "setenta": ("seventy", "yetmiş"), "ochenta": ("eighty", "seksen"),
+    "noventa": ("ninety", "doksan"), "cien": ("one hundred", "yüz"),
+    "ciento": ("one hundred", "yüz"), "quinientos": ("five hundred", "beş yüz"),
+    "mil": ("one thousand", "bin")
+}
+
+def _sanitize_blank_translations(prompt: str, answer: str, t_en: str, t_tr: str, why: str = "", why_tr: str = "", topic_content: dict = None):
+    """
+    Ensures that if the question prompt contains a blank (e.g. '_____'),
+    the English and Turkish translations also contain a blank ('_____') and do NOT
+    leak the answer.
+    """
+    if not prompt or not re.search(r'_{2,}', prompt):
+        return t_en, t_tr
+
+    has_b_en = bool(re.search(r'_{2,}', t_en or ""))
+    has_b_tr = bool(re.search(r'_{2,}', t_tr or ""))
+
+    if has_b_en and has_b_tr:
+        return t_en, t_tr
+
+    en_candidates = []
+    tr_candidates = []
+    ans_clean = str(answer or "").strip()
+    ans_lower = ans_clean.lower()
+
+    # 1. Number word mapping
+    if ans_lower in SPANISH_NUMBER_WORDS:
+        en_candidates.append(SPANISH_NUMBER_WORDS[ans_lower][0])
+        tr_candidates.append(SPANISH_NUMBER_WORDS[ans_lower][1])
+
+    # 2. Parenthetical translation in why / why_tr
+    if ans_clean:
+        m_en = re.search(rf'[\'\"«]?{re.escape(ans_clean)}[\'\"»]?\s*\(([^)]+)\)', why or '', re.IGNORECASE)
+        if m_en:
+            en_candidates.append(m_en.group(1).strip())
+        m_tr = re.search(rf'[\'\"«]?{re.escape(ans_clean)}[\'\"»]?\s*\(([^)]+)\)', why_tr or '', re.IGNORECASE)
+        if m_tr:
+            tr_candidates.append(m_tr.group(1).strip())
+
+    # 3. Topic content items
+    if isinstance(topic_content, dict) and ans_clean:
+        for pg in topic_content.get("pages", []):
+            for it in pg.get("items", []):
+                if isinstance(it, dict) and str(it.get("term", "")).strip().lower() == ans_lower:
+                    if it.get("translation_en"): en_candidates.append(str(it["translation_en"]).strip())
+                    if it.get("translation_tr"): tr_candidates.append(str(it["translation_tr"]).strip())
+                    if it.get("translation"):
+                        en_candidates.append(str(it["translation"]).strip())
+                        tr_candidates.append(str(it["translation"]).strip())
+
+    # Replace in English translation
+    if t_en and not has_b_en:
+        for cand in en_candidates + [ans_clean]:
+            if cand and len(cand) >= 2:
+                pat = rf'\b{re.escape(cand)}\b'
+                if re.search(pat, t_en, re.IGNORECASE):
+                    t_en = re.sub(pat, '_____', t_en, count=1, flags=re.IGNORECASE)
+                    has_b_en = True
+                    break
+
+    # Replace in Turkish translation
+    if t_tr and not has_b_tr:
+        for cand in tr_candidates + [ans_clean]:
+            if cand and len(cand) >= 2:
+                pat = rf'\b{re.escape(cand)}\b'
+                if re.search(pat, t_tr, re.IGNORECASE):
+                    t_tr = re.sub(pat, '_____', t_tr, count=1, flags=re.IGNORECASE)
+                    has_b_tr = True
+                    break
+
+    return t_en, t_tr
+
+
 # Robust .env loading across execution contexts
 for env_path in [
     ".env",
@@ -409,9 +499,14 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
          * "Completa la frase con la forma verbal correcta: 'Normalmente nosotros ______ en el centro antes de las ocho.'"
          * "En la pronunciación del español, ¿cuál de estas palabras contiene una 'h' completamente muda?"
          * "¿Qué expresión se utiliza habitualmente para pedir la cuenta en un restaurante?"
-    2. DUAL TRANSLATION & EXPLANATION LOCALIZATION:
+    2. DUAL TRANSLATION & BLANK PRESERVATION MANDATE (CRITICAL):
        - 'translation_en': Professional English translation of the prompt.
        - 'translation_tr': Natural, fluent Turkish translation of the prompt.
+       - BLANK PRESERVATION: If the prompt contains a blank or fill-in-the-blank (e.g. '_____', '____', '___'), the translations ('translation_en' and 'translation_tr') MUST ALSO KEEP THE BLANK AS '_____'!
+         * ABSOLUTELY NEVER insert, translate, or reveal the answer word inside 'translation_en' or 'translation_tr'!
+         * WRONG: prompt="... Le devuelvo _____ euros." -> translation_en="... I return thirty euros to you." (REVEALS ANSWER!)
+         * CORRECT: prompt="... Le devuelvo _____ euros." -> translation_en="... I return _____ euros to you."
+         * CORRECT: prompt="... Le devuelvo _____ euros." -> translation_tr="... Size _____ euro para üstü veriyorum."
        - 'why': Concise pedagogical explanation in English.
        - 'why_tr': Concise pedagogical explanation in Turkish.
     3. STRICT ANTI-GIVEAWAY MANDATE:
@@ -428,12 +523,12 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
        - You have FULL PEDAGOGICAL FREEDOM to draw upon the rich, natural conversational vocabulary, diverse situational dialogues, cultural expressions, and communicative scenarios of authentic {language} appropriate for level {level} within the theme of '{topic_title}'.
        - Never artificially restrict questions to ONLY the exact 5-8 sample words listed when generating multiple rounds of questions; expand freely into natural variations, related phrases, and real-life dialogues suited to this topic and level so every regeneration is fresh and engaging.
     7. DISTRACTOR PLAUSIBILITY & LENGTH SYMMETRY MANDATE (CRITICAL):
+       - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
        - NO ABSURD OR OFF-TARGET DISTRACTORS: Every single distractor must be a genuine, grammatically plausible, authentic item from {language}. NEVER use letters, symbols, or words that do not belong to {language} (e.g. NEVER use 'Ç' in Spanish, NEVER use characters from other alphabets).
        - NO TRIVIAL VISUAL GIVEAWAYS: A beginner or non-speaker must NOT be able to identify the correct answer at a glance using visual elimination, option length difference, or obvious foreign elements.
        - STRICT BAN ON META-ALPHABET TRIVIA: NEVER ask shallow trivia like "¿Qué letra es exclusiva del español?", "¿Cuál de estas letras tiene una tilde?", or "¿Qué letra representa el sonido X?". For phonetics/alphabet topics, test genuine pronunciation in REAL words or minimal pairs:
          * Good: "¿En cuál de las siguientes palabras la letra 'g' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]
-         * Good: "¿En qué palabra la 'u' debe pronunciarse gracias a la diéresis?" [vergüenza, guitarra, queso, guerra]
     8. COMMUNICATIVE QUESTION ARCHETYPES & ZERO TRANSLATION DRILLS (CRITICAL MANDATE):
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
        - Instead, distribute the {gen_count} questions across these 5 communicative archetypes:
@@ -462,7 +557,7 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
     VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question. Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition.
     QUESTION TYPE DIVERSITY MANDATE: You MUST provide a balanced mix of:
     1) Conversational dialogue exchanges (— A: ... — B: ____)
-    2) Real-world situational questions (Estás en... ¿Qué dices?)
+    2) Real-world situational questions (Estás in... ¿Qué dices?)
     3) Contextual sentence completion (blank inside authentic sentence)
     4) Communicative appropriateness / register differentiation
     ABSOLUTELY FORBIDDEN: NEVER ask simple word-for-word translation questions!
@@ -474,8 +569,8 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
         {{
           "type": "mcq",
           "prompt": "Authentic question 100% in {language}",
-          "translation_en": "Natural English translation of the prompt",
-          "translation_tr": "Doğal Türkçe çevirisi",
+          "translation_en": "Natural English translation of the prompt (MUST keep '_____' if prompt has a blank)",
+          "translation_tr": "Doğal Türkçe çevirisi (soruda boşluk varsa mutlaka '_____' olarak kalmalıdır)",
           "answer": "Correct answer in {language}",
           "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
           "why": "Pedagogical explanation in English",
@@ -484,7 +579,10 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
       ]
     }}
     
-    CRITICAL MANDATE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}."""
+    CRITICAL MANDATES:
+    1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+    2) EXACTLY 4 OPTIONS REQUIRED: Every MCQ question MUST have 1 correct 'answer' and EXACTLY 3 distinct, plausible 'distractors' in the 'distractors' array (total of 4 options). NEVER provide only 2 distractors!
+    3) BLANK PRESERVATION: If 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST ALSO KEEP THE BLANK AS '_____'. NEVER reveal or translate the answer word inside translations!"""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -539,7 +637,37 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                 if ds and ds.lower() != a.lower() and ds.lower() not in [cd.lower() for cd in clean_d]:
                     clean_d.append(ds)
 
-            if len(clean_d) < 2:
+            # If fewer than 3 distractors, supplement from raw_list or topic_content to reach exactly 3
+            if len(clean_d) < 3:
+                extra_candidates = []
+                for other_item in raw_list:
+                    if isinstance(other_item, dict):
+                        oa = str(other_item.get("answer", "")).strip()
+                        if oa and oa.lower() != a.lower() and oa.lower() not in [cd.lower() for cd in clean_d]:
+                            extra_candidates.append(oa)
+                        for od in other_item.get("distractors", []):
+                            ods = str(od).strip()
+                            if ods and ods.lower() != a.lower() and ods.lower() not in [cd.lower() for cd in clean_d]:
+                                extra_candidates.append(ods)
+                if isinstance(topic_content, dict):
+                    for pg in topic_content.get("pages", []):
+                        for it in pg.get("items", []):
+                            if isinstance(it, dict) and it.get("term"):
+                                t_str = str(it.get("term")).strip()
+                                if t_str and t_str.lower() != a.lower() and t_str.lower() not in [cd.lower() for cd in clean_d]:
+                                    extra_candidates.append(t_str)
+
+                # Filter plausible length candidates
+                extra_candidates = [cand for cand in extra_candidates if abs(len(cand) - len(a)) <= max(len(a), 15)]
+                py_random.shuffle(extra_candidates)
+                for cand in extra_candidates:
+                    if cand.lower() not in [cd.lower() for cd in clean_d]:
+                        clean_d.append(cand)
+                    if len(clean_d) >= 3:
+                        break
+
+            # STRICT MANDATE: MUST have at least 3 distractors so total options is ALWAYS 4!
+            if len(clean_d) < 3:
                 continue
 
             # Programmatic Anti-Giveaway & Anti-Trivia Verification
@@ -599,12 +727,21 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             if is_giveaway:
                 continue
 
-            # Assemble options with deduplicated distractors
-            opts = [a] + clean_d[:3]
-            py_random.shuffle(opts)
-            
+            why_en = item.get("why", "Correct answer based on the material.")
+            why_tr = item.get("why_tr", item.get("why", "Materyale göre doğru seçenek."))
             t_en = item.get("translation_en") or item.get("translation", "")
             t_tr = item.get("translation_tr") or item.get("translation", "")
+
+            # If prompt has a blank, preserve the blank in translations
+            if re.search(r'_{2,}', p):
+                t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
+                # If translations still do not preserve blanks, reject to protect student experience
+                if not re.search(r'_{2,}', t_en) or not re.search(r'_{2,}', t_tr):
+                    continue
+
+            # Assemble options with deduplicated distractors (ALWAYS 4 OPTIONS)
+            opts = [a] + clean_d[:3]
+            py_random.shuffle(opts)
             
             final.append({
                 "id": _uid(),
@@ -616,8 +753,8 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                 "answer": a,
                 "distractors": clean_d[:3],
                 "options": opts,
-                "why": item.get("why", "Correct answer based on the material."),
-                "why_tr": item.get("why_tr", item.get("why", "Materyale göre doğru seçenek."))
+                "why": why_en,
+                "why_tr": why_tr
             })
             if len(final) >= c:
                 break

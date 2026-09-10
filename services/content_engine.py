@@ -3,10 +3,11 @@ Content Engine — Handles generation of quizzes and assignments via OpenRouter.
 """
 
 import random
+import re
 import json
 import uuid
 from datetime import datetime
-from services.ai_engine import is_ai_available, ai_generate_activity, ai_generate_questions, ai_grade_open_response, is_transparent_cognate
+from services.ai_engine import is_ai_available, ai_generate_activity, ai_generate_questions, ai_grade_open_response, is_transparent_cognate, _sanitize_blank_translations
 
 
 def _uid():
@@ -364,12 +365,17 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     tid = q.get("topic_id") or py_random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
-                    options = [q.get("answer", "")] + distractors
+                    if len(distractors) < 3:
+                        continue
+                    options = [q.get("answer", "")] + distractors[:3]
                     py_random.shuffle(options)
                     t_en = q.get("translation_en") or q.get("translation", "")
                     t_tr = q.get("translation_tr") or q.get("translation", "")
                     why_en = q.get("why", "Correct answer based on the lesson.")
                     why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
+
+                    if re.search(r'_{2,}', q.get("prompt", "")):
+                        t_en, t_tr = _sanitize_blank_translations(q.get("prompt", ""), q.get("answer", ""), t_en, t_tr, why_en, why_tr)
 
                     if is_quiz:
                         with db_connection() as db_conn:
@@ -432,12 +438,17 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     tid = q.get("topic_id") or topic_ids[0]
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
-                    options = [q.get("answer", "")] + distractors
+                    if len(distractors) < 3:
+                        continue
+                    options = [q.get("answer", "")] + distractors[:3]
                     py_random.shuffle(options)
                     t_en = q.get("translation_en") or q.get("translation", "")
                     t_tr = q.get("translation_tr") or q.get("translation", "")
                     why_en = q.get("why", "Correct answer based on the lesson.")
                     why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
+
+                    if re.search(r'_{2,}', q.get("prompt", "")):
+                        t_en, t_tr = _sanitize_blank_translations(q.get("prompt", ""), q.get("answer", ""), t_en, t_tr, why_en, why_tr)
 
                     if is_quiz:
                         with db_connection() as db_conn:
@@ -477,8 +488,13 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
             for r in existing_rows:
                 if len(questions) >= c_count: break
                 if not any(q["prompt"] == r["prompt"] for q in questions):
-                    d_list = json.loads(r["distractors"]) if r["distractors"] else []
-                    opts = [r["answer"]] + d_list
+                    try:
+                        d_list = json.loads(r["distractors"]) if r["distractors"] else []
+                    except Exception:
+                        d_list = []
+                    if len(d_list) < 3:
+                        continue
+                    opts = [r["answer"]] + d_list[:3]
                     py_random.shuffle(opts)
                     questions.append({
                         "id": r["id"],
