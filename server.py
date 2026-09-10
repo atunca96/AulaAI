@@ -1465,6 +1465,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _delete_student(self):
         body = self._read_body()
         student_id = body.get("student_id")
+        course_id = body.get("course_id")
         if not student_id:
             return self._send_error("student_id required")
             
@@ -1480,11 +1481,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if email in perm_emails or num in perm_nums or str(student_id).replace('student-', '') in perm_nums:
                     return self._send_error("Permanent student accounts cannot be removed", 400)
 
-            db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
-            db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
-            db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
-            db.execute("DELETE FROM messages WHERE student_id = ?", (student_id,))
-            db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
+            if course_id:
+                # Classroom-scoped removal: Only unenroll student from this course!
+                db.execute("DELETE FROM responses WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+                db.execute("DELETE FROM messages WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+                db.execute("DELETE FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, course_id))
+            else:
+                # Global removal: Delete profile and all records!
+                db.execute("DELETE FROM responses WHERE student_id = ?", (student_id,))
+                db.execute("DELETE FROM mastery_scores WHERE student_id = ?", (student_id,))
+                db.execute("DELETE FROM enrollments WHERE student_id = ?", (student_id,))
+                db.execute("DELETE FROM messages WHERE student_id = ?", (student_id,))
+                db.execute("DELETE FROM users WHERE id = ? AND role = 'student'", (student_id,))
             db.commit()
         
         bump_version()
@@ -1657,19 +1665,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             if user:
                 user = dict(user)
-                # Universal auto-enrollment for students
+                # Auto-enrollment for permanent developer students only
                 if user.get("role") == "student":
-                    from database import enroll_permanent_students_in_course
-                    courses = db.execute("SELECT id FROM courses").fetchall()
-                    for c_row in courses:
-                        cid = c_row[0]
-                        existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
-                        if not existing:
-                            import uuid
-                            db.execute("INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active) VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))", (str(uuid.uuid4()), user["id"], cid))
-                        elif existing[1] != 'approved':
-                            db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
-                    db.commit()
+                    from database import PERMANENT_STUDENTS
+                    perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+                    perm_nums = {s['number'] for s in PERMANENT_STUDENTS}
+                    u_email = user.get("email") or ""
+                    u_id = str(user.get("id") or "")
+                    is_perm = u_email in perm_emails or u_email.split('@')[0] in perm_nums or u_id.replace('student-', '') in perm_nums
+                    if is_perm:
+                        courses = db.execute("SELECT id FROM courses").fetchall()
+                        for c_row in courses:
+                            cid = c_row[0]
+                            existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
+                            if not existing:
+                                import uuid
+                                db.execute("INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active) VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))", (str(uuid.uuid4()), user["id"], cid))
+                            elif existing[1] != 'approved':
+                                db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
+                        db.commit()
 
                 # Set last_seen activity immediately on login
                 db.execute("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))
@@ -1723,20 +1737,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if not student_id:
             return self._send_error("student_id is required")
         with db_connection() as db:
-            # Self-healing: auto-enroll in all courses
-            courses = db.execute("SELECT id FROM courses").fetchall()
-            for c_row in courses:
-                cid = c_row[0]
-                existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, cid)).fetchone()
-                if not existing:
-                    import uuid
-                    db.execute("""
-                        INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
-                        VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
-                    """, (str(uuid.uuid4()), student_id, cid))
-                elif existing[1] != 'approved':
-                    db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
-            db.commit()
+            from database import PERMANENT_STUDENTS
+            perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+            perm_nums = {s['number'] for s in PERMANENT_STUDENTS}
+            u = db.execute("SELECT email FROM users WHERE id = ?", (student_id,)).fetchone()
+            u_email = u[0] if u else ""
+            is_perm = u_email in perm_emails or u_email.split('@')[0] in perm_nums or str(student_id).replace('student-', '') in perm_nums
+            if is_perm:
+                courses = db.execute("SELECT id FROM courses").fetchall()
+                for c_row in courses:
+                    cid = c_row[0]
+                    existing = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (student_id, cid)).fetchone()
+                    if not existing:
+                        import uuid
+                        db.execute("""
+                            INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                            VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                        """, (str(uuid.uuid4()), student_id, cid))
+                    elif existing[1] != 'approved':
+                        db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing[0],))
+                db.commit()
 
             enrollments = db.execute("""
                 SELECT e.*, c.name as course_name, c.code as course_code, c.textbook, c.language, c.level
@@ -1780,20 +1800,27 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not user_pwd or user_pwd == "[STUDENT_PORTAL]" or user_pwd != hashed_pwd:
                 return self._send_error("Invalid student number or password", 401)
             
-            # Universal auto-enrollment: ensure student is enrolled in every single course
-            all_courses = db.execute("SELECT id FROM courses").fetchall()
-            for c_row in all_courses:
-                cid = c_row[0]
-                existing_enroll = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
-                if not existing_enroll:
-                    import uuid
-                    db.execute("""
-                        INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
-                        VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
-                    """, (str(uuid.uuid4()), user["id"], cid))
-                elif existing_enroll[1] != 'approved':
-                    db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing_enroll[0],))
-            db.commit()
+            # Auto-enrollment for permanent developer students only
+            from database import PERMANENT_STUDENTS
+            perm_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
+            perm_nums = {s['number'] for s in PERMANENT_STUDENTS}
+            u_email = user.get("email") or ""
+            u_id = str(user.get("id") or "")
+            is_perm = u_email in perm_emails or u_email.split('@')[0] in perm_nums or u_id.replace('student-', '') in perm_nums
+            if is_perm:
+                all_courses = db.execute("SELECT id FROM courses").fetchall()
+                for c_row in all_courses:
+                    cid = c_row[0]
+                    existing_enroll = db.execute("SELECT id, status FROM enrollments WHERE student_id = ? AND course_id = ?", (user["id"], cid)).fetchone()
+                    if not existing_enroll:
+                        import uuid
+                        db.execute("""
+                            INSERT OR IGNORE INTO enrollments (id, student_id, course_id, status, pin, enrolled_at, last_active)
+                            VALUES (?, ?, ?, 'approved', NULL, datetime('now'), datetime('now'))
+                        """, (str(uuid.uuid4()), user["id"], cid))
+                    elif existing_enroll[1] != 'approved':
+                        db.execute("UPDATE enrollments SET status = 'approved' WHERE id = ?", (existing_enroll[0],))
+                db.commit()
 
             # Set last_seen activity immediately on student portal login
             db.execute("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = ?", (user["id"],))

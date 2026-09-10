@@ -68,20 +68,7 @@ def sync_permanent_students_and_enrollments(db=None):
         hashed_pwd_1234 = hash_password("1234")
         valid_emails = {f"{s['number']}@student.aulaai" for s in PERMANENT_STUDENTS}
         
-        # 1. Delete already existing non-permanent student accounts
-        obsolete_students = c.execute("SELECT id, email FROM users WHERE role = 'student'").fetchall()
-        for stu in obsolete_students:
-            stu_id, stu_email = stu[0], stu[1]
-            if stu_email not in valid_emails:
-                print(f"[DB] Purging obsolete student account: {stu_email} ({stu_id})")
-                c.execute("DELETE FROM enrollments WHERE student_id = ?", (stu_id,))
-                c.execute("DELETE FROM responses WHERE student_id = ?", (stu_id,))
-                c.execute("DELETE FROM messages WHERE student_id = ?", (stu_id,))
-                c.execute("DELETE FROM mastery_scores WHERE student_id = ?", (stu_id,))
-                c.execute("DELETE FROM sessions WHERE user_id = ?", (stu_id,))
-                c.execute("DELETE FROM users WHERE id = ?", (stu_id,))
-
-        # 2. Ensure all 8 permanent student accounts exist with password '1234'
+        # 1. Ensure all 8 permanent student accounts exist with password '1234'
         for s in PERMANENT_STUDENTS:
             email_key = f"{s['number']}@student.aulaai"
             existing = c.execute("SELECT id FROM users WHERE email = ?", (email_key,)).fetchone()

@@ -8394,18 +8394,6 @@ async function initLecturer() {
   // Check AI status
   try {
     aiStatus = await api('/ai-status');
-    const badge = document.querySelector('.nav-badge');
-    if (badge && aiStatus.ai_enabled) {
-      if (!document.getElementById('ai-active-badge')) {
-        badge.insertAdjacentHTML('afterend', '<span id="ai-active-badge" class="nav-badge" style="background:var(--accent-glow);color:var(--accent);border:1px solid var(--border);border-radius:var(--radius-sm);margin-left:6px;padding:3px 6px;font-size:10px;font-weight:700;animation:pulse-glow 2s ease-in-out infinite;">Assistant Active</span>');
-      }
-      if (!document.getElementById('ai-pulse-style')) {
-        const style = document.createElement('style');
-        style.id = 'ai-pulse-style';
-        style.textContent = '@keyframes pulse-glow{0%,100%{opacity:0.8}50%{opacity:1}}';
-        document.head.appendChild(style);
-      }
-    }
   } catch (e) { aiStatus = { ai_enabled: false }; }
 
   await Promise.all([
@@ -10063,7 +10051,7 @@ async function deleteStudent(sid, name) {
   }
   const confirmed = await showConfirmModal('confirm.kick_student_title', 'confirm.kick_student_msg', true, null, false, 'ok', 'cancel', { name });
   if (confirmed) {
-    const res = await api('/student/delete', { method: 'POST', body: { student_id: sid } });
+    const res = await api('/student/delete', { method: 'POST', body: { student_id: sid, course_id: courseId } });
     if (res && res.error) {
       showAlert('cancel', res.error, true);
     } else {
