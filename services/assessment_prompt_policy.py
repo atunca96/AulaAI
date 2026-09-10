@@ -1,7 +1,7 @@
-"""Runtime prompt policy for assessment generation.
+"""Runtime policy for assessment generation.
 
-Keeps the large legacy ai_engine stable while replacing only the V5 assessment
-instructions with a tighter V6.1 policy. Non-assessment LLM calls are untouched.
+Keeps the large legacy ai_engine stable while injecting a universal V6.2 policy
+for every supported language, CEFR level, topic, and assessment call.
 """
 
 
@@ -28,38 +28,43 @@ def install(ai_engine_module):
         rewritten = [dict(m) if isinstance(m, dict) else m for m in messages]
         old_system = str(rewritten[system_idx].get("content", ""))
 
-        v61_policy = """
-ASSESSMENT ENGINE V6.1 — COVERAGE-FIRST GENERATION
+        v62_policy = """
+ASSESSMENT ENGINE V6.2 — UNIVERSAL COVERAGE POLICY
 
-These rules override weaker or conflicting diversity wording below.
+These rules apply to EVERY supported language, CEFR level, topic, and source type. They override weaker or conflicting diversity wording below.
 
-1. PLAN THE COVERAGE BEFORE WRITING
-Silently create a coverage plan with one distinct language-learning objective per question. Generate the questions only after the objectives are non-overlapping. Different stories, names, numbers, objects, or locations do NOT make two questions different if the learner performs the same linguistic task.
+1. BUILD A TOPIC-SPECIFIC COVERAGE MAP FIRST
+Before writing questions, silently identify the distinct teachable targets actually present in the topic/source: vocabulary meanings and contrasts, grammar rules/forms, communicative functions, pragmatic choices, pronunciation distinctions, orthographic rules when explicitly taught, discourse patterns, comprehension targets, and other language skills appropriate to the CEFR level. Build the batch from different targets in that map.
 
-2. ONE OBJECTIVE = ONE QUESTION
-Do not test the same vocabulary mapping, grammatical fact, communicative function, pronunciation distinction, number-reading task, spelling fact, relationship, or reasoning operation twice in the same batch. Do not repeat an exhausted objective from previous questions either.
+2. ONE LEARNING OBJECTIVE PER QUESTION
+Every question must test a different underlying language-learning objective. Changing names, numbers, nouns, sentence order, direction, examples, locations, stories, or surface wording does NOT create a new objective. If two questions could share the same one-line learning objective, keep only one.
 
-3. LANGUAGE KNOWLEDGE MUST BE NECESSARY
-Every item must primarily test the target language. Reject ideas that are mainly arithmetic, geography/general knowledge, visual pattern recognition, or world knowledge with target-language words wrapped around them.
+3. PRIOR QUESTIONS EXHAUST THEIR OBJECTIVES
+Treat all previous prompts and answers supplied in the request as already-used learning objectives. Do not paraphrase, reverse, re-skin, rename, renumber, or otherwise recreate the same target in a new scenario.
 
-4. NUMBER TOPICS: TEST LANGUAGE, NOT MATH
-For number-related topics, arithmetic may appear in at most TWO questions. All other questions must use genuinely different linguistic functions, chosen across areas such as: saying a price, understanding a price, telling time, age, dates, addresses, phone digits, room/line/platform numbers, quantities, measurements, ordering, schedules, and number forms in natural utterances.
-Crucially, "read/pronounce this numeral in context" is ONE objective. Do NOT repeat it with a hotel room, page number, shoe size, bus line, address, platform, price, or any other changed wrapper.
+4. TARGET-LANGUAGE KNOWLEDGE MUST BE NECESSARY
+A learner should need knowledge of the target language and the lesson content to answer correctly. Reject questions whose answer can be derived mainly from arithmetic, general/world knowledge, geography, trivia, visual pattern recognition, common-sense logic, counting, or information explicitly revealed by the prompt itself.
 
-5. NO META-SPELLING OR FORM-TRIVIA
-Do not ask whether a number/word is written as one word, which option contains an accent/tilde, how many letters it has, which spelling merely looks right, or similar string-property trivia unless orthography itself is explicitly the lesson topic.
+5. STAY INSIDE THE PEDAGOGICAL SCOPE
+Do not invent unrelated knowledge just to create variety. Expand only to natural, CEFR-appropriate uses of the same lesson theme. For narrow topics, vary the linguistic skill being tested rather than importing outside facts.
 
-6. NO GENERAL-KNOWLEDGE SUBSTITUTES
-Do not ask facts such as how many countries, days, continents, planets, corners, or other factual quantities merely to elicit a number. The tested knowledge must come from the language lesson, not outside knowledge.
+6. NO SHALLOW META-TRIVIA
+Do not ask about string length, number of letters, which option merely looks correctly spelled, whether a word is written as one word, accent/tilde presence, character shape, or similar visual/meta properties unless that exact orthographic feature is explicitly the lesson objective. For alphabet/pronunciation lessons, test genuine sound-letter use in authentic language, not trivia about symbols.
 
-7. FORMAT BREADTH
-Use a balanced mix of situational choice, dialogue response, contextual comprehension, form/meaning discrimination, and at most two fill-in-the-blank items. Do not reuse the same question archetype more than twice.
+7. FORMAT DIVERSITY MUST FOLLOW OBJECTIVE DIVERSITY
+Use a natural mix of situational choice, dialogue response, contextual comprehension, form/meaning discrimination, sentence completion, interpretation, and production-oriented recognition as appropriate to the topic. Do not reuse one question archetype more than twice, and do not use format variation to disguise a repeated learning objective.
 
-8. FINAL PAIRWISE AUDIT
-Before returning JSON, compare every pair of questions. For each pair ask: "Could both be described by the same one-line learning objective?" If yes, replace one. Also replace any question a non-speaker could answer reliably without target-language knowledge.
+8. ANSWER AND DISTRACTOR QUALITY
+The correct answer and all distractors must belong to the same grammatical/semantic class, be plausible at the learner's level, and avoid visual or length giveaways. Distractors should represent realistic learner confusions related to the exact target, not random wrong answers.
+
+9. TOPIC-TYPE ADAPTATION
+Adapt the assessment method to the content instead of forcing every topic into the same templates. Vocabulary should test use/contrast/context; grammar should test form-function distinctions in context; pronunciation should test authentic sound distinctions; communicative topics should test what a speaker would naturally understand or say; reading/comprehension should test meaning from context. Apply the equivalent principle to any other topic type.
+
+10. FINAL PAIRWISE AUDIT
+Before returning JSON, compare every pair of questions and silently label each with its one-line learning objective. Replace any pair whose objectives overlap materially. Also replace any item that tests outside knowledge more than language knowledge, leaks its answer, falls outside the source/topic, or would remain answerable by a non-speaker.
 """
 
-        # Remove legacy examples that bias the model toward arithmetic/meta-trivia.
+        # Remove legacy examples that can anchor generation to one language or exercise style.
         legacy_examples = [
             '* Example: "¿Cuánto es setenta más treinta?"\n',
             '* Example: "¿En cuál de las siguientes palabras la letra \'g\' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]\n',
@@ -67,9 +72,9 @@ Before returning JSON, compare every pair of questions. For each pair ask: "Coul
         for example in legacy_examples:
             old_system = old_system.replace(example, "")
 
-        rewritten[system_idx]["content"] = v61_policy + old_system.replace(
+        rewritten[system_idx]["content"] = v62_policy + old_system.replace(
             "Pedagogic Assessment Engine (V5)",
-            "Pedagogic Assessment Engine (V6.1)",
+            "Pedagogic Assessment Engine (V6.2)",
             1,
         )
 
@@ -78,9 +83,9 @@ Before returning JSON, compare every pair of questions. For each pair ask: "Coul
                 content = str(m.get("content", ""))
                 if "TASK: Generate EXACTLY" in content:
                     rewritten[i]["content"] = (
-                        "COVERAGE-FIRST REQUIREMENT: Decide all distinct learning objectives before writing any question. "
-                        "Do not create paraphrases of one task. For number topics, arithmetic <= 2 and numeral-reading/pronunciation-in-context <= 1. "
-                        "Do not use general-knowledge quantity questions or spelling/tilde/one-word trivia.\n\n"
+                        "UNIVERSAL COVERAGE REQUIREMENT: First derive distinct learning objectives from THIS topic/source, then write one question per objective. "
+                        "Do not use different scenarios to disguise the same task. Every item must primarily test target-language knowledge, stay inside the topic, and remain CEFR-appropriate. "
+                        "Avoid outside-knowledge, arithmetic, trivia, visual-pattern, and meta-spelling questions unless such knowledge is explicitly the lesson target.\n\n"
                         + content
                     )
                     break
