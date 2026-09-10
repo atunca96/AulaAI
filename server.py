@@ -2188,18 +2188,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         import concurrent.futures
         import threading
         
-        def update_prog(p, status='generating', results=None):
+        def update_prog(p, status='generating', results=None, message=None):
             task_dict = {"percentage": p, "status": status}
             if results is not None:
                 task_dict["results"] = results
+            if message is not None:
+                task_dict["message"] = message
             set_activity_task(task_id, task_dict)
             if user_id:
                 set_activity_task(f"{course_id}_{user_id}_{topic_id}", task_dict)
 
-        update_prog(10)
-        class ProgressState:
-            def __init__(self): self.is_done = False
-        state = ProgressState()
+        msg_init = "Ders içeriği taranıyor..." if ui_lang == "tr" else "Scanning lesson content..."
+        update_prog(15, message=msg_init)
 
         try:
             with db_connection() as db:
@@ -2214,23 +2214,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
             topic_type = topic.get("type", "vocabulary")
-
-            # ── V4 ACTIVITY ENGINE (GEMINI 2.0 FLASH WITH DETERMINISTIC FALLBACK) ──
             count = 10
 
-            def ticker_worker():
-                import math
-                start_time = time.time()
-                est_time = 18.0
-                while not state.is_done:
-                    time.sleep(0.6)
-                    elapsed = time.time() - start_time
-                    k = 2.0 / est_time
-                    p = 5 + 85 * (1 - math.exp(-k * elapsed))
-                    update_prog(int(min(p, 90)))
-            
-            threading.Thread(target=ticker_worker, daemon=True).start()
-            update_prog(15)
+            msg_gen = "Yapay zekâ ile özgün sorular üretiliyor..." if ui_lang == "tr" else "AI generating unique questions..."
+            update_prog(40, message=msg_gen)
 
             existing_prompts = set(q.get("prompt", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("prompt"))
             existing_answers = set(q.get("answer", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("answer"))
@@ -2241,13 +2228,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     fut = executor.submit(ai_generate_activity_batch, topic["title"], topic_type, content, language, 10, topic.get("difficulty", "A1"), existing_questions, False, None, material_language)
                     try:
-                        batch = fut.result(timeout=20.0)
+                        batch = fut.result(timeout=15.0)
                         if batch: raw_activities = list(batch)
                     except concurrent.futures.TimeoutError:
-                        print(f"[BG] Activity generation timed out after 20s. Proceeding to fallback.")
+                        print(f"[BG] Activity generation timed out after 15s. Proceeding to fallback.")
             except Exception as e:
                 print(f"[BG] Activity Generation Failed: {e}")
             
+            msg_val = "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy..."
+            update_prog(75, message=msg_val)
+
             # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages & items
             if len(raw_activities) < count and isinstance(content, dict):
                 pages = list(content.get("pages", []))
@@ -2256,7 +2246,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if len(raw_activities) >= count: break
                     if p.get("type") == "mcq" and p.get("prompt") and p.get("answer"):
                         prompt_text = p.get("prompt_tr") if material_language == "tr" and p.get("prompt_tr") else p.get("prompt")
+                        ans_text = p.get("answer")
                         if existing_prompts and prompt_text in existing_prompts:
+                            continue
+                        if existing_answers and ans_text in existing_answers:
                             continue
                         if not any(a.get("prompt") == prompt_text for a in raw_activities):
                             opts = list(p.get("options", []))
@@ -2285,9 +2278,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 except Exception as ex_fb:
                     print(f"[BG] Fallback batch error: {ex_fb}")
 
-            state.is_done = True
+            msg_opt = "Çeviriler ve açıklamalar optimize ediliyor..." if ui_lang == "tr" else "Optimizing translations and hints..."
+            update_prog(90, message=msg_opt)
+
             final_questions = raw_activities[:count]
-            update_prog(100, status='done', results=final_questions)
+            msg_done = "Sorular hazır!" if ui_lang == "tr" else "Questions ready!"
+            update_prog(100, status='done', results=final_questions, message=msg_done)
             print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} fresh questions.")
 
         except Exception as e:
@@ -2346,6 +2342,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._send_json({
                 "status": task.get("status", "idle"),
                 "percentage": task.get("percentage", 0),
+                "message": task.get("message", ""),
                 "results": task.get("results")
             })
 

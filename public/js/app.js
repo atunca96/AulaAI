@@ -8791,7 +8791,8 @@ function handleActivityTopicChange() {
   let content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
   if (content && Array.isArray(content.activities) && content.activities.length > 0) {
     preview.classList.remove('hidden');
-    _lastActivityData = { activities: content.activities, topic: topic };
+    _lastActivityData = { activities: content.activities, topic: topic, topicId: topicId };
+    registerSeenQuestions(topicId, content.activities);
     const title = getLocalizedCurriculumTitle(topic, currentLang);
     const isStudent = currentUser && currentUser.role === 'student';
     const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
@@ -8807,30 +8808,67 @@ function handleActivityTopicChange() {
   }
 }
 
+window._topicSeenQuestions = window._topicSeenQuestions || {};
+
+function registerSeenQuestions(topicId, questions) {
+  if (!topicId || !Array.isArray(questions)) return;
+  const tid = String(topicId);
+  if (!window._topicSeenQuestions[tid]) {
+    window._topicSeenQuestions[tid] = [];
+  }
+  for (const q of questions) {
+    if (q && (q.prompt || q.answer)) {
+      const exists = window._topicSeenQuestions[tid].some(
+        sq => sq.prompt === q.prompt || (sq.answer && sq.answer === q.answer)
+      );
+      if (!exists) {
+        window._topicSeenQuestions[tid].push({
+          prompt: q.prompt || '',
+          answer: q.answer || ''
+        });
+      }
+    }
+  }
+}
+
+function getSeenQuestions(topicId) {
+  if (!topicId) return [];
+  const list = window._topicSeenQuestions[String(topicId)] || [];
+  return list.slice(-25); // Pass up to last 25 seen questions for this topic
+}
+
 let activityProgressInterval = null;
 
 function showGenerationLoading(el) {
   if (activityProgressInterval) clearInterval(activityProgressInterval);
+  const isTr = currentLang === 'tr';
   el.innerHTML = `
-    <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
-      <div class="bot-animation" style="margin-bottom:16px;"><div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 20px var(--accent-glow);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div></div>
-      <h3 style="margin-bottom:12px;" data-i18n="gen.generating">${t('gen.generating')}</h3>
-      <div style="max-width:300px; margin:20px auto 8px; background:var(--border); border-radius:10px; height:8px; overflow:hidden;">
-        <div id="activity-progress-fill" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); transition:width 0.4s ease;"></div>
+    <div style="padding:36px 24px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top:24px;">
+      <div class="loader-container" style="margin:0 auto 20px; position:relative; width:56px; height:56px;">
+        <div class="loader-ring" style="width:56px; height:56px; border-radius:50%; border:3px solid rgba(255,255,255,0.06); border-top-color:var(--accent); animation:spin 1s linear infinite;"></div>
+        <div class="loader-glow" style="position:absolute; inset:0; background:var(--accent); filter:blur(20px); opacity:0.25; border-radius:50%;"></div>
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+          <svg style="width:24px;height:24px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+        </div>
       </div>
-      <div id="activity-progress-text" style="font-size:12px; font-weight:700; color:var(--accent);">0%</div>
-      <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
+      <h3 style="font-size:20px; font-weight:700; margin-bottom:6px; color:var(--text-primary);">${isTr ? 'Sorular Hazırlanıyor...' : 'Generating Questions...'}</h3>
+      <p style="color:var(--text-secondary); font-size:13px; margin-bottom:20px; max-width:380px; margin-left:auto; margin-right:auto;">
+        ${isTr ? 'Yapay zekâ ders içeriğine göre özgün soruları ve seçenekleri yapılandırıyor.' : 'AI is structuring authentic questions and distractors for this topic.'}
+      </p>
+
+      <div id="activity-progress-box" style="width:100%; max-width:380px; margin:0 auto 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:8px;">
+          <span id="activity-progress-status" style="color:var(--accent); font-weight:600;">${isTr ? 'Ders içeriği taranıyor...' : 'Scanning lesson content...'}</span>
+          <span id="activity-progress-text" style="font-family:monospace; font-weight:700; color:#fff;">15%</span>
+        </div>
+        <div style="width:100%; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+          <div id="activity-progress-fill" style="height:100%; width:15%; background:var(--gradient-2); transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+      <p style="color:var(--text-muted); font-size:12px; margin:0;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
-    <style>
-      .bot-animation {
-        animation: bot-bounce 2s infinite ease-in-out;
-        display: inline-block;
-      }
-      @keyframes bot-bounce {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-12px) scale(1.1); }
-      }
-    </style>
   `;
 }
 
@@ -8839,6 +8877,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
   if (!el) return;
   const fill = el.querySelector('#activity-progress-fill');
   const text = el.querySelector('#activity-progress-text');
+  const statusEl = el.querySelector('#activity-progress-status');
 
   window._retryEmptyPoll = 0;
   window._actPollErrors = 0;
@@ -8852,27 +8891,31 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
     window._actTotalPolls = (window._actTotalPolls || 0) + 1;
     try {
       let pollUrl = `/activity/progress?course_id=${activeCourseId}&v=${Date.now()}`;
-      if (taskId) {
-        pollUrl += `&task_id=${encodeURIComponent(taskId)}`;
-      }
-      if (uid) {
-        pollUrl += `&user_id=${encodeURIComponent(uid)}`;
-      }
-      if (topicId) {
-        pollUrl += `&topic_id=${encodeURIComponent(topicId)}`;
-      }
+      if (taskId) pollUrl += `&task_id=${encodeURIComponent(taskId)}`;
+      if (uid) pollUrl += `&user_id=${encodeURIComponent(uid)}`;
+      if (topicId) pollUrl += `&topic_id=${encodeURIComponent(topicId)}`;
+
       const data = await api(pollUrl);
       if (data && !data.error) {
         window._actPollErrors = 0;
-        if (fill) fill.style.width = data.percentage + '%';
-        if (text) text.textContent = data.percentage + '%';
+        const pct = Math.max(0, Math.min(100, Math.round(data.percentage || 0)));
+        if (fill) fill.style.width = pct + '%';
+        if (text) text.textContent = pct + '%';
+        if (statusEl && data.message) statusEl.textContent = translateBuildMessage(data.message);
+
         if (data.status === 'done') {
           if (data.results && data.results.length > 0) {
             clearInterval(activityProgressInterval);
+            if (fill) fill.style.width = '100%';
+            if (text) text.textContent = '100%';
+            if (statusEl) statusEl.textContent = currentLang === 'tr' ? 'Sorular hazır!' : 'Questions ready!';
             clearActivityAnsweredState();
+
             // Retrieve current topic title if available (without polluting content.activities cache)
             const actSelect = document.getElementById('activity-topic-select');
             const curTid = topicId || (actSelect ? actSelect.value : null);
+            registerSeenQuestions(curTid, data.results);
+
             let currentTopic = null;
             if (curTid && (window.curriculum || curriculum)) {
               for (const ch of (window.curriculum || curriculum)) {
@@ -8887,33 +8930,36 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
             const isStudent = currentUser && currentUser.role === 'student';
             const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : title;
             const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
-            document.getElementById(targetId).innerHTML = header + data.results.map((a, i) => renderActivityCard(a, i, targetId)).join('');
-            const genBtn = document.getElementById('generate-activity-btn');
-            if (genBtn) {
-              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
-              genBtn.disabled = false;
-              genBtn.removeAttribute('data-generating');
-            }
+            
+            setTimeout(() => {
+              document.getElementById(targetId).innerHTML = header + data.results.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+              const genBtn = document.getElementById('generate-activity-btn');
+              if (genBtn) {
+                genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
+                genBtn.disabled = false;
+                genBtn.removeAttribute('data-generating');
+              }
+            }, 300);
             return;
           } else {
             // Done but no results - wait a few more polls or show error
             if (!window._retryEmptyPoll) window._retryEmptyPoll = 0;
             window._retryEmptyPoll++;
-            if (window._retryEmptyPoll > 15) {
-                clearInterval(activityProgressInterval);
-                const genBtn = document.getElementById('generate-activity-btn');
-                if (genBtn) {
-                  genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
-                  genBtn.disabled = false;
-                  genBtn.removeAttribute('data-generating');
-                }
-                document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
-                    <div style="margin-bottom:16px;">${SVG_SEARCH}</div>
-                    <div style="font-weight:700; margin-bottom:8px;">${currentLang === 'tr' ? 'Soru bulunamadı' : 'No questions found'}</div>
-                    <div style="font-size:14px; margin-bottom:16px;">${currentLang === 'tr' ? 'Bu konu içeriği için sorular henüz üretilemedi. Lütfen tekrar deneyin.' : 'Questions could not be generated for this topic content. Please try again.'}</div>
-                    <button class="btn btn-primary btn-sm" onclick="launchActivity()">${currentLang === 'tr' ? 'Tekrar Dene' : 'Try Again'}</button>
-                </div>`;
-                return;
+            if (window._retryEmptyPoll > 10) {
+              clearInterval(activityProgressInterval);
+              const genBtn = document.getElementById('generate-activity-btn');
+              if (genBtn) {
+                genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+                genBtn.disabled = false;
+                genBtn.removeAttribute('data-generating');
+              }
+              document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
+                  <div style="margin-bottom:16px;">${SVG_SEARCH}</div>
+                  <div style="font-weight:700; margin-bottom:8px;">${currentLang === 'tr' ? 'Soru bulunamadı' : 'No questions found'}</div>
+                  <div style="font-size:14px; margin-bottom:16px;">${currentLang === 'tr' ? 'Bu konu içeriği için sorular henüz üretilemedi. Lütfen tekrar deneyin.' : 'Questions could not be generated for this topic content. Please try again.'}</div>
+                  <button class="btn btn-primary btn-sm" onclick="launchActivity()">${currentLang === 'tr' ? 'Tekrar Dene' : 'Try Again'}</button>
+              </div>`;
+              return;
             }
           }
         } else if (data.status === 'error') {
@@ -8934,32 +8980,8 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
         window._actPollErrors = (window._actPollErrors || 0) + 1;
       }
 
-      // Safety fallback: if background generation is taking longer than 22s (55 polls), try direct activities
-      if ((window._actTotalPolls > 55 || window._actPollErrors >= 4) && topicId) {
-        try {
-          const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
-          if (Array.isArray(directData) && directData.length > 0) {
-            clearInterval(activityProgressInterval);
-            clearActivityAnsweredState();
-            _lastActivityData = { activities: directData, topic: null };
-            const isStudent = currentUser && currentUser.role === 'student';
-            const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
-            document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
-            const genBtn = document.getElementById('generate-activity-btn');
-            if (genBtn) {
-              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
-              genBtn.disabled = false;
-              genBtn.removeAttribute('data-generating');
-            }
-            return;
-          }
-        } catch (fbErr) {
-          console.warn("Activity safety fallback error:", fbErr);
-        }
-      }
-
-      // Hard timeout fallback after ~30s (75 polls): don't freeze indefinitely
-      if (window._actTotalPolls > 75) {
+      // Hard timeout fallback after ~30s (100 polls): don't freeze indefinitely
+      if (window._actTotalPolls > 100) {
         clearInterval(activityProgressInterval);
         const genBtn = document.getElementById('generate-activity-btn');
         if (genBtn) {
@@ -8975,27 +8997,8 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
     } catch (e) {
       console.error("Poll Error:", e);
       window._actPollErrors = (window._actPollErrors || 0) + 1;
-      if (window._actPollErrors >= 5 && topicId) {
-        try {
-          const directData = await api(`/activity?topic_id=${encodeURIComponent(topicId)}`);
-          if (Array.isArray(directData) && directData.length > 0) {
-            clearInterval(activityProgressInterval);
-            clearActivityAnsweredState();
-            _lastActivityData = { activities: directData, topic: null };
-            const isStudent = currentUser && currentUser.role === 'student';
-            const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
-            document.getElementById(targetId).innerHTML = header + directData.map((a, i) => renderActivityCard(a, i, targetId)).join('');
-            const genBtn = document.getElementById('generate-activity-btn');
-            if (genBtn) {
-              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
-              genBtn.disabled = false;
-              genBtn.removeAttribute('data-generating');
-            }
-          }
-        } catch (e2) {}
-      }
     }
-  }, 400);
+  }, 300);
 }
 
 let draftProgressInterval = null;
@@ -9074,16 +9077,10 @@ async function launchActivity() {
   const activeCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
   try {
-    let existingQuestions = [];
     if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
-      const lastTid = _lastActivityData.topicId || (_lastActivityData.topic && _lastActivityData.topic.id);
-      if (!lastTid || String(lastTid) === String(topicId)) {
-        existingQuestions = _lastActivityData.activities.map(a => ({
-          prompt: a.prompt || '',
-          answer: a.answer || ''
-        })).filter(q => q.prompt);
-      }
+      registerSeenQuestions(topicId, _lastActivityData.activities);
     }
+    const existingQuestions = getSeenQuestions(topicId);
 
     // 1. Kick off the background task
     const res = await api('/activity/start', {
@@ -10453,16 +10450,10 @@ async function startPractice(tid, title) {
   }
 
   try {
-    let existingQuestions = [];
     if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
-      const lastTid = _lastActivityData.topicId || (_lastActivityData.topic && _lastActivityData.topic.id);
-      if (!lastTid || String(lastTid) === String(tid)) {
-        existingQuestions = _lastActivityData.activities.map(a => ({
-          prompt: a.prompt || '',
-          answer: a.answer || ''
-        })).filter(q => q.prompt);
-      }
+      registerSeenQuestions(tid, _lastActivityData.activities);
     }
+    const existingQuestions = getSeenQuestions(tid);
 
     // 1. Kick off the background task
     const res = await api('/activity/start', {

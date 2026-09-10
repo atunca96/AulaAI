@@ -234,8 +234,10 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                 "order": ["Google AI Studio", "Google"],
                 "allow_fallbacks": True
             }
-            # For interactive/assessment tasks (quizzes, activities, translations), use low reasoning effort for fast 5-8s generation
-            if max_tokens <= 6000:
+            # For interactive/assessment tasks (quizzes, activities, translations), disable reasoning tokens for instantaneous 2-4s response
+            if max_tokens <= 2500:
+                req_payload["reasoning"] = {"effort": "none"}
+            elif max_tokens <= 6000:
                 req_payload["reasoning"] = {"effort": "low"}
 
         # Suppress reasoning tokens for other models where not needed
@@ -312,15 +314,35 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 2, int(c * 1.15))
+    gen_count = max(c + 4, int(c * 1.3))
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
-    # Use override if provided (for speed during build), else use topic_content
+    # Use override if provided (for speed during build), else extract concise target material
     if source_text_override:
-        content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:10000]}"
+        content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:8000]}"
+    elif isinstance(topic_content, dict):
+        extracted_vocab = []
+        extracted_notes = []
+        for p in topic_content.get("pages", []):
+            if p.get("title") and p.get("title") not in extracted_notes:
+                extracted_notes.append(p.get("title"))
+            for it in p.get("items", []):
+                if isinstance(it, dict) and it.get("term"):
+                    term = it.get("term", "").strip()
+                    tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
+                    extracted_vocab.append(f"{term} ({tr})" if tr else term)
+        
+        parts = []
+        if extracted_vocab: parts.append("TARGET VOCABULARY: " + ", ".join(extracted_vocab[:25]))
+        if extracted_notes: parts.append("LESSON CORE THEMES: " + " | ".join(extracted_notes[:5]))
+        
+        if parts:
+            content_str = "\n".join(parts)
+        else:
+            content_str = json.dumps(topic_content, ensure_ascii=False)[:3000]
     else:
-        content_str = json.dumps(topic_content, ensure_ascii=False)
+        content_str = str(topic_content)[:3000]
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     from services.cefr_reference import get_cefr_conditioning
@@ -461,6 +483,17 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             
             if not (p and a and isinstance(d, list)):
                 continue
+
+            # STRICT DIVERSITY FILTER: Absolute rejection of any repeated prompt or target answer from previous rounds
+            if existing_prompts:
+                p_norm = re.sub(r'[^\w\s]', '', p.lower()).strip()
+                if any(p_norm == re.sub(r'[^\w\s]', '', ep).strip() for ep in existing_prompts):
+                    continue
+                if any(len(ep) > 15 and (ep in p.lower() or p.lower() in ep) for ep in existing_prompts):
+                    continue
+            if existing_answers:
+                if a.lower().strip() in existing_answers:
+                    continue
 
             # Reject prompts containing Turkish instructional words (must be 100% target language)
             tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
