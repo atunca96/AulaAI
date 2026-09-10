@@ -314,7 +314,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 4, int(c * 1.3))
+    gen_count = max(c + 5, int(c * 1.5))
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -354,6 +354,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     elif any(x in topic_title.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
  
+    existing_prompts = set()
+    existing_answers = set()
+    if existing_questions and isinstance(existing_questions, list):
+        for q in existing_questions:
+            if isinstance(q, dict):
+                p = str(q.get("prompt", "")).strip()
+                a = str(q.get("answer", "")).strip()
+                if p: existing_prompts.add(p)
+                if a: existing_answers.add(a.lower())
+
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
         qs_list = "\n".join([
@@ -366,7 +376,7 @@ STRICT DIVERSITY & ANTI-REPETITION MANDATE (ABSOLUTE):
 The user is regenerating activities. You MUST generate COMPLETELY NEW, DIVERSE, and NON-REPEATING questions.
 DO NOT repeat ANY of the following previous prompts, question concepts, or target answers:
 {qs_list}
-Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammatical points, or DIFFERENT communicative scenarios from the textbook source!"""
+Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammatical points, or DIFFERENT communicative scenarios suited to the topic!"""
 
     variety_focuses = [
         "Focus on real-world communicative dialogues and practical situational exchanges.",
@@ -411,8 +421,10 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
        - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
     5. HOMOGENEITY RULE:
        - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, or all questions).
-    6. MATERIAL FIDELITY & SITUATIONAL FLUENCY:
-       - Only use concepts from the SOURCE MATERIAL. Create realistic communicative scenarios.
+    6. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:
+       - Use the provided source material and vocabulary as your pedagogical baseline for CEFR {level}.
+       - You have FULL PEDAGOGICAL FREEDOM to draw upon the rich, natural conversational vocabulary, diverse situational dialogues, cultural expressions, and communicative scenarios of authentic {language} appropriate for level {level} within the theme of '{topic_title}'.
+       - Never artificially restrict questions to ONLY the exact 5-8 sample words listed when generating multiple rounds of questions; expand freely into natural variations, related phrases, and real-life dialogues suited to this topic and level so every regeneration is fresh and engaging.
     7. DISTRACTOR PLAUSIBILITY & LENGTH SYMMETRY MANDATE (CRITICAL):
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
        - NO ABSURD OR OFF-TARGET DISTRACTORS: Every single distractor must be a genuine, grammatically plausible, authentic item from {language}. NEVER use letters, symbols, or words that do not belong to {language} (e.g. NEVER use 'Ç' in Spanish, NEVER use characters from other alphabets).
@@ -433,7 +445,7 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
     {forbidden_clause}
     
     PEDAGOGICAL EMPHASIS: {selected_variety_focus}
-    VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question.
+    VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question. Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition.
     MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
     
     JSON STRUCTURE:

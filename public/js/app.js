@@ -8834,7 +8834,7 @@ function registerSeenQuestions(topicId, questions) {
 function getSeenQuestions(topicId) {
   if (!topicId) return [];
   const list = window._topicSeenQuestions[String(topicId)] || [];
-  return list.slice(-25); // Pass up to last 25 seen questions for this topic
+  return list.slice(-15); // Pass last 15 seen questions for this topic
 }
 
 let activityProgressInterval = null;
