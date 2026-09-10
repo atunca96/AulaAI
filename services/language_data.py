@@ -4042,6 +4042,153 @@ VOCAB_EXAMPLE_BANK = {
             "example_tr": "Fotoğrafçılık benim başlıca hobimdir.",
             "tip_en": "Compound word: 'pasar' (spend) + 'tiempo' (time). Plural: 'los pasatiempos'.",
             "tip_tr": "'Pasar' (geçirmek) ve 'tiempo' (zaman) birleşimidir. Çoğulu: 'los pasatiempos'."
+        },
+        "cero": {
+            "example": "La temperatura bajó a cero grados esta noche.",
+            "example_en": "The temperature dropped to zero degrees tonight.",
+            "example_tr": "Sıcaklık bu gece sıfır dereceye düştü.",
+            "tip_en": "Used with plural nouns: 'cero grados', 'cero errores'.",
+            "tip_tr": "Çoğul isimlerle kullanılır: 'cero grados' (sıfır derece)."
+        },
+        "uno": {
+            "example": "Solo queda un billete para el tren de las ocho.",
+            "example_en": "Only one ticket remains for the eight o'clock train.",
+            "example_tr": "Saat sekiz treni için sadece bir bilet kaldı.",
+            "tip_en": "Shortens to 'un' before masculine singular nouns: 'un billete'. Feminine is 'una'.",
+            "tip_tr": "Eril tekil isimlerden önce 'un' şeklinde kısalır: 'un billete'. Dişili 'una'dır."
+        },
+        "dos": {
+            "example": "Necesito dos billetes de ida y vuelta para Madrid.",
+            "example_en": "I need two round-trip tickets to Madrid.",
+            "example_tr": "Madrid için iki gidiş-dönüş bileti istiyorum.",
+            "tip_en": "Invariable for gender; used with both masculine and feminine nouns: 'dos billetes', 'dos maletas'.",
+            "tip_tr": "Cinsiyete göre değişmez; hem eril hem dişil isimlerle 'dos' olarak kullanılır."
+        },
+        "tres": {
+            "example": "El museo abre las puertas a las tres de la tarde.",
+            "example_en": "The museum opens its doors at three in the afternoon.",
+            "example_tr": "Müze kapılarını öğleden sonra saat üçte açıyor.",
+            "tip_en": "Used in clock times with the feminine plural article: 'a las tres'.",
+            "tip_tr": "Saat söylerken dişil çoğul tanımlıkla kullanılır: 'a las tres' (saat üçte)."
+        },
+        "cuatro": {
+            "example": "Tenemos una reunión programada en la sala número cuatro.",
+            "example_en": "We have a meeting scheduled in room number four.",
+            "example_tr": "Dört numaralı salonda planlanmış bir toplantımız var.",
+            "tip_en": "Invariable cardinal number; stays 'cuatro' before any noun.",
+            "tip_tr": "Değişmez sayma sayısıdır; her ismin önünde 'cuatro' olarak kalır."
+        },
+        "cinco": {
+            "example": "El tren de cercanías sale de la vía cinco en diez minutos.",
+            "example_en": "The commuter train departs from track five in ten minutes.",
+            "example_tr": "Banliyö treni on dakika içinde beş numaralı perondan kalkıyor.",
+            "tip_en": "Remains unchanged before masculine and feminine nouns: 'cinco euros', 'cinco horas'.",
+            "tip_tr": "Eril ve dişil isimlerin önünde değişmez: 'cinco euros' (beş avro), 'cinco horas' (beş saat)."
+        },
+        "seis": {
+            "example": "El vuelo con destino a Barcelona tiene un retraso de seis horas.",
+            "example_en": "The flight to Barcelona has a six-hour delay.",
+            "example_tr": "Barselona uçuşunda altı saatlik bir gecikme var.",
+            "tip_en": "Pronounced with a clear diphthong: [seys]. Invariable for gender.",
+            "tip_tr": "Diftong ile telaffuz edilir: [seys]. Cinsiyete göre değişmez."
+        },
+        "siete": {
+            "example": "El supermercado cierra todos los días a las siete en punto.",
+            "example_en": "The supermarket closes every day at seven sharp.",
+            "example_tr": "Süpermarket her gün tam saat yedide kapanıyor.",
+            "tip_en": "Takes 'a las' in clock expressions: 'a las siete de la tarde'.",
+            "tip_tr": "Saat ifadelerinde 'a las' kalıbı alır: 'a las siete' (saat yedide)."
+        },
+        "ocho": {
+            "example": "El desayuno buffet se sirve a partir de las ocho de la mañana.",
+            "example_en": "The breakfast buffet is served starting at eight in the morning.",
+            "example_tr": "Açık büfe kahvaltı sabah saat sekizden itibaren servis edilir.",
+            "tip_en": "Starts with silent 'h': pronounced [OH-choh].",
+            "tip_tr": "'H' harfi sessizdir; doğrudan [oço] olarak okunur."
+        },
+        "nueve": {
+            "example": "La habitación número nueve está situada en la segunda planta.",
+            "example_en": "Room number nine is located on the second floor.",
+            "example_tr": "Dokuz numaralı oda ikinci katta yer almaktadır.",
+            "tip_en": "Written with 'v', pronounced as a soft bilabial consonant.",
+            "tip_tr": "'V' harfiyle yazılır ve dudaklar birbirine hafif değdirilerek sesletilir."
+        },
+        "diez": {
+            "example": "El menú del día incluye primer plato, postre y bebida por diez euros.",
+            "example_en": "The daily menu includes first course, dessert, and drink for ten euros.",
+            "example_tr": "Günün menüsüne başlangıç, tatlı ve içecek dahil on avrodur.",
+            "tip_en": "Spelled with final 'z'. Pluralized in derivatives as 'decenas'.",
+            "tip_tr": "Sonunda 'z' harfi bulunur. İspanya'da peltek, Latin Amerika'da 's' gibi sesletilir."
+        },
+        "once": {
+            "example": "El tren nocturno llega a la estación central a las once de la noche.",
+            "example_en": "The night train arrives at the central station at eleven at night.",
+            "example_tr": "Gece treni merkez istasyona gece saat on birde varıyor.",
+            "tip_en": "Irregular cardinal number derived from Latin 'undecim'.",
+            "tip_tr": "Latinceden gelen kuralsız sayma sayısıdır; telaffuzu [onse] şeklindedir."
+        },
+        "doce": {
+            "example": "El registro de salida del hotel debe completarse antes de las doce del mediodía.",
+            "example_en": "Hotel check-out must be completed before twelve noon.",
+            "example_tr": "Otelden çıkış işlemleri öğlen saat on ikiden önce tamamlanmalıdır.",
+            "tip_en": "'Las doce' can mean noon ('las doce del mediodía') or midnight ('las doce de la noche').",
+            "tip_tr": "'Las doce del mediodía' öğlen 12'yi, 'las doce de la noche' gece yarısı 12'yi ifade eder."
+        },
+        "trece": {
+            "example": "El ascensor del hotel internacional no dispone de parada en el piso trece.",
+            "example_en": "The international hotel elevator does not have a stop on the thirteenth floor.",
+            "example_tr": "Uluslararası otelin asansöründe on üçüncü kat durağı bulunmuyor.",
+            "tip_en": "In Hispanic culture, Tuesday the 13th ('martes 13') is considered superstitious rather than Friday the 13th.",
+            "tip_tr": "İspanyol kültüründe uğursuz gün Cuma 13 değil, Salı 13'tür ('martes 13')."
+        },
+        "catorce": {
+            "example": "El congreso sobre lingüística aplicada durará catorce días lectivos.",
+            "example_en": "The conference on applied linguistics will last fourteen working days.",
+            "example_tr": "Uygulamalı dilbilim kongresi on dört çalışma günü sürecek.",
+            "tip_en": "Invariable cardinal number; derived from Latin 'quattuordecim'.",
+            "tip_tr": "Değişmez sayma sayısıdır; [katorse] şeklinde okunur."
+        },
+        "quince": {
+            "example": "El trayecto en metro directo hasta el aeropuerto dura solo quince minutos.",
+            "example_en": "The direct metro ride to the airport takes only fifteen minutes.",
+            "example_tr": "Havalimanına doğrudan metro yolculuğu sadece on beş dakika sürüyor.",
+            "tip_en": "'Quince días' is the standard Spanish idiom for 'two weeks' or a fortnight.",
+            "tip_tr": "'Quince días' (on beş gün), İspanyolcada iki haftalık süreyi ifade eden standart kalıptır."
+        },
+        "dieciséis": {
+            "example": "La sesión académica se impartirá en el aula dieciséis a primera hora.",
+            "example_en": "The academic session will be taught in classroom sixteen first thing in the morning.",
+            "example_tr": "Akademik ders sabah erken saatte on altı numaralı derslikte işlenecektir.",
+            "tip_en": "Written as one word with an acute accent on the last syllable: 'dieciséis'.",
+            "tip_tr": "Bitişik yazılır ve son hecesinde vurgu işareti (tilde) taşır: 'dieciséis'."
+        },
+        "diecisiete": {
+            "example": "La pinacoteca histórica ofrece entrada libre a partir de las diecisiete horas.",
+            "example_en": "The historic art gallery offers free admission starting at 5:00 PM (seventeen hours).",
+            "example_tr": "Tarihi sanat galerisi saat on yediden itibaren ücretsiz giriş sunmaktadır.",
+            "tip_en": "Compound number written as a single word: 'diez y siete' -> 'diecisiete'.",
+            "tip_tr": "'Diez y siete' yapısından türemiş tek kelimelik bileşiktir: 'diecisiete'."
+        },
+        "dieciocho": {
+            "example": "Para formalizar un contrato de alquiler se requiere tener al menos dieciocho años.",
+            "example_en": "To formalize a rental lease, one must be at least eighteen years old.",
+            "example_tr": "Kira sözleşmesi imzalamak için en az on sekiz yaşında olmak gerekir.",
+            "tip_en": "Expressing age in Spanish uses the verb 'tener': 'tener dieciocho años'.",
+            "tip_tr": "İspanyolcada yaş belirtirken 'ser' değil, 'tener' (sahip olmak) fiili kullanılır: 'tener dieciocho años'."
+        },
+        "diecinueve": {
+            "example": "El autobús interurbano con destino a Valencia saldrá del andén diecinueve.",
+            "example_en": "The intercity bus to Valencia will depart from platform nineteen.",
+            "example_tr": "Valensiya'ya giden şehirlerarası otobüs on dokuz numaralı perondan hareket edecektir.",
+            "tip_en": "Single compound word: 'diecinueve'. Invariable before masculine or feminine nouns.",
+            "tip_tr": "Bitişik yazılan birleşik sayıdır: 'diecinueve'. Her iki cinsiyette de değişmez."
+        },
+        "veinte": {
+            "example": "El billete combinado de autobús y tranvía cuesta veinte euros al mes.",
+            "example_en": "The combined bus and tram ticket costs twenty euros per month.",
+            "example_tr": "Kombine otobüs ve tramvay bileti ayda yirmi avrodur.",
+            "tip_en": "Changes to 'veinti-' when forming compound numbers from 21 to 29: 'veintiuno', 'veintidós'.",
+            "tip_tr": "21-29 arası bileşik sayılarda 'veinti-' şekline dönüşür: 'veintiuno', 'veintidós'."
         }
     },
     "German": {

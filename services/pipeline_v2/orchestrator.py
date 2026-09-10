@@ -77,12 +77,24 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                 if "chapters" in curriculum:
                     units = []
                     for ch in curriculum["chapters"]:
-                        unit = {"title": ch.get("title", "Untitled"), "topics": []}
+                        unit = {
+                            "title": ch.get("title", "Untitled"),
+                            "title_tr": ch.get("title_tr", ""),
+                            "topics": []
+                        }
                         for t in ch.get("topics", []):
                             if isinstance(t, dict):
-                                unit["topics"].append({"text": t.get("title", ""), "tag": t.get("type", "vocabulary")})
+                                unit["topics"].append({
+                                    "text": t.get("title", ""),
+                                    "title_tr": t.get("title_tr", ""),
+                                    "tag": t.get("type", "vocabulary")
+                                })
                             else:
-                                unit["topics"].append({"text": str(t), "tag": "vocabulary"})
+                                unit["topics"].append({
+                                    "text": str(t),
+                                    "title_tr": "",
+                                    "tag": "vocabulary"
+                                })
                         units.append(unit)
                     curriculum = {"units": units}
             except json.JSONDecodeError:
@@ -102,43 +114,22 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
             # 1. Run the V2 extraction pipeline
             curriculum = process_pdf(pdf_path, toc_range=toc_range)
         
-        # ── MANDATORY ALPHABET FOR A1 (AI Architect only, NOT PDF extraction) ──
-        is_ai_architect = manual_toc and (pdf_path == "NONE" or not pdf_path)
-        if level.upper().startswith("A1") and is_ai_architect:
-            logger.info(f"[ALPHABET] A1 Level detected for Course {course_id}. Prepending mandatory Alphabet unit.")
-            # 1. Ensure we have a dict with a 'units' list
-            if not isinstance(curriculum, dict):
-                curriculum = {"units": []}
-            if "units" not in curriculum:
-                curriculum["units"] = []
-                
-            # 2. Remove any existing Alphabet/Phonetic topics from all units to avoid duplicates
-            keywords = [
-                "alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound",
-                "alfabeto", "alfabe", "sesli", "sessiz", "harf", "telaffuz", "fonetik"
-            ]
-            for unit in curriculum["units"]:
-                unit_title_l = unit.get("title", "").lower()
-                if any(kw in unit_title_l for kw in ["alphabet", "alfabe", "alfabeto"]):
-                    unit["topics"] = []
-                else:
-                    unit["topics"] = [t for t in unit.get("topics", []) if not any(kw in t.get("text", "").lower() for kw in keywords)]
-            
-            # 3. Create the dedicated Alphabet Unit
-            alphabet_unit = {
-                "title": "Unit 1: Alphabet and Foundations",
-                "topics": [
-                    {"text": "The Alphabet", "tag": "phonetics", "confidence": 1.0},
-                    {"text": "Vowels and Consonants", "tag": "grammar", "confidence": 1.0},
-                    {"text": "Pronunciation and Phonetics", "tag": "grammar", "confidence": 1.0}
-                ]
-            }
-            
-            # 4. Prepend to curriculum and ensure no empty units were left behind
-            curriculum["units"].insert(0, alphabet_unit)
-            # Cleanup: remove any units that are now empty (except our new one at index 0)
-            curriculum["units"] = [u for i, u in enumerate(curriculum["units"]) if i == 0 or u.get("topics")]
-            logger.info(f"[ALPHABET] Injection complete. Unit 1 is now: {curriculum['units'][0]['title']}")
+        # Prepare any missing translations OUTSIDE of DB connection to avoid holding SQLite locks
+        from services.curriculum_translator import translate_titles_batch, is_clean_turkish
+        units_list = curriculum.get("units", [])
+        titles_to_translate = []
+        for unit in units_list:
+            u_tr = unit.get("title_tr", "")
+            u_title = unit.get("title", "")
+            if not u_tr or not is_clean_turkish(u_tr):
+                if u_title: titles_to_translate.append(u_title)
+            for topic in unit.get("topics", []):
+                t_text = topic.get("text", "")
+                t_tr = topic.get("title_tr", "")
+                if not t_tr or not is_clean_turkish(t_tr):
+                    if t_text: titles_to_translate.append(t_text)
+
+        tr_map = translate_titles_batch(titles_to_translate, target_lang="tr") if titles_to_translate else {}
 
         # 2. Populate the Database
         with db_connection() as db:
@@ -148,22 +139,6 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
             # Clean up any existing structure for this course if we are re-running
             db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
-            
-            from services.curriculum_translator import translate_titles_batch, is_clean_turkish
-            units_list = curriculum.get("units", [])
-            titles_to_translate = []
-            for unit in units_list:
-                u_tr = unit.get("title_tr", "")
-                u_title = unit.get("title", "")
-                if not u_tr or not is_clean_turkish(u_tr):
-                    if u_title: titles_to_translate.append(u_title)
-                for topic in unit.get("topics", []):
-                    t_text = topic.get("text", "")
-                    t_tr = topic.get("title_tr", "")
-                    if not t_tr or not is_clean_turkish(t_tr):
-                        if t_text: titles_to_translate.append(t_text)
-
-            tr_map = translate_titles_batch(titles_to_translate, target_lang="tr") if titles_to_translate else {}
 
             for unit_idx, unit in enumerate(units_list):
                 chapter_id = _uid()

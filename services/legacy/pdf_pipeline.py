@@ -328,7 +328,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             course = db.execute("SELECT language, level, material_language FROM courses WHERE id = ?", (course_id,)).fetchone()
             language = course[0] if course else "Unknown"
             level = course[1] if course and len(course) > 1 else "A1"
-            material_language = course[2] if course and len(course) > 2 else "en"
+            material_language = course[2] if course and len(course) > 2 and course[2] else "tr"
             
             _log(f"Phase 2: Targeted Course={course_id}, Lang={language}, Level={level}, Material Lang={material_language}")
             
@@ -377,12 +377,17 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
  
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en"):
             from services.ai_engine import generate_full_lesson
-            # PREMIUM 3-PAGE BUILD: Guaranteed quality, no fluff.
-            lesson = generate_full_lesson(t_title, t_type, language, 3, level, source_text=source_text, material_language=material_language)
+            try:
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET build_message = ? WHERE id = ? AND is_building = 1", (f"Ders üretiliyor: {t_title}", course_id))
+                    db.commit()
+                bump_version()
+            except Exception: pass
+            lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language)
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
  
-        # Configurable concurrency (default to 25 workers for maximum lesson generation speed)
-        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "25"))
+        # 16 concurrent workers — tuned for Gemini 3.7 Flash high throughput
+        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "16"))
         topic_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_topic = {}
@@ -396,8 +401,9 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
             # ANNOUNCE TOTAL STEPS & STAGE: So the progress bar knows its target
             with db_connection() as db:
-                db.execute("UPDATE courses SET total_steps = ?, progress = 0, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, f"Generating lesson materials (0/{topic_count})...", course_id, gen_id, gen_id))
+                db.execute("UPDATE courses SET total_steps = ?, progress = 0, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, f"Dersler üretilmeye başlandı ({topic_count} ders)...", course_id, gen_id, gen_id))
                 db.commit()
+            bump_version()
 
             # ── PROGRESS & DB UPDATES (CENTRALIZED) ──
             completed = 0
@@ -406,7 +412,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 try:
                     res = future.result()
                     t_title = res.get("t_title", "Topic")
-                    build_msg = f"Generating lessons ({completed}/{topic_count}): {t_title}"
+                    build_msg = f"Ders tamamlandı ({completed}/{topic_count}): {t_title}"
                     with db_connection() as db:
                         db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(res["content"]), res["t_id"]))
                         db.execute("UPDATE courses SET progress = ?, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (completed, build_msg, course_id, gen_id, gen_id))
@@ -440,7 +446,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             db.commit()
 
 
-def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="en"):
+def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="tr"):
     import logging
     logging.getLogger(__name__).warning("LEGACY PIPELINE IN USE")
     if not course_name or course_name.strip() == "":
@@ -512,7 +518,7 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     return {"success": True, "course_id": course_id, "code": code, "name": course_name}
 
 
-def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None, material_language="en"):
+def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None, material_language="tr"):
     gen_id = _uid()
     if existing_course_id:
         course_id = existing_course_id
@@ -520,7 +526,7 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ?, build_stage = 'structuring', build_message = 'Building curriculum structure...', build_started_at = ? WHERE id = ?",
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ?, build_stage = 'structuring', build_message = 'Müfredat yapısı oluşturuluyor...', build_started_at = ? WHERE id = ?",
                        (course_name, language, level, f"{level} Level", gen_id, material_language, time.time(), course_id))
             db.commit()
     else:
@@ -528,7 +534,7 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         code = generate_classroom_code()
         with db_connection() as db:
             db.execute("INSERT INTO courses (id, name, semester, textbook, language, code, is_building, lecturer_id, level, generation_id, material_language, build_stage, build_message, build_started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language, "structuring", "Building curriculum structure...", time.time()))
+                       (course_id, course_name, f"{level} Level", "AI Generated", language, code, 1, lecturer_id, level, gen_id, material_language, "structuring", "Müfredat yapısı oluşturuluyor...", time.time()))
             db.commit()
 
     from database import enroll_permanent_students_in_course

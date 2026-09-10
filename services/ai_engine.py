@@ -1,5 +1,15 @@
 import os
 import sys
+
+# Ensure Windows Python 3.8+ finds OpenSSL and extension DLLs
+if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+    for _p in [os.path.join(sys.base_prefix, "DLLs"), os.path.join(sys.exec_prefix, "DLLs")]:
+        if os.path.exists(_p):
+            try:
+                os.add_dll_directory(_p)
+            except Exception:
+                pass
+
 import json
 import re
 import urllib.request
@@ -46,7 +56,19 @@ def is_transparent_cognate(word1: str, word2: str, threshold: float = 0.65) -> b
     return difflib.SequenceMatcher(None, w1, w2).ratio() >= threshold
 
 def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) -> bool:
-    """Detect if the prompt or translation contains an obvious cognate giveaway of the target answer."""
+    """Detect if the prompt itself contains an obvious cognate giveaway of the target answer.
+    Applies ONLY when the prompt is written in the instructional language (English/Turkish)
+    asking for a target language word that is practically identical in spelling."""
+    if not prompt or not answer:
+        return False
+
+    # If the prompt is written in the target language (e.g. Spanish question, dialogue, or sentence completion),
+    # it is an authentic target-language immersion question and NOT a cross-lingual cognate giveaway.
+    target_markers = ["¿", "¡", "cuál", "frase", "opción", "diálogo", "subrayada", "completa", "selecciona", "verbo", "indica", "expresa", "significa", "dice", "palabra", "tiempo verbal"]
+    p_lower = str(prompt).lower()
+    if any(m in p_lower for m in target_markers):
+        return False
+
     clean_a = normalize_text_for_cognate(answer)
     if len(clean_a) < 4:
         return False
@@ -54,127 +76,209 @@ def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) 
     if not ans_words:
         ans_words = [clean_a]
 
-    text_to_check = f"{prompt} {translation}"
-    cand_words = re.findall(r'[a-zA-Z\u00C0-\u017F]{4,}', text_to_check)
+    # ONLY check words in English/Turkish instructional prompts
+    cand_words = re.findall(r'[a-zA-Z\u00C0-\u017F]{4,}', str(prompt))
     stopwords = {"what", "does", "mean", "which", "word", "sentence", "following", "translate", "choose", "correct",
                  "nasil", "nedir", "hangisi", "anlami", "asagidaki", "cumle", "dogru", "kelime", "ifade"}
     for cw in cand_words:
-        if normalize_text_for_cognate(cw) in stopwords:
+        cw_norm = normalize_text_for_cognate(cw)
+        if cw_norm in stopwords:
             continue
         for aw in ans_words:
-            if is_transparent_cognate(cw, aw, threshold=0.65):
+            # High threshold (0.88) to catch true cognate giveaways across languages (e.g. "information" vs "información")
+            if is_transparent_cognate(cw_norm, aw, threshold=0.88):
                 return True
     return False
 
 # Robust .env loading across execution contexts
-if not os.getenv("OPENROUTER_API_KEY"):
-    for env_path in [
-        ".env",
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    ]:
-        if os.path.exists(env_path):
+for env_path in [
+    ".env",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+]:
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ[k.strip().lstrip('\ufeff')] = v.strip()
+        except Exception:
+            pass
+
+MODEL_CURRICULUM = os.getenv("MODEL_CURRICULUM", "google/gemini-3.7-flash")
+MODEL_LESSON = os.getenv("MODEL_LESSON", "google/gemini-3.7-flash")
+MODEL_TRANSLATOR = os.getenv("MODEL_TRANSLATOR", "google/gemini-3.7-flash")
+MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "google/gemini-3.7-flash")
+MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "google/gemini-3.7-flash")
+MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "google/gemini-3.7-flash")
+
+def is_ai_available():
+    """Checks if the system has AI capabilities configured (Groq or OpenRouter)."""
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
+    return (len(groq_key) > 10) or (len(openrouter_key) > 10)
+
+def _extract_and_parse_json(content: str) -> Optional[Any]:
+    """Robust JSON parser that handles markdown fences, unescaped characters, and truncated arrays."""
+    if not content:
+        return None
+    clean = re.sub(r'^```(?:json)?\s*', '', content.strip(), flags=re.MULTILINE)
+    clean = re.sub(r'```\s*$', '', clean, flags=re.MULTILINE).strip()
+    
+    start_obj = clean.find('{')
+    start_list = clean.find('[')
+    start = -1
+    end = -1
+    if start_obj != -1 and (start_list == -1 or start_obj < start_list):
+        start = start_obj
+        end = clean.rfind('}')
+    elif start_list != -1:
+        start = start_list
+        end = clean.rfind(']')
+        
+    if start != -1 and end != -1 and end > start:
+        json_str = clean[start:end+1]
+        try:
+            return json.loads(json_str, strict=False)
+        except Exception:
+            pass
+        try:
+            import ast
+            c_s = json_str.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+            return ast.literal_eval(c_s)
+        except Exception:
+            pass
+
+    # Universal Truncation Recovery for any array field ("data", "questions", "items", "activities", "chapters", "pages")
+    for arr_name in ["data", "questions", "items", "activities", "chapters", "pages"]:
+        arr_key = f'"{arr_name}"'
+        if arr_key in clean:
             try:
-                with open(env_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith("#") and "=" in line:
-                            k, v = line.split("=", 1)
-                            os.environ.setdefault(k.strip(), v.strip())
-                if os.getenv("OPENROUTER_API_KEY"):
-                    break
+                arr_start = clean.find(arr_key)
+                bracket_start = clean.find('[', arr_start)
+                if bracket_start != -1:
+                    last_brace = clean.rfind('}')
+                    while last_brace > bracket_start:
+                        candidate = clean[clean.find('{'):last_brace+1] + ']}'
+                        try:
+                            parsed = json.loads(candidate, strict=False)
+                            if parsed and isinstance(parsed, dict) and parsed.get(arr_name) and len(parsed[arr_name]) >= 1:
+                                return parsed
+                        except Exception:
+                            pass
+                        last_brace = clean.rfind('}', 0, last_brace)
             except Exception:
                 pass
 
-# Triple-Threat Orchestration (V5.0-OPENAI-POWERED)
-MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "openai/gpt-4o-mini")          # Default to gpt-4o-mini for speed & cost
-MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "openai/gpt-4o-mini")               # Default to gpt-4o-mini for speed & cost
-MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "openai/gpt-4o-mini")                 # Default to gpt-4o-mini for speed & cost
+    # Truncation Recovery for key-value dictionary (e.g. {"0": "...", "1": "..."})
+    if start_obj != -1:
+        try:
+            pos = len(clean) - 1
+            while pos > start_obj:
+                if clean[pos] == '"':
+                    candidate = clean[start_obj:pos+1] + '}'
+                    try:
+                        parsed = json.loads(candidate, strict=False)
+                        if isinstance(parsed, dict) and len(parsed) > 0:
+                            return parsed
+                    except Exception:
+                        pass
+                pos -= 1
+        except Exception:
+            pass
 
-def is_ai_available():
-    """Checks if the system has AI capabilities configured."""
-    return os.getenv("OPENROUTER_API_KEY") is not None and len(os.getenv("OPENROUTER_API_KEY", "")) > 10
+    return None
 
-def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict]:
-    """OpenRouter caller with markdown cleaning and automatic retries."""
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key: return {"error_details": "API Key Missing"}
+def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True) -> Optional[Dict]:
+    """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota."""
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}", 
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://aulaai.com",
-        "X-Title": "AulaAI"
-    }
+    if not openrouter_key:
+        return {"error_details": "OPENROUTER_API_KEY Missing"}
 
     last_error = "Unknown"
     models_to_try = [model] if model else [MODEL_STRUCTURAL]
-    
+    if allow_fallback and MODEL_FALLBACK and MODEL_FALLBACK not in models_to_try:
+        models_to_try.append(MODEL_FALLBACK)
+
     for target_model in models_to_try:
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://aulaai.com",
+            "X-Title": "AulaAI"
+        }
+        req_payload = {
+            "model": target_model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+        if json_mode:
+            req_payload["response_format"] = {"type": "json_object"}
+
+        # Gemini / Google models: route with fallbacks allowed and optimize reasoning effort
+        is_gemini = "google" in str(target_model).lower() or "gemini" in str(target_model).lower()
+        if is_gemini:
+            req_payload["provider"] = {
+                "order": ["Google AI Studio", "Google"],
+                "allow_fallbacks": True
+            }
+            # For interactive/assessment tasks (quizzes, activities, translations), use low reasoning effort for fast 5-8s generation
+            if max_tokens <= 6000:
+                req_payload["reasoning"] = {"effort": "low"}
+
+        # Suppress reasoning tokens for other models where not needed
+        if not is_gemini and any(x in str(target_model).lower() for x in ["luna", "mercury", "deepseek", "stepfun", "step-"]):
+            req_payload["reasoning"] = {"effort": "none"}
+
         try:
-            req = urllib.request.Request(url, data=json.dumps({
-                "model": target_model, "messages": messages, "max_tokens": max_tokens, 
-                "temperature": temperature
-            }).encode("utf-8"), headers=headers)
-            
-            # AGGRESSIVE RETRY LOOP for 'Straggler' prevention
-            for attempt in range(3):
+            req = urllib.request.Request(url, data=json.dumps(req_payload).encode("utf-8"), headers=headers)
+
+            for attempt in range(4):
                 try:
-                    # Dynamic timeout: larger for high-token requests (lesson gen), shorter for structural
-                    _timeout = 45 if max_tokens > 3000 else 30
+                    # Generous timeout for lesson generation (Gemini can take 60-120s for long outputs)
+                    _timeout = 180 if max_tokens > 4000 else (90 if max_tokens > 2000 else 30)
                     with urllib.request.urlopen(req, timeout=_timeout) as response:
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
-                        
+
                         if "choices" in res_json:
                             content = res_json["choices"][0]["message"]["content"].strip()
                             with open("pipeline.log", "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-SPEED] Received {len(content)} chars from {target_model}\n")
-                            
-                            # ROBUST JSON EXTRACTION
-                            start_obj = content.find('{')
-                            start_list = content.find('[')
-                            start = -1
-                            end = -1
-                            if start_obj != -1 and (start_list == -1 or start_obj < start_list):
-                                start = start_obj
-                                end = content.rfind('}')
-                            elif start_list != -1:
-                                start = start_list
-                                end = content.rfind(']')
-                                
-                            if start != -1 and end != -1 and end > start:
-                                json_str = content[start:end+1]
-                                
-                                def _try_parse(s):
-                                    try: return json.loads(s, strict=False)
-                                    except:
-                                        try:
-                                            import ast
-                                            c_s = s.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-                                            return ast.literal_eval(c_s)
-                                        except: return None
+                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-OK] {len(content)} chars ← {target_model}\n")
 
-                                data = _try_parse(json_str)
-                                if data: return data
+                            data = _extract_and_parse_json(content)
+                            if data:
+                                return data
+                            # JSON parse failed on this attempt; retry on the same model instead of falling back
+                            with open("pipeline.log", "a", encoding="utf-8") as f:
+                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-PARSE-FAIL] Could not parse JSON from {target_model} (attempt {attempt+1}/4). Retrying {target_model}...\n")
+                            time.sleep(2.0 * (attempt + 1))
+                            continue
                 except Exception as e:
-                    sleep_time = 1.5 * (attempt + 1)
-                    if "429" in str(e):
-                        sleep_time = 3 * (attempt + 1)
+                    err_body = ""
+                    if hasattr(e, "read"):
+                        try:
+                            err_body = e.read().decode("utf-8", errors="ignore")
+                        except: pass
+                    sleep_time = 3.0 * (attempt + 1)
+                    if "429" in str(e) or "402" in str(e):
+                        sleep_time = 5.0 * (attempt + 1)
                     with open("pipeline.log", "a", encoding="utf-8") as f:
-                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1} failed/timed-out: {e}. Sleeping {sleep_time}s\n")
+                        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-RETRY] Attempt {attempt+1}/4 ({target_model}): {e} | Body: {err_body[:300]}. Sleep {sleep_time}s\n")
                     time.sleep(sleep_time)
-            
-            return None
-                        
+
         except Exception as e:
             last_error = str(e)
             try:
                 with open("pipeline.log", "a", encoding="utf-8") as f:
                     f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-FAIL] {target_model}: {last_error}\n")
             except: pass
-            
+
     return {"error_details": last_error}
 
 def detect_language(text, hint=""):
@@ -193,7 +297,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 4, int(c * 1.4))
+    gen_count = max(c + 2, int(c * 1.15))
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -221,36 +325,50 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
 
-    system = f"""You are the {language} Pedagogic Engine (V5). 
-    Your mission: Using the provided textbook content as your source, generate questions that test genuine communicative and linguistic understanding. Never repeat the same question pattern twice in a single set.
+    system = f"""You are the {language} Pedagogic Assessment Engine (V5). 
+    Your mission: Using the provided textbook content as your source, generate questions that test genuine communicative and linguistic understanding in {language}.
     
     {cefr_guidance}
     
     {pedagogy_guidance}
     
     PEDAGOGIC PROTOCOL & MANDATES:
-    1. STRICT ANTI-GIVEAWAY MANDATE (CRITICAL):
-       - The prompt MUST NEVER contain the correct answer or any stem/part of the correct answer.
-       - NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling of characters (e.g., NEVER ask 'Which letter name has the word X in it?', 'Which word ends in Y?', 'Which of these is a letter?').
-       - For alphabet and pronunciation topics, test genuine sound-to-letter correspondences in authentic words, silent letters, or minimal pairs. NEVER ask about the spelling of a letter's name.
-    2. STRICT ANTI-COGNATE & REAL-CHALLENGE MANDATE (CRITICAL):
-       - NEVER ask questions where the target answer is an obvious transparent cognate or nearly identical to its English/Turkish counterpart (e.g., asking for 'multiplicación' when the prompt or translation says 'multiplication', or asking for 'doctor' from 'doctor', or 'música' from 'music', or 'información' from 'information'). Such questions are obvious giveaways and fail to assess genuine language learning!
-       - For concepts that share common roots across languages (such as mathematics, science, technology, academic terms), frame questions through realistic communicative situations, procedural scenarios, or word problems (e.g., 'Si compras 3 libros de 4 euros cada uno, ¿qué operación matemática realizas?').
-       - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain (e.g., all 4 must be arithmetic operations: suma, resta, multiplicación, división) so the student cannot deduce the answer merely by recognizing English/Turkish spelling similarities.
-    3. MATERIAL FIDELITY: Only use words and facts found in the SOURCE MATERIAL.
-    4. HOMOGENEITY RULE (CRITICAL): All 4 options (answer + 3 distractors) MUST be the EXACT SAME grammatical type, sentence structure, and format.
-       - If the correct answer is a QUESTION (e.g. "¿Cuánto cuesta?"), then ALL 3 distractors MUST ALSO be questions (e.g. "¿Dónde está?", "¿Cómo se llama?", "¿Qué hora es?").
-       - If the correct answer is a STATEMENT, all distractors must also be statements.
-       - If the correct answer is a VERB FORM, all distractors must also be verb forms.
-       - If the correct answer is a NOUN, all distractors must also be nouns.
-       - NEVER mix questions with statements, nouns with verbs, or phrases with single words. The student must NOT be able to identify the correct answer just by looking at the format.
-    5. SITUATIONAL FLUENCY: Avoid 'Dictionary Definitions'. Instead of asking 'What is X?', create a scenario, dialogue, or communicative situation. 
-    6. TRICKY DISTRACTORS: Each distractor must be a plausible alternative that a {level} student might genuinely confuse with the correct answer. Distractors should be from the SAME semantic domain (e.g. all food items, all question phrases, all time expressions).
-    7. LINGUISTIC VERACITY: Logic must be 100% correct for {language}. Never hallucinate sound-to-letter or grammar rules.
-    8. NO CLUES: The correct answer MUST NOT be distinguishable from distractors by length, formatting, punctuation, or grammatical type. A student should ONLY be able to answer correctly if they know the material.
+    1. 100% TARGET LANGUAGE PROMPTS (CRITICAL & ABSOLUTE REQUIREMENT):
+       - The 'prompt' field MUST BE 100% IN {language}.
+       - ABSOLUTELY ZERO Turkish or English carrier text in the 'prompt' field!
+       - Frame ALL questions, instructions, and scenarios entirely in authentic {language}.
+       - Valid prompt examples:
+         * "¿Cuál es la respuesta adecuada y formal cuando un colega dice 'Mucho gusto'?"
+         * "Completa la frase con la forma verbal correcta: 'Normalmente nosotros ______ en el centro antes de las ocho.'"
+         * "En la pronunciación del español, ¿cuál de estas palabras contiene una 'h' completamente muda?"
+         * "¿Qué expresión se utiliza habitualmente para pedir la cuenta en un restaurante?"
+    2. DUAL TRANSLATION & EXPLANATION LOCALIZATION:
+       - 'translation_en': Professional English translation of the prompt.
+       - 'translation_tr': Natural, fluent Turkish translation of the prompt.
+       - 'why': Concise pedagogical explanation in English.
+       - 'why_tr': Concise pedagogical explanation in Turkish.
+    3. STRICT ANTI-GIVEAWAY MANDATE:
+       - The prompt MUST NEVER contain the correct answer or any stem/part of the answer.
+       - NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling of characters (e.g., NEVER ask 'Which letter name has the word X in it?', 'Which word ends in Y?').
+       - For alphabet and pronunciation topics, test genuine sound-to-letter correspondences in authentic words, silent letters, or minimal pairs.
+    4. STRICT ANTI-COGNATE & REAL-CHALLENGE MANDATE:
+       - NEVER ask questions where the target answer is an obvious transparent cognate identical to English/Turkish.
+       - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
+    5. HOMOGENEITY RULE:
+       - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, or all questions).
+    6. MATERIAL FIDELITY & SITUATIONAL FLUENCY:
+       - Only use concepts from the SOURCE MATERIAL. Create realistic communicative scenarios.
+    7. DISTRACTOR PLAUSIBILITY & LENGTH SYMMETRY MANDATE (CRITICAL):
+       - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
+       - NO ABSURD OR OFF-TARGET DISTRACTORS: Every single distractor must be a genuine, grammatically plausible, authentic item from {language}. NEVER use letters, symbols, or words that do not belong to {language} (e.g. NEVER use 'Ç' in Spanish, NEVER use characters from other alphabets).
+       - NO TRIVIAL VISUAL GIVEAWAYS: A beginner or non-speaker must NOT be able to identify the correct answer at a glance using visual elimination, option length difference, or obvious foreign elements.
+       - STRICT BAN ON META-ALPHABET TRIVIA: NEVER ask shallow trivia like "¿Qué letra es exclusiva del español?", "¿Cuál de estas letras tiene una tilde?", or "¿Qué letra representa el sonido X?". For phonetics/alphabet topics, test genuine pronunciation in REAL words or minimal pairs:
+         * Good: "¿En cuál de las siguientes palabras la letra 'g' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]
+         * Good: "¿En qué palabra la 'u' debe pronunciarse gracias a la diéresis?" [vergüenza, guitarra, queso, guerra]
+         * Bad (STRICTLY BANNED): "¿Cuál de las siguientes letras es exclusiva del alfabeto español?" [La letra Ñ, La letra Ç, La letra W, La letra K]
     
     RESPONSE FORMAT:
-    Output EXCLUSIVELY a JSON object. Every prompt MUST have a {instruction_lang_name} 'translation' in the 'translation' field."""
+    Output EXCLUSIVELY a JSON object."""
 
     user = f"""TASK: Generate EXACTLY {gen_count} unique {topic_type} questions.
     TOPIC: {topic_title}
@@ -267,34 +385,32 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
       "data": [
         {{
           "type": "mcq",
-          "prompt": "...",
-          "translation": "{instruction_lang_name} translation",
-          "answer": "...",
-          "distractors": ["...", "...", "..."],
-          "why": "{instruction_lang_name} explanation"
+          "prompt": "Authentic question 100% in {language}",
+          "translation_en": "Natural English translation of the prompt",
+          "translation_tr": "Doğal Türkçe çevirisi",
+          "answer": "Correct answer in {language}",
+          "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
+          "why": "Pedagogical explanation in English",
+          "why_tr": "Türkçe pedagojik açıklama"
         }}
       ]
-    }}"""
+    }}
     
-    if is_quiz and is_beginner:
-        user += f"\n\nSTRICT {instruction_lang_name.upper()} PROMPT RULE: This is a QUIZ for {level} beginners. You MUST write the 'prompt' field in {instruction_lang_name}. The 'answer' and 'distractors' MUST be in {language}."
-    else:
-        user += f"\n\nLANGUAGE MEDIUM: Write the 'prompt' field in {language} to immerse the student."
+    CRITICAL MANDATE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}."""
 
-    # MAX VARIETY SEED: Uses high-precision timestamp to ensure Gemini never repeats
+    # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
-        # GEMINI 2.5 FLASH TUNING: High variety (0.7)
-        target_model = model_override if model_override else "google/gemini-2.5-flash"
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=3000, temperature=0.85)
+        target_model = model_override if model_override else MODEL_STRUCTURAL
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=6000, temperature=0.4, json_mode=True, allow_fallback=False)
         
         raw_list = []
         if isinstance(res, list):
             raw_list = res
-        else:
-            raw_list = (res.get("data") if (res and isinstance(res, dict)) else []) or []
+        elif isinstance(res, dict):
+            raw_list = res.get("data") or res.get("questions") or res.get("items") or res.get("quiz") or res.get("activities") or []
         
         # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER ──
         final = []
@@ -305,7 +421,22 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             a = str(item.get("answer", "")).strip()
             d = item.get("distractors", [])
             
-            if not (p and a and isinstance(d, list) and len(d) >= 3):
+            if not (p and a and isinstance(d, list)):
+                continue
+
+            # Reject prompts containing Turkish instructional words (must be 100% target language)
+            tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
+            if any(m in p.lower() for m in tr_prompt_markers):
+                continue
+
+            # Clean and deduplicate distractors (must not match answer and must be distinct)
+            clean_d = []
+            for dist in d:
+                ds = str(dist).strip()
+                if ds and ds.lower() != a.lower() and ds.lower() not in [cd.lower() for cd in clean_d]:
+                    clean_d.append(ds)
+
+            if len(clean_d) < 2:
                 continue
 
             # Programmatic Anti-Giveaway & Anti-Trivia Verification
@@ -313,68 +444,221 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             clean_a = re.sub(r'[^\w\s]', ' ', a.lower()).strip()
             
             is_giveaway = False
-            if len(clean_a) >= 2:
-                # Direct word match of the answer in prompt
-                if f" {clean_a} " in f" {clean_p} ":
+            if len(clean_a) >= 3:
+                # Literal quote of answer inside prompt e.g. ' "¿cómo estás?" '
+                quoted_answer_pattern = rf"['\"«“]{re.escape(clean_a)}['\"»”]"
+                if re.search(quoted_answer_pattern, clean_p):
                     is_giveaway = True
-                # Match any individual word in multi-word answer (excluding common stopwords)
-                stopwords = {"el", "la", "los", "las", "un", "una", "de", "en", "a", "y", "o", "the", "a", "an", "of", "in", "to", "and", "or", "bir", "ve", "veya", "ile"}
-                for w in clean_a.split():
-                    if len(w) > 3 and w not in stopwords and f" {w} " in f" {clean_p} ":
-                        is_giveaway = True
-                        break
+                if clean_p.strip() == clean_a.strip():
+                    is_giveaway = True
             
-            # Reject meta-trivia about letter names or strings
+            # Reject meta-trivia about letter names, string properties, or alphabet exclusivity
             trivia_indicators = [
                 "nombre que incluye", "se llama", "name includes", "includes the word",
                 "harfinin adı", "kelimesini içerir", "which letter has the name",
                 "cuál de estas letras tiene un nombre", "letter's name", "name of the letter",
-                "how is the letter named", "harfi nasıl adlandırılır"
+                "how is the letter named", "harfi nasıl adlandırılır",
+                "es exclusiva", "exclusiva del", "letra exclusiva", "unique to the", "exclusive to the",
+                "alfabesinde bulunan tek", "alfabesine özgü", "exclusivo del alfabeto"
             ]
             if any(t in clean_p for t in trivia_indicators):
                 is_giveaway = True
 
-            # Reject transparent cognate giveaways (e.g. multiplication -> multiplicación)
-            trans_text = str(item.get("translation", "")).strip()
-            if is_transparent_cognate_giveaway(p, trans_text, a):
+            # Reject non-target language characters in options (e.g., 'ç' in Spanish)
+            if any(s in language.lower() for s in ["spanish", "español", "ispanyolca"]):
+                if any("ç" in o.lower() for o in [a] + clean_d):
+                    is_giveaway = True
+
+            # Reject single-letter options for meta questions (like ['Ñ', 'Ç', 'W', 'K'] or ['La letra Ñ', 'La letra Ç'])
+            if all(len(re.sub(r'^(la letra|the letter|harf|harfi)\s*', '', opt.lower()).strip()) <= 2 for opt in [a] + clean_d[:3]):
                 is_giveaway = True
-                print(f"[REJECTED COGNATE GIVEAWAY] Prompt: '{p}' | Translation: '{trans_text}' | Answer: '{a}'")
+
+            # Reject extreme length disparity where the answer is giveaway long/short
+            if clean_d and len(a) > 2.2 * max(len(dist) for dist in clean_d[:3]) and len(a) > 25:
+                is_giveaway = True
+            if clean_d and min(len(dist) for dist in clean_d[:3]) > 2.5 * len(a) and min(len(dist) for dist in clean_d[:3]) > 25:
+                is_giveaway = True
+
+            # Reject transparent cognate giveaways only if prompt itself gives away the answer
+            if is_transparent_cognate_giveaway(p, "", a):
+                is_giveaway = True
+
+            # Reject hybrid Frankenstein questions where target language blank is inside instructional language sentence
+            if ("______" in p or "____" in p) and not is_giveaway:
+                blank_lines = [line for line in p.split("\n") if "____" in line]
+                for bl in blank_lines:
+                    tr_markers = [" ve ", " ile ", " için ", " her ", " sabah ", " ben ", " bir ", " bu ", " saat ", "de ", "da ", "ya ", "ye ", "yim", "yım"]
+                    bl_lower = bl.lower()
+                    if any(m in bl_lower for m in tr_markers) and not any(w in bl_lower for w in ["¿", "¡", " que ", " de ", " la ", " el ", " en ", " por ", " para ", " con ", " un ", " una ", " al ", " del "]):
+                        is_giveaway = True
+                        break
                 
             if is_giveaway:
-                print(f"[REJECTED GIVEAWAY/TRIVIA QUESTION] Prompt: '{p}' | Answer: '{a}'")
                 continue
 
-            # Basic shuffle and assembly
-            opts = [a] + [str(x).strip() for x in d[:3]]
+            # Assemble options with deduplicated distractors
+            opts = [a] + clean_d[:3]
             py_random.shuffle(opts)
+            
+            t_en = item.get("translation_en") or item.get("translation", "")
+            t_tr = item.get("translation_tr") or item.get("translation", "")
             
             final.append({
                 "id": _uid(),
                 "type": "mcq",
                 "prompt": p,
-                "translation": item.get("translation", ""),
+                "translation": t_tr if material_language == "tr" else t_en,
+                "translation_en": t_en,
+                "translation_tr": t_tr,
                 "answer": a,
-                "distractors": d[:3],
+                "distractors": clean_d[:3],
                 "options": opts,
-                "why": item.get("why", "Correct answer based on the material.")
+                "why": item.get("why", "Correct answer based on the material."),
+                "why_tr": item.get("why_tr", item.get("why", "Materyale göre doğru seçenek."))
             })
             if len(final) >= c:
                 break
         
-        if not final:
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] Gemini returned no valid questions for {topic_title}\n")
-            return []
-            
-        return final
+        # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
+        if len(final) < c and isinstance(topic_content, dict):
+            # Helper for fallback target language questions
+            is_esp = any(s in language.lower() for s in ["spanish", "español", "ispanyolca"])
+            is_de = any(s in language.lower() for s in ["german", "deutsch", "almanca"])
+            is_fr = any(s in language.lower() for s in ["french", "français", "fransızca"])
+            is_it = any(s in language.lower() for s in ["italian", "italiano", "italyanca"])
 
-        if not final:
-            with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-EMPTY] RawLen={len(raw_list)} for {topic_title}\n")
-            return [] 
+            def _make_fallback_prompt(meaning_text):
+                if is_esp:
+                    return f"¿Cuál de las siguientes opciones corresponde al significado '{meaning_text}'?"
+                elif is_de:
+                    return f"Welche der folgenden Optionen entspricht der Bedeutung '{meaning_text}'?"
+                elif is_fr:
+                    return f"Laquelle des options suivantes correspond au sens de '{meaning_text}' ?"
+                elif is_it:
+                    return f"Quale delle seguenti opzioni corrisponde al significato di '{meaning_text}'?"
+                return f"Which term corresponds to '{meaning_text}'?"
+
+            # 1. Pull pre-authored MCQs from topic content pages
+            for page in topic_content.get("pages", []):
+                if len(final) >= c: break
+                if page.get("type") == "mcq" and page.get("prompt") and page.get("answer"):
+                    prompt_txt = page.get("prompt")
+                    if not any(f.get("prompt") == prompt_txt for f in final):
+                        opts = list(page.get("options", []))
+                        if not opts:
+                            opts = [page.get("answer")] + page.get("distractors", [])
+                        py_random.shuffle(opts)
+                        p_tr = page.get("prompt_tr") or page.get("translation_tr", "")
+                        p_en = page.get("prompt") or page.get("translation_en", "")
+                        final.append({
+                            "id": _uid(),
+                            "type": "mcq",
+                            "prompt": prompt_txt,
+                            "translation": p_tr if material_language == "tr" else p_en,
+                            "translation_en": p_en,
+                            "translation_tr": p_tr,
+                            "answer": page.get("answer"),
+                            "distractors": [x for x in opts if x != page.get("answer")][:3],
+                            "options": opts,
+                            "why": page.get("explanation", "Correct choice based on the lesson."),
+                            "why_tr": page.get("explanation_tr", page.get("explanation", "Ders içeriğine göre doğru seçenek."))
+                        })
+
+            # 2. Synthesize vocabulary questions from topic content items
+            if len(final) < c:
+                vocab_pool = []
+                for page in topic_content.get("pages", []):
+                    for it in page.get("items", []):
+                        if isinstance(it, dict) and it.get("term"):
+                            vocab_pool.append(it)
+                
+                if len(vocab_pool) >= 4:
+                    for it in vocab_pool:
+                        if len(final) >= c: break
+                        term = it.get("term", "").strip()
+                        trans = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
+                        trans_en = it.get("translation_en") or it.get("translation", "")
+                        trans_tr = it.get("translation_tr") or it.get("translation", "")
+                        if not term or not trans: continue
+                        if any(f.get("answer") == term for f in final): continue
+                        
+                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term]
+                        if len(other_terms) >= 3:
+                            distractors = py_random.sample(other_terms, 3)
+                            prompt_str = _make_fallback_prompt(trans)
+                            opts = [term] + distractors
+                            py_random.shuffle(opts)
+                            final.append({
+                                "id": _uid(),
+                                "type": "mcq",
+                                "prompt": prompt_str,
+                                "translation": trans_tr if material_language == "tr" else trans_en,
+                                "translation_en": f"Which term corresponds to '{trans_en}'?",
+                                "translation_tr": f"Aşağıdakilerden hangisi '{trans_tr}' anlamına gelir?",
+                                "answer": term,
+                                "distractors": distractors,
+                                "options": opts,
+                                "why": f"{term}: {trans_en}",
+                                "why_tr": f"{term}: {trans_tr}"
+                            })
+
+        # 3. Dynamic DB Fallback: Pull actual topic vocabulary with authentic peer distractors
+        if len(final) < c:
+            try:
+                from database import db_connection
+                with db_connection() as db:
+                    rows = db.execute("SELECT content FROM topics WHERE content IS NOT NULL AND length(content) > 100 ORDER BY RANDOM() LIMIT 8").fetchall()
+                    db_vocab = []
+                    for r in rows:
+                        try:
+                            tc = json.loads(r["content"])
+                            for p in tc.get("pages", []):
+                                for it in p.get("items", []):
+                                    term = it.get("term", "").strip()
+                                    trans = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
+                                    trans_en = it.get("translation_en") or it.get("translation", "")
+                                    trans_tr = it.get("translation_tr") or it.get("translation", "")
+                                    if term and trans and not any(v[0] == term for v in db_vocab):
+                                        db_vocab.append((term, trans, trans_en, trans_tr))
+                        except Exception: pass
+                    
+                    if len(db_vocab) >= 4:
+                        for term, trans, trans_en, trans_tr in db_vocab:
+                            if len(final) >= c: break
+                            if any(f.get("answer") == term for f in final): continue
+                            pool_other = [v[0] for v in db_vocab if v[0] != term]
+                            if len(pool_other) >= 3:
+                                dists = py_random.sample(pool_other, 3)
+                                prompt_str = _make_fallback_prompt(trans)
+                                opts = [term] + dists
+                                py_random.shuffle(opts)
+                                final.append({
+                                    "id": _uid(),
+                                    "type": "mcq",
+                                    "prompt": prompt_str,
+                                    "translation": trans_tr if material_language == "tr" else trans_en,
+                                    "translation_en": f"Which term corresponds to '{trans_en}'?",
+                                    "translation_tr": f"Aşağıdakilerden hangisi '{trans_tr}' anlamına gelir?",
+                                    "answer": term,
+                                    "distractors": dists,
+                                    "options": opts,
+                                    "why": f"{term}: {trans_en}",
+                                    "why_tr": f"{term}: {trans_tr}"
+                                })
+            except Exception: pass
+
+        # Sanitize Turkish fields in generated questions
+        for q in final:
+            if q.get("translation_tr"):
+                q["translation_tr"] = _sanitize_turkish_content(heal_turkish_syntax(q["translation_tr"]))
+            if q.get("why_tr"):
+                q["why_tr"] = _sanitize_turkish_content(heal_turkish_syntax(q["why_tr"]))
+            if material_language == "tr" and q.get("translation"):
+                q["translation"] = _sanitize_turkish_content(heal_turkish_syntax(q["translation"]))
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] requested={c} returned={len(final)}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
+            
         return final[:c]
     except Exception as e:
         with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -393,24 +677,14 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    """Generates course structure, creating both English and Turkish versions natively via AI."""
-    # Only use blueprint cache if no custom course name / prompt_extra is provided
-    if not prompt_extra:
-        cache_file = _get_blueprint_path(language, level)
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, "r", encoding="utf-8") as f:
-                    cached_data = json.load(f)
-                    if cached_data and "chapters" in cached_data:
-                        from services.curriculum_translator import ensure_bilingual_curriculum
-                        return ensure_bilingual_curriculum(cached_data["chapters"])
-            except Exception: pass
-
-    from services.cefr_reference import get_cefr_conditioning
+    """Generates course structure, creating both English and Turkish versions natively via AI, grounded in official authority standards."""
+    from services.cefr_reference import get_cefr_conditioning, LANGUAGE_CEFR_STANDARDS
+    lang_std = LANGUAGE_CEFR_STANDARDS.get(language, {})
+    official_institution = lang_std.get("institution", f"Council of Europe Official CEFR Framework for {language}")
     cefr_curriculum_guidance = get_cefr_conditioning(language, level, "Curriculum Architecture", "syllabus")
 
-    system = f"""You are a world-class bilingual curriculum architect and expert linguist specializing in the CEFR framework (A1-C2) for {language}. 
-    Your mission: Design a comprehensive, pedagogically deep, and culturally rich roadmap for learning {language}.
+    system = f"""You are a world-class bilingual curriculum architect and expert linguist operating under the official academic framework of {official_institution} and the Council of Europe CEFR standards (A1-C2) for {language}. 
+    Your mission: Design an authoritative, pedagogically deep, and culturally rich roadmap for learning {language}, strictly adhering to the official syllabus requirements of {official_institution} for level {level}.
     
     {cefr_curriculum_guidance}
     
@@ -443,13 +717,19 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     user = f"""Create a comprehensive {level} {language} course syllabus{f' focusing on: {prompt_extra}' if prompt_extra else ''}.
 LEVEL-SPECIFIC FOCUS: {current_guideline}
 
+REASONING DIRECTIVE:
+In your internal reasoning process, analyze the target CEFR requirements from {official_institution} for {level} {language}.
+Formulate a strictly logical, pedagogically rich progression across exactly 6 chapters with 5 descriptive topics each (30 topics total).
+Reflect on Turkish-speaking learners' linguistic profile, avoiding English interference.
+Verify that every single 'title_tr' is authentic, grammatically pure Turkish.
+
 RULES:
 1. PEDAGOGICAL ACCURACY: The topics MUST strictly reflect the {level} level requirements.
 2. NO GENERIC TITLES: Do NOT use 'Vocabulary', 'Grammar', or 'Exercises'. Every topic must be descriptive (e.g., 'Navigating a Hospital', 'The Imperfect vs. Preterite', 'Debating Environmental Ethics').
 3. PROGRESSION: Ensure units move logically from foundational to complex within the {level} bracket.
 4. VARIETY: Mix functional language, grammar, and cultural context.
-5. MANDATORY SCOPE: Generate EXACTLY 8 to 12 chapters to ensure full curriculum coverage. A roadmap with fewer than 8 units is unacceptable.
-6. TOPIC DENSITY: Each chapter MUST have at least 3-4 descriptive topics.
+5. MANDATORY SCOPE: Generate EXACTLY 6 chapters.
+6. TOPIC DENSITY: Each chapter MUST have EXACTLY 5 descriptive topics (30 topics total).
 7. BILINGUAL PAIRS (MANDATORY): For every chapter and topic, provide BOTH English ('title') and Turkish ('title_tr'):
    - Example 1: 'title': 'Polite Expressions for Conversation' -> 'title_tr': 'Sohbet İçin Nezaket İfadeleri'
    - Example 2: 'title': 'Basic Adjectives for Personal Description' -> 'title_tr': 'Kişisel Tanım İçin Temel Sıfatlar'
@@ -476,57 +756,57 @@ Return ONLY valid JSON:
     }}
   ]
 }}"""
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=2500, temperature=0.7)
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_CURRICULUM, max_tokens=4500, temperature=0.3)
     chapters = res.get("chapters", []) if res else []
     
-    # ── MANDATORY ALPHABET FOR A1 ROADMAPS ──
-    if level.upper().startswith("A1"):
-        # 1. Remove duplicates (including phonetics, vowels, etc. which are now merged into Unit 1)
-        keywords = ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "sound", "alfabeto", "alfabe", "letters"]
-        
-        filtered_chapters = []
-        for ch in chapters:
-            # Check if the CHAPTER TITLE itself is an alphabet unit
-            if any(kw in ch.get("title", "").lower() for kw in keywords):
-                continue
-            
-            if "topics" in ch:
-                # Remove alphabet topics from other units
-                ch["topics"] = [t for t in ch["topics"] if not any(kw in t.get("title", "").lower() for kw in keywords)]
-            
-            # Only keep chapters that still have content
-            if ch.get("topics"):
-                filtered_chapters.append(ch)
-        
-        # 2. Inject Unit 1 with comprehensive topics
-        alphabet_unit = {
-            "number": 1,
-            "title": "The Alphabet and Foundations",
-            "title_tr": "Alfabe ve Temel Bilgiler",
-            "topics": [
-                {"title": "The Alphabet", "title_tr": "Alfabe", "type": "vocabulary"},
-                {"title": "Vowels and Consonants", "title_tr": "Sesli ve Sessiz Harfler", "type": "grammar"},
-                {"title": "Pronunciation and Phonetics", "title_tr": "Telaffuz ve Fonetik", "type": "grammar"}
-            ]
-        }
-        filtered_chapters.insert(0, alphabet_unit)
-        
-        # 3. Re-index and Clean Titles
-        for i, ch in enumerate(filtered_chapters):
-            ch["number"] = i + 1
-            if i > 0 and "title" in ch:
-                ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
-        
-        chapters = filtered_chapters
-    
+    # Tier 1 Fallback: If primary model gave < 4 chapters, try MODEL_FALLBACK
+    if (not chapters or len(chapters) < 4) and MODEL_FALLBACK != MODEL_CURRICULUM:
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] Primary model gave <4 units. Trying fallback {MODEL_FALLBACK}...\n")
+        res_fb = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4500, temperature=0.3)
+        if res_fb and res_fb.get("chapters") and len(res_fb["chapters"]) >= 4:
+            chapters = res_fb["chapters"]
+
+    # Tier 2 Fallback: If still < 4 chapters, load verified blueprint cache
+    if not chapters or len(chapters) < 4:
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] AI generation returned <4 units. Loading verified blueprint fallback for {language} {level}.\n")
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    if cached_data and cached_data.get("chapters") and len(cached_data["chapters"]) >= 4:
+                        from services.curriculum_translator import ensure_bilingual_curriculum
+                        return ensure_bilingual_curriculum(cached_data["chapters"])
+            except Exception:
+                pass
+
+    # Clean titles and re-index chapters
+    for i, ch in enumerate(chapters):
+        ch["number"] = i + 1
+        if "title" in ch and isinstance(ch["title"], str):
+            ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
+        if "title_tr" in ch and isinstance(ch["title_tr"], str):
+            ch["title_tr"] = re.sub(r'^Ünite\s*\d+\s*[:\-]*\s*', '', ch["title_tr"], flags=re.IGNORECASE).strip()
+
+    # ── ULTIMATE SAFETY GUARD: Never return fewer than 4 chapters ──
+    if not chapters or len(chapters) < 4:
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    if cached_data and cached_data.get("chapters"):
+                        from services.curriculum_translator import ensure_bilingual_curriculum
+                        return ensure_bilingual_curriculum(cached_data["chapters"])
+            except Exception:
+                pass
+
     # ── BILINGUAL TITLE ENRICHMENT: Ensure both title (EN) and title_tr (TR) are populated cleanly ──
     from services.curriculum_translator import ensure_bilingual_curriculum
     chapters = ensure_bilingual_curriculum(chapters)
 
-    # ── AUTO-CACHE: Save the generated blueprint so "Clear Cached Blueprints" works ──
-    if chapters:
-        save_blueprint_cache(language, level, chapters)
-    
     return chapters
 def ai_generate_report_insights(cohort_data):
     """Generates high-level pedagogical insights for teacher reports."""
@@ -534,729 +814,908 @@ def ai_generate_report_insights(cohort_data):
     res = _call_ai([{"role": "user", "content": prompt}], max_tokens=600)
     return res.get("explanation", "Insufficient data for insights.") if res else "Connection Error."
 
-def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="en"):
-    """Generates a complete structured lesson, using source_text as the primary source if provided."""
-    from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines, ALPHABETS
-    from services.cefr_reference import get_cefr_conditioning, validate_cefr_level, get_curated_c1_items
-    
-    is_alphabet_topic = any(x in topic.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
-    is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
-    instruction_lang_name = "Turkish" if material_language == "tr" else "English"
-    
-    pedagogy_guidance = get_pedagogical_guidelines(language, level)
-    cefr_conditioning = get_cefr_conditioning(language, level, topic, topic_type)
-    
-    lang_guard = f"REQUIRED BILINGUAL SPLIT: All instructional text, titles, and grammar explanations MUST be in {instruction_lang_name}. All target language content (vocabulary, sentences, examples) MUST be in {language}."
-    if is_beginner:
-        lang_guard = f"STRICT BEGINNER REQUIREMENT: You are teaching {level} beginners. All titles, grammar explanations, and instructions MUST be in {instruction_lang_name}. NEVER explain {language} concepts using {language}. Use {instruction_lang_name} as the primary instructional medium."
-
-    source_rule = ""
-    if source_text:
-        source_rule = f"SOURCE TEXT REQUIREMENT:\nYou MUST use the following text as your core source: {source_text[:10000]}"
-    else:
-        source_rule = "NO SOURCE TEXT: Use your internal knowledge."
-
-    # ── ALPHABET & SPECIAL CHARACTER REINFORCEMENT ──
-    # Refined Alphabet Guard: Only force the full list for the PRIMARY alphabet topic.
-    is_primary_alphabet = any(x == topic.lower().strip() for x in ["the alphabet", "alphabet", "alfabeto", "alfabe"])
-    is_sub_alphabet = not is_primary_alphabet and any(x in topic.lower() for x in ["alphabet", "vowel", "consonant", "pronunciation", "phonetic", "letter"])
-    
-    alphabet_rule = ""
-    ref_data = ""
-    if is_primary_alphabet:
-        alphabet_list = get_reference_prompt(language)
-        alphabet_rule = f"\nSTRICT RULE: The FIRST page of this lesson MUST include the following complete list of characters for {language} to serve as the master reference:\n{alphabet_list}\n"
-    elif is_sub_alphabet:
-        alphabet_rule = f"\nCONTEXT: The user has already seen the full alphabet list in the previous topic. DO NOT provide a full character list here. Focus EXCLUSIVELY on the {topic} nuances."
-
-    if any(x in topic.lower() for x in ["accent", "character", "mark", "diacritic"]):
-        ref_data = get_special_chars_prompt(language)
-        ref_data += f"\nPRONUNCIATION RULE: Explain how these marks affect sound using {instruction_lang_name} phonetics."
-
-    min_pages = 5
-
-    # ── PHONETIC & PEDAGOGICAL GUARDRAILS ──
-    no_english_in_lists = f"""
-NO {instruction_lang_name.upper()} IN LISTS (CRITICAL): 
-- NEVER include {instruction_lang_name} translations as separate items in a list of strings. 
-- All items in a 'list' or 'items' array MUST be in the target language if they are strings. 
-- If you want to provide a translation, use the OBJECT format: {{'term': '...', 'translation': '...', 'explanation': '...'}} or {{'text': '...', 'meaning': '...'}}. 
-- ALWAYS generate: [{{'term': 'Word', 'translation': 'Translation', 'explanation': 'Brief 1-sentence pedagogical explanation'}}, ...]."""
-    explanatory_items_mandate = f"""
-PEDAGOGICALLY USEFUL ITEMS MANDATE (CRITICAL):
-- In 'items' arrays, every item MUST provide practical language learning value.
-- STRICT BAN ON TAUTOLOGICAL DEFINITIONS:
-  * NEVER write circular dictionary definitions that explain basic human activities or physical reality!
-  * FORBIDDEN EXAMPLES:
-    - "Okumak: Kitap, makale vb. okumak eylemini ifade eder." (USELESS TAUTOLOGY)
-    - "Çizmek: Bir yüzey üzerinde resim yaratmayı ifade eder." (USELESS TAUTOLOGY)
-    - "Oynamak: Oyun veya spor etkinliklerini ifade etmek için kullanılır." (USELESS TAUTOLOGY)
-    - "Refers to the act of reading/drawing/playing." (USELESS TAUTOLOGY)
-  * Adult learners already know what reading, drawing, or playing means in real life.
-- INSTEAD, every vocabulary item MUST include:
-  1. 'example': A natural, authentic target-language example sentence in {language} showing the word in everyday context.
-  2. 'example_en': Natural English translation of the example sentence.
-  3. 'example_tr': Natural Turkish translation of the example sentence.
-  4. 'explanation' (English) & 'explanation_tr' (Turkish): A PRACTICAL LINGUISTIC TIP ONLY (such as prepositions used with it e.g. 'jugar a', 'viajar en', irregular forms, common collocations, or false friends). If no special collocation applies, leave concise or provide a key phrase.
-- ALPHABET & LETTER ITEMS:
-  * For alphabet topics or letter items:
-    - 'term': The uppercase letter (e.g. 'H', 'I', 'J', 'Ñ', 'Z')
-    - 'name': Authentic native name of the letter (e.g. 'Hache', 'I', 'Jota', 'Eñe', 'Zeta')
-    - 'phonetic_en': English-speaker phonetic pronunciation guide (e.g. '[AH-cheh] (silent)', '[ee]', '[HOH-tah]', '[EH-nyeh]', '[SEH-tah / THEH-tah]')
-    - 'phonetic_tr': Turkish-speaker phonetic pronunciation guide (e.g. '[açe] (sessiz harf, okunmaz)', '[i]', '[hota] (boğazdan h)', '[enye]', '[seta / peltek s]')
-    - 'example': An authentic target-language example word (e.g. 'Hola', 'Isla', 'Jardín', 'Niño')
-    - 'translation': English meaning of the example word
-    - 'translation_tr': Turkish meaning of the example word
-"""
-    density_mandate = """
-CONTENT DENSITY MANDATE (CRITICAL): 
-- VOCABULARY: Minimum 10 items per vocabulary page. Cover primary, secondary, and tertiary nuances.
-- EXAMPLES: Minimum 10 example sentences or dialogue lines. Show the words in varied social contexts.
-- EXPLANATIONS: Every 'explanation' or 'text' field MUST contain at least 5-8 detailed bullet points. Explain usage, cultural context, common learner mistakes, and pronunciation tips.
-- NO THIN PAGES: If a page feels light, combine it or expand it. Every page must be packed with educational value. Aim for 'Smartboard Density' — enough to fill a large screen with useful info."""
-    simplicity_rule = f"""
-BEGINNER SIMPLICITY RULE (A1-A2): 
-1. NO TECHNICAL JARGON: Avoid linguistics terms like 'voiced/voiceless', 'front/back vowels', or 'agglutinative' unless you explain them with simple physical metaphors (e.g., instead of 'voiceless', say 'a soft breathy sound').
-2. PHYSICAL CUES: For sounds with no English/Turkish equivalent (like Turkish 'ı', German 'ü', or French 'r'), provide physical instructions. Example for 'ı': 'Keep your mouth slightly open and teeth together, like the sound you make when you see something gross (ugh!) but shorter.'
-3. RELATABILITY: Always relate foreign concepts to something a native {instruction_lang_name} speaker does naturally. Every single letter or grammar rule must have a '{instruction_lang_name}-Friendly Tip' that makes it feel easy, not academic."""
-    contrast_rule = """
-TOPIC CONTRAST RULE (MANDATORY): 
-- If the topic is 'Alphabet', focus on sound-to-letter correspondence, recognizing characters in authentic vocabulary words, and distinguishing tricky letter pairs. NEVER ask shallow trivia about the names of letters or string patterns.
-- If the topic is 'Pronunciation', focus on phonetic sounds, silent letters, minimal pairs, and stress patterns in real words.
-- If the topic is 'Greetings', focus on pragmatic competence, social hierarchies, and communicative context (formal vs. informal, time of day).
-- REPETITION CHECK: Before generating a question, ensure it tests authentic linguistic competence and never gives away the answer."""
-    differentiation_rule = """
-TOPIC DIFFERENTIATION RULE (CRITICAL): 
-- UNIQUE QUESTIONS: NEVER reuse generic questions across related topics. Questions must be 'Laser-Focused' on the specific title of the topic.
-- NUANCE: For 'Alphabet' topics, test recognition of letters within authentic words, sound-symbol mappings, and diacritics. For 'Pronunciation' topics, focus strictly on phonetic sounds, vowel length, oral stress, and sound comparisons.
-- STRICT ANTI-GIVEAWAY MANDATE: The prompt must NEVER contain the answer word, and NEVER ask what word is contained in a letter's name (e.g. NEVER ask which letter has 'doble' in its name)."""
-    depth_rule = f"""
-MCQ EXPLANATION DEPTH (CRITICAL): 
-- NEVER restate the question or the answer (e.g., DO NOT say 'Choose the correct greeting').
-- ALWAYS provide a 'Linguistic Reasoning': Explain WHY the correct answer fits the context and briefly WHY the distractors are incorrect for that specific context.
-- Example: Instead of 'Choose the name phrase', explain the correct choice and why alternatives do not fit in {instruction_lang_name}."""
-    accuracy_rule = """
-PEDAGOGICAL ACCURACY RULE (CRITICAL): 
-1. NO AMBIGUITY: When creating MCQs, ensure distractors are CLEARLY incorrect. Avoid 'trick' questions where multiple answers could be technically correct (e.g., don't mark a neutral greeting wrong in a formal context unless a strictly formal option is the ONLY correct choice).
-2. CONTEXT-RICH PROMPTS: Questions must provide enough context (time of day, social setting, relationship) to make the correct answer the ONLY logical choice.
-3. LANGUAGE-AGNOSTIC PRECISION: This rule applies to all languages. Do not use generic greetings as distractors for specific questions if they could be used correctly in that scenario."""
-    phonetic_rule = f"""
-PHONETIC APPROXIMATION RULE (CRITICAL): When explaining how letters or words sound, 
-NEVER use target language spellings to describe the sound (e.g., DO NOT say 'Ç sounds like çe'). 
-Instead, ALWAYS use common {instruction_lang_name} word approximations that a student can understand 
-(e.g., 'Ç sounds like the ch in church', or 'Ş sounds like the sh in sheep' for English-speakers; or Turkish equivalents for Turkish-speakers). 
-This rule is language-agnostic: always relate sounds to common, accessible words in {instruction_lang_name}."""
-
-    natural_pragmatics_rule = f"""
-NATURAL PRAGMATICS & CULTURAL LOCALIZATION (MANDATORY):
-- When translating greetings to {instruction_lang_name} (e.g. Turkish), NEVER use unnatural literal translations or word-for-word calques (e.g. NEVER use 'İyi öğleden sonra' or 'İyi öğleden sonraları' in Turkish). ALWAYS use culturally authentic, native greetings in {instruction_lang_name} (e.g. for Turkish: 'Tünaydın', 'Günaydın', 'İyi akşamlar', 'İyi geceler'; for English: 'Good afternoon', 'Good morning', etc.).
-- PRONOUN VS AUXILIARY VERB DISTINCTION: Subject pronouns (Spanish 'Yo', German 'ich', French 'je', Italian 'io', English 'I') translate to 'Ben' in Turkish (never 'I'). Conjugated auxiliary verbs (Spanish 'Soy', German 'bin', French 'suis', Italian 'sono', English 'I am') translate to '(Ben) ...yim / ...yım', NEVER bare 'Ben'. Always maintain clear pedagogical separation between personal pronouns and verb conjugations.
-- CEFR LEVEL RIGOR:
-  * A1/A2: Explicit phonetic guidance, clean vocabulary, foundational morphological markers, everyday communicative situations.
-  * B1/B2: Nuanced grammatical contrasts (indicative vs subjunctive, past aspectual contrasts), discourse connectors, authentic dialogues.
-  * C1/C2: Advanced stylistic sophistication, native idioms, colloquialisms vs academic register, nuanced pragmatics, rhetorical mastery, and complex syntactic subordination.
-- In instructional texts, always use native, idiomatic phrasing suitable for professional educational textbooks.
-"""
-
-    dual_bilingual_mandate = f"""
-DUAL-NATIVE BILINGUAL PEDAGOGY MANDATE (CRITICAL):
-- You MUST author BOTH natural English and natural Turkish pedagogical content in EVERY page of the lesson.
-- English fields ('title', 'text', 'explanation', 'translation', 'example_en', 'prompt', 'rule', 'analysis', 'pitfall'): MUST be written in 100% pure, natural, professional English. NEVER write Turkish words in English fields!
-- Turkish fields ('title_tr', 'text_tr', 'explanation_tr', 'translation_tr', 'example_tr', 'prompt_tr', 'rule_tr', 'analysis_tr', 'pitfall_tr'): MUST be written in 100% natural, authentic educational Turkish. NEVER write English words or unnatural calques in Turkish fields!
-- FOR VOCABULARY ITEMS:
-  * 'term': Target word in {language}
-  * 'translation': English meaning ONLY (e.g. 'Discussion')
-  * 'translation_tr': Turkish meaning ONLY (e.g. 'Tartışma')
-  * 'example': Target example sentence in {language}
-  * 'example_en': English translation of the example sentence ONLY (NEVER Turkish)
-  * 'example_tr': Turkish translation of the example sentence ONLY (NEVER English)
-  * 'explanation': Practical linguistic tip in English ONLY (e.g. collocations, prepositions, false friends)
-  * 'explanation_tr': Practical linguistic tip in Turkish ONLY
-- STRICT ZERO-CALQUE & AUTHENTIC TURKISH SYNTAX MANDATE (ABSOLUTE MANDATE):
-  * You MUST write authentic, idiomatic, natural Turkish sentences as written by a native university linguist or literary translator.
-  * CONCESSIVE CLAUSE RULES (CRITICAL):
-    - NEVER write mechanical calques like "Her ne kadar [subject] çok meşguldü, yine de..." or "Her ne kadar yorgundu..."!
-    - In authentic Turkish, concessive clauses MUST use natural subordinate structures:
-      * EXCELLENT: "Çok meşgul olmasına rağmen, yine de benimle görüşmek için zaman ayırdı."
-      * EXCELLENT: "Her ne kadar çok meşgul olsa da, yine de benimle görüşmeye vakit ayırdı."
-      * EXCELLENT: "Çok meşguldü ama yine de benimle görüşmeye vakit ayırdı."
-      * STRICTLY FORBIDDEN / CRITICAL DEFECT: "Her ne kadar çok meşguldü, yine de..." (Grammatically defective machine calque).
-  * IDIOMS & COLLOCATIONS RULES:
-    - NEVER translate English/foreign idioms literally:
-      * "make time" -> "vakit ayırmak" / "zaman ayırmak" (NEVER "zaman yapmak")
-      * "make sense" -> "mantıklı gelmek" / "anlamlı olmak" (NEVER "anlam yapmak")
-      * "pay attention" -> "dikkat etmek" / "özen göstermek" (NEVER "dikkat ödemek")
-      * "take a look" -> "göz atmak" / "bakmak" (NEVER "bir bakış almak")
-      * "take a shower" -> "duş almak" (NEVER "bir duş almak")
-      * "play a role" -> "önemli bir rol üstlenmek" / "etkili olmak"
-      * "have breakfast" -> "kahvaltı yapmak" (NEVER "kahvaltıya sahip olmak")
-  * ZERO TAUTOLOGY & NATURAL GRAMMAR EXPLANATIONS:
-    - Write authentic Turkish grammar explanations using proper educational terminology:
-      * Good Turkish: "• Sevilen veya hoşlanılan eylemleri belirtirken 'me gusta' kalıbından sonra mastar fiil (infinitive) kullanılır (örneğin: 'me gusta leer')."
-      * Good Turkish: "• Daha güçlü bir beğeni veya tutkuyu belirtmek için 'me encanta' ifadesi tercih edilir (örneğin: 'me encanta viajar')."
-      * Good Turkish: "• Hoşlanılan nesne çoğul olduğunda fiil 'me gustan' şeklinde çoğul kullanılır (örneğin: 'me gustan las películas')."
-      * Good Turkish: "• Gustar yapısında fiil çekiminin (gusta/gustan), beğenen kişiye göre değil, beğenilen nesnenin tekil ya da çoğul olmasına göre belirlendiğini unutmayın."
-    - Bad calques to strictly avoid: "me gusta + mastar fiil kullanarak keyif almak için ifade edin", "Fiil formunu öznenin tercihine göre eşleştirmeyi unutmayın".
-  * WORD ORDER & NATURAL PRO-DROP:
-    - Obey standard Turkish Subject-Object-Verb (SOV) order.
-    - Omit repetitive subject pronouns ('o', 'ben', 'onlar') unless needed for deliberate contrast or emphasis.
-"""
-
-    classroom_density_mandate = f"""
-CLASSROOM SMARTBOARD DENSITY & PEDAGOGICAL RIGOR (CRITICAL):
-- You are authoring master slides for university language departments and premier language institutes.
-- Every slide will be projected onto a large classroom smartboard. Thin, empty slides with 1-2 generic bullet points are a CRITICAL DEFECT.
-- For VOCABULARY pages:
-  * Minimum 8-12 comprehensive vocabulary items.
-  * Every item MUST contain: authentic target example sentence in {language}, English & Turkish translations, and practical collocation/usage note.
-- For GRAMMAR / STRUCTURAL FOCUS pages (MANDATORY STRUCTURE):
-  * 'rules': Array of 3 to 4 structured rules. Each rule MUST have:
-    - 'rule': Concise rule name and principle in English.
-    - 'rule_tr': Concise rule name and principle in Turkish.
-    - 'explanation': Deep pedagogical mechanics in English.
-    - 'explanation_tr': Deep pedagogical mechanics in Turkish.
-    - 'example': Authentic target language example sentence in {language}.
-    - 'example_en': Natural English translation.
-    - 'example_tr': Natural Turkish translation.
-    - 'analysis': Grammatical breakdown explaining the specific morpheme or syntax in the example in English.
-    - 'analysis_tr': Grammatical breakdown explaining the specific morpheme or syntax in the example in Turkish.
-  * 'comparisons': Array of 2 contrast pairs. Each MUST have 'context', 'context_tr', 'target', 'translation', 'translation_tr', 'note', 'note_tr'.
-  * 'pitfall' & 'pitfall_tr': Teacher's Warning highlighting the #1 mistake students make with this rule.
-  * 'text' & 'text_tr': Comprehensive overview with at least 4-6 detailed bullet points.
-- For EXAMPLES / DIALOGUE pages:
-  * Situated authentic dialogue with 6-10 turns showing the target structures in communicative use.
-  * 'context' & 'context_tr': Setting, social relationships, and communicative goal.
-"""
-
-    system = f"""You are a master {language} pedagogical designer. 
-    STRICT IDENTITY: You write high-quality, CEFR-aligned lessons. Your goal is MEANINGFUL TEACHING, not meeting a page count.
-    
-    {cefr_conditioning}
-
-    {pedagogy_guidance}
-    
-    DUAL BILINGUAL MANDATE: {dual_bilingual_mandate}
-    FORMATTING RULE: All explanations MUST be formatted as concise BULLET POINTS. No walls of text.
-    SMARTBOARD RULE: Lessons are taught on large smartboards. You MUST break all paragraphs into clear, scannable bullet points so students can read them from the back of a classroom. 
-    EXPLANATORY RULE: Every page MUST include helpful bullet-point explanations in BOTH English ('explanation' / 'text') and Turkish ('explanation_tr' / 'text_tr').
-    FORBIDDEN CONTENT: Never create a page named "Material" or use "Material" as a title. No filler or nonsense pages. NO LONG PARAGRAPHS.
-    PEDAGOGICAL TYPES: Only use "vocabulary", "grammar", "examples", and "mcq" types.
-    MCQ RULE: In 'mcq' pages, 'explanation' and 'explanation_tr' are pedagogical post-answer feedback explaining the underlying grammar or vocabulary rule. NEVER write meta-phrases like 'The correct answer is...' or 'Doğru cevap...'.
-    STRICT ANTI-GIVEAWAY MANDATE: The question prompt MUST NEVER contain the correct answer or give away the answer. Distractors must be homogeneous and plausible. NEVER ask shallow trivia about what string is inside a letter name.
-    NATURAL PRAGMATICS RULE: {natural_pragmatics_rule}
-    EXPLANATORY ITEMS MANDATE: {explanatory_items_mandate}
-    PHONETIC RULE: {phonetic_rule}
-    ACCURACY RULE: {accuracy_rule}
-    DEPTH RULE: {depth_rule}
-    DIFFERENTIATION RULE: {differentiation_rule}
-    CONTRAST RULE: {contrast_rule}
-    SIMPLICITY RULE: {simplicity_rule}
-    DENSITY MANDATE: {density_mandate}
-    CLASSROOM MANDATE: {classroom_density_mandate}
-    NO {instruction_lang_name.upper()} IN LISTS: {no_english_in_lists}
-    JSON EFFICIENCY: Return MINIFIED JSON only (no whitespace, no indentation).
-    NO CONVERSATION: Provide ONLY the JSON structure."""
-
-    user = f"""Write a comprehensive {level} lesson to teach {language} topic: '{topic}' ({topic_type}).
-    
-    STRICT CEFR {level} MANDATE:
-    - This lesson MUST strictly adhere to the {level} proficiency standard defined in the system prompt.
-    - ABSOLUTE PROHIBITION ON BEGINNER LEXICON: Do NOT include elementary words, tourist clichés, or basic greetings for B2/C1/C2 courses!
-    - Adult learners at {level} require rich, authentic, domain-appropriate vocabulary, advanced syntax, and pragmatic depth.
-
-    {source_rule}
-    {alphabet_rule}
-    {ref_data}
-
-    TECHNICAL SPECS:
-    1. DUAL BILINGUAL AUTHORING: Provide both English and natural Turkish pedagogical content for EVERY page.
-    2. TARGET LANGUAGE ENFORCEMENT: 'term' and 'text' in example lists MUST be in {language}.
-    3. DIALOGUE TARGET LANGUAGE MANDATE: In 'examples' and dialogue lists, spoken dialogue lines ('text') MUST ALWAYS be authentic sentences in {language}. NEVER write English or Turkish sentences in 'text'. English translation goes strictly in 'translation', Turkish translation goes strictly in 'translation_tr'.
-    4. BULLET POINTS ONLY: Format all grammar and context 'text' / 'text_tr' or 'explanation' / 'explanation_tr' fields as concise bullet points.
-    5. SCRIPT CONSISTENCY: Use the correct alphabet for {language}.
-    6. MEANINGFUL LENGTH: Generate 4-6 high-density, essential pages.
-    7. NO FILLER: Every page must be packed with pedagogical value.
-    8. ZERO CALQUES & HUMAN TURKISH MANDATE: Ensure all Turkish explanations are 100% authentic, idiomatic, natural human teacher Turkish.
-       ABSOLUTE PROHIBITION ON ROBOTIC FORMULAS:
-       - NEVER use robotic templates like "[X] terimini ... ifade etmek için kullanın" or "Bu terim ... ifade eder. Günlük konuşmalarda sıkça kullanılır." or "... kuralları ve düzenlemeleri anlamak için önemlidir."
-       - Write as a natural, expert human language instructor explaining authentic usage, collocations, nuances, and communicative context.
-    9. EXPLANATORY ITEMS: For every item in 'items', provide both 'explanation' (English) and 'explanation_tr' (Turkish).
-       In 'explanation_tr', NEVER write robotic definitions; write genuine practical usage guidance and tips.
-    
-    RESPONSE FORMAT (VALID JSON ONLY):
-    {{
-      "pages": [
-        {{ 
-          "type": "vocabulary", 
-          "title": "Essential Vocabulary", 
-          "title_tr": "Temel Kelimeler", 
-          "explanation": "• Deep English explanation of how to use these terms\\n• Cultural or grammatical nuances", 
-          "explanation_tr": "• Bu terimlerin kullanımını ve dilbilgisel inceliklerini açıklayan doğal Türkçe pedagojik rehber", 
-          "items": [ 
-            {{ 
-              "term": "...", 
-              "translation": "English meaning", 
-              "translation_tr": "Doğal Türkçe anlamı", 
-              "example": "Natural example sentence in {language}",
-              "example_en": "Natural English translation of the example sentence",
-              "example_tr": "Örnek cümlenin doğal Türkçe çevirisi",
-              "explanation": "Practical tip: prepositions, collocations, or irregular forms (NEVER say 'refers to the act of...')", 
-              "explanation_tr": "Kullanım püf noktası: edatlar, kalıplar veya kural (ASLA '... eylemini ifade eder' gibi gereksiz tanımlar yazmayın)" 
-            }}
-          ] 
-        }},
-        {{ 
-          "type": "grammar", 
-          "title": "Structural Focus", 
-          "title_tr": "Yapısal Dilbilgisi Kuralları", 
-          "text": "• Core Syntactic Principle 1 in English\\n• Morphological inflection and agreement Rule 2\\n• Subordination or clause chaining Rule 3\\n• Stylistic modulation and register nuance Rule 4", 
-          "text_tr": "• Temel Sözdizimsel İlke 1 (Doğal Türkçe öğretmen anlatımı)\\n• Biçimbirimsel çekim ve uyum Kuralı 2\\n• Yan cümle ve bağlaç Kuralı 3\\n• Üslup ve ileri düzey kullanım Kuralı 4",
-          "rules": [
-            {{
-              "rule": "1. Suffix Mechanics & Morphological Trigger",
-              "rule_tr": "1. Biçimbirimsel Tetikleyici ve Ek Mekaniği",
-              "explanation": "Detailed explanation of when and why this grammatical structure is triggered.",
-              "explanation_tr": "Bu dilbilgisel yapının hangi bağlamlarda ve neden devreye girdiğini açıklayan detaylı rehber.",
-              "example": "Authentic example sentence in {language}",
-              "example_en": "Natural English translation",
-              "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "The verb '...' conjugates based on the subject pronoun.",
-              "analysis_tr": "'...' fiili özne zamirine göre çekimlenir."
-            }},
-            {{
-              "rule": "2. Syntactic Subordination & Meaning Dependency",
-              "rule_tr": "2. Yan Cümle Bağımlılığı ve Anlamsal İlişki",
-              "explanation": "How the secondary clause modulates the matrix clause meaning.",
-              "explanation_tr": "Yan cümlenin ana cümleye kattığı anlamsal boyut ve zaman uyumu.",
-              "example": "Second authentic example sentence in {language}",
-              "example_en": "Natural English translation",
-              "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "Breakdown of the second example.",
-              "analysis_tr": "İkinci örneğin sözdizimsel analizi."
-            }},
-            {{
-              "rule": "3. Register Modulation & Stylistic Nuance",
-              "rule_tr": "3. Üslup ve İleri Düzey Nüans",
-              "explanation": "How native speakers elevate their speech using this structure.",
-              "explanation_tr": "Anadili konuşurlarının bu yapıyı resmi veya edebi dilde nasıl kullandığı.",
-              "example": "Third authentic high-register example sentence in {language}",
-              "example_en": "Natural English translation",
-              "example_tr": "Doğal Türkçe çeviri",
-              "analysis": "Analysis of the stylistic elevation.",
-              "analysis_tr": "Üslup yükseltiminin analizi."
-            }}
-          ],
-          "comparisons": [
-            {{
-              "context": "Direct / Conversational",
-              "context_tr": "Doğrudan / Günlük Konuşma",
-              "target": "Everyday colloquial sentence in {language}",
-              "translation": "English translation",
-              "translation_tr": "Türkçe çeviri",
-              "note": "Standard conversational formulation.",
-              "note_tr": "Standart günlük konuşma kalıbı."
-            }},
-            {{
-              "context": "Elevated / Nuanced",
-              "context_tr": "İleri Düzey / Edebi Nüans",
-              "target": "Advanced nuanced sentence in {language}",
-              "translation": "English translation",
-              "translation_tr": "Türkçe çeviri",
-              "note": "Sophisticated formal/literary expression.",
-              "note_tr": "Zengin ve incelikli edebi/resmi anlatım."
-            }}
-          ],
-          "pitfall": "Crucial learner pitfall to avoid (e.g. overusing literal translations or misapplying tense concordance).",
-          "pitfall_tr": "Öğrencilerin en sık düştüğü hata ve dikkat edilmesi gereken püf noktası."
-        }},
-        {{ 
-          "type": "examples", 
-          "title": "Practical Application", 
-          "title_tr": "Pratik Uygulama", 
-          "context": "Communicative setting and social roles in English",
-          "context_tr": "İletişimsel bağlam ve konuşmacıların rolleri (Türkçe)",
-          "explanation": "• How these sentences work in real life", 
-          "explanation_tr": "• Bu cümlelerin günlük hayattaki kullanımını anlatan Türkçe açıklama", 
-          "list": [ 
-            {{ 
-              "speaker": "A", 
-              "text": "Sentence in {language}", 
-              "translation": "English translation", 
-              "translation_tr": "Doğal Türkçe çeviri" 
-            }}, 
-            {{ 
-              "speaker": "B", 
-              "text": "Response in {language}", 
-              "translation": "English translation", 
-              "translation_tr": "Doğal Türkçe çeviri" 
-            }} 
-          ] 
-        }},
-        {{ 
-          "type": "mcq", 
-          "prompt": "Question prompt in English", 
-          "prompt_tr": "Doğal Türkçe soru metni", 
-          "explanation": "• Reasoning in English", 
-          "explanation_tr": "• Doğru cevabın dilbilgisel gerekçesini açıklayan Türkçe pedagojik açıklama", 
-          "answer": "...", 
-          "distractors": ["...", "...", "..."] 
-        }}
-      ]
-    }}"""
-
-    def humanize_turkish_explanation(text: str) -> str:
-        if not text or not isinstance(text, str):
-            return text
-
-        # 1. 'X terimini/kelimesini/sözcüğünü ... ifade etmek için kullanın' -> '... tanımlar;'
-        text = re.sub(
-            r"(?i)(?:'[^']+'|\"[^\"]+\"|[a-zçğıöşüA-ZÇĞİÖŞÜ0-9\s'-]+?)\s+(?:terimini|kelimesini|sözcüğünü|ifadesini)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|ifade\s+ederken\s+kullanın|için\s+kullanın)\.?",
-            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar;",
-            text
-        )
-
-        # 2. 'Bu terimleri / Bu kelimeleri / Bu sıfatları / Bunları ... ifade etmek için kullanın'
-        text = re.sub(
-            r"(?i)\b(?:bu\s+(?:terimleri|kelimeleri|sıfatları|ifadeleri)|bunları)\s*,?\s*(.+?)\s+(?:ifade\s+etmek\s+için\s+kullanın|için\s+kullanın)\.?",
-            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} belirtirken kullanılır.",
-            text
-        )
-
-        # 3. Standalone '... ifade etmek için kullanın' -> '... belirtirken kullanılır.'
-        text = re.sub(
-            r"(?i)([^.]+?)\s+ifade\s+etmek\s+için\s+kullanın\.?",
-            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} belirtirken kullanılır.",
-            text
-        )
-
-        # 4. 'Bu terim/kelime/sözcük, ... ifade eder. Günlük konuşmalarda sıkça kullanılır.'
-        text = re.sub(
-            r"(?i)\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+eder\.?\s*(?:günlük\s+konuşmalarda\s+sıkça\s+kullanılır\.?)?",
-            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar; günlük dilde ve pratik iletişimde yaygın olarak kullanılır. ",
-            text
-        )
-
-        # 5. 'Bu terim/kelime, ... ifade etmek için kullanılır.'
-        text = re.sub(
-            r"(?i)\bbu\s+(?:terim|kelime|sözcük),?\s+([^.]+?)\s+ifade\s+etmek\s+için\s+kullanılır\.?",
-            lambda m: f"{m.group(1).strip().lstrip(',').strip().capitalize()} tanımlar;",
-            text
-        )
-
-        # 6. '... kuralları ve düzenlemeleri anlamak için önemlidir'
-        text = re.sub(
-            r"(?i)\bkuralları\s+ve\s+düzenlemeleri\s+anlamak\s+için\s+önemlidir\.?",
-            "seyahat ve günlük iletişim kuralları açısından temel bir kavramdır.",
-            text
-        )
-
-        # 7. '... için temel bir terimdir / ... için önemli bir terimdir'
-        text = re.sub(
-            r"(?i)([^.]+?)\s+için\s+(?:temel|önemli)\s+bir\s+terimdir\.?",
-            lambda m: f"{m.group(1).strip()} açısından temel bir kavramdır.",
-            text
-        )
-
-        # 8. 'Toplu taşımada yaygın bir terimdir.'
-        text = re.sub(
-            r"(?i)\btoplu\s+taşımada\s+yaygın\s+bir\s+terimdir\.?",
-            "Ulaşım ağlarında ve bilet işlemlerinde sıkça kullanılır.",
-            text
-        )
-
-        # 9. '... durumunu ifade eder' / '... eylemini ifade eder' -> '... tanımlar.'
-        text = re.sub(
-            r"(?i)([a-zçğıöşüA-ZÇĞİÖŞÜ]+(?:leri|ları|i|ı|u|ü))\s+ifade\s+eder\.?",
-            r"\1 tanımlar.",
-            text
-        )
-
-        # Clean formatting artifacts
-        text = re.sub(r';\s*;', ';', text)
-        text = re.sub(r';\s*\.', '.', text)
-        text = re.sub(r'\.\s*\.', '.', text)
-        text = re.sub(r'\s{2,}', ' ', text)
-        text = re.sub(r'([.!?])(?=[a-zçğıöşüA-ZÇĞİÖŞÜ])', r'\1 ', text)
-        text = re.sub(r';\s*(?=[A-ZÇĞİÖŞÜ])', '; ', text)
-
-        return text.strip()
-
-    def heal_turkish_syntax(text: str) -> str:
-        if not text or not isinstance(text, str):
-            return text
-        # 1. Concessive clause healing:
-        # Transforms unnatural machine calques like "Her ne kadar çok meşguldü, yine de..."
-        # into natural Turkish "Her ne kadar çok meşgul olsa da, yine de..."
-        def repl_concessive(m):
-            prefix = m.group(1)
-            stem = m.group(2)
-            comma = m.group(3) or ''
-            return f"{prefix}{stem} olsa da{comma}"
-
-        concessive_pat = r'(?i)\b(her\s+ne\s+kadar\s+(?:.*?\s+)?)([a-zçğıöşüA-ZÇĞİÖŞÜ]+?)(?:y(?:dı|di|du|dü)|dı|di|du|dü|tı|ti|tu|tü)(,)?(?=\s+(?:yine\s+de|ancak|fakat|hâlâ|hala|ama)|\s+[a-zçğıöşüA-ZÇĞİÖŞÜ])'
-        text = re.sub(concessive_pat, repl_concessive, text)
-        text = re.sub(r'(?i)\b(her\s+ne\s+kadar\s+.*?)\s+olsa(?!\s+da|\s+de)(,)?', r'\1 olsa da\2', text)
-
-        # 2. Systemic anti-calque replacements (English/foreign collocations translated literally)
-        calques = [
-            (r'(?i)\bzaman\s+yapmak\b', 'vakit ayırmak'),
-            (r'(?i)\bzaman\s+yaptı\b', 'vakit ayırdı'),
-            (r'(?i)\bzaman\s+yapıyor\b', 'vakit ayırıyor'),
-            (r'(?i)\bzaman\s+yapacağız\b', 'vakit ayıracağız'),
-            (r'(?i)\banlam\s+yapmak\b', 'mantıklı gelmek'),
-            (r'(?i)\banlam\s+yapmıyor\b', 'mantıklı gelmiyor'),
-            (r'(?i)\banlam\s+yapıyor\b', 'mantıklı geliyor'),
-            (r'(?i)\bdikkat\s+ödemek\b', 'dikkat etmek'),
-            (r'(?i)\bdikkat\s+ödeyin\b', 'dikkat edin'),
-            (r'(?i)\bbir\s+bakış\s+almak\b', 'göz atmak'),
-            (r'(?i)\bbir\s+duş\s+almak\b', 'duş almak'),
-            (r'(?i)\bbanyo\s+almak\b', 'banyo yapmak'),
-            (r'(?i)\bbir\s+karar\s+yapmak\b', 'karar vermek'),
-            (r'(?i)\bkarar\s+yapmak\b', 'karar vermek'),
-            (r'(?i)\biyi\s+öğleden\s+sonralar\b', 'Tünaydın'),
-            (r'(?i)\biyi\s+öğleden\s+sonra\b', 'Tünaydın'),
-            (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın')
-        ]
-        # 3. Universal Turkish pedagogical humanizer
-        text = humanize_turkish_explanation(text)
-
-        # 4. Orthographic & Calque Typo Healer: doktar -> doktor
-        def repl_doktor(m):
-            suffix = m.group(1)
-            if not suffix:
-                return 'doktor'
-            suffix_lower = suffix.lower()
-            suffix_map = {
-                'sın': 'sun', 'sin': 'sun',
-                'sınız': 'sunuz', 'siniz': 'sunuz',
-                'ım': 'um', 'im': 'um',
-                'ız': 'uz', 'iz': 'uz',
-                'dır': 'dur', 'dir': 'dur',
-                'lar': 'lar', 'ler': 'lar',
-                'a': 'a', 'e': 'a',
-                'dan': 'dan', 'den': 'dan',
-                'ı': 'u', 'i': 'u',
-                'un': 'un', 'in': 'un'
-            }
-            return 'doktor' + suffix_map.get(suffix_lower, suffix_lower)
-
-        text = re.sub(r'(?i)\bdoktar(sınız|siniz|sın|sin|ım|im|ız|iz|dır|dir|lar|ler|[a-zçğıöşü]+)?\b', repl_doktor, text)
-
+def universal_sanitize_english(text: str) -> str:
+    """Sanitizes English pedagogical fields, replacing inadvertent Turkish comparisons with pure English phonetic anchors."""
+    if not isinstance(text, str) or not text.strip():
         return text
 
-    def _clean_pages(lesson_dict):
-        if not lesson_dict or "pages" not in lesson_dict: return lesson_dict
-        from services.concept_explanations import heal_concept_item, heal_pragmatic_item
-        cleaned = []
-        for p in lesson_dict.get("pages", []):
-            if p.get("type") == "mcq":
-                prompt_txt = str(p.get("prompt", "")).lower()
-                ans_txt = str(p.get("answer", "")).lower().strip()
-                clean_p = re.sub(r'[^\w\s]', ' ', prompt_txt)
-                clean_a = re.sub(r'[^\w\s]', ' ', ans_txt).strip()
-                if len(clean_a) > 2 and f" {clean_a} " in f" {clean_p} ":
-                    continue  # Skip giveaway
-                if is_transparent_cognate_giveaway(prompt_txt, "", ans_txt):
-                    continue  # Skip transparent cognate giveaway
-                trivia_indicators = ["nombre que incluye", "se llama", "name includes", "includes the word", "harfinin adı", "kelimesini içerir", "cuál de estas letras tiene un nombre"]
-                if any(x in clean_p for x in trivia_indicators):
-                    continue  # Skip trivia
+    s = text
 
-                # Clean MCQ feedback in both languages
-                for expl_field in ["explanation", "explanation_tr"]:
-                    if expl_field in p and isinstance(p[expl_field], str):
-                        expl_val = p[expl_field]
-                        expl_val = re.sub(r"(?i)\bthe\s+correct\s+answer\s+is\s+.*?(?:\.|$)", "", expl_val).strip()
-                        expl_val = re.sub(r"(?i)\bthe\s+alternatives?\s+(?:do\s+not|are)\s+.*?(?:\.|$)", "", expl_val).strip()
-                        expl_val = re.sub(r"(?i)\bdoğru\s+cevap\s+.*?(?:\.|$)", "", expl_val).strip()
-                        p[expl_field] = expl_val
+    # If it's pure nationality/country vocabulary, skip changing nationality terms
+    is_vocab_nationality = any(ct in s.lower() for ct in ["turkey / turkish", "soy turco", "de turquía", "from turkey"])
 
-            # Ensure both title and title_tr exist
-            if not p.get("title_tr") and p.get("title"):
-                from services.language_data import _get_bm_title_map
-                bm_titles = _get_bm_title_map()
-                p["title_tr"] = bm_titles.get(p["title"], p["title"])
+    # 1. B/V fixes:
+    s = re.sub(
+        r'\b(?:the\s+)?spanish\s+v\b',
+        "Spanish 'b' and 'v' (identical bilabial sound [b]/[β], unlike English 'v')",
+        s, flags=re.I
+    )
 
-            # Remove obsolete formula banners if present
-            if "formula" in p:
-                del p["formula"]
-            if "formula_tr" in p:
-                del p["formula_tr"]
+    # 2. Vowels:
+    s = re.sub(r'identical to Turkish \'i\'', "similar to 'ee' in English 'see' but shorter and without a glide [i]", s, flags=re.I)
+    s = re.sub(r'pure Turkish \'[iuoae]\'', lambda m: f"pure Spanish vowel {m.group(0)[-3:]}, crisp and without an English diphthong glide", s, flags=re.I)
+    s = re.sub(r'pure Turkish [iuoae]', lambda m: f"pure Spanish {m.group(0)[-1]}, crisp and without a glide", s, flags=re.I)
+    s = re.sub(r'clean(?:ly)?(?:, short)? (?:as in )?Turkish \'e\'', "clean, pure vowel [e] as in English 'bet'", s, flags=re.I)
+    s = re.sub(r'as in Turkish \'okul\'', "as in English 'for'", s, flags=re.I)
 
-            # Preserve & clean rules, comparisons, pitfall for grammar pages (DO NOT copy English into _tr fields)
-            if p.get("type") == "grammar" or p.get("rules"):
-                if isinstance(p.get("rules"), list):
-                    for r_it in p["rules"]:
-                        if isinstance(r_it, dict):
-                            for rf in ["rule_tr", "explanation_tr", "example_tr", "analysis_tr"]:
-                                if r_it.get(rf):
-                                    r_it[rf] = heal_turkish_syntax(r_it[rf])
-                if isinstance(p.get("comparisons"), list):
-                    for c_it in p["comparisons"]:
-                        if isinstance(c_it, dict):
-                            for cf in ["context_tr", "translation_tr", "note_tr"]:
-                                if c_it.get(cf):
-                                    c_it[cf] = heal_turkish_syntax(c_it[cf])
+    # 3. Consonants:
+    s = re.sub(r'(?:digraph is |is )?(?:pronounced )?(?:exactly |identically |identical )?(?:to |like )?(?:the )?Turkish (?:letter |sound )?\'[çc]\'(?: sound)?(?: \[[^\]]+\])?(?: in \'çay\')?', "like English 'ch' in 'chocolate' [tʃ]", s, flags=re.I)
+    s = re.sub(r'like (?:the )?\'[çc]\' in Turkish \'çay\'', "like English 'ch' in 'chocolate'", s, flags=re.I)
+    s = re.sub(r'(?:exactly |similarly )?like (?:the )?Turkish \'g\'(?: in \'gül\')?', "like hard English 'g' in 'go'", s, flags=re.I)
+    s = re.sub(r'like (?:the )?\'g\' in Turkish \'gül\'', "like hard English 'g' in 'go'", s, flags=re.I)
+    s = re.sub(r'(?:pronounced )?(?:similarly |identical )?to (?:the )?Turkish \'y\'(?: sound)?(?:,\s*pronounced cleanly without an English glide)?', "like English 'y' in 'yellow'", s, flags=re.I)
+    s = re.sub(r'like Turkish \'y\'', "like English 'y' in 'yellow'", s, flags=re.I)
+    s = re.sub(r'(?:exactly |identically )?identical to (?:the single )?Turkish (?:single )?\'r\'(?: sound in \'(?:kara|ara)\')?', "an alveolar flap [ɾ], like the quick 'tt' in American English 'butter'", s, flags=re.I)
+    s = re.sub(r'pronounced like (?:the single )?Turkish \'r\'', "pronounced as an alveolar flap [ɾ], like 'tt' in 'butter'", s, flags=re.I)
+    s = re.sub(r'identical to standard Turkish \'r\'', "an alveolar tap [ɾ], like 'tt' in 'butter'", s, flags=re.I)
+    s = re.sub(r'identical to (?:the )?(?:English and )?Turkish \'f\'', "identical to English 'f'", s, flags=re.I)
+    s = re.sub(r'identical to (?:the )?(?:Turkish and )?English \'m\'', "identical to English 'm'", s, flags=re.I)
+    s = re.sub(r'identical to standard Turkish \'n\'', "identical to English 'n'", s, flags=re.I)
+    s = re.sub(r'(?:exactly )?like (?:the )?Turkish \'k\'', "like English 'k' in 'skip'", s, flags=re.I)
+    s = re.sub(r'pure Turkish \'k\' \[[^\]]+\]', "hard 'k' sound [k] as in English 'skip'", s, flags=re.I)
+    s = re.sub(r'(?:pronounced )?(?:exactly |similarly )?like the Turkish (?:sound |letter )?(?:combination |sequence )?\'ny\'(?: \([^\)]+\))?', "like 'ny' in English 'canyon'", s, flags=re.I)
+    s = re.sub(r'similar to \'ny\' in Turkish \([^\)]+\)', "like 'ny' in English 'canyon'", s, flags=re.I)
+    s = re.sub(r'the Turkish \'ny\' combination in \'banyo\'', "'ny' in English 'canyon'", s, flags=re.I)
+    s = re.sub(r'or the Turkish \'n\' followed smoothly by \'y\'', "or 'ni' in 'onion'", s, flags=re.I)
+    s = re.sub(r'like (?:a raspy|the) Turkish (?:gırtlaksı sert )?\'h\'', "like guttural 'ch' in Scottish 'loch' [x]", s, flags=re.I)
+    s = re.sub(r'like Turkish gırtlaksı sert \'h\'', "like guttural 'ch' in Scottish 'loch' [x]", s, flags=re.I)
 
-            # Apply syntax healing to page-level Turkish fields
-            for f_tr in ["text_tr", "explanation_tr", "pitfall_tr", "context_tr", "intro_tr", "prompt_tr"]:
-                if p.get(f_tr):
-                    p[f_tr] = heal_turkish_syntax(p[f_tr])
+    # 4. Grammar clauses and pedagogical references:
+    if not is_vocab_nationality:
+        s = re.sub(r',? but for Turkish speakers[^\.\,\;]*', "", s, flags=re.I)
+        s = re.sub(r'with correct pronunciation for Turkish speakers', "with clear pronunciation guidelines", s, flags=re.I)
+        s = re.sub(r'\(identical to Turkish verb conjugation\)', "(since Spanish verb conjugation clearly identifies the subject)", s, flags=re.I)
+        s = re.sub(r'exactly like Turkish personal suffixes', "as verb conjugation clearly marks the person", s, flags=re.I)
+        s = re.sub(r'or Turkish \'Efendim\?\'', "", s, flags=re.I)
+        s = re.sub(r'Unlike Turkish \'[^\']+\' [^\,\.]*\,', "Note that", s, flags=re.I)
+        s = re.sub(r'Turkish (?:speakers|learners) often (?:wrongly |mistakenly )?omit', "Beginner learners often omit", s, flags=re.I)
+        s = re.sub(r'Turkish (?:speakers|learners) often wrongly conjugate', "Beginner learners often wrongly conjugate", s, flags=re.I)
+        s = re.sub(r'In Turkish, both \'[^\']+\' and \'[^\']+\' correspond[^\.]*\.', "", s, flags=re.I)
+        s = re.sub(r'Turkish speakers have a major natural advantage:[^\.]*\.', "", s, flags=re.I)
+        s = re.sub(r'or the planned future tense \(\'\-ecek \/ \-acak\'\) in Turkish', "", s, flags=re.I)
+        s = re.sub(r'from English or Turkish!', "literally from your native language!", s, flags=re.I)
+        s = re.sub(r'vs\.\s*Turkish Ek-eylem', "", s, flags=re.I)
+        s = re.sub(r'where English and Turkish use adjectives[^\.]*\.', "where English uses adjectives.", s, flags=re.I)
+        s = re.sub(r'\(Turkish \'\-de\/\-da\' eki\)', "", s, flags=re.I)
+        s = re.sub(r'and Turkish \(onun vs onların\)', "", s, flags=re.I)
+        s = re.sub(r'CRITICAL TRAP F SPEAKERS: Turkish uses locative case suffixes[^\.]*\.', "CRITICAL PREPOSITION TRAP: Always use the proper linking preposition.", s, flags=re.I)
 
-            # Pedagogical item explanation enrichment & self-healing
-            from services.language_data import get_letter_phonetics, get_vocab_example
-            tautology_re = re.compile(
-                r'(?i)\b(?:eylemini\s+ifade\s+eder|etkinliğini\s+ifade\s+eder|ifade\s+etmek\s+için\s+kullanılır|'
-                r'eylemidir|yapma\s+eylemi|resim\s+yaratmayı|üretme\s+eylemidir|gitmeyi\s+içerir|'
-                r'refers?\s+to\s+the\s+act\s+of|means?\s+the\s+act\s+of|is\s+the\s+act\s+of|used\s+to\s+express\s+the\s+action\s+of)\b'
-            )
+    s = re.sub(r'\s{2,}', ' ', s)
+    s = re.sub(r'\s+([\,\.\;\:])', r'\1', s)
+    s = re.sub(r'\(\s*\)', '', s)
+    return s.strip()
 
-            for list_key in ["items", "vocabulary", "words", "list", "dialogue", "examples"]:
-                arr = p.get(list_key)
-                if isinstance(arr, list):
-                    filtered_arr = []
-                    for it in arr:
-                        if isinstance(it, dict):
-                            # Ensure dialogue item has target text assigned
-                            if it.get("speaker") and not it.get("text"):
-                                for alt_key in ["sentence", "phrase", "line", "dialogue", "target", language.lower()]:
-                                    if it.get(alt_key):
-                                        it["text"] = it[alt_key]
-                                        break
-                            heal_concept_item(it, lang="en")
-                            heal_concept_item(it, lang="tr")
+def _sanitize_turkish_content(s: str) -> str:
+    """Post-generation cleanup for Turkish pedagogical fields.
+    Removes robotic AI artifacts: parenthetical glosses, gender hacks, tense calques,
+    ungradable 'çok', food article calques, body-part 'sahiptir'.
+    """
+    if not isinstance(s, str) or not s.strip():
+        return s
 
-                            term_str = str(it.get("term") or it.get("word") or it.get("letter") or "").strip()
+    # 1. Remove parenthetical origin glosses: (Meksika'dan), (e sahiptir), vb.
+    s = re.sub(
+        r"\s*\([A-Za-z\u00C0-\u024F\s''\-\u2013]+(?:['']dan|['']den|dan|den|ten|tan|e sahiptir|a sahiptir)\)",
+        "", s
+    )
+    # Catch English parenthetical glosses in TR field e.g. (thirty-one days)
+    s = re.sub(r"\s*\(\s*(?:thirty|forty|fifty|sixty|one|two|three|has|with)\s[^)]{1,40}\)", "", s, flags=re.I)
 
-                            # 0. CEFR Level Invariant: Reject elementary/out-of-level items in higher levels
-                            if not validate_cefr_level(term_str, language, level):
-                                continue
+    # 2. Remove clumsy gender hacks: '; o bir Meksikali kadindir.' or standalone at end
+    # Also handle with ASCII-transliterated Turkish chars (test data has them)
+    s = re.sub(r"[;,]?\s*o\s+bir\s+\S+\s+(?:kadındır|erkektir|kadindir|erkektir)\.?", ".", s)
+    s = re.sub(r"\s+o\s+bir\s+\S+\s+(?:kadındır|erkektir|kadindir|erkektir)\.?", ".", s)
+    # Strip trailing semicolons left after removal
+    s = re.sub(r";\s*\.", ".", s)
 
-                            # 1. Letter healing: alphabet phonetics & eliminate pronoun bleed
-                            if is_alphabet_topic or len(term_str) == 1:
-                                phon_data = get_letter_phonetics(language, term_str)
-                                if phon_data:
-                                    it["name"] = phon_data["name"]
-                                    it["phonetic_en"] = phon_data["phonetic_en"]
-                                    it["phonetic_tr"] = phon_data["phonetic_tr"]
-                                    if not it.get("example") and phon_data.get("example"):
-                                        it["example"] = phon_data["example"]
-                                # Strip pronoun bleed from letter I
-                                if term_str.upper() == "I":
-                                    for k in ["explanation", "explanation_en", "explanation_tr"]:
-                                        if "pronoun" in str(it.get(k, "")).lower() or "zamir" in str(it.get(k, "")).lower():
-                                            it[k] = ""
-                                    if it.get("translation") == "Ben":
-                                        it["translation"] = "i"
-                                    if it.get("translation_tr") == "Ben":
-                                        it["translation_tr"] = "i"
+    # 3. Fix ungradable adjectives with 'çok'
+    s = re.sub(r"(?i)\bçok\s+devasa\b", "devasa", s)
+    s = re.sub(r"(?i)\bçok\s+muazzam\b", "muazzam", s)
+    s = re.sub(r"(?i)\bçok\s+mükemmel\b", "mükemmel", s)
+    s = re.sub(r"(?i)\bçok\s+benzersiz\b", "benzersiz", s)
+    s = re.sub(r"(?i)\bçok\s+eşsiz\b", "eşsiz", s)
 
-                            # 2. Strip tautologies & enforce strict bilingual segregation
-                            for k in ["explanation", "explanation_en", "explanation_tr"]:
-                                if k in it and isinstance(it[k], str) and tautology_re.search(it[k]):
-                                    it[k] = ""
+    # 4. Tense calque: polite ordering formula
+    s = re.sub(r"(?i)\brica\s+ediyordum\b", "rica ediyorum", s)
 
-                            # 2b. Strict Bidirectional Language Segregation
-                            expl_en = str(it.get("explanation") or it.get("explanation_en") or "").strip()
-                            expl_tr = str(it.get("explanation_tr") or "").strip()
-                            tr_markers = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', expl_en) or re.search(r'\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı|diyalogu|teşvik)\b', expl_en, re.IGNORECASE))
-                            if tr_markers:
-                                if not expl_tr:
-                                    it["explanation_tr"] = expl_en
-                                it["explanation"] = ""
-                                it["explanation_en"] = ""
-                            en_in_tr = bool(re.search(r'\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be|discussion|open|dialogue|arguments|listen|encourage)\b', expl_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', expl_tr))
-                            if en_in_tr:
-                                if not it.get("explanation"):
-                                    it["explanation"] = expl_tr
-                                it["explanation_tr"] = ""
+    # 5. Literal 'bir kızarmış ekmek'
+    s = re.sub(r"(?i)\bbir\s+kızarmış\s+ekmek\b", "kızarmış ekmek", s)
 
-                            ex_en = str(it.get("example_en") or "").strip()
-                            ex_tr = str(it.get("example_tr") or "").strip()
-                            ex_tr_markers = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]', ex_en) or re.search(r'\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|tartışma|açık|karşı)\b', ex_en, re.IGNORECASE))
-                            if ex_tr_markers:
-                                if not ex_tr:
-                                    it["example_tr"] = ex_en
-                                it["example_en"] = ""
-                            ex_en_in_tr = bool(re.search(r'\b(the|and|is|are|in|for|with|of|to|these|this|should|must|have|has|be)\b', ex_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', ex_tr))
-                            if ex_en_in_tr:
-                                if not it.get("example_en"):
-                                    it["example_en"] = ex_tr
-                                it["example_tr"] = ""
+    # 6. Body-part possession 'sahiptir' -> predicate adjective
+    # Use lambda to build replacement with matched group
+    def _eye_repl(m):
+        return m.group(1) + " gözlüdür"
+    s = re.sub(r"(?i)\b(yeşil|mavi|kahverengi|ela|kara|lacivert)\s+gözlere\s+sahiptir\b", _eye_repl, s)
 
-                            # Meaning / Translation segregation
-                            trans_en = str(it.get("translation") or it.get("translation_en") or it.get("meaning") or "").strip()
-                            trans_tr = str(it.get("translation_tr") or it.get("meaning_tr") or "").strip()
-                            if trans_en and re.search(r'[çğıöşüÇĞİÖŞÜ]', trans_en):
-                                if not trans_tr:
-                                    it["translation_tr"] = trans_en
-                                it["translation"] = ""
-                                it["translation_en"] = ""
-                            if trans_tr and re.search(r'\b(the|and|is|are|in|for|with|of|to|discussion|logic|conclusion|result|meeting)\b', trans_tr, re.IGNORECASE) and not re.search(r'[çğıöşüÇĞİÖŞÜ]', trans_tr):
-                                if not it.get("translation"):
-                                    it["translation"] = trans_tr
-                                it["translation_tr"] = ""
+    def _hair_repl(m):
+        return m.group(1) + " saçlıdır"
+    s = re.sub(r"(?i)\b(kıvırcık|düz|dalgalı|uzun|kısa|siyah|sarı|kumral|kızıl|gri)\s+saçlara\s+sahiptir\b", _hair_repl, s)
 
-                            # 3. Enrich vocabulary with authentic example sentence & practical tip if missing
-                            bank_hit = get_vocab_example(language, term_str)
-                            if bank_hit:
-                                if not it.get("example"):
-                                    it["example"] = bank_hit["example"]
-                                if not it.get("example_en"):
-                                    it["example_en"] = bank_hit["example_en"]
-                                if not it.get("example_tr"):
-                                    it["example_tr"] = bank_hit["example_tr"]
-                                if not it.get("explanation") or tautology_re.search(str(it.get("explanation", ""))):
-                                    it["explanation"] = bank_hit["tip_en"]
-                                if not it.get("explanation_tr") or tautology_re.search(str(it.get("explanation_tr", ""))):
-                                    it["explanation_tr"] = bank_hit["tip_tr"]
+    # 7. Calendar parenthetical 'sahiptir' glosses
+    s = re.sub(r"\(otuz\s+bir\s+güne\s+sahiptir\)", "", s, flags=re.I)
+    s = re.sub(r"\(yirmi\s+sekiz(?:\s+veya\s+yirmi\s+dokuz)?\s+güne\s+sahiptir\)", "", s, flags=re.I)
+    s = re.sub(r"\(otuz\s+güne\s+sahiptir\)", "", s, flags=re.I)
 
-                            # 4. Enforce authentic Turkish syntax on vocabulary item Turkish fields
-                            for it_tr_k in ["example_tr", "explanation_tr", "translation_tr"]:
-                                if it.get(it_tr_k):
-                                    it[it_tr_k] = heal_turkish_syntax(it[it_tr_k])
+    # 8. Punctuation cleanup
+    s = re.sub(r"\s*\.\s*\.", ".", s)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    if s.endswith(";"):
+        s = s[:-1].strip() + "."
 
-                            filtered_arr.append(it)
-                        elif isinstance(it, str):
-                            s = it.strip()
-                            # If it is a sentence or bullet rule, move it out of vocabulary items into text
-                            if s.startswith(('•', '-', '*')) or len(s.split()) > 4 or len(s) > 35:
-                                existing_text = p.get("text") or p.get("explanation") or ""
-                                if s not in existing_text:
-                                    p["text"] = f"{existing_text}\n{s}".strip()
+    return s
+
+
+def _sanitize_deep_bilingual(obj):
+    """Recursively applies universal_sanitize_english to English fields and
+    _sanitize_turkish_content to Turkish (_tr) fields."""
+    if isinstance(obj, dict):
+        new_d = {}
+        for k, v in obj.items():
+            if k.endswith('_tr') and isinstance(v, str):
+                new_d[k] = _sanitize_turkish_content(v)
+            elif not k.endswith('_tr') and isinstance(v, str):
+                new_d[k] = universal_sanitize_english(v)
+            else:
+                new_d[k] = _sanitize_deep_bilingual(v)
+        return new_d
+    elif isinstance(obj, list):
+        return [_sanitize_deep_bilingual(x) for x in obj]
+    return obj
+
+def _normalize_lesson_pages(data, topic, language, level):
+    """Ensures lesson dictionary conforms strictly to {"pages": [...]} format, normalizing flexible AI output."""
+    if isinstance(data, dict) and isinstance(data.get("pages"), list) and len(data["pages"]) > 0:
+        for p in data["pages"]:
+            if not isinstance(p, dict):
+                continue
+            # Flatten nested "content" dict if Luna wraps properties inside it
+            if isinstance(p.get("content"), dict):
+                c_dict = p.pop("content")
+                for ck, cv in c_dict.items():
+                    if ck not in p:
+                        p[ck] = cv
+            # Normalize overview list of objects into text
+            if "overview" in p and "text" not in p:
+                ov = p.pop("overview")
+                if isinstance(ov, list):
+                    p["text"] = "\n".join(f"• {x.get('text', '') if isinstance(x, dict) else str(x)}" for x in ov)
+                else:
+                    p["text"] = str(ov)
+            # Normalize dialogues / dialogue
+            if "dialogues" in p and "dialogue" not in p:
+                p["dialogue"] = p.pop("dialogues")
+            if isinstance(p.get("dialogue"), list) and len(p["dialogue"]) > 0 and isinstance(p["dialogue"][0], dict) and "dialogue" in p["dialogue"][0]:
+                flat_turns = []
+                for scen in p["dialogue"]:
+                    if isinstance(scen, dict):
+                        scen_ctx = scen.get("context", "")
+                        if scen_ctx and not p.get("context"):
+                            p["context"] = scen_ctx
+                        for turn in scen.get("dialogue", []):
+                            if isinstance(turn, dict):
+                                flat_turns.append(turn)
+                p["dialogue"] = flat_turns
+            # Normalize teacher_pitfalls into pitfall string
+            if "teacher_pitfalls" in p and "pitfall" not in p:
+                tp = p.pop("teacher_pitfalls")
+                p["pitfall"] = ("• " + "\n• ".join(tp)) if isinstance(tp, list) else str(tp)
+            # Normalize activities into formative assessment mcq
+            if "activities" in p and "prompt" not in p:
+                acts = p.pop("activities")
+                if acts and isinstance(acts, list) and isinstance(acts[0], dict):
+                    p["prompt"] = acts[0].get("prompt", "")
+                    p["options"] = acts[0].get("options", [])
+                    p["distractors"] = acts[0].get("distractors", [])
+                    p["answer"] = acts[0].get("answer", "")
+                    p["explanation"] = acts[0].get("explanation", "")
+            # Normalize list text into formatted bullet string
+            if isinstance(p.get("text"), list):
+                p["text"] = "\n".join(f"• {x.get('text', '') if isinstance(x, dict) else str(x)}" for x in p["text"])
+            # Deduce or correct page type based on actual contents
+            if p.get("items") or p.get("vocabulary"):
+                p["type"] = "vocabulary"
+            elif p.get("rules") or p.get("grammar"):
+                p["type"] = "grammar"
+            elif p.get("dialogue") or p.get("conversations"):
+                p["type"] = "examples"
+            elif p.get("prompt") or p.get("options") or p.get("distractors"):
+                p["type"] = "mcq"
+            elif not p.get("type") or p.get("type") in ["custom", "lesson"]:
+                p["type"] = "overview"
+
+            # Synchronize MCQ options and distractors so both are always fully available
+            if p.get("type") == "mcq" or p.get("prompt"):
+                p["type"] = "mcq"
+                ans = str(p.get("answer", "")).strip()
+                opts = p.get("options")
+                distrs = p.get("distractors")
+                if opts and isinstance(opts, list) and len(opts) > 1:
+                    clean_opts = [str(o).strip() for o in opts if str(o).strip()]
+                    p["options"] = clean_opts
+                    if not distrs or not isinstance(distrs, list) or len(distrs) == 0:
+                        p["distractors"] = [o for o in clean_opts if o != ans]
+                    if not ans and clean_opts:
+                        ans = clean_opts[0]
+                        p["answer"] = ans
+                elif distrs and isinstance(distrs, list) and len(distrs) > 0:
+                    clean_distrs = [str(d).strip() for d in distrs if str(d).strip()]
+                    p["distractors"] = clean_distrs
+                    if ans and ans not in clean_distrs:
+                        p["options"] = [ans] + clean_distrs
+                    else:
+                        p["options"] = clean_distrs
+
+            # Preserve authentic descriptive title if present, otherwise assign a clean title
+            p_type = p.get("type", "")
+            raw_title = str(p.get("title", "")).strip()
+            if not raw_title or raw_title.lower() in ["untitled", "slide", "page", "custom", "overview"]:
+                if p_type == "overview":
+                    p["title"] = "1. Conceptual Foundations"
+                elif p_type == "vocabulary":
+                    p["title"] = "2. Core Vocabulary & Forms"
+                elif p_type == "grammar":
+                    p["title"] = "3. Structural Architecture & Rules"
+                elif p_type in ["examples", "dialogue"]:
+                    p["title"] = "4. Real-World Situational Dialogue"
+                elif p_type == "mcq":
+                    p["title"] = "5. Formative Quick-Check"
+            else:
+                p["title"] = raw_title
+
+            # Preserve authentic descriptive Turkish title if present, otherwise assign a clean title
+            raw_title_tr = str(p.get("title_tr", "")).strip()
+            if not raw_title_tr or raw_title_tr.lower() in ["untitled", "slide", "page", "custom", "overview"]:
+                if p_type == "overview":
+                    p["title_tr"] = "1. Kavramsal Temeller"
+                elif p_type == "vocabulary":
+                    p["title_tr"] = "2. Temel Kelimeler ve Yapılar"
+                elif p_type == "grammar":
+                    p["title_tr"] = "3. Yapısal Kurallar"
+                elif p_type in ["examples", "dialogue"]:
+                    p["title_tr"] = "4. Gerçek Yaşam Diyaloğu"
+                elif p_type == "mcq":
+                    p["title_tr"] = "5. Hızlı Değerlendirme"
+            else:
+                p["title_tr"] = raw_title_tr
+
+            # Ensure vocabulary items have well-formed fields including bilingual pairs
+            if "items" in p and isinstance(p["items"], list):
+                clean_items = []
+                for it in p["items"]:
+                    if isinstance(it, dict):
+                        clean_items.append({
+                            "term": it.get("term") or it.get("word") or "",
+                            "phonetic": it.get("phonetic") or "",
+                            "translation": it.get("translation") or it.get("meaning") or it.get("english") or "",
+                            "translation_tr": it.get("translation_tr") or "",
+                            "example": it.get("example") or "",
+                            "example_en": it.get("example_en") or it.get("translation_example") or "",
+                            "example_tr": it.get("example_tr") or "",
+                            "explanation": it.get("explanation") or it.get("tip") or "",
+                            "explanation_tr": it.get("explanation_tr") or ""
+                        })
+                p["items"] = clean_items
+
+            # Ensure comparisons is always a list of well-formed objects with bilingual support
+            if "comparisons" in p and isinstance(p["comparisons"], list):
+                norm_comps = []
+                for c in p["comparisons"]:
+                    if isinstance(c, dict):
+                        norm_comps.append({
+                            "context": c.get("context") or "Register & Nuance Contrast",
+                            "context_tr": c.get("context_tr") or "Kullanım ve Anlam Karşılaştırması",
+                            "target": c.get("target") or c.get("sentence") or c.get("text") or "",
+                            "translation": c.get("translation") or c.get("meaning") or "",
+                            "translation_tr": c.get("translation_tr") or "",
+                            "note": c.get("note") or c.get("explanation") or "",
+                            "note_tr": c.get("note_tr") or ""
+                        })
+                    elif isinstance(c, str) and c.strip():
+                        parts = c.split("=")
+                        if len(parts) >= 2:
+                            norm_comps.append({
+                                "context": "Register & Nuance Contrast",
+                                "context_tr": "Kullanım ve Anlam Karşılaştırması",
+                                "target": parts[0].strip().strip("'\""),
+                                "translation": "",
+                                "translation_tr": "",
+                                "note": parts[1].strip().strip("'\""),
+                                "note_tr": ""
+                            })
+                        else:
+                            norm_comps.append({
+                                "context": "Register & Nuance Contrast",
+                                "context_tr": "Kullanım ve Anlam Karşılaştırması",
+                                "target": c.strip().strip("'\""),
+                                "translation": "",
+                                "translation_tr": "",
+                                "note": "",
+                                "note_tr": ""
+                            })
+                p["comparisons"] = norm_comps
+
+            # Ensure grammar rules have distinct, meaningful titles and explanations
+            if "rules" in p and isinstance(p["rules"], list):
+                for r_idx, r in enumerate(p["rules"]):
+                    if isinstance(r, dict):
+                        r_rule = str(r.get("rule", "")).strip()
+                        if not r_rule or len(r_rule) < 3:
+                            r["rule"] = f"Grammar Principle {r_idx + 1}"
+                        if not r.get("explanation"):
+                            r_ex = r.get("example") or r.get("target") or ""
+                            if r_ex:
+                                r["explanation"] = f"Key grammatical pattern illustrated by '{r_ex}'."
+                            elif r_rule:
+                                r["explanation"] = f"Focus on understanding the structural role of {r_rule}."
                             else:
-                                filtered_arr.append(it)
+                                r["explanation"] = "Examine the grammatical structure and sentence pattern."
+                        if "rule_tr" in r:
+                            r["rule_tr"] = str(r["rule_tr"]).strip()
+                        if "explanation_tr" in r:
+                            r["explanation_tr"] = str(r["explanation_tr"]).strip()
+                        if "example_tr" in r:
+                            r["example_tr"] = str(r["example_tr"]).strip()
+                        if "analysis_tr" in r:
+                            r["analysis_tr"] = str(r["analysis_tr"]).strip()
 
-                    # 4. CEFR Level Protection: Replenish curated items if C1/C2 list was depleted of bad items
-                    if p.get("type") == "vocabulary" and any(k in level.upper() for k in ["C1", "C2"]) and len(filtered_arr) < 4:
-                        curated = get_curated_c1_items(language, topic)
-                        if curated:
-                            existing_terms = {str(x.get("term", "")).lower() for x in filtered_arr if isinstance(x, dict)}
-                            for c_item in curated:
-                                if str(c_item.get("term", "")).lower() not in existing_terms:
-                                    filtered_arr.append(dict(c_item))
+            # Ensure dialogue preserves translations
+            if "dialogue" in p and isinstance(p["dialogue"], list):
+                for d in p["dialogue"]:
+                    if isinstance(d, dict):
+                        if not d.get("line_en") and d.get("translation"):
+                            d["line_en"] = d.get("translation")
+                        if not d.get("line_tr") and d.get("translation_tr"):
+                            d["line_tr"] = d.get("translation_tr")
 
-                    p[list_key] = filtered_arr
+            # Ensure MCQ preserves bilingual prompt and explanation
+            if p.get("type") == "mcq" or p.get("prompt"):
+                if "prompt_tr" in p:
+                    p["prompt_tr"] = str(p["prompt_tr"]).strip()
+                if "explanation_tr" in p:
+                    p["explanation_tr"] = str(p["explanation_tr"]).strip()
 
-            # Advanced title styling for C1/C2
-            if any(k in level.upper() for k in ["C1", "C2"]):
-                if p.get("title") == "Essential Vocabulary":
-                    p["title"] = "Advanced Lexicon & Nuances"
-                    p["title_tr"] = "İleri Düzey Kelime Bilgisi ve Nüanslar"
+        return _sanitize_deep_bilingual(data)
 
-            cleaned.append(p)
-        lesson_dict["pages"] = cleaned
+    if not isinstance(data, dict) or "error_details" in data or not data:
+        return {"pages": []}
+
+    # Only construct fallback pages if there is genuine educational content
+    has_content = any(k in data for k in ["vocabulary", "items", "words", "grammar_rules", "rules", "dialogue", "conversations", "mcq", "assessment", "question"])
+    if not has_content:
+        return {"pages": []}
+
+    pages = []
+    # 1. Overview page
+    overview_text = data.get("cefr_can_do") or data.get("overview") or data.get("description") or f"Comprehensive guide to {topic} in {language} for {level} learners."
+    pages.append({
+        "type": "overview",
+        "title": data.get("title") or f"{topic} Overview",
+        "title_tr": data.get("title_tr") or f"{topic} Genel Bakış",
+        "text": overview_text,
+        "text_tr": data.get("text_tr") or data.get("overview_tr") or ""
+    })
+
+    # 2. Vocabulary page
+    vocab_items = data.get("vocabulary") or data.get("items") or data.get("words") or []
+    if vocab_items:
+        clean_items = []
+        for v in vocab_items:
+            if isinstance(v, dict):
+                clean_items.append({
+                    "term": v.get("term") or v.get("word") or "",
+                    "phonetic": v.get("phonetic") or "",
+                    "translation": v.get("translation") or v.get("meaning") or "",
+                    "translation_tr": v.get("translation_tr") or "",
+                    "example": v.get("example") or "",
+                    "example_en": v.get("example_en") or v.get("translation_example") or "",
+                    "example_tr": v.get("example_tr") or "",
+                    "explanation": v.get("explanation") or v.get("tip") or "",
+                    "explanation_tr": v.get("explanation_tr") or ""
+                })
+        if clean_items:
+            pages.append({
+                "type": "vocabulary",
+                "title": f"Essential Vocabulary: {topic}",
+                "title_tr": f"Temel Kelimeler: {topic}",
+                "items": clean_items
+            })
+
+    # 3. Grammar page
+    rules = data.get("grammar_rules") or data.get("rules") or []
+    comparisons = data.get("grammar_contrast_pairs") or data.get("comparisons") or []
+    pitfall = data.get("teachers_warning") or data.get("pitfall") or ""
+    pitfall_tr = data.get("teachers_warning_tr") or data.get("pitfall_tr") or ""
+    if rules or comparisons or pitfall:
+        clean_rules = []
+        for r in rules:
+            if isinstance(r, dict):
+                clean_rules.append({
+                    "rule": r.get("rule") or r.get("title") or "",
+                    "rule_tr": r.get("rule_tr") or "",
+                    "explanation": r.get("explanation") or "",
+                    "explanation_tr": r.get("explanation_tr") or "",
+                    "example": r.get("example") or "",
+                    "example_en": r.get("example_en") or "",
+                    "example_tr": r.get("example_tr") or "",
+                    "analysis": r.get("analysis") or "",
+                    "analysis_tr": r.get("analysis_tr") or ""
+                })
+        pages.append({
+            "type": "grammar",
+            "title": f"Grammar Mechanics: {topic}",
+            "title_tr": f"Dilbilgisi Kuralları: {topic}",
+            "text": "• Core grammatical rules and usage patterns.",
+            "text_tr": "• Temel dilbilgisi kuralları ve kullanım kalıpları.",
+            "rules": clean_rules,
+            "comparisons": comparisons if isinstance(comparisons, list) else [],
+            "pitfall": pitfall,
+            "pitfall_tr": pitfall_tr
+        })
+
+    # 4. Situational Dialogue page
+    dialogue = data.get("dialogue") or data.get("conversations") or []
+    if dialogue:
+        clean_diag = []
+        for d in dialogue:
+            if isinstance(d, dict):
+                clean_diag.append({
+                    "speaker": d.get("speaker") or "Speaker",
+                    "text": d.get("text") or d.get("line") or "",
+                    "line_en": d.get("line_en") or d.get("translation") or "",
+                    "line_tr": d.get("line_tr") or d.get("translation_tr") or ""
+                })
+        if clean_diag:
+            pages.append({
+                "type": "examples",
+                "title": "Situational Dialogue",
+                "title_tr": "Durumsal Diyalog",
+                "context": data.get("context") or f"Authentic communicative context for {topic}.",
+                "context_tr": data.get("context_tr") or "",
+                "dialogue": clean_diag
+            })
+
+    # 5. Formative Assessment / MCQ page
+    mcq = data.get("mcq") or data.get("assessment") or data.get("question")
+    if isinstance(mcq, dict):
+        ans = str(mcq.get("answer", "")).strip()
+        opts = mcq.get("options") or []
+        distrs = mcq.get("distractors") or []
+        if opts and not distrs:
+            distrs = [o for o in opts if o != ans]
+        elif distrs and not opts:
+            opts = ([ans] if ans else []) + distrs
+        pages.append({
+            "type": "mcq",
+            "title": mcq.get("title") or "Formative Assessment",
+            "title_tr": mcq.get("title_tr") or "Hızlı Değerlendirme",
+            "prompt": mcq.get("prompt") or mcq.get("question") or "",
+            "prompt_tr": mcq.get("prompt_tr") or "",
+            "options": opts,
+            "distractors": distrs,
+            "answer": ans,
+            "explanation": mcq.get("explanation") or "",
+            "explanation_tr": mcq.get("explanation_tr") or ""
+        })
+
+    return _sanitize_deep_bilingual({"pages": pages})
+
+def translate_lesson_to_turkish(lesson_dict, language="Spanish"):
+    """
+    Surgically extracts English pedagogical strings from a lesson dictionary,
+    translates them in a single fast call to DeepSeek V4 Flash (0.4s),
+    and injects the Turkish translations back into the lesson dictionary.
+    Target language text (Spanish, German, etc.), IPA phonetics, and codes are never altered.
+    """
+    if not lesson_dict or not isinstance(lesson_dict, dict) or not lesson_dict.get("pages"):
         return lesson_dict
 
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=5000, temperature=0.4)
-    if res and "pages" in res:
-        return _clean_pages(res)
-    # If primary model failed entirely, try fallback once
-    if MODEL_FALLBACK:
-        res2 = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=5000, temperature=0.4)
-        if res2 and "pages" in res2:
-            return _clean_pages(res2)
-    return {"pages": []}
+    # 1. Surgical string extraction
+    ref_map = []  # list of (path_in_dict, text)
+    for p_idx, page in enumerate(lesson_dict.get("pages", [])):
+        if page.get("title"):
+            ref_map.append((f"pages.{p_idx}.title_tr", page["title"]))
+        if page.get("text"):
+            ref_map.append((f"pages.{p_idx}.text_tr", page["text"]))
+        if page.get("context"):
+            ref_map.append((f"pages.{p_idx}.context_tr", page["context"]))
+        if page.get("pitfall"):
+            ref_map.append((f"pages.{p_idx}.pitfall_tr", page["pitfall"]))
+        if page.get("prompt"):
+            ref_map.append((f"pages.{p_idx}.prompt_tr", page["prompt"]))
+        if page.get("explanation"):
+            ref_map.append((f"pages.{p_idx}.explanation_tr", page["explanation"]))
+        
+        # Items / Vocabulary
+        for i_idx, item in enumerate(page.get("items", [])):
+            if isinstance(item, dict):
+                item_trans = item.get("translation") or item.get("meaning") or item.get("english")
+                if item_trans and not item.get("translation_tr"):
+                    ref_map.append((f"pages.{p_idx}.items.{i_idx}.translation_tr", item_trans))
+                item_ex_en = item.get("example_en") or item.get("sentence_en")
+                if item_ex_en and not item.get("example_tr"):
+                    ref_map.append((f"pages.{p_idx}.items.{i_idx}.example_tr", item_ex_en))
+                if item.get("explanation") and not item.get("explanation_tr"):
+                    ref_map.append((f"pages.{p_idx}.items.{i_idx}.explanation_tr", item["explanation"]))
+                if item.get("phonetic") and not item.get("phonetic_tr"):
+                    ref_map.append((f"pages.{p_idx}.items.{i_idx}.phonetic_tr", item["phonetic"]))
+                
+        # Rules
+        for r_idx, rule in enumerate(page.get("rules", [])):
+            if isinstance(rule, dict):
+                if rule.get("rule") and not rule.get("rule_tr"):
+                    ref_map.append((f"pages.{p_idx}.rules.{r_idx}.rule_tr", rule["rule"]))
+                if rule.get("explanation") and not rule.get("explanation_tr"):
+                    ref_map.append((f"pages.{p_idx}.rules.{r_idx}.explanation_tr", rule["explanation"]))
+                rule_ex_en = rule.get("example_en") or rule.get("sentence_en")
+                if rule_ex_en and not rule.get("example_tr"):
+                    ref_map.append((f"pages.{p_idx}.rules.{r_idx}.example_tr", rule_ex_en))
+                if rule.get("analysis") and not rule.get("analysis_tr"):
+                    ref_map.append((f"pages.{p_idx}.rules.{r_idx}.analysis_tr", rule["analysis"]))
+                
+        # Comparisons
+        for c_idx, comp in enumerate(page.get("comparisons", [])):
+            if isinstance(comp, dict):
+                if comp.get("context"):
+                    ref_map.append((f"pages.{p_idx}.comparisons.{c_idx}.context_tr", comp["context"]))
+                if comp.get("translation"):
+                    ref_map.append((f"pages.{p_idx}.comparisons.{c_idx}.translation_tr", comp["translation"]))
+                if comp.get("note"):
+                    ref_map.append((f"pages.{p_idx}.comparisons.{c_idx}.note_tr", comp["note"]))
+            elif isinstance(comp, str) and comp.strip():
+                ref_map.append((f"pages.{p_idx}.comparisons.{c_idx}", comp))
+                
+        # Dialogue
+        for d_idx, d in enumerate(page.get("dialogue", [])):
+            if isinstance(d, dict) and d.get("line_en"):
+                ref_map.append((f"pages.{p_idx}.dialogue.{d_idx}.line_tr", d["line_en"]))
+
+    if not ref_map:
+        return lesson_dict
+
+    input_dict = {str(i): text for i, (_, text) in enumerate(ref_map)}
+
+    # 2. Batch Translation in chunks of 20 items to prevent token truncation
+    system_ds = (
+        f"You are an expert pedagogical translator and linguist for adult {language} learners.\n"
+        "Translate each English educational phrase into natural, fluent, professional academic Turkish.\n"
+        "CRITICAL TERMINOLOGY & LOCALIZATION RULES:\n"
+        "1. Strict zero-calque: Translate meaning and pedagogical intent naturally, never word-for-word.\n"
+        "2. REGISTER & PROFESSIONAL CONTEXT (CRITICAL): When you encounter references to 'business English', 'in business contexts', 'corporate register', or workplace settings, NEVER translate literally as 'iş İngilizcesi'. Always translate idiomatically in context as 'kurumsal dilde', 'meslek hayatında', 'iş dünyasında' or 'profesyonel iletişimde'.\n"
+        "3. Natural Turkish grammar terminology: 'koşul kipi', 'istek kipi', 'geçmiş zaman', 'özne zamiri', 'dönüşlü fiil', 'mastar fiil', 'nesne zamiri'.\n"
+        "4. Preserve all foreign terms (e.g. {language} words in quotes or italics) and IPA brackets exactly as they are.\n"
+        "5. TURKISH PHONETICS (CRITICAL): In Spanish (or any target language) phonetics, NEVER translate Castilian [th] sound as '[th]' or refer to 'th'. In Turkish language education, Castilian 'c' (before e/i) and 'z' [θ] sound is strictly known and taught as 'peltek s'. Always translate [th] to 'peltek s' (veya 'peltek s [θ]').\n"
+        "6. NATURAL PEDAGOGICAL NARRATIVE: In communicative settings and scene descriptions, write natural, engaging educational Turkish. Avoid stiff, robot-like machine translation.\n"
+        "7. STRICT ANTI-PATTERNS (ZERO TOLERANCE):\n"
+        "   - NEVER add parenthetical origin or country glosses e.g. (Meksika'dan), (İspanya'dan).\n"
+        "   - NEVER use gender markers like 'kadındır' or 'erkektir' for nationalities or identities (Turkish is gender-neutral).\n"
+        "   - NEVER translate ordering speech acts using past continuous e.g. 'rica ediyordum' or 'istiyordum' (use 'rica ediyorum' or 'alabilir miyim').\n"
+        "   - NEVER use 'sahiptir' for personal/physical possession (use 'var' or adjective suffixes like 'yeşil gözlüdür').\n"
+        "   - NEVER use 'çok' with ungradable adjectives ('çok devasa' -> 'devasa').\n"
+        "   - NEVER add indefinite articles before food items in ordering phrases ('bir kızarmış ekmek' -> 'kızarmış ekmek').\n"
+        "8. CAPITALIZATION: Always ensure every translated bullet point, rule, and explanatory sentence begins with a capitalized letter.\n"
+        "9. Return ONLY valid JSON mapping the string index to the translated Turkish string: {{\"0\": \"...\", \"1\": \"...\"}}"
+    )
+
+    translations = {}
+    chunk_size = 20
+    for chunk_start in range(0, len(ref_map), chunk_size):
+        chunk = ref_map[chunk_start:chunk_start + chunk_size]
+        input_dict = {str(chunk_start + i): text for i, (_, text) in enumerate(chunk)}
+        user_ds = f"Translate these educational phrases into Turkish:\n{json.dumps(input_dict, ensure_ascii=False)}"
+        try:
+            batch_res = _call_ai(
+                [{"role": "system", "content": system_ds}, {"role": "user", "content": user_ds}],
+                model=MODEL_TRANSLATOR,
+                max_tokens=4000,
+                temperature=0.1,
+                json_mode=True
+            )
+            if isinstance(batch_res, dict):
+                translations.update(batch_res)
+        except Exception as e:
+            print(f"[TRANSLATION] Error for chunk {chunk_start}: {e}")
+
+    # 3. Injection into lesson dictionary
+    for i, (path, _) in enumerate(ref_map):
+        tr_val = translations.get(str(i), "")
+        if not tr_val:
+            continue
+        tr_val = _sanitize_turkish_content(heal_turkish_syntax(tr_val))
+        parts = path.split(".")
+        target = lesson_dict
+        for part in parts[:-1]:
+            if part.isdigit():
+                target = target[int(part)]
+            else:
+                target = target[part]
+        if parts[-1].isdigit():
+            target[int(parts[-1])] = tr_val
+        else:
+            target[parts[-1]] = tr_val
+
+    return _sanitize_deep_bilingual(lesson_dict)
+
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr"):
+    """
+    Generates a maximum-detail, textbook-quality lesson using Gemini 2.5 Flash.
+    No fixed page count — the AI determines the optimal structure based on topic depth.
+    Targets all 14 languages and CEFR A1-C2 with level-appropriate pedagogical depth.
+    """
+    from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
+    from services.cefr_reference import get_cefr_conditioning, LANGUAGE_CEFR_STANDARDS
+    lang_std = LANGUAGE_CEFR_STANDARDS.get(language, {})
+    official_institution = lang_std.get("institution", f"Council of Europe Official CEFR Framework for {language}")
+
+    is_alphabet_topic = any(x in topic.lower() for x in [
+        "alphabet", "alfabeto", "alfabe", "letters", "abecedario", "letra", "harf",
+        "pronunciation", "pronunciación", "telaffuz", "vowel", "consonant",
+        "vocal", "consonante", "sound", "fonetik", "sesli", "sessiz", "phonetic"
+    ])
+    is_numbers_topic = any(x in topic.lower() for x in [
+        "number", "número", "sayı", "sayılar", "count", "contar", "telling time",
+        "hora", "hours", "dates", "fechas", "rakam", "numeral"
+    ])
+    is_grammar_topic = (topic_type == "grammar") or any(x in topic.lower() for x in [
+        "verb", "tense", "conjugat", "grammar", "gramática", "dilbilgisi", "fiil",
+        "zaman", "pronoun", "ser", "estar", "haber", "tener", "subjunctive",
+        "subyuntivo", "preposition", "article", "article", "adjective", "adverb",
+        "clause", "mood", "aspect", "participle", "gerund", "infinitive", "passive",
+        "conditional", "imperative", "indicative", "case", "declension", "gender"
+    ])
+    is_culture_topic = any(x in topic.lower() for x in [
+        "culture", "kültür", "cuisine", "food", "tradition", "festival", "history",
+        "society", "customs", "politeness", "etiquette", "formality", "register"
+    ])
+
+    # Source material if provided
+    source_rule = f"\n\nPRIMARY SOURCE MATERIAL (use this as reference):\n{source_text[:8000]}" if source_text else ""
+
+    # Build clean, universal, professor-level prompt with full pedagogical freedom
+    system_prompt = f"""<role>You are a distinguished university professor and master pedagogue specializing in {language} language education, authoring authoritative, textbook-quality lessons strictly adhering to the standards of {official_institution} and the Council of Europe CEFR framework for CEFR Level {level} adult learners. You respond ONLY with valid JSON — no markdown fences, no text outside JSON.</role>
+
+<official_authority_directive>
+AUTHORITATIVE CURRICULUM MANDATE ({official_institution}):
+This lesson must strictly follow the official competency descriptors, lexical inventories, grammar progressions, and communicative milestones established by {official_institution} for CEFR Level {level}.
+- Maintain high academic rigor, first-principles explanations, and exhaustive educational depth.
+- Never write shallow, brief summaries or placeholder content. Treat every topic with the depth of a university textbook chapter.
+</official_authority_directive>
+
+<pedagogical_freedom>
+PEDAGOGICAL INITIATIVE & ARCHITECTURE:
+As a master professor, you have complete pedagogical freedom and academic initiative over how to structure, format, and teach '{topic}'.
+- Decide the optimal combination and number of pages (overview, vocabulary cards, grammar rules, comparisons, authentic dialogues, or formative assessments) that best serve this specific topic.
+- Completeness Mandate: If a topic covers a defined structural inventory (such as the complete alphabet/writing system of {language} or a specific number range like 0 to 30), you MUST provide a complete, unbroken, consecutive inventory without skipping any items.
+- Teach with engaging, adult, real-life relevance.
+</pedagogical_freedom>
+
+<natural_authenticity_mandate>
+AUTHENTICITY, NATURAL PROSE & TEXTBOOK QUALITY (TOP PEDAGOGICAL DIRECTIVE):
+Every sentence, dialogue utterance, explanation, and translation MUST sound completely natural, organic, lively, and idiomatic—just like a modern published language textbook (e.g., Cambridge University Press, Oxford, Assimil, Instituto Cervantes).
+1. STRICT BAN ON MECHANICAL / ROBOTIC SENTENCES:
+   - Forbid stiff, formulaic clichés (e.g. NEVER generate sterile robotic tropes like "The entity possesses an apple", "The boy goes to the store", "He speaks with aptitude").
+   - Every single example sentence must be authentic, situational, and reflect what real native speakers actually say in daily life.
+   - Ground examples in realistic modern scenarios: friendly banter, cafe and restaurant orders, genuine workplace situations, travel dilemmas, spontaneous questions, humor, emotion, and everyday cultural context.
+2. NATURAL BILINGUAL VOICING (NO CALQUES, NO LITERAL MACHINE TRANSLATIONS):
+   - TURKISH FIELDS ('title_tr', 'text_tr', 'explanation_tr', 'example_tr', 'rule_tr', 'analysis_tr', 'context_tr', 'note_tr', 'pitfall_tr'):
+     * Must sound like a warm, articulate, experienced Turkish language teacher speaking directly to adult students.
+     * Translations must use natural Turkish syntax and real Turkish idiom.
+     * NEVER use unnatural word-for-word translation calques (e.g. NEVER write "Ben bir kitaba sahibim" -> write "Bir kitabım var"; NEVER write "O yapar kahve içmeyi" -> write "Kahve içmeyi sever").
+     * Grammatical explanations must be intuitive, vivid, and helpful—never dry, impenetrable linguistics jargon.
+   - ENGLISH FIELDS ('title', 'text', 'explanation', 'example_en', 'rule', 'analysis', 'context', 'note', 'pitfall'):
+     * Must read as 100% natural, fluent, modern idiomatic English.
+3. AUTHENTIC DIALOGUES:
+   - Dialogue lines must feel like two living human beings having a real conversation (with natural greetings, reactions, conversational pauses, and authentic tone), not robotic mannequins reading grammar tables aloud.
+4. PRACTICAL COMMUNICATIVE VALUE:
+   - Prioritize phrases and structures that the student can immediately use when traveling, speaking with friends, or navigating life in a country where {language} is spoken.
+</natural_authenticity_mandate>
+
+<anti_patterns_strictly_forbidden>
+ZERO TOLERANCE — STRICTLY FORBIDDEN OUTPUT PATTERNS (read every rule and obey without exception):
+
+RULE A — NO FORCED PHONETIC SENTENCES:
+When teaching pronunciation (e.g. soft-g 'g', silent-h, j-sound), NEVER pack ALL target sounds artificially into one sentence just to illustrate them.
+  ❌ BAD: "El gato de Guillermo es muy gigante." (forces 'g'/'G'/'g' into nonsensical "very giant" context)
+  ❌ BAD: "Guillermo's cat is very giant." (ungradable adjective — giants cannot be 'very' giant)
+  ❌ BAD: "Guillermo'nun kedisi çok devasa." (ungradable adjective rendered with 'çok')
+  ✅ GOOD: "Guillermo tiene un gato gris muy gordo." (natural, gradable adjective, sounds real)
+  ✅ GOOD (EN): "Guillermo has a very fat grey cat." (natural)
+  ✅ GOOD (TR): "Guillermo'nun çok şişman gri bir kedisi var." (natural Turkish possession)
+
+RULE B — NO PARENTHETICAL METALINGUISTIC GLOSSES IN TURKISH TRANSLATIONS:
+Turkish translations must be clean, direct, natural translations — NOT grammar lectures embedded inside parentheses.
+  ❌ BAD: "O Meksikalıdır (Meksika'dan); o bir Meksikalı kadındır."
+  ❌ BAD: "Ocak ayı otuz bir güne sahiptir (otuz bir çeker)."
+  ✅ GOOD: "O Meksikalıdır."
+  ✅ GOOD: "Ocak otuz bir gün çeker."
+Turkish has NO grammatical gender. NEVER write "kadındır" or "erkektir" to explain a female or male subject's nationality. Turkish nationality adjectives are gender-neutral.
+  ❌ BAD: "O bir Meksikalı kadındır." (Turkish has no gender — redundant and wrong)
+  ✅ GOOD: "O Meksikalı." or "O, Meksika'dan."
+
+RULE C — NO TENSE CALQUES FOR COMMUNICATIVE SPEECH ACTS:
+When the target language uses a conventionalized politeness form (e.g. Spanish imperfect 'quería', 'quisiera'; French conditional 'je voudrais'; German Konjunktiv II 'ich hätte gern'), translate its COMMUNICATIVE FUNCTION into Turkish using the natural Turkish speech-act formula — NOT a literal tense-for-tense calque.
+  ❌ BAD: "Günaydın, bir sütlü kahve ve bir kızarmış ekmek rica ediyordum." (past continuous calque of imperfect — unnatural in Turkish ordering)
+  ❌ BAD: "Bir kahve istiyordum." (same problem — literal imperfect calque for ordering)
+  ✅ GOOD: "Günaydın, bir sütlü kahve ve kızarmış ekmek alabilir miyim?" (natural Turkish ordering formula)
+  ✅ GOOD: "Bir kahve rica ediyorum." or "Bir kahve alabilir miyim?" (present or modal — natural)
+Also: 'bir kızarmış ekmek' is unnatural — real Turkish says 'kızarmış ekmek' without the article for food items in ordering contexts.
+
+RULE D — NO 'SAHİPTİR' / 'SAHİBİM' FOR POSSESSION (USE VAR/YOK STRUCTURES):
+When the target language uses 'tener' (Spanish), 'avoir' (French), 'haben' (German), 'have' (English) to express possession, NEVER translate into Turkish using 'sahiptir', 'sahibim', 'sahipsin', etc. This is an archaic, bureaucratic Turkish calque.
+  ❌ BAD: "Bir arabam sahibim." / "Güzel gözlere sahiptir."
+  ✅ GOOD: "Bir arabam var." / "Güzel gözleri var."
+  ✅ GOOD: "Yeşil gözlüdür." (predicate adjective for eye color is natural)
+Exception: 'sahiptir' is acceptable ONLY in formal, bureaucratic, or institutional contexts (e.g., "Bu pozisyon X şartına sahiptir").
+
+RULE E — NO UNNATURAL 'ÇOK' WITH UNGRADABLE ADJECTIVES:
+  ❌ BAD: "çok devasa", "çok muazzam", "çok mükemmel", "çok benzersiz", "çok eşsiz"
+  ✅ GOOD: "devasa", "muazzam", "mükemmel", "benzersiz", "eşsiz"
+
+RULE F — ENGLISH EXAMPLE SENTENCES MUST BE NATURAL ENGLISH:
+  ❌ BAD: "Guillermo's cat is very giant." (not a real English phrase)
+  ❌ BAD: "She is from Mexico; she is a Mexican woman." (redundant and mechanical)
+  ✅ GOOD: "Guillermo's cat is enormous." / "She's from Mexico — she's Mexican."
+</anti_patterns_strictly_forbidden>
+
+<bilingual_pedagogical_tracks>
+STRICT TWO-TRACK SEPARATION & PHONOLOGICAL GROUNDING:
+You are authoring two completely independent, self-contained pedagogical tracks simultaneously in the exact same output:
+
+TRACK 1 — ENGLISH PEDAGOGICAL TRACK ('title', 'text', 'explanation', 'example_en', 'rule', 'analysis', 'context', 'note', 'pitfall'):
+- Target Learner: Native English speaker learning {language}.
+- Reference Frame: Explain grammar and pronunciation exclusively from an English-speaker's linguistic perspective, using natural English phonetic anchors and articulatory descriptions.
+- Natural Voice: Flowing, idiomatic English textbook prose.
+- ABSOLUTE BAN IN ENGLISH TRACK: NEVER mention the Turkish language, Turkish letters, Turkish words, or Turkish phonetics in ANY English field. ZERO references to Turkish. The English track must read as a 100% native English textbook.
+
+TRACK 2 — TURKISH PEDAGOGICAL TRACK ('title_tr', 'text_tr', 'explanation_tr', 'example_tr', 'rule_tr', 'analysis_tr', 'context_tr', 'note_tr', 'pitfall_tr'):
+- Target Learner: Native Turkish speaker learning {language}.
+- Reference Frame: Explain grammar and pronunciation exclusively from a Turkish-speaker's linguistic perspective, using natural Turkish linguistic and phonetic reference points.
+- REGISTER & STYLE: Turkish explanations must be natural, warm, fluent, and professional (avoid stiff machine translation or robot calques).
+- ABSOLUTE BAN IN TURKISH TRACK: NEVER compare target sounds to English reference words (e.g. never write "'Father'daki a", "'Cat'teki a").
+</bilingual_pedagogical_tracks>
+{source_rule}
+
+<output_schema>
+Return ONLY valid JSON matching this schema:
+{{
+  "pages": [
+    {{
+      "type": "overview" | "vocabulary" | "grammar" | "examples" | "mcq",
+      "title": "Page title in English",
+      "title_tr": "Page title in Turkish",
+      "text": "Detailed pedagogical text in English (for overview/grammar)",
+      "text_tr": "Detailed pedagogical text in Turkish (for overview/grammar)",
+      "items": [
+        {{
+          "term": "Word, character, or phrase in {language}",
+          "phonetic": "[IPA / phonetic guide]",
+          "translation": "English meaning or name",
+          "translation_tr": "Turkish meaning or name",
+          "example": "Authentic example in {language}",
+          "example_en": "English translation",
+          "example_tr": "Turkish translation",
+          "explanation": "Pronunciation cue or usage note in English",
+          "explanation_tr": "Pronunciation cue or usage note in Turkish"
+        }}
+      ],
+      "rules": [
+        {{
+          "rule": "Grammar rule in English",
+          "rule_tr": "Grammar rule in Turkish",
+          "explanation": "Pedagogical breakdown in English",
+          "explanation_tr": "Pedagogical breakdown in Turkish",
+          "example": "Example in {language}",
+          "example_en": "English translation",
+          "example_tr": "Turkish translation",
+          "analysis": "Analysis in English",
+          "analysis_tr": "Analysis in Turkish"
+        }}
+      ],
+      "comparisons": [
+        {{
+          "context": "Contrast context in English",
+          "context_tr": "Karşılaştırma bağlamı Türkçe",
+          "target": "Structure in {language}",
+          "translation": "English contrast",
+          "translation_tr": "Turkish contrast",
+          "note": "English note",
+          "note_tr": "Turkish note"
+        }}
+      ],
+      "dialogue": [
+        {{
+          "speaker": "Speaker",
+          "text": "Utterance in {language}",
+          "line_en": "English translation",
+          "line_tr": "Turkish translation"
+        }}
+      ],
+      "prompt": "Question in {language}",
+      "prompt_tr": "Question in Turkish",
+      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+      "answer": "Correct answer",
+      "distractors": ["Distractor 1", "Distractor 2", "Distractor 3"],
+      "explanation": "Explanation in English",
+      "explanation_tr": "Explanation in Turkish"
+    }}
+  ]
+}}
+</output_schema>"""
+
+    user_prompt = f"""Generate a complete, exhaustive, textbook-quality {level} {language} lesson on: <topic>{topic} ({topic_type})</topic>
+
+Requirement: Simultaneous bilingual generation (both English and Turkish fields in all pages).
+{f'<source_material>{source_text[:6000]}</source_material>' if source_text else ''}
+
+REASONING DIRECTIVE:
+In your internal reasoning process, plan the pedagogical arc for this {level} {language} lesson:
+1. Target communicative competencies and grammatical structures based on {official_institution} CEFR {level} standards.
+2. Structure the pages with complete academic freedom to best teach this topic.
+3. Authentic & Natural Phrasing (CRITICAL — check EVERY sentence against anti_patterns_strictly_forbidden):
+   - Example sentences: choose realistic, everyday situations; never force multiple sounds into one contrived sentence.
+   - Turkish translations: clean and direct. No parenthetical glosses. No gender hacks ('kadındır'/'erkektir'). No 'sahiptir' for possession ('var' instead). No tense calques for ordering ('rica ediyordum' → 'rica ediyorum' / 'alabilir miyim?').
+   - English translations: idiomatic modern English only. No "very giant", no mechanical parallel constructions.
+4. Strict Two-Track Isolation:
+   - English fields: Explain strictly for English speakers. Zero Turkish mentions.
+   - Turkish fields: Explain strictly for Turkish speakers. Natural, authentic Turkish. Zero English word comparisons.
+5. Completeness: Never skip items in a defined sequence (e.g. alphabets or number ranges).
+Then generate the complete, exhaustive JSON lesson structure.
+
+CRITICAL: Do NOT summarize. Do NOT write brief pages. Generate the FULL, DEEP, AUTHENTIC educational content.
+Generate as many pages as this topic requires to be covered at the highest textbook quality.
+Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
+
+    lesson_dict = None
+    for attempt_idx in range(1, 4):
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-START] '{topic}' ({topic_type}) {level} {language} (attempt {attempt_idx}/3) → {MODEL_LESSON}\n")
+
+        temp = 0.2 if attempt_idx == 1 else (0.25 if attempt_idx == 2 else 0.3)
+        raw_dict = _call_ai(
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            model=MODEL_LESSON,
+            max_tokens=8192,
+            temperature=temp,
+            json_mode=True,
+            allow_fallback=False
+        )
+        norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
+        if norm_dict and isinstance(norm_dict, dict) and len(norm_dict.get("pages", [])) >= 3:
+            lesson_dict = norm_dict
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RESULT] '{topic}' → {len(lesson_dict['pages'])} pages on attempt {attempt_idx}\n")
+            break
+        else:
+            page_count = len(norm_dict.get("pages", [])) if isinstance(norm_dict, dict) else 0
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RETRY] '{topic}' yielded {page_count} pages on attempt {attempt_idx}/3. Retrying same model {MODEL_LESSON}...\n")
+            time.sleep(2.0 * attempt_idx)
+
+    if not lesson_dict or not isinstance(lesson_dict, dict) or not lesson_dict.get("pages") or len(lesson_dict.get("pages", [])) < 3:
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-ABORT] '{topic}' failed after 3 attempts on {MODEL_LESSON}.\n")
+        return {"pages": []}
+
+    # Step 2: Check if native Turkish fields are already present (simultaneous bilingual generation)
+    has_turkish = False
+    pages = lesson_dict.get("pages", [])
+    if pages:
+        first_page = pages[0]
+        if first_page.get("title_tr") or first_page.get("text_tr"):
+            has_turkish = True
+        else:
+            for p in pages:
+                if any(it.get("translation_tr") for it in p.get("items", []) if isinstance(it, dict)):
+                    has_turkish = True
+                    break
+
+    # Only run secondary translation fallback if Turkish was not provided natively
+    if material_language in ["tr", "all"] and not has_turkish:
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-TRANSLATE-FALLBACK] '{topic}' lacks native Turkish, running translator...\n")
+        lesson_dict = translate_lesson_to_turkish(lesson_dict, language=language)
+
+    return lesson_dict
+    
 
 def ai_explain_word(word, language, context=None, material_language="en"):
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
@@ -1267,10 +1726,10 @@ def ai_explain_word(word, language, context=None, material_language="en"):
     STRICT RULES:
     1. The 'explanation', 'usage', and 'tip' fields MUST be written in {instruction_lang_name}.
     2. Only the target word itself can be in {language}.
-    3. Keep it brief and pedagogical.
+    3. Keep it brief and pedagogical (2-3 sentences max).
     
     Return ONLY valid JSON: {{'explanation': '...', 'usage': '...', 'tip': '...'}}"""
-    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=600)
+    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_STRUCTURAL, max_tokens=500, json_mode=True)
 
 def ai_explain_activity(prompt, correct_answer, student_answer, language, material_language="en"):
     clean_lang = language.split('(')[0].strip()
@@ -1288,7 +1747,7 @@ Correct Answer: {correct_answer}
 Student's Answer: {student_answer}
 
 Return ONLY valid JSON: {{"explanation": "Your {instruction_lang_name} explanation here"}}"""
-    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_NARRATIVE, max_tokens=300)
+    return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_STRUCTURAL, max_tokens=400, json_mode=True)
 
 def _get_blueprint_path(language, level):
     cache_dir = os.path.join("services", "blueprints")
@@ -1350,7 +1809,19 @@ def heal_turkish_syntax(text: str) -> str:
         (r'(?i)\bkarar\s+yapmak\b', 'karar vermek'),
         (r'(?i)\biyi\s+öğleden\s+sonralar\b', 'Tünaydın'),
         (r'(?i)\biyi\s+öğleden\s+sonra\b', 'Tünaydın'),
-        (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın')
+        (r'(?i)\böğleden\s+sonralar\b', 'Tünaydın'),
+        # Ordering formula tense calque
+        (r'(?i)\brica\s+ediyordum\b', 'rica ediyorum'),
+        # Common Turkish calques of physical possession/description
+        (r'(?i)\bsaçları\s+var\s+ve\s+gözleri\b', 'saçlı ve gözlü'),  # partial
+        # English calques that slip into Turkish
+        (r'(?i)\bçok\s+devasa\b', 'devasa'),
+        (r'(?i)\bçok\s+muazzam\b', 'muazzam'),
+        (r'(?i)\bçok\s+mükemmel\b', 'mükemmel'),
+        (r'(?i)\bçok\s+eşsiz\b', 'eşsiz'),
+        (r'(?i)\bçok\s+benzersiz\b', 'benzersiz'),
+        # Food/item ordering unnatural article
+        (r'(?i)\bbir\s+kızarmış\s+ekmek\b', 'kızarmış ekmek')
     ]
     for cp, repl in calques:
         text = re.sub(cp, repl, text)
@@ -1375,4 +1846,20 @@ def heal_turkish_syntax(text: str) -> str:
         return 'doktor' + suffix_map.get(suffix_lower, suffix_lower)
 
     text = re.sub(r'(?i)\bdoktar(sınız|siniz|sın|sin|ım|im|ız|iz|dır|dir|lar|ler|[a-zçğıöşü]+)?\b', repl_doktor, text)
+
+    # Phonetic normalization: English [th] -> Turkish 'peltek s'
+    text = re.sub(r"(?i)\bveya\s+\[th\]('dir|'dır)?", r"veya peltek s [θ]\1", text)
+    text = re.sub(r"(?i)\[th\]('dir|'dır|'dur|'dür|dir|dır|dur|dür)", r"peltek s\1", text)
+    text = re.sub(r"(?i)\[th\]", r"peltek s [θ]", text)
+    text = re.sub(r"(?i)\bth\s+sesi\b", r"peltek s sesi", text)
+
+    # Clean double punctuation (e.g. 'tanımlar.;' -> 'tanımlar.')
+    text = re.sub(r'\.\s*;\s*', '. ', text)
+    text = re.sub(r';\s*\.\s*', '. ', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+
+    # Capitalize first character if lowercase letter
+    if text and len(text) > 0 and text[0].islower():
+        text = text[0].upper() + text[1:]
+
     return text

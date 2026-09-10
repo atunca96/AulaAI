@@ -1,12 +1,17 @@
-"""
-Main server — Python stdlib HTTP server with REST API routing.
-No external dependencies required.
-"""
+import sys
+import os
+
+# Ensure Windows Python 3.8+ finds OpenSSL and extension DLLs
+if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+    for _p in [os.path.join(sys.base_prefix, "DLLs"), os.path.join(sys.exec_prefix, "DLLs")]:
+        if os.path.exists(_p):
+            try:
+                os.add_dll_directory(_p)
+            except Exception:
+                pass
 
 import http.server
 import json
-import os
-import sys
 import uuid
 import sqlite3
 import threading
@@ -45,12 +50,13 @@ from services.dictionary_service import get_definition, clean_word
 PORT = int(os.environ.get("PORT", 3000))
 # Manual .env loader for local dev stability
 if os.path.exists(".env"):
-    with open(".env", "r") as f:
+    with open(".env", "r", encoding="utf-8-sig") as f:
         for line in f:
             if "=" in line:
                 k, v = line.strip().split("=", 1)
-                os.environ[k] = v
+                os.environ[k.strip().lstrip('\ufeff')] = v.strip()
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 STATIC_DIR = os.path.join(ROOT_DIR, "public")
 
@@ -64,6 +70,8 @@ def watch_files():
     while True:
         try:
             for root, dirs, files in os.walk(ROOT_DIR):
+                if any(x in root for x in ["scratch", ".git", "__pycache__", ".vscode", "data"]):
+                    continue
                 for f in files:
                     if f.endswith('.py'):
                         path = os.path.join(root, f)
@@ -202,29 +210,62 @@ def _uid():
     return str(uuid.uuid4())
 
 
+_activity_tasks = {}
+_activity_tasks_lock = threading.Lock()
+
+def get_activity_task(task_id):
+    with _activity_tasks_lock:
+        return _activity_tasks.get(task_id)
+
+def set_activity_task(task_id, data):
+    with _activity_tasks_lock:
+        now = time.time()
+        for k in list(_activity_tasks.keys()):
+            if now - _activity_tasks[k].get("created_at", now) > 1800:
+                _activity_tasks.pop(k, None)
+        if task_id in _activity_tasks:
+            _activity_tasks[task_id].update(data)
+        else:
+            data["created_at"] = now
+            _activity_tasks[task_id] = data
+
+
 class APIHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler with REST API routing."""
 
     def _verify_course_ownership(self, db, course_id):
-        """Returns True if the user is allowed to access this course."""
+        """Returns True ONLY if user is the lecturer owner of this course or primary admin."""
         role = self._get_user_role()
         user_id = self._get_user_id()
-        if role == 'student': return True # Students can access any course they join
-        if user_id == 'lecturer-demo-id': return True # Admin can see all
+        if not user_id or role == 'student': return False # Students NEVER own classrooms
+        if user_id == 'lecturer-demo-id': return True # Admin can manage all
         
         row = db.execute("SELECT lecturer_id FROM courses WHERE id=?", (course_id,)).fetchone()
         if not row: return False
         return row["lecturer_id"] == user_id
+
+    def _verify_course_access(self, db, course_id):
+        """Returns True if user is lecturer, admin, or an enrolled student."""
+        role = self._get_user_role()
+        user_id = self._get_user_id()
+        if not user_id: return False
+        if role in ('lecturer', 'admin'): return True
+        if role == 'student':
+            row = db.execute("SELECT 1 FROM enrollments WHERE student_id=? AND course_id=?", (user_id, course_id)).fetchone()
+            return bool(row)
+        return False
 
     def log_message(self, format, *args):
         """Custom log format."""
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}")
 
     def _get_user_id(self):
-        """Extract user_id from query parameters and update last_seen activity."""
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-        uid = params.get("user_id", [None])[0]
+        """Extract user_id from headers or query parameters and update last_seen activity."""
+        uid = self.headers.get("X-User-Id") or self.headers.get("X-Lecturer-Id")
+        if not uid:
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            uid = params.get("user_id", [None])[0] or params.get("lecturer_id", [None])[0]
         
         if uid:
             try:
@@ -245,7 +286,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return uid
 
     def _get_user_role(self):
-        """Extract user_id from query parameters and look up role in DB to prevent spoofing."""
+        """Extract user_id and look up authentic role in DB to prevent spoofing."""
         user_id = self._get_user_id()
         if not user_id:
             return None
@@ -254,6 +295,29 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if row:
                 return row["role"]
         return None
+
+    def _require_lecturer(self):
+        """Enforce lecturer or admin role. Sends 403 Forbidden if not authorized."""
+        role = self._get_user_role()
+        if role not in ("lecturer", "admin"):
+            self._send_error("Forbidden: Lecturer privileges required", status=403)
+            return False
+        return True
+
+    def _require_admin(self):
+        """Enforce admin email or admin role. Sends 403 Forbidden if not authorized."""
+        user_id = self._get_user_id()
+        if not user_id:
+            self._send_error("Forbidden: Admin privileges required", status=403)
+            return False
+        if user_id == 'lecturer-demo-id':
+            return True
+        with db_connection() as db:
+            row = db.execute("SELECT email, role FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not row or (row["email"] != "atunca96@gmail.com" and row["role"] != "admin"):
+                self._send_error("Forbidden: Admin privileges required", status=403)
+                return False
+        return True
 
     def _send_json(self, data, status=200):
         # Auto-cache eligible GET requests
@@ -328,7 +392,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(file_size))
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.end_headers()
             
             # Stream the file in chunks to prevent memory spikes and connection resets
@@ -390,6 +456,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = params.get("course_id", [None])[0]
             return self._get_curriculum(course_id)
         elif path == "/api/students":
+            if not self._require_lecturer(): return
             course_id = params.get("course_id", [None])[0]
             return self._get_students(course_id)
         elif path == "/api/student/progress":
@@ -417,12 +484,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = params.get("course_id", [None])[0]
             return self._get_messages(student_id, course_id)
         elif path == "/api/report":
+            if not self._require_lecturer(): return
             course_id = params.get("course_id", [None])[0]
             return self._get_report(course_id)
         elif path == "/api/activity/progress":
             course_id = params.get("course_id", [None])[0]
             return self._activity_progress(course_id)
         elif path == "/api/draft/progress":
+            if not self._require_lecturer(): return
             course_id = params.get("course_id", [None])[0]
             return self._draft_progress(course_id)
         elif path == "/api/activity":
@@ -433,6 +502,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = params.get("course_id", [None])[0]
             return self._get_student_stats(student_id, course_id)
         elif path == "/api/quiz/responses":
+            if not self._require_lecturer(): return
             quiz_id = params.get("quiz_id", [None])[0]
             return self._get_quiz_responses(quiz_id)
         elif path == "/api/assignments":
@@ -444,13 +514,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             student_id = params.get("student_id", [None])[0]
             return self._get_assignment(assignment_id, student_id)
         elif path == "/api/assignment/responses":
+            if not self._require_lecturer(): return
             assignment_id = params.get("assignment_id", [None])[0]
             return self._get_assignment_responses(assignment_id)
         elif path == "/api/ai-status":
             return self._get_ai_status()
         elif path == "/api/students/pending":
+            if not self._require_lecturer(): return
             return self._get_pending_students()
         elif path == "/api/admin/all-students":
+            if not self._require_admin(): return
             return self._admin_get_all_students()
         elif path == "/api/user/status":
             user_id = params.get("user_id", [None])[0]
@@ -495,7 +568,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"[ERROR] Failed to query material_language for dictionary explain: {e}")
             
-            if material_language == "en" and ui_lang in ["tr", "en"]:
+            if ui_lang and ui_lang in ["tr", "en"]:
                 material_language = ui_lang
                 
             result = ai_explain_word(word, lang or "English", material_language=material_language)
@@ -735,38 +808,41 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if not message: message = "Build encountered an error."
                 elif stage == "timeout":
                     percentage = 0
+                elif stage == "stopped":
+                    percentage = 0
+                    if not message: message = "Ders üretimi durduruldu."
                 else:
                     percentage = 100
                     if not message: message = "Classroom is ready!"
             else:
                 # Calculate accurate, monotonic progress based on granular pipeline stages
                 if stage == "starting":
-                    percentage = 5
+                    percentage = 3
                     if not message: message = "Starting build process..."
                 elif stage == "analyzing":
-                    percentage = 12
+                    percentage = 6
                     if not message: message = "Analyzing textbook syllabus..."
                 elif stage == "structuring":
-                    percentage = 20
+                    percentage = 10
                     if not message: message = "Structuring course chapters and topics..."
                 elif stage == "enriching":
                     if total > 0:
                         topic_ratio = min(1.0, max(0.0, progress / total))
-                        percentage = 25 + int(topic_ratio * 65)
+                        percentage = 10 + int(topic_ratio * 82)
                     else:
-                        percentage = 25
+                        percentage = 10
                     if not message:
                         message = f"Generating lesson materials ({progress}/{total})..." if total > 0 else "Generating lesson materials..."
                 elif stage == "finalizing":
                     percentage = 94
                     if not message: message = "Finalizing bilingual translations..."
                 else:
-                    raw = int((progress / total) * 100) if total > 0 else 15
-                    percentage = min(92, max(15, raw))
+                    raw = int((progress / total) * 100) if total > 0 else 3
+                    percentage = min(92, max(3, raw))
                     if not message: message = "Building classroom content..."
 
                 # Ensure it never claims 100% while still building
-                percentage = min(98, max(5, percentage))
+                percentage = min(98, max(3, percentage))
 
             return self._send_json({
                 "course_id": course_id,
@@ -802,18 +878,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         # Classroom management routes (check these first to be safe)
         if path == "/api/admin/upload-db":
+            if not self._require_admin(): return
             return self._admin_upload_db()
         elif path == "/api/classroom/delete":
+            if not self._require_lecturer(): return
             return self._delete_classroom()
         elif path in ("/api/classroom/rebuild", "/api/curriculum/rebuild"):
+            if not self._require_lecturer(): return
             return self._classroom_rebuild()
         elif path == "/api/classroom/wipe-curriculum":
+            if not self._require_lecturer(): return
             return self._wipe_curriculum()
         elif path == "/api/curriculum/chapter/delete":
+            if not self._require_lecturer(): return
             return self._delete_chapter()
         elif path == "/api/curriculum/topic/delete":
+            if not self._require_lecturer(): return
             return self._delete_topic()
         elif path == "/api/marker/extract":
+            if not self._require_lecturer(): return
             file_log("MARKER: Received extraction request (Routing to Pipeline V2)")
             fields, files = self._read_multipart()
             if not files or "pdf" not in files:
@@ -868,10 +951,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 cleanup_storage()
 
         elif path == "/api/classroom/create-from-pdf":
+            if not self._require_lecturer(): return
             return self._create_classroom_from_pdf()
         elif path == "/api/classroom/create-from-scratch":
+            if not self._require_lecturer(): return
             return self._create_classroom_from_scratch()
+        elif path == "/api/classroom/stop-build":
+            if not self._require_lecturer(): return
+            return self._stop_classroom_build()
         elif path == "/api/draft/curriculum":
+            if not self._require_lecturer(): return
             return self._draft_curriculum()
         elif path == "/api/translate/material":
             return self._translate_material()
@@ -888,7 +977,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/student/access":
             return self._student_access_classroom()
         elif path == "/api/student/leave":
-            return self._student_leave_classroom()
+            return self._send_error("Forbidden: Feature disabled", 403)
         elif path == "/api/register":
             return self._register()
         elif path == "/api/user/logout":
@@ -896,12 +985,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/user/heartbeat":
             return self._user_heartbeat()
         elif path == "/api/user/delete":
-            return self._delete_user_account()
+            return self._send_error("Forbidden: Feature disabled", 403)
         elif path == "/api/students/pending":
+            if not self._require_lecturer(): return
             return self._get_pending_students()
         elif path == "/api/students/approve":
+            if not self._require_lecturer(): return
             return self._approve_student()
         elif path == "/api/quiz/create":
+            if not self._require_lecturer(): return
             return self._create_quiz()
         elif path == "/api/activity/start":
             return self._activity_start()
@@ -912,48 +1004,66 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/activity/explain":
             return self._explain_activity_question()
         elif path == "/api/assignment/create":
+            if not self._require_lecturer(): return
             return self._create_assignment()
         elif path == "/api/assignment/submit":
             return self._submit_assignment()
         elif path == "/api/draft/generate":
+            if not self._require_lecturer(): return
             return self._draft_generate()
         elif path == "/api/draft/publish":
+            if not self._require_lecturer(): return
             return self._draft_publish()
         elif path == "/api/report/generate":
+            if not self._require_lecturer(): return
             return self._generate_report()
         elif path == "/api/session/start":
             return self._start_session()
         elif path == "/api/data/reset":
+            if not self._require_admin(): return
             return self._reset_data()
         elif path == "/api/student/delete":
+            if not self._require_lecturer(): return
             return self._delete_student()
         elif path == "/api/quiz/delete":
+            if not self._require_lecturer(): return
             return self._delete_quiz()
         elif path == "/api/assignment/delete":
+            if not self._require_lecturer(): return
             return self._delete_assignment()
         elif path == "/api/message/send":
             return self._message_send()
         elif path == "/api/message/read":
             return self._message_read()
         elif path == "/api/question/update":
+            if not self._require_lecturer(): return
             return self._question_update()
         elif path == "/api/question/delete":
+            if not self._require_lecturer(): return
             return self._question_delete()
         elif path == "/api/admin/hard-reset":
+            if not self._require_admin(): return
             return self._admin_hard_reset()
         elif path == "/api/admin/reset-students":
+            if not self._require_admin(): return
             return self._admin_reset_students()
         elif path == "/api/admin/reset-student-pin":
+            if not self._require_admin(): return
             return self._admin_reset_student_pin()
         elif path == "/api/admin/reset-student-progress":
+            if not self._require_admin(): return
             return self._admin_reset_student_progress()
         elif path == "/api/blueprint/delete":
+            if not self._require_admin(): return
             return self._delete_blueprint()
         elif path == "/api/blueprint/delete-all":
+            if not self._require_admin(): return
             return self._delete_all_blueprints()
         elif path == "/api/admin/set-student-password" or path == "/api/student/set-password":
+            if not self._require_admin(): return
             return self._admin_set_student_password()
         elif path == "/api/admin/create-student":
+            if not self._require_admin(): return
             return self._admin_create_student()
         else:
             self._send_error("Not found", 404)
@@ -1518,10 +1628,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return self._send_json({"success": True, "size": size, "path": target})
 
     def _get_ai_status(self):
-        """Return whether AI (Groq) is configured and available."""
+        """Return whether AI is configured and available."""
         self._send_json({
             "ai_enabled": is_ai_available(),
-            "provider": "OpenRouter (Gemini 2.0 Flash)" if is_ai_available() else "Mock Engine",
+            "provider": ("OpenRouter (Gemini 2.5 Flash + GPT-4o-mini)" if is_ai_available() else "Mock Engine"),
             "features": {
                 "dynamic_activities": is_ai_available(),
                 "smart_grading": is_ai_available(),
@@ -1789,6 +1899,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if role == 'student':
                     enr = db.execute("SELECT status FROM enrollments WHERE student_id=? AND course_id=?", (user_id, c["id"])).fetchone()
                     c_dict["enrollment_status"] = enr["status"] if enr else "none"
+                    c_dict.pop("lecturer_id", None)
 
                 # Compute progress
                 total = db.execute("""
@@ -1802,8 +1913,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     JOIN chapters ch ON t.chapter_id = ch.id
                     WHERE ch.course_id = ? AND t.content IS NOT NULL AND t.content != '' AND t.content != '{}'
                 """, (c["id"],)).fetchone()["cnt"]
-                
-                c_dict["progress"] = (done / total) if total > 0 else 0
+
+                if c["is_building"]:
+                    c_dict["build_progress"] = done
+                    c_dict["build_total"] = total if total > 0 else (c["total_steps"] or 28)
+                    topic_ratio = (done / total) if total > 0 else 0
+                    c_dict["percentage"] = min(96, max(3, (3 if done == 0 else (10 + int(topic_ratio * 85)))))
+                    c_dict["progress"] = topic_ratio
+                else:
+                    c_dict["progress"] = (done / total) if total > 0 else 0
+                    c_dict["percentage"] = 100
                 result.append(c_dict)
         self._send_json(result)
 
@@ -1815,43 +1934,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # For now, just return empty if no ID.
                 return self._send_json([])
             
-            if not self._verify_course_ownership(db, course_id):
-                return self._send_error("Forbidden: You do not own this classroom", 403)
+            if not self._verify_course_access(db, course_id):
+                return self._send_error("Forbidden: You do not have access to this classroom", 403)
 
             chapters = db.execute(
                 "SELECT * FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
             ).fetchall()
 
-            from services.curriculum_translator import is_clean_turkish, translate_titles_batch
-
-            # Identify any titles needing translation healing
-            needed_translations = []
-            for ch in chapters:
-                ch_tr = ch["title_tr"]
-                if not ch_tr or not is_clean_turkish(ch_tr):
-                    if ch["title"]: needed_translations.append(ch["title"])
-                topics_raw = db.execute("SELECT id, title, title_tr FROM topics WHERE chapter_id = ?", (ch["id"],)).fetchall()
-                for t in topics_raw:
-                    t_tr = t["title_tr"]
-                    if not t_tr or not is_clean_turkish(t_tr):
-                        if t["title"]: needed_translations.append(t["title"])
-
-            healing_map = translate_titles_batch(needed_translations, target_lang="tr") if needed_translations else {}
-
             result = []
-            db_changed = False
             for ch in chapters:
                 ch_dict = dict(ch)
-                curr_tr = ch_dict.get("title_tr")
-                if not curr_tr or not is_clean_turkish(curr_tr):
-                    ch_tr = healing_map.get(ch_dict.get("title", ""), curr_tr or ch_dict.get("title", ""))
-                    if ch_tr and ch_tr != curr_tr:
-                        ch_dict["title_tr"] = ch_tr
-                        try:
-                            db.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (ch_tr, ch["id"]))
-                            db_changed = True
-                        except: pass
-
                 topics = db.execute(
                     "SELECT * FROM topics WHERE chapter_id = ? ORDER BY sort_order", (ch["id"],)
                 ).fetchall()
@@ -1859,16 +1951,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 processed_topics = []
                 for t in topics:
                     t_dict = dict(t)
-                    t_curr_tr = t_dict.get("title_tr")
-                    if not t_curr_tr or not is_clean_turkish(t_curr_tr):
-                        t_tr = healing_map.get(t_dict.get("title", ""), t_curr_tr or t_dict.get("title", ""))
-                        if t_tr and t_tr != t_curr_tr:
-                            t_dict["title_tr"] = t_tr
-                            try:
-                                db.execute("UPDATE topics SET title_tr = ? WHERE id = ?", (t_tr, t["id"]))
-                                db_changed = True
-                            except: pass
-
                     count_row = db.execute("SELECT COUNT(*) as cnt FROM questions WHERE topic_id = ?", (t["id"],)).fetchone()
                     t_dict["question_count"] = count_row["cnt"] if count_row else 0
                     raw_pdf = str(t_dict.get("pdf_url") or "").strip()
@@ -1879,10 +1961,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     processed_topics.append(t_dict)
                 ch_dict["topics"] = processed_topics
                 result.append(ch_dict)
-
-            if db_changed:
-                try: db.commit()
-                except: pass
 
         self._send_json(result)
 
@@ -1895,7 +1973,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return self._send_error("Forbidden: You do not own this classroom", 403)
 
             students = db.execute("""
-                SELECT u.id, u.name, u.email, e.pin FROM users u
+                SELECT u.id, u.name, u.email, u.status, u.last_seen, e.pin,
+                       CASE 
+                           WHEN u.last_seen IS NOT NULL AND (strftime('%s','now') - strftime('%s', u.last_seen)) <= 12 THEN 1 
+                           ELSE 0 
+                       END as is_active
+                FROM users u
                 JOIN enrollments e ON u.id = e.student_id
                 WHERE e.course_id = ? AND e.status = 'approved'
                 ORDER BY u.name
@@ -2036,66 +2119,57 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             post_data = json.loads(self.rfile.read(content_len).decode("utf-8"))
             topic_id = post_data.get("topic_id")
             course_id = post_data.get("course_id")
+            user_id = post_data.get("user_id") or self._get_user_id() or "anonymous"
             ui_lang = post_data.get("ui_lang", "en")
-            # Default to 10 for safety, though frontend will now send 10
             count = int(post_data.get("count", 10))
             
             if not topic_id or not course_id:
                 return self._send_error("Missing info")
                 
-            # Initialize progress
-            with db_connection() as db:
-                db.execute("""
-                    UPDATE courses 
-                    SET activity_status='generating', activity_progress=0, activity_total=100, activity_result=NULL
-                    WHERE id=?
-                """, (course_id,))
-                db.commit()
-                
+            task_id = str(uuid.uuid4())
+            initial_data = {
+                "task_id": task_id,
+                "course_id": course_id,
+                "user_id": user_id,
+                "topic_id": topic_id,
+                "status": "generating",
+                "percentage": 0,
+                "results": None
+            }
+            set_activity_task(task_id, initial_data)
+            set_activity_task(f"{course_id}_{user_id}_{topic_id}", initial_data)
+            
             # Start background thread
             import threading
-            file_log(f"Starting background generation for course {course_id}, topic {topic_id}")
-            thread = threading.Thread(target=self._bg_generate_activities, args=(course_id, topic_id, count, ui_lang))
+            file_log(f"Starting background generation task {task_id} for course {course_id}, user {user_id}, topic {topic_id}")
+            thread = threading.Thread(target=self._bg_generate_activities, args=(task_id, course_id, topic_id, count, ui_lang, user_id))
             thread.daemon = True
             thread.start()
             
-            with db_connection() as db:
-                db.execute("UPDATE courses SET activity_status='generating' WHERE id=?", (course_id,))
-                db.commit()
-            
-            self._send_json({"status": "success"})
+            self._send_json({"status": "success", "task_id": task_id})
         except Exception as e:
             print(f"[ERROR] _activity_start failed: {e}")
             import traceback
             traceback.print_exc()
             self._send_error(str(e))
 
-    def _bg_generate_activities(self, course_id, topic_id, count, ui_lang="en"):
+    def _bg_generate_activities(self, task_id, course_id, topic_id, count, ui_lang="en", user_id=None):
         import re
         import random as py_random
         import time
         import concurrent.futures
         import threading
-        # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
-        with db_connection() as db:
-            db.execute("UPDATE courses SET activity_progress=0, activity_status='generating', activity_result=NULL WHERE id=?", (course_id,))
-            db.commit()
-        try:
-            def update_prog(p, status='generating'):
-                if p % 10 == 0: print(f"[PROGRESS] {course_id} -> {p}%")
-                for retry in range(5):
-                    try:
-                        with db_connection() as db_c:
-                            # ONE-WAY VALVE: Don't overwrite 'done' with 'generating'
-                            current = db_c.execute("SELECT activity_status FROM courses WHERE id=?", (course_id,)).fetchone()
-                            if current and current[0] == 'done' and status != 'done':
-                                return
-                            db_c.execute("UPDATE courses SET activity_progress=?, activity_status=? WHERE id=?", (p, status, course_id))
-                            db_c.commit()
-                        return
-                    except:
-                        time.sleep(0.2)
+        
+        def update_prog(p, status='generating', results=None):
+            task_dict = {"percentage": p, "status": status}
+            if results is not None:
+                task_dict["results"] = results
+            set_activity_task(task_id, task_dict)
+            if user_id:
+                set_activity_task(f"{course_id}_{user_id}_{topic_id}", task_dict)
 
+        update_prog(10)
+        try:
             with db_connection() as db:
                 row = db.execute("SELECT * FROM topics WHERE id = ?", (topic_id,)).fetchone()
                 if not row: raise Exception(f"Topic {topic_id} not found")
@@ -2103,7 +2177,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 row_c = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
                 language = row_c["language"] if row_c else "Unknown"
                 material_language = row_c["material_language"] if row_c and "material_language" in row_c.keys() else "en"
-                if material_language == "en" and ui_lang in ["tr", "en"]:
+                if ui_lang and ui_lang in ["tr", "en"]:
                     material_language = ui_lang
 
             content = json.loads(topic["content"]) if isinstance(topic.get("content"), str) else topic.get("content", {})
@@ -2119,71 +2193,96 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             def ticker_worker():
                 import math
                 start_time = time.time()
-                # AI generates ~10 questions in ~15-30s typically
                 est_time = 25.0
                 while not state.is_done:
                     time.sleep(0.8)
                     elapsed = time.time() - start_time
-                    # Asymptotic curve: smoothly approaches 90% but never exceeds it
                     k = 2.0 / est_time
-                    p = 90 * (1 - math.exp(-k * elapsed))
+                    p = 5 + 85 * (1 - math.exp(-k * elapsed))
                     update_prog(int(min(p, 90)))
             
             threading.Thread(target=ticker_worker, daemon=True).start()
-            update_prog(20)
+            update_prog(5)
 
             raw_activities = []
             try:
                 from services.ai_engine import ai_generate_activity_batch
-                # Zero-Filter Gemini 2.5 Strategy
-                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override="google/gemini-2.5-flash", material_language=material_language)
+                batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=10, level=topic.get("difficulty", "A1"), model_override=None, material_language=material_language)
                 if batch: raw_activities = batch
             except Exception as e:
-                print(f"[BG] Activity V4 Failed: {e}")
+                print(f"[BG] Activity Generation Failed: {e}")
+            
+            # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages
+            if len(raw_activities) < count and isinstance(content, dict):
+                for p in content.get("pages", []):
+                    if len(raw_activities) >= count: break
+                    if p.get("type") == "mcq" and p.get("prompt") and p.get("answer"):
+                        prompt_text = p.get("prompt_tr") if material_language == "tr" and p.get("prompt_tr") else p.get("prompt")
+                        if not any(a.get("prompt") == prompt_text for a in raw_activities):
+                            opts = list(p.get("options", []))
+                            if not opts:
+                                opts = [p.get("answer")] + p.get("distractors", [])
+                            py_random.shuffle(opts)
+                            raw_activities.append({
+                                "id": _uid(),
+                                "type": "mcq",
+                                "prompt": prompt_text,
+                                "translation": "",
+                                "answer": p.get("answer"),
+                                "distractors": [x for x in opts if x != p.get("answer")][:3],
+                                "options": opts,
+                                "why": p.get("explanation_tr" if material_language == "tr" else "explanation", "Doğru seçenek.")
+                            })
             
             state.is_done = True
 
             # Use ONLY fresh activities
             final_questions = raw_activities[:count]
             
-            # NUCLEAR FINISH
-            with db_connection() as db:
-                db.execute("UPDATE courses SET activity_status='done', activity_progress=100, activity_result=? WHERE id=?", (json.dumps(final_questions, ensure_ascii=False), course_id))
-                db.commit()
-            
-            print(f"[BG] Activity generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
+            # Deliver to this task specifically — DO NOT overwrite global topic content or course table!
+            update_prog(100, status='done', results=final_questions)
+            print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} fresh questions.")
 
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"
             print(f"[CRITICAL] {msg}")
             file_log(msg)
             file_log(traceback.format_exc())
-            
-            # Ensure status is reset so UI doesn't freeze
             update_prog(0, status='error')
 
-    def _activity_progress(self, course_id):
-        if not course_id:
-            return self._send_json({"status": "error", "percentage": 0, "message": "Missing course_id"})
+    def _activity_progress(self, course_id=None):
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        task_id = params.get("task_id", [None])[0]
+        user_id = params.get("user_id", [None])[0] or self._get_user_id()
+        topic_id = params.get("topic_id", [None])[0]
+        cid = course_id or params.get("course_id", [None])[0]
 
-        with db_connection() as db:
-            row = db.execute("SELECT activity_status, activity_progress, activity_total, activity_result FROM courses WHERE id=?", (course_id,)).fetchone()
-            if not row:
-                return self._send_json({"status": "error", "percentage": 0, "message": "Course not found"})
-            
-            data = dict(row)
-            status = data.get("activity_status", "idle")
-            progress = data.get("activity_progress", 0)
-            total = data.get("activity_total") or 100
-            
-            if total <= 0: total = 100
-            percent = min(100, int((progress / total) * 100))
-            
-            self._send_json({
-                "status": status,
-                "percentage": percent,
-                "results": json.loads(data["activity_result"]) if data["activity_result"] else None
+        task = None
+        if task_id:
+            task = get_activity_task(task_id)
+        if not task and cid and user_id and topic_id:
+            task = get_activity_task(f"{cid}_{user_id}_{topic_id}")
+
+        if task:
+            return self._send_json({
+                "status": task.get("status", "idle"),
+                "percentage": task.get("percentage", 0),
+                "results": task.get("results")
             })
+
+        # Fallback to DB courses table for legacy compatibility
+        if cid:
+            with db_connection() as db:
+                row = db.execute("SELECT activity_status, activity_progress, activity_total, activity_result FROM courses WHERE id=?", (cid,)).fetchone()
+                if row:
+                    data = dict(row)
+                    return self._send_json({
+                        "status": data.get("activity_status", "idle"),
+                        "percentage": data.get("activity_progress", 0),
+                        "results": json.loads(data["activity_result"]) if data["activity_result"] else None
+                    })
+        return self._send_json({"status": "idle", "percentage": 0, "results": None})
 
     def _draft_progress(self, course_id):
         if not course_id:
@@ -2219,7 +2318,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 q_dict = dict(q)
                 if student_id:
                     completed = db.execute(
-                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
+                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND answer != '[STARTED]' LIMIT 1",
                         (student_id, q["id"])
                     ).fetchone()
                     q_dict["is_completed"] = True if completed else False
@@ -2325,31 +2424,50 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         "student_name": r_dict["student_name"],
                         "answers": [],
                         "total_score": 0,
-                        "total_questions": 0
+                        "total_questions": 0,
+                        "answered_count": 0,
+                        "has_unsubmitted": False
                     }
+                is_started = (r_dict["student_answer"] == "[STARTED]")
+                if is_started:
+                    students_map[sid]["has_unsubmitted"] = True
+                else:
+                    students_map[sid]["answered_count"] += 1
+
                 students_map[sid]["answers"].append({
                     "question_id": r_dict["question_id"],
                     "prompt": r_dict["prompt"],
                     "student_answer": r_dict["student_answer"],
                     "correct_answer": r_dict["correct_answer"],
-                    "score": r_dict["score"],
-                    "is_correct": r_dict["score"] >= 0.8,
+                    "score": r_dict["score"] if not is_started else 0.0,
+                    "is_correct": (r_dict["score"] >= 0.8) if not is_started else False,
+                    "is_started": is_started,
                     "submitted_at": r_dict["submitted_at"]
                 })
-                students_map[sid]["total_score"] += r_dict["score"]
+                if not is_started:
+                    students_map[sid]["total_score"] += r_dict["score"]
                 students_map[sid]["total_questions"] += 1
 
             student_results = []
+            completed_scores = []
             for sid, sdata in students_map.items():
-                sdata["average_score"] = round(sdata["total_score"] / max(sdata["total_questions"], 1), 3)
+                sdata["status"] = "in_progress" if sdata["has_unsubmitted"] else "completed"
+                sdata["is_completed"] = not sdata["has_unsubmitted"]
+                if sdata["is_completed"]:
+                    sdata["average_score"] = round(sdata["total_score"] / max(sdata["total_questions"], 1), 3)
+                    completed_scores.append(sdata["average_score"])
+                else:
+                    sdata["average_score"] = 0.0
                 student_results.append(sdata)
-            student_results.sort(key=lambda x: x["student_name"])
+            student_results.sort(key=lambda x: (x["status"] != "completed", x["student_name"]))
+            class_avg = round(sum(completed_scores) / max(len(completed_scores), 1), 3) if completed_scores else 0.0
 
         self._send_json({
             "quiz": dict(quiz),
             "questions": questions_list,
             "student_results": student_results,
-            "total_students": len(student_results)
+            "total_students": len(student_results),
+            "average_score": class_avg
         })
 
     def _create_quiz(self):
@@ -2383,8 +2501,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 """, (course_id,)).fetchall()
                 topic_ids = list(set(t["id"] for t in topics))
 
+        ui_lang = body.get("ui_lang", "en")
+
         from services.content_engine import generate_quiz
-        questions = generate_quiz(topic_ids, count=count, is_quiz=True)
+        questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang)
 
         quiz_id = _uid()
         with db_connection() as db:
@@ -2541,8 +2661,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("INSERT INTO quizzes (id, course_id, title, due_date, is_published, created_at) VALUES (?,?,?,datetime('now','+1 day'),1,datetime('now'))",
                            (pub_id, course_id, title))
             else:
-                db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
-                           (pub_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
+                db.execute("INSERT INTO assignments (id, course_id, title, description, due_date, is_published, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                           (pub_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at, 1))
                 
             seen_ids = set()
             for i, q in enumerate(questions):
@@ -2653,7 +2773,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Failed to query material_language for activity explain: {e}")
                 
-        if material_language == "en" and ui_lang in ["tr", "en"]:
+        if ui_lang and ui_lang in ["tr", "en"]:
             material_language = ui_lang
             
         result = ai_explain_activity(prompt, correct_answer, student_answer, language, material_language=material_language)
@@ -2821,8 +2941,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     return self._send_error("No courses found")
 
             # Create assignment entry first
-            db.execute("INSERT INTO assignments VALUES (?,?,?,?,?,datetime('now'))",
-                       (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at))
+            db.execute("INSERT INTO assignments (id, course_id, title, description, due_date, is_published, created_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+                       (assignment_id, course_id, title, None if chapter_id == "all" else chapter_id, due_at, 1))
 
             if topic_id:
                 topic_ids = [topic_id]
@@ -2886,31 +3006,51 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         "student_name": row["student_name"],
                         "answers": [],
                         "total_score": 0,
-                        "answered": 0
+                        "answered": 0,
+                        "answered_count": 0,
+                        "has_unsubmitted": False
                     }
                 q = question_map.get(row["question_id"], {})
+                is_started = (row["student_answer"] == "[STARTED]")
+                if is_started:
+                    students[sid]["has_unsubmitted"] = True
+                else:
+                    students[sid]["answered_count"] += 1
+
                 students[sid]["answers"].append({
                     "question_id": row["question_id"],
                     "prompt": q.get("prompt", ""),
                     "correct_answer": q.get("answer", ""),
                     "student_answer": row["student_answer"],
-                    "score": row["score"],
-                    "is_correct": row["score"] >= 0.8
+                    "score": row["score"] if not is_started else 0.0,
+                    "is_correct": (row["score"] >= 0.8) if not is_started else False,
+                    "is_started": is_started
                 })
-                students[sid]["total_score"] += row["score"]
+                if not is_started:
+                    students[sid]["total_score"] += row["score"]
                 students[sid]["answered"] += 1
 
             result = []
+            completed_scores = []
             for s in students.values():
-                s["average_score"] = round(s["total_score"] / max(s["answered"], 1), 3)
+                s["status"] = "in_progress" if s["has_unsubmitted"] else "completed"
+                s["is_completed"] = not s["has_unsubmitted"]
                 s["total_questions"] = len(question_map)
+                if s["is_completed"]:
+                    s["average_score"] = round(s["total_score"] / max(s["total_questions"], 1), 3)
+                    completed_scores.append(s["average_score"])
+                else:
+                    s["average_score"] = 0.0
                 result.append(s)
+
+            class_avg = round(sum(completed_scores) / max(len(completed_scores), 1), 3) if completed_scores else 0.0
 
         self._send_json({
             "assignment_id": assignment_id,
             "title": assignment["title"],
             "total_questions": len(question_map),
-            "student_results": sorted(result, key=lambda x: x["average_score"], reverse=True)
+            "student_results": sorted(result, key=lambda x: (x["status"] != "completed", -x["average_score"])),
+            "average_score": class_avg
         })
 
     def _get_assignments(self, course_id, student_id=None):
@@ -2923,7 +3063,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             for a in assignments:
                 a_dict = dict(a)
                 if student_id:
-                    completed = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, a["id"])).fetchone()
+                    completed = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' AND answer != '[STARTED]' LIMIT 1", (student_id, a["id"])).fetchone()
                     a_dict["is_completed"] = True if completed else False
                 result.append(a_dict)
         self._send_json(result)
@@ -2983,12 +3123,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     db.execute("INSERT INTO responses (id, student_id, question_id, context_type, context_id, answer, score, graded_by, feedback) VALUES (?,?,?,?,?,?,?,?,?)",
                                (_uid(), student_id, qid, "assignment", aid, student_answer, score, "auto", feedback))
-                tid = question["topic_id"]
-                existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
-                current_score = existing["score"] if (existing and existing["score"] is not None) else score
-                new_score = (current_score * 0.7 + score * 0.3)
-                db.execute("INSERT OR REPLACE INTO mastery_scores (student_id, topic_id, score) VALUES (?,?,?)",
-                           (student_id, tid, round(new_score, 3)))
+                tid = question.get("topic_id") if isinstance(question, dict) else (question["topic_id"] if question and "topic_id" in question.keys() else None)
+                if tid:
+                    existing = db.execute("SELECT score FROM mastery_scores WHERE student_id = ? AND topic_id = ?", (student_id, tid)).fetchone()
+                    current_score = existing["score"] if (existing and existing["score"] is not None) else score
+                    new_score = (current_score * 0.7 + score * 0.3)
+                    db.execute("INSERT OR REPLACE INTO mastery_scores (student_id, topic_id, score) VALUES (?,?,?)",
+                               (student_id, tid, round(new_score, 3)))
             db.commit()
 
         bump_version()
@@ -3075,6 +3216,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         
         from services.ai_engine import ai_generate_curriculum
         result = ai_generate_curriculum(language, level, course_name)
+        if not result or len(result) < 4:
+            # Fallback to cached blueprint if available
+            from services.ai_engine import _get_blueprint_path
+            cache_file = _get_blueprint_path(language, level)
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r", encoding="utf-8") as f:
+                        cached_data = json.load(f)
+                        if cached_data and cached_data.get("chapters") and len(cached_data["chapters"]) >= 4:
+                            result = cached_data["chapters"]
+                except Exception:
+                    pass
+
         if not result: return self._send_error("Failed to generate syllabus", 500)
         
         try:
@@ -3093,44 +3247,55 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_name = data.get("course_name")
         chapters = data.get("chapters") 
         lecturer_id = data.get("lecturer_id")
-        material_language = data.get("material_language", "en")
+        material_language = data.get("material_language", "tr")
         
         cid = data.get("course_id")
         # Ensure we treat falsy/null values as None
         course_id = cid if cid and cid != "null" and cid != "undefined" else None
-
-        # Ensure curriculum is fully bilingual (both title and title_tr)
-        if chapters:
-            from services.curriculum_translator import ensure_bilingual_curriculum
-            chapters = ensure_bilingual_curriculum(chapters)
         
-        # Save blueprint to cache NOW (user committed to building)
-        if language and level and chapters:
-            from services.ai_engine import save_blueprint_cache
-            # Convert the frontend format to the cache format
-            cache_chapters = []
-            for ch in chapters:
-                cache_topics = []
-                for t in ch.get("topics", []):
-                    cache_topics.append({
-                        "title": t.get("title", ""),
-                        "title_tr": t.get("title_tr", ""),
-                        "type": t.get("type", "vocabulary")
-                    })
-                cache_chapters.append({
-                    "number": len(cache_chapters) + 1,
-                    "title": ch.get("title", ""),
-                    "title_tr": ch.get("title_tr", ""),
-                    "topics": cache_topics
-                })
-            save_blueprint_cache(language, level, cache_chapters)
         
         from services.legacy.pdf_pipeline import process_manual_to_classroom
         result = process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=course_id, material_language=material_language)
-        if isinstance(result, dict) and result.get("course_id"):
-            from database import enroll_permanent_students_in_course
-            enroll_permanent_students_in_course(result["course_id"])
         return self._send_json(result)
+
+    def _stop_classroom_build(self):
+        """Stops an ongoing classroom generation process and terminates its background worker."""
+        data = self._read_body()
+        course_id = data.get("course_id")
+        if not course_id:
+            return self._send_error("course_id required")
+
+        # 1. Terminate worker process via PID file if running
+        pid_file = os.path.join("data", "workers", f"{course_id}.pid")
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r", encoding="utf-8") as f:
+                    pid = int(f.read().strip())
+                if sys.platform == "win32":
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+                else:
+                    import signal
+                    os.kill(pid, signal.SIGTERM)
+                file_log(f"Terminated worker PID {pid} for stopped course {course_id}")
+            except Exception as e:
+                file_log(f"Error terminating worker PID: {e}")
+            try:
+                os.remove(pid_file)
+            except Exception:
+                pass
+
+        # 2. Update database to stop state
+        with db_connection() as db:
+            db.execute("""
+                UPDATE courses 
+                SET is_building = 0, build_stage = 'stopped', build_message = 'Ders üretimi kullanıcı tarafından durduruldu.' 
+                WHERE id = ?
+            """, (course_id,))
+            db.commit()
+
+        bump_version()
+        file_log(f"Build stopped for Course {course_id}")
+        return self._send_json({"success": True, "message": "Ders üretimi durduruldu."})
 
     def _translate_material(self):
         """Translates educational material text between English and Turkish on demand for newly created classrooms."""

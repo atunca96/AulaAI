@@ -21,10 +21,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css?v=20260909_v1081">
+    <link rel="stylesheet" href="/css/styles.css?v=20260910_v0009">
     <link rel="icon" type="image/png" href="/img/icon.png">
-    <script src="/js/bilingual_materials.js?v=20260909_v1081" defer></script>
-    <script src="/js/app.js?v=20260909_v1081" defer></script>
+    <script src="/js/bilingual_materials.js?v=20260910_v0009" defer></script>
+    <script src="/js/app.js?v=20260910_v0009" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -318,7 +318,7 @@
                             </div>
                         </div>
                         
-                        <div class="sheet-footer">
+                        <div class="sheet-footer" style="display:none;">
                             <span class="sheet-tip" data-i18n="hero.demo_tip">Not: Anında sözlük çevirisi için İspanyolca kelimelerin üzerine tıklayabilirsiniz.</span>
                         </div>
                     </div>
@@ -452,17 +452,9 @@
             
             <div style="text-align:center; margin-top:32px; display:flex; justify-content:center; gap:16px;">
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
-                <button class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger); font-size:12px; opacity:0.6" onclick="resetData(null)" data-i18n="erase_all_btn">Erase All Data</button>
             </div>
             <!-- Admin Students Panel -->
             <div id="admin-students-panel" class="hidden" style="margin-top:40px;"></div>
-            <!-- Admin Only Hard Reset -->
-            <div id="admin-panel" class="hidden" style="margin-top:60px; padding:32px; border:1px solid var(--danger); border-radius:16px; background:rgba(239,68,68,0.02); text-align:center;">
-                <div style="margin-bottom:16px; display:inline-flex; align-items:center; justify-content:center; width:56px; height:56px; border-radius:50%; background:var(--danger-bg); border:1px solid rgba(239,68,68,0.2);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:24px; height:24px; color:var(--danger); stroke-width:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
-                <h3 style="color:var(--danger); margin-bottom:8px;" data-i18n="admin.hard_reset_title">Admin Hard Reset</h3>
-                <p style="color:var(--text-muted); font-size:13px; margin-bottom:24px;" data-i18n="admin.hard_reset_desc">This will wipe EVERYTHING. Users, courses, data - gone forever.</p>
-                <button class="btn btn-danger" onclick="adminHardReset()" style="padding:12px 24px; font-weight:700; letter-spacing:1px;" data-i18n="admin.hard_reset_btn">HARD RESET SYSTEM</button>
-            </div>
         </div>
     </div>
 
@@ -745,7 +737,6 @@
             </div>
             <div style="margin-top:40px; padding-top:40px; border-top:1px solid var(--border); text-align:center; display:flex; justify-content:center; gap:16px;">
                 <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
-                <button class="btn btn-ghost" onclick="confirmDeleteAccount()" style="color:var(--danger)" data-i18n="student.delete_account">Delete Account</button>
             </div>
         </div>
     </div>
@@ -822,7 +813,7 @@
                 
                 <!-- Modern Rebuilt Lecturer Building Banner -->
                 <div id="lecturer-building-banner" class="build-banner-card hidden">
-                    <div id="architect-whisper" class="architect-whisper">The Architect is busy...</div>
+                    <div id="architect-whisper" class="architect-whisper" data-i18n="architect.busy">The Architect is busy...</div>
                     <div class="build-banner-top">
                         <div class="build-banner-left">
                             <div class="spinner-small" style="border-top-color:var(--accent);"></div>
@@ -834,7 +825,10 @@
                                 <div id="lecturer-progress-detail" class="build-banner-detail" data-i18n="class.building_msg">Your content is being built from the textbook...</div>
                             </div>
                         </div>
-                        <div class="build-banner-right">
+                        <div class="build-banner-right" style="display:flex; align-items:center; gap:8px;">
+                            <button id="lecturer-stop-btn" class="btn btn-ghost btn-xs" onclick="stopClassroomBuild(currentCourse ? currentCourse.id : null)" style="font-size:11px; color:var(--danger); border:1px solid rgba(239,68,68,0.4); padding:4px 10px; border-radius:6px; cursor:pointer;">
+                                🛑 <span data-i18n="class.stop_build">Durdur</span>
+                            </button>
                             <button id="lecturer-force-restart-btn" class="btn btn-ghost btn-xs" onclick="rebuildClassroom(true)" style="font-size:11px; color:var(--accent-light); border:1px solid var(--border); padding:4px 10px; border-radius:6px; cursor:pointer;">
                                 <span data-i18n="class.force_restart">Force Restart</span>
                             </button>
@@ -867,15 +861,12 @@
                         <div class="card-body" id="topic-difficulty-chart"></div>
                     </div>
                 </div>
-                <!-- Data Management -->
-                <div class="card" style="margin-top:24px;border:1px solid var(--danger)">
-                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
-                        <h3 data-i18n="data_mgmt">Data Management</h3>
-                        <button id="erase-data-btn" class="btn btn-sm" style="background:var(--danger);color:white;border:none" onclick="resetData()" data-i18n="erase_all_btn">Erase All Data</button>
+                <!-- Modest Classroom Data Management -->
+                <div style="margin-top:36px; padding:12px 18px; border:1px solid var(--border); border-radius:var(--radius); display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01);">
+                    <div style="font-size:12px; color:var(--text-muted);">
+                        <strong style="color:var(--text-secondary); margin-right:4px;" data-i18n="data_mgmt">Data Management</strong>: <span data-i18n="erase_all_desc">Bu sınıftaki öğrenci yanıtlarını ve başarı verilerini sıfırlar.</span>
                     </div>
-                    <div class="card-body" style="font-size:13px;color:var(--text-muted)" data-i18n="erase_all_desc">
-                        Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.
-                    </div>
+                    <button id="erase-data-btn" class="btn btn-ghost btn-xs" style="color:var(--text-muted); font-size:11px; padding:4px 10px; border:1px solid var(--border); white-space:nowrap;" onclick="resetData()" data-i18n="reset_class_data_btn">Sınıfı Sıfırla</button>
                 </div>
             </section>
 
@@ -884,9 +875,6 @@
                     <div>
                         <h1 data-i18n="Curriculum">Curriculum</h1>
                         <p class="subtitle" id="curriculum-subtitle"></p>
-                    </div>
-                    <div style="display:flex; gap:12px; align-items:center;">
-                        <button id="rearchitect-btn" class="btn btn-ghost" style="color:var(--text-muted); font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="reArchitectCurriculum()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg><span data-i18n="Re-Architect">Re-Architect</span></button>
                     </div>
                 </div>
                 <div id="curriculum-tree"></div>
@@ -909,6 +897,7 @@
                                 </select>
                             </div>
                             <button id="generate-activity-btn" class="btn btn-primary" onclick="launchActivity()" data-i18n="Generate Activity">Generate Activity</button>
+                            <div style="font-size:11px; color:var(--text-muted); margin-top:8px;" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</div>
                         </div>
                     </div>
                 </div>
@@ -941,9 +930,10 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createQuiz()" data-i18n="Create Quiz">Create Quiz</button>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:8px;" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</div>
                         <div id="quiz-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--radius); background:var(--accent-glow); border:1px solid var(--border);">
                             <div class="spinner-small"></div>
-                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Generating questions...</span>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Sorular oluşturuluyor...</span>
                         </div>
                     </div>
                 </div>
@@ -953,8 +943,8 @@
             <!-- Assignments Tab -->
             <section id="tab-assignments-mgmt" class="tab-panel">
                 <div class="page-header">
-                    <h1>Assignment Management</h1>
-                    <p class="subtitle">Assign homework to your students</p>
+                    <h1 data-i18n="Assignment Management">Assignment Management</h1>
+                    <p class="subtitle" data-i18n="Assign homework to your students">Assign homework to your students</p>
                 </div>
                 <div class="card">
                     <div class="card-header"><h3 data-i18n="Create New Assignment">Create New Assignment</h3></div>
@@ -976,9 +966,10 @@
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="createAssignment()" data-i18n="Create Assignment">Create Assignment</button>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:8px;" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</div>
                         <div id="assignment-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--radius); background:var(--accent-glow); border:1px solid var(--border);">
                             <div class="spinner-small"></div>
-                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Generating questions...</span>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Sorular oluşturuluyor...</span>
                         </div>
                     </div>
                 </div>
@@ -1158,7 +1149,7 @@
                 <div class="page-header">
                     <h1 data-i18n="practice">Practice</h1>
                     <p class="subtitle" data-i18n="selectPractice">Select a topic to practice</p>
-                    <p style="color:var(--text-muted); font-size:12px; margin-top:8px; font-weight:500; opacity:0.8" data-i18n="draft.lang_warning">Note: Question content language is fixed upon generation and will not change with the UI toggle.</p>
+                    <p style="color:var(--text-muted); font-size:12px; margin-top:8px; font-weight:500; opacity:0.8" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
                 </div>
                 <div id="practice-topics" class="topic-grid"></div>
                 <div id="practice-area" class="hidden"></div>
@@ -1343,7 +1334,21 @@
             <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;"><svg style="width:36px;height:36px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg></div>
         </div>
         <h2 style="font-size:28px; font-weight:800; margin-bottom:12px; background:linear-gradient(135deg, #fff, rgba(255,255,255,0.7)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;" class="building-label" data-i18n="gen.building">Building your classroom...</h2>
-        <p style="color:var(--text-secondary); max-width:300px; font-size:16px;" data-i18n="gen.ai_architecting">Our AI is architecting your curriculum and generating study materials. Please wait a moment.</p>
+        <p id="building-screen-msg" style="color:var(--text-secondary); max-width:400px; font-size:15px; margin-bottom:20px;" data-i18n="gen.ai_architecting">Our AI is architecting your curriculum and generating study materials. Please wait a moment.</p>
+        
+        <div id="building-screen-progress-box" style="width:100%; max-width:380px; margin-bottom:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:8px;">
+                <span id="building-screen-status" style="color:var(--accent); font-weight:600;">Dersler hazırlanıyor...</span>
+                <span id="building-screen-pct" style="font-family:monospace; font-weight:700; color:#fff;">15%</span>
+            </div>
+            <div style="width:100%; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                <div id="building-screen-bar" style="height:100%; width:15%; background:var(--gradient-2); transition:width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <button id="building-screen-stop-btn" class="btn btn-outline" onclick="stopCurrentActiveBuilding()" style="color:var(--danger); border-color:rgba(239,68,68,0.4); font-size:13px; padding:8px 20px; border-radius:8px;">
+            🛑 <span data-i18n="class.stop_build">Oluşturmayı Durdur</span>
+        </button>
     </div>
 
     <!-- AulaAI Global Dictionary Popup -->

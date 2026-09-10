@@ -1,5 +1,15 @@
 import sys
 import os
+
+# Ensure Windows Python 3.8+ finds OpenSSL and extension DLLs
+if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+    for _p in [os.path.join(sys.base_prefix, "DLLs"), os.path.join(sys.exec_prefix, "DLLs")]:
+        if os.path.exists(_p):
+            try:
+                os.add_dll_directory(_p)
+            except Exception:
+                pass
+
 import traceback
 import threading
 import time
@@ -31,9 +41,10 @@ def main():
     if os.path.exists(".env"):
         with open(".env", "r") as f:
             for line in f:
-                if "=" in line:
-                    k, v = line.strip().split("=", 1)
-                    os.environ[k] = v
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ[k.strip()] = v.strip()
 
     # Start heartbeat in background
     h_thread = threading.Thread(target=heartbeat, daemon=True)
@@ -145,7 +156,7 @@ def main():
         # NUCLEAR RESET: Start fresh
         from database import db_connection
         with db_connection() as db:
-            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Analyzing textbook syllabus...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Ders programı analiz ediliyor...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
             db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
@@ -163,7 +174,7 @@ def main():
                     SELECT COUNT(*) FROM topics t 
                     JOIN chapters ch ON t.chapter_id = ch.id 
                     WHERE ch.course_id = ?
-                ), build_stage = 'enriching', build_message = 'Preparing lesson generation...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
+                ), build_stage = 'enriching', build_message = 'Ders içerikleri hazırlanıyor...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
             """, (course_id, course_id, gen_id, gen_id))
             db.commit()
 

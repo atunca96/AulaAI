@@ -237,17 +237,29 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
         needed = count
         print(f"[AI] Live-Only Batch: Requesting {needed} fresh questions for {len(topic_ids)} topics")
         
-        # Build a consolidated prompt for multiple topics
+        # Surgically sample up to 6 topics and extract only key terms (prevents 1.2M char token blowout)
+        target_ids = random.sample(topic_ids, min(6, len(topic_ids))) if len(topic_ids) > 6 else list(topic_ids)
         topics_summary = []
         with db_connection() as db_conn:
-            for tid in topic_ids:
+            for tid in target_ids:
                 t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
                 if t_row:
+                    key_terms = []
+                    if t_row["content"]:
+                        try:
+                            tc = json.loads(t_row["content"])
+                            for p in tc.get("pages", []):
+                                for it in p.get("items", []):
+                                    if it.get("term"):
+                                        tr_val = it.get("translation_tr") or it.get("translation")
+                                        key_terms.append(f"{it.get('term')} ({tr_val})")
+                                    if len(key_terms) >= 5: break
+                        except: pass
                     topics_summary.append({
                         "id": tid,
                         "title": t_row["title"],
                         "type": t_row["type"],
-                        "content": json.loads(t_row["content"]) if t_row["content"] else {}
+                        "key_vocab": key_terms[:5]
                     })
         
         # Use first topic's language and level as base
@@ -269,7 +281,7 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
                     if "level" in l_row.keys() and l_row["level"]:
                         course_level = l_row["level"]
         
-        if material_language == "en" and ui_lang in ["tr", "en"]:
+        if ui_lang and ui_lang in ["tr", "en"]:
             material_language = ui_lang
 
         # Call the unified engine
@@ -314,19 +326,10 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
 
         print(f"[QUIZ] After first AI call: have {len(questions)}/{count}")
 
-    # ── AI RETRY LOOP ── Keep requesting until count is met or retries exhausted ──
-    MAX_QUIZ_AI_PASSES = 3
-    quiz_ai_pass = 0
-    while len(questions) < count and is_ai_available() and quiz_ai_pass < MAX_QUIZ_AI_PASSES:
-        quiz_ai_pass += 1
+    # ── DETERMINISTIC FILL (Prevents Runaway Retries & Credit Drain) ──
+    if len(questions) < count and is_ai_available():
+        # Single extra pass if needed
         still_needed = count - len(questions)
-        print(f"[QUIZ] AI pass {quiz_ai_pass}: still need {still_needed} questions")
-
-        # Re-build topics summary (first pass already did this; reuse if available)
-        if quiz_ai_pass == 1:
-            pass  # topics_summary and base_lang already set from the block above
-        # For subsequent passes topics_summary / base_lang are already in scope
-
         from services.ai_engine import ai_generate_questions
         extra_qs = ai_generate_questions(
             topic_title="Quiz/Review",
@@ -335,20 +338,18 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             language=base_lang,
             count=still_needed,
             level=course_level,
-            existing_questions=forbidden_questions + questions,  # forbidden list grows each pass
+            existing_questions=forbidden_questions + questions,
             is_quiz=is_quiz,
             material_language=material_language
         )
-
         if extra_qs:
             with db_connection() as db_conn:
                 for q in extra_qs:
                     if len(questions) >= count:
                         break
-                    tid = q.get("topic_id") or random.choice(topic_ids)
+                    tid = q.get("topic_id") or (random.choice(topic_ids) if topic_ids else "")
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
-                    # Ensure options are assembled and shuffled for the UI
                     options = [q.get("answer", "")] + distractors
                     random.shuffle(options)
                     
@@ -367,7 +368,25 @@ def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=N
             from services.state import bump_version
             bump_version()
 
-        print(f"[QUIZ] After AI pass {quiz_ai_pass}: have {len(questions)}/{count}")
+    # Deterministic safety net: if still needed, pull from existing approved DB questions
+    if len(questions) < count:
+        with db_connection() as db_conn:
+            existing_rows = db_conn.execute(
+                "SELECT id, topic_id, type, prompt, answer, distractors, difficulty FROM questions WHERE approved = 1 ORDER BY RANDOM() LIMIT ?",
+                (count - len(questions),)
+            ).fetchall()
+            for r in existing_rows:
+                if len(questions) >= count: break
+                if not any(q["prompt"] == r["prompt"] for q in questions):
+                    d_list = json.loads(r["distractors"]) if r["distractors"] else []
+                    opts = [r["answer"]] + d_list
+                    random.shuffle(opts)
+                    questions.append({
+                        "id": r["id"], "topic_id": r["topic_id"],
+                        "type": r["type"], "prompt": r["prompt"],
+                        "answer": r["answer"], "distractors": d_list,
+                        "options": opts, "difficulty": r["difficulty"]
+                    })
 
     final_quiz = questions[:count]
     print(f"[QUIZ] FINAL: requested={count} returned={len(final_quiz)}")

@@ -3,7 +3,7 @@ let currentUser = null;
 let courseId = null;
 let curriculum = [];
 let currentCourse = null;
-let currentLang = localStorage.getItem('aula_lang') || 'en';
+let currentLang = localStorage.getItem('aula_lang') || 'tr';
 let aiStatus = null;
 let _lastVersion = -1;
 let _buildStartTime = 0;
@@ -11,6 +11,7 @@ let _syncInterval = null;
 let _lastExtractedLanguage = null;
 let _buildingCourses = [];
 let _lastActivityData = null;
+const _answeredQuestionsState = {};
 let _lastOverviewData = null;
 let _lastCurriculumData = null;
 let _lastQuizListData = null;
@@ -485,16 +486,18 @@ function startLiveSync() {
               }
             }
 
-            const pct = Math.max(0, Math.min(100, Math.round(prog.percentage || 0)));
+            const pct = prog.is_building 
+              ? Math.max(0, Math.min(100, Math.round(prog.percentage || 0)))
+              : Math.max(0, Math.min(100, Math.round(prog.percentage || 0)));
             if (progressFill) progressFill.style.width = pct + '%';
             if (progressText) progressText.textContent = pct + '%';
 
             if (stageBadge && prog.stage) {
-              stageBadge.textContent = prog.stage.toUpperCase();
+              stageBadge.textContent = translateBuildStage(prog.stage);
             }
 
             if (progressDetail && prog.message) {
-              progressDetail.textContent = prog.message;
+              progressDetail.textContent = translateBuildMessage(prog.message);
             }
 
             // Update step nodes on lecturer banner
@@ -568,6 +571,11 @@ function refreshCurrentView() {
         if (buildBanner) {
           if (currentCourse.is_building) {
             buildBanner.classList.remove('hidden');
+            const pct = Math.max(0, Math.min(100, Math.round(currentCourse.percentage || 0)));
+            if (progressFill) progressFill.style.width = pct + '%';
+            if (progressText) progressText.textContent = pct + '%';
+            const detailEl = document.getElementById(isLecturer ? 'lecturer-progress-detail' : 'student-progress-detail');
+            if (detailEl && currentCourse.build_message) detailEl.textContent = translateBuildMessage(currentCourse.build_message);
           } else {
             buildBanner.classList.add('hidden');
           }
@@ -790,19 +798,20 @@ const i18n = {
     // Data Management
     data_mgmt: 'Data Management',
     erase_all_btn: 'Erase All Data',
-    erase_all_desc: 'Removes all students, quiz results, assignment submissions, and mastery scores. Curriculum and your lecturer account are preserved.',
+    reset_class_data_btn: 'Reset Classroom',
+    erase_all_desc: 'Resets student responses and mastery progress for this classroom.',
     // Activities
     'In-Class Activities': 'In-Class Activities', 'Generate and launch live activities': 'Generate and launch live activities',
     'Launch Activity': 'Launch Activity', 'Select Chapter & Topic': 'Select Chapter & Topic',
     'Generate Activity': 'Generate Activity', 'Loading curriculum...': 'Loading curriculum...',
     // Quiz Management
     'Quiz Management': 'Quiz Management', 'Create and manage quizzes': 'Create and manage quizzes',
-    '\u2795 Create New Quiz': '\u2795 Create New Quiz', 'Quiz Title': 'Quiz Title',
+    '\u2795 Create New Quiz': '\u2795 Create New Quiz', 'Create New Quiz': 'Create New Quiz', 'Quiz Title': 'Quiz Title',
     Chapter: 'Select Topic', 'All chapters': 'All Topics', AllTopics: 'All Topics', Questions: 'Questions', 'Create Quiz': 'Create Quiz',
     completed: 'Completed', 'Created': 'Created',
     // Assignments
     'Assignment Management': 'Assignment Management', 'Assign homework to your students': 'Assign homework to your students',
-    '\u2795 Create New Assignment': '\u2795 Create New Assignment', 'Assignment Title': 'Assignment Title',
+    '\u2795 Create New Assignment': '\u2795 Create New Assignment', 'Create New Assignment': 'Create New Assignment', 'Assignment Title': 'Assignment Title',
     'Create Assignment': 'Create Assignment', 'Your homework tasks': 'Your homework tasks',
     // Students
     'Student Roster': 'Student Roster', 'Monitor individual student progress': 'Monitor individual student progress',
@@ -944,8 +953,11 @@ const i18n = {
     'step.finalize': '4. Finalize',
     'answer': 'Answer',
     'responses': 'Responses',
+    'gen.generating': 'Generating Practice Activities...',
     'gen.loading': 'Questions are being generated...',
-    'gen.time': 'This may take 5-10 seconds.',
+    'gen.time': 'The AI is generating custom practice exercises and test questions for this topic. Please wait...',
+    'Explanation': 'Explanation',
+    'explanation': 'Explanation',
     'Unit': 'Unit',
     'Units': 'Units',
     'units': 'Units',
@@ -1140,6 +1152,16 @@ const i18n = {
     'alert.pin_reset_success': 'Student PIN has been reset.',
     'alert.progress_reset_success': 'Student progress has been wiped.',
     'student.pin_must_be_4': 'PIN must be exactly 4 digits',
+    'class.stop_build': 'Stop Generation',
+    'class.confirm_stop_build': 'Are you sure you want to stop generating lesson materials? The background process will be terminated.',
+    'class.build_stopped': 'Lesson generation stopped.',
+    'architect.busy': 'The Architect is busy...',
+    'stage.starting': 'STARTING',
+    'stage.analyzing': 'ANALYZING',
+    'stage.structuring': 'STRUCTURING',
+    'stage.enriching': 'LESSONS',
+    'stage.finalizing': 'FINALIZING',
+    'stage.completed': 'COMPLETED',
   },
   tr: {
     // New login showcase translations
@@ -1169,7 +1191,7 @@ const i18n = {
     'ai.course_name': '3. Kurs Adı',
     'ai.name_placeholder': 'ör. Yoğun İspanyolca Yaz Kursu',
     'ai.gen_curriculum': 'Müfredat Oluştur',
-    'loading': 'yükleniyor',
+    'loading': 'Yükleniyor...',
     'lang.Spanish': 'İspanyolca',
     'lang.German': 'Almanca',
     'lang.French': 'Fransızca',
@@ -1248,6 +1270,11 @@ const i18n = {
     'assign.recorded': 'Puanın kaydedildi.',
     'assign.back': 'Ödevlere Dön',
     'assign.retry': 'Hata oluştu, tekrar deneyin.',
+    'gen.generating': 'Alıştırmalar Hazırlanıyor...',
+    'gen.loading': 'Sorular hazırlanıyor...',
+    'gen.time': 'Yapay zeka bu konuya özel alıştırmalar ve test soruları üretiyor. Lütfen bekleyin...',
+    'Explanation': 'Açıklama',
+    'explanation': 'Açıklama',
     'Material': 'Materyal',
     'study': 'Materyal',
     'book': 'Kitap',
@@ -1372,19 +1399,20 @@ const i18n = {
     // Data Management
     data_mgmt: 'Veri Yönetimi',
     erase_all_btn: 'Tüm Verileri Sil',
-    erase_all_desc: 'Tüm öğrencileri, sınav sonuçlarını, ödev teslimlerini ve başarı puanlarını siler. Müfredat ve öğretmen hesabınız korunur.',
+    reset_class_data_btn: 'Sınıfı Sıfırla',
+    erase_all_desc: 'Bu sınıftaki öğrenci yanıtlarını ve başarı verilerini sıfırlar.',
     // Activities
     'In-Class Activities': 'Sınıf İçi Etkinlikler', 'Generate and launch live activities': 'Canlı etkinlikler oluştur ve başlat',
     'Launch Activity': 'Etkinlik Başlat', 'Select Chapter & Topic': 'Ünite ve Konu Seç',
     'Generate Activity': 'Etkinlik Oluştur', 'Loading curriculum...': 'Müfredat yükleniyor...',
     // Quiz Management
     'Quiz Management': 'Sınav Yönetimi', 'Create and manage quizzes': 'Sınav oluştur ve yönet',
-    '\u2795 Create New Quiz': '\u2795 Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
+    '\u2795 Create New Quiz': '\u2795 Yeni Sınav Oluştur', 'Create New Quiz': 'Yeni Sınav Oluştur', 'Quiz Title': 'Sınav Başlığı',
     Chapter: 'Konu Seçin', 'All chapters': 'Tüm Konular', AllTopics: 'Tüm Konular', Questions: 'Soru Sayısı', 'Create Quiz': 'Sınav Oluştur',
     completed: 'Tamamlandı', 'Created': 'Oluşturuldu',
     // Assignments
     'Assignment Management': 'Ödev Yönetimi', 'Assign homework to your students': 'Öğrencilerinize ödev atayın',
-    '\u2795 Create New Assignment': '\u2795 Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
+    '\u2795 Create New Assignment': '\u2795 Yeni Ödev Oluştur', 'Create New Assignment': 'Yeni Ödev Oluştur', 'Assignment Title': 'Ödev Başlığı',
     'Create Assignment': 'Ödev Oluştur', 'Your homework tasks': 'Ödev görevleriniz',
     // Students
     'Student Roster': 'Öğrenci Listesi', 'Monitor individual student progress': 'Bireysel öğrenci gelişimini izle',
@@ -1595,12 +1623,22 @@ const i18n = {
     'alert.pin_reset_success': 'Öğrenci PIN\'i sıfırlandı.',
     'alert.progress_reset_success': 'Öğrenci ilerlemesi silindi.',
     'student.pin_must_be_4': 'PIN tam olarak 4 rakam olmalıdır',
+    'class.stop_build': 'Oluşturmayı Durdur',
+    'class.confirm_stop_build': 'Ders materyali oluşturmayı durdurmak istediğinize emin misiniz? Arka plan işlemi sonlandırılacaktır.',
+    'class.build_stopped': 'Ders üretimi durduruldu.',
+    'architect.busy': 'Mimar dersleri inşa ediyor...',
+    'stage.starting': 'BAŞLATILIYOR',
+    'stage.analyzing': 'ANALİZ EDİLİYOR',
+    'stage.structuring': 'MÜFREDAT',
+    'stage.enriching': 'DERSLER',
+    'stage.finalizing': 'TAMAMLANIYOR',
+    'stage.completed': 'TAMAMLANDI',
   }
 };
 
 function t(key, data = {}) {
   try {
-    const lang = localStorage.getItem('aula_lang') || 'en';
+    const lang = currentLang || localStorage.getItem('aula_lang') || 'tr';
     let str = (i18n[lang] && i18n[lang][key]) || (i18n['en'] && i18n['en'][key]) || key;
     if (typeof str !== 'string') str = String(str || key);
 
@@ -1612,6 +1650,70 @@ function t(key, data = {}) {
     console.error('Translation error:', e);
     return String(key);
   }
+}
+
+function translateBuildStage(stage) {
+  if (!stage) return '';
+  const s = String(stage).toLowerCase();
+  const stages = {
+    'starting': { tr: 'BAŞLATILIYOR', en: 'STARTING' },
+    'analyzing': { tr: 'ANALİZ EDİLİYOR', en: 'ANALYZING' },
+    'structuring': { tr: 'MÜFREDAT', en: 'STRUCTURING' },
+    'enriching': { tr: 'DERSLER', en: 'LESSONS' },
+    'finalizing': { tr: 'TAMAMLANIYOR', en: 'FINALIZING' },
+    'completed': { tr: 'TAMAMLANDI', en: 'COMPLETED' },
+    'failed': { tr: 'HATA', en: 'FAILED' },
+    'timeout': { tr: 'ZAMAN AŞIMI', en: 'TIMEOUT' },
+    'stopped': { tr: 'DURDURULDU', en: 'STOPPED' },
+    'updating': { tr: 'GÜNCELLENİYOR', en: 'UPDATING' }
+  };
+  const lang = currentLang || localStorage.getItem('aula_lang') || 'tr';
+  return (stages[s] && stages[s][lang]) || stage.toUpperCase();
+}
+
+function translateBuildMessage(msg) {
+  if (!msg) return t('gen.building') || 'Building...';
+  const lang = currentLang || localStorage.getItem('aula_lang') || 'tr';
+
+  const mCount = msg.match(/(?:Dersler üretilmeye başlandı|Generating lesson materials|Ders içerikleri hazırlanıyor)\s*\((\d+)(?:\/(\d+))?(?:\s*ders)?\)/i);
+  if (mCount) {
+    const done = mCount[1];
+    const total = mCount[2];
+    if (total) {
+      return lang === 'tr' ? `Ders içerikleri hazırlanıyor (${done}/${total})...` : `Generating lesson materials (${done}/${total})...`;
+    }
+    return lang === 'tr' ? `Dersler üretilmeye başlandı (${done} ders)...` : `Generating lessons (${done} lessons)...`;
+  }
+
+  const mTopic = msg.match(/(?:Ders üretiliyor|Generating lesson):\s*(.+)/i);
+  if (mTopic) {
+    const title = mTopic[1];
+    return lang === 'tr' ? `Ders üretiliyor: ${title}` : `Generating lesson: ${title}`;
+  }
+
+  const dict = {
+    'Classroom is ready!': { tr: 'Sınıf hazır!', en: 'Classroom is ready!' },
+    'Starting lesson rebuild...': { tr: 'Dersler yeniden oluşturuluyor...', en: 'Starting lesson rebuild...' },
+    'Starting build process...': { tr: 'Oluşturma işlemi başlatılıyor...', en: 'Starting build process...' },
+    'Analyzing syllabus and chapters...': { tr: 'Ders programı analiz ediliyor...', en: 'Analyzing syllabus and chapters...' },
+    'Analyzing textbook syllabus...': { tr: 'Ders kitabı analiz ediliyor...', en: 'Analyzing textbook syllabus...' },
+    'Ders programı analiz ediliyor...': { tr: 'Ders programı analiz ediliyor...', en: 'Analyzing syllabus and chapters...' },
+    'Structuring chapters and topics...': { tr: 'Müfredat yapısı oluşturuluyor...', en: 'Structuring chapters and topics...' },
+    'Structuring course chapters and topics...': { tr: 'Müfredat yapısı oluşturuluyor...', en: 'Structuring course chapters and topics...' },
+    'Müfredat yapısı oluşturuluyor...': { tr: 'Müfredat yapısı oluşturuluyor...', en: 'Structuring chapters and topics...' },
+    'Ders içerikleri hazırlanıyor...': { tr: 'Ders içerikleri hazırlanıyor...', en: 'Preparing lesson materials...' },
+    'Curriculum ready. Preparing lesson generation...': { tr: 'Müfredat hazır. Ders içerikleri hazırlanıyor...', en: 'Curriculum ready. Preparing lesson generation...' },
+    'Finalizing bilingual translations...': { tr: 'İki dilli çeviriler tamamlanıyor...', en: 'Finalizing bilingual translations...' },
+    'Build timed out. Please click Force Restart.': { tr: 'İşlem zaman aşımına uğradı. Lütfen Yeniden Başlat\'a tıklayın.', en: 'Build timed out. Please click Force Restart.' },
+    'Ders üretimi kullanıcı tarafından durduruldu.': { tr: 'Ders üretimi kullanıcı tarafından durduruldu.', en: 'Lesson generation stopped by user.' },
+    'Build interrupted by server restart': { tr: 'Sunucu yeniden başlatıldığı için işlem kesildi.', en: 'Build interrupted by server restart.' },
+    'Building classroom content...': { tr: 'Sınıf içeriği hazırlanıyor...', en: 'Building classroom content...' },
+    'Your content is being built from the textbook...': { tr: 'Ders içeriğiniz kitaptan hazırlanıyor...', en: 'Your content is being built from the textbook...' },
+    'The Architect is busy...': { tr: 'Mimar dersleri inşa ediyor...', en: 'The Architect is busy...' }
+  };
+
+  if (dict[msg] && dict[msg][lang]) return dict[msg][lang];
+  return msg;
 }
 
 function applyTranslations(root = document) {
@@ -1648,9 +1750,13 @@ function applyTranslations(root = document) {
 
       const translation = t(key, data);
 
-      // Safety: Don't overwrite buttons that are currently showing a "loading" spinner
-      if (el.tagName === 'BUTTON' && el.querySelector('.spinner-small')) return;
-      if (el.disabled && el.innerHTML.includes('spinner')) return;
+      // Safety: Don't overwrite buttons that are currently in generating/loading state
+      if (el.tagName === 'BUTTON' && (
+        el.disabled || 
+        el.getAttribute('data-generating') === 'true' ||
+        el.querySelector('.spinner-small') || 
+        (el.innerHTML && el.innerHTML.includes('spinner'))
+      )) return;
 
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
         el.placeholder = translation;
@@ -1743,17 +1849,28 @@ function applyTranslations(root = document) {
 }
 
 function toggleLanguage() {
-  // Capture scroll positions before any DOM updates
+  // 1. Freeze dimensions to eliminate DOM height collapse, scroll jumping, and visual vibration
+  const docEl = document.documentElement;
+  const currentScrollY = window.scrollY || window.pageYOffset || 0;
+  const currentScrollX = window.scrollX || window.pageXOffset || 0;
   const savedScroll = {
-    windowX: window.scrollX || window.pageXOffset || 0,
-    windowY: window.scrollY || window.pageYOffset || 0,
-    docScrollTop: document.documentElement.scrollTop || document.body.scrollTop || 0,
+    windowX: currentScrollX,
+    windowY: currentScrollY,
+    docScrollTop: docEl.scrollTop || document.body.scrollTop || 0,
     studyCard: document.querySelector('.study-card')?.scrollTop || 0,
     studyCardLeft: document.querySelector('.study-card')?.scrollLeft || 0,
     contentArea: document.querySelector('#ai-book-content-area, #s-ai-book-content-area')?.scrollTop || 0,
     main: document.querySelector('main')?.scrollTop || 0,
     activeTab: document.querySelector('.tab-panel.active')?.scrollTop || 0
   };
+
+  const activePanel = document.querySelector('.tab-panel.active');
+  const frozenHeight = Math.max(docEl.scrollHeight, document.body.scrollHeight);
+  docEl.style.minHeight = frozenHeight + 'px';
+  document.body.style.minHeight = frozenHeight + 'px';
+  if (activePanel && activePanel.offsetHeight > 0) {
+    activePanel.style.minHeight = activePanel.offsetHeight + 'px';
+  }
 
   currentLang = currentLang === 'en' ? 'tr' : 'en';
   localStorage.setItem('aula_lang', currentLang);
@@ -1790,7 +1907,11 @@ function toggleLanguage() {
         renderLecturerSync();
         if (_lastClassroomsData) {
           renderClassroomSelection(_lastClassroomsData);
-          loadAdminStudentPanel();
+          if (_lastAdminStudentsData) {
+            renderAdminStudentPanelSync(_lastAdminStudentsData);
+          } else {
+            loadAdminStudentPanel();
+          }
         }
       } else {
         renderStudentSync();
@@ -1813,11 +1934,27 @@ function toggleLanguage() {
   // 6. Reports
   try { if (_lastReportData) renderReport(_lastReportData); } catch (e) { console.warn(e); }
 
-  // 7. Practice preview if visible
+  // 7. Practice preview or active student practice if visible
   try {
     const preview = document.getElementById('activity-preview');
     if (preview && !preview.classList.contains('hidden') && _lastActivityData) {
       preview.innerHTML = '<h2 style="margin-bottom:20px">' + (translateCurriculumTitle(_lastActivityData.topic?.title) || '') + '</h2>' + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'preview')).join('');
+    }
+    const practiceArea = document.getElementById('practice-area');
+    if (practiceArea && !practiceArea.classList.contains('hidden') && _lastActivityData) {
+      const isStudent = currentUser && currentUser.role === 'student';
+      const actSelect = document.getElementById('activity-topic-select');
+      const curTid = actSelect ? actSelect.value : null;
+      let currentTopic = _lastActivityData.topic || null;
+      if (!currentTopic && curTid && (window.curriculum || curriculum)) {
+        for (const ch of (window.curriculum || curriculum)) {
+          const tp = ch.topics ? ch.topics.find(t => t.id === curTid) : null;
+          if (tp) { currentTopic = tp; break; }
+        }
+      }
+      const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : (_lastActivityData.topic?.title || (currentLang === 'tr' ? 'Alıştırma' : 'Practice'));
+      const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : "this.closest('#practice-area').classList.add('hidden')"}">${t('close')}</button></div>`;
+      practiceArea.innerHTML = header + (_lastActivityData.activities || []).map((a, i) => renderActivityCard(a, i, 'practice-area')).join('');
     }
   } catch (e) { console.warn(e); }
 
@@ -1858,32 +1995,37 @@ function toggleLanguage() {
     }
   } catch (e) { console.warn(e); }
 
-  // Restore scroll positions smoothly to stay in place
+  // 12. Synchronous scroll restoration — instant, zero frame jitter
+  if (savedScroll.studyCard) {
+    const card = document.querySelector('.study-card');
+    if (card) {
+      card.scrollTop = savedScroll.studyCard;
+      card.scrollLeft = savedScroll.studyCardLeft;
+    }
+  }
+  if (savedScroll.contentArea) {
+    const ca = document.querySelector('#ai-book-content-area, #s-ai-book-content-area');
+    if (ca) ca.scrollTop = savedScroll.contentArea;
+  }
+  if (savedScroll.main) {
+    const main = document.querySelector('main');
+    if (main) main.scrollTop = savedScroll.main;
+  }
+  if (savedScroll.activeTab) {
+    const tab = document.querySelector('.tab-panel.active');
+    if (tab) tab.scrollTop = savedScroll.activeTab;
+  }
+  window.scrollTo({
+    left: savedScroll.windowX,
+    top: savedScroll.windowY || savedScroll.docScrollTop,
+    behavior: 'instant'
+  });
+
+  // 13. Safely release frozen minHeights after paint
   requestAnimationFrame(() => {
-    if (savedScroll.studyCard) {
-      const card = document.querySelector('.study-card');
-      if (card) {
-        card.scrollTop = savedScroll.studyCard;
-        card.scrollLeft = savedScroll.studyCardLeft;
-      }
-    }
-    if (savedScroll.contentArea) {
-      const ca = document.querySelector('#ai-book-content-area, #s-ai-book-content-area');
-      if (ca) ca.scrollTop = savedScroll.contentArea;
-    }
-    if (savedScroll.main) {
-      const main = document.querySelector('main');
-      if (main) main.scrollTop = savedScroll.main;
-    }
-    if (savedScroll.activeTab) {
-      const tab = document.querySelector('.tab-panel.active');
-      if (tab) tab.scrollTop = savedScroll.activeTab;
-    }
-    window.scrollTo({
-      left: savedScroll.windowX,
-      top: savedScroll.windowY || savedScroll.docScrollTop,
-      behavior: 'instant'
-    });
+    docEl.style.minHeight = '';
+    document.body.style.minHeight = '';
+    if (activePanel) activePanel.style.minHeight = '';
   });
 }
 
@@ -1991,18 +2133,23 @@ const BADGE_PAIRS = [
   ['LISTENING', 'DİNLEME'],
   ['READING', 'OKUMA'],
   ['WRITING', 'YAZMA'],
-  ['SPEAKING', 'KONUŞMA']
+  ['SPEAKING', 'KONUŞMA'],
+  ['FUNCTIONAL_LANGUAGE', 'İŞLEVSEL DİL'],
+  ['FUNCTIONAL LANGUAGE', 'İŞLEVSEL DİL']
 ];
 
 function translateBadge(type, lang = currentLang) {
   if (!type) return '';
-  const upper = String(type).trim().toUpperCase();
+  const raw = String(type).trim();
+  const normalized = raw.replace(/[_-]+/g, ' ').toUpperCase();
   for (const [en, tr] of BADGE_PAIRS) {
-    if (upper === en || upper === tr) {
+    const enNorm = en.replace(/[_-]+/g, ' ').toUpperCase();
+    const trNorm = tr.replace(/[_-]+/g, ' ').toUpperCase();
+    if (normalized === enNorm || normalized === trNorm) {
       return lang === 'tr' ? tr : en;
     }
   }
-  return upper;
+  return raw.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function translateDifficulty(diff, lang = currentLang) {
@@ -2823,8 +2970,8 @@ const UniversalCurriculumTranslator = {
       [/Phrases\s+for\s+Emergencies/gi, 'Acil Durum İfadeleri'],
       [/Visiting\s+a\s+Doctor/gi, 'Doktora Gitmek'],
       [/Key\s+Questions/gi, 'Anahtar Sorular'],
-      [/Functional\s+Language/gi, 'İşlevsel Dil'],
-      [/Cultural\s+Context/gi, 'Kültürel Bağlam']
+      [/Functional[_\s]+Language/gi, 'İşlevsel Dil'],
+      [/Cultural[_\s]+Context/gi, 'Kültürel Bağlam']
     ];
     for (const [pat, repl] of hybrids) {
       t = t.replace(pat, repl);
@@ -3955,7 +4102,10 @@ const SANITY_CORE_EN_WORDS = new Set([
   'open', 'closed', 'left', 'right', 'near', 'far', 'help', 'time',
   'discussion', 'logic', 'conclusion', 'result', 'schedule', 'journey', 'platform',
   'doctor', 'physician', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh',
-  'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'twentieth', 'thirtieth', 'hundredth'
+  'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth', 'twentieth', 'thirtieth', 'hundredth',
+  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+  'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
+  'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred'
 ]);
 
 const SANITY_CORE_TR_WORDS = new Set([
@@ -3971,7 +4121,10 @@ const SANITY_CORE_TR_WORDS = new Set([
   'pahalı', 'açık', 'kapalı', 'sol', 'sağ', 'yakın', 'uzak', 'yardım', 'zaman',
   'vakit', 'tartışma', 'mantık', 'sonuç', 'görüşme', 'tarife', 'çizelge', 'peron',
   'doktor', 'hekim', 'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci', 'altıncı',
-  'yedinci', 'sekizinci', 'dokuzuncu', 'onuncu', 'yirminci', 'otuzuncu', 'yüzüncü'
+  'yedinci', 'sekizinci', 'dokuzuncu', 'onuncu', 'yirminci', 'otuzuncu', 'yüzüncü',
+  'sıfır', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on',
+  'on bir', 'on iki', 'on üç', 'on dört', 'on beş', 'on altı', 'on yedi', 'on sekiz',
+  'on dokuz', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan', 'yüz'
 ]);
 
 function isSanityTR(s) {
@@ -3988,8 +4141,11 @@ function isSanityTR(s) {
 function isSanityEN(s) {
   if (!s || typeof s !== 'string') return false;
   if (SANITY_TR_CHARS.test(s)) return false;
-  const words = s.toLowerCase().trim().split(/\s+/);
+  const sLower = s.toLowerCase().trim();
+  if (/\bharf(i)?\b/.test(sLower)) return false;
+  const words = sLower.split(/\s+/);
   for (const w of words) {
+    if (w === 'a' && words.length > 1) continue;
     if (SANITY_CORE_EN_WORDS.has(w)) return true;
     if (SANITY_CORE_TR_WORDS.has(w)) return false;
   }
@@ -4001,6 +4157,9 @@ function registerSanityPair(a, b) {
   const strA = String(a).trim();
   const strB = String(b).trim();
   if (!strA || !strB || strA.toLowerCase() === strB.toLowerCase()) return;
+  // Strictly block 'on' -> 'üzerinde' collision
+  if (strA.toLowerCase() === 'on' && strB.toLowerCase() === 'üzerinde') return;
+  if (strB.toLowerCase() === 'on' && strA.toLowerCase() === 'üzerinde') return;
 
   let en = '', tr = '';
   if (isSanityTR(strA) && !isSanityTR(strB)) {
@@ -4079,7 +4238,36 @@ function initSanitizedBilingualDictionaries() {
     ["thirtieth", "otuzuncu"],
     ["fortieth", "kırkıncı"],
     ["fiftieth", "ellinci"],
-    ["hundredth", "yüzüncü"]
+    ["hundredth", "yüzüncü"],
+    ["zero", "sıfır"], ["cero", "sıfır"],
+    ["one", "bir"], ["uno", "bir"],
+    ["two", "iki"], ["dos", "iki"],
+    ["three", "üç"], ["tres", "üç"],
+    ["four", "dört"], ["cuatro", "dört"],
+    ["five", "beş"], ["cinco", "beş"],
+    ["six", "altı"], ["seis", "altı"],
+    ["seven", "yedi"], ["siete", "yedi"],
+    ["eight", "sekiz"], ["ocho", "sekiz"],
+    ["nine", "dokuz"], ["nueve", "dokuz"],
+    ["ten", "on"], ["diez", "on"],
+    ["eleven", "on bir"], ["once", "on bir"],
+    ["twelve", "on iki"], ["doce", "on iki"],
+    ["thirteen", "on üç"], ["trece", "on üç"],
+    ["fourteen", "on dört"], ["catorce", "on dört"],
+    ["fifteen", "on beş"], ["quince", "on beş"],
+    ["sixteen", "on altı"], ["dieciséis", "on altı"],
+    ["seventeen", "on yedi"], ["diecisiete", "on yedi"],
+    ["eighteen", "on sekiz"], ["dieciocho", "on sekiz"],
+    ["nineteen", "on dokuz"], ["diecinueve", "on dokuz"],
+    ["twenty", "yirmi"], ["veinte", "yirmi"],
+    ["thirty", "otuz"], ["treinta", "otuz"],
+    ["forty", "kırk"], ["cuarenta", "kırk"],
+    ["fifty", "elli"], ["cincuenta", "elli"],
+    ["sixty", "altmış"], ["sesenta", "altmış"],
+    ["seventy", "yetmiş"], ["setenta", "yetmiş"],
+    ["eighty", "seksen"], ["ochenta", "seksen"],
+    ["ninety", "doksan"], ["noventa", "doksan"],
+    ["hundred", "yüz"], ["cien", "yüz"]
   ];
   for (const [e, t] of FOUNDATIONAL_PAIRS) registerSanityPair(e, t);
 
@@ -4107,6 +4295,62 @@ function translateOption(text, lang = currentLang) {
   }
   if (typeof SPANISH_LETTER_SPELLINGS !== 'undefined' && SPANISH_LETTER_SPELLINGS.has(lower)) {
     return trimmed;
+  }
+
+  // Absolute cardinal number & foundational protection (never allow 'on' -> 'üzerinde' or 'diez' -> 'üzerinde')
+  const CARDINAL_NUM_MAP_TR = {
+    'zero': 'sıfır', 'cero': 'sıfır', 'sıfır': 'sıfır',
+    'one': 'bir', 'uno': 'bir', 'bir': 'bir',
+    'two': 'iki', 'dos': 'iki', 'iki': 'iki',
+    'three': 'üç', 'tres': 'üç', 'üç': 'üç',
+    'four': 'dört', 'cuatro': 'dört', 'dört': 'dört',
+    'five': 'beş', 'cinco': 'beş', 'beş': 'beş',
+    'six': 'altı', 'seis': 'altı', 'altı': 'altı',
+    'seven': 'yedi', 'siete': 'yedi', 'yedi': 'yedi',
+    'eight': 'sekiz', 'ocho': 'sekiz', 'sekiz': 'sekiz',
+    'nine': 'dokuz', 'nueve': 'dokuz', 'dokuz': 'dokuz',
+    'ten': 'on', 'diez': 'on', 'on': 'on',
+    'eleven': 'on bir', 'once': 'on bir', 'on bir': 'on bir',
+    'twelve': 'on iki', 'doce': 'on iki', 'on iki': 'on iki',
+    'thirteen': 'on üç', 'trece': 'on üç', 'on üç': 'on üç',
+    'fourteen': 'on dört', 'catorce': 'on dört', 'on dört': 'on dört',
+    'fifteen': 'on beş', 'quince': 'on beş', 'on beş': 'on beş',
+    'sixteen': 'on altı', 'dieciséis': 'on altı', 'on altı': 'on altı',
+    'seventeen': 'on yedi', 'diecisiete': 'on yedi', 'on yedi': 'on yedi',
+    'eighteen': 'on sekiz', 'dieciocho': 'on sekiz', 'on sekiz': 'on sekiz',
+    'nineteen': 'on dokuz', 'diecinueve': 'on dokuz', 'on dokuz': 'on dokuz',
+    'twenty': 'yirmi', 'veinte': 'yirmi', 'yirmi': 'yirmi'
+  };
+  const CARDINAL_NUM_MAP_EN = {
+    'cero': 'zero', 'sıfır': 'zero', 'zero': 'zero',
+    'uno': 'one', 'bir': 'one', 'one': 'one',
+    'dos': 'two', 'iki': 'two', 'two': 'two',
+    'tres': 'three', 'üç': 'three', 'three': 'three',
+    'cuatro': 'four', 'dört': 'four', 'four': 'four',
+    'cinco': 'five', 'beş': 'five', 'five': 'five',
+    'seis': 'six', 'altı': 'six', 'six': 'six',
+    'siete': 'seven', 'yedi': 'seven', 'seven': 'seven',
+    'ocho': 'eight', 'sekiz': 'eight', 'eight': 'eight',
+    'nueve': 'nine', 'dokuz': 'nine', 'nine': 'nine',
+    'diez': 'ten', 'on': 'ten', 'ten': 'ten',
+    'once': 'eleven', 'on bir': 'eleven', 'eleven': 'eleven',
+    'doce': 'twelve', 'on iki': 'twelve', 'twelve': 'twelve',
+    'trece': 'thirteen', 'on üç': 'thirteen', 'thirteen': 'thirteen',
+    'catorce': 'fourteen', 'on dört': 'fourteen', 'fourteen': 'fourteen',
+    'quince': 'fifteen', 'on beş': 'fifteen', 'fifteen': 'fifteen',
+    'dieciséis': 'sixteen', 'on altı': 'sixteen', 'sixteen': 'sixteen',
+    'diecisiete': 'seventeen', 'on yedi': 'seventeen', 'seventeen': 'seventeen',
+    'dieciocho': 'eighteen', 'on sekiz': 'eighteen', 'eighteen': 'eighteen',
+    'diecinueve': 'nineteen', 'on dokuz': 'nineteen', 'nineteen': 'nineteen',
+    'veinte': 'twenty', 'yirmi': 'twenty', 'twenty': 'twenty'
+  };
+  if (isTr && CARDINAL_NUM_MAP_TR[lower]) {
+    const r = CARDINAL_NUM_MAP_TR[lower];
+    return text.charAt(0) === text.charAt(0).toUpperCase() ? r.charAt(0).toUpperCase() + r.slice(1) : r;
+  }
+  if (!isTr && CARDINAL_NUM_MAP_EN[lower]) {
+    const r = CARDINAL_NUM_MAP_EN[lower];
+    return text.charAt(0) === text.charAt(0).toUpperCase() ? r.charAt(0).toUpperCase() + r.slice(1) : r;
   }
 
   // Pragmatic greetings & natural Turkish overrides
@@ -5145,6 +5389,15 @@ function safeStr(val) {
   return String(val);
 }
 
+function fixDiacritics(txt) {
+  if (typeof txt !== 'string') return txt;
+  let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
+  if (typeof currentLang !== 'undefined' && currentLang === 'tr' && typeof healTurkishSyntax === 'function') {
+    res = healTurkishSyntax(res);
+  }
+  return res;
+}
+
 function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal = "") {
   let enStr = safeStr(enVal).trim();
   let trStr = safeStr(trVal).trim();
@@ -5226,16 +5479,21 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
       : (it.explanation_en || it.english_explanation || it.desc_en);
     if (rawLangExpl && typeof rawLangExpl === 'string' && rawLangExpl.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
-        const explKey = resolveConceptKey(rawLangExpl);
-        if (!termKey || !explKey || !areConceptsIncompatible(termKey, explKey)) {
-          const enExpl = safeStr(it.explanation_en || it.english_explanation || it.explanation || it.desc_en || it.desc);
-          const trExpl = safeStr(it.explanation_tr || it.turkish_explanation || it.desc_tr);
-          return resolveDualLanguage(enExpl, trExpl, lang, rawLangExpl.trim());
-        }
+        return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(rawLangExpl.trim())) : rawLangExpl.trim();
       }
     }
+  }
 
-    // Bidirectional fallback if one language is missing
+  // Check vocab practical tips bank before generic fallback
+  const cLang = (currentCourse && currentCourse.language) || 'Spanish';
+  const bankHit = getClientVocabExample(cLang, cleanTerm);
+  if (bankHit) {
+    const tip = (lang === 'tr') ? bankHit.tip_tr : bankHit.tip_en;
+    if (tip && !TAUTOLOGY_REGEX.test(tip)) return tip;
+  }
+
+  // Bidirectional fallback if one language is missing
+  if (it && typeof it === 'object') {
     if (lang === 'en' && it.explanation_tr && typeof it.explanation_tr === 'string' && it.explanation_tr.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(it.explanation_tr)) {
         return resolveDualLanguage('', it.explanation_tr.trim(), 'en');
@@ -5260,14 +5518,6 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
     const entry = PEDAGOGICAL_CONCEPT_EXPLANATIONS[key];
     const val = lang === 'tr' ? (entry.tr || entry.en) : (entry.en || entry.tr);
     if (val && !TAUTOLOGY_REGEX.test(val)) return val;
-  }
-
-  // Check vocab practical tips bank before generic fallback
-  const cLang = (currentCourse && currentCourse.language) || '';
-  const bankHit = getClientVocabExample(cLang, cleanTerm);
-  if (bankHit) {
-    const tip = (lang === 'tr') ? bankHit.tip_tr : bankHit.tip_en;
-    if (tip) return tip;
   }
 
   // Fallback to generic item explanation if not tautological
@@ -5723,9 +5973,6 @@ function translateEducationalText(text, lang = currentLang) {
                 if (!window.EDUCATIONAL_SENTENCE_MAP_TR_EN) window.EDUCATIONAL_SENTENCE_MAP_TR_EN = {};
                 window.EDUCATIONAL_SENTENCE_MAP_TR_EN[cleanContent] = data.translated;
               }
-              const lastTopic = localStorage.getItem('aula_last_topic');
-              const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-              if (lastTopic) showStudyTopic(lastTopic, lastPage);
             }
           }).catch(() => {});
         }
@@ -5777,9 +6024,18 @@ async function api(path, opts = {}) {
     }
   }
 
+  const headers = Object.assign({}, opts.headers || {});
+  if (opts.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (currentUser && currentUser.id) {
+    headers['X-User-Id'] = currentUser.id;
+    headers['X-User-Role'] = currentUser.role || '';
+  }
+
   const res = await fetch(url, {
     method: opts.method || 'GET',
-    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    headers: headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
 
@@ -6059,8 +6315,33 @@ function initRouter() {
   window.addEventListener('popstate', handlePopState);
 }
 
+function sanitizeStudentDom() {
+  if (!currentUser || currentUser.role !== 'student') return;
+  const teacherElementIds = [
+    'classroom-method-modal',
+    'ai-architect-modal',
+    'create-classroom-modal',
+    'draft-modal',
+    'student-detail-modal',
+    'classroom-selection-screen',
+    'lecturer-dashboard',
+    'admin-panel',
+    'admin-student-panel',
+    'admin-curriculum-panel',
+    'admin-students-panel',
+    'new-chat-modal'
+  ];
+  teacherElementIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+}
+
 async function completeLogin(user, isFresh = false) {
   currentUser = user;
+  if (user && user.role === 'student') {
+    sanitizeStudentDom();
+  }
   if (user.course_id) courseId = user.course_id;
   startUserHeartbeat();
 
@@ -6202,6 +6483,10 @@ async function completeLogin(user, isFresh = false) {
 }
 
 async function showClassroomSelection() {
+  if (!currentUser || currentUser.role !== 'lecturer') {
+    showStudentPortal();
+    return;
+  }
   localStorage.removeItem('aula_last_course');
   localStorage.removeItem('aula_last_tab');
   currentCourse = null; // Clear state
@@ -6253,12 +6538,23 @@ function renderClassroomSelection(courses) {
             </div>
             
             ${isBuilding ? `
-              <div class="flex-center" style="margin: 10px 0;">
-                <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+              <div style="margin: 12px 0; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-size:11px; font-weight:600; color:var(--accent); display:flex; align-items:center; gap:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;">
+                    <div class="spinner-small" style="width:12px; height:12px; border-top-color:var(--accent); flex-shrink:0;"></div>
+                    <span id="card-msg-${c.id}">${esc(translateBuildMessage(c.build_message))}</span>
+                  </span>
+                  <span style="font-size:11px; font-weight:700; color:#fff; font-family:monospace;" id="card-pct-${c.id}">
+                    ${Math.max(0, Math.min(100, Math.round(c.percentage || 0)))}%
+                  </span>
+                </div>
+                <div style="width:100%; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; margin-bottom:8px;">
+                  <div id="card-bar-${c.id}" style="height:100%; width:${Math.max(0, Math.min(100, Math.round(c.percentage || 0)))}%; background:var(--gradient-2); transition:width 0.3s ease;"></div>
+                </div>
+                <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation(); stopClassroomBuild('${c.id}')" style="width:100%; color:var(--danger); border:1px solid rgba(239,68,68,0.3); font-size:11px; padding:4px 8px; border-radius:6px; background:rgba(239,68,68,0.05); cursor:pointer;">
+                  🛑 <span data-i18n="class.stop_build">${t('class.stop_build')}</span>
+                </button>
               </div>
-              <p style="color:var(--accent); font-size:12px; font-weight:500; margin-bottom:12px; text-align:center; animation: pulse 1.5s infinite; display:flex; align-items:center; justify-content:center; gap:6px;">
-                <span data-i18n="${isPhase1 ? 'gen.preparing' : 'gen.building'}">${isPhase1 ? t('gen.preparing') : t('gen.building')}</span>
-              </p>
             ` : ''}
         </div>
         <button class="btn ${isPhase1 ? 'btn-ghost' : 'btn-outline'} btn-full" ${isPhase1 ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
@@ -6274,6 +6570,108 @@ function renderClassroomSelection(courses) {
     document.head.appendChild(style);
   }
   applyTranslations();
+  checkClassroomBuildingPoll();
+}
+
+let _classroomPollTimer = null;
+let _currentBuildingCourseId = null;
+
+function checkClassroomBuildingPoll() {
+  if (_classroomPollTimer) { clearInterval(_classroomPollTimer); _classroomPollTimer = null; }
+  const screen = document.getElementById('classroom-selection-screen');
+  if (!screen || !screen.classList.contains('active')) return;
+  const buildingCourses = (_lastClassroomsData || []).filter(c => c.is_building === 1);
+  if (buildingCourses.length === 0) return;
+
+  _classroomPollTimer = setInterval(async () => {
+    const activeScreen = document.getElementById('classroom-selection-screen');
+    if (!activeScreen || !activeScreen.classList.contains('active')) {
+      clearInterval(_classroomPollTimer);
+      _classroomPollTimer = null;
+      return;
+    }
+    let anyStillBuilding = false;
+    for (const c of buildingCourses) {
+      try {
+        const prog = await api(`/classroom/progress?course_id=${c.id}&v=${Date.now()}`);
+        if (prog) {
+          if (prog.is_building) anyStillBuilding = true;
+          const pct = prog.is_building
+            ? Math.max(0, Math.min(100, Math.round(prog.percentage || 0)))
+            : Math.max(0, Math.min(100, Math.round(prog.percentage || 0)));
+          const msgEl = document.getElementById(`card-msg-${c.id}`);
+          const pctEl = document.getElementById(`card-pct-${c.id}`);
+          const barEl = document.getElementById(`card-bar-${c.id}`);
+          if (msgEl && prog.message) msgEl.textContent = translateBuildMessage(prog.message);
+          if (pctEl) pctEl.textContent = `${pct}%`;
+          if (barEl) barEl.style.width = `${pct}%`;
+
+          // Also update building-screen overlay if open
+          const bScreen = document.getElementById('building-screen');
+          if (bScreen && !bScreen.classList.contains('hidden') && _currentBuildingCourseId === c.id) {
+            const bPct = document.getElementById('building-screen-pct');
+            const bMsg = document.getElementById('building-screen-status');
+            const bBar = document.getElementById('building-screen-bar');
+            if (bPct) bPct.textContent = `${pct}%`;
+            if (bMsg && prog.message) bMsg.textContent = translateBuildMessage(prog.message);
+            if (bBar) bBar.style.width = `${pct}%`;
+            if (!prog.is_building) {
+              bScreen.classList.add('hidden');
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    if (!anyStillBuilding) {
+      clearInterval(_classroomPollTimer);
+      _classroomPollTimer = null;
+      showClassroomSelection();
+    }
+  }, 2000);
+}
+
+async function stopClassroomBuild(cid) {
+  if (!cid) return;
+  const confirmed = confirm(t('class.confirm_stop_build') || 'Ders oluşturmayı durdurmak istediğinize emin misiniz?');
+  if (!confirmed) return;
+  
+  try {
+    const res = await api('/classroom/stop-build', {
+      method: 'POST',
+      body: { course_id: cid }
+    });
+    if (res && res.success) {
+      showAlert(t('success'), t('class.build_stopped') || 'Ders üretimi durduruldu.', false);
+      const bScreen = document.getElementById('building-screen');
+      if (bScreen) bScreen.classList.add('hidden');
+      _currentBuildingCourseId = null;
+      if (currentCourse && currentCourse.id === cid) {
+        currentCourse.is_building = 0;
+        const banner = document.getElementById('lecturer-building-banner');
+        if (banner) banner.classList.add('hidden');
+      }
+      showClassroomSelection();
+    } else {
+      showAlert(t('error'), res?.error || 'Durdurulamadı', true);
+    }
+  } catch (e) {
+    showAlert(t('error'), 'İşlem başarısız oldu.', true);
+  }
+}
+
+async function stopCurrentActiveBuilding() {
+  if (_currentBuildingCourseId) {
+    await stopClassroomBuild(_currentBuildingCourseId);
+  } else {
+    // Look up any building course
+    const building = (_lastClassroomsData || []).find(c => c.is_building === 1);
+    if (building) {
+      await stopClassroomBuild(building.id);
+    } else {
+      const bScreen = document.getElementById('building-screen');
+      if (bScreen) bScreen.classList.add('hidden');
+    }
+  }
 }
 
 async function selectClassroom(id, isLecturer = true) {
@@ -6305,24 +6703,24 @@ async function selectClassroom(id, isLecturer = true) {
   const inboxTitle = document.getElementById('inbox-title');
   if (inboxTitle) inboxTitle.innerHTML = `<span data-i18n="inbox">${t('inbox')}</span>`;
 
-  // 2. Fetch course data
-  const courses = await api('/courses');
-  let course = courses.find(c => c.id === id || c.code === id);
-  if (course) {
-    id = course.id;
+  // 2. Resolve course from memory immediately if available, fallback to api
+  let course = (_lastClassroomsData && Array.isArray(_lastClassroomsData)) 
+    ? _lastClassroomsData.find(c => c.id === id || c.code === id) 
+    : null;
+    
+  if (!course) {
+    const courses = await api('/courses');
+    _lastClassroomsData = courses;
+    course = courses.find(c => c.id === id || c.code === id);
+    if (!course && courses.length > 0) course = courses[0];
   }
-
-  // Fallback if the course was deleted/consolidated
-  if (!course && courses.length > 0) {
-    course = courses[0];
-    id = course.id;
-  }
+  if (course) id = course.id;
 
   courseId = id;
+  currentCourse = course;
+
   if (course) {
     if (currentUser.role === 'student' && course.enrollment_status !== 'approved') {
-      // Persist the courseId so that after approval+reload the student is taken
-      // directly into the classroom rather than landing on the portal.
       localStorage.setItem('aula_last_course', courseId);
       showScreen('waiting-room-screen');
       startWaitingRoomPoll(courseId);
@@ -6331,7 +6729,6 @@ async function selectClassroom(id, isLecturer = true) {
 
     const navName = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-name' : 'student-nav-course-name');
     const navCode = document.getElementById(currentUser.role === 'lecturer' ? 'nav-course-code' : 'student-nav-course-code');
-
     if (navName) navName.textContent = course.name;
     if (navCode) {
       navCode.textContent = '#' + (course.code || '00000');
@@ -6343,12 +6740,39 @@ async function selectClassroom(id, isLecturer = true) {
   if (buildBanner) {
     if (course && course.is_building) {
       buildBanner.classList.remove('hidden');
+      const textId = currentUser.role === 'lecturer' ? 'lecturer-progress-text' : 'student-progress-text';
+      const fillId = currentUser.role === 'lecturer' ? 'lecturer-progress-fill' : 'student-progress-fill';
+      const detailId = currentUser.role === 'lecturer' ? 'lecturer-progress-detail' : 'student-progress-detail';
+      const initPct = Math.max(0, Math.min(100, Math.round(course.percentage || 0)));
+      const textEl = document.getElementById(textId);
+      const fillEl = document.getElementById(fillId);
+      const detailEl = document.getElementById(detailId);
+      if (textEl) textEl.textContent = initPct + '%';
+      if (fillEl) fillEl.style.width = initPct + '%';
+      if (detailEl && course.build_message) detailEl.textContent = translateBuildMessage(course.build_message);
     } else {
       buildBanner.classList.add('hidden');
     }
   }
 
-  currentCourse = course;
+  // 1. Determine destination tab immediately before showing any screen
+  const parsed = parseRouteUrl(window.location.pathname, window.location.search);
+  const defaultTab = (currentUser.role === 'lecturer') ? 'overview' : 's-home';
+  let targetTab = (parsed.screen === (currentUser.role === 'lecturer' ? 'lecturer-dashboard' : 'student-dashboard') && parsed.tab) 
+    ? parsed.tab 
+    : (parsed.tab || localStorage.getItem('aula_last_tab') || defaultTab);
+
+  // 2. Pre-activate target tab and panel in DOM synchronously (prevents flashing 'overview' / 'home')
+  const screenId = (currentUser.role === 'lecturer') ? 'lecturer-dashboard' : 'student-dashboard';
+  const targetScreenEl = document.getElementById(screenId);
+  if (targetScreenEl) {
+    const tabBtn = targetScreenEl.querySelector(`[data-tab="${targetTab}"]`);
+    if (tabBtn) {
+      switchTab(tabBtn, true, false);
+    }
+  }
+
+  // 3. Load curriculum before revealing dashboard
   try {
     const currData = await api('/curriculum?course_id=' + courseId);
     curriculum = Array.isArray(currData) ? currData : [];
@@ -6385,9 +6809,7 @@ async function selectClassroom(id, isLecturer = true) {
 
   document.querySelectorAll('.book-subtitle').forEach(el => el.textContent = course ? course.name : 'Textbook');
   
-  // Dynamic Tab Visibility (Hide Textbook for AI Architect)
-
-  // Select all potential textbook triggers (sidebar, topnav, mobile quick links)
+  // Select all potential textbook triggers
   const textbookElements = document.querySelectorAll(`
     #l-sidebar-book-tab, 
     #s-sidebar-book-tab, 
@@ -6433,52 +6855,49 @@ async function selectClassroom(id, isLecturer = true) {
     }
   }
 
-  if (currentUser.role === 'student') {
-    renderStudyBook();
-  } else if (currentUser.role === 'lecturer') {
-    renderStudyBook();
+  renderStudyBook();
+
+  // 4. Restore exact study topic synchronously if on study materials or book
+  const isStudyTab = (targetTab === 'study-materials' || targetTab === 'book' || targetTab === 's-study-tab' || targetTab === 's-book');
+  const lastTopic = localStorage.getItem('aula_last_topic');
+  const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
+  if (isStudyTab && lastTopic) {
+    showStudyTopic(lastTopic, lastPage);
   }
 
+  // 5. Reveal dashboard ONCE in single paint — directly on user's active tab and topic!
+  showScreen(screenId, false);
+
+  const activeTab = (currentUser.role === 'lecturer') 
+    ? (targetTab || 'overview') 
+    : (targetTab || 's-home');
+
   if (currentUser.role === 'lecturer') {
-    showScreen('lecturer-dashboard', false);
-    const parsed = parseRouteUrl(window.location.pathname, window.location.search);
-    let targetTab = (parsed.screen === 'lecturer-dashboard' && parsed.tab) ? parsed.tab : null;
-    if (!targetTab) {
-      targetTab = localStorage.getItem('aula_last_tab') || 'overview';
+    const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${activeTab}"]`);
+    if (tabBtn) {
+      switchTab(tabBtn, false, !_isNavigatingFromPopState);
+    } else {
+      const overviewBtn = document.querySelector('#lecturer-dashboard [data-tab="overview"]');
+      if (overviewBtn) switchTab(overviewBtn, false, !_isNavigatingFromPopState);
+      else if (!_isNavigatingFromPopState) updateUrlPath('/overview');
     }
-    let finalTab = targetTab;
-
-    const tabBtn = document.querySelector(`#lecturer-dashboard [data-tab="${finalTab}"]`);
-    if (tabBtn) switchTab(tabBtn);
     await initLecturer();
-
-    if (finalTab === 'book') {
-      renderStudyBook();
-      const lastTopic = localStorage.getItem('aula_last_topic');
-      const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-      if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
-    }
   } else {
-    showScreen('student-dashboard', false);
-    const parsed = parseRouteUrl(window.location.pathname, window.location.search);
-    let targetTab = (parsed.screen === 'student-dashboard' && parsed.tab) ? parsed.tab : null;
-    if (!targetTab) {
-      targetTab = localStorage.getItem('aula_last_tab') || 's-home';
-    }
-
-    const tabBtn = document.querySelector(`#student-dashboard [data-tab="${targetTab}"]`);
-    if (tabBtn) switchTab(tabBtn, true); // skipLoad=true since we call initStudent after
-    else {
-      const homeBtn = document.querySelector(`#student-dashboard [data-tab="s-home"]`);
-      if (homeBtn) switchTab(homeBtn, true);
+    const tabBtn = document.querySelector(`#student-dashboard [data-tab="${activeTab}"]`);
+    if (tabBtn) {
+      switchTab(tabBtn, true, !_isNavigatingFromPopState);
+    } else {
+      const homeBtn = document.querySelector('#student-dashboard [data-tab="s-home"]');
+      if (homeBtn) switchTab(homeBtn, true, !_isNavigatingFromPopState);
+      else if (!_isNavigatingFromPopState) updateUrlPath('/home');
     }
     await initStudent();
+  }
 
-    if (targetTab === 's-study-tab') {
-      const lastTopic = localStorage.getItem('aula_last_topic');
-      const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-      if (lastTopic) setTimeout(() => showStudyTopic(lastTopic, lastPage), 100);
-    }
+  // Ensure the route URL is updated to the active tab + course code when entering classroom
+  if (!_isNavigatingFromPopState) {
+    const activePath = _TAB_TO_PATH[activeTab] || (currentUser.role === 'lecturer' ? '/overview' : '/home');
+    updateUrlPath(activePath);
   }
 
   localStorage.setItem('aula_last_course', id);
@@ -6505,29 +6924,38 @@ let _selectedAiLanguage = null;
 let _selectedAiLevel = null;
 
 function openClassroomMethodModal() {
+  if (!currentUser || currentUser.role !== 'lecturer') return;
+  const modal = document.getElementById('classroom-method-modal');
+  if (!modal) return;
   localStorage.removeItem('aula_rearchitecting_id');
-  document.getElementById('classroom-method-modal').classList.remove('hidden');
+  modal.classList.remove('hidden');
 }
 
 function closeClassroomMethodModal() {
-  document.getElementById('classroom-method-modal').classList.add('hidden');
+  const modal = document.getElementById('classroom-method-modal');
+  if (modal) modal.classList.add('hidden');
 }
 
 function startPdfCreationFlow() {
+  if (!currentUser || currentUser.role !== 'lecturer') return;
   closeClassroomMethodModal();
   openCreateClassroomModal();
 }
 
 function startAiArchitectFlow() {
+  if (!currentUser || currentUser.role !== 'lecturer') return;
+  const modal = document.getElementById('ai-architect-modal');
+  if (!modal) return;
   closeClassroomMethodModal();
-  document.getElementById('ai-architect-modal').classList.remove('hidden');
+  modal.classList.remove('hidden');
   renderAiLanguages();
   _currentAiStep = 1;
   showAiStep(1);
 }
 
 function closeAiArchitectModal() {
-  document.getElementById('ai-architect-modal').classList.add('hidden');
+  const modal = document.getElementById('ai-architect-modal');
+  if (modal) modal.classList.add('hidden');
 }
 
 function showAiStep(step) {
@@ -6545,6 +6973,7 @@ function prevAiStep() {
 }
 
 async function clearBlueprintCache() {
+  if (!currentUser || currentUser.email !== 'atunca96@gmail.com') return;
   const res = await api('/blueprint/delete-all', { method: 'POST', body: {} });
   if (res && res.success) {
     showAlert(t('ai.cache_cleared_title'), t('ai.cache_cleared'));
@@ -6891,6 +7320,7 @@ function toggleTopicType(span) {
 }
 
 async function buildAiClassroom() {
+  if (!currentUser || currentUser.role !== 'lecturer') return;
   const courseName = document.getElementById('ai-course-name').value;
   const chapters = [];
   document.querySelectorAll('.syllabus-chapter').forEach(chapterEl => {
@@ -6936,6 +7366,7 @@ async function buildAiClassroom() {
     });
     localStorage.removeItem('aula_rearchitecting_id');
     if (res.success) {
+      if (res.course_id) _currentBuildingCourseId = res.course_id;
       closeAiArchitectModal();
       showClassroomSelection();
     } else {
@@ -6950,7 +7381,10 @@ async function buildAiClassroom() {
 }
 
 async function openCreateClassroomModal() {
-  document.getElementById('create-classroom-modal').classList.remove('hidden');
+  if (!currentUser || currentUser.role !== 'lecturer') return;
+  const modal = document.getElementById('create-classroom-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
   document.getElementById('creation-status').classList.add('hidden');
   document.getElementById('extract-status').classList.add('hidden');
   document.getElementById('extract-success').classList.add('hidden');
@@ -7025,25 +7459,30 @@ function clearPdfUpload() {
 }
 
 async function closeCreateClassroomModal(force = false) {
-  const name = document.getElementById('course-name-input').value.trim();
-  const md = document.getElementById('markdown-analysis-input').value.trim();
-  const toc = document.getElementById('manual-toc-input').value.trim();
+  const nameEl = document.getElementById('course-name-input');
+  const mdEl = document.getElementById('markdown-analysis-input');
+  const tocEl = document.getElementById('manual-toc-input');
+  const name = nameEl ? nameEl.value.trim() : '';
+  const md = mdEl ? mdEl.value.trim() : '';
+  const toc = tocEl ? tocEl.value.trim() : '';
 
   if (!force && (name || md || toc)) {
     const confirmed = await showConfirmModal('confirm.cancel_creation_title', 'confirm.cancel_creation_msg', true);
     if (!confirmed) return;
   }
-  document.getElementById('create-classroom-modal').classList.add('hidden');
+  const modal = document.getElementById('create-classroom-modal');
+  if (modal) modal.classList.add('hidden');
 }
 
 async function triggerDeepExtract() {
+  if (!currentUser || currentUser.role !== 'lecturer') return;
   const fileInput = document.getElementById('pdf-upload');
   const mdInput = document.getElementById('markdown-analysis-input');
   const statusEl = document.getElementById('extract-status');
   const successEl = document.getElementById('extract-success');
   const btn = document.getElementById('deep-extract-btn');
 
-  if (!fileInput.files[0]) {
+  if (!fileInput || !fileInput.files[0]) {
     return showAlert(t('missing_info'), t('class.select_pdf_first') || 'Please select a PDF file first.', true);
   }
 
@@ -7058,10 +7497,15 @@ async function triggerDeepExtract() {
   formData.append('toc_range', document.getElementById('pdf-toc-range').value || '1-25');
   const pdfLang = document.getElementById('pdf-language-select') ? document.getElementById('pdf-language-select').value : 'Detecting...';
   formData.append('language', pdfLang);
+  if (currentUser && currentUser.id) {
+    formData.append('lecturer_id', currentUser.id);
+  }
 
   try {
-    const res = await fetch('/api/marker/extract', {
+    const extractUrl = currentUser && currentUser.id ? `/api/marker/extract?user_id=${encodeURIComponent(currentUser.id)}` : '/api/marker/extract';
+    const res = await fetch(extractUrl, {
       method: 'POST',
+      headers: currentUser && currentUser.id ? { 'X-User-Id': currentUser.id, 'X-User-Role': currentUser.role || '' } : {},
       body: formData
     });
     const data = await res.json();
@@ -7125,6 +7569,7 @@ async function triggerDeepExtract() {
 
 async function handleCreateClassroom(e) {
   e.preventDefault();
+  if (!currentUser || currentUser.role !== 'lecturer') return;
   const nameInput = document.getElementById('course-name-input');
   const fileInput = document.getElementById('pdf-upload');
   const manualTocInput = document.getElementById('manual-toc-input');
@@ -7173,8 +7618,10 @@ async function handleCreateClassroom(e) {
   btn.style.opacity = '0.5';
 
   try {
-    const res = await fetch('/api/classroom/create-from-pdf', {
+    const createUrl = currentUser && currentUser.id ? `/api/classroom/create-from-pdf?user_id=${encodeURIComponent(currentUser.id)}` : '/api/classroom/create-from-pdf';
+    const res = await fetch(createUrl, {
       method: 'POST',
+      headers: currentUser && currentUser.id ? { 'X-User-Id': currentUser.id, 'X-User-Role': currentUser.role || '' } : {},
       body: formData
     });
     const data = await res.json();
@@ -7294,31 +7741,6 @@ window.addEventListener('DOMContentLoaded', () => {
       showScreen('login-screen');
     }
 
-    // Add language warnings to creation forms
-    const activityBtn = document.querySelector('button[onclick="launchActivity()"]');
-    if (activityBtn) {
-      const warn = document.createElement('div');
-      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-      warn.setAttribute('data-i18n', 'draft.lang_warning');
-      warn.textContent = t('draft.lang_warning');
-      activityBtn.parentNode.appendChild(warn);
-    }
-    const quizBtn = document.querySelector('button[onclick="createQuiz()"]');
-    if (quizBtn) {
-      const warn = document.createElement('div');
-      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-      warn.setAttribute('data-i18n', 'draft.lang_warning');
-      warn.textContent = t('draft.lang_warning');
-      quizBtn.parentNode.appendChild(warn);
-    }
-    const assignBtn = document.querySelector('button[onclick="createAssignment()"]');
-    if (assignBtn) {
-      const warn = document.createElement('div');
-      warn.style.fontSize = '11px'; warn.style.color = 'var(--text-muted)'; warn.style.marginTop = '8px';
-      warn.setAttribute('data-i18n', 'draft.lang_warning');
-      warn.textContent = t('draft.lang_warning');
-      assignBtn.parentNode.appendChild(warn);
-    }
 
     // Start Real-time Messaging Sync
     startMessagePolling();
@@ -7336,6 +7758,10 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function showScreen(id, updateRoute = true) {
+  if (currentUser && currentUser.role === 'student' && (id === 'lecturer-dashboard' || id === 'classroom-selection-screen')) {
+    console.warn('Unauthorized screen switch blocked for student:', id);
+    return;
+  }
   // Stop waiting room polling if we leave that screen
   if (id !== 'waiting-room-screen' && window._waitingPoll) {
     clearInterval(window._waitingPoll);
@@ -7435,6 +7861,17 @@ function switchTab(btn, skipLoad = false, updateRoute = true) {
     if (tabId === 's-messages') loadStudentChat();
     if (tabId === 'quizzes-mgmt' || tabId === 'quizzes' || tabId === 's-quizzes') loadQuizList();
     if (tabId === 'assignments-mgmt' || tabId === 'assignments' || tabId === 's-assignments') loadAssignmentList();
+    if (tabId === 'activities') {
+      const actSelect = document.getElementById('activity-topic-select');
+      if (actSelect) {
+        if (!actSelect.value && actSelect.options.length > 1) {
+          actSelect.selectedIndex = 1;
+        }
+        if (actSelect.value) {
+          handleActivityTopicChange();
+        }
+      }
+    }
   }
 }
 
@@ -8104,8 +8541,8 @@ function pollRebuildProgress(cid) {
         const pct = Math.max(0, Math.min(100, Math.round(st.percentage || 0)));
         if (fill) fill.style.width = pct + '%';
         if (txt) txt.textContent = pct + '%';
-        if (detail && st.message) detail.textContent = st.message;
-        if (badge && st.stage) badge.textContent = st.stage.toUpperCase();
+        if (detail && st.message) detail.textContent = translateBuildMessage(st.message);
+        if (badge && st.stage) badge.textContent = translateBuildStage(st.stage);
         if (stepsTrack && st.stage) {
           const stageOrder = ['analyzing', 'structuring', 'enriching', 'finalizing'];
           const currentStageIdx = stageOrder.indexOf(st.stage);
@@ -8177,11 +8614,61 @@ function populateSelects() {
     });
   });
   const actSelect = document.getElementById('activity-topic-select');
-  if (actSelect) actSelect.innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
+  if (actSelect) {
+    const prevActVal = actSelect.value;
+    actSelect.innerHTML = `<option value="">${t('SelectTopic')}</option>` + topicOpts;
+    if (prevActVal) actSelect.value = prevActVal;
+    actSelect.onchange = () => handleActivityTopicChange();
+  }
   const quizSelect = document.getElementById('quiz-chapter-select');
-  if (quizSelect) quizSelect.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+  if (quizSelect) {
+    const prevQuizVal = quizSelect.value;
+    quizSelect.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+    if (prevQuizVal) quizSelect.value = prevQuizVal;
+  }
   const as = document.getElementById('assignment-chapter-select');
-  if (as) as.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+  if (as) {
+    const prevAsVal = as.value;
+    as.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+    if (prevAsVal) as.value = prevAsVal;
+  }
+}
+
+function handleActivityTopicChange() {
+  const select = document.getElementById('activity-topic-select');
+  const topicId = select ? select.value : '';
+  const preview = document.getElementById('activity-preview');
+  const btn = document.getElementById('generate-activity-btn');
+  if (!topicId || !preview) {
+    if (preview) { preview.classList.add('hidden'); preview.innerHTML = ''; }
+    if (btn) btn.textContent = t('Generate Activity') || 'Generate Activity';
+    return;
+  }
+
+  let topic = null;
+  for (const ch of (window.curriculum || curriculum || [])) {
+    topic = ch.topics ? ch.topics.find(t => t.id === topicId) : null;
+    if (topic) break;
+  }
+  if (!topic) return;
+
+  let content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
+  if (content && Array.isArray(content.activities) && content.activities.length > 0) {
+    preview.classList.remove('hidden');
+    _lastActivityData = { activities: content.activities, topic: topic };
+    const title = getLocalizedCurriculumTitle(topic, currentLang);
+    const isStudent = currentUser && currentUser.role === 'student';
+    const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
+      <h2>${title}</h2>
+      <button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#activity-preview').classList.add('hidden')`}">${t('close')}</button>
+    </div>`;
+    preview.innerHTML = header + content.activities.map((a, i) => renderActivityCard(a, i, 'activity-preview')).join('');
+    if (btn) btn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
+  } else {
+    preview.classList.add('hidden');
+    preview.innerHTML = '';
+    if (btn) btn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+  }
 }
 
 let activityProgressInterval = null;
@@ -8192,6 +8679,10 @@ function showGenerationLoading(el) {
     <div style="padding:40px; text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border); box-shadow:var(--shadow-lg); margin-top: 24px;">
       <div class="bot-animation" style="margin-bottom:16px;"><div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 20px var(--accent-glow);"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div></div>
       <h3 style="margin-bottom:12px;" data-i18n="gen.generating">${t('gen.generating')}</h3>
+      <div style="max-width:300px; margin:20px auto 8px; background:var(--border); border-radius:10px; height:8px; overflow:hidden;">
+        <div id="activity-progress-fill" style="width:0%; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent-light)); transition:width 0.4s ease;"></div>
+      </div>
+      <div id="activity-progress-text" style="font-size:12px; font-weight:700; color:var(--accent);">0%</div>
       <p style="color:var(--text-muted); font-size:13px; margin-top:16px;" data-i18n="gen.time">${t('gen.time')}</p>
     </div>
     <style>
@@ -8207,43 +8698,86 @@ function showGenerationLoading(el) {
   `;
 }
 
-function startActivityPolling(targetId, title) {
+function startActivityPolling(targetId, title, taskId = null) {
   const el = document.getElementById(targetId);
   if (!el) return;
   const fill = el.querySelector('#activity-progress-fill');
   const text = el.querySelector('#activity-progress-text');
 
+  window._retryEmptyPoll = 0;
   if (activityProgressInterval) clearInterval(activityProgressInterval);
+
+  const activeCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
+  const uid = currentUser ? currentUser.id : null;
 
   activityProgressInterval = setInterval(async () => {
     try {
-      const data = await api(`/activity/progress?course_id=${courseId}&v=${Date.now()}`);
+      let pollUrl = `/activity/progress?course_id=${activeCourseId}&v=${Date.now()}`;
+      if (taskId) {
+        pollUrl += `&task_id=${encodeURIComponent(taskId)}`;
+      }
+      if (uid) {
+        pollUrl += `&user_id=${encodeURIComponent(uid)}`;
+      }
+      const data = await api(pollUrl);
       if (data && !data.error) {
         if (fill) fill.style.width = data.percentage + '%';
         if (text) text.textContent = data.percentage + '%';
         if (data.status === 'done') {
           if (data.results && data.results.length > 0) {
             clearInterval(activityProgressInterval);
-            _lastActivityData = { activities: data.results };
-            const isStudent = currentUser.role === 'student';
-            const header = `<div class="page-header" style="margin-top:24px"><h2>${title}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
+            // Retrieve current topic title if available (without polluting content.activities cache)
+            const actSelect = document.getElementById('activity-topic-select');
+            const curTid = actSelect ? actSelect.value : null;
+            let currentTopic = null;
+            if (curTid && (window.curriculum || curriculum)) {
+              for (const ch of (window.curriculum || curriculum)) {
+                const tp = ch.topics ? ch.topics.find(t => t.id === curTid) : null;
+                if (tp) {
+                  currentTopic = tp;
+                  break;
+                }
+              }
+            }
+            _lastActivityData = { activities: data.results, topic: currentTopic };
+            const isStudent = currentUser && currentUser.role === 'student';
+            const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : title;
+            const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
             document.getElementById(targetId).innerHTML = header + data.results.map((a, i) => renderActivityCard(a, i, targetId)).join('');
+            const genBtn = document.getElementById('generate-activity-btn');
+            if (genBtn) {
+              genBtn.textContent = currentLang === 'tr' ? 'Etkinlikleri Yenile' : 'Regenerate Activity';
+              genBtn.disabled = false;
+              genBtn.removeAttribute('data-generating');
+            }
           } else {
             // Done but no results - wait a few more polls or show error
             if (!window._retryEmptyPoll) window._retryEmptyPoll = 0;
             window._retryEmptyPoll++;
-            if (window._retryEmptyPoll > 10) {
+            if (window._retryEmptyPoll > 15) {
                 clearInterval(activityProgressInterval);
+                const genBtn = document.getElementById('generate-activity-btn');
+                if (genBtn) {
+                  genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+                  genBtn.disabled = false;
+                  genBtn.removeAttribute('data-generating');
+                }
                 document.getElementById(targetId).innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-muted);">
                     <div style="margin-bottom:16px;">${SVG_SEARCH}</div>
-                    <div style="font-weight:700; margin-bottom:8px;">No questions found</div>
-                    <div style="font-size:14px;">The AI couldn't generate valid questions for this specific topic content. Try a different topic or build the curriculum again.</div>
+                    <div style="font-weight:700; margin-bottom:8px;">${currentLang === 'tr' ? 'Soru bulunamadı' : 'No questions found'}</div>
+                    <div style="font-size:14px;">${currentLang === 'tr' ? 'Yapay zeka bu konu içeriği için geçerli sorular üretemedi. Farklı bir konu deneyin.' : 'The AI couldn\'t generate valid questions for this specific topic content. Try a different topic or build the curriculum again.'}</div>
                 </div>`;
             }
           }
         } else if (data.status === 'error') {
           clearInterval(activityProgressInterval);
-          document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">Error generating activities.</div>`;
+          const genBtn = document.getElementById('generate-activity-btn');
+          if (genBtn) {
+            genBtn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+            genBtn.disabled = false;
+            genBtn.removeAttribute('data-generating');
+          }
+          document.getElementById(targetId).innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${currentLang === 'tr' ? 'Aktivite oluşturulurken bir hata oluştu.' : 'Error generating activities.'}</div>`;
         }
       }
     } catch (e) { console.error("Poll Error:", e); }
@@ -8257,7 +8791,11 @@ function startDraftPolling(type, btn, originalText, callback) {
   const fill = document.getElementById(`${type}-gen-fill`);
   const pctText = document.getElementById(`${type}-gen-pct`);
 
-  if (container) container.classList.remove('hidden');
+  if (container) {
+    container.classList.remove('hidden');
+    const span = container.querySelector('span[data-i18n]') || container.querySelector('span');
+    if (span) span.textContent = t('gen.generating');
+  }
   if (fill) fill.style.width = '0%';
   if (pctText) pctText.textContent = '0%';
 
@@ -8278,15 +8816,21 @@ function startDraftPolling(type, btn, originalText, callback) {
 
         setTimeout(() => {
           if (container) container.classList.add('hidden');
-          btn.textContent = originalText;
-          btn.disabled = false;
+          if (btn) {
+            btn.textContent = originalText;
+            btn.disabled = false;
+            btn.removeAttribute('data-generating');
+          }
           if (data.questions) callback(data.questions);
         }, 500);
       } else if (data.status === 'error') {
         clearInterval(draftProgressInterval);
         if (container) container.classList.add('hidden');
-        btn.textContent = originalText;
-        btn.disabled = false;
+        if (btn) {
+          btn.textContent = originalText;
+          btn.disabled = false;
+          btn.removeAttribute('data-generating');
+        }
         showAlert(t('error'), 'Generation failed', true);
       }
     } catch (err) {
@@ -8306,50 +8850,75 @@ async function launchActivity() {
   showGenerationLoading(preview);
 
   const btn = document.getElementById('generate-activity-btn');
-  if (btn) btn.disabled = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.setAttribute('data-generating', 'true');
+    btn.textContent = currentLang === 'tr' ? 'Oluşturuluyor...' : 'Generating...';
+  }
+
+  const activeCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
   try {
     // 1. Kick off the background task
-    await api('/activity/start', {
+    const res = await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: topicId, course_id: courseId, count: 10, ui_lang: currentLang }
+      body: { topic_id: topicId, course_id: activeCourseId, count: 10, ui_lang: currentLang, user_id: currentUser ? currentUser.id : null }
     });
     // 2. Start polling AFTER the task is successfully initiated
-    startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'));
+    startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'), res ? res.task_id : null);
   } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.removeAttribute('data-generating');
+      btn.textContent = currentLang === 'tr' ? 'Aktivite Oluştur' : 'Generate Activity';
+    }
     preview.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center; background:var(--danger-bg); border-radius:12px; border:1px solid var(--danger);">
       ${t('assign.retry')}
     </div>`;
-  } finally {
-    if (btn) btn.disabled = false;
   }
 }
 
 function renderPromptHTML(a, isQuiz = false) {
   let p = formatActivityData(a.prompt);
-  p = translatePrompt(p); // Preserve existing localization mechanism
   
-  const rawTrans = a.translation || a.translation_tr || a.translation_en || '';
-  if (rawTrans) {
-    let trans = rawTrans;
-    if (currentLang === 'tr') {
-      trans = a.translation_tr || a.turkish || translateEducationalText(a.translation) || translatePrompt(a.translation) || a.translation || rawTrans;
-    } else {
-      trans = a.translation_en || a.english || a.translation || rawTrans;
-    }
+  if (isQuiz) {
+    return `<div class="activity-prompt">${esc(p)}</div>`;
+  }
+  
+  const transTr = a.translation_tr || a.turkish || translateEducationalText(a.translation || '') || a.translation || '';
+  const transEn = a.translation_en || a.english || a.translation || '';
+  if (transTr || transEn) {
     return `<div class="activity-prompt-wrapper" style="position:relative; display:inline-block; margin-bottom:8px; cursor:help;" 
-      onmouseenter="this.querySelector('.activity-translation').style.display='block'" 
-      onmouseleave="this.querySelector('.activity-translation').style.display='none'">
-      <div class="activity-prompt" style="display:inline; border-bottom:1px dashed var(--text-muted); padding-bottom:2px;">${p}</div>
-      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:8px; display:none; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; border-left:3px solid var(--accent); position:absolute; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.5); width:max-content; max-width:400px; left:0; top:100%;"><i>${esc(trans)}</i></div>
+      data-trans-tr="${esc(transTr)}" data-trans-en="${esc(transEn)}"
+      onmouseenter="showActivityTooltip(this)" 
+      onmouseleave="hideActivityTooltip(this)">
+      <div class="activity-prompt" style="display:inline; border-bottom:1px dashed var(--text-muted); padding-bottom:2px;">${esc(p)}</div>
+      <div class="activity-translation" style="font-size:13px; color:var(--text-muted); margin-top:8px; display:none; padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; border-left:3px solid var(--accent); position:absolute; z-index:100; box-shadow:0 4px 12px rgba(0,0,0,0.5); width:max-content; max-width:420px; left:0; top:100%;"></div>
     </div>`;
   }
-  return `<div class="activity-prompt">${p}</div>`;
+  return `<div class="activity-prompt">${esc(p)}</div>`;
+}
+
+function showActivityTooltip(wrapper) {
+  const tip = wrapper.querySelector('.activity-translation');
+  if (!tip) return;
+  const tr = wrapper.getAttribute('data-trans-tr') || '';
+  const en = wrapper.getAttribute('data-trans-en') || '';
+  const text = (currentLang === 'tr' ? (tr || en) : (en || tr));
+  if (!text) return;
+  tip.innerHTML = `<i>${esc(text)}</i>`;
+  tip.style.display = 'block';
+}
+
+function hideActivityTooltip(wrapper) {
+  const tip = wrapper.querySelector('.activity-translation');
+  if (tip) tip.style.display = 'none';
 }
 
 function renderActivityCard(a, idx, ctx) {
   const promptHTML = renderPromptHTML(a);
   const isLecturer = currentUser && currentUser.role === 'lecturer';
+  const explText = (currentLang === 'tr' ? (a.why_tr || a.explanation_tr || a.why || a.explanation) : (a.why || a.explanation || a.why_tr || a.explanation_tr)) || '';
   const editBtns = isLecturer ? `
     <div style="position:absolute; top:12px; right:12px; display:flex; gap:6px; z-index:10;">
         <button class="btn btn-ghost btn-xs" onclick="editActivityQuestion(${escJS(a.id)}, '${ctx}-${idx}', ${escJS(a.type)})" style="background:rgba(255,255,255,0.1); padding:4px;">${SVG_EDIT}</button>
@@ -8357,12 +8926,80 @@ function renderActivityCard(a, idx, ctx) {
     </div>
   ` : '';
 
-  if (a.type === 'mcq') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${(a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
-  if (a.type === 'fill_blank') return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}<div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+  const cardKey = `${ctx}-${idx}`;
+  const savedState = _answeredQuestionsState[`act_card_${cardKey}`] || (a.id ? _answeredQuestionsState[`act_q_${a.id}`] : null);
+
+  const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
+  const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explText) || explText.includes('doğru') || explText.includes('çünkü') || explText.includes('ifade'));
+  const displayExpl = (currentLang === 'tr') ? (isAlreadyTr ? explText : (typeof translateEducationalText === 'function' ? translateEducationalText(explText) : explText)) : explText;
+
+  const explBoxHTML = (explText) ? `
+    <div class="activity-explanation-box" style="margin-top:16px; padding:16px 20px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid var(--border); font-size:15px; line-height:1.6; color:var(--text-primary); text-align:left;">
+      <div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div>
+      <div>${fixDiacritics(displayExpl)}</div>
+    </div>
+  ` : '';
+
+  if (a.type === 'mcq') {
+    let cardClass = "activity-card";
+    let fbClass = "feedback-msg hidden";
+    let fbContent = "";
+    let optionsHTML = "";
+    let showExpl = false;
+
+    if (savedState && savedState.type === 'mcq') {
+      cardClass += savedState.isCorrect ? " correct" : " incorrect";
+      fbClass = "feedback-msg " + (savedState.isCorrect ? "correct" : "incorrect");
+      fbContent = savedState.isCorrect ? t('correctMsg') : `<span>${t('incorrectAns')} ${a.answer}</span>`;
+      showExpl = true;
+
+      optionsHTML = (a.options || []).map(o => {
+        const isOptAnswer = (o.toLowerCase() === String(a.answer || '').toLowerCase());
+        const isOptPicked = (o === savedState.picked);
+        let btnCls = "option-btn";
+        let icon = "";
+        let opStyle = "opacity:0.75;";
+
+        if (isOptAnswer) {
+          btnCls += " correct-answer";
+          icon = ' ' + SVG_CHECK;
+          opStyle = "opacity:1;";
+        } else if (isOptPicked && !savedState.isCorrect) {
+          btnCls += " wrong-answer";
+          icon = ' ' + SVG_CROSS;
+          opStyle = "opacity:1;";
+        }
+        return `<button class="${btnCls}" disabled style="${opStyle}" data-original="${esc(o)}">${fixDiacritics(safeStr(o))}${icon}</button>`;
+      }).join('');
+    } else {
+      optionsHTML = (a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${fixDiacritics(safeStr(o))}</button>`).join('');
+    }
+
+    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${optionsHTML}</div><div class="${fbClass}" id="fb-${ctx}-${idx}">${fbContent}</div>${showExpl ? explBoxHTML : ''}</div>`;
+  }
+
+  if (a.type === 'fill_blank') {
+    let cardClass = "activity-card";
+    let fbClass = "feedback-msg hidden";
+    let fbContent = "";
+    let showExpl = false;
+    let inputAttr = "";
+
+    if (savedState && savedState.type === 'fill_blank') {
+      cardClass += savedState.isCorrect ? " correct" : " incorrect";
+      fbClass = "feedback-msg " + (savedState.isCorrect ? "correct" : "incorrect");
+      fbContent = savedState.isCorrect ? t('correctMsg') : `<span>${t('incorrectAns')} ${a.answer}</span>`;
+      showExpl = true;
+      inputAttr = `value="${esc(savedState.val || '')}" disabled`;
+    }
+
+    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" ${inputAttr} data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" ${savedState ? 'disabled' : ''} onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}<div class="${fbClass}" id="fb-${ctx}-${idx}">${fbContent}</div>${showExpl ? explBoxHTML : ''}</div>`;
+  }
+
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})"><span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})"><span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
   }
   return '';
 }
@@ -8497,24 +9134,57 @@ async function checkMCQ(btn, answer, cardId, qid) {
   // Fix for escaped apostrophes in data-original attribute
   const picked = (btn.dataset.original || btn.textContent.trim()).replace(/\\'/g, "'");
   const isCorrect = picked.toLowerCase() === answer.toLowerCase();
+  const explanation = card.getAttribute('data-explanation') || '';
+
+  const stateObj = {
+    type: 'mcq',
+    picked,
+    answer,
+    isCorrect,
+    explanation,
+    qid
+  };
+  _answeredQuestionsState[`act_card_${cardId}`] = stateObj;
+  if (qid) _answeredQuestionsState[`act_q_${qid}`] = stateObj;
 
   card.querySelectorAll('.option-btn').forEach(b => {
+    b.disabled = true;
+    b.style.opacity = '0.75';
     const bText = (b.dataset.original || b.textContent.trim()).replace(/\\'/g, "'");
-    if (bText.toLowerCase() === answer.toLowerCase()) b.classList.add('correct-answer');
-    else if (b === btn && !isCorrect) b.classList.add('wrong-answer');
+    if (bText.toLowerCase() === answer.toLowerCase()) {
+      b.classList.add('correct-answer');
+      b.style.opacity = '1';
+      if (!b.querySelector('svg')) b.innerHTML += ' ' + SVG_CHECK;
+    } else if (b === btn && !isCorrect) {
+      b.classList.add('wrong-answer');
+      b.style.opacity = '1';
+      if (!b.querySelector('svg')) b.innerHTML += ' ' + SVG_CROSS;
+    }
   });
 
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   const fb = document.getElementById('fb-' + cardId);
   fb.classList.remove('hidden');
-  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect clickable-feedback');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
   if (isCorrect) {
     fb.textContent = t('correctMsg');
-    fb.onclick = null;
   } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">${t('tap_explain')}</span>`;
-    fb.onclick = () => explainMistake(cardId, answer, picked);
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span>`;
   }
+  fb.onclick = null;
+
+  // Instant explanation box matching study material (Photo 5 style, zero extra AI usage)
+  if (explanation && !card.querySelector('.activity-explanation-box')) {
+    const expDiv = document.createElement('div');
+    expDiv.className = 'activity-explanation-box';
+    expDiv.style.cssText = 'margin-top:16px; padding:16px 20px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid var(--border); font-size:15px; line-height:1.6; color:var(--text-primary); text-align:left; animation:fadeIn 0.25s ease;';
+    const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
+    const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explanation) || explanation.includes('doğru') || explanation.includes('çünkü') || explanation.includes('ifade'));
+    const displayExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explanation : (typeof translateEducationalText === 'function' ? translateEducationalText(explanation) : explanation)) : explanation;
+    expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div><div>${fixDiacritics(displayExplanation)}</div>`;
+    card.appendChild(expDiv);
+  }
+
   if (cardId.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: picked, correct_answer: answer, question_type: 'mcq' } });
 }
 
@@ -8526,16 +9196,41 @@ async function checkFill(id, answer, qid) {
   const isCorrect = val.toLowerCase() === answer.toLowerCase();
   inp.disabled = true;
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
+
+  const explanation = card.getAttribute('data-explanation') || '';
+  const stateObj = {
+    type: 'fill_blank',
+    val,
+    answer,
+    isCorrect,
+    explanation,
+    qid
+  };
+  _answeredQuestionsState[`act_card_${id}`] = stateObj;
+  if (qid) _answeredQuestionsState[`act_q_${qid}`] = stateObj;
+
   const fb = document.getElementById('fb-' + id);
   fb.classList.remove('hidden');
-  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect clickable-feedback');
+  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
   if (isCorrect) {
     fb.textContent = t('correctMsg');
-    fb.onclick = null;
   } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span> <span style="float:right; opacity:0.8; font-size:12px;">${t('tap_explain')}</span>`;
-    fb.onclick = () => explainMistake(id, answer, val);
+    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span>`;
   }
+  fb.onclick = null;
+
+  // Instant explanation box matching study material (Photo 5 style, zero extra AI usage)
+  if (explanation && !card.querySelector('.activity-explanation-box')) {
+    const expDiv = document.createElement('div');
+    expDiv.className = 'activity-explanation-box';
+    expDiv.style.cssText = 'margin-top:16px; padding:16px 20px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid var(--border); font-size:15px; line-height:1.6; color:var(--text-primary); text-align:left; animation:fadeIn 0.25s ease;';
+    const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
+    const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explanation) || explanation.includes('doğru') || explanation.includes('çünkü') || explanation.includes('ifade'));
+    const displayExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explanation : (typeof translateEducationalText === 'function' ? translateEducationalText(explanation) : explanation)) : explanation;
+    expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div><div>${fixDiacritics(displayExplanation)}</div>`;
+    card.appendChild(expDiv);
+  }
+
   if (id.startsWith('prac')) await api('/activity/respond', { method: 'POST', body: { student_id: currentUser.id, question_id: qid, answer: val, correct_answer: answer, question_type: 'fill_blank' } });
 }
 
@@ -8633,8 +9328,9 @@ let currentDraft = null;
 async function createQuiz() {
   const btn = event.target;
   const originalText = btn.textContent;
-  btn.textContent = '...';
+  btn.textContent = currentLang === 'tr' ? 'Oluşturuluyor...' : 'Generating...';
   btn.disabled = true;
+  btn.setAttribute('data-generating', 'true');
 
   const title = document.getElementById('quiz-title').value || 'Quiz';
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
@@ -8657,6 +9353,7 @@ async function createQuiz() {
   } catch (err) {
     btn.textContent = originalText;
     btn.disabled = false;
+    btn.removeAttribute('data-generating');
     showAlert(t('error'), err.message, true);
   }
 }
@@ -8715,7 +9412,7 @@ async function viewQuiz(quizId, title) {
   window._currentViewingAssignment = null;
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;"><div class="spinner-small"></div><span style="font-size:14px;">${t('loading') || (currentLang === 'tr' ? 'Yükleniyor...' : 'Loading...')}</span></div>`;
 
   const [quizData, respData] = await Promise.all([
     api('/quiz/take?quiz_id=' + quizId),
@@ -8739,11 +9436,14 @@ async function viewQuiz(quizId, title) {
     responsesTab: isTr ? 'Yanıtlar' : 'Responses'
   };
 
+  const completedList = studentResults.filter(sr => sr.status === 'completed' || (!sr.has_unsubmitted && !sr.answers.some(a => a.student_answer === '[STARTED]')));
+  const inProgressList = studentResults.filter(sr => sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
+
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">${displayTitle}</h2>
     <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">
       <span>${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
-      ${studentResults.length} <span>${L.submitted}</span>
+      ${completedList.length} <span>${L.submitted}</span>${inProgressList.length > 0 ? ` · <span style="color:#f59e0b;font-weight:600">${inProgressList.length} ${isTr ? 'devam ediyor' : 'in progress'}</span>` : ''}
     </div>
     
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
@@ -8758,7 +9458,7 @@ async function viewQuiz(quizId, title) {
             <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
               ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? (isTr ? 'Çoktan Seçmeli' : 'Multiple Choice') : (isTr ? 'Boşluk Doldurma' : 'Fill in the Blank'))}
             </div>
-            <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+            <div style="font-size:15px;margin-bottom:12px">${fixDiacritics(safeStr(q.prompt))}</div>
             ${q.type === 'mcq' ? `
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 ${(q.distractors || []).concat([q.answer]).map(o => `
@@ -8781,35 +9481,50 @@ async function viewQuiz(quizId, title) {
       ${studentResults.length === 0
       ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
       : studentResults.map(sr => {
+        const isInProgress = (sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
         const avgPct = Math.round(sr.average_score * 100);
-        const correctCount = sr.answers.filter(a => a.is_correct).length;
+        const answeredCount = sr.answered_count || sr.answers.filter(a => a.student_answer !== '[STARTED]').length;
+        const correctCount = sr.answers.filter(a => a.is_correct && a.student_answer !== '[STARTED]').length;
         return `
               <div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; overflow:hidden">
                 <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
                   <div>
                     <strong style="font-size:15px">${sr.student_name}</strong>
-                    <span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span>${L.correct}</span></span>
+                    ${isInProgress
+                      ? `<span style="font-size:12px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:600">${isTr ? 'Sınav Devam Ediyor' : 'In Progress'}</span>
+                         <span style="font-size:13px; color:var(--text-muted); margin-left:8px">(${answeredCount}/${sr.total_questions} ${isTr ? 'yanıtlandı' : 'answered'})</span>`
+                      : `<span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span>${L.correct}</span></span>`
+                    }
                   </div>
                   <div style="display:flex; align-items:center; gap:10px">
-                    <span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>
+                    ${isInProgress
+                      ? `<span style="font-weight:600; font-size:14px; color:#f59e0b;">—</span>`
+                      : `<span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>`
+                    }
                     <span style="color:var(--text-muted); font-size:18px">▾</span>
                   </div>
                 </div>
                 <div style="display:none; padding:12px 16px; background:var(--bg-card)">
                   ${sr.answers.map((a, i) => {
-          const isRight = a.is_correct;
-          return `
+                    const isStarted = (a.student_answer === '[STARTED]');
+                    const isRight = a.is_correct && !isStarted;
+                    return `
                       <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
-                        <span style="min-width:20px; font-weight:700; color:${isRight ? 'var(--success)' : 'var(--danger)'}">${isRight ? SVG_CHECK : SVG_CROSS}</span>
+                        <span style="min-width:20px; font-weight:700; color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')}">
+                          ${isStarted ? '⏳' : (isRight ? SVG_CHECK : SVG_CROSS)}
+                        </span>
                         <div style="flex:1">
-                          <div style="margin-bottom:4px; font-weight:500">${translatePrompt(a.prompt)}</div>
+                          <div style="margin-bottom:4px; font-weight:500">${fixDiacritics(safeStr(a.prompt))}</div>
                           <div style="display:flex; gap:16px; flex-wrap:wrap">
-                            <span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (isTr ? '[Boş Bırakıldı]' : '[Blank]') : esc(a.student_answer)}</strong></span>
-                            ${!isRight ? `<span><span>${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}
+                            ${isStarted
+                              ? `<span style="color:var(--text-muted);font-style:italic;">${isTr ? 'Henüz yanıtlanmadı (Sınav devam ediyor)' : 'Not answered yet (In progress)'}</span>`
+                              : `<span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
+                                 ${!isRight ? `<span><span>${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}`
+                            }
                           </div>
                         </div>
                       </div>`;
-        }).join('')}
+                  }).join('')}
                 </div>
               </div>`;
       }).join('')}
@@ -8855,8 +9570,9 @@ function showQuizQuestion(area) {
   const idx = parseInt(area.dataset.current);
   if (idx >= qs.length) return submitQuizAnswers(area);
   const q = qs[idx];
+  const qMcqOpts = (Array.isArray(q.options) && q.options.length > 1) ? q.options : (q.distractors || []).concat([q.answer]);
   area.innerHTML = `<div class="quiz-header"><span class="quiz-progress-text">Q${idx + 1}/${qs.length}</span></div><div class="activity-card">${renderPromptHTML(q, true)}` +
-    (q.type === 'mcq' ? `<div class="options-grid">${((q.distractors || []).concat([q.answer]).sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
+    (q.type === 'mcq' ? `<div class="options-grid">${(qMcqOpts.slice().sort(() => Math.random() - 0.5)).map(o => `<button class="option-btn" onclick="quizAnswer(this,${escJS(q.id)},${escJS(o)})">${fixDiacritics(safeStr(o))}</button>`).join('')}</div>` : `<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="q-inp" style="flex:1" placeholder="..." onkeydown="if(event.key==='Enter')quizAnswer(null,${escJS(q.id)},this.value)"><button class="btn btn-primary" onclick="quizAnswer(null,${escJS(q.id)},document.getElementById('q-inp').value)" data-i18n="submit">${t('submit')}</button></div>`) + `</div>`;
 }
 
 function quizAnswer(btn, qid, ans) {
@@ -8951,6 +9667,20 @@ function renderStudentRoster(students) {
     const initials = getStudentInitials(s.name);
     const color = masteryColor(s.avg_mastery || 0);
 
+    // Real-time Online Status Logic
+    let isOnline = false;
+    if (s.is_active !== undefined) {
+      isOnline = Boolean(s.is_active);
+    } else if (s.last_seen) {
+      const lastSeen = new Date(s.last_seen.replace(' ', 'T') + 'Z').getTime();
+      const now = new Date().getTime();
+      if (now - lastSeen < 12 * 1000) isOnline = true;
+    }
+
+    const statusBadge = isOnline
+      ? `<span class="student-status-indicator" style="background:rgba(34,197,94,0.12); color:#22c55e; border:1px solid rgba(34,197,94,0.25); display:inline-flex; align-items:center; gap:4px;"><span style="width:5px; height:5px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px #22c55e; display:inline-block;"></span>${t('admin.active')}</span>`
+      : `<span class="student-status-indicator" style="background:rgba(156,163,175,0.1); color:#9ca3af; border:1px solid rgba(156,163,175,0.2);">${t('admin.inactive')}</span>`;
+
     return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
       <!-- Top Row: Avatar + Name & ID -->
       <div class="student-card-header">
@@ -8961,7 +9691,7 @@ function renderStudentRoster(students) {
           <div class="student-name-title" title="${esc(s.name)}">${esc(s.name)}</div>
           <div class="student-id-row">
             ${schoolNum ? `<span class="student-school-num">#${esc(schoolNum)}</span>` : ''}
-            <span class="student-status-indicator">${t('admin.active') || 'Active'}</span>
+            ${statusBadge}
           </div>
         </div>
       </div>
@@ -9385,9 +10115,21 @@ function renderStudentHome(data) {
   const chapterEl = document.getElementById('student-current-chapter');
   if (chapterEl) {
     if (curriculum && curriculum.length > 0) {
-      const ch0 = curriculum[0];
-      const ch0Title = getLocalizedCurriculumTitle(ch0, currentLang);
-      chapterEl.innerHTML = `<h4 style="margin-bottom:12px"><span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(ch0Title)}</h4>${(ch0.topics || []).map(tp => {
+      let targetChapter = null;
+      const lastTopicId = (courseId ? localStorage.getItem('aula_last_topic_' + courseId) : null) || localStorage.getItem('aula_last_topic');
+      if (lastTopicId) {
+        targetChapter = curriculum.find(ch => (ch.topics || []).some(t => t.id === lastTopicId));
+      }
+      if (!targetChapter && masteries && masteries.length > 0) {
+        for (let i = masteries.length - 1; i >= 0; i--) {
+          const mid = masteries[i].topic_id;
+          const found = curriculum.find(ch => (ch.topics || []).some(t => t.id === mid));
+          if (found) { targetChapter = found; break; }
+        }
+      }
+      const chCurrent = targetChapter || curriculum[0];
+      const chTitle = getLocalizedCurriculumTitle(chCurrent, currentLang);
+      chapterEl.innerHTML = `<h4 style="margin-bottom:12px"><span data-i18n="currentChapter">${t('currentChapter')}</span>: ${esc(chTitle)}</h4>${(chCurrent.topics || []).map(tp => {
         const tpTitle = getLocalizedCurriculumTitle(tp, currentLang);
         return `<div class="topic-item" style="cursor:pointer" onclick="startStudyFirst('${tp.id}')"><div class="topic-info"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span><span class="topic-name">${esc(tpTitle)}</span></div></div>`;
       }).join('')}`;
@@ -9428,10 +10170,15 @@ function startStudyFirst(topicId) {
 }
 
 async function startPractice(tid, title) {
-  const isLecturer = currentUser.role === 'lecturer';
+  const isLecturer = currentUser && currentUser.role === 'lecturer';
   const targetId = isLecturer ? 'activity-preview' : 'practice-area';
   const topicsGrid = isLecturer ? null : document.getElementById('practice-topics');
   const area = document.getElementById(targetId);
+
+  if (isLecturer) {
+    const actSelect = document.getElementById('activity-topic-select');
+    if (actSelect) actSelect.value = tid;
+  }
 
   if (topicsGrid) topicsGrid.classList.add('hidden');
   if (area) {
@@ -9445,20 +10192,26 @@ async function startPractice(tid, title) {
     // 1. Kick off the background task
     const res = await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: tid, course_id: courseId, count: 10, ui_lang: currentLang }
+      body: { 
+        topic_id: tid, 
+        course_id: courseId, 
+        count: 10, 
+        ui_lang: currentLang,
+        user_id: currentUser ? currentUser.id : null
+      }
     });
-    if (res.error) throw new Error(res.error);
+    if (res && res.error) throw new Error(res.error);
 
     // 2. Start polling
-    startActivityPolling(targetId, `${t('practice')}: ${title}`);
+    startActivityPolling(targetId, `${t('practice')}: ${title}`, res ? res.task_id : null);
   } catch (err) {
     console.error("Practice Start Error:", err);
     if (area) {
       area.innerHTML = `<div style="padding:40px; color:var(--danger); text-align:center; background:var(--bg-card); border-radius:16px; border:1px solid var(--border);">
-          <div style="font-size:48px; margin-bottom:16px;">\u26a0\ufe0f</div>
+          <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
           <h3 style="margin-bottom:8px;">${t('assign.retry')}</h3>
           <p style="color:var(--text-muted); margin-bottom:24px;">${err.message || 'Generation failed'}</p>
-          <button class="btn btn-primary" onclick="cancelPractice()">Back to Topics</button>
+          <button class="btn btn-primary" onclick="cancelPractice()">${currentLang === 'tr' ? 'Konulara Geri Dön' : 'Back to Topics'}</button>
         </div>`;
     }
   }
@@ -9564,8 +10317,7 @@ async function viewAssignment(assignmentId, title) {
   window._currentViewingQuiz = null;
   const modal = document.getElementById('student-detail-modal');
   modal.classList.remove('hidden');
-  document.getElementById('student-detail-body').innerHTML =
-    `<div style="text-align:center;padding:40px;color:var(--text-muted)">Loading...</div>`;
+  document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;"><div class="spinner-small"></div><span style="font-size:14px;">${t('loading') || (currentLang === 'tr' ? 'Yükleniyor...' : 'Loading...')}</span></div>`;
 
   const [assignData, respData] = await Promise.all([
     api('/assignment/take?assignment_id=' + assignmentId),
@@ -9576,10 +10328,14 @@ async function viewAssignment(assignmentId, title) {
   const results = (respData && respData.student_results) || [];
   const qs = (assignData && assignData.questions) || [];
 
-  // Class average
-  const classAvg = results.length
-    ? Math.round(results.reduce((s, r) => s + r.average_score, 0) / results.length * 100)
-    : 0;
+  // Class average and status split
+  const completedList = results.filter(sr => sr.status === 'completed' || (!sr.has_unsubmitted && !sr.answers.some(a => a.student_answer === '[STARTED]')));
+  const inProgressList = results.filter(sr => sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
+  const classAvg = (respData && typeof respData.average_score === 'number') ? Math.round(respData.average_score * 100) : (
+    completedList.length
+      ? Math.round(completedList.reduce((s, r) => s + (r.average_score || 0), 0) / completedList.length * 100)
+      : 0
+  );
 
   const L = {
     noResponses: t('assign.no_responses') || (isTr ? 'Henüz yanıt gönderilmedi.' : 'No responses submitted yet.'),
@@ -9597,7 +10353,7 @@ async function viewAssignment(assignmentId, title) {
     <h2 style="margin-bottom:4px">${displayTitle}</h2>
     <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
       <span>${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
-      ${results.length} <span>${L.submitted}</span>
+      ${completedList.length} <span>${L.submitted}</span>${inProgressList.length > 0 ? ` · <span style="color:#f59e0b;font-weight:600">${inProgressList.length} ${isTr ? 'devam ediyor' : 'in progress'}</span>` : ''}
     </div>
 
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
@@ -9637,7 +10393,7 @@ async function viewAssignment(assignmentId, title) {
       <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
         <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
           <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.submitted}</div>
-          <div style="font-size:26px;font-weight:700">${results.length}</div>
+          <div style="font-size:26px;font-weight:700">${completedList.length}</div>
         </div>
         <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
           <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('CLASS MASTERY') || (isTr ? 'Sınıf Başarısı' : 'Class Mastery')}</div>
@@ -9645,28 +10401,38 @@ async function viewAssignment(assignmentId, title) {
         </div>
         <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
           <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.top_score') || (isTr ? 'En Yüksek Skor' : 'Top Score')}</div>
-          <div style="font-size:26px;font-weight:700;color:var(--success)">${Math.round(results[0].average_score * 100)}%</div>
+          <div style="font-size:26px;font-weight:700;color:var(--success)">${completedList.length > 0 ? Math.round(completedList[0].average_score * 100) + '%' : '—'}</div>
         </div>
       </div>
 
       <!-- Score bar chart -->
       <div style="margin-bottom:24px">
         ${results.map((sr, i) => {
+          const isInProgress = (sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
           const pct = Math.round(sr.average_score * 100);
-          const correctCount = sr.answers.filter(a => a.is_correct).length;
+          const answeredCount = sr.answered_count || sr.answers.filter(a => a.student_answer !== '[STARTED]').length;
+          const correctCount = sr.answers.filter(a => a.is_correct && a.student_answer !== '[STARTED]').length;
+          const totalQ = sr.total_questions || qs.length || sr.answers.length;
           return `
           <div style="margin-bottom:6px">
             <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
               <span style="font-weight:500">
-                ${i < 3 ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
+                ${i < 3 && !isInProgress ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
                 ${esc(sr.student_name)}
+                ${isInProgress ? `<span style="font-size:12px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:600">${isTr ? 'Ödev Devam Ediyor' : 'In Progress'}</span>` : ''}
               </span>
-              <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
-                <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${qs.length || sr.answers.length} <span>${L.correct.toLowerCase()}</span>)</span>
-              </span>
+              ${isInProgress ? `
+                <span style="color:#f59e0b;font-weight:600">—
+                  <span style="color:var(--text-muted);font-weight:400">(${answeredCount}/${totalQ} ${isTr ? 'yanıtlandı' : 'answered'})</span>
+                </span>
+              ` : `
+                <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
+                  <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${totalQ} <span>${L.correct.toLowerCase()}</span>)</span>
+                </span>
+              `}
             </div>
             <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
-              <div style="background:${masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${pct}%;transition:width 0.6s ease"></div>
+              <div style="background:${isInProgress ? '#f59e0b' : masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${isInProgress ? Math.round((answeredCount/totalQ)*100) : pct}%;transition:width 0.6s ease"></div>
             </div>
           </div>
           <!-- Expandable detail -->
@@ -9674,19 +10440,25 @@ async function viewAssignment(assignmentId, title) {
             <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
               ${esc(sr.student_name)} — <span>${t('assign.detailed_answers') || (isTr ? 'Ayrıntılı Cevaplar' : 'Detailed Answers')}</span>
             </div>
-            ${sr.answers.map((a, qi) => `
+            ${sr.answers.map((a, qi) => {
+              const isStarted = (a.student_answer === '[STARTED]');
+              const isRight = a.is_correct && !isStarted;
+              return `
               <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
-                <span style="min-width:22px;font-size:15px;font-weight:700;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};margin-top:1px">${a.is_correct ? SVG_CHECK : SVG_CROSS}</span>
+                <span style="min-width:22px;font-size:15px;font-weight:700;color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')};margin-top:1px">${isStarted ? '⏳' : (isRight ? SVG_CHECK : SVG_CROSS)}</span>
                 <div style="flex:1;font-size:13px">
                   <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${translatePrompt(a.prompt)}</div>
                   <div style="display:flex;gap:16px;flex-wrap:wrap">
-                    <span><span>${L.studentAnswer}</span>: <strong style="color:${a.is_correct ? 'var(--success)' : 'var(--danger)'}">${a.student_answer === '[STARTED]' ? (isTr ? '[Boş Bırakıldı]' : '[Left Blank]') : esc(a.student_answer)}</strong></span>
-                    ${!a.is_correct ? `<span><span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}
+                    ${isStarted
+                      ? `<span style="color:var(--text-muted);font-style:italic;">${isTr ? 'Henüz yanıtlanmadı (Ödev devam ediyor)' : 'Not answered yet (In progress)'}</span>`
+                      : `<span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
+                         ${!isRight ? `<span><span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}`
+                    }
                   </div>
                 </div>
-                <span style="font-size:12px;color:${a.is_correct ? 'var(--success)' : 'var(--danger)'};font-weight:600;white-space:nowrap">${Math.round(a.score * 100)}%</span>
+                <span style="font-size:12px;color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')};font-weight:600;white-space:nowrap">${isStarted ? '—' : Math.round(a.score * 100) + '%'}</span>
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>`;
         }).join('')}
       </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
@@ -9706,8 +10478,9 @@ async function previewQuiz(qid, title) {
 async function createAssignment() {
   const btn = event.target;
   const originalText = btn.textContent;
-  btn.textContent = '...';
+  btn.textContent = currentLang === 'tr' ? 'Oluşturuluyor...' : 'Generating...';
   btn.disabled = true;
+  btn.setAttribute('data-generating', 'true');
 
   const title = document.getElementById('assignment-title').value || 'Assignment';
   const chapterId = document.getElementById('assignment-chapter-select').value || null;
@@ -9731,6 +10504,7 @@ async function createAssignment() {
   } catch (err) {
     btn.textContent = originalText;
     btn.disabled = false;
+    btn.removeAttribute('data-generating');
     showAlert(t('error'), err.message, true);
   }
 }
@@ -10060,8 +10834,11 @@ function renderStudyBook() {
 
 function highlightPedagogicalTerms(text) {
   if (!text || typeof text !== 'string') return '';
-  let res = text.replace(/'([^'\n\r]{1,50})'/g, '<code class="study-term-chip">$1</code>');
-  res = res.replace(/\(([^)\n\r]{1,70})\)/g, (m, inner) => {
+  // Match single quotes only when they are genuine pedagogical token quotes (not Turkish apostrophes / kesme işareti like İspanyolca'da)
+  // Must be preceded by start of line or non-letter/non-digit, and followed by non-letter/non-digit or end of line
+  let res = text.replace(/(?<=^|[^\p{L}\p{N}])'([^\s'][^'\n\r]*?)'(?=[^\p{L}\p{N}]|$)/gu, '<code class="study-term-chip">$1</code>');
+  res = res.replace(/(?<!<[^>]*)\(([^)\n\r]{1,70})\)(?![^<]*>)/g, (m, inner) => {
+    if (inner.includes('<')) return m;
     return `<span class="study-term-paren">(<span class="study-term-highlight">${inner}</span>)</span>`;
   });
   return res;
@@ -10119,6 +10896,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   if (!container) return;
 
   // Save for refresh
+  if (courseId) {
+    localStorage.setItem('aula_last_topic_' + courseId, topicId);
+  }
   localStorage.setItem('aula_last_topic', topicId);
   localStorage.setItem('aula_last_page', pageIdx);
 
@@ -10155,7 +10935,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     };
 
     if (content.pages && Array.isArray(content.pages)) {
-      content.pages.forEach(p => {
+      content.pages.forEach((p, pIdx) => {
         const isMcq = (p.type === 'mcq' || p.prompt);
         let pageTitle = "";
         if (currentLang === 'tr') {
@@ -10199,10 +10979,17 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
               }
               if (!text || (typeof text === "object" && !Array.isArray(text))) {
                  for(let key in p) {
-                   if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "title_tr" && key !== "type" && key !== "explanation" && key !== "answer" && key !== "formula" && key !== "formula_tr" && key !== "pitfall" && key !== "pitfall_tr") {
+                   if(typeof p[key] === "string" && p[key].length > 20 && key !== "title" && key !== "title_tr" && key !== "type" && key !== "explanation" && key !== "answer" && key !== "formula" && key !== "formula_tr" && key !== "pitfall" && key !== "pitfall_tr" && key !== "context" && key !== "context_tr" && key !== "scene" && key !== "setting") {
                      text = p[key]; break;
                    }
                  }
+              }
+            }
+
+            // Prevent duplicate rendering if text matches sceneContext already displayed in banner
+            if (text && typeof text === "string" && sceneContext && typeof sceneContext === "string") {
+              if (text.trim() === sceneContext.trim() || text.trim() === (p.context || "").trim() || text.trim() === (p.context_tr || "").trim()) {
+                text = "";
               }
             }
 
@@ -10212,7 +10999,30 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                 ? ((p.text_tr || p.explanation_tr) ? text : translateEducationalText(text))
                 : (p.text || p.explanation || text);
               const fixDiacriticsText = fixDiacritics(translatedText);
-              linesArr = fixDiacriticsText.split(/\n|(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).filter(l => l.trim().length > 0);
+              if (fixDiacriticsText.includes('\n')) {
+                linesArr = fixDiacriticsText.split(/\r?\n+/).map(l => l.trim()).filter(Boolean);
+              } else {
+                linesArr = fixDiacriticsText.split(/(?<=[.!?])\s+(?=[A-Z\u00C0-\u017F])/).map(l => l.trim()).filter(Boolean);
+              }
+              
+              // Merge orphaned fragments (e.g. "şeklindedir.", "kullanılır.", or lowercase continuations) back into the previous line
+              const mergedLines = [];
+              for (const rawLine of linesArr) {
+                const trimmed = rawLine.trim();
+                if (!trimmed) continue;
+                const isOrphan = mergedLines.length > 0 && (
+                  /^[a-zçğıöşü]/.test(trimmed) ||
+                  /^(şeklindedir|kullanılır|denir|diye\s|olarak|anlamına\s|gibi\s)/i.test(trimmed) ||
+                  trimmed.length < 15
+                );
+                if (isOrphan) {
+                  mergedLines[mergedLines.length - 1] += ' ' + trimmed;
+                } else {
+                  mergedLines.push(trimmed);
+                }
+              }
+              linesArr = mergedLines;
+
               const badgeLabel = currentLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
               if (linesArr.length > 1) {
                 html += `
@@ -10223,7 +11033,13 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     </div>
                     <div class="pedagogy-rules-list">
                       ${linesArr.map(line => {
-                        const cleanLine = line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim();
+                        let cleanLine = line.trim().replace(/^[^a-zA-Z0-9\u00C0-\u017F\u0400-\u04FF\u0600-\u06FF\u4e00-\u9fa5\u3040-\u30ff\u3130-\u318f¿¡"'\(\[]+\s*/, "").trim();
+                        if (cleanLine.length > 0) {
+                          const firstChar = cleanLine.charAt(0);
+                          if ((firstChar >= 'a' && firstChar <= 'z') || 'çğıöşü'.includes(firstChar)) {
+                            cleanLine = firstChar.toLocaleUpperCase(currentLang === 'tr' ? 'tr-TR' : 'en-US') + cleanLine.slice(1);
+                          }
+                        }
                         return `<div class="pedagogy-rule-item">
                           <div class="pedagogy-rule-bullet"></div>
                           <div class="pedagogy-rule-content">${highlightPedagogicalTerms(cleanLine)}</div>
@@ -10464,6 +11280,12 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           translatedLine = translateEducationalText(cleanLine);
                         }
                       }
+                      if (translatedLine.length > 0) {
+                        const firstChar = translatedLine.charAt(0);
+                        if ((firstChar >= 'a' && firstChar <= 'z') || 'çğıöşü'.includes(firstChar)) {
+                          translatedLine = firstChar.toLocaleUpperCase(currentLang === 'tr' ? 'tr-TR' : 'en-US') + translatedLine.slice(1);
+                        }
+                      }
                       html += `
                         <div class="pedagogy-guide-block" style="margin-top:4px; margin-bottom:4px;">
                           <div class="pedagogy-rules-list">
@@ -10579,15 +11401,30 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       </div>`;
                   } else {
                     const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || '');
-                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || '');
+                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.example_en || it.sentence_en || it.translation || it.meaning || '');
+                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.example_tr || it.sentence_tr || it.tr || '');
 
-                    let v = resolveDualLanguage(enRawV, trRawV, currentLang, (currentLang === 'tr' ? (trRawV || enRawV) : (enRawV || trRawV)));
-                    if (!v) {
-                      v = (currentLang === 'tr') ? (trRawV || enRawV) : (enRawV || trRawV);
+                    let v = '';
+                    if (currentLang === 'tr') {
+                      if (trRawV && trRawV.trim()) {
+                        v = trRawV.trim();
+                      } else {
+                        v = resolveDualLanguage(enRawV, trRawV, 'tr', enRawV);
+                        if (v) v = translateOption(v, 'tr');
+                        if (v && enRawV && v.toLowerCase() === enRawV.toLowerCase()) {
+                          const fallbackTr = translateEducationalText(enRawV, 'tr');
+                          if (fallbackTr && fallbackTr.toLowerCase() !== enRawV.toLowerCase()) v = fallbackTr;
+                        }
+                      }
+                    } else {
+                      if (enRawV && enRawV.trim()) {
+                        v = enRawV.trim();
+                      } else {
+                        v = resolveDualLanguage(enRawV, trRawV, 'en', trRawV);
+                        if (v) v = translateOption(v, 'en');
+                      }
                     }
                     if (v) {
-                      v = translateOption(v, currentLang);
                       v = v.charAt(0).toUpperCase() + v.slice(1);
                     }
 
@@ -10663,7 +11500,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const exampleWord = it.example || phonData.example || '';
                     const rawExEn = it.translation_en || it.example_en || phonData.example_en || '';
                     const rawExTr = it.translation_tr || it.example_tr || phonData.example_tr || '';
-                    const exampleTrans = resolveDualLanguage(rawExEn, rawExTr, currentLang, (currentLang === 'tr' ? rawExTr : rawExEn));
+                    const exampleTrans = (currentLang === 'tr') ? (rawExTr || (rawExEn ? translateEducationalText(rawExEn, 'tr') : '')) : (rawExEn || rawExTr);
 
                     html += `<div class="study-vocab-card alphabet-card">
                         <div class="vocab-term-wrapper">
@@ -10683,7 +11520,20 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const exampleTarget = it.example || bankHit.example || '';
                     const rawExEn = it.example_en || bankHit.example_en || '';
                     const rawExTr = it.example_tr || bankHit.example_tr || '';
-                    const exampleTrans = resolveDualLanguage(rawExEn, rawExTr, currentLang, (currentLang === 'tr' ? rawExTr : rawExEn));
+                    let exampleTrans = '';
+                    if (currentLang === 'tr') {
+                      if (rawExTr && rawExTr.trim()) {
+                        exampleTrans = rawExTr.trim();
+                      } else if (rawExEn && rawExEn.trim()) {
+                        exampleTrans = translateEducationalText(rawExEn, 'tr');
+                      }
+                    } else {
+                      if (rawExEn && rawExEn.trim()) {
+                        exampleTrans = rawExEn.trim();
+                      } else if (rawExTr && rawExTr.trim()) {
+                        exampleTrans = translateEducationalText(rawExTr, 'en');
+                      }
+                    }
 
                     // --- STRICT ENGLISH LEAK HEALER FOR TURKISH MODE ---
                     if (currentLang === 'tr') {
@@ -10691,11 +11541,6 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         const trTrans = translateOption(v, 'tr');
                         if (trTrans && trTrans.toLowerCase() !== v.toLowerCase()) {
                           v = trTrans.charAt(0).toUpperCase() + trTrans.slice(1);
-                        } else if (it.explanation_tr && typeof it.explanation_tr === 'string') {
-                          const matchWord = it.explanation_tr.match(/^([A-ZÇĞİÖŞÜ][a-zçğıöşü]+)/);
-                          if (matchWord && isSanityTR(matchWord[1])) {
-                            v = matchWord[1];
-                          }
                         }
                       }
                     }
@@ -10737,17 +11582,51 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
              // 3. MCQ Support
             if (p.type === 'mcq' || p.prompt) {
-               const allOptions = Array.from(new Set((p.distractors || []).concat(p.answer))).filter(Boolean);
-               allOptions.sort();
+               const rawOptions = (Array.isArray(p.options) && p.options.length > 1)
+                 ? p.options
+                 : (p.distractors || []).concat(p.answer);
+               const allOptions = Array.from(new Set(rawOptions)).filter(Boolean);
+               if (!Array.isArray(p.options) || p.options.length <= 1) {
+                 allOptions.sort();
+               }
                const translatedPrompt = (currentLang === 'tr' && p.prompt_tr) ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:");
                const mcqExpl = (currentLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
+               const studyKey = 'study_' + (topic ? topic.id : 'unknown') + '_' + pIdx;
+               const savedAnswer = _answeredQuestionsState[studyKey];
+
+               let restoredExplBox = '';
+               if (savedAnswer && (mcqExpl || savedAnswer.explanation)) {
+                 const explToUse = mcqExpl || savedAnswer.explanation;
+                 const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
+                 const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explToUse) || explToUse.includes('doğru') || explToUse.includes('çünkü') || explToUse.includes('ifade'));
+                 const translatedExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explToUse : (typeof translateEducationalText === 'function' ? translateEducationalText(explToUse) : explToUse)) : explToUse;
+                 restoredExplBox = `<div class="study-explanation-box" style="margin-top:20px; padding:16px 20px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid var(--border); font-size:15px; line-height:1.6; white-space:pre-wrap; color:var(--text-primary);"><div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div>${fixDiacritics(translatedExplanation)}</div>`;
+               }
+
                html += `<div style="margin-top:${html ? '24px' : '0'}; background:var(--bg-input); padding:24px; border-radius:12px; border:1px solid var(--border);">
                  <div dir="auto" style="font-size:16px; font-weight:700; margin-bottom:16px; color:var(--text-primary); line-height:1.5;">${fixDiacritics(translatedPrompt)}</div>
                  <div style="display:flex; flex-direction:column; gap:10px;">
-                   ${allOptions.map(opt => `
-                     <button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)})">${fixDiacritics(safeStr(opt))}</button>
-                   `).join('')}
+                   ${allOptions.map(opt => {
+                     if (savedAnswer) {
+                       const isPicked = (opt === savedAnswer.selected);
+                       const isTargetCorrect = (opt === savedAnswer.correct);
+                       let btnStyle = "justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px; opacity:0.75;";
+                       let badgeIcon = "";
+                       if (isPicked && savedAnswer.isCorrect) {
+                         btnStyle += " background:rgba(34, 197, 94, 0.2); border-color:#22c55e; opacity:1;";
+                         badgeIcon = ' ' + SVG_CHECK;
+                       } else if (isPicked && !savedAnswer.isCorrect) {
+                         btnStyle += " background:rgba(239, 68, 68, 0.2); border-color:#ef4444; opacity:1;";
+                         badgeIcon = ' ' + SVG_CROSS;
+                       } else if (isTargetCorrect && !savedAnswer.isCorrect) {
+                         btnStyle += " background:rgba(34, 197, 129, 0.15); border-color:#10b981; opacity:1;";
+                       }
+                       return `<button class="btn btn-outline" disabled data-opt="${esc(opt)}" style="${btnStyle}">${fixDiacritics(safeStr(opt))}${badgeIcon}</button>`;
+                     }
+                     return `<button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)}, '${studyKey}')">${fixDiacritics(safeStr(opt))}</button>`;
+                   }).join('')}
                  </div>
+                 ${restoredExplBox}
                </div>`;
             }
             return html || `<div style="text-align:center; padding:40px; color:var(--text-muted);">No detailed material provided for this page.</div>`;
@@ -10844,15 +11723,36 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 }
 
 
-function checkStudyMCQ(btn, selected, correct, explanation) {
+function checkStudyMCQ(btn, selected, correct, explanation, pageKey) {
     const parent = btn.parentElement;
     const buttons = parent.querySelectorAll('button');
     buttons.forEach(b => {
         b.disabled = true;
-        b.style.opacity = '0.7';
+        b.style.opacity = '0.75';
     });
 
-    if (selected === correct) {
+    const isCorrect = (selected === correct);
+    if (pageKey) {
+      _answeredQuestionsState[pageKey] = {
+        type: 'study_mcq',
+        selected,
+        correct,
+        explanation,
+        isCorrect
+      };
+    } else {
+      const tId = localStorage.getItem('aula_last_topic') || 'unknown';
+      const pIdx = localStorage.getItem('aula_last_page') || '0';
+      _answeredQuestionsState[`study_${tId}_${pIdx}`] = {
+        type: 'study_mcq',
+        selected,
+        correct,
+        explanation,
+        isCorrect
+      };
+    }
+
+    if (isCorrect) {
         btn.style.background = 'rgba(34, 197, 94, 0.2)';
         btn.style.borderColor = '#22c55e';
         btn.style.opacity = '1';
@@ -10875,6 +11775,7 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
     
     if (explanation) {
         const expDiv = document.createElement('div');
+        expDiv.className = 'study-explanation-box';
         expDiv.style.marginTop = '20px';
         expDiv.style.padding = '16px 20px';
         expDiv.style.background = 'rgba(255,255,255,0.04)';
@@ -10884,9 +11785,10 @@ function checkStudyMCQ(btn, selected, correct, explanation) {
         expDiv.style.lineHeight = '1.6';
         expDiv.style.whiteSpace = 'pre-wrap';
         expDiv.style.color = 'var(--text-primary)';
+        const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
         const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explanation) || explanation.includes('doğru') || explanation.includes('çünkü') || explanation.includes('ifade'));
-        const translatedExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explanation : translateEducationalText(explanation)) : explanation;
-        expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${t('Explanation') || 'Explanation'}</span></div>${fixDiacritics(translatedExplanation)}`;
+        const translatedExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explanation : (typeof translateEducationalText === 'function' ? translateEducationalText(explanation) : explanation)) : explanation;
+        expDiv.innerHTML = `<div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div>${fixDiacritics(translatedExplanation)}`;
         (parent.parentElement || parent).appendChild(expDiv);
     }
 }
@@ -10943,10 +11845,7 @@ function renderStudentPortal() {
         </div>
         <div class="classroom-card-footer">
           <div class="classroom-code">#${enr.course_code}</div>
-          <div style="display:flex; gap:8px; align-items:center">
-             <button class="btn btn-sm" onclick="event.stopPropagation(); leaveClassroom('${enr.course_id}', ${escJS(enr.course_name)})" style="background:#ff3b30; color:white; border:none; font-size:11px; padding:4px 12px; border-radius:6px; opacity:1; font-weight:700; box-shadow: 0 2px 8px rgba(255,59,48,0.3);" data-i18n="student.leave">${t('student.leave')}</button>
-             <div class="classroom-arrow">→</div>
-          </div>
+          <div class="classroom-arrow">→</div>
         </div>
       </div>
     </div>
@@ -11104,6 +12003,7 @@ async function leaveClassroom(courseId, courseName) {
 }
 
 async function adminHardReset() {
+  if (!currentUser || currentUser.email !== 'atunca96@gmail.com') return;
   const email = currentUser ? currentUser.email : '';
   if (!email) return;
 
@@ -11134,104 +12034,116 @@ async function adminHardReset() {
 
 // ── Admin: All Students Panel ──
 
+let _lastAdminStudentsData = null;
+
+function renderAdminStudentPanelSync(students) {
+  const panel = document.getElementById('admin-students-panel');
+  if (!panel || !students) return;
+  panel.classList.remove('hidden');
+
+  const lang = currentLang || localStorage.getItem('aula_lang') || 'tr';
+  const stateSignature = (students || []).map(s => `${s.id}:${s.is_active}:${s.status}:${s.course_count}:${s.total_responses}`).join('|') + lang;
+  if (panel.dataset.hash === stateSignature) return; // Skip re-render if nothing changed
+  panel.dataset.hash = stateSignature;
+
+  if (students.length === 0) {
+    panel.innerHTML = `
+      <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')}</h3>
+        </div>
+        <p style="color:var(--text-muted); text-align:center; padding:20px;">${t('admin.no_students')}</p>
+      </div>`;
+    return;
+  }
+
+  const rows = students.map(s => {
+    const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
+    const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
+
+    let isOnline = false;
+    if (s.is_active !== undefined) {
+      isOnline = Boolean(s.is_active);
+    } else if (s.last_seen) {
+      const lastSeen = new Date(s.last_seen.replace(' ', 'T') + 'Z').getTime();
+      const now = new Date().getTime();
+      if (now - lastSeen < 12 * 1000) isOnline = true;
+    }
+
+    const statusBadge = isOnline 
+      ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="width:6px; height:6px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 8px #22c55e;"></span>${t('admin.active')}</span>`
+      : (s.status === 'pending'
+         ? `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`
+         : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.inactive')}</span>`);
+
+    const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
+
+    const removeBtn = !isPermanent
+      ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>`
+      : '';
+
+    return `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
+        <td style="padding:12px 16px; color:var(--text-muted); font-family:monospace; font-size:13px;">${esc(schoolNum)}</td>
+        <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(enrollmentList)}</td>
+        <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
+        <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
+        <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
+          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
+          <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
+          ${removeBtn}
+        </td>
+      </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-sm btn-primary" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminOpenCreateStudentModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>${t('admin.add_student')}</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
+        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.03); border-bottom:2px solid var(--border);">
+              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_name')}</th>
+              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_id')}</th>
+              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.enrolled_in')}</th>
+              <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.responses')}</th>
+              <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.status')}</th>
+              <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.action')}</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 async function loadAdminStudentPanel(isRefresh = false) {
   const panel = document.getElementById('admin-students-panel');
   if (!panel) return;
   panel.classList.remove('hidden');
-  
-  // Skip loading spinner if this is a background refresh or if already loaded
-  if (!isRefresh && !panel.innerHTML.trim()) {
+
+  // Immediately render cached data without network lag
+  if (_lastAdminStudentsData) {
+    renderAdminStudentPanelSync(_lastAdminStudentsData);
+  } else if (!isRefresh && !panel.innerHTML.trim()) {
     panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${t('loading')}</div>`;
   }
-  
+
   try {
     const students = await api('/admin/all-students');
-    const currentLang = localStorage.getItem('aula_lang') || 'en';
-    const stateSignature = (students || []).map(s => `${s.id}:${s.is_active}:${s.status}:${s.course_count}:${s.total_responses}`).join('|') + currentLang;
-    if (panel.dataset.hash === stateSignature) return; // Skip re-render if nothing changed
-    panel.dataset.hash = stateSignature;
-
-    if (!students || students.length === 0) {
-      panel.innerHTML = `
-        <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')}</h3>
-          </div>
-          <p style="color:var(--text-muted); text-align:center; padding:20px;">${t('admin.no_students')}</p>
-        </div>`;
-      return;
-    }
-
-    const rows = students.map(s => {
-      const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : s.email;
-      const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
-      
-      // Real-time Online Status Logic (server calculated with UTC precision)
-      let isOnline = false;
-      if (s.is_active !== undefined) {
-        isOnline = Boolean(s.is_active);
-      } else if (s.last_seen) {
-        const lastSeen = new Date(s.last_seen.replace(' ', 'T') + 'Z').getTime();
-        const now = new Date().getTime();
-        if (now - lastSeen < 12 * 1000) isOnline = true;
-      }
-
-      const statusBadge = isOnline 
-        ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="width:6px; height:6px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 8px #22c55e;"></span>${t('admin.active')}</span>`
-        : (s.status === 'pending'
-           ? `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`
-           : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.inactive')}</span>`);
-      
-      // Prettify comma-separated list from SQL
-      const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
-      
-      const removeBtn = !isPermanent
-        ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>`
-        : '';
-      
-      return `
-        <tr style="border-bottom:1px solid var(--border);">
-          <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
-          <td style="padding:12px 16px; color:var(--text-muted); font-family:monospace; font-size:13px;">${esc(schoolNum)}</td>
-          <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(enrollmentList)}</td>
-          <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
-          <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
-          <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
-            <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
-            <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
-            ${removeBtn}
-          </td>
-        </tr>`;
-    }).join('');
-
-    panel.innerHTML = `
-      <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-          <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-sm btn-primary" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminOpenCreateStudentModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>${t('admin.add_student')}</button>
-            <button class="btn btn-sm" style="background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3); padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminResetStudents()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>${t('admin.reset_all_students')}</button>
-          </div>
-        </div>
-        <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
-          <table style="width:100%; border-collapse:collapse; font-size:14px;">
-            <thead>
-              <tr style="background:rgba(255,255,255,0.03); border-bottom:2px solid var(--border);">
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_name')}</th>
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_id')}</th>
-                <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.enrolled_in')}</th>
-                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.responses')}</th>
-                <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.status')}</th>
-                <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.action')}</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
+    _lastAdminStudentsData = students;
+    renderAdminStudentPanelSync(students);
   } catch (e) {
     console.error("Admin Panel Error:", e);
-    panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${t('error')}</div>`;
+    if (!panel.innerHTML.trim()) {
+      panel.innerHTML = `<div style="padding:20px; color:var(--danger); text-align:center;">${t('error')}</div>`;
+    }
   }
 }
 
@@ -11380,105 +12292,9 @@ async function adminOpenCreateStudentModal() {
 
 let activeDictWord = "";
 
-// 3. Single-Click Trigger for Dictionary
+// 3. Single-Click Trigger for Dictionary (Disabled per user request)
 const handleDictTrigger = async (e) => {
-  const popup = document.getElementById('aula-dict-popup');
-  const isOpen = popup && popup.style.display === 'block';
-
-  // If popup is open and we tap OUTSIDE, just close it and stop
-  if (isOpen && !popup.contains(e.target)) {
-    // SCROLLBAR GUARD: Don't close if clicking a scrollbar
-    const isScrollbar = e.target.clientWidth > 0 && e.offsetX > e.target.clientWidth;
-    if (isScrollbar) return;
-
-    closeDict();
-    e.stopImmediatePropagation();
-    return;
-  }
-
-  // Guard: Ignore if already inside a popup or clicking specific ignore areas
-  if (e.target.closest('#aula-dict-popup') || e.target.closest('.english-translation') || e.target.closest('button') || e.target.closest('a')) {
-    return;
-  }
-
-  // Only trigger if we are inside a study area or the login hero showcase
-  const studyArea = e.target.closest('.study-card') || e.target.closest('#ai-book-content') || e.target.closest('#s-ai-book-content-area') || e.target.closest('.hero-minimal-showcase');
-  if (!studyArea) return;
-
-  // EXPLICIT TRIGGER ONLY: Only handle elements with .foreign-word class
-  let trigger = e.target.closest('.foreign-word');
-  if (!trigger) return;
-
-  let word = trigger.innerText.trim()
-    .replace(/^["«"„]|["»""]$/g, '').trim(); // strip surrounding quotes
-
-  // If the .foreign-word element wraps a full sentence, extract the specific word at click point
-  const wordCount = word.split(/\s+/).length;
-  if (wordCount > 3 && (document.caretRangeFromPoint || document.caretPositionFromPoint)) {
-    let range;
-    if (document.caretRangeFromPoint) {
-      range = document.caretRangeFromPoint(e.clientX, e.clientY);
-    } else {
-      const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
-      if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); }
-    }
-    if (range && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
-      const text = range.startContainer.textContent || '';
-      const offset = range.startOffset;
-      // Walk backwards to word start
-      let start = offset;
-      while (start > 0 && !/[\s"«"„»""]/.test(text[start - 1])) start--;
-      // Walk forwards to word end
-      let end = offset;
-      while (end < text.length && !/[\s"«"„»"",\.\!\?;:]/.test(text[end])) end++;
-      const clickedToken = text.slice(start, end).trim();
-      if (clickedToken && clickedToken.length > 1) {
-        word = clickedToken;
-        // Highlight only by wrapping the token temporarily (don't highlight the whole container)
-        // Use a temporary <mark> around the token in the text node
-        try {
-          const markRange = document.createRange();
-          markRange.setStart(range.startContainer, start);
-          markRange.setEnd(range.startContainer, end);
-          const mark = document.createElement('mark');
-          mark.style.cssText = 'background:rgba(99,102,241,0.35);color:inherit;border-radius:3px;';
-          markRange.surroundContents(mark);
-          setTimeout(() => { if (mark.parentNode) { mark.outerHTML = mark.innerHTML; } }, 1500);
-        } catch (_) {
-          // If surroundContents fails (cross-node), fall back to container highlight
-          trigger.classList.add('tap-highlight');
-          setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
-        }
-      } else {
-        trigger.classList.add('tap-highlight');
-        setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
-      }
-    } else {
-      trigger.classList.add('tap-highlight');
-      setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
-    }
-  } else {
-    // Short phrase or single word — highlight the whole element as before
-    trigger.classList.add('tap-highlight');
-    setTimeout(() => trigger.classList.remove('tap-highlight'), 1500);
-  }
-
-  // Smart Phrase Expansion (e.g., teşekkür → teşekkür ederim)
-  if (word.toLowerCase() === 'teşekkür' || word.toLowerCase() === 'ederim') {
-    const fullText = trigger.innerText || trigger.parentElement.innerText || "";
-    if (fullText.toLowerCase().includes('teşekkür ederim')) {
-      word = "teşekkür ederim";
-    }
-  }
-
-  if (word && word.length > 1 && word.length < 100) {
-    // Haptic Feedback (Vibration)
-    if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate(10);
-    }
-    
-    showDict(word, e);
-  }
+  return; // Tap to translate disabled
 };
 
 window.addEventListener('click', handleDictTrigger);
@@ -11699,7 +12515,7 @@ async function askAiAboutWord() {
       meanings.innerHTML = `
                 <div style="background:var(--accent-glow); padding:16px; border-radius:var(--radius); border:1px solid var(--border);">
                     <div style="font-size:11px; font-weight:800; color:var(--accent); text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                        <span>Explanation</span>
+                        <span>${currentLang === 'tr' ? 'Açıklama' : 'Explanation'}</span>
                     </div>
                     <div style="font-size:14px; color:var(--text-primary); line-height:1.5; margin-bottom:12px;">${res.explanation}</div>
                     

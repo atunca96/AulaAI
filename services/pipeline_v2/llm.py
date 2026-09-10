@@ -14,13 +14,15 @@ logger = logging.getLogger(__name__)
 if os.path.exists(".env"):
     with open(".env", "r") as f:
         for line in f:
-            if "=" in line:
-                k, v = line.strip().split("=", 1)
-                os.environ[k] = v
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip()
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-CHEAP_MODEL = os.getenv("CHEAP_MODEL", "openai/gpt-4o-mini")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "openai/gpt-4o-mini")
+CHEAP_MODEL = os.getenv("CHEAP_MODEL", "openai/gpt-oss-120b")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "qwen/qwen3.8-27b")
 
 CACHE_NAMESPACE = "pipeline_v2_v10"
 
@@ -31,18 +33,10 @@ def get_cache_key(prompt: str) -> str:
     return hashlib.md5((CACHE_NAMESPACE + prompt).encode('utf-8')).hexdigest()
 
 def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
-    if not OPENROUTER_API_KEY:
-        logger.error("OPENROUTER_API_KEY is not set!")
+    if not GROQ_API_KEY and not OPENROUTER_API_KEY:
+        logger.error("Neither GROQ_API_KEY nor OPENROUTER_API_KEY is set!")
         return "[]"
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://aulaai.com",
-        "X-Title": "AulaAI"
-    }
-    
     prompt_str = json.dumps(messages)
     cache_key = get_cache_key(prompt_str)
     
@@ -54,11 +48,47 @@ def call_llm(messages: List[Dict[str, str]], retries: int = 2) -> str:
     
     for attempt, model in enumerate(models_to_try):
         try:
-            payload = {
-                "model": model,
-                "max_tokens": 16000,
-                "messages": messages
-            }
+            is_groq = bool(
+                GROQ_API_KEY and (
+                    str(model).startswith("openai/gpt-oss") or
+                    str(model).startswith("qwen/") or
+                    "groq" in str(model).lower() or
+                    not OPENROUTER_API_KEY
+                )
+            )
+            if is_groq:
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0"
+                }
+                payload = {
+                    "model": model,
+                    "max_tokens": 8000,
+                    "messages": messages,
+                    "response_format": {"type": "json_object"}
+                }
+            else:
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://aulaai.com",
+                    "X-Title": "AulaAI"
+                }
+                payload = {
+                    "model": model,
+                    "max_tokens": 16000,
+                    "messages": messages
+                }
+                if any(x in str(model).lower() for x in ["luna", "mercury", "deepseek", "stepfun", "step-"]):
+                    payload["reasoning"] = {"effort": "none"}
+                if "google" in str(model).lower() or "gemini" in str(model).lower():
+                    payload["provider"] = {
+                        "order": ["google-ai-studio"],
+                        "allow_fallbacks": False
+                    }
             
             req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
             with urllib.request.urlopen(req, timeout=90) as response:

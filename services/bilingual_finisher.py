@@ -2,7 +2,8 @@ import os
 import json
 import re
 import time
-import requests
+import urllib.request
+import urllib.error
 import logging
 
 logger = logging.getLogger(__name__)
@@ -42,45 +43,10 @@ def _save_cache(cache):
         logger.error(f"Failed to save bilingual cache: {e}")
 
 def _call_openrouter(prompt):
-    key = os.getenv("OPENROUTER_API_KEY", "")
-    if not key:
-        # Try reading .env
-        env_file = os.path.join(ROOT_DIR, ".env")
-        if os.path.exists(env_file):
-            for line in open(env_file):
-                if line.startswith("OPENROUTER_API_KEY="):
-                    key = line.strip().split("=", 1)[1].strip()
-    if not key:
-        print("[BILINGUAL] No OPENROUTER_API_KEY found!")
-        return {}
-
-    for attempt in range(3):
-        try:
-            r = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={
-                    "model": "openai/gpt-4o-mini",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                    "temperature": 0.1
-                },
-                timeout=45
-            )
-            if r.status_code == 200:
-                resp = r.json()
-                content = resp["choices"][0]["message"]["content"].strip()
-                if content.startswith("```json"): content = content[7:]
-                if content.startswith("```"): content = content[3:]
-                if content.endswith("```"): content = content[:-3]
-                parsed = json.loads(content.strip())
-                return parsed
-            else:
-                print(f"[BILINGUAL] OpenRouter error {r.status_code}: {r.text[:200]}")
-        except Exception as e:
-            print(f"[BILINGUAL] Translation batch attempt {attempt+1} failed: {e}")
-            time.sleep(1)
-    return {}
+    from services.ai_engine import _call_ai
+    model = os.getenv("MODEL_TRANSLATOR", os.getenv("MODEL_STRUCTURAL", "openai/gpt-oss-120b"))
+    res = _call_ai([{"role": "user", "content": prompt}], model=model, max_tokens=2500, temperature=0.1, json_mode=True)
+    return res if isinstance(res, dict) and "error_details" not in res else {}
 
 def batch_translate_strings(strings, target_lang="tr"):
     """Translates a list of strings to target_lang, using cache and OpenRouter."""
@@ -114,7 +80,7 @@ def batch_translate_strings(strings, target_lang="tr"):
             needed.append(s_clean)
 
     # Translate missing strings in parallel batches
-    batch_size = 35
+    batch_size = 12
     chunks = [needed[i:i+batch_size] for i in range(0, len(needed), batch_size)]
     total_chunks = len(chunks)
     dest_name = "Turkish" if target_lang == "tr" else "English"
@@ -126,14 +92,23 @@ def batch_translate_strings(strings, target_lang="tr"):
 
     def translate_chunk(chunk_idx, chunk):
         indexed_input = {str(idx): chunk[idx] for idx in range(len(chunk))}
-        prompt = f"""You are a bilingual language education translator.
-Translate each educational string in the JSON object into natural, CEFR-aligned {dest_name}.
+        prompt = f"""You are a master bilingual language educator and expert translator.
+Translate each educational string in the JSON object into completely natural, idiomatic, CEFR-aligned {dest_name}.
 
 STRICT RULES:
+- NATURAL, REAL-LIFE VOICE: The translations must read like a modern, professionally published language textbook—NEVER like cold, literal machine translation. Avoid stiff calques.
 - Keep ALL foreign target terms, Spanish/Greek words, and phrases in single quotes EXACTLY as they are. E.g. 'lavarse', 'por vs para', 'el alfabeto'.
-- Translate explanations, instructions, and meanings clearly and naturally into {dest_name}.
+- Translate explanations, instructions, example sentences, and meanings naturally, warmly, and clearly into {dest_name}.
 - You MUST return a JSON object with the EXACT SAME string keys ("0", "1", ...) mapping each key to its {dest_name} translation string.
-
+{"" if dest_name != "Turkish" else """
+CRITICAL TURKISH ANTI-PATTERNS — STRICTLY FORBIDDEN:
+A. NO parenthetical glosses: NEVER write "(Meksika'dan)", "(otuz bir güne sahiptir)" or any similar parenthetical explanation inside a translation. Just translate naturally.
+B. NO gender hacks: Turkish has NO grammatical gender. NEVER write "kadındır" or "erkektir" to mark a subject's gender in a nationality/identity context. Just use the nationality adjective directly: ✅ "O Meksikalıdır." not ❌ "O bir Meksikalı kadındır."
+C. NO tense calques for ordering: When Spanish 'quería', French 'je voudrais', German 'ich hätte gern' appear in an ordering/polite-request context, translate using natural Turkish speech-act formulas: ✅ "alabilir miyim?" / "rica ediyorum" — NOT ❌ "istiyordum" / "rica ediyordum".
+D. NO 'sahiptir'/'sahibim' for physical possession: Use 'var' structures instead. ✅ "güzel gözleri var" / "yeşil gözlüdür" — NOT ❌ "güzel gözlere sahiptir".
+E. NO 'çok' with ungradable adjectives: ✅ "devasa", "muazzam" — NOT ❌ "çok devasa", "çok muazzam".
+F. NO unnatural articles before food items in ordering: ✅ "kızarmış ekmek" — NOT ❌ "bir kızarmış ekmek".
+"""}
 Input:
 {json.dumps(indexed_input, ensure_ascii=False, indent=2)}
 """
@@ -164,7 +139,7 @@ Input:
         print(f"[BILINGUAL] Batch {chunk_idx+1}/{total_chunks} complete ({len(chunk_res)} translated)", flush=True)
         return chunk_res
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         futures = [executor.submit(translate_chunk, i, c) for i, c in enumerate(chunks)]
         for f in as_completed(futures):
             try:
@@ -187,6 +162,8 @@ def rebuild_bilingual_bundle():
     en_tr_map = {}
     for k, v in en_tr.items():
         if k and v:
+            if k.strip().lower() == 'on':
+                continue
             en_tr_map[k.strip()] = v.strip()
             en_nobullet = re.sub(r'^[•\-\*\s]+', '', k.strip()).strip()
             tr_nobullet = re.sub(r'^[•\-\*\s]+', '', v.strip()).strip()
@@ -207,6 +184,7 @@ def rebuild_bilingual_bundle():
         if not k or not v: continue
         k_c, v_c = k.strip(), v.strip()
         if (len(k_c) <= 1 and k_c != 'I') or (len(v_c) <= 1 and v_c != 'I'): continue
+        if k_c.lower() == 'on' and v_c.lower() == 'üzerinde': continue
         is_k_tr = bool(re.search(r'[çğıöşüÇĞİÖŞÜ\u011f\u011e\u0131\u0130\u00f6\u00d6\u015f\u015e\u00fc\u00dc\u00e7\u00c7]', k_c))
         if is_k_tr:
             vocab_tr_en[k_c] = v_c
@@ -229,6 +207,38 @@ def rebuild_bilingual_bundle():
     vocab_en_tr["I"] = "Ben"
     vocab_tr_en["Ben"] = "I"
     vocab_en_tr["I am"] = "(Ben) ...yim / ...yım"
+
+    # Cardinal numbers protection (never allow 'on' -> 'üzerinde' or 'diez' -> 'üzerinde')
+    cardinal_numbers = [
+        ("zero", "sıfır"), ("cero", "sıfır"),
+        ("one", "bir"), ("uno", "bir"),
+        ("two", "iki"), ("dos", "iki"),
+        ("three", "üç"), ("tres", "üç"),
+        ("four", "dört"), ("cuatro", "dört"),
+        ("five", "beş"), ("cinco", "beş"),
+        ("six", "altı"), ("seis", "altı"),
+        ("seven", "yedi"), ("siete", "yedi"),
+        ("eight", "sekiz"), ("ocho", "sekiz"),
+        ("nine", "dokuz"), ("nueve", "dokuz"),
+        ("ten", "on"), ("diez", "on"), ("on", "on"),
+        ("eleven", "on bir"), ("once", "on bir"),
+        ("twelve", "on iki"), ("doce", "on iki"),
+        ("thirteen", "on üç"), ("trece", "on üç"),
+        ("fourteen", "on dört"), ("catorce", "on dört"),
+        ("fifteen", "on beş"), ("quince", "on beş"),
+        ("sixteen", "on altı"), ("dieciséis", "on altı"),
+        ("seventeen", "on yedi"), ("diecisiete", "on yedi"),
+        ("eighteen", "on sekiz"), ("dieciocho", "on sekiz"),
+        ("nineteen", "on dokuz"), ("diecinueve", "on dokuz"),
+        ("twenty", "yirmi"), ("veinte", "yirmi")
+    ]
+    for en_src, tr_dst in cardinal_numbers:
+        vocab_en_tr[en_src] = tr_dst
+        vocab_en_tr[en_src.lower()] = tr_dst
+        vocab_en_tr[en_src.capitalize()] = tr_dst.capitalize()
+        vocab_tr_en[tr_dst] = en_src
+        vocab_tr_en[tr_dst.lower()] = en_src
+        vocab_tr_en[tr_dst.capitalize()] = en_src.capitalize()
 
     # Page titles pairs
     page_titles = [

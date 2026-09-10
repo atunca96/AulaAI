@@ -1,17 +1,23 @@
 import logging
-import pytesseract
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
-from pdf2image import convert_from_path
 
 logger = logging.getLogger(__name__)
 
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    _HAS_OCR_DEPS = True
+except Exception as e:
+    _HAS_OCR_DEPS = False
+    logger.warning(f"OCR dependencies unavailable: {e}")
+
 def check_ocr_available() -> bool:
+    if not _HAS_OCR_DEPS:
+        return False
     try:
         pytesseract.get_tesseract_version()
         return True
-    except pytesseract.TesseractNotFoundError:
-        return False
     except Exception:
         return False
 
