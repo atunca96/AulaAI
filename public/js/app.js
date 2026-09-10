@@ -8883,7 +8883,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
                 }
               }
             }
-            _lastActivityData = { activities: data.results, topic: currentTopic };
+            _lastActivityData = { activities: data.results, topic: currentTopic, topicId: curTid };
             const isStudent = currentUser && currentUser.role === 'student';
             const displayTitle = currentTopic ? (getLocalizedCurriculumTitle(currentTopic, currentLang) || currentTopic.title) : title;
             const header = `<div class="page-header" style="margin-top:24px; display:flex; justify-content:space-between; align-items:center;"><h2>${displayTitle}</h2><button class="btn btn-outline btn-sm" onclick="${isStudent ? 'cancelPractice()' : `this.closest('#${targetId}').classList.add('hidden')`}">${t('close')}</button></div>`;
@@ -9074,10 +9074,28 @@ async function launchActivity() {
   const activeCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
   try {
+    let existingQuestions = [];
+    if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
+      const lastTid = _lastActivityData.topicId || (_lastActivityData.topic && _lastActivityData.topic.id);
+      if (!lastTid || String(lastTid) === String(topicId)) {
+        existingQuestions = _lastActivityData.activities.map(a => ({
+          prompt: a.prompt || '',
+          answer: a.answer || ''
+        })).filter(q => q.prompt);
+      }
+    }
+
     // 1. Kick off the background task
     const res = await api('/activity/start', {
       method: 'POST',
-      body: { topic_id: topicId, course_id: activeCourseId, count: 10, ui_lang: currentLang, user_id: currentUser ? currentUser.id : null }
+      body: { 
+        topic_id: topicId, 
+        course_id: activeCourseId, 
+        count: 10, 
+        ui_lang: currentLang, 
+        user_id: currentUser ? currentUser.id : null,
+        existing_questions: existingQuestions
+      }
     });
     // 2. Start polling AFTER the task is successfully initiated
     startActivityPolling('activity-preview', (t('Content Map') || 'Content Map'), res ? res.task_id : null, topicId);
@@ -10435,6 +10453,17 @@ async function startPractice(tid, title) {
   }
 
   try {
+    let existingQuestions = [];
+    if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
+      const lastTid = _lastActivityData.topicId || (_lastActivityData.topic && _lastActivityData.topic.id);
+      if (!lastTid || String(lastTid) === String(tid)) {
+        existingQuestions = _lastActivityData.activities.map(a => ({
+          prompt: a.prompt || '',
+          answer: a.answer || ''
+        })).filter(q => q.prompt);
+      }
+    }
+
     // 1. Kick off the background task
     const res = await api('/activity/start', {
       method: 'POST',
@@ -10443,7 +10472,8 @@ async function startPractice(tid, title) {
         course_id: courseId, 
         count: 10, 
         ui_lang: currentLang,
-        user_id: currentUser ? currentUser.id : null
+        user_id: currentUser ? currentUser.id : null,
+        existing_questions: existingQuestions
       }
     });
     if (res && res.error) throw new Error(res.error);

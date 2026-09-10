@@ -334,8 +334,26 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
  
     forbidden_clause = ""
     if existing_questions and len(existing_questions) > 0:
-        qs_list = "\n".join([f"- Answer: '{q.get('answer', '')}' (Prompt: '{q.get('prompt', '')[:40]}...')" for q in existing_questions])
-        forbidden_clause = f"\nEXISTING QUESTIONS TO AVOID (DO NOT TEST THESE EXACT CONCEPTS):\n{qs_list}\n"
+        qs_list = "\n".join([
+            f"- Prompt: '{q.get('prompt', '')}' | Forbidden Answer: '{q.get('answer', '')}'"
+            for q in existing_questions if isinstance(q, dict) and (q.get('prompt') or q.get('answer'))
+        ])
+        if qs_list.strip():
+            forbidden_clause = f"""
+STRICT DIVERSITY & ANTI-REPETITION MANDATE (ABSOLUTE):
+The user is regenerating activities. You MUST generate COMPLETELY NEW, DIVERSE, and NON-REPEATING questions.
+DO NOT repeat ANY of the following previous prompts, question concepts, or target answers:
+{qs_list}
+Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammatical points, or DIFFERENT communicative scenarios from the textbook source!"""
+
+    variety_focuses = [
+        "Focus on real-world communicative dialogues and practical situational exchanges.",
+        "Focus on contextual sentence completion and subtle nuance differentiation.",
+        "Focus on everyday scenarios, social interactions, and practical linguistic tasks.",
+        "Focus on natural conversational idioms, functional expressions, and authentic responses.",
+        "Focus on communicative problem-solving, situational reasoning, and conversational etiquette."
+    ]
+    selected_variety_focus = py_random.choice(variety_focuses)
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
@@ -392,6 +410,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     {ref_data}
     {forbidden_clause}
     
+    PEDAGOGICAL EMPHASIS: {selected_variety_focus}
     VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question.
     MIXED CURRICULUM RULE: If topic_type is 'mixed_curriculum', ensure questions are balanced across all provided topics.
     
@@ -422,7 +441,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             res = None
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
-            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=0.4, json_mode=True, allow_fallback=True)
+            target_temp = 0.85 if (existing_questions or not is_quiz) else 0.7
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=2000, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []
         if isinstance(res, list):
@@ -538,6 +558,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 break
         
         # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
+        existing_prompts = set(q.get("prompt", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("prompt"))
+        existing_answers = set(q.get("answer", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("answer"))
+
         if len(final) < c and isinstance(topic_content, dict):
             # Helper for fallback target language questions
             is_esp = any(s in language.lower() for s in ["spanish", "español", "ispanyolca"])
@@ -557,10 +580,17 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 return f"Which term corresponds to '{meaning_text}'?"
 
             # 1. Pull pre-authored MCQs from topic content pages
-            for page in topic_content.get("pages", []):
+            pages = list(topic_content.get("pages", []))
+            py_random.shuffle(pages)
+            for page in pages:
                 if len(final) >= c: break
                 if page.get("type") == "mcq" and page.get("prompt") and page.get("answer"):
                     prompt_txt = page.get("prompt")
+                    ans_txt = page.get("answer")
+                    if existing_prompts and prompt_txt in existing_prompts:
+                        continue
+                    if existing_answers and ans_txt in existing_answers:
+                        continue
                     if not any(f.get("prompt") == prompt_txt for f in final):
                         opts = list(page.get("options", []))
                         if not opts:
@@ -590,6 +620,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         if isinstance(it, dict) and it.get("term"):
                             vocab_pool.append(it)
                 
+                py_random.shuffle(vocab_pool)
                 if len(vocab_pool) >= 4:
                     for it in vocab_pool:
                         if len(final) >= c: break
@@ -598,9 +629,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         trans_en = it.get("translation_en") or it.get("translation", "")
                         trans_tr = it.get("translation_tr") or it.get("translation", "")
                         if not term or not trans: continue
+                        if existing_answers and term in existing_answers: continue
                         if any(f.get("answer") == term for f in final): continue
                         
-                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term]
+                        other_terms = [v.get("term").strip() for v in vocab_pool if v.get("term") and v.get("term").strip() != term and v.get("term").strip() != term]
                         if len(other_terms) >= 3:
                             distractors = py_random.sample(other_terms, 3)
                             prompt_str = _make_fallback_prompt(trans)
@@ -641,8 +673,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         except Exception: pass
                     
                     if len(db_vocab) >= 4:
+                        py_random.shuffle(db_vocab)
                         for term, trans, trans_en, trans_tr in db_vocab:
                             if len(final) >= c: break
+                            if existing_answers and term in existing_answers: continue
                             if any(f.get("answer") == term for f in final): continue
                             pool_other = [v[0] for v in db_vocab if v[0] != term]
                             if len(pool_other) >= 3:

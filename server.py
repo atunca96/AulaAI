@@ -2149,6 +2149,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             user_id = post_data.get("user_id") or self._get_user_id() or "anonymous"
             ui_lang = post_data.get("ui_lang", "en")
             count = int(post_data.get("count", 10))
+            existing_questions = post_data.get("existing_questions") or []
             
             if not topic_id or not course_id:
                 return self._send_error("Missing info")
@@ -2169,7 +2170,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Start background thread
             import threading
             file_log(f"Starting background generation task {task_id} for course {course_id}, user {user_id}, topic {topic_id}")
-            thread = threading.Thread(target=self._bg_generate_activities, args=(task_id, course_id, topic_id, count, ui_lang, user_id))
+            thread = threading.Thread(target=self._bg_generate_activities, args=(task_id, course_id, topic_id, count, ui_lang, user_id, existing_questions))
             thread.daemon = True
             thread.start()
             
@@ -2180,7 +2181,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send_error(str(e))
 
-    def _bg_generate_activities(self, task_id, course_id, topic_id, count, ui_lang="en", user_id=None):
+    def _bg_generate_activities(self, task_id, course_id, topic_id, count, ui_lang="en", user_id=None, existing_questions=None):
         import re
         import random as py_random
         import time
@@ -2231,11 +2232,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             threading.Thread(target=ticker_worker, daemon=True).start()
             update_prog(15)
 
+            existing_prompts = set(q.get("prompt", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("prompt"))
+            existing_answers = set(q.get("answer", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("answer"))
+
             raw_activities = []
             try:
                 from services.ai_engine import ai_generate_activity_batch
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    fut = executor.submit(ai_generate_activity_batch, topic["title"], topic_type, content, language, 10, topic.get("difficulty", "A1"), None, False, None, material_language)
+                    fut = executor.submit(ai_generate_activity_batch, topic["title"], topic_type, content, language, 10, topic.get("difficulty", "A1"), existing_questions, False, None, material_language)
                     try:
                         batch = fut.result(timeout=20.0)
                         if batch: raw_activities = list(batch)
@@ -2246,10 +2250,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             
             # Ironclad safety net: if raw_activities has fewer than count, fill from topic pages & items
             if len(raw_activities) < count and isinstance(content, dict):
-                for p in content.get("pages", []):
+                pages = list(content.get("pages", []))
+                py_random.shuffle(pages)
+                for p in pages:
                     if len(raw_activities) >= count: break
                     if p.get("type") == "mcq" and p.get("prompt") and p.get("answer"):
                         prompt_text = p.get("prompt_tr") if material_language == "tr" and p.get("prompt_tr") else p.get("prompt")
+                        if existing_prompts and prompt_text in existing_prompts:
+                            continue
                         if not any(a.get("prompt") == prompt_text for a in raw_activities):
                             opts = list(p.get("options", []))
                             if not opts:
@@ -2269,7 +2277,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if len(raw_activities) < count:
                 try:
                     from services.ai_engine import ai_generate_activity_batch
-                    fb_batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count, level=topic.get("difficulty", "A1"), model_override="none", material_language=material_language)
+                    fb_batch = ai_generate_activity_batch(topic["title"], topic_type, content, language, count=count, level=topic.get("difficulty", "A1"), existing_questions=existing_questions, model_override="none", material_language=material_language)
                     for item in (fb_batch or []):
                         if len(raw_activities) >= count: break
                         if not any(a.get("prompt") == item.get("prompt") for a in raw_activities):
