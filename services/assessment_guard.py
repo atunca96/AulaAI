@@ -2,7 +2,8 @@
 
 Filters paraphrased duplicates inside the same generated set and across prior
 questions, then requests only the missing replacements. The detector is
-conservative, Unicode-safe, and does not require embeddings or extra model calls.
+language/CEFR agnostic, Unicode-safe, and does not require embeddings or extra
+model calls.
 """
 
 import unicodedata
@@ -28,6 +29,13 @@ _GENERIC_WORDS = {
     "aile", "icin", "ile", "olan", "olarak", "sonra", "gore", "kendi",
 }
 
+_ANSWER_GLUE = {
+    # Common answer wrappers; content words remain intact.
+    "mi", "mis", "tu", "tus", "su", "sus", "el", "la", "los", "las", "un", "una",
+    "es", "son", "my", "your", "his", "her", "their", "the", "a", "an", "is", "are",
+    "benim", "senin", "onun", "bir", "bu", "o", "dir", "dır", "dur", "dür",
+}
+
 
 def _norm(text):
     """Normalize while preserving letters/digits from every Unicode script."""
@@ -40,17 +48,61 @@ def _norm(text):
     return " ".join("".join(chars).split())
 
 
-def _tokens(text):
+def _tokens(text, answer=False):
+    stop = _ANSWER_GLUE if answer else _GENERIC_WORDS
     return {
         token for token in _norm(text).split()
-        if len(token) >= 3 and token not in _GENERIC_WORDS
+        if len(token) >= 2 and token not in stop
     }
+
+
+def _compact(text):
+    return "".join(ch for ch in _norm(text) if not ch.isspace())
+
+
+def _char_ngrams(text, n=3):
+    """Script-agnostic fallback for Chinese/Japanese and other no-space text."""
+    compact = _compact(text)
+    if not compact:
+        return set()
+    if len(compact) <= n:
+        return {compact}
+    return {compact[i:i+n] for i in range(len(compact) - n + 1)}
 
 
 def _jaccard(a, b):
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
+
+
+def _containment(a, b):
+    if not a or not b:
+        return 0.0
+    return len(a & b) / min(len(a), len(b))
+
+
+def _semantic_overlap(text1, text2):
+    """Use word overlap when useful, otherwise Unicode character n-grams."""
+    t1, t2 = _tokens(text1), _tokens(text2)
+    if len(t1) >= 2 and len(t2) >= 2:
+        return max(_jaccard(t1, t2), 0.8 * _containment(t1, t2))
+    g1, g2 = _char_ngrams(text1), _char_ngrams(text2)
+    return max(_jaccard(g1, g2), 0.8 * _containment(g1, g2))
+
+
+def _answer_overlap(answer1, answer2):
+    a1, a2 = _norm(answer1), _norm(answer2)
+    if not a1 or not a2:
+        return 0.0
+    if a1 == a2:
+        return 1.0
+    t1, t2 = _tokens(a1, answer=True), _tokens(a2, answer=True)
+    if t1 and t2:
+        containment = _containment(t1, t2)
+        if containment:
+            return containment
+    return _containment(_char_ngrams(a1, 2), _char_ngrams(a2, 2))
 
 
 def _same_semantic_target(q1, q2):
@@ -64,21 +116,21 @@ def _same_semantic_target(q1, q2):
     if p1 == p2 or SequenceMatcher(None, p1, p2).ratio() >= 0.88:
         return True
 
-    t1, t2 = _tokens(p1), _tokens(p2)
-    overlap = _jaccard(t1, t2)
+    prompt_overlap = _semantic_overlap(p1, p2)
+    answer_overlap = _answer_overlap(a1, a2)
 
-    # Same target answer + meaningful lexical overlap catches paraphrases such as
-    # "hija de mi hermano" vs "tu hermano tiene una hija" without banning the
-    # same grammatical form in genuinely unrelated contexts.
-    if a1 and a1 == a2:
-        if overlap >= 0.26:
-            return True
-        if len(t1 & t2) >= 2:
-            return True
+    # Identical or wrapper-equivalent targets plus a meaningful scenario overlap.
+    # This catches e.g. "mi sobrino" / "es tu sobrino" without globally banning
+    # reuse of a grammatical form in genuinely different communicative contexts.
+    if answer_overlap >= 0.95 and prompt_overlap >= 0.20:
+        return True
 
-    # Different surface answers can still test the exact same relationship/rule.
-    # Require stronger prompt overlap in that case to stay conservative.
-    if overlap >= 0.58 and len(t1 & t2) >= 3:
+    # Strongly related target wording + stronger scenario overlap.
+    if answer_overlap >= 0.70 and prompt_overlap >= 0.34:
+        return True
+
+    # Different surface answers can still be the same exact question concept.
+    if prompt_overlap >= 0.62:
         return True
 
     return False
@@ -123,9 +175,8 @@ def install(ai_engine_module):
         accepted = dedupe_questions(first, prior=prior, limit=requested)
         rejected = max(0, len(first or []) - len(accepted))
 
-        # Only spend additional tokens if semantic filtering actually created a gap.
-        # Two small repair rounds are enough to fill normal 10-question assessments
-        # while avoiding an infinite generation loop if the source topic is too narrow.
+        # Spend extra tokens only when filtering creates a gap. Two bounded repair
+        # rounds avoid infinite loops when a source topic is inherently narrow.
         repair_round = 0
         seen_generated = [q for q in (first or []) if isinstance(q, dict)]
         while len(accepted) < requested and repair_round < 2:
