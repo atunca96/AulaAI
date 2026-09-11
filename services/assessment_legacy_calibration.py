@@ -150,9 +150,9 @@ def _candidate_count(guard, args, kwargs, requested):
 def _repair_count(requested, missing):
     if missing <= 0:
         return 0
-    # One compact repair only. A little headroom absorbs one bad/duplicate item without
-    # recreating the old refill cascade.
-    return min(max(2, missing + 2), max(4, min(8, requested)))
+    # This is the only LLM repair. Give it enough headroom to finish the set in one
+    # bounded pass instead of leaving 9/10 and triggering downstream refill chains.
+    return min(max(4, missing * 2 + 2), max(4, min(8, requested)))
 
 
 def _diversity_key(gate, question):
@@ -188,8 +188,10 @@ def install(ai_engine_module):
     from services import assessment_guard as guard
     from services import assessment_legacy_filter as gate
 
-    # This layer is the single LLM repair owner.
+    # Candidate calibration is the single LLM repair owner. Neither the semantic guard
+    # nor the final legacy gate may launch another provider refill.
     guard._MAX_REPAIR_ROUNDS = 0
+    gate._MAX_REFILL_ROUNDS = 0
 
     # Preserve only the objective operation through content_engine by encoding it inside
     # `why`, a field content_engine already carries. The final gate strips this marker
