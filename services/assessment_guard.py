@@ -1,30 +1,27 @@
-"""Lightweight semantic diversity guard for AI-generated assessments.
+"""Semantic/objective diversity guard for AI-generated assessments only.
 
-The guard is language/CEFR/topic agnostic. It keeps a broader local history for
-post-generation duplicate filtering, sends only a small recent window to the model,
-and grounds assessment generation in a compact read-only evidence pack extracted
-from the already-generated lesson content. Lesson/material generation is untouched.
+Language, CEFR and topic agnostic. Material generation is not involved.
 """
 
-import json
+import re
 import threading
 import unicodedata
 from difflib import SequenceMatcher
 
+_TOPIC_HISTORY = {}
+_HISTORY_LOCK = threading.Lock()
+_HISTORY_LIMIT = 80
+_MODEL_HISTORY_LIMIT = 16
+_MAX_REPAIR_ROUNDS = 1
+
 _GENERIC_WORDS = {
-    "que", "quien", "quienes", "cual", "cuales", "como", "cuando", "donde",
-    "esta", "este", "estas", "estos", "esa", "ese", "esas", "esos", "una", "uno",
-    "unos", "unas", "del", "las", "los", "por", "para", "con", "sin", "sobre",
-    "entre", "segun", "correcta", "correcto", "opcion", "frase", "completa",
-    "selecciona", "indica", "persona", "alguien", "amigo", "amiga", "dice",
-    "pregunta", "respuesta", "relacion", "parentesco", "familia", "familiar",
-    "what", "which", "who", "whom", "whose", "where", "when", "how", "the",
-    "this", "that", "these", "those", "your", "their", "with", "from", "into",
-    "correct", "answer", "option", "sentence", "complete", "choose", "select",
-    "person", "someone", "friend", "says", "question", "relationship", "family",
-    "hangi", "nedir", "kimdir", "nasil", "dogru", "cevap", "secenek", "cumle",
-    "tamamla", "sec", "kisi", "birisi", "arkadas", "diyor", "soru", "iliski",
-    "aile", "icin", "ile", "olan", "olarak", "sonra", "gore", "kendi",
+    "que", "quien", "cual", "como", "cuando", "donde", "esta", "este", "una", "uno",
+    "del", "las", "los", "por", "para", "con", "sin", "correcta", "correcto",
+    "opcion", "frase", "completa", "selecciona", "indica", "persona", "dice", "pregunta",
+    "what", "which", "who", "where", "when", "how", "the", "this", "that", "your",
+    "their", "with", "from", "correct", "answer", "option", "sentence", "complete",
+    "choose", "select", "person", "says", "question", "hangi", "nedir", "kimdir",
+    "nasil", "dogru", "cevap", "secenek", "cumle", "tamamla", "sec", "kisi", "soru",
 }
 
 _ANSWER_GLUE = {
@@ -33,19 +30,14 @@ _ANSWER_GLUE = {
     "benim", "senin", "onun", "bir", "bu", "o", "dir", "dır", "dur", "dür",
 }
 
-_TOPIC_HISTORY = {}
-_HISTORY_LOCK = threading.Lock()
-_HISTORY_LIMIT = 80
-_MODEL_HISTORY_LIMIT = 18
-_MAX_REPAIR_ROUNDS = 1
-_EVIDENCE_LIMIT = 7000
-
 _META_MARKERS = (
     "tilde", "acento grafico", "acento gráfico", "una sola palabra", "en una sola palabra",
-    "cuantas letras", "cuántas letras", "que letra", "qué letra", "como se escribe correctamente",
-    "cómo se escribe correctamente", "written as one word", "how many letters", "which letter",
-    "has an accent mark", "tek kelime", "kac harf", "kaç harf", "hangi harf",
+    "cuantas letras", "cuántas letras", "que letra", "qué letra", "written as one word",
+    "how many letters", "which letter", "has an accent mark", "tek kelime", "kac harf",
+    "kaç harf", "hangi harf",
 )
+
+_OBJ_RE = re.compile(r"^\s*\[\[OBJ:([^\]]+)\]\]\s*", re.I)
 
 
 def _norm(text):
@@ -60,7 +52,7 @@ def _norm(text):
 
 def _tokens(text, answer=False):
     stop = _ANSWER_GLUE if answer else _GENERIC_WORDS
-    return {token for token in _norm(text).split() if len(token) >= 2 and token not in stop}
+    return {t for t in _norm(text).split() if len(t) >= 2 and t not in stop}
 
 
 def _compact(text):
@@ -69,59 +61,80 @@ def _compact(text):
 
 def _is_dense_script_text(text):
     n = _norm(text)
-    compact = _compact(n)
-    if len(compact) < 4:
-        return False
-    return n.count(" ") <= 1 and any(ord(ch) > 0x2E7F for ch in compact)
+    c = _compact(n)
+    return len(c) >= 4 and n.count(" ") <= 1 and any(ord(ch) > 0x2E7F for ch in c)
 
 
-def _char_ngrams(text, n=3):
-    compact = _compact(text)
-    if not compact:
+def _ngrams(text, n=3):
+    c = _compact(text)
+    if not c:
         return set()
-    if len(compact) <= n:
-        return {compact}
-    return {compact[i:i+n] for i in range(len(compact) - n + 1)}
+    if len(c) <= n:
+        return {c}
+    return {c[i:i+n] for i in range(len(c) - n + 1)}
 
 
 def _jaccard(a, b):
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a | b)
+    return len(a & b) / len(a | b) if a and b else 0.0
 
 
 def _containment(a, b):
+    return len(a & b) / min(len(a), len(b)) if a and b else 0.0
+
+
+def _semantic_overlap(a, b):
+    if _is_dense_script_text(a) or _is_dense_script_text(b):
+        x, y = _ngrams(a), _ngrams(b)
+        return max(_jaccard(x, y), 0.8 * _containment(x, y))
+    x, y = _tokens(a), _tokens(b)
+    if len(x) >= 2 and len(y) >= 2:
+        return max(_jaccard(x, y), 0.8 * _containment(x, y))
+    x, y = _ngrams(a), _ngrams(b)
+    return max(_jaccard(x, y), 0.8 * _containment(x, y))
+
+
+def _answer_overlap(a, b):
+    a, b = _norm(a), _norm(b)
     if not a or not b:
         return 0.0
-    return len(a & b) / min(len(a), len(b))
-
-
-def _semantic_overlap(text1, text2):
-    if _is_dense_script_text(text1) or _is_dense_script_text(text2):
-        g1, g2 = _char_ngrams(text1), _char_ngrams(text2)
-        return max(_jaccard(g1, g2), 0.8 * _containment(g1, g2))
-    t1, t2 = _tokens(text1), _tokens(text2)
-    if len(t1) >= 2 and len(t2) >= 2:
-        return max(_jaccard(t1, t2), 0.8 * _containment(t1, t2))
-    g1, g2 = _char_ngrams(text1), _char_ngrams(text2)
-    return max(_jaccard(g1, g2), 0.8 * _containment(g1, g2))
-
-
-def _answer_overlap(answer1, answer2):
-    a1, a2 = _norm(answer1), _norm(answer2)
-    if not a1 or not a2:
-        return 0.0
-    if a1 == a2:
+    if a == b:
         return 1.0
-    t1, t2 = _tokens(a1, answer=True), _tokens(a2, answer=True)
-    if t1 and t2:
-        overlap = _containment(t1, t2)
-        if overlap:
-            return overlap
-    return _containment(_char_ngrams(a1, 2), _char_ngrams(a2, 2))
+    x, y = _tokens(a, answer=True), _tokens(b, answer=True)
+    if x and y:
+        score = _containment(x, y)
+        if score:
+            return score
+    return _containment(_ngrams(a, 2), _ngrams(b, 2))
+
+
+def _prepare_question(q):
+    if not isinstance(q, dict):
+        return q
+    why = str(q.get("why", "") or "")
+    match = _OBJ_RE.match(why)
+    if match:
+        key = _norm(match.group(1))
+        if key:
+            q["_objective_key"] = key
+        q["why"] = why[match.end():].lstrip(" :-—")
+    return q
+
+
+def _objective_same(q1, q2):
+    k1 = _norm(q1.get("_objective_key", ""))
+    k2 = _norm(q2.get("_objective_key", ""))
+    if not k1 or not k2:
+        return False
+    if k1 == k2 or SequenceMatcher(None, k1, k2).ratio() >= 0.92:
+        return True
+    t1, t2 = set(k1.split()), set(k2.split())
+    return len(t1) >= 2 and len(t2) >= 2 and _containment(t1, t2) >= 0.85
 
 
 def _same_semantic_target(q1, q2):
+    if _objective_same(q1, q2):
+        return True
+
     p1, p2 = _norm(q1.get("prompt")), _norm(q2.get("prompt"))
     a1, a2 = _norm(q1.get("answer")), _norm(q2.get("answer"))
     if not p1 or not p2:
@@ -131,31 +144,29 @@ def _same_semantic_target(q1, q2):
 
     prompt_overlap = _semantic_overlap(p1, p2)
     answer_overlap = _answer_overlap(a1, a2)
-    dense_script = _is_dense_script_text(p1) or _is_dense_script_text(p2)
-
-    if answer_overlap >= 0.95 and prompt_overlap >= (0.15 if dense_script else 0.20):
+    dense = _is_dense_script_text(p1) or _is_dense_script_text(p2)
+    if answer_overlap >= 0.95 and prompt_overlap >= (0.15 if dense else 0.20):
         return True
-    if answer_overlap >= 0.70 and prompt_overlap >= (0.28 if dense_script else 0.34):
+    if answer_overlap >= 0.70 and prompt_overlap >= (0.28 if dense else 0.34):
         return True
-    if prompt_overlap >= (0.56 if dense_script else 0.62):
-        return True
-    return False
+    return prompt_overlap >= (0.56 if dense else 0.62)
 
 
-def _is_shallow_meta_question(q):
+def _is_shallow_meta(q):
     prompt = _norm(q.get("prompt"))
     return bool(prompt) and any(_norm(marker) in prompt for marker in _META_MARKERS)
 
 
 def dedupe_questions(candidates, prior=None, limit=None):
     accepted = []
-    references = [q for q in (prior or []) if isinstance(q, dict)]
-    for q in candidates or []:
-        if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+    refs = [_prepare_question(q) for q in (prior or []) if isinstance(q, dict)]
+    for raw in candidates or []:
+        if not isinstance(raw, dict) or not raw.get("prompt") or not raw.get("answer"):
             continue
-        if _is_shallow_meta_question(q):
+        q = _prepare_question(raw)
+        if _is_shallow_meta(q):
             continue
-        if any(_same_semantic_target(q, old) for old in references + accepted):
+        if any(_same_semantic_target(q, old) for old in refs + accepted):
             continue
         accepted.append(q)
         if limit and len(accepted) >= limit:
@@ -172,11 +183,12 @@ def _arg(args, kwargs, name, index, default=None):
 
 
 def _history_key(args, kwargs):
-    topic_title = _norm(_arg(args, kwargs, "topic_title", 0, ""))
-    topic_type = _norm(_arg(args, kwargs, "topic_type", 1, ""))
-    language = _norm(_arg(args, kwargs, "language", 3, ""))
-    level = _norm(_arg(args, kwargs, "level", 5, ""))
-    return "|".join((language, level, topic_type, topic_title))
+    return "|".join((
+        _norm(_arg(args, kwargs, "language", 3, "")),
+        _norm(_arg(args, kwargs, "level", 5, "")),
+        _norm(_arg(args, kwargs, "topic_type", 1, "")),
+        _norm(_arg(args, kwargs, "topic_title", 0, "")),
+    ))
 
 
 def _get_history(key):
@@ -193,82 +205,13 @@ def _remember(key, questions):
         history = _TOPIC_HISTORY.setdefault(key, [])
         for q in questions or []:
             if isinstance(q, dict) and q.get("prompt") and q.get("answer"):
-                history.append({"prompt": q.get("prompt", ""), "answer": q.get("answer", "")})
+                history.append({
+                    "prompt": q.get("prompt", ""),
+                    "answer": q.get("answer", ""),
+                    "_objective_key": q.get("_objective_key", ""),
+                })
         if len(history) > _HISTORY_LIMIT:
             del history[:-_HISTORY_LIMIT]
-
-
-def _add_evidence(lines, label, value):
-    if value is None:
-        return
-    if isinstance(value, (dict, list)):
-        try:
-            value = json.dumps(value, ensure_ascii=False)
-        except Exception:
-            value = str(value)
-    text = " ".join(str(value).split())
-    if text:
-        lines.append(f"{label}: {text}")
-
-
-def _build_evidence_pack(topic_content):
-    """Read lesson output and compact it for assessment grounding only."""
-    if not isinstance(topic_content, dict):
-        return ""
-
-    lines = []
-    pages = topic_content.get("pages") or []
-    for page in pages:
-        if not isinstance(page, dict):
-            continue
-        _add_evidence(lines, "PAGE", page.get("title"))
-        _add_evidence(lines, "EXPLANATION", page.get("text"))
-        _add_evidence(lines, "CONTEXT", page.get("context"))
-        _add_evidence(lines, "PITFALL", page.get("pitfall"))
-
-        for item in page.get("items") or []:
-            if not isinstance(item, dict):
-                continue
-            term = item.get("term") or item.get("target") or item.get("word")
-            meaning = item.get("translation") or item.get("meaning") or item.get("english")
-            example = item.get("example") or item.get("sentence") or item.get("example_en")
-            parts = [str(x).strip() for x in (term, meaning, example) if x]
-            if parts:
-                _add_evidence(lines, "ITEM", " | ".join(parts))
-
-        for rule in page.get("rules") or []:
-            if not isinstance(rule, dict):
-                continue
-            parts = [rule.get("rule"), rule.get("explanation"), rule.get("example"), rule.get("analysis")]
-            parts = [str(x).strip() for x in parts if x]
-            if parts:
-                _add_evidence(lines, "RULE", " | ".join(parts))
-
-        for comp in page.get("comparisons") or []:
-            if isinstance(comp, dict):
-                parts = [comp.get("context"), comp.get("target"), comp.get("translation"), comp.get("note")]
-                parts = [str(x).strip() for x in parts if x]
-                if parts:
-                    _add_evidence(lines, "CONTRAST", " | ".join(parts))
-            else:
-                _add_evidence(lines, "CONTRAST", comp)
-
-        for turn in page.get("dialogue") or []:
-            if isinstance(turn, dict):
-                text = turn.get("text") or turn.get("line")
-                _add_evidence(lines, "DIALOGUE", text)
-
-    # Support older/non-page topic content without changing it.
-    if not lines:
-        for key in ("words", "vocabulary", "grammar_rules", "rules", "examples", "dialogue", "conversations", "notes"):
-            if topic_content.get(key):
-                _add_evidence(lines, key.upper(), topic_content.get(key))
-
-    if not lines:
-        return ""
-
-    pack = "ASSESSMENT EVIDENCE PACK — USE ONLY TEACHING POINTS SUPPORTED HERE:\n" + "\n".join(lines)
-    return pack[:_EVIDENCE_LIMIT]
 
 
 def _with_existing(args, kwargs, existing):
@@ -282,28 +225,6 @@ def _with_existing(args, kwargs, existing):
     return call_args, call_kwargs
 
 
-def _with_evidence(args, kwargs):
-    call_args = list(args)
-    call_kwargs = dict(kwargs)
-    # Respect explicit PDF/source overrides. Otherwise derive an assessment-only
-    # evidence pack from the already-generated topic content.
-    existing_override = _arg(call_args, call_kwargs, "source_text_override", 9, None)
-    if existing_override:
-        return call_args, call_kwargs, False
-
-    topic_content = _arg(call_args, call_kwargs, "topic_content", 2, None)
-    evidence = _build_evidence_pack(topic_content)
-    if not evidence:
-        return call_args, call_kwargs, False
-
-    if len(call_args) >= 10:
-        call_args[9] = evidence
-        call_kwargs.pop("source_text_override", None)
-    else:
-        call_kwargs["source_text_override"] = evidence
-    return call_args, call_kwargs, True
-
-
 def install(ai_engine_module):
     if getattr(ai_engine_module, "_semantic_diversity_guard_installed", False):
         return
@@ -311,58 +232,63 @@ def install(ai_engine_module):
     original = ai_engine_module.ai_generate_questions
 
     def guarded_ai_generate_questions(*args, **kwargs):
-        requested = _arg(args, kwargs, "count", 4, 10)
         try:
-            requested = max(1, int(requested or 10))
+            requested = max(1, int(_arg(args, kwargs, "count", 4, 10) or 10))
         except Exception:
             requested = 10
 
-        supplied_prior = _arg(args, kwargs, "existing_questions", 6, []) or []
-        supplied_prior = [q for q in supplied_prior if isinstance(q, dict)]
-        h_key = _history_key(args, kwargs)
-        history = _get_history(h_key)
-
-        full_prior = supplied_prior + history
+        supplied = _arg(args, kwargs, "existing_questions", 6, []) or []
+        supplied = [_prepare_question(q) for q in supplied if isinstance(q, dict)]
+        key = _history_key(args, kwargs)
+        history = _get_history(key)
+        full_prior = supplied + history
         model_prior = full_prior[-_MODEL_HISTORY_LIMIT:]
-        first_args, first_kwargs = _with_existing(args, kwargs, model_prior)
-        first_args, first_kwargs, evidence_used = _with_evidence(first_args, first_kwargs)
 
+        first_args, first_kwargs = _with_existing(args, kwargs, model_prior)
         first = original(*first_args, **first_kwargs)
         accepted = dedupe_questions(first, prior=full_prior, limit=requested)
-        rejected = max(0, len(first or []) - len(accepted))
+
+        first_count = len(first or [])
+        rejected = max(0, first_count - len(accepted))
+        objective_missing = sum(
+            1 for q in (first or [])
+            if isinstance(q, dict) and not _prepare_question(q).get("_objective_key")
+        )
 
         repair_round = 0
-        if len(accepted) < requested and _MAX_REPAIR_ROUNDS:
+        missing = requested - len(accepted)
+        # Do not compound a failed/slow upstream call. One small repair is allowed
+        # only when the first call produced a mostly complete usable batch.
+        if _MAX_REPAIR_ROUNDS and 0 < missing <= 4 and accepted:
             repair_round = 1
-            missing = requested - len(accepted)
-            seen_generated = [q for q in (first or []) if isinstance(q, dict)]
-            repair_prior = (model_prior + accepted + seen_generated)[-_MODEL_HISTORY_LIMIT:]
-
-            repair_kwargs = dict(kwargs)
-            repair_kwargs["count"] = min(requested, missing + 3)
+            seen = [q for q in (first or []) if isinstance(q, dict)]
+            repair_prior = (model_prior + accepted + seen)[-_MODEL_HISTORY_LIMIT:]
             repair_args = list(args)
+            repair_kwargs = dict(kwargs)
+            repair_count = missing + 2
             if len(repair_args) >= 5:
-                repair_args[4] = repair_kwargs.pop("count")
+                repair_args[4] = repair_count
+                repair_kwargs.pop("count", None)
+            else:
+                repair_kwargs["count"] = repair_count
             repair_args, repair_kwargs = _with_existing(repair_args, repair_kwargs, repair_prior)
-            repair_args, repair_kwargs, _ = _with_evidence(repair_args, repair_kwargs)
-
             extra = original(*repair_args, **repair_kwargs)
-            fresh = dedupe_questions(extra, prior=full_prior + accepted, limit=missing)
-            accepted.extend(fresh)
+            accepted.extend(dedupe_questions(extra, prior=full_prior + accepted, limit=missing))
 
-        _remember(h_key, accepted)
+        accepted = accepted[:requested]
+        _remember(key, accepted)
 
         try:
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(
-                    f"[ASSESSMENT-DIVERSITY] requested={requested} first={len(first or [])} "
-                    f"rejected={rejected} history={len(history)} model_history={len(model_prior)} "
-                    f"evidence={int(evidence_used)} final={len(accepted)} repairs={repair_round}\n"
+                    f"[ASSESSMENT-DIVERSITY] requested={requested} first={first_count} "
+                    f"rejected={rejected} objective_missing={objective_missing} history={len(history)} "
+                    f"final={len(accepted)} repairs={repair_round}\n"
                 )
         except Exception:
             pass
 
-        return accepted[:requested]
+        return accepted
 
     ai_engine_module.ai_generate_questions = guarded_ai_generate_questions
     ai_engine_module._semantic_diversity_guard_installed = True
