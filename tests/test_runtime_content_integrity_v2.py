@@ -17,10 +17,12 @@ def test_runtime_guard_contains_persisted_bilingual_and_state_paths(tmp_path):
     assert "answer_tr" in text
     assert "answer_en" in text
     assert "activeStudyTopicId" in text
+    assert "activeStudyPageIdx" in text
     assert "study-topic-btn[data-topic-id]" in text
     assert "showStudyTopic" in text
     assert "toggleLanguage" in text
     assert "rerenderActiveSoon" in text
+    assert "__aulaLegacyLocalizationPending" in text
 
 
 def test_runtime_guard_never_forces_legacy_spanish_phonetics_bank():
