@@ -1,7 +1,7 @@
-"""Runtime policy for assessment generation.
+"""Runtime policy for assessment generation only.
 
-Injects a compact universal assessment policy without touching lesson/material
-generation. The policy applies only to Pedagogic Assessment Engine calls.
+The wrapper rewrites only Pedagogic Assessment Engine calls. Lesson/material
+creation uses the original AI path unchanged.
 """
 
 import re
@@ -30,6 +30,8 @@ def install(ai_engine_module):
         rewritten = [dict(m) if isinstance(m, dict) else m for m in messages]
         old_system = str(rewritten[system_idx].get("content", ""))
 
+        # Remove legacy blocks that rewarded cosmetic scenario variety and supplied
+        # archetypes which the model repeatedly copied.
         old_system = re.sub(
             r"\n\s*6\. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:.*?(?=\n\s*7\. DISTRACTOR)",
             "\n",
@@ -43,57 +45,46 @@ def install(ai_engine_module):
             flags=re.S,
         )
 
-        legacy_examples = [
-            '* Example: "¿Cuánto es setenta más treinta?"\n',
-            '* Example: "¿En cuál de las siguientes palabras la letra \'g\' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]\n',
-        ]
-        for example in legacy_examples:
-            old_system = old_system.replace(example, "")
+        policy = """
+ASSESSMENT ENGINE V6.6 — SOURCE-GROUNDED OBJECTIVE POLICY
 
-        v65_policy = """
-ASSESSMENT ENGINE V6.5 — BALANCED EVIDENCE POLICY
-
-This policy applies to every supported language, CEFR level, topic, quiz and activity. It overrides weaker or conflicting variety instructions.
+This policy applies to every supported language, CEFR level and topic. It overrides weaker or conflicting variety instructions.
 
 1. SOURCE EVIDENCE IS THE AUTHORITY
-The SOURCE MATERIAL may contain a BALANCED ASSESSMENT EVIDENCE pack extracted read-only from the existing lesson. Every learning objective and every correct answer must be supported by that evidence. Do not invent a new target merely because it is broadly related to the topic title.
+Use only teaching points supported by the supplied lesson evidence. The topic title alone is never sufficient evidence for a question target.
 
-2. DERIVE TEACHING POINTS BEFORE QUESTIONS
-Silently extract distinct teachable points from the available evidence families: TARGETS, USAGE, RULES, CONTRASTS, DIALOGUE, PITFALLS and CONTEXT. Build questions from those points rather than from general knowledge about the topic.
+2. TEST LEARNER COMPETENCE, NOT LINGUISTIC TRIVIA
+Prefer knowledge a learner actually needs to understand, produce, choose or interpret the target language. Descriptive linguistic facts, terminology, etymology, historical roots, abstract phonetic labels and spelling trivia are assessable only when they are explicitly a central learning objective of the source, appropriate for the CEFR level, and useful to the learner. When a practical application can test the same point, test the application instead of asking the learner to name the terminology.
 
-3. COVER AVAILABLE EVIDENCE FAMILIES
-If three or more evidence families are available, a 10-item batch should use at least three families and no single family should normally supply more than four items. If two families are available, use both. Only ignore this breadth rule when the source genuinely lacks enough valid material. Never invent outside content to satisfy breadth.
+3. DISTINCT OBJECTIVES, NOT DIFFERENT DECORATIONS
+Changing names, numbers, nouns, examples, settings, direction or story does not create a new objective. If two questions require essentially the same language knowledge or mental operation, they are duplicates. Systematic lists/paradigms must not receive separate objectives merely because the item value changes unless an item has a genuinely different form, use or rule.
 
-4. DO NOT CONFUSE ITEM VARIETY WITH OBJECTIVE VARIETY
-Changing only the tested word, numeral, name, object or example while asking the learner to perform the same lookup operation is NOT sufficient diversity when richer source evidence exists. For example, ten separate "identify/write the form for X" items are one repeated assessment operation even if X changes ten times. Test use, contrast, interpretation, form-function, dialogue comprehension, register, rule application or other source-backed distinctions when available.
+4. EVIDENCE BREADTH
+When multiple evidence families are available, use several of them. A 10-item batch should normally draw from at least three available families and no single family should dominate. Never invent outside content just to satisfy breadth.
 
-5. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
-Treat supplied previous questions as already-used objectives. Do not paraphrase, reverse, rename, renumber or re-skin them. Reuse a broad theme only if the new item tests a genuinely different source-backed distinction.
+5. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
+Reject questions solvable mainly through arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic or facts stated directly in the prompt unless that exact skill is explicitly taught by the lesson.
 
-6. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
-The correct option must depend primarily on knowledge of the target language and lesson. Reject questions solvable mainly by arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic or facts explicitly stated in the prompt unless the source itself explicitly teaches that exact skill.
+6. FORMAT SERVES THE OBJECTIVE
+Use situational choice, dialogue response, contextual comprehension, form-function discrimination, sentence completion, interpretation or another suitable form according to the source-backed objective. Do not use a new format merely to disguise a repeated objective.
 
-7. DO NOT FILL GAPS WITH INVENTED CONTENT
-If the source supports fewer distinct high-quality objectives than the requested batch size, deepen valid source-backed contrasts, usage conditions, register choices, comprehension or examples. Never pad the batch with unrelated facts, generic topic trivia or artificial math/logic tasks.
+7. DISTRACTORS REPRESENT REAL CONFUSIONS
+All options must be grammatically and semantically comparable and plausible at the learner's level. Avoid absurd alternatives, visual giveaways and options that can be eliminated without target-language knowledge.
 
-8. FORMAT SERVES THE TEACHING POINT
-Choose the format best suited to the source-backed target: contextual meaning, situational choice, dialogue response, form-function discrimination, sentence completion, interpretation, comprehension or another appropriate form. Do not use different formats merely to disguise a repeated target.
+8. CANONICAL OBJECTIVE KEY — MANDATORY
+For every generated question, the `why` field MUST begin with exactly one machine-readable marker in this form: [[OBJ:canonical-key]]. After the marker, write the normal concise English explanation.
+The key must be lowercase English, short, stable and describe the underlying source-backed language objective rather than the scenario or surface answer. Equivalent questions MUST receive the same key even if wording, names, numbers, examples or direction change. For a systematic paradigm, changing only the member being looked up does NOT justify a new key. Give a different key only when the learner must know a genuinely different linguistic distinction or communicative function.
+Do not put this marker in prompt, answer, distractors, translations or `why_tr`.
 
-9. NO SHALLOW META QUESTIONS
-Do not test string length, letter count, which answer merely looks correctly spelled, one-word-vs-multiple-word trivia, accent/tilde presence, character shape or similar visual properties unless that exact orthographic distinction is explicitly taught in the source.
-
-10. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
-Correct answer and distractors must share the same grammatical/semantic class and be plausible at the learner's level. Distractors should reflect realistic confusions around the exact source-backed target, not random wrong answers or visual giveaways.
-
-11. FINAL EVIDENCE AUDIT
-Before returning JSON, silently label every question with (a) its one-line learning objective, (b) its evidence family and (c) the source evidence supporting it. Replace any item that lacks clear source support, overuses one evidence family without necessity, overlaps another objective, depends more on outside knowledge than language knowledge, leaks its answer, or could be solved reliably by a non-speaker.
+9. FINAL AUDIT
+Before returning JSON, compare the canonical objective keys. Replace every duplicate key. Also replace any question that lacks clear source support, is too meta for the level, depends more on outside knowledge than language knowledge, leaks its answer or could reliably be solved by a non-speaker.
 """
 
         rewritten[system_idx]["content"] = (
-            v65_policy
+            policy
             + old_system.replace(
                 "Pedagogic Assessment Engine (V5)",
-                "Pedagogic Assessment Engine (V6.5)",
+                "Pedagogic Assessment Engine (V6.6)",
                 1,
             )
         )
@@ -105,19 +96,43 @@ Before returning JSON, silently label every question with (a) its one-line learn
             if "TASK: Generate EXACTLY" not in content:
                 continue
 
+            # Remove the old random emphasis block. Keep source, history and schema.
             content = re.sub(
                 r"\n\s*PEDAGOGICAL EMPHASIS:.*?(?=\n\s*JSON STRUCTURE:)",
                 "\n",
                 content,
                 flags=re.S,
             )
+
+            # The core generator historically asks for 15 candidates for a 10-item
+            # batch. Twelve is enough headroom while reducing latency/output size.
+            match = re.search(r"TASK: Generate EXACTLY\s+(\d+)", content)
+            if match:
+                try:
+                    generated = int(match.group(1))
+                    if generated > 12:
+                        content = content[:match.start(1)] + "12" + content[match.end(1):]
+                except Exception:
+                    pass
+
             rewritten[i]["content"] = (
-                "BALANCED EVIDENCE REQUIREMENT: Use the SOURCE MATERIAL as the authority. First inspect the available evidence families and derive source-backed teaching points. "
-                "Cover multiple evidence families when available; do not create a batch by repeating the same lookup operation with different words, numbers or examples. "
-                "Do not pad the set with arithmetic, general knowledge, trivia, chronology, visual-pattern or meta-spelling tasks unless the source explicitly teaches that exact skill. Every correct answer must be traceable to source evidence.\n\n"
+                "OBJECTIVE-KEY REQUIREMENT: Ground every item in the SOURCE MATERIAL. Prioritize learner-usable language competence over descriptive trivia. "
+                "The English `why` field must begin with [[OBJ:canonical-key]], where semantically equivalent tasks use the same stable key. "
+                "Do not create a new key merely because a word, numeral, example, name or scenario changed.\n\n"
                 + content
             )
             break
+
+        # Assessment calls must fail fast. Material/lesson calls never enter this branch.
+        try:
+            kwargs["max_tokens"] = min(int(kwargs.get("max_tokens", 2000)), 2000)
+        except Exception:
+            kwargs["max_tokens"] = 2000
+        try:
+            kwargs["temperature"] = min(float(kwargs.get("temperature", 0.6)), 0.6)
+        except Exception:
+            kwargs["temperature"] = 0.6
+        kwargs["allow_fallback"] = False
 
         return original_call(rewritten, *args, **kwargs)
 
