@@ -5,12 +5,46 @@ from services import assessment_legacy_filter
 
 
 class LegacyQualityGateTests(unittest.TestCase):
+    _PROMPTS = [
+        "Choose the greeting used when meeting a teacher in the morning.",
+        "Select the phrase that politely asks for directions at a station.",
+        "Which response accepts an invitation without sounding informal?",
+        "Choose the form that agrees with a masculine singular noun.",
+        "Select the expression used to order one item in a café.",
+        "Which sentence correctly asks another person their name?",
+        "Choose the phrase that closes a short formal conversation.",
+        "Select the correct response to a question about location.",
+        "Which option expresses possession with the taught structure?",
+        "Choose the sentence that uses the target preposition correctly.",
+        "Select the phrase that asks about opening time.",
+        "Which response is appropriate when thanking a stranger?",
+        "Choose the form used before a plural noun in this lesson.",
+        "Select the sentence that correctly negates the taught expression.",
+        "Which option completes the classroom request naturally?",
+        "Choose the phrase that asks for a price politely.",
+        "Select the correct reply to a yes or no question.",
+        "Which expression identifies a family relationship correctly?",
+        "Choose the form that marks the taught grammatical contrast.",
+        "Select the sentence that uses the target verb in context.",
+        "Which reply indicates that the speaker does not understand?",
+        "Choose the polite expression for requesting repetition.",
+        "Select the phrase that gives a simple destination.",
+        "Which sentence uses the taught article correctly?",
+        "Choose the expression that introduces another person.",
+        "Select the response that indicates agreement.",
+        "Which option asks about quantity using the taught form?",
+        "Choose the phrase that describes a simple daily routine.",
+        "Select the correct form for a direct classroom instruction.",
+        "Which response answers the taught time question naturally?",
+    ]
+
     def _clean(self, i):
+        prompt = self._PROMPTS[i % len(self._PROMPTS)]
         return {
             "id": f"q{i}",
             "topic_id": 1,
             "type": "mcq",
-            "prompt": f"Choose the correct classroom response for situation {i}.",
+            "prompt": prompt,
             "answer": f"answer{i}",
             "distractors": [f"option{i}a", f"option{i}b", f"option{i}c"],
             "difficulty": "A1",
