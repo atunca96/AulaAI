@@ -1,6 +1,8 @@
 """Semantic/objective diversity guard for AI-generated assessments only.
 
 Language, CEFR and topic agnostic. Material generation is not involved.
+Within a batch, canonical objective keys are strict. Across regenerations, prior
+objective keys are soft scheduling hints while true semantic repeats remain blocked.
 """
 
 import re
@@ -11,7 +13,8 @@ from difflib import SequenceMatcher
 _TOPIC_HISTORY = {}
 _HISTORY_LOCK = threading.Lock()
 _HISTORY_LIMIT = 80
-_MODEL_HISTORY_LIMIT = 16
+_MODEL_HISTORY_LIMIT = 10
+_OBJECTIVE_HINT_LIMIT = 8
 _MAX_REPAIR_ROUNDS = 1
 
 _GENERIC_WORDS = {
@@ -131,10 +134,8 @@ def _objective_same(q1, q2):
     return len(t1) >= 2 and len(t2) >= 2 and _containment(t1, t2) >= 0.85
 
 
-def _same_semantic_target(q1, q2):
-    if _objective_same(q1, q2):
-        return True
-
+def _same_surface_target(q1, q2):
+    """Detect a genuine semantic repeat without using canonical objective metadata."""
     p1, p2 = _norm(q1.get("prompt")), _norm(q2.get("prompt"))
     a1, a2 = _norm(q1.get("answer")), _norm(q2.get("answer"))
     if not p1 or not p2:
@@ -152,12 +153,23 @@ def _same_semantic_target(q1, q2):
     return prompt_overlap >= (0.56 if dense else 0.62)
 
 
+def _same_batch_target(q1, q2):
+    return _objective_same(q1, q2) or _same_surface_target(q1, q2)
+
+
 def _is_shallow_meta(q):
     prompt = _norm(q.get("prompt"))
     return bool(prompt) and any(_norm(marker) in prompt for marker in _META_MARKERS)
 
 
 def dedupe_questions(candidates, prior=None, limit=None):
+    """Keep one objective per batch; block true semantic repeats across prior rounds.
+
+    Prior objective keys are intentionally not absolute bans. A narrow lesson can run
+    out of lifetime-unique objectives after several regenerations. The model receives
+    prior keys as soft scheduling hints, while this filter still rejects genuinely
+    repeated questions/concepts by prompt+answer semantics.
+    """
     accepted = []
     refs = [_prepare_question(q) for q in (prior or []) if isinstance(q, dict)]
     for raw in candidates or []:
@@ -166,7 +178,9 @@ def dedupe_questions(candidates, prior=None, limit=None):
         q = _prepare_question(raw)
         if _is_shallow_meta(q):
             continue
-        if any(_same_semantic_target(q, old) for old in refs + accepted):
+        if any(_same_surface_target(q, old) for old in refs):
+            continue
+        if any(_same_batch_target(q, old) for old in accepted):
             continue
         accepted.append(q)
         if limit and len(accepted) >= limit:
@@ -214,6 +228,38 @@ def _remember(key, questions):
             del history[:-_HISTORY_LIMIT]
 
 
+def _objective_hints(questions, limit=_OBJECTIVE_HINT_LIMIT):
+    """Expose recently used canonical objectives to the model as soft priorities."""
+    keys = []
+    seen = set()
+    for q in reversed(questions or []):
+        if not isinstance(q, dict):
+            continue
+        key = _norm(q.get("_objective_key", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+        if len(keys) >= limit:
+            break
+    keys.reverse()
+    return [
+        {
+            "prompt": f"USED OBJECTIVE KEY — prefer a different unused objective if available: {key}",
+            "answer": f"used-objective:{key}",
+        }
+        for key in keys
+    ]
+
+
+def _model_context(prior, extra=None):
+    actual = [q for q in (prior or []) if isinstance(q, dict)][-_MODEL_HISTORY_LIMIT:]
+    extra = [q for q in (extra or []) if isinstance(q, dict)]
+    if extra:
+        actual = (actual + extra)[-16:]
+    return actual + _objective_hints((prior or []) + extra)
+
+
 def _with_existing(args, kwargs, existing):
     call_args = list(args)
     call_kwargs = dict(kwargs)
@@ -223,6 +269,14 @@ def _with_existing(args, kwargs, existing):
     else:
         call_kwargs["existing_questions"] = existing
     return call_args, call_kwargs
+
+
+def _public_question(q):
+    if not isinstance(q, dict):
+        return q
+    public = dict(q)
+    public.pop("_objective_key", None)
+    return public
 
 
 def install(ai_engine_module):
@@ -242,9 +296,9 @@ def install(ai_engine_module):
         key = _history_key(args, kwargs)
         history = _get_history(key)
         full_prior = supplied + history
-        model_prior = full_prior[-_MODEL_HISTORY_LIMIT:]
 
-        first_args, first_kwargs = _with_existing(args, kwargs, model_prior)
+        first_context = _model_context(full_prior)
+        first_args, first_kwargs = _with_existing(args, kwargs, first_context)
         first = original(*first_args, **first_kwargs)
         accepted = dedupe_questions(first, prior=full_prior, limit=requested)
 
@@ -257,21 +311,21 @@ def install(ai_engine_module):
 
         repair_round = 0
         missing = requested - len(accepted)
-        # Do not compound a failed/slow upstream call. One small repair is allowed
-        # only when the first call produced a mostly complete usable batch.
-        if _MAX_REPAIR_ROUNDS and 0 < missing <= 4 and accepted:
+        # One bounded refill for any partial usable batch. V6.7 keeps each model call
+        # small, so this restores the requested count without unbounded retry loops.
+        if _MAX_REPAIR_ROUNDS and missing > 0 and accepted:
             repair_round = 1
             seen = [q for q in (first or []) if isinstance(q, dict)]
-            repair_prior = (model_prior + accepted + seen)[-_MODEL_HISTORY_LIMIT:]
+            repair_context = _model_context(full_prior, accepted + seen)
             repair_args = list(args)
             repair_kwargs = dict(kwargs)
-            repair_count = missing + 2
+            repair_count = min(10, missing + 4)
             if len(repair_args) >= 5:
                 repair_args[4] = repair_count
                 repair_kwargs.pop("count", None)
             else:
                 repair_kwargs["count"] = repair_count
-            repair_args, repair_kwargs = _with_existing(repair_args, repair_kwargs, repair_prior)
+            repair_args, repair_kwargs = _with_existing(repair_args, repair_kwargs, repair_context)
             extra = original(*repair_args, **repair_kwargs)
             accepted.extend(dedupe_questions(extra, prior=full_prior + accepted, limit=missing))
 
@@ -288,7 +342,7 @@ def install(ai_engine_module):
         except Exception:
             pass
 
-        return accepted
+        return [_public_question(q) for q in accepted]
 
     ai_engine_module.ai_generate_questions = guarded_ai_generate_questions
     ai_engine_module._semantic_diversity_guard_installed = True
