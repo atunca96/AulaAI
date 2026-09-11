@@ -8888,7 +8888,7 @@ function registerDraftSeenQuestions(courseId, questions) {
       }
     }
   }
-  window._draftSeenQuestions[cid] = window._draftSeenQuestions[cid].slice(-100);
+  window._draftSeenQuestions[cid] = window._draftSeenQuestions[cid].slice(-20);
   try {
     localStorage.setItem(`aula_draft_seen_${cid}`, JSON.stringify(window._draftSeenQuestions[cid]));
   } catch(e) {}
@@ -8904,7 +8904,7 @@ function getDraftSeenQuestions(courseId) {
       window._draftSeenQuestions[cid] = [];
     }
   }
-  return window._draftSeenQuestions[cid].slice(-100);
+  return window._draftSeenQuestions[cid].slice(-20);
 }
 
 let activityProgressInterval = null;
@@ -9094,9 +9094,15 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
   if (fill) fill.style.width = '0%';
   if (pctText) pctText.textContent = '0%';
 
-  if (draftProgressInterval) clearInterval(draftProgressInterval);
+  if (draftProgressInterval) {
+    clearInterval(draftProgressInterval);
+    draftProgressInterval = null;
+  }
+  let isDraftPollingActive = false;
 
   draftProgressInterval = setInterval(async () => {
+    if (isDraftPollingActive) return;
+    isDraftPollingActive = true;
     try {
       const data = await api(`/draft/progress?course_id=${cidToUse}&v=${Date.now()}`);
 
@@ -9106,6 +9112,7 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
         if (pctText) pctText.textContent = pct + '%';
       } else if (data.status === 'done') {
         clearInterval(draftProgressInterval);
+        draftProgressInterval = null;
         if (fill) fill.style.width = '100%';
         if (pctText) pctText.textContent = '100%';
 
@@ -9117,9 +9124,10 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
             btn.removeAttribute('data-generating');
           }
           if (data.questions) callback(data.questions);
-        }, 500);
+        }, 50);
       } else if (data.status === 'error') {
         clearInterval(draftProgressInterval);
+        draftProgressInterval = null;
         if (container) container.classList.add('hidden');
         if (btn) {
           btn.textContent = originalText;
@@ -9130,8 +9138,10 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
       }
     } catch (err) {
       console.error("Draft Polling Error:", err);
+    } finally {
+      isDraftPollingActive = false;
     }
-  }, 300);
+  }, 400);
 }
 
 async function launchActivity() {

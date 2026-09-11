@@ -871,12 +871,12 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
          * Across the {gen_count} questions in this batch, you MUST actively vary both the COGNITIVE TASK and the QUESTION FORMAT.
          * ABSOLUTELY NEVER repeatedly test the same rule, grammatical inflection, or vocabulary category through near-identical sentence templates (e.g. NEVER generate multiple questions that all use the exact same carrier pattern like "Completa la frase: [Person] [verb] [object]" or test the same verb conjugation repeatedly).
        - MANDATORY DISTRIBUTION OF COGNITIVE TASKS ACROSS EACH BATCH:
-         Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
+         Distribute the {gen_count} questions across diverse styles. At most 3-4 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
          a) PRAGMATIC / SITUATIONAL DECISION (COMMUNICATIVE REACTION - NO BLANK):
             Real-world social interaction or dialogue from the lesson where the learner selects the natural, appropriate response or polite formula to say.
          b) FUNCTIONAL COMPREHENSION & DEDUCTION (DIALOGUE / READING UNDERSTANDING - NO BLANK):
             Testing specific meaning, speaker intentions, schedule/time details, or communicative purpose directly stated in the lesson material WITHOUT speculative leaps.
-         c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 2 PER BATCH):
+         c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 3-4 PER BATCH):
             Rich communicative sentence testing a specific taught conjugation, preposition, or lexical distinction in context.
          d) LINGUISTIC DISCRIMINATION & GRAMMATICAL PRECISION (NO BLANK):
             Selecting which statement is grammatically correct and natural vs. incorrect based strictly on the rule taught in the lesson.
@@ -971,7 +971,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     QUESTION FORMAT VARIETY MANDATE (CRITICAL):
     - Provide a RICH MIX of question types!
-    - DO NOT make all questions fill-in-the-blank! At most 2 questions should have a blank ('_____').
+    - DO NOT make all questions fill-in-the-blank! At most 3-4 questions should have a blank ('_____').
     - The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
     - ABSOLUTELY ZERO ARITHMETIC: NEVER ask math operations (sumar, multiplicar, 'más', 'plus'). Test numbers only via time, prices, or schedules!
     
@@ -997,7 +997,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     CRITICAL MANDATES:
     1) MATERIAL-SUPPORTED LEARNING OBJECTIVES: Questions must assess knowledge, vocabulary, grammar patterns, relationships, or communicative functions explicitly taught or demonstrated in the material. Questions may transfer taught knowledge into fresh CEFR-appropriate contexts, but must never require external facts, unstated assumptions, generic world knowledge, or invented lesson content.
     2) GATE 1 - COMMON SENSE REJECTION: A question FAILS only when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported objective.
-    3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 2 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+    3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 3-4 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
     4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
     5) EXACTLY ONE DEFENSIBLE ANSWER & 3 HIGH-CALIBER COMPETITIVE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, rigorous distractors reflecting realistic learner confusions and high-probability near-miss traps (adjacent real grammatical forms, genuine semantic-field competitors, or plausible misattributions from the material). ZERO easy throwaways or filler options.
     6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
@@ -1050,11 +1050,11 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in final):
                 continue
 
-            # COGNITIVE TASK VARIETY: Strict limit of at most 2 fill-in-the-blank questions per batch
+            # COGNITIVE TASK VARIETY: Relaxed limit of at most 4 fill-in-the-blank questions per batch
             has_blank = "_" in p or "____" in p
             if has_blank:
                 current_blanks = sum(1 for f in final if "_" in f.get("prompt", "") or "____" in f.get("prompt", ""))
-                if current_blanks >= 2:
+                if current_blanks >= 4:
                     continue
 
             # STRICT DIVERSITY FILTER: Absolute rejection of any repeated or near-duplicate prompt from previous rounds

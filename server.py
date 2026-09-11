@@ -246,7 +246,7 @@ def record_course_draft_questions(course_id, questions):
                 if p and not any(eq.get("prompt") == p for eq in _draft_course_seen_questions[cid]):
                     _draft_course_seen_questions[cid].append({"prompt": p, "answer": a})
                     new_items.append((_uid(), cid, p, a))
-        _draft_course_seen_questions[cid] = _draft_course_seen_questions[cid][-100:]
+        _draft_course_seen_questions[cid] = _draft_course_seen_questions[cid][-20:]
         if new_items:
             try:
                 with db_connection() as db:
@@ -263,12 +263,12 @@ def get_course_draft_questions(course_id):
             _draft_course_seen_questions[cid] = []
             try:
                 with db_connection() as db:
-                    rows = db.execute("SELECT prompt, answer FROM draft_history WHERE course_id=? ORDER BY created_at DESC LIMIT 100", (cid,)).fetchall()
+                    rows = db.execute("SELECT prompt, answer FROM draft_history WHERE course_id=? ORDER BY created_at DESC LIMIT 20", (cid,)).fetchall()
                     for r in rows:
                         _draft_course_seen_questions[cid].append({"prompt": r["prompt"], "answer": r["answer"]})
             except Exception as e:
                 print(f"[DB] Error loading draft history: {e}")
-        return list(_draft_course_seen_questions.get(cid, []))
+        return list(_draft_course_seen_questions.get(cid, []))[-20:]
 
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
@@ -2623,30 +2623,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
             topic_ids = [t["id"] for t in topics]
 
-            # Merge server-side seen draft questions + DB existing questions + client questions
+            # Merge server-side seen draft questions + client questions (strictly capped to last 2 rounds: max 20 questions)
             merged_existing = []
             seen_prompts = set()
             
-            for q in get_course_draft_questions(course_id):
+            for q in get_course_draft_questions(course_id)[-20:]:
                 p = (q.get("prompt") or "").strip()
                 if p and p not in seen_prompts:
                     seen_prompts.add(p)
                     merged_existing.append(q)
 
             if isinstance(client_existing, list):
-                record_course_draft_questions(course_id, client_existing)
-                for q in client_existing:
+                recent_client = client_existing[-20:]
+                record_course_draft_questions(course_id, recent_client)
+                for q in recent_client:
                     if isinstance(q, dict):
                         p = (q.get("prompt") or "").strip()
                         if p and p not in seen_prompts:
                             seen_prompts.add(p)
                             merged_existing.append(q)
 
-            for q in db_existing:
-                p = (q.get("prompt") or "").strip()
-                if p and p not in seen_prompts:
-                    seen_prompts.add(p)
-                    merged_existing.append(q)
+            # Strictly cap to the last 20 questions (2 rounds) so test 4 never reaches test 1 cache
+            merged_existing = merged_existing[-20:]
 
             db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
             db.commit()
