@@ -1,17 +1,62 @@
-"""Small deterministic post-filter for the stable legacy assessment engine.
+"""Deterministic final quality gate for the stable legacy assessment engine.
 
-Legacy generation remains the source of questions. This wrapper only removes
-known meta/trivia failures and asks legacy to refill missing slots. Lesson/material
-generation is never called or modified.
+Legacy remains the generator. This wrapper validates the complete candidate set,
+rejects known quality failures, and asks legacy to refill only missing slots.
+Lesson/material generation is never called or modified.
 """
 
+import math
+import re
 from collections import Counter
+from difflib import SequenceMatcher
 
 from services import assessment_telemetry
-from services.assessment_scorecard import _outside_meta_proxy_reason
+from services.assessment_scorecard import (
+    _norm,
+    _objective_proxy_repeat,
+    _outside_meta_proxy_reason,
+    _question_near_repeat,
+    _source_grounded_proxy,
+    _valid_mcq,
+)
 
-FILTER_VERSION = "legacy_meta_filter_v1"
-_MAX_REFILL_ROUNDS = 3
+FILTER_VERSION = "legacy_quality_gate_v2"
+_MAX_REFILL_ROUNDS = 2
+
+_PRONUNCIATION_CENTRAL = (
+    "pronunciation", "pronunciacion", "pronunciación", "phonetic", "fonet",
+    "phonology", "fonolog", "sound", "sounds", "ses", "laut", "suono",
+)
+_ORTHOGRAPHY_CENTRAL = (
+    "orthography", "orthographic", "spelling", "accentuation", "diacritic",
+    "ortografia", "ortografía", "acentuacion", "acentuación", "tilde",
+    "imla", "yazim", "yazım",
+)
+_MORPHOLOGY_CENTRAL = (
+    "morphology", "morphological", "word formation", "morfologia", "morfología",
+    "morfoloji", "prefix", "suffix", "prefij", "sufij", "morphem", "morfem",
+)
+_ETYMOLOGY_CENTRAL = (
+    "etymology", "etymologia", "etimologia", "etimología", "word origin",
+    "kelime koken", "kelime köken",
+)
+_CONTRAST_CENTRAL = (
+    "contrast", "comparative", "comparison", "false friend", "faux ami",
+    "karşılaştır", "karsilastir", "contraste", "comparacion", "comparación",
+)
+
+_SPELLING_MARKERS = (
+    "spelling", "spell", "orthograph", "ortograf", "se escribe", "como se escribe",
+    "cómo se escribe", "grafia", "grafía", "written", "write the", "yazim", "yazım",
+)
+_GRAMMAR_MARKERS = (
+    "grammar", "gramat", "agreement", "conjug", "singular", "plural", "masculin",
+    "feminin", "article", "preposition", "before a noun", "delante de un sustantivo",
+)
+_MEANING_MARKERS = (
+    "what does", "meaning", "means", "significa", "que significa", "qué significa",
+    "corresponde a", "which word means", "hangi anlama",
+)
 
 
 def _safe_int(value, default=10):
@@ -30,46 +75,255 @@ def _history_row(question):
     }
 
 
-def _filter_batch(batch):
-    accepted = []
+def _topic_headers(source_text):
+    lines = []
+    for line in str(source_text or "").splitlines():
+        if line.strip().upper().startswith("TOPIC "):
+            lines.append(line.strip())
+    return _norm(" ".join(lines))
+
+
+def _level_rank(question):
+    return {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}.get(
+        str((question or {}).get("difficulty", "A1") or "A1").upper(), 1
+    )
+
+
+def _central(headers, markers):
+    h = _norm(headers)
+    return bool(h and any(_norm(marker) in h for marker in markers))
+
+
+def _meta_allowed(reason, question, headers):
+    if reason in {"phonology_terminology", "phonetic_transcription_trivia", "sound_label_trivia"}:
+        return _central(headers, _PRONUNCIATION_CENTRAL)
+    if reason in {"orthography_micro_trivia", "letter_or_spelling_trivia"}:
+        return _central(headers, _ORTHOGRAPHY_CENTRAL)
+    if reason == "morphology_terminology":
+        return _central(headers, _MORPHOLOGY_CENTRAL)
+    if reason == "cross_language_trivia":
+        return _central(headers, _CONTRAST_CENTRAL)
+    if reason in {"etymology", "historical_root"}:
+        return _level_rank(question) >= 5 and _central(headers, _ETYMOLOGY_CENTRAL)
+    return False
+
+
+def _edit_distance(a, b):
+    a, b = str(a or ""), str(b or "")
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(cur[-1] + 1, prev[j] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def _single_token(value):
+    n = _norm(value)
+    return n if n and " " not in n else ""
+
+
+def _pseudoform_distractors(question, source_text):
+    """Detect invented near-spellings without banning legitimate grammar paradigms."""
+    prompt = _norm(question.get("prompt"))
+    # A genuinely central spelling/orthography lesson may intentionally use wrong forms.
+    headers = _topic_headers(source_text)
+    if _central(headers, _ORTHOGRAPHY_CENTRAL):
+        return False
+
+    answer = _single_token(question.get("answer"))
+    if not answer:
+        return False
+    source_words = set(_norm(source_text).split())
+    suspicious = 0
+    for raw in question.get("distractors") or []:
+        d = _single_token(raw)
+        if not d or d == answer or d in source_words:
+            continue
+        ratio = SequenceMatcher(None, answer, d).ratio()
+        distance = _edit_distance(answer, d)
+        if distance <= 1 or ratio >= 0.72:
+            suspicious += 1
+
+    # Short paradigms such as un/una are naturally close; demand two suspicious forms.
+    if len(answer) <= 3:
+        return suspicious >= 2
+    return suspicious >= 1
+
+
+def _answer_leak(question):
+    prompt_raw = str(question.get("prompt", ""))
+    answer = str(question.get("answer", "")).strip()
+    if not prompt_raw or not answer:
+        return False
+
+    # Strong leak: a parenthesized digit explicitly supplies the value while a word/form is asked.
+    if not re.fullmatch(r"[+-]?\d+(?:[.,]\d+)?", answer):
+        if re.search(r"\(\s*[+-]?\d+(?:[.,]\d+)?\s*(?:€|\$|£|¥|%|º|°)?\s*\)", prompt_raw):
+            return True
+
+    # Strong literal leak for substantive answers. Very short function words are excluded.
+    answer_n = _norm(answer)
+    prompt_n = _norm(prompt_raw)
+    if len(answer_n) >= 4 and " " not in answer_n and not re.search(r"_{2,}", prompt_raw):
+        if re.search(rf"(?:^|\s){re.escape(answer_n)}(?:$|\s)", f" {prompt_n} "):
+            # Quoted source-word interpretation questions can legitimately mention the source item,
+            # but the correct answer itself should not already be written in the prompt.
+            return True
+    return False
+
+
+def _composite_option(question):
+    values = [str(question.get("answer", ""))] + [str(x) for x in (question.get("distractors") or [])]
+    blank_count = len(re.findall(r"_{2,}", str(question.get("prompt", ""))))
+    return blank_count >= 2 and any("/" in value for value in values)
+
+
+def _operation_signature(question):
+    raw = str(question.get("prompt", ""))
+    p = _norm(raw)
+    if re.search(r"_{2,}", raw):
+        return "blank_completion"
+    if any(_norm(x) in p for x in _SPELLING_MARKERS):
+        return "orthography"
+    if any(_norm(x) in p for x in _GRAMMAR_MARKERS):
+        return "grammar"
+    if any(_norm(x) in p for x in _MEANING_MARKERS):
+        return "meaning_lookup"
+    if "—" in raw or (":" in raw and "?" in raw):
+        return "dialogue_or_context"
+    return "other"
+
+
+def _operation_cap(signature, requested):
+    if requested < 8:
+        return requested
+    if signature == "blank_completion":
+        return max(3, int(math.ceil(requested * 0.30)))
+    if signature == "meaning_lookup":
+        return max(2, int(math.ceil(requested * 0.25)))
+    if signature == "orthography":
+        return max(3, int(math.ceil(requested * 0.35)))
+    return requested
+
+
+def _duplicate_reason(question, accepted, prior):
+    for old in list(prior or []) + list(accepted or []):
+        if not isinstance(old, dict):
+            continue
+        if _question_near_repeat(question, old):
+            return "semantic_repeat"
+        # Surface objective proxy is deliberately only a second signal; answer equality alone
+        # is not enough to reject a genuinely different grammar/use objective.
+        if _objective_proxy_repeat(question, old):
+            p1, p2 = _norm(question.get("prompt")), _norm(old.get("prompt"))
+            a1, a2 = _norm(question.get("answer")), _norm(old.get("answer"))
+            if a1 == a2 or SequenceMatcher(None, p1, p2).ratio() >= 0.68:
+                return "objective_repeat"
+    return None
+
+
+def _quality_reason(question, *, source_text, headers, accepted, prior, operation_counts, requested):
+    if not _valid_mcq(question):
+        return "invalid_mcq_structure"
+
+    meta_reason = _outside_meta_proxy_reason(question)
+    if meta_reason and not _meta_allowed(meta_reason, question, headers):
+        return meta_reason
+
+    if _composite_option(question):
+        return "composite_multi_blank_option"
+
+    if _answer_leak(question):
+        return "answer_revealed"
+
+    if _pseudoform_distractors(question, source_text):
+        return "pseudoform_distractors"
+
+    grounding = _source_grounded_proxy(question, source_text)
+    answer_n = _norm(question.get("answer"))
+    if grounding is False and len(answer_n) >= 3:
+        return "source_unsupported"
+
+    dup = _duplicate_reason(question, accepted, prior)
+    if dup:
+        return dup
+
+    signature = _operation_signature(question)
+    if operation_counts.get(signature, 0) >= _operation_cap(signature, requested):
+        return "operation_overconcentration"
+
+    return None
+
+
+def _filter_batch(batch, *, source_text, accepted, prior, operation_counts, requested):
+    clean = []
     rejected = []
     reasons = Counter()
+    headers = _topic_headers(source_text)
     for question in batch or []:
         if not isinstance(question, dict):
+            reasons["malformed"] += 1
             continue
-        reason = _outside_meta_proxy_reason(question)
+        reason = _quality_reason(
+            question,
+            source_text=source_text,
+            headers=headers,
+            accepted=list(accepted) + clean,
+            prior=prior,
+            operation_counts=operation_counts,
+            requested=requested,
+        )
         if reason:
             reasons[reason] += 1
             rejected.append(question)
-        else:
-            accepted.append(question)
-    return accepted, rejected, reasons
+            continue
+        signature = _operation_signature(question)
+        operation_counts[signature] += 1
+        clean.append(question)
+    return clean, rejected, reasons
 
 
-def _emit_summary(*, requested, initial_count, returned, rejected, refill_rounds, reasons):
+def _strip_internal(question):
+    if not isinstance(question, dict):
+        return question
+    public = dict(question)
+    for key in list(public):
+        if str(key).startswith("_assessment_") or str(key).startswith("_objective_"):
+            public.pop(key, None)
+    return public
+
+
+def _emit_summary(*, requested, initial_count, returned, rejected, refill_rounds, reasons, operation_counts):
     try:
         trace = assessment_telemetry._ACTIVE_TRACE.get()
         request_id = trace.get("request_id") if trace else None
-        assessment_telemetry._write_metric(
-            "ASSESSMENT-LEGACY-FILTER",
-            {
-                "schema": FILTER_VERSION,
-                "request_id": request_id,
-                "requested_count": int(requested),
-                "initial_count": int(initial_count),
-                "returned_count": int(returned),
-                "count_match": int(returned) == int(requested),
-                "rejected_count": int(rejected),
-                "refill_rounds": int(refill_rounds),
-                "reason_counts": dict(sorted((reasons or {}).items())),
-            },
-        )
+        payload = {
+            "schema": FILTER_VERSION,
+            "request_id": request_id,
+            "requested_count": int(requested),
+            "initial_count": int(initial_count),
+            "returned_count": int(returned),
+            "count_match": int(returned) == int(requested),
+            "rejected_count": int(rejected),
+            "refill_rounds": int(refill_rounds),
+            "reason_counts": dict(sorted((reasons or {}).items())),
+            "operation_counts": dict(sorted((operation_counts or {}).items())),
+        }
+        assessment_telemetry._write_metric("ASSESSMENT-LEGACY-FILTER", payload)
     except Exception:
         pass
 
 
 def install(router_module):
-    """Wrap router_module._LEGACY_GENERATOR once, preserving legacy behavior otherwise."""
+    """Wrap router_module._LEGACY_GENERATOR once, preserving legacy generation itself."""
     original = getattr(router_module, "_LEGACY_GENERATOR", None)
     if not callable(original) or getattr(original, "__aula_legacy_meta_filter__", False):
         return
@@ -87,9 +341,14 @@ def install(router_module):
         accepted = []
         rejected_total = 0
         reasons_total = Counter()
+        operation_counts = Counter()
         refill_rounds = 0
+        try:
+            source_text = router_module._source_text(topic_ids)
+        except Exception:
+            source_text = ""
 
-        # Always generate side-effect-free. Only the final filtered set may be persisted.
+        # Always generate side-effect-free. Only the final validated set is persisted.
         first_batch = original(
             topic_ids=topic_ids,
             count=requested,
@@ -100,7 +359,14 @@ def install(router_module):
         ) or []
         initial_count = len(first_batch)
 
-        clean, rejected, reasons = _filter_batch(first_batch)
+        clean, rejected, reasons = _filter_batch(
+            first_batch,
+            source_text=source_text,
+            accepted=accepted,
+            prior=history,
+            operation_counts=operation_counts,
+            requested=requested,
+        )
         accepted.extend(clean[:requested])
         rejected_total += len(rejected)
         reasons_total.update(reasons)
@@ -109,12 +375,12 @@ def install(router_module):
             if row:
                 history.append(row)
 
-        # Reuse legacy itself for top-ups. Oversample small gaps so one bad refill
-        # does not immediately reduce the final requested count.
+        # Legacy's inner guard already performs one compact repair. This is only the
+        # final safety refill, bounded to prevent latency explosions.
         while len(accepted) < requested and refill_rounds < _MAX_REFILL_ROUNDS:
             refill_rounds += 1
             missing = requested - len(accepted)
-            refill_count = min(requested, max(4, missing * 2))
+            refill_count = min(requested, max(4, missing + 3))
             refill = original(
                 topic_ids=topic_ids,
                 count=refill_count,
@@ -126,7 +392,14 @@ def install(router_module):
             if not refill:
                 break
 
-            clean, rejected, reasons = _filter_batch(refill)
+            clean, rejected, reasons = _filter_batch(
+                refill,
+                source_text=source_text,
+                accepted=accepted,
+                prior=history,
+                operation_counts=operation_counts,
+                requested=requested,
+            )
             room = requested - len(accepted)
             accepted.extend(clean[:room])
             rejected_total += len(rejected)
@@ -136,10 +409,8 @@ def install(router_module):
                 if row:
                     history.append(row)
 
-        final = accepted[:requested]
+        final = [_strip_internal(q) for q in accepted[:requested]]
 
-        # Direct legacy mode used to persist inside the generator. Because filtering
-        # now happens before persistence, persist only the accepted final set once.
         if is_quiz and final:
             persist = getattr(router_module, "_persist_primary_questions", None)
             if callable(persist):
@@ -152,6 +423,7 @@ def install(router_module):
             rejected=rejected_total,
             refill_rounds=refill_rounds,
             reasons=reasons_total,
+            operation_counts=operation_counts,
         )
         return final
 

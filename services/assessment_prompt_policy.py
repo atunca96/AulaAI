@@ -30,8 +30,6 @@ def install(ai_engine_module):
         rewritten = [dict(m) if isinstance(m, dict) else m for m in messages]
         old_system = str(rewritten[system_idx].get("content", ""))
 
-        # Remove legacy blocks that rewarded cosmetic scenario variety and supplied
-        # archetypes which the model repeatedly copied.
         old_system = re.sub(
             r"\n\s*6\. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:.*?(?=\n\s*7\. DISTRACTOR)",
             "\n",
@@ -46,52 +44,52 @@ def install(ai_engine_module):
         )
 
         policy = """
-ASSESSMENT ENGINE V6.8 — SOURCE-GROUNDED OBJECTIVE SCHEDULER
+ASSESSMENT ENGINE V6.9 — FINAL LEGACY QUALITY POLICY
 
-This policy applies to every supported language, CEFR level and topic. It overrides weaker or conflicting variety instructions.
+This policy applies to every supported language, CEFR level and topic. It overrides weaker or conflicting assessment instructions.
 
-1. SOURCE EVIDENCE IS THE AUTHORITY
-Use only teaching points supported by the supplied lesson evidence. The topic title alone is never sufficient evidence for a question target.
+1. SOURCE IS THE BOUNDARY
+Use only source-backed language knowledge. Do not create facts, forms, rules, cultural claims, scientific claims or contrasts that are not taught by the supplied lesson evidence.
 
-2. TEST LEARNER COMPETENCE, NOT LINGUISTIC TRIVIA
-Prefer knowledge a learner actually needs to understand, produce, choose or interpret the target language. Descriptive terminology, etymology, historical roots, abstract phonetic labels, accent-mark trivia and spelling micro-trivia are assessable only when explicitly central to the source, level-appropriate and useful. When practical application can test the same point, test the application instead of terminology.
+2. TEST USEFUL LANGUAGE COMPETENCE
+Prefer meaning, form-function, grammar, contextual use, comprehension, pragmatic choice and source-taught contrasts. Reject etymology, historical roots, phonetic terminology, IPA labels, accent-mark trivia, letter trivia, morphology jargon such as prefix/suffix/morpheme/stem, and comparisons with other languages unless that exact area is explicitly central to the lesson.
 
-3. DISTINCT UNDERLYING OBJECTIVES INSIDE THE CURRENT BATCH
-Every item in the CURRENT response must test a materially different source-backed objective. Changing only a word, numeral, kinship term, name, example, setting, price, time, object or story is NOT a new objective. Sibling vocabulary items tested through the same lookup/use operation count as the same broad objective unless the source teaches a genuinely different usage condition, rule, contrast or communicative function. Do not fill a batch with multiple cosmetic variants of the same operation.
+3. EVERY QUESTION MUST HAVE A DISTINCT UNDERLYING OBJECTIVE
+Changing a numeral, vocabulary item, name, object, setting, price, time or story does not create a new objective. Sibling vocabulary items tested with the same lookup/completion operation count as one broad objective unless they teach a genuinely different rule, usage condition, contrast or communicative function. A 10-item batch should normally span at least four materially different objective/operation families when the source permits.
 
-4. PREVIOUS OBJECTIVES ARE SOFT PRIORITIES, NOT LIFETIME BANS
-Previous-question context may contain entries beginning with `USED OBJECTIVE KEY`. Prefer objectives that have not been used recently. If the lesson is narrow and unused objectives are exhausted, revisit a broader area only when the new item tests a materially different sub-target, application, form-function distinction, usage condition or comprehension demand. Do not repeat the same fact/question with different decoration.
+4. NO COSMETIC REPEATS
+Do not repeat the same rule, answer mapping, communicative exchange, spelling fact, lookup operation or semantic target with different decoration. Previous `USED OBJECTIVE KEY` entries are strong avoidance signals.
 
-5. TRUE REPEATS REMAIN FORBIDDEN
-Never repeat or closely paraphrase an earlier prompt, answer mapping, rule question, communicative exchange or semantic target. A new scenario does not make an old objective new.
+5. CONTEXT MUST UNIQUELY DETERMINE THE ANSWER
+Do not invent weak clues merely to force an exact answer. Examples of forbidden logic: "it is very cold" therefore exactly zero degrees; "a ticket costs ___" with no source-backed price cue; an arbitrary room/floor/time with no explicit cue. If the context does not uniquely determine the answer, choose another objective.
 
-6. BREADTH BEFORE COSMETIC VARIETY
-When the source supports it, distribute a 10-item batch across at least four distinct operations/evidence families and normally use no more than three items from the same broad operation. Valid operations include meaning, contextual use, grammar, orthographic form, comprehension, contrast, pragmatic use and pronunciation. If the source genuinely lacks that breadth, use materially different sub-targets rather than inventing outside content.
+6. NO ANSWER LEAKS
+Never reveal the answer as a digit, translation, parenthetical cue, equivalent representation or quoted solution in the prompt. Do not write `(6)` and ask for `seis`, or show a translated answer and ask the learner to reproduce it.
 
-7. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
-Reject questions solvable mainly through arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance or common-sense logic. The context must uniquely support the intended answer. Do not invent a situation that only weakly suggests an exact answer: for example, merely saying that weather is very cold does not uniquely imply zero degrees. Do not reveal the answer as a digit, translation, parenthetical cue or equivalent representation in the prompt.
+7. DISTRACTORS MUST BE REAL AND PLAUSIBLE
+For meaning, context and usage questions, every distractor must be a real, natural target-language form or a source-backed alternative. Never invent pseudoforms such as altered spellings solely to look similar, and never borrow a lookalike from another language. Deliberate misspellings are acceptable only when the lesson itself is centrally about orthography/spelling and the question directly tests that taught distinction.
 
-8. FORMAT SERVES THE OBJECTIVE
-Use situational choice, dialogue response, contextual comprehension, form-function discrimination, sentence completion, interpretation or another suitable form according to the source-backed objective. Do not use a new format merely to disguise a repeated objective.
+8. OPTIONS MUST BE STRUCTURALLY CLEAN
+Exactly one answer and exactly three distinct distractors. No duplicate option after accent/case normalization. No slash-combined multi-answer option such as `dos / dos`. All four options must be comparable in grammatical and semantic type.
 
-9. DISTRACTORS REPRESENT REAL CONFUSIONS
-All options must be grammatically and semantically comparable and plausible at the learner's level. For meaning/context/usage questions, distractors must be real, natural target-language forms supported by the lesson or normal language use; never invent pseudoforms or borrow lookalikes from another language. Deliberate misspellings are allowed only when the objective itself explicitly tests orthographic/form discrimination. Avoid absurd alternatives and visual giveaways.
+9. FORMAT DIVERSITY SERVES PEDAGOGY
+Use a balanced mix of contextual completion, form-function discrimination, rule application, comprehension, dialogue/pragmatic choice, meaning and source-backed contrast. Do not let blank-completion or direct lookup dominate the batch when other taught objectives exist.
 
-10. CANONICAL OBJECTIVE KEY — MANDATORY STRUCTURE
-For every generated question, the English `why` field MUST begin with exactly one marker in this form: [[OBJ:operation:underlying-target]]. `operation` MUST be exactly one of: meaning, contextual-use, grammar, orthography-form, comprehension, contrast, pragmatic-use, pronunciation. `underlying-target` must describe the transferable linguistic/communicative target, never the scenario, example name or incidental numeral. Questions that differ only by sibling vocabulary item or scenario but test the same operation and transferable target MUST use the same key and therefore cannot both survive. After the marker, write one short English explanation. Do not put the marker in any other field.
+10. CANONICAL OBJECTIVE KEY
+Every `why` field MUST begin with exactly `[[OBJ:operation:underlying-target]]`. `operation` must be one of: meaning, contextual-use, grammar, orthography-form, comprehension, contrast, pragmatic-use, pronunciation. `underlying-target` describes the transferable learner skill, never the incidental example or numeral.
 
-11. COMPACT OUTPUT
-Keep `why` and `why_tr` to one short sentence each. Keep translations natural but concise. Do not add prose outside the required JSON. Complete JSON is more important than decorative wording.
+11. COMPACTNESS IS REQUIRED FOR SPEED
+After the objective marker, keep `why` to at most 8 English words and `why_tr` to at most 8 Turkish words. Keep `translation_en` and `translation_tr` to at most 14 words each. Prompts should be concise and natural. Do not add decorative prose. Complete all requested questions inside the token budget.
 
-12. FINAL AUDIT
-Before returning JSON, verify that every current-batch objective is materially distinct, every item has source support, no earlier question is semantically repeated, every context uniquely determines its answer, distractors are legitimate, and every item is appropriate for the learner level.
+12. FINAL SELF-AUDIT BEFORE JSON
+For every item verify: source-backed, useful, unique objective, uniquely answerable context, no answer leak, no meta-trivia unless central, four distinct plausible options, no pseudoforms, and CEFR-appropriate language. If any item fails, replace it before returning JSON.
 """
 
         rewritten[system_idx]["content"] = (
             policy
             + old_system.replace(
                 "Pedagogic Assessment Engine (V5)",
-                "Pedagogic Assessment Engine (V6.8)",
+                "Pedagogic Assessment Engine (V6.9)",
                 1,
             )
         )
@@ -103,7 +101,6 @@ Before returning JSON, verify that every current-batch objective is materially d
             if "TASK: Generate EXACTLY" not in content:
                 continue
 
-            # Remove the old random emphasis block. Keep source, history and schema.
             content = re.sub(
                 r"\n\s*PEDAGOGICAL EMPHASIS:.*?(?=\n\s*JSON STRUCTURE:)",
                 "\n",
@@ -111,8 +108,8 @@ Before returning JSON, verify that every current-batch objective is materially d
                 flags=re.S,
             )
 
-            # Large over-generation caused truncation and latency. Keep one compact
-            # first batch; the guard performs a single small bounded repair if needed.
+            # Avoid the old 15-candidate over-generation. Ten compact complete items
+            # are faster and more useful than a truncated oversized response.
             match = re.search(r"TASK: Generate EXACTLY\s+(\d+)", content)
             if match:
                 try:
@@ -123,23 +120,21 @@ Before returning JSON, verify that every current-batch objective is materially d
                     pass
 
             rewritten[i]["content"] = (
-                "OBJECTIVE-SCHEDULER REQUIREMENT: Ground every item in SOURCE MATERIAL and make underlying objectives materially distinct, not merely different scenarios or sibling vocabulary examples. "
-                "Treat `USED OBJECTIVE KEY` entries as objectives to avoid when unused source-backed alternatives exist. "
-                "The English `why` field must begin with [[OBJ:operation:underlying-target]], using one allowed operation from the system policy. "
-                "Contexts must uniquely determine the answer; distractors must be legitimate; keep output compact and complete.\n\n"
+                "FINAL-QUALITY REQUIREMENT: Generate only source-backed, materially distinct learner objectives. "
+                "No meta-linguistic trivia, morphology jargon, cross-language trivia, pseudoform distractors, arbitrary exact-number contexts, answer leaks, or cosmetic repeats. "
+                "Every `why` begins with [[OBJ:operation:underlying-target]]. Keep all explanations/translations extremely compact so the complete requested batch fits in one response.\n\n"
                 + content
             )
             break
 
-        # Assessment calls fail fast. Lesson/material calls never enter this branch.
         try:
             kwargs["max_tokens"] = min(int(kwargs.get("max_tokens", 2000)), 2000)
         except Exception:
             kwargs["max_tokens"] = 2000
         try:
-            kwargs["temperature"] = min(float(kwargs.get("temperature", 0.50)), 0.50)
+            kwargs["temperature"] = min(float(kwargs.get("temperature", 0.42)), 0.42)
         except Exception:
-            kwargs["temperature"] = 0.50
+            kwargs["temperature"] = 0.42
         kwargs["allow_fallback"] = False
 
         return original_call(rewritten, *args, **kwargs)
