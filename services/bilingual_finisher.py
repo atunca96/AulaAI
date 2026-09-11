@@ -527,6 +527,67 @@ window.PAGE_TITLE_PAIRS = {json.dumps(page_titles, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"Failed to write bilingual bundle: {e}")
 
+def to_english_study_prompt(prompt: str, prompt_tr: str = None) -> str:
+    if not prompt and prompt_tr:
+        prompt = prompt_tr
+    if not prompt:
+        return 'Identify the correct option:'
+    s = str(prompt).strip()
+    en_starters = ['Choose ', 'Select ', 'Complete ', 'Which ', 'What ', 'How ', 'Why ', 'You ', 'If ']
+    if any(s.startswith(w) for w in en_starters):
+        return s
+    s = re.sub(r'^Completa la frase con el posesivo adecuado:?', 'Complete the sentence with the appropriate possessive:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase con el verbo y adjetivo correctos:?', 'Complete the sentence with the correct verb and adjective:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase con la forma correcta:?', 'Complete the sentence with the correct form:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase con la opci[oó]n correcta:?', 'Complete the sentence with the correct option:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase con la preposici[oó]n correcta:?', 'Complete the sentence with the correct preposition:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase seg[uú]n la distancia:?', 'Complete the sentence according to the distance:', s, flags=re.I)
+    s = re.sub(r'^Completa la frase:?', 'Complete the sentence:', s, flags=re.I)
+    s = re.sub(r'^Completa el espacio en blanco:?', 'Fill in the blank:', s, flags=re.I)
+    s = re.sub(r'^Elige la opci[oó]n gramaticalmente correcta para se[nñ]alar unos zapatos cerca de la persona con la que hablas:?', 'Choose the grammatically correct option to point out shoes near the person you are speaking with:', s, flags=re.I)
+    s = re.sub(r'^Elige la opci[oó]n gramaticalmente correcta:?', 'Choose the grammatically correct option:', s, flags=re.I)
+    s = re.sub(r'^Elige la frase gramaticalmente correcta:?', 'Choose the grammatically correct sentence:', s, flags=re.I)
+    s = re.sub(r'^Elige la respuesta correcta:?', 'Choose the correct answer:', s, flags=re.I)
+    s = re.sub(r'^Selecciona la opci[oó]n correcta para completar la descripci[oó]n espacial:?', 'Select the correct option to complete the spatial description:', s, flags=re.I)
+    s = re.sub(r'^Selecciona la opci[oó]n correcta:?', 'Select the correct option:', s, flags=re.I)
+    s = re.sub(r'^Selecciona la respuesta correcta:?', 'Select the correct answer:', s, flags=re.I)
+    s = re.sub(r'^Identifica la opci[oó]n correcta:?', 'Identify the correct option:', s, flags=re.I)
+    s = re.sub(r'^Identifica la respuesta correcta:?', 'Identify the correct answer:', s, flags=re.I)
+    s = re.sub(r'^Est[aá]s en clase de espa[nñ]ol y no conoces la palabra en espa[nñ]ol para [\'\"]?(.*?)[\'\"]?\.?\s*¿?Qu[eé] pregunta es la correcta\??', r"You are in Spanish class and do not know the Spanish word for '\1'. Which question is correct?", s, flags=re.I)
+    s = re.sub(r'^Llegas a la recepci[oó]n del hotel para hacer el registro de entrada\.?\s*¿?Cu[aá]l es la frase m[aá]s adecuada y educada para comenzar\??', 'You arrive at the hotel reception to check in. Which is the most appropriate and polite phrase to start with?', s, flags=re.I)
+    s = re.sub(r'^Quieres saber si hay una farmacia en los alrededores del hotel\.?\s*¿?C[oó]mo se lo preguntas al recepcionista\??', 'You want to know if there is a pharmacy around the hotel. How do you ask the receptionist?', s, flags=re.I)
+    s = re.sub(r'^Si tu amigo dice:\s*[«\"\'](.*?)[»\"\'],\s*y t[uú] tampoco lo tomas con agrado,\s*¿?qu[eé] respondes\??', r'If your friend says: "\1", and you do not like it either, what do you reply?', s, flags=re.I)
+    s = re.sub(r'^Si unos pantalones son demasiado peque[nñ]os para ti,\s*¿?qu[eé] le dices al dependiente\??', 'If a pair of trousers is too small for you, what do you say to the shop assistant?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA para decir que a ti te gustan los museos\??', 'Which of the following sentences is grammatically CORRECT to state that you like museums?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA para expresar que alguien no come carne jam[aá]s\??', 'Which of the following sentences is grammatically CORRECT to state that someone never eats meat?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA\??', 'Which of the following sentences is grammatically CORRECT?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l de las siguientes oraciones es INCORRECTA\??', 'Which of the following sentences is INCORRECT?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l es la forma correcta con la contracci[oó]n obligatoria\?:?', 'What is the correct form with the mandatory contraction?:', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l es la forma correcta para\s*', 'What is the correct form for ', s, flags=re.I)
+    s = re.sub(r'\s+con el verbo regular\s+', ' with the regular verb ', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l es la forma correcta para preguntar por un objeto desconocido que tienes en la mano\??', 'What is the correct form to ask about an unknown object you are holding in your hand?', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l es la forma plural correcta de\s*', 'What is the correct plural form of ', s, flags=re.I)
+    s = re.sub(r'^¿?Cu[aá]l es la frase correcta para describir una prenda femenina plural\??', 'What is the correct phrase to describe a feminine plural garment?', s, flags=re.I)
+    s = re.sub(r'^¿?C[oó]mo pides cort[eé]smente un billete para ir y volver de (.*?) en el mismo d[ií]a\??', r'How do you politely ask for a same-day return ticket to \1?', s, flags=re.I)
+    s = re.sub(r'^¿?C[oó]mo se dice\s*', 'How do you say ', s, flags=re.I)
+    s = re.sub(r'\s*en espa[nñ]ol de forma natural\??', ' in Spanish naturally?', s, flags=re.I)
+    s = re.sub(r'^How do you say en espa[nñ]ol:\s*', 'How do you say in Spanish: ', s, flags=re.I)
+    s = re.sub(r'^¿?Por qu[eé] es incorrecto decir:\s*', 'Why is it incorrect to say: ', s, flags=re.I)
+    s = re.sub(r'^¿?Qu[eé] significa\s*', 'What does ', s, flags=re.I)
+    s = re.sub(r'^¿?Qu[eé] expresi[oó]n se utiliza habitualmente para pedir la cuenta en un restaurante\??', 'Which expression is usually used to ask for the bill in a restaurant?', s, flags=re.I)
+    s = re.sub(r'^Vervollst[aä]ndige den Satz:?', 'Complete the sentence:', s, flags=re.I)
+    s = re.sub(r'^W[aä]hle die grammatikalisch richtige Option:?', 'Choose the grammatically correct option:', s, flags=re.I)
+    s = re.sub(r'^W[aä]hle die richtige Option:?', 'Choose the correct option:', s, flags=re.I)
+    s = re.sub(r'^W[aä]hlen Sie die richtige Option:?', 'Select the correct option:', s, flags=re.I)
+    s = re.sub(r'^Welcher Satz ist grammatikalisch KORREKT\??', 'Which sentence is grammatically CORRECT?', s, flags=re.I)
+    s = re.sub(r'^Welche der folgenden Aussagen ist richtig\??', 'Which of the following statements is correct?', s, flags=re.I)
+    s = re.sub(r'^Cümleyi tamamlayınız:?', 'Complete the sentence:', s, flags=re.I)
+    s = re.sub(r'^Cümleyi tamamlayın:?', 'Complete the sentence:', s, flags=re.I)
+    s = re.sub(r'^Aşağıdaki cümlelerden hangisi dilbilgisel olarak DOĞRUDUR\??', 'Which of the following sentences is grammatically CORRECT?', s, flags=re.I)
+    s = re.sub(r'^Doğru seçeneği belirleyin:?', 'Identify the correct option:', s, flags=re.I)
+    s = re.sub(r'^Doğru cevabı seçin:?', 'Select the correct answer:', s, flags=re.I)
+    return s
+
 def finalize_course_bilingual_data(course_id: str):
     import sys
     if ROOT_DIR not in sys.path:
@@ -743,6 +804,8 @@ def finalize_course_bilingual_data(course_id: str):
                                 it["explanation_en"] = c_en
                                 it["explanation_tr"] = c_tr
                 # MCQ
+                if p.get("prompt") and not p.get("prompt_en"):
+                    p["prompt_en"] = to_english_study_prompt(p.get("prompt"), p.get("prompt_tr"))
                 if p.get("prompt") and (not p.get("prompt_tr") or p.get("prompt_tr") == p.get("prompt")):
                     p["prompt_tr"] = trans_map.get(p["prompt"].strip(), p["prompt"])
                 if p.get("explanation") and (not p.get("explanation_tr") or p.get("explanation_tr") == p.get("explanation")):

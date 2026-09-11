@@ -5686,7 +5686,15 @@ function translatePrompt(text, lang = currentLang) {
     str = str.replace(/Which of the following means '(.*)'\?/i, "Aşağıdakilerden hangisi '$1' anlamına gelir?");
     str = str.replace(/Translate the following sentence:?/i, "Aşağıdaki cümleyi çevirin:");
     str = str.replace(/Translate the following:?/i, "Aşağıdakini çevirin:");
+    str = str.replace(/^Completa la frase:?/i, "Cümleyi tamamlayınız:");
+    str = str.replace(/^Completa el espacio en blanco:?/i, "Boşluğu doldurun:");
+    str = str.replace(/^Selecciona la opción correcta:?/i, "Doğru seçeneği seçin:");
+    str = str.replace(/^Elige la opción correcta:?/i, "Doğru seçeneği seçin:");
+    str = str.replace(/^Elige la frase gramaticalmente correcta:?/i, "Dilbilgisel olarak doğru cümleyi seçin:");
   } else {
+    if (typeof getEnglishStudyPrompt === 'function') {
+      str = getEnglishStudyPrompt(str);
+    }
     str = str.replace(/İspanyolcada '(.*)' harfinin fonetik sesi nedir\?/i, "What is the phonetic sound of the letter '$1' in Spanish?");
     str = str.replace(/(.*)'de '(.*)' harfinin fonetik sesi nedir\?/i, (m, l, w) => {
       const langEN = translateCourseName(l, 'en');
@@ -11382,17 +11390,99 @@ function getSpanishStudyPrompt(basePrompt, promptTr) {
   return 'Selecciona la opción correcta:';
 }
 
+function getEnglishStudyPrompt(basePrompt, promptTr) {
+  let s = (basePrompt || '').trim();
+  if (!s && promptTr) s = String(promptTr).trim();
+  if (!s) return 'Identify the correct option:';
+
+  // If already an English carrier instruction, return as is
+  const enStarters = ['Choose ', 'Select ', 'Complete ', 'Which ', 'What ', 'How ', 'Why ', 'You ', 'If '];
+  if (enStarters.some(w => s.startsWith(w))) {
+    return s;
+  }
+
+  // Spanish instruction stem replacements to natural English
+  s = s.replace(/^Completa la frase con el posesivo adecuado:?/i, 'Complete the sentence with the appropriate possessive:');
+  s = s.replace(/^Completa la frase con el verbo y adjetivo correctos:?/i, 'Complete the sentence with the correct verb and adjective:');
+  s = s.replace(/^Completa la frase con la forma correcta:?/i, 'Complete the sentence with the correct form:');
+  s = s.replace(/^Completa la frase con la opci[oó]n correcta:?/i, 'Complete the sentence with the correct option:');
+  s = s.replace(/^Completa la frase con la preposici[oó]n correcta:?/i, 'Complete the sentence with the correct preposition:');
+  s = s.replace(/^Completa la frase seg[uú]n la distancia:?/i, 'Complete the sentence according to the distance:');
+  s = s.replace(/^Completa la frase:?/i, 'Complete the sentence:');
+  s = s.replace(/^Completa el espacio en blanco:?/i, 'Fill in the blank:');
+  s = s.replace(/^Elige la opci[oó]n gramaticalmente correcta para se[nñ]alar unos zapatos cerca de la persona con la que hablas:?/i, 'Choose the grammatically correct option to point out shoes near the person you are speaking with:');
+  s = s.replace(/^Elige la opci[oó]n gramaticalmente correcta:?/i, 'Choose the grammatically correct option:');
+  s = s.replace(/^Elige la frase gramaticalmente correcta:?/i, 'Choose the grammatically correct sentence:');
+  s = s.replace(/^Elige la respuesta correcta:?/i, 'Choose the correct answer:');
+  s = s.replace(/^Selecciona la opci[oó]n correcta para completar la descripci[oó]n espacial:?/i, 'Select the correct option to complete the spatial description:');
+  s = s.replace(/^Selecciona la opci[oó]n correcta:?/i, 'Select the correct option:');
+  s = s.replace(/^Selecciona la respuesta correcta:?/i, 'Select the correct answer:');
+  s = s.replace(/^Identifica la opci[oó]n correcta:?/i, 'Identify the correct option:');
+  s = s.replace(/^Identifica la respuesta correcta:?/i, 'Identify the correct answer:');
+  s = s.replace(/^Est[aá]s en clase de espa[nñ]ol y no conoces la palabra en espa[nñ]ol para ['"]?(.*?)['"]?\.?\s*¿?Qu[eé] pregunta es la correcta\??/i, "You are in Spanish class and do not know the Spanish word for '$1'. Which question is correct?");
+  s = s.replace(/^Llegas a la recepci[oó]n del hotel para hacer el registro de entrada\.?\s*¿?Cu[aá]l es la frase m[aá]s adecuada y educada para comenzar\??/i, 'You arrive at the hotel reception to check in. Which is the most appropriate and polite phrase to start with?');
+  s = s.replace(/^Quieres saber si hay una farmacia en los alrededores del hotel\.?\s*¿?C[oó]mo se lo preguntas al recepcionista\??/i, 'You want to know if there is a pharmacy around the hotel. How do you ask the receptionist?');
+  s = s.replace(/^Si tu amigo dice:\s*[«"'](.*?)[»"'],\s*y t[uú] tampoco lo tomas con agrado,\s*¿?qu[eé] respondes\??/i, 'If your friend says: "$1", and you do not like it either, what do you reply?');
+  s = s.replace(/^Si unos pantalones son demasiado peque[nñ]os para ti,\s*¿?qu[eé] le dices al dependiente\??/i, 'If a pair of trousers is too small for you, what do you say to the shop assistant?');
+  s = s.replace(/^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA para decir que a ti te gustan los museos\??/i, 'Which of the following sentences is grammatically CORRECT to state that you like museums?');
+  s = s.replace(/^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA para expresar que alguien no come carne jam[aá]s\??/i, 'Which of the following sentences is grammatically CORRECT to state that someone never eats meat?');
+  s = s.replace(/^¿?Cu[aá]l de las siguientes frases es gramaticalmente CORRECTA\??/i, 'Which of the following sentences is grammatically CORRECT?');
+  s = s.replace(/^¿?Cu[aá]l de las siguientes oraciones es INCORRECTA\??/i, 'Which of the following sentences is INCORRECT?');
+  s = s.replace(/^¿?Cu[aá]l es la forma correcta con la contracci[oó]n obligatoria\?:?/i, 'What is the correct form with the mandatory contraction?:');
+  s = s.replace(/^¿?Cu[aá]l es la forma correcta para\s*/i, 'What is the correct form for ');
+  s = s.replace(/\s+con el verbo regular\s+/i, ' with the regular verb ');
+  s = s.replace(/^¿?Cu[aá]l es la forma correcta para preguntar por un objeto desconocido que tienes en la mano\??/i, 'What is the correct form to ask about an unknown object you are holding in your hand?');
+  s = s.replace(/^¿?Cu[aá]l es la forma plural correcta de\s*/i, 'What is the correct plural form of ');
+  s = s.replace(/^¿?Cu[aá]l es la frase correcta para describir una prenda femenina plural\??/i, 'What is the correct phrase to describe a feminine plural garment?');
+  s = s.replace(/^¿?C[oó]mo pides cort[eé]smente un billete para ir y volver de (.*?) en el mismo d[ií]a\??/i, 'How do you politely ask for a same-day return ticket to $1?');
+  s = s.replace(/^¿?C[oó]mo se dice\s*/i, 'How do you say ');
+  s = s.replace(/\s*en espa[nñ]ol de forma natural\??/i, ' in Spanish naturally?');
+  s = s.replace(/^How do you say en espa[nñ]ol:\s*/i, 'How do you say in Spanish: ');
+  s = s.replace(/^¿?Por qu[eé] es incorrecto decir:\s*/i, 'Why is it incorrect to say: ');
+  s = s.replace(/^¿?Qu[eé] significa\s*/i, 'What does ');
+  s = s.replace(/^¿?Qu[eé] expresi[oó]n se utiliza habitualmente para pedir la cuenta en un restaurante\??/i, 'Which expression is usually used to ask for the bill in a restaurant?');
+
+  // German instruction stem replacements to natural English
+  s = s.replace(/^Vervollst[aä]ndige den Satz:?/i, 'Complete the sentence:');
+  s = s.replace(/^W[aä]hle die grammatikalisch richtige Option:?/i, 'Choose the grammatically correct option:');
+  s = s.replace(/^W[aä]hle die richtige Option:?/i, 'Choose the correct option:');
+  s = s.replace(/^W[aä]hlen Sie die richtige Option:?/i, 'Select the correct option:');
+  s = s.replace(/^Welcher Satz ist grammatikalisch KORREKT\??/i, 'Which sentence is grammatically CORRECT?');
+  s = s.replace(/^Welche der folgenden Aussagen ist richtig\??/i, 'Which of the following statements is correct?');
+
+  // Turkish carrier replacements to natural English (if basePrompt was TR or promptTr was used)
+  s = s.replace(/^Cümleyi tamamlayınız:?/i, 'Complete the sentence:');
+  s = s.replace(/^Cümleyi tamamlayın:?/i, 'Complete the sentence:');
+  s = s.replace(/^Cümleyi doğru şekilde tamamlayınız:?/i, 'Complete the sentence correctly:');
+  s = s.replace(/^Cümleyi doğru fiil ve sıfat çekimiyle tamamlayınız:?/i, 'Complete the sentence with the correct verb and adjective:');
+  s = s.replace(/^Aşağıdaki cümlelerden hangisi dilbilgisel olarak DOĞRUDUR\??/i, 'Which of the following sentences is grammatically CORRECT?');
+  s = s.replace(/^Aşağıdaki sorulardan hangisi dilbilgisi kurallarına uygun ve doğal bir kullanımdır\??/i, 'Which of the following questions is grammatically correct and naturally phrased?');
+  s = s.replace(/^Aşağıdakilerden hangisi doğrudur\??/i, 'Which of the following is correct?');
+  s = s.replace(/^Boşluğu doldurun:?/i, 'Fill in the blank:');
+  s = s.replace(/^Doğru seçeneği belirleyin:?/i, 'Identify the correct option:');
+  s = s.replace(/^Doğru seçeneği seçin:?/i, 'Choose the correct option:');
+  s = s.replace(/^Doğru cevabı seçin:?/i, 'Select the correct answer:');
+  s = s.replace(/^Doğru cevabı belirleyin:?/i, 'Identify the correct answer:');
+  s = s.replace(/^Diyaloğu doğru sıraya koyun:?/i, 'Reorder the dialogue correctly:');
+  s = s.replace(/^Cümleyi en iyi hangi kelime tamamlar\??/i, 'Which word best completes the sentence?');
+  s = s.replace(/^Aşağıdakini çevirin:?/i, 'Translate the following:');
+  s = s.replace(/^Aşağıdaki cümleyi çevirin:?/i, 'Translate the following sentence:');
+  s = s.replace(/^'(.*)' ifadesinin doğru çoğul hali hangisidir\??/i, "What is the correct plural form of '$1'?");
+  s = s.replace(/^'(.*)' ne anlama gelir\??/i, "What does '$1' mean?");
+  s = s.replace(/^İspanyolca'da '(.*)' nasıl denir\??/i, "How do you say '$1' in Spanish?");
+  s = s.replace(/(.*)'da '(.*)' nasıl denir\??/i, "How do you say '$2' in $1?");
+
+  return s;
+}
+
 function resolveStudyPrompt(p, topic) {
-  if (isLevelB1OrAbove(topic)) {
-    // B1 and above: Question prompt is ALWAYS in Spanish
-    if (p.prompt_es) return p.prompt_es;
-    return getSpanishStudyPrompt(p.prompt || p.question || '', p.prompt_tr);
-  }
-  // A1-A2: Turkish / English system
   if (currentLang === 'tr') {
-    return p.prompt_tr ? p.prompt_tr : translatePrompt(p.prompt || "Identify the correct option:", 'tr');
+    if (p.prompt_tr) return p.prompt_tr;
+    return translatePrompt(p.prompt || p.question || "Doğru seçeneği belirleyin:", 'tr');
   }
-  return p.prompt_en ? p.prompt_en : translatePrompt(p.prompt || "Identify the correct option:", 'en');
+  // English mode (default)
+  if (p.prompt_en) return p.prompt_en;
+  return getEnglishStudyPrompt(p.prompt || p.question || '', p.prompt_tr);
 }
 
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {

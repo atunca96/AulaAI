@@ -760,6 +760,9 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
          * When multiple quiz rounds are generated, draw upon different target items, examples, and dialogues from the source material so every practice set feels fresh while remaining 100% faithful to the lesson syllabus.
     7. DISTRACTOR PLAUSIBILITY, LEARNER ERROR MODELING, COMPETITIVE PROXIMITY & EXACTLY ONE ANSWER (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
+       - ELEGANT & AUTHENTIC PEDAGOGICAL TONE (EXAMINER-GRADE QUALITY):
+         * The question stem and all 4 options must exhibit the polished naturalness, idiomacy, and authentic rhythm of questions authored by certified native language examiners.
+         * Distractors must not merely be plausible decoy words; they must sound like genuine, organic utterances or communicative choices that a real speaker could naturally contemplate in that exact conversational moment.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
        - COMPETITIVE DISTRACTOR PROXIMITY (NO OBVIOUS OUTLIERS):
          * All 3 distractors MUST be closely competing, plausible alternatives within the EXACT SAME situational context.
@@ -828,6 +831,9 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
           * In spoken/broadcast notices, use natural, concise native phrasing rather than stiff or artificial test-maker jargon.
           * Distinguish between professional actions, diagnostic terms, symptoms, treatments, commercial requests, and interpersonal norms relevant to '{topic_title}'.
           * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker of {language}.
+        - NATURAL CADENCE & EFFORTLESS IDIOMACY:
+          * The phrasing of both the prompt question and the answer options must flow effortlessly with native rhythmic authenticity and examiner-grade poise.
+          * Avoid rigid, robotic, or textbook-formulaic phrasing; use the lively, organic formulations that an educated native speaker naturally uses in everyday interactions.
         - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
           * Use genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic.
           * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
@@ -899,7 +905,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
     2) EXACTLY 4 OPTIONS & EXACTLY ONE DEFENSIBLE ANSWER: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' that are definitively FALSE.
-    3) COMPETITIVE DISTRACTOR PROXIMITY: All 3 distractors MUST be closely competing, plausible alternative choices within the exact same situation (e.g. realistic traveler actions, authentic recognized professions in {language}). NEVER create distant, weird, or easily dismissible non-sequiturs. NEVER use artificial composite combos (like 'digital journalist' or 'official mechanic').
+    3) COMPETITIVE DISTRACTOR PROXIMITY & AUTHENTIC QUALITY: All 3 distractors MUST be closely competing, plausible alternative choices with authentic native cadence (e.g. realistic traveler actions, authentic recognized professions in {language}). Distractors should read as genuine, elegant communicative alternatives, never synthetic or mechanical combos.
     4) STRICT ZERO-TOLERANCE BAN ON TRIVIAL BLANKS & CIRCULAR TAUTOLOGIES: NEVER test trivial 1-word collocation blanks ('mit verminderter Geschwindigkeit _____ -> fahren'). NEVER ask circular definition tautologies ('Was ist eine Betriebsstörung? -> ein betriebliches Problem').
     5) NO COMMERCIAL PRODUCT TRIVIA: Never test commercial brand names or ticket bundle portfolio specifics (no City-Ticket minutiae). Never test arbitrary disputed legal thresholds (no 'over 30 minutes' rules).
     6) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
@@ -907,7 +913,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     10) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    11) NATURAL AUTHENTIC {language}: Use genuine living idioms, modern living terms (never outdated or archaic words), and natural native syntax in {language}.
+    11) NATURAL AUTHENTIC {language} & EXAMINER-GRADE POLISH: Prompts, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and impeccable grammatical elegance matching official CEFR {level} examinations.
     12) B1 CALIBRATION & LITERAL DEDUCTIVE RIGOR: For B1, use clear standard everyday language; strictly avoid C1/B2 dense bureaucratic jargon or heavy infrastructure dispatch compounds. The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences or unstated locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
@@ -1770,6 +1776,8 @@ def _normalize_lesson_pages(data, topic, language, level):
 
             # Ensure MCQ preserves bilingual prompt and explanation
             if p.get("type") == "mcq" or p.get("prompt"):
+                if "prompt_en" in p:
+                    p["prompt_en"] = str(p["prompt_en"]).strip()
                 if "prompt_tr" in p:
                     p["prompt_tr"] = str(p["prompt_tr"]).strip()
                 if "explanation_tr" in p:
@@ -1890,6 +1898,7 @@ def _normalize_lesson_pages(data, topic, language, level):
             "title": mcq.get("title") or "Formative Assessment",
             "title_tr": mcq.get("title_tr") or "Hızlı Değerlendirme",
             "prompt": mcq.get("prompt") or mcq.get("question") or "",
+            "prompt_en": mcq.get("prompt_en") or "",
             "prompt_tr": mcq.get("prompt_tr") or "",
             "options": opts,
             "distractors": distrs,
@@ -2231,6 +2240,7 @@ Return ONLY valid JSON matching this schema:
         }}
       ],
       "prompt": "Question in {language}",
+      "prompt_en": "Question stem/instruction in English (e.g. 'Complete the sentence:', 'Which sentence is grammatically correct?')",
       "prompt_tr": "Question in Turkish",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
       "answer": "Correct answer",
