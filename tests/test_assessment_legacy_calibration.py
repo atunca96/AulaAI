@@ -5,11 +5,28 @@ from services import assessment_legacy_calibration
 
 
 class LegacyCandidateCalibrationTests(unittest.TestCase):
+    _PROMPTS = [
+        "Choose the greeting used when meeting a teacher in the morning.",
+        "Select the phrase that politely asks for directions at a station.",
+        "Which response accepts an invitation without sounding informal?",
+        "Choose the form that agrees with a masculine singular noun.",
+        "Select the expression used to order one item in a café.",
+        "Which sentence correctly asks another person their name?",
+        "Choose the phrase that closes a short formal conversation.",
+        "Select the correct response to a question about location.",
+        "Which option expresses possession with the taught structure?",
+        "Choose the sentence that uses the target preposition correctly.",
+        "Select the phrase that asks about opening time.",
+        "Which response is appropriate when thanking a stranger?",
+        "Choose the form used before a plural noun in this lesson.",
+        "Select the sentence that correctly negates the taught expression.",
+    ]
+
     def _q(self, i):
         return {
-            "prompt": f"Context {i}: choose the taught expression for situation {i}.",
+            "prompt": self._PROMPTS[i % len(self._PROMPTS)],
             "answer": f"answer{i}",
-            "distractors": [f"alt{i}a", f"alt{i}b", f"alt{i}c"],
+            "distractors": [f"choice{i}a", f"choice{i}b", f"choice{i}c"],
             "difficulty": "A1",
         }
 
