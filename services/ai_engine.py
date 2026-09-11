@@ -581,32 +581,68 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         extracted_vocab = []
         extracted_notes = []
         extracted_texts = []
+        extracted_dialogues = []
+        extracted_grammar = []
+
         for p in topic_content.get("pages", []):
-            if p.get("title") and p.get("title") not in extracted_notes:
-                extracted_notes.append(p.get("title"))
+            p_title = p.get("title")
+            if p_title and p_title not in extracted_notes:
+                extracted_notes.append(p_title)
             if p.get("text"):
                 extracted_texts.append(p.get("text").strip()[:1500])
+
+            # Extract dialogue exchanges
+            if p.get("dialogue") and isinstance(p["dialogue"], list):
+                diag_lines = []
+                for d in p["dialogue"][:8]:
+                    if isinstance(d, dict):
+                        spk = d.get("speaker") or "Speaker"
+                        txt = d.get("text") or d.get("line") or ""
+                        trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
+                        if txt:
+                            diag_lines.append(f"  {spk}: \"{txt}\" ({trans})" if trans else f"  {spk}: \"{txt}\"")
+                if diag_lines:
+                    extracted_dialogues.append("\n".join(diag_lines))
+
+            # Extract vocabulary and grammar items
             for it in p.get("items", []):
-                if isinstance(it, dict) and it.get("term"):
-                    term = it.get("term", "").strip()
-                    tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
-                    ex = (it.get("example", "") or "").strip()
-                    item_display = f"{term} ({tr})" if tr else term
-                    if ex:
-                        item_display += f" — Example: '{ex}'"
-                    extracted_vocab.append(item_display)
+                if isinstance(it, dict):
+                    term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
+                    tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
+                    ex = (it.get("example") or it.get("sample") or "").strip()
+                    expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
+                    if term:
+                        item_display = f"{term} ({tr})" if tr else term
+                        if ex: item_display += f" — Example: '{ex}'"
+                        if expl: item_display += f" — Note: {expl}"
+                        if any(k in str(p.get("type", "")).lower() for k in ["grammar", "rule", "pattern"]) or "rule" in it:
+                            extracted_grammar.append(item_display)
+                        else:
+                            extracted_vocab.append(item_display)
         
-        parts = []
-        if extracted_notes: parts.append("LESSON CORE THEMES: " + " | ".join(extracted_notes[:5]))
-        if extracted_vocab: parts.append("TARGET LESSON VOCABULARY & PHRASES:\n" + "\n".join(f"- {v}" for v in extracted_vocab[:30]))
-        if extracted_texts: parts.append("LESSON READING / DIALOGUE CONTENT:\n" + "\n\n".join(extracted_texts[:3]))
+        parts = [
+            "================================================================================",
+            "AUTHORITATIVE LESSON SOURCE MATERIAL (PRIMARY SOURCE OF TRUTH):",
+            "================================================================================"
+        ]
+        if extracted_notes:
+            parts.append("LESSON CORE THEMES & OBJECTIVES:\n" + "\n".join(f"- {n}" for n in extracted_notes[:6]))
+        if extracted_vocab:
+            parts.append("TARGET VOCABULARY & EXPRESSIONS:\n" + "\n".join(f"- {v}" for v in extracted_vocab[:35]))
+        if extracted_grammar:
+            parts.append("GRAMMAR RULES & USAGE PATTERNS:\n" + "\n".join(f"- {g}" for g in extracted_grammar[:15]))
+        if extracted_dialogues:
+            parts.append("COMMUNICATIVE DIALOGUES:\n" + "\n\n".join(extracted_dialogues[:3]))
+        if extracted_texts:
+            parts.append("READING PASSAGES & DESCRIPTIONS:\n" + "\n\n".join(extracted_texts[:3]))
+        parts.append("================================================================================")
         
-        if parts:
+        if len(parts) > 4:
             content_str = "\n\n".join(parts)
         else:
-            content_str = json.dumps(topic_content, ensure_ascii=False)[:3000]
+            content_str = json.dumps(topic_content, ensure_ascii=False)[:3500]
     else:
-        content_str = str(topic_content)[:3000]
+        content_str = str(topic_content)[:3500]
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     from services.cefr_reference import get_cefr_conditioning
@@ -748,70 +784,68 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
     5. HOMOGENEITY RULE:
        - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, or all questions).
-    6. MATERIAL FIDELITY & PEDAGOGICAL GROUNDING (CRITICAL):
-       - STRICT LESSON MATERIAL GROUNDING:
-         * The questions MUST test the specific vocabulary, grammar concepts, communicative phrases, and situational themes provided in the SOURCE MATERIAL.
-         * The student is being assessed on the content taught in THIS lesson.
-         * ABSOLUTELY NEVER invent foreign topics, unmentioned technical systems, or outside product trivia not covered in the lesson material.
-         * The correct answer and key communicative target MUST be firmly anchored in the vocabulary, dialogues, and reading passages provided under SOURCE MATERIAL.
-       - AUTHENTIC COMMUNICATIVE EMBEDDING:
-         * Embed the lesson's target vocabulary and structures into realistic, natural communicative dialogues, announcements, and situational decision scenarios.
-         * Do not merely test words in a vacuum; bring the lesson's content alive in authentic, everyday usage suited to CEFR {level}.
-         * When multiple quiz rounds are generated, draw upon different target items, examples, and dialogues from the source material so every practice set feels fresh while remaining 100% faithful to the lesson syllabus.
-    7. DISTRACTOR PLAUSIBILITY, LEARNER ERROR MODELING, COMPETITIVE PROXIMITY & EXACTLY ONE ANSWER (CRITICAL):
+    6. STRICT LESSON MATERIAL GROUNDING & PRIMARY SOURCE OF TRUTH (CRITICAL):
+       - AUTHORITATIVE SOURCE OF TRUTH:
+         * The provided lesson material is the single authoritative source of truth.
+         * Every question MUST test vocabulary items, grammatical structures, communicative phrases, facts, or scenarios directly taught and supported in the provided lesson material.
+         * The student is being assessed specifically on what this lesson teaches.
+       - ABSOLUTE ZERO-TOLERANCE BAN ON UNGROUNDED INVENTIONS & EXTRANEOUS ASSUMPTIONS:
+         * ABSOLUTELY NEVER introduce outside vocabulary, unintroduced grammar tenses/moods, unmentioned external facts, fabricated corporate/transportation policies, or arbitrary scenarios not supported by the lesson material.
+         * DISTRACTORS AS ONLY EXCEPTION: Distractors may incorporate plausible, closely-related vocabulary/forms from the same CEFR level strictly as needed to formulate competitive, plausible alternative choices; however, the question premise, prompt scenario, and the correct answer must be 100% grounded in the taught lesson material.
+       - ZERO UNSUPPORTED INFERENCES & UNSTATED LOGISTICAL SPECIFICS:
+         * Base all questions strictly on facts explicitly stated in the lesson dialogues, rules, or text passages.
+         * Never make speculative inference leaps (e.g. do NOT assert that schedules, costs, or travel times have changed unless the scenario explicitly mentions that change).
+         * Never hallucinate unstated locations, specific facilities, or unannounced constraints not mentioned in the lesson text.
+
+    7. DISTRACTOR PLAUSIBILITY, CEFR LEVEL CALIBRATION & EXACTLY ONE ANSWER (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
+       - STRICT CEFR {level} DIFFICULTY PRESERVATION:
+         * Strictly respect CEFR {level} linguistic limits across all questions, prompts, and all 4 options.
+         * Absolutely avoid overly advanced vocabulary or dense complex syntax above CEFR {level}.
+         * A1/A2: basic present tense, simple high-frequency everyday words, clear short sentences.
+         * B1: everyday independent communication, clear standard language, avoiding heavy bureaucratic jargon or hyper-technical infrastructure dispatch terms.
+         * B2: workplace nuance, structured argumentation, natural idiomatic connectors.
+         * C1/C2: stylistic nuances, advanced collocations, register flexibility.
+       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER (ZERO MULTI-ANSWER DEFECTS):
+         * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
+         * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
+         * If the question asks about a grammatical, orthographic, or syntactic property, NONE of the 3 distractors may exhibit that target property!
+       - PLAUSIBLE BUT CLEARLY WRONG DISTRACTORS (NO ABSURDITIES):
+         * All 3 distractors MUST be closely competing, plausible alternatives within the EXACT SAME situational context.
+         * Distractors MUST model genuine learner error archetypes (subtle agreement mismatches, common false friends, wrong register, or typical conjugation confusion).
+         * Distractors must be clearly wrong to someone who understands the lesson, yet realistic enough that an unprepared learner might consider them.
+         * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, anachronistic, or trivially dismissible options (no fitness gyms in train delay questions; no caricature options).
+       - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
        - ELEGANT & AUTHENTIC PEDAGOGICAL TONE (EXAMINER-GRADE QUALITY):
          * The question stem and all 4 options must exhibit the polished naturalness, idiomacy, and authentic rhythm of questions authored by certified native language examiners.
-         * Distractors must not merely be plausible decoy words; they must sound like genuine, organic utterances or communicative choices that a real speaker could naturally contemplate in that exact conversational moment.
-       - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
-       - COMPETITIVE DISTRACTOR PROXIMITY (NO OBVIOUS OUTLIERS):
-         * All 3 distractors MUST be closely competing, plausible alternatives within the EXACT SAME situational context.
-         * If the correct answer is an operational action (e.g. an action a passenger takes during a delay), all 3 distractors MUST ALSO be realistic operational actions that an actual passenger might consider, NOT absurd or easily dismissible non-sequiturs.
-         * Distractors must NOT be so far away or irrelevant that the correct answer is obvious by superficial elimination.
-       - AUTHENTIC OCCUPATIONS & ROLES (BAN ON ARTIFICIAL FRANKENSTEIN COMBOS):
-         * When testing professions, occupations, or workplaces, distractors MUST be genuine, everyday recognized professions in {language}.
-         * STRICT ZERO-TOLERANCE BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER generate synthetic adjective-noun combos or made-up job titles (e.g. 'digital journalist', 'official mechanic', 'technical lawyer'). Keep professions standard and natural in {language}.
-       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER MANDATE (ZERO MULTI-ANSWER DEFECTS):
-         * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt.
-         * All 3 distractors MUST be unequivocally and demonstrably false.
-         * If the question asks about a grammatical, orthographic, or syntactic property (e.g. gender, conjugation, agreement, spelling), ABSOLUTELY NEVER generate a distractor that ALSO possesses that target property! (e.g. if asking for a word with a specific grammatical feature, NONE of the 3 distractors may exhibit that feature).
-       - AUTHENTIC LEARNER ERROR MODELING (NOT JUST ADJACENT NUMBERS):
-         * When testing vocabulary, numbers, or forms, distractors MUST NOT merely be adjacent numbers.
-         * Distractors MUST model genuine, typical learner error archetypes:
-           a) Structural/compounding mistakes in {language} (e.g. archaic separate forms vs modern unified compounding).
-           b) Grammatical agreement, gender, case, or apocope errors native to {language}.
-           c) High-frequency false friends or phonetic near-matches.
-           d) Pragmatic or register mismatches.
-       - ABSOLUTE ZERO-TOLERANCE BAN ON OFF-DOMAIN, ANACHRONISTIC, OR WEIRD DISTRACTORS:
-         * NEVER inject nouns or concepts from unrelated daily life domains into distractors (e.g. ABSOLUTELY NO fitness studio / gym, cinema, supermarket, or leisure club options when testing transport, workplace, or healthcare).
-         * NEVER inject absurd temporal or anachronistic shifts (e.g. ABSOLUTELY NO "timetable for next year", "last month's schedule", or arbitrary future dates).
-         * NEVER inject pseudo-philosophical, ideological, or bizarre stylistic adjectives/attitudes (e.g. ABSOLUTELY NO "rückwärtsgewandt", "utopisch", "nostalgisch", "philosophisch").
-         * NEVER generate comical, cartoonish, or obviously impossible options.
-       - NO OFF-TARGET OR FOREIGN DISTRACTORS: Every distractor must be a genuine, grammatically valid item native to {language}. NEVER use characters or orthography foreign to {language}.
-       - NO TRIVIAL VISUAL GIVEAWAYS: A learner must NOT be able to identify the correct answer by visual elimination, option length difference, or ridiculous distractors.
+         * Distractors must sound like genuine, organic communicative choices that a real speaker could naturally contemplate in that exact conversational moment.
+       - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
 
-    8. COMMUNICATIVE FOCUS & IN-BATCH CONCEPT DIVERSITY (CRITICAL):
-       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in {language}?", or shallow "Which option means X?". NEVER ask the student to translate words between languages!
+    8. COGNITIVE TASK & QUESTION FORMAT VARIETY (AVOIDING REPETITIVE TESTING PATTERNS):
+       - ABSOLUTE BAN ON REPETITIVE TESTING PATTERNS:
+         * Across the {gen_count} questions in this batch, you MUST actively vary both the COGNITIVE TASK and the QUESTION FORMAT.
+         * ABSOLUTELY NEVER repeatedly test the same rule, grammatical inflection, or vocabulary category through near-identical sentence templates (e.g. NEVER generate multiple questions that all use the exact same carrier pattern like "Completa la frase: [Person] [verb] [object]" or test the same verb conjugation repeatedly).
+       - MANDATORY DISTRIBUTION OF COGNITIVE TASKS ACROSS EACH BATCH:
+         Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
+         a) PRAGMATIC / SITUATIONAL DECISION (COMMUNICATIVE REACTION - NO BLANK):
+            Real-world social interaction or dialogue from the lesson where the learner selects the natural, appropriate response or polite formula to say.
+         b) FUNCTIONAL COMPREHENSION & DEDUCTION (DIALOGUE / READING UNDERSTANDING - NO BLANK):
+            Testing specific meaning, speaker intentions, schedule/time details, or communicative purpose directly stated in the lesson material WITHOUT speculative leaps.
+         c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 2 PER BATCH):
+            Rich communicative sentence testing a specific taught conjugation, preposition, or lexical distinction in context.
+         d) LINGUISTIC DISCRIMINATION & GRAMMATICAL PRECISION (NO BLANK):
+            Selecting which statement is grammatically correct and natural vs. incorrect based strictly on the rule taught in the lesson.
+         e) COMMUNICATIVE INTENT & COLLOCATION IN CONTEXT (NO BLANK):
+            Choosing the proper expression, question word, or natural collocation appropriate for a specific communicative goal taught in the lesson.
+       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in {language}?", or shallow "Which option means X?".
        - STRICT ZERO-TOLERANCE BAN ON TRIVIAL 1-WORD COLLOCATION BLANKS:
          * NEVER test a fixed multi-word collocation by simply removing the single obvious verb.
-         * Fill-in-the-blank questions (max 2 per set) MUST test grammatical inflection, conjugation, mood, tense, preposition, or nuanced lexical discrimination in a rich communicative sentence.
        - STRICT BAN ON CIRCULAR TAUTOLOGIES & REPETITIVE DEFINITIONS:
-         * NEVER ask shallow definition questions that define a word with its own stem or root (e.g. "What is an X? -> An X thing").
-         * Every question MUST test communicative understanding, situational choices ('What should the person do/say?'), or functional consequences, NOT dictionary circularity.
+         * NEVER ask shallow definition questions that define a word with its own stem or root.
        - STRICT BAN ON COMMERCIAL PRODUCT TRIVIA & INVENTED LEGAL THRESHOLDS:
-         * AulaAI is a language learning platform, NOT a transportation ticketing manual or legal statute exam!
-         * NEVER test proprietary commercial product brand names or ticket portfolio specifics.
-         * NEVER test or invent arbitrary disputed legal/regulatory numerical thresholds.
-         * Test real communicative situations: how to ask staff for advice, how to report an issue, how to request an alternative route, or how to rebook politely.
-       - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY (ZERO REPETITION OF THE SAME RULE):
-         * All {gen_count} questions within this batch MUST test completely distinct communicative and operational objectives.
-         * ABSOLUTELY NEVER include two questions testing the same rule or scenario archetype. Every single question must target a fresh aspect of the theme.
-       - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
-         Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
-         a) SITUATIONAL PRAGMATICS (NO BLANK): Real-world social scenario where the student chooses what to say.
-         b) COMMUNICATIVE REACTION (NO BLANK): Choosing the natural response to a person.
-         c) CONCEPTUAL & COMMUNICATIVE UNDERSTANDING (NO BLANK): Asking practical times, schedules, rules, or meanings.
-         d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK): Rich communicative context with a grammatical or lexical blank.
+         * NEVER test proprietary commercial product brand names, ticket portfolio specifics, or arbitrary legal thresholds.
+       - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY:
+         * Every single question in this batch must target a fresh aspect of the theme with a different cognitive demand.
 
     9. STRICT ZERO-TOLERANCE BAN ON ARITHMETIC & MATH CALCULATIONS (CRITICAL):
        - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask math problems in {language}).
@@ -903,13 +937,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     }}
     
     CRITICAL MANDATES:
-    1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS & EXACTLY ONE DEFENSIBLE ANSWER: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' that are definitively FALSE.
-    3) COMPETITIVE DISTRACTOR PROXIMITY & AUTHENTIC QUALITY: All 3 distractors MUST be closely competing, plausible alternative choices with authentic native cadence (e.g. realistic traveler actions, authentic recognized professions in {language}). Distractors should read as genuine, elegant communicative alternatives, never synthetic or mechanical combos.
-    4) STRICT ZERO-TOLERANCE BAN ON TRIVIAL BLANKS & CIRCULAR TAUTOLOGIES: NEVER test trivial 1-word collocation blanks ('mit verminderter Geschwindigkeit _____ -> fahren'). NEVER ask circular definition tautologies ('Was ist eine Betriebsstörung? -> ein betriebliches Problem').
-    5) NO COMMERCIAL PRODUCT TRIVIA: Never test commercial brand names or ticket bundle portfolio specifics (no City-Ticket minutiae). Never test arbitrary disputed legal thresholds (no 'over 30 minutes' rules).
-    6) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
-    7) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
+    1) PRIMARY SOURCE OF TRUTH (STRICT GROUNDING): The provided lesson material is the single authoritative source of truth. Questions and correct answers MUST be 100% grounded in the taught vocabulary, rules, facts, and dialogues. Do not introduce unsupported vocabulary, unintroduced grammar tenses, outside facts, unstated logistics, or speculative assumptions.
+    2) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 2 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+    3) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
+    4) EXACTLY ONE DEFENSIBLE ANSWER & 3 PLAUSIBLE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, plausible distractors from the same situational domain that model genuine learner errors without being absurd, cartoonish, or off-domain.
+    5) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+    6) ZERO SEMANTIC DUPLICATES: Every question tests a distinct facet; zero duplicate concepts, duplicate answers, or duplicate learning objectives within the batch or across recent rounds.
+    7) ZERO SPECULATIVE INFERENCES: Rely strictly on what is explicitly stated in the lesson material; no unstated locations, unannounced costs, or invented logistics.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     10) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
@@ -953,6 +987,17 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch
             if any(_normalize_token(f.get("answer")) == clean_a_token for f in final):
                 continue
+
+            # IN-BATCH PATTERN & PROMPT DIVERSITY: Reject near-identical prompt stems or sentence templates within the batch
+            if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in final):
+                continue
+
+            # COGNITIVE TASK VARIETY: Strict limit of at most 2 fill-in-the-blank questions per batch
+            has_blank = "_" in p or "____" in p
+            if has_blank:
+                current_blanks = sum(1 for f in final if "_" in f.get("prompt", "") or "____" in f.get("prompt", ""))
+                if current_blanks >= 2:
+                    continue
 
             # STRICT DIVERSITY FILTER: Absolute rejection of any repeated or near-duplicate prompt from previous rounds
             if forbidden_prompt_keys:
