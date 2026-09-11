@@ -36,6 +36,14 @@ class AssessmentScorecardCalibrationTests(unittest.TestCase):
         }
         self.assertIsNone(_outside_meta_proxy_reason(q))
 
+    def test_numeric_range_is_not_mistaken_for_arithmetic(self):
+        q = {
+            "prompt": "¿Qué regla se aplica a los números 16-29 en español?",
+            "answer": "Se escriben fusionados.",
+            "distractors": ["Con guion", "Con y", "Separados"],
+        }
+        self.assertIsNone(_outside_meta_proxy_reason(q))
+
     def test_composite_is_explicitly_not_cutover_eligible(self):
         q = {
             "prompt": "¿Cuál es la característica etimológica de esta palabra?",
