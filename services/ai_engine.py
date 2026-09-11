@@ -533,21 +533,29 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     elif isinstance(topic_content, dict):
         extracted_vocab = []
         extracted_notes = []
+        extracted_texts = []
         for p in topic_content.get("pages", []):
             if p.get("title") and p.get("title") not in extracted_notes:
                 extracted_notes.append(p.get("title"))
+            if p.get("text"):
+                extracted_texts.append(p.get("text").strip()[:1500])
             for it in p.get("items", []):
                 if isinstance(it, dict) and it.get("term"):
                     term = it.get("term", "").strip()
                     tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else it.get("translation", "")).strip()
-                    extracted_vocab.append(f"{term} ({tr})" if tr else term)
+                    ex = (it.get("example", "") or "").strip()
+                    item_display = f"{term} ({tr})" if tr else term
+                    if ex:
+                        item_display += f" — Example: '{ex}'"
+                    extracted_vocab.append(item_display)
         
         parts = []
-        if extracted_vocab: parts.append("TARGET VOCABULARY: " + ", ".join(extracted_vocab[:25]))
         if extracted_notes: parts.append("LESSON CORE THEMES: " + " | ".join(extracted_notes[:5]))
+        if extracted_vocab: parts.append("TARGET LESSON VOCABULARY & PHRASES:\n" + "\n".join(f"- {v}" for v in extracted_vocab[:30]))
+        if extracted_texts: parts.append("LESSON READING / DIALOGUE CONTENT:\n" + "\n\n".join(extracted_texts[:3]))
         
         if parts:
-            content_str = "\n".join(parts)
+            content_str = "\n\n".join(parts)
         else:
             content_str = json.dumps(topic_content, ensure_ascii=False)[:3000]
     else:
@@ -693,10 +701,15 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
     5. HOMOGENEITY RULE:
        - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, or all questions).
-    6. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:
-       - Use the provided source material and vocabulary as your pedagogical baseline for CEFR {level}.
-       - You have FULL PEDAGOGICAL FREEDOM to draw upon the rich, natural conversational vocabulary, diverse situational dialogues, cultural expressions, and communicative scenarios of authentic {language} appropriate for level {level} within the theme of '{topic_title}'.
-       - Never artificially restrict questions to ONLY the exact 5-8 sample words listed when generating multiple rounds of questions; expand freely into natural variations, related phrases, and real-life dialogues suited to this topic and level so every regeneration is fresh and engaging.
+    6. MATERIAL FIDELITY & PEDAGOGICAL GROUNDING (CRITICAL):
+       - STRICT LESSON MATERIAL GROUNDING:
+         * The questions MUST test the specific vocabulary, grammar concepts, communicative phrases, and situational themes provided in the SOURCE MATERIAL.
+         * The student is being assessed on the content taught in THIS lesson.
+         * ABSOLUTELY NEVER invent foreign topics, unmentioned technical systems, or outside product trivia not covered in the lesson material.
+       - AUTHENTIC COMMUNICATIVE EMBEDDING:
+         * Embed the lesson's target vocabulary and structures into realistic, natural communicative dialogues, announcements, and situational decision scenarios.
+         * Do not merely test words in a vacuum; bring the lesson's content alive in authentic, everyday usage suited to CEFR {level}.
+         * When multiple quiz rounds are generated, draw upon different target items, examples, and dialogues from the source material so every practice set feels fresh while remaining 100% faithful to the lesson syllabus.
     7. DISTRACTOR PLAUSIBILITY, LEARNER ERROR MODELING & EXACTLY ONE ANSWER (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
