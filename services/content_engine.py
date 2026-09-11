@@ -328,7 +328,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     if t_row:
                         key_terms = []
                         key_grammar = []
-                        key_dialogues = []
                         key_texts = []
                         if t_row["content"]:
                             try:
@@ -336,19 +335,28 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                                 for p in tc.get("pages", []):
                                     ptype = str(p.get("type", "")).lower()
                                     ptext = (p.get("text") or "").strip()
-                                    if ptext and len(key_texts) < 2:
-                                        key_texts.append(ptext[:400])
 
-                                    # Extract dialogue lines
-                                    if p.get("dialogue") and isinstance(p["dialogue"], list) and len(key_dialogues) < 3:
-                                        for d in p["dialogue"][:4]:
-                                            spk = d.get("speaker") or "Speaker"
-                                            txt = d.get("text") or d.get("line") or ""
-                                            trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
-                                            if txt:
-                                                key_dialogues.append(f"{spk}: \"{txt}\"" + (f" ({trans})" if trans else ""))
+                                    # Prioritize explicit rules and comparisons as primary grammar sources
+                                    for r in p.get("rules", []):
+                                        if isinstance(r, dict):
+                                            r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
+                                            r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
+                                            r_ex = (r.get("example") or "").strip()
+                                            if r_name:
+                                                disp = f"[RULE] {r_name}"
+                                                if r_expl: disp += f": {r_expl[:150]}"
+                                                if r_ex: disp += f" (ex: '{r_ex}')"
+                                                if len(key_grammar) < 6: key_grammar.append(disp)
 
-                                    # Extract items (vocab & grammar)
+                                    for c in p.get("comparisons", []):
+                                        if isinstance(c, dict):
+                                            c_tgt = (c.get("target") or "").strip()
+                                            c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
+                                            if c_tgt:
+                                                disp = f"[CONTRAST] {c_tgt}" + (f": {c_note[:120]}" if c_note else "")
+                                                if len(key_grammar) < 6: key_grammar.append(disp)
+
+                                    # Extract items (vocab & fallback grammar)
                                     for it in p.get("items", []):
                                         if isinstance(it, dict):
                                             term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
@@ -358,11 +366,15 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                                             if term:
                                                 disp = f"{term} ({tr_val})" if tr_val else term
                                                 if ex: disp += f" [ex: {ex}]"
-                                                if expl: disp += f" [rule: {expl}]"
-                                                if any(k in ptype for k in ["grammar", "rule", "pattern"]) or "rule" in it:
-                                                    if len(key_grammar) < 6: key_grammar.append(disp)
-                                                else:
-                                                    if len(key_terms) < 8: key_terms.append(disp)
+                                                if expl: disp += f" [note: {expl[:100]}]"
+                                                if (any(k in ptype for k in ["grammar", "rule", "pattern"]) or "rule" in it) and len(key_grammar) < 6:
+                                                    key_grammar.append(disp)
+                                                elif len(key_terms) < 8:
+                                                    key_terms.append(disp)
+
+                                    # Compact reading context: budget-conscious, prioritizing rules over narrative text
+                                    if ptext and len(key_texts) < 1:
+                                        key_texts.append(ptext[:250])
                             except Exception: pass
                         topics_summary.append({
                             "id": tid,
@@ -370,8 +382,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                             "type": t_row["type"],
                             "key_vocab": key_terms[:8],
                             "key_grammar": key_grammar[:6],
-                            "key_dialogues": key_dialogues[:3],
-                            "key_texts": key_texts[:2]
+                            "key_texts": key_texts[:1]
                         })
 
             new_qs = ai_generate_questions(

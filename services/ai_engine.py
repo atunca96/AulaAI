@@ -590,12 +590,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             
             lines = [f"[MODULE TOPIC {idx}: '{t_title}' (Focus: {t_type})]"]
             if t_grammar:
-                lines.append("  Grammar Rules: " + " | ".join(t_grammar[:4]))
-            # Note: Dialogues omitted from quiz context to avoid incidental chatter poisoning question focus
+                lines.append("  Explicit Taught Grammar Rules & Contrasts: " + " | ".join(t_grammar[:4]))
+            # Note: Dialogues excluded from target selection to avoid incidental chatter poisoning question focus
             if t_vocab:
-                lines.append("  Target Vocabulary: " + ", ".join(t_vocab[:8]))
+                lines.append("  Target Vocabulary & Lexicon: " + ", ".join(t_vocab[:8]))
             if t_texts:
-                lines.append("  Reading Passage: " + t_texts[0][:300])
+                lines.append("  Reading Passage: " + t_texts[0][:250])
             parts.append("\n".join(lines))
         parts.append("================================================================================")
         content_str = "\n\n".join(parts)
@@ -609,19 +609,54 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             
             p_lines = [f"[PART {idx}: '{p_title}' (Focus: {p_type})]"]
             
+            has_explicit_rules = bool(p.get("rules") or p.get("comparisons"))
+            has_items = bool(p.get("items"))
+
+            # Explicit Taught Grammar Rules (Primary source for grammar/function)
+            if p.get("rules") and isinstance(p["rules"], list):
+                rule_lines = []
+                for r in p["rules"][:5]:
+                    if isinstance(r, dict):
+                        r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
+                        r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
+                        r_ex = (r.get("example") or "").strip()
+                        if r_name:
+                            r_disp = f"  * [RULE] {r_name}"
+                            if r_expl: r_disp += f": {r_expl[:180]}"
+                            if r_ex: r_disp += f" — Example: '{r_ex}'"
+                            rule_lines.append(r_disp)
+                if rule_lines:
+                    p_lines.append("Explicit Taught Grammar Rules (Primary Grammar Source):\n" + "\n".join(rule_lines))
+
+            # Structural Contrasts & Nuances (Primary source for grammatical distinctions)
+            if p.get("comparisons") and isinstance(p["comparisons"], list):
+                comp_lines = []
+                for c in p["comparisons"][:3]:
+                    if isinstance(c, dict):
+                        c_tgt = (c.get("target") or "").strip()
+                        c_ctx = (c.get("context_tr") if material_language == "tr" and c.get("context_tr") else (c.get("context") or "")).strip()
+                        c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
+                        if c_tgt:
+                            c_disp = f"  * [CONTRAST] '{c_tgt}'" + (f" ({c_ctx})" if c_ctx else "") + (f": {c_note[:140]}" if c_note else "")
+                            comp_lines.append(c_disp)
+                if comp_lines:
+                    p_lines.append("Structural Contrasts & Nuances:\n" + "\n".join(comp_lines))
+
             # Explanatory text / Narrative / Reading
+            # Budget-conscious: prioritize compact rules/comparisons over redundant narrative text
             if p.get("text"):
                 txt = p.get("text").strip()
                 if txt:
-                    p_lines.append(f"Passage / Explanations:\n{txt[:1200]}")
+                    txt_limit = 250 if (has_explicit_rules or has_items) else 500
+                    p_lines.append(f"Passage / Context (Lexical Evidence):\n{txt[:txt_limit]}")
 
             # Note: Dialogue exchanges are omitted from quiz source material to prevent
             # incidental conversational chatter or irrelevant filler vocabulary from confusing target objectives.
 
-            # Items (Vocabulary / Grammar / Examples)
+            # Items (Target Lexicon & Examples - Lexical/Contextual Evidence)
             if p.get("items") and isinstance(p["items"], list):
                 item_lines = []
-                for it in p["items"][:15]:
+                for it in p["items"][:12]:
                     if isinstance(it, dict):
                         term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
                         tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
@@ -630,10 +665,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         if term:
                             item_display = f"  * {term}" + (f" ({tr})" if tr else "")
                             if ex: item_display += f" — Example: '{ex}'"
-                            if expl: item_display += f" — Rule/Note: {expl}"
+                            if expl: item_display += f" — Note: {expl[:120]}"
                             item_lines.append(item_display)
                 if item_lines:
-                    p_lines.append("Target Lexicon, Patterns & Examples:\n" + "\n".join(item_lines))
+                    p_lines.append("Target Lexicon & Examples (Lexical Evidence):\n" + "\n".join(item_lines))
 
             if len(p_lines) > 1:
                 page_sections.append("\n".join(p_lines))
@@ -811,6 +846,12 @@ REPETITION & COVERAGE RULES:
        - MULTI-PART & OBJECTIVE COVERAGE:
          * Across the {gen_count} questions in this batch, cover different parts, sections, and learning objectives from the material instead of repeatedly testing the same concept, sentence pattern, vocabulary item, or grammar rule.
          * Map questions across the different numbered PARTS/sections provided in the source material.
+       - EXPLICIT RULES & COMPARISONS AS PRIMARY GRAMMAR SOURCE (CRITICAL MANDATE):
+         * Treat explicit rules ('[RULE]') and comparisons ('[CONTRAST]') as the PRIMARY and authoritative source of truth for grammar, inflection, and syntactic function questions.
+         * Treat vocabulary items, example sentences, narrative passages, and dialogue ONLY as lexical and contextual evidence, NEVER as proof of a new grammatical rule or function unless directly supported by a matching explicit taught rule.
+         * ZERO REVERSE-ENGINEERING OF GRAMMAR RULES: NEVER reverse-engineer or invent a grammatical rule, morphological function, or pragmatic force from an incidental example sentence, dialogue line, suffix, or collocation.
+         * NO FORCED GRAMMAR QUESTIONS: If a topic has no explicit source-supported grammar rule, do NOT force a grammar question from it; generate lexical, contextual, comprehension, or usage questions instead.
+         * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
 
     7. DISTRACTOR PLAUSIBILITY, REALISTIC LEARNER CONFUSIONS & CEFR CALIBRATION (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
@@ -862,9 +903,9 @@ REPETITION & COVERAGE RULES:
             Testing specific meaning, speaker intentions, schedule/time details, or communicative purpose directly stated in the lesson material WITHOUT speculative leaps.
          c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 3-4 PER BATCH):
             Rich communicative sentence testing a specific taught conjugation, preposition, or lexical distinction in context.
-         d) LINGUISTIC DISCRIMINATION & GRAMMATICAL PRECISION (NO BLANK):
+          d) LINGUISTIC DISCRIMINATION & GRAMMATICAL PRECISION (NO BLANK):
             Selecting which statement is grammatically correct and natural vs. incorrect based strictly on the rule taught in the lesson.
-         e) COMMUNICATIVE INTENT & COLLOCATION IN CONTEXT (NO BLANK):
+          e) COMMUNICATIVE INTENT & COLLOCATION IN CONTEXT (NO BLANK):
             Choosing the proper expression, question word, or natural collocation appropriate for a specific communicative goal taught in the lesson.
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in {language}?", or shallow "Which option means X?".
        - STRICT ZERO-TOLERANCE BAN ON TRIVIAL 1-WORD COLLOCATION BLANKS:
@@ -904,6 +945,11 @@ REPETITION & COVERAGE RULES:
         - SEMANTIC PRECISION OVER SUPERFICIAL FORMALITY:
           * Strictly reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required).
           * Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt.
+        - STRUCTURAL RULE - EXPLICIT SOURCE-SUPPORTED GRAMMAR & ZERO REVERSE-ENGINEERING (CRITICAL):
+          * Treat explicit rules ('[RULE]') and comparisons ('[CONTRAST]') as the primary source for grammar/function questions; treat items, examples, narrative text, and dialogue only as lexical/contextual evidence unless they are supported by a matching explicit taught rule.
+          * NEVER reverse-engineer a grammatical rule or pragmatic function from an incidental example, dialogue line, suffix, or collocation.
+          * If a topic has no explicit source-supported grammar rule, do NOT force a grammar question from it; generate lexical, contextual, comprehension, or usage questions instead.
+          * Keep dialogue excluded from target selection.
         - STRUCTURAL RULE - NO SPURIOUS MORPHEME-ATTRIBUTION & NATURAL WHOLE-EXPRESSION TESTING:
           * Do NOT generate meta-linguistic questions that attribute a pragmatic, rhetorical, continuity, completion, certainty, legal, intensity, or discourse meaning to a suffix, ending, case marker, or grammatical construction unless the source explicitly teaches that exact form–function relationship.
           * When the material teaches an idiom, fixed expression, collocation, discourse marker, or pragmatic phrase, test the whole expression naturally in context instead of decomposing it into morphemes or inventing a grammatical explanation.
