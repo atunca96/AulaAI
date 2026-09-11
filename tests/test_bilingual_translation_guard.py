@@ -22,3 +22,8 @@ def test_target_terms_inside_turkish_do_not_make_it_english():
     source = "The noun 'семья' is feminine and the stress falls on the final syllable."
     translated = "'семья' dişil bir isimdir ve vurgu son heceye düşer."
     assert _is_bad_translation(source, translated, "tr") is False
+
+
+def test_existing_turkish_source_may_remain_identical():
+    source = "Bu ifade günlük konuşmada kullanılır."
+    assert _is_bad_translation(source, source, "tr") is False
