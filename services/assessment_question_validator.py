@@ -4,7 +4,6 @@ Runs after the writer and before a question is accepted. No LLM or embedding cal
 Lesson/material generation is never called or modified.
 """
 
-import re
 import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
@@ -47,6 +46,18 @@ def _objective_text(objective):
     return _norm(
         f"{objective.get('skill', '')} {objective.get('target', '')} "
         f"{objective.get('evidence', '')} {objective.get('question_mode', '')}"
+    )
+
+
+def _form_or_rule_focused(objective):
+    text = _objective_text(objective)
+    return any(
+        marker in text
+        for marker in (
+            "spell", "orthograph", "escrit", "form choice", "form-choice", "grammar",
+            "agreement", "conjug", "suffix", "prefix", "morpholog", "rule",
+            "apocop", "plural", "gender",
+        )
     )
 
 
@@ -115,25 +126,21 @@ def _meta_allowed(question, objective, topic_source, level):
 
 
 def _looks_like_pseudoform_distractors(question, objective, source_text):
-    objective_text = _objective_text(objective)
-    form_focused = any(
-        marker in objective_text
-        for marker in (
-            "spell", "orthograph", "escrit", "form choice", "form-choice", "grammar",
-            "agreement", "conjug", "suffix", "prefix", "morpholog",
-        )
-    )
-    if form_focused:
+    if _form_or_rule_focused(objective):
         return False
 
     answer = _norm(question.get("answer"))
-    if len(answer) < 3:
+    answer_words = answer.split()
+    # This guard targets fake lexical forms such as do/dosa/dosas, not sentence-level
+    # contrast distractors where most of the sentence is intentionally shared.
+    if len(answer_words) > 2 or len(answer) < 3:
         return False
+
     source_n = _norm(source_text)
     suspicious = 0
     for distractor in question.get("distractors") or []:
         d = _norm(distractor)
-        if not d or d in source_n:
+        if not d or len(d.split()) > 2 or d in source_n:
             continue
         ratio = SequenceMatcher(None, answer, d).ratio()
         if ratio >= 0.58 and abs(len(answer) - len(d)) <= 3:
@@ -154,11 +161,15 @@ def validate_question(question, objective, topic_source, level):
     if not allowed:
         return False, reason
 
-    if not _answer_grounded(question.get("answer"), objective, source_text):
-        return False, "answer_unsupported"
-
-    if not _aligned(question, objective):
+    aligned = _aligned(question, objective)
+    if not aligned:
         return False, "objective_misaligned"
+
+    # Literal grounding is required for vocabulary/context answers. Grammar/spelling
+    # objectives may legitimately derive a new form from an explicitly taught rule.
+    if not _answer_grounded(question.get("answer"), objective, source_text):
+        if not (_form_or_rule_focused(objective) and aligned):
+            return False, "answer_unsupported"
 
     if _looks_like_pseudoform_distractors(question, objective, source_text):
         return False, "pseudoform_distractors"
