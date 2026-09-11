@@ -20,13 +20,14 @@ class LegacyCandidateCalibrationTests(unittest.TestCase):
         "Which response is appropriate when thanking a stranger?",
     ]
 
-    def _q(self, i, level="A1"):
+    def _q(self, i, level="A1", op="contextual-use"):
         return {
-            "prompt": self._PROMPTS[i % len(self._PROMPTS)],
+            "prompt": self._PROMPTS[i % len(self._PROMPTS)] + f" [{i}]",
             "answer": f"answer{i}",
             "distractors": [f"choice{i}a", f"choice{i}b", f"choice{i}c"],
             "difficulty": level,
-            "_objective_operation": "contextual-use",
+            "why": "brief reason",
+            "_objective_operation": op,
             "_objective_target": f"skill-{i}",
         }
 
@@ -60,12 +61,7 @@ class LegacyCandidateCalibrationTests(unittest.TestCase):
         def generator(*args, **kwargs):
             count = kwargs.get("count", args[4] if len(args) > 4 else 10)
             calls.append(count)
-            rows = []
-            for i in range(count):
-                q = self._q(i, level="B1")
-                q["_objective_operation"] = "grammar"
-                rows.append(q)
-            return rows
+            return [self._q(i, level="B1", op="grammar") for i in range(count)]
 
         fake = types.SimpleNamespace(ai_generate_questions=generator)
         assessment_legacy_calibration.install(fake)
@@ -83,10 +79,55 @@ class LegacyCandidateCalibrationTests(unittest.TestCase):
         self.assertEqual(calls, [10])
         self.assertEqual(len(result), 10)
 
+    def test_short_first_batch_gets_exactly_one_internal_repair(self):
+        calls = []
+        serial = [0]
+
+        def generator(*args, **kwargs):
+            count = kwargs.get("count", args[4] if len(args) > 4 else 10)
+            calls.append(count)
+            # Simulate the live truncation pattern: first call asked for 10 but returns 8.
+            returned = 8 if len(calls) == 1 else count
+            start = serial[0]
+            serial[0] += returned
+            return [self._q(start + i, level="B1", op="grammar") for i in range(returned)]
+
+        fake = types.SimpleNamespace(ai_generate_questions=generator)
+        assessment_legacy_calibration.install(fake)
+
+        result = fake.ai_generate_questions(
+            topic_title="Narrating past events",
+            topic_type="grammar",
+            topic_content={"pages": [{"rules": ["sequence of past events"]}]},
+            language="German",
+            count=10,
+            level="B1",
+            existing_questions=[],
+        )
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], 10)
+        self.assertGreaterEqual(calls[1], 2)
+        self.assertEqual(len(result), 10)
+
+    def test_internal_objective_marker_survives_then_is_stripped(self):
+        from services import assessment_guard as guard
+        from services import assessment_legacy_filter as gate
+
+        fake = types.SimpleNamespace(ai_generate_questions=lambda *a, **k: [])
+        assessment_legacy_calibration.install(fake)
+
+        q = self._q(1, level="B1", op="grammar")
+        carried = guard._public_question(q)
+        self.assertTrue(carried["why"].startswith("[[AULAOBJ:grammar]]"))
+        self.assertEqual(assessment_legacy_calibration._objective_operation(carried), "grammar")
+
+        public = gate._strip_internal(carried)
+        self.assertFalse(public["why"].startswith("[[AULAOBJ:"))
+
     def test_genuine_grammar_form_competitors_are_not_pseudoforms(self):
         from services import assessment_legacy_filter as gate
 
-        # install() patches the shared final gate, so use a tiny fake engine to activate it.
         fake = types.SimpleNamespace(ai_generate_questions=lambda *a, **k: [])
         assessment_legacy_calibration.install(fake)
 
@@ -95,7 +136,7 @@ class LegacyCandidateCalibrationTests(unittest.TestCase):
             "answer": "angekommen war",
             "distractors": ["ankam", "angekommen hatte", "angekommen ist"],
             "difficulty": "B1",
-            "_objective_operation": "grammar",
+            "why": "[[AULAOBJ:grammar]] auxiliary selection",
         }
         source = "TOPIC Plusquamperfekt (grammar)\nangekommen war angekommen hatte angekommen ist"
         headers = gate._topic_headers(source)

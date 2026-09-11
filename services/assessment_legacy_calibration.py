@@ -1,14 +1,17 @@
 """Domain-general calibration for the stable legacy assessment path.
 
-Prompt-first generation stays authoritative. This layer adds only cheap deterministic
-calibration: a small candidate headroom when output is naturally short, topic-aware
-validation, and soft diversity selection. It never touches lesson/material generation.
+Prompt-first generation stays authoritative. This layer owns the single bounded LLM
+repair for legacy assessments, keeps internal objective metadata alive across the
+assessment-only transformation path, and applies cheap deterministic selection.
+Lesson/material generation is never touched.
 """
 
 import json
 import math
 import re
 from collections import Counter, OrderedDict
+
+_INTERNAL_OP_RE = re.compile(r"^\s*\[\[AULAOBJ:([a-z-]+)\]\]\s*", re.I)
 
 
 def _set_count(args, kwargs, value):
@@ -39,8 +42,16 @@ def _level_rank(value):
     )
 
 
+def _objective_operation(question):
+    op = str((question or {}).get("_objective_operation", "") or "").strip().lower()
+    if op:
+        return op
+    match = _INTERNAL_OP_RE.match(str((question or {}).get("why", "") or ""))
+    return match.group(1).lower() if match else ""
+
+
 def _form_focused(gate, headers, question):
-    op = str((question or {}).get("_objective_operation", "") or "").lower()
+    op = _objective_operation(question)
     h = gate._norm(headers)
     return (
         op in {"grammar", "orthography-form"}
@@ -58,7 +69,6 @@ def _extra_quality_reason(gate, question, headers):
     if not p:
         return None
 
-    # Letter-shape trivia is meta-linguistic unless spelling/orthography is central.
     letter_shape_markers = (
         "starts with", "begins with", "which letter", "what letter",
         "se escribe con", "empieza con", "comienza con", "que letra", "qué letra",
@@ -69,7 +79,6 @@ def _extra_quality_reason(gate, question, headers):
         if not gate._central(headers, gate._ORTHOGRAPHY_CENTRAL):
             return "letter_or_spelling_trivia"
 
-    # Morphological terminology is allowed only when morphology/form analysis is central.
     morphology_markers = (
         "word root", "lexical root", "irregular root", "morphological root",
         "raiz irregular", "raiz lexica", "racine lexicale", "radice lessicale",
@@ -79,9 +88,6 @@ def _extra_quality_reason(gate, question, headers):
         if not gate._central(headers, gate._MORPHOLOGY_CENTRAL):
             return "morphology_terminology"
 
-    # Arithmetic is not language competence unless mathematics itself is the source topic.
-    # This catches symbolic arithmetic and common arithmetic instructions across several
-    # language families without depending on any particular vocabulary topic.
     if re.search(r"\b\d+(?:[.,]\d+)?\s*[+\-×*/÷]\s*\d+(?:[.,]\d+)?\b", p):
         return "arithmetic"
     arithmetic_markers = (
@@ -101,30 +107,27 @@ def _extra_quality_reason(gate, question, headers):
 def _candidate_count(guard, args, kwargs, requested):
     topic_type = guard._norm(guard._arg(args, kwargs, "topic_type", 1, ""))
     level = _level_rank(guard._arg(args, kwargs, "level", 5, "A1"))
-
-    # Grammar/mixed and B1+ items are naturally longer; oversampling them increases
-    # truncation risk and latency. Shorter A1/A2 vocabulary/context sets can afford a
-    # small headroom so the deterministic gate has choices without another LLM call.
-    verbose = (
-        "grammar" in topic_type
-        or "mixed" in topic_type
-        or level >= 3
-    )
+    verbose = "grammar" in topic_type or "mixed" in topic_type or level >= 3
     if verbose or requested < 5:
         return requested
     headroom = max(2, int(math.ceil(requested * 0.20)))
     return min(24, requested + headroom)
 
 
+def _repair_count(requested, missing):
+    if missing <= 0:
+        return 0
+    # One compact repair only. A little headroom absorbs one bad/duplicate item without
+    # recreating the old refill cascade.
+    return min(max(2, missing + 2), max(4, min(8, requested)))
+
+
 def _diversity_key(gate, question):
-    op = str((question or {}).get("_objective_operation", "") or "").strip().lower()
-    if op:
-        return op
-    return gate._operation_signature(question)
+    op = _objective_operation(question)
+    return op or gate._operation_signature(question)
 
 
 def _round_robin_select(gate, candidates, requested):
-    """Prefer breadth without rejecting otherwise valid questions."""
     buckets = OrderedDict()
     for question in candidates:
         buckets.setdefault(_diversity_key(gate, question), []).append(question)
@@ -152,15 +155,33 @@ def install(ai_engine_module):
     from services import assessment_guard as guard
     from services import assessment_legacy_filter as gate
 
-    # There must be only one LLM refill owner. Content engine remains the bounded
-    # supplementary pass; the semantic guard itself never starts another provider call.
+    # This layer is the single LLM repair owner.
     guard._MAX_REPAIR_ROUNDS = 0
 
-    # Keep canonical objective metadata through the in-memory candidate stage. The final
-    # legacy gate strips all _objective_* fields before anything is returned publicly.
+    # Preserve only the objective operation through content_engine by encoding it inside
+    # `why`, a field content_engine already carries. The final gate strips this marker
+    # before persistence/public return, so internal metadata never reaches users.
     def _keep_internal_question(q):
-        return dict(q) if isinstance(q, dict) else q
+        if not isinstance(q, dict):
+            return q
+        public = dict(q)
+        op = str(q.get("_objective_operation", "") or "").strip().lower()
+        why = str(public.get("why", "") or "")
+        if op and not _INTERNAL_OP_RE.match(why):
+            public["why"] = f"[[AULAOBJ:{op}]] {why}".strip()
+        return public
+
     guard._public_question = _keep_internal_question
+
+    original_strip_internal = gate._strip_internal
+    if not getattr(gate, "_legacy_internal_marker_calibrated", False):
+        def calibrated_strip_internal(question):
+            public = original_strip_internal(question)
+            if isinstance(public, dict):
+                public["why"] = _INTERNAL_OP_RE.sub("", str(public.get("why", "") or "")).lstrip()
+            return public
+        gate._strip_internal = calibrated_strip_internal
+        gate._legacy_internal_marker_calibrated = True
 
     if not getattr(gate, "_legacy_domain_general_calibrated", False):
         original_quality_reason = gate._quality_reason
@@ -175,17 +196,10 @@ def install(ai_engine_module):
                 operation_counts=operation_counts,
                 requested=requested,
             )
-
-            # Format concentration is a ranking preference, never a correctness failure.
             if reason == "operation_overconcentration":
                 reason = None
-
-            # Near-form alternatives are often the whole point of a grammar/form question
-            # (auxiliary choice, agreement, conjugation, case, etc.). Do not apply a
-            # spelling-pseudoform heuristic when form discrimination is central.
             if reason == "pseudoform_distractors" and _form_focused(gate, headers, question):
                 reason = None
-
             if reason:
                 return reason
             return _extra_quality_reason(gate, question, headers)
@@ -195,24 +209,11 @@ def install(ai_engine_module):
 
     original = ai_engine_module.ai_generate_questions
 
-    def candidate_generate(*args, **kwargs):
-        try:
-            requested = max(1, int(guard._arg(args, kwargs, "count", 4, 10) or 10))
-        except Exception:
-            requested = 10
-
-        candidate_count = _candidate_count(guard, args, kwargs, requested)
-        call_args, call_kwargs = _set_count(args, kwargs, candidate_count)
-        candidates = original(*call_args, **call_kwargs) or []
-
-        source_text = _source_text(guard, args, kwargs)
-        headers = gate._topic_headers(source_text)
-        prior = list(guard._arg(args, kwargs, "existing_questions", 6, []) or [])
-        clean = []
-        operation_counts = Counter()
+    def _filter_candidates(candidates, *, source_text, headers, prior, requested, accepted_seed=None):
+        clean = list(accepted_seed or [])
+        operation_counts = Counter(gate._operation_signature(q) for q in clean if isinstance(q, dict))
         reasons = Counter()
-
-        for question in candidates:
+        for question in candidates or []:
             if not isinstance(question, dict):
                 reasons["malformed"] += 1
                 continue
@@ -230,14 +231,56 @@ def install(ai_engine_module):
                 continue
             operation_counts[gate._operation_signature(question)] += 1
             clean.append(question)
+        return clean, reasons
+
+    def candidate_generate(*args, **kwargs):
+        try:
+            requested = max(1, int(guard._arg(args, kwargs, "count", 4, 10) or 10))
+        except Exception:
+            requested = 10
+
+        source_text = _source_text(guard, args, kwargs)
+        headers = gate._topic_headers(source_text)
+        prior = list(guard._arg(args, kwargs, "existing_questions", 6, []) or [])
+
+        candidate_count = _candidate_count(guard, args, kwargs, requested)
+        call_args, call_kwargs = _set_count(args, kwargs, candidate_count)
+        first = original(*call_args, **call_kwargs) or []
+        clean, reasons = _filter_candidates(
+            first,
+            source_text=source_text,
+            headers=headers,
+            prior=prior,
+            requested=requested,
+        )
+
+        repair_calls = 0
+        if len(clean) < requested:
+            missing = requested - len(clean)
+            repair_n = _repair_count(requested, missing)
+            if repair_n:
+                repair_calls = 1
+                repair_args, repair_kwargs = _set_count(args, kwargs, repair_n)
+                repair_context = prior + [q for q in first if isinstance(q, dict)] + clean
+                repair_args, repair_kwargs = guard._with_existing(repair_args, repair_kwargs, repair_context)
+                extra = original(*repair_args, **repair_kwargs) or []
+                clean, repair_reasons = _filter_candidates(
+                    extra,
+                    source_text=source_text,
+                    headers=headers,
+                    prior=repair_context,
+                    requested=requested,
+                    accepted_seed=clean,
+                )
+                reasons.update(repair_reasons)
 
         accepted = _round_robin_select(gate, clean, requested)
 
         try:
             print(
                 "[ASSESSMENT-CANDIDATE-POOL] "
-                f"requested={requested} asked={candidate_count} received={len(candidates)} "
-                f"accepted={len(accepted)} rejected={sum(reasons.values())} "
+                f"requested={requested} asked={candidate_count} received={len(first)} "
+                f"accepted={len(accepted)} rejected={sum(reasons.values())} repairs={repair_calls} "
                 f"reasons={dict(sorted(reasons.items()))}",
                 flush=True,
             )
