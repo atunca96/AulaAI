@@ -97,6 +97,8 @@ _META_STEM_GROUPS = {
         "morphem", "morfem", "morpholog", "morfolog", "prefix", "prefij",
         "suffix", "sufij", "affix", "afij", "linking element", "linking prefix",
         "elemento de enlace", "prefijo de enlace", "word stem", "raiz morf", "raíz morf",
+        "irregular root", "lexical root", "word root", "raiz irregular", "raíz irregular",
+        "raices irregulares", "raíces irregulares",
     ),
     "cross_language_trivia": (
         "other romance language", "otras lenguas romances", "otra lengua romance",
@@ -120,7 +122,6 @@ _MATH_STEMS = (
     "sumar", "suma", "multiplicar", "multiply", "subtract", "addition",
     "topla", "carp", "çarp",
 )
-
 _SOUND_TERMS = ("sound", "sonid", "ses", "laut", "suono", "son")
 _SOUND_LABEL_STEMS = (
     "soft", "hard", "suave", "fuerte", "voiced", "voiceless", "sonoro", "sordo",
@@ -244,7 +245,7 @@ def build_scorecard(questions, requested_count, source_text=""):
     )
 
     return {
-        "score_version": "shadow_proxy_v5",
+        "score_version": "shadow_proxy_v6",
         "composite_score": round(composite * 100.0, 2),
         "composite_score_provisional": True,
         "cutover_eligible": False,
