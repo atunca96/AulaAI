@@ -256,17 +256,20 @@ def is_near_identical_question(p1, p2):
 
 def extract_pedagogic_keywords(text):
     if not text:
-        return set()
+        return []
     norm = normalize_prompt_text(text)
     stopwords = {
         "hangisi", "hangisinde", "asagidaki", "cumlede", "dogru", "yanlis", "olarak",
         "kullanilmistir", "vardir", "yoktur", "ifadesi", "anlamina", "gelen", "uygun",
         "seciniz", "cumledeki", "bosluga", "hangisinin", "paragrafta", "verilen",
+        "etmek", "olmak", "yapmak", "kilmak", "eylemek", "kalmak", "durumunda", "durumundayiz",
+        "halinde", "birlikte", "uzere", "dair", "gore", "kadar", "dolayi", "oturu", "ragmen", "karsin",
+        "gibi", "icin", "ile", "veya", "yahut", "olan", "ederek", "edildi", "edilmesi",
+        "oldugu", "olmasi", "yapan", "yapilan", "tarafindan", "yonelik",
         "which", "where", "what", "when", "that", "this", "from", "with", "have", "been",
         "cual", "donde", "como", "para", "pero", "esta", "este", "es", "son", "un", "una"
     }
-    words = [w for w in norm.split() if len(w) >= 3 and w not in stopwords]
-    return set(words)
+    return [w for w in norm.split() if len(w) >= 3 and w not in stopwords]
 
 def extract_prompt_quotes(text):
     if not text:
@@ -330,17 +333,36 @@ def is_test_conflict(cand, accepted):
     ca_words = extract_pedagogic_keywords(cand_a)
     aa_words = extract_pedagogic_keywords(acc_a)
     if ca_words and aa_words:
-        shared = ca_words & aa_words
-        if len(shared) >= 2:
+        # Single keyword answer duplicate (e.g. both answers are "mamafih" or "tenzih")
+        if len(ca_words) == 1 and len(aa_words) == 1 and ca_words[0] == aa_words[0]:
             return True
-        if len(ca_words) == 1 and len(aa_words) == 1 and list(ca_words)[0] == list(aa_words)[0]:
+        if len(ca_words) == 1 and ca_words[0] in aa_words:
             return True
-        for cw in ca_words:
-            for aw in aa_words:
-                if len(cw) >= 6 and len(aw) >= 6 and (cw in aw or aw in cw):
-                    return True
-                if cw.endswith(('cesine', 'casina')) and aw.endswith(('cesine', 'casina')):
-                    return True
+        if len(aa_words) == 1 and aa_words[0] in ca_words:
+            return True
+        # Both answers testing duplicate adverbial suffix (-casına / -cesine)
+        if any(cw.endswith(('cesine', 'casina')) for cw in ca_words) and any(aw.endswith(('cesine', 'casina')) for aw in aa_words):
+            return True
+        # Multi-word idiom overlap: share at least 2 significant stems/words
+        matches = 0
+        for w1 in ca_words:
+            if len(w1) < 4:
+                continue
+            for w2 in aa_words:
+                if len(w2) < 4:
+                    continue
+                if w1 == w2 or (len(w1) >= 5 and len(w2) >= 5 and (w1[:5] == w2[:5] or w1 in w2 or w2 in w1)):
+                    matches += 1
+                    break
+        if matches >= 2:
+            return True
+
+    # 5. Multi-word idiom answer prefix overlap (e.g. "gozunu karartmak" vs "gozunu karartti")
+    cand_a_words = [w for w in normalize_prompt_text(cand_a).split() if len(w) >= 3]
+    acc_a_words = [w for w in normalize_prompt_text(acc_a).split() if len(w) >= 3]
+    if len(cand_a_words) >= 2 and len(acc_a_words) >= 2:
+        if cand_a_words[:2] == acc_a_words[:2]:
+            return True
 
     # 6. Multi-word idiom or key phrase giveaway (e.g. "gozunu karartmak" / "gozunu karartti")
     for phrase in [cand_a, acc_a]:
@@ -2964,8 +2986,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 1, 6)
-                    count_b = max((requested_count - half) + 1, 6)
+                    count_a = max(half + 2, 7)
+                    count_b = max((requested_count - half) + 2, 7)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
