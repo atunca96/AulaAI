@@ -800,8 +800,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if forbidden_prompt_keys:
                 if clean_p_token in forbidden_prompt_keys:
                     continue
-                # Character similarity check: reject only if prompt is near-duplicate (>80% similar)
-                if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).quick_ratio() > 0.80 for fp_key in forbidden_prompt_keys):
+                # Character similarity check: reject only if prompt is a true near-duplicate (>94% identical)
+                if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).ratio() > 0.94 for fp_key in forbidden_prompt_keys):
                     continue
 
             # Reject prompts containing Turkish instructional words (must be 100% target language)
