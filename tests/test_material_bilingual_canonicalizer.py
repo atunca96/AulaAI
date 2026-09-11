@@ -21,6 +21,20 @@ class _FakeAiEngine:
         }
 
 
+class _CorrectingAiEngine:
+    MODEL_TRANSLATOR = "fake"
+
+    @staticmethod
+    def _call_ai(*args, **kwargs):
+        return {
+            "0": {
+                "en": "The letter Ё normally represents /jo/ and is always stressed when written explicitly.",
+                "tr": "Ё harfi genellikle 'yo' diye okunur; yazıldığında bulunduğu hece daima vurguludur.",
+                "existing_tr_accurate": False,
+            }
+        }
+
+
 def test_cross_language_reference_is_removed_from_english():
     value = "It is written like Latin C, but it is always pronounced like the Turkish 's'."
     cleaned = _scrub_cross_language_reference(value)
@@ -50,6 +64,22 @@ def test_accurate_existing_turkish_explanation_is_preserved_verbatim():
     result = _call_native_explanation_pairs(_FakeAiEngine(), entries, "Russian")
     assert result["token"]["tr"] == existing_tr
     assert "Turkish" not in result["token"]["en"]
+
+
+def test_bad_existing_turkish_can_be_replaced_with_native_corrected_turkish():
+    entries = [
+        (
+            "token",
+            "alphabet",
+            "Ё ё",
+            "Generic letter explanation.",
+            "This is still English.",
+            "ёлка",
+        )
+    ]
+    result = _call_native_explanation_pairs(_CorrectingAiEngine(), entries, "Russian")
+    assert result["token"]["tr"].startswith("Ё harfi")
+    assert "English" not in result["token"]["tr"]
 
 
 def test_ipa_prefix_is_preserved_while_note_is_localized():
