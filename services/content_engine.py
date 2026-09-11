@@ -311,7 +311,10 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                             "options": options,
                             "difficulty": course_level,
                             "why": why_en,
-                            "why_tr": why_tr
+                            "why_tr": why_tr,
+                            "evidence": q.get("evidence", ""),
+                            "material_section": q.get("material_section", ""),
+                            "cognitive_task": q.get("cognitive_task", "")
                         })
 
         # Case B: Multi-topic assessment (e.g. Quiz / Review) -> Balanced cross-topic curriculum
@@ -323,21 +326,51 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
                     if t_row:
                         key_terms = []
+                        key_grammar = []
+                        key_dialogues = []
+                        key_texts = []
                         if t_row["content"]:
                             try:
                                 tc = json.loads(t_row["content"])
                                 for p in tc.get("pages", []):
+                                    ptype = str(p.get("type", "")).lower()
+                                    ptext = (p.get("text") or "").strip()
+                                    if ptext and len(key_texts) < 2:
+                                        key_texts.append(ptext[:400])
+
+                                    # Extract dialogue lines
+                                    if p.get("dialogue") and isinstance(p["dialogue"], list) and len(key_dialogues) < 3:
+                                        for d in p["dialogue"][:4]:
+                                            spk = d.get("speaker") or "Speaker"
+                                            txt = d.get("text") or d.get("line") or ""
+                                            trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
+                                            if txt:
+                                                key_dialogues.append(f"{spk}: \"{txt}\"" + (f" ({trans})" if trans else ""))
+
+                                    # Extract items (vocab & grammar)
                                     for it in p.get("items", []):
-                                        if it.get("term"):
-                                            tr_val = it.get("translation_tr") or it.get("translation")
-                                            key_terms.append(f"{it.get('term')} ({tr_val})")
-                                        if len(key_terms) >= 6: break
+                                        if isinstance(it, dict):
+                                            term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
+                                            tr_val = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
+                                            ex = (it.get("example") or it.get("sample") or "").strip()
+                                            expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
+                                            if term:
+                                                disp = f"{term} ({tr_val})" if tr_val else term
+                                                if ex: disp += f" [ex: {ex}]"
+                                                if expl: disp += f" [rule: {expl}]"
+                                                if any(k in ptype for k in ["grammar", "rule", "pattern"]) or "rule" in it:
+                                                    if len(key_grammar) < 6: key_grammar.append(disp)
+                                                else:
+                                                    if len(key_terms) < 8: key_terms.append(disp)
                             except Exception: pass
                         topics_summary.append({
                             "id": tid,
                             "title": t_row["title"],
                             "type": t_row["type"],
-                            "key_vocab": key_terms[:6]
+                            "key_vocab": key_terms[:8],
+                            "key_grammar": key_grammar[:6],
+                            "key_dialogues": key_dialogues[:3],
+                            "key_texts": key_texts[:2]
                         })
 
             new_qs = ai_generate_questions(
@@ -382,7 +415,10 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "options": options,
                         "difficulty": course_level,
                         "why": why_en,
-                        "why_tr": why_tr
+                        "why_tr": why_tr,
+                        "evidence": q.get("evidence", ""),
+                        "material_section": q.get("material_section", ""),
+                        "cognitive_task": q.get("cognitive_task", "")
                     })
 
         # Supplementary AI pass ONLY if first batch yielded severely fewer than requested (e.g. < 70%)

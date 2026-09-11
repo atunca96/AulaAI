@@ -566,32 +566,69 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
+    authoritative_tokens = set()
+
     # Use override if provided (for speed during build), else extract concise target material
     if source_text_override:
         content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:8000]}"
+        for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', source_text_override.lower()):
+            authoritative_tokens.add(tok)
     elif isinstance(topic_content, dict) and "topics" in topic_content:
-        parts = ["SYLLABUS REVIEW TOPICS & VOCABULARY TO TEST:"]
-        for idx, top in enumerate(topic_content.get("topics", [])[:10], 1):
+        parts = [
+            "================================================================================",
+            "AUTHORITATIVE MULTI-TOPIC REVIEW SYLLABUS (EVIDENCE SOURCE OF TRUTH):",
+            "================================================================================"
+        ]
+        for idx, top in enumerate(topic_content.get("topics", [])[:8], 1):
             t_title = top.get("title", "")
+            t_type = top.get("type", "concept")
             t_vocab = top.get("key_vocab", [])
-            vocab_str = ", ".join(t_vocab) if t_vocab else "General core expressions"
-            parts.append(f"{idx}. Topic: '{t_title}'\n   Target Vocabulary: {vocab_str}")
+            t_grammar = top.get("key_grammar", [])
+            t_diag = top.get("key_dialogues", [])
+            t_texts = top.get("key_texts", [])
+            
+            lines = [f"[MODULE TOPIC {idx}: '{t_title}' (Focus: {t_type})]"]
+            if t_grammar:
+                lines.append("  Grammar Rules: " + " | ".join(t_grammar[:4]))
+                for g in t_grammar:
+                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', g.lower()):
+                        authoritative_tokens.add(tok)
+            if t_diag:
+                lines.append("  Dialogues: " + " || ".join(t_diag[:2]))
+                for d in t_diag:
+                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', d.lower()):
+                        authoritative_tokens.add(tok)
+            if t_vocab:
+                lines.append("  Target Vocabulary: " + ", ".join(t_vocab[:8]))
+                for v in t_vocab:
+                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', v.lower()):
+                        authoritative_tokens.add(tok)
+            if t_texts:
+                lines.append("  Reading Passage: " + t_texts[0][:300])
+                for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', t_texts[0].lower()):
+                    authoritative_tokens.add(tok)
+            parts.append("\n".join(lines))
+        parts.append("================================================================================")
         content_str = "\n\n".join(parts)
     elif isinstance(topic_content, dict):
-        extracted_vocab = []
-        extracted_notes = []
-        extracted_texts = []
-        extracted_dialogues = []
-        extracted_grammar = []
+        pages = topic_content.get("pages", [])
+        page_sections = []
 
-        for p in topic_content.get("pages", []):
-            p_title = p.get("title")
-            if p_title and p_title not in extracted_notes:
-                extracted_notes.append(p_title)
+        for idx, p in enumerate(pages, 1):
+            p_title = p.get("title", f"Part {idx}")
+            p_type = p.get("type", "content")
+            
+            p_lines = [f"[PART {idx}: '{p_title}' (Focus: {p_type})]"]
+            
+            # Explanatory text / Narrative / Reading
             if p.get("text"):
-                extracted_texts.append(p.get("text").strip()[:1500])
+                txt = p.get("text").strip()
+                if txt:
+                    p_lines.append(f"Passage / Explanations:\n{txt[:1200]}")
+                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', txt.lower()):
+                        authoritative_tokens.add(tok)
 
-            # Extract dialogue exchanges
+            # Dialogue exchanges
             if p.get("dialogue") and isinstance(p["dialogue"], list):
                 diag_lines = []
                 for d in p["dialogue"][:8]:
@@ -600,49 +637,59 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         txt = d.get("text") or d.get("line") or ""
                         trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
                         if txt:
-                            diag_lines.append(f"  {spk}: \"{txt}\" ({trans})" if trans else f"  {spk}: \"{txt}\"")
+                            diag_lines.append(f"  {spk}: \"{txt}\"" + (f" ({trans})" if trans else ""))
+                            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', txt.lower()):
+                                authoritative_tokens.add(tok)
                 if diag_lines:
-                    extracted_dialogues.append("\n".join(diag_lines))
+                    p_lines.append("Authentic Dialogue Exchanges:\n" + "\n".join(diag_lines))
 
-            # Extract vocabulary and grammar items
-            for it in p.get("items", []):
-                if isinstance(it, dict):
-                    term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
-                    tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
-                    ex = (it.get("example") or it.get("sample") or "").strip()
-                    expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
-                    if term:
-                        item_display = f"{term} ({tr})" if tr else term
-                        if ex: item_display += f" — Example: '{ex}'"
-                        if expl: item_display += f" — Note: {expl}"
-                        if any(k in str(p.get("type", "")).lower() for k in ["grammar", "rule", "pattern"]) or "rule" in it:
-                            extracted_grammar.append(item_display)
-                        else:
-                            extracted_vocab.append(item_display)
-        
+            # Items (Vocabulary / Grammar / Examples)
+            if p.get("items") and isinstance(p["items"], list):
+                item_lines = []
+                for it in p["items"][:15]:
+                    if isinstance(it, dict):
+                        term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
+                        tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
+                        ex = (it.get("example") or it.get("sample") or "").strip()
+                        expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
+                        if term:
+                            item_display = f"  * {term}" + (f" ({tr})" if tr else "")
+                            if ex: item_display += f" — Example: '{ex}'"
+                            if expl: item_display += f" — Rule/Note: {expl}"
+                            item_lines.append(item_display)
+                            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', term.lower()):
+                                authoritative_tokens.add(tok)
+                            if ex:
+                                for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', ex.lower()):
+                                    authoritative_tokens.add(tok)
+                if item_lines:
+                    p_lines.append("Target Lexicon, Patterns & Examples:\n" + "\n".join(item_lines))
+
+            if len(p_lines) > 1:
+                page_sections.append("\n".join(p_lines))
+
         parts = [
             "================================================================================",
-            "AUTHORITATIVE LESSON SOURCE MATERIAL (PRIMARY SOURCE OF TRUTH):",
-            "================================================================================"
+            "AUTHORITATIVE LESSON SOURCE MATERIAL (PRIMARY EVIDENCE SOURCE OF TRUTH):",
+            "================================================================================",
+            "The learner has studied the following lesson material. Your questions MUST be strictly",
+            "material-dependent: test information, dialogues, vocabulary, grammar patterns, relationships,",
+            "and details that a learner needs to recall or understand from THIS MATERIAL itself.",
+            "Do NOT ask questions that can be answered by generic common sense or world knowledge.",
+            "--------------------------------------------------------------------------------"
         ]
-        if extracted_notes:
-            parts.append("LESSON CORE THEMES & OBJECTIVES:\n" + "\n".join(f"- {n}" for n in extracted_notes[:6]))
-        if extracted_vocab:
-            parts.append("TARGET VOCABULARY & EXPRESSIONS:\n" + "\n".join(f"- {v}" for v in extracted_vocab[:35]))
-        if extracted_grammar:
-            parts.append("GRAMMAR RULES & USAGE PATTERNS:\n" + "\n".join(f"- {g}" for g in extracted_grammar[:15]))
-        if extracted_dialogues:
-            parts.append("COMMUNICATIVE DIALOGUES:\n" + "\n\n".join(extracted_dialogues[:3]))
-        if extracted_texts:
-            parts.append("READING PASSAGES & DESCRIPTIONS:\n" + "\n\n".join(extracted_texts[:3]))
-        parts.append("================================================================================")
-        
-        if len(parts) > 4:
+        if page_sections:
+            parts.extend(page_sections)
+            parts.append("================================================================================")
             content_str = "\n\n".join(parts)
         else:
             content_str = json.dumps(topic_content, ensure_ascii=False)[:3500]
+            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', content_str.lower()):
+                authoritative_tokens.add(tok)
     else:
         content_str = str(topic_content)[:3500]
+        for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', content_str.lower()):
+            authoritative_tokens.add(tok)
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     from services.cefr_reference import get_cefr_conditioning
@@ -784,41 +831,34 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
     5. HOMOGENEITY RULE:
        - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, or all questions).
-    6. STRICT LESSON MATERIAL GROUNDING & PRIMARY SOURCE OF TRUTH (CRITICAL):
-       - AUTHORITATIVE SOURCE OF TRUTH:
-         * The provided lesson material is the single authoritative source of truth.
-         * Every question MUST test vocabulary items, grammatical structures, communicative phrases, facts, or scenarios directly taught and supported in the provided lesson material.
-         * The student is being assessed specifically on what this lesson teaches.
-       - ABSOLUTE ZERO-TOLERANCE BAN ON UNGROUNDED INVENTIONS & EXTRANEOUS ASSUMPTIONS:
-         * ABSOLUTELY NEVER introduce outside vocabulary, unintroduced grammar tenses/moods, unmentioned external facts, fabricated corporate/transportation policies, or arbitrary scenarios not supported by the lesson material.
-         * DISTRACTORS AS ONLY EXCEPTION: Distractors may incorporate plausible, closely-related vocabulary/forms from the same CEFR level strictly as needed to formulate competitive, plausible alternative choices; however, the question premise, prompt scenario, and the correct answer must be 100% grounded in the taught lesson material.
-       - ZERO UNSUPPORTED INFERENCES & UNSTATED LOGISTICAL SPECIFICS:
-         * Base all questions strictly on facts explicitly stated in the lesson dialogues, rules, or text passages.
-         * Never make speculative inference leaps (e.g. do NOT assert that schedules, costs, or travel times have changed unless the scenario explicitly mentions that change).
-         * Never hallucinate unstated locations, specific facilities, or unannounced constraints not mentioned in the lesson text.
+    6. STRICT LESSON MATERIAL GROUNDING & LEARNING OBJECTIVES (NOT LITERAL RECALL):
+       - AUTHORITATIVE SOURCE OF LEARNING OBJECTIVES (PEDAGOGICAL GROUNDING):
+         * The lesson material is the single authoritative source of truth and learning objectives.
+         * Every question MUST assess knowledge, vocabulary, grammar patterns, relationships, examples, or communicative functions explicitly taught or demonstrated in the lesson material.
+         * CONTEXTUAL KNOWLEDGE TRANSFER: Questions MAY transfer taught linguistic knowledge, grammar structures, and vocabulary into fresh, realistic, CEFR-appropriate communicative contexts. Questions do NOT need to be literal verbatim recall tests.
+         * BAN ON EXTERNAL FACTS & INVENTIONS: While transfer of taught rules/lexicon is encouraged, questions must NEVER require external facts, unstated assumptions, generic world knowledge, or invented lesson content.
+       - STRICT BAN ON COMMON SENSE & OBVIOUS CATEGORY MATCHING (GATE 1 CRITERION):
+         * A question FAILS when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported learning objective.
+         * Examples of forbidden generic questions: asking where a doctor works (hospital), what you do when hungry (eat), or generic train delay common sense that anyone knows without studying the lesson.
+         * Questions MUST require understanding of the target language structures, collocations, dialogues, or distinctions taught in the lesson.
+       - MULTI-PART & OBJECTIVE COVERAGE:
+         * Across the {gen_count} questions in this batch, cover different parts, sections, and learning objectives from the material instead of repeatedly testing the same concept, sentence pattern, vocabulary item, or grammar rule.
+         * Map questions across the different numbered PARTS/sections provided in the source material.
 
-    7. DISTRACTOR PLAUSIBILITY, CEFR LEVEL CALIBRATION & EXACTLY ONE ANSWER (CRITICAL):
+    7. DISTRACTOR PLAUSIBILITY, REALISTIC LEARNER CONFUSIONS & CEFR CALIBRATION (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - STRICT CEFR {level} DIFFICULTY PRESERVATION:
          * Strictly respect CEFR {level} linguistic limits across all questions, prompts, and all 4 options.
-         * Absolutely avoid overly advanced vocabulary or dense complex syntax above CEFR {level}.
-         * A1/A2: basic present tense, simple high-frequency everyday words, clear short sentences.
-         * B1: everyday independent communication, clear standard language, avoiding heavy bureaucratic jargon or hyper-technical infrastructure dispatch terms.
-         * B2: workplace nuance, structured argumentation, natural idiomatic connectors.
-         * C1/C2: stylistic nuances, advanced collocations, register flexibility.
-       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER (ZERO MULTI-ANSWER DEFECTS):
+         * Keep all target-language wording natural, idiomatic, and examiner-grade in {language}.
+         * Avoid overly advanced vocabulary, dense bureaucracy, or complex syntax above CEFR {level}.
+       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER:
          * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
          * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
-         * If the question asks about a grammatical, orthographic, or syntactic property, NONE of the 3 distractors may exhibit that target property!
-       - PLAUSIBLE BUT CLEARLY WRONG DISTRACTORS (NO ABSURDITIES):
-         * All 3 distractors MUST be closely competing, plausible alternatives within the EXACT SAME situational context.
-         * Distractors MUST model genuine learner error archetypes (subtle agreement mismatches, common false friends, wrong register, or typical conjugation confusion).
-         * Distractors must be clearly wrong to someone who understands the lesson, yet realistic enough that an unprepared learner might consider them.
-         * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, anachronistic, or trivially dismissible options (no fitness gyms in train delay questions; no caricature options).
+       - REALISTIC LEARNER CONFUSIONS (PREFER SOURCE-INSPIRED, ALLOW NATURAL ERROR FORMS):
+         * Distractors must be plausible for a learner at CEFR {level} and preferably reflect realistic misunderstandings or confusions from the lesson material (e.g. contrasting forms, false friends, common agreement/conjugation errors, competing vocabulary taught in the lesson).
+         * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate incorrect forms (e.g. wrong verb conjugation, wrong preposition, wrong gender) are explicitly welcomed when they produce a more natural, authentic, and pedagogically valid question.
+         * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, or trivially dismissible choices.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
-       - ELEGANT & AUTHENTIC PEDAGOGICAL TONE (EXAMINER-GRADE QUALITY):
-         * The question stem and all 4 options must exhibit the polished naturalness, idiomacy, and authentic rhythm of questions authored by certified native language examiners.
-         * Distractors must sound like genuine, organic communicative choices that a real speaker could naturally contemplate in that exact conversational moment.
        - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
 
     8. COGNITIVE TASK & QUESTION FORMAT VARIETY (AVOIDING REPETITIVE TESTING PATTERNS):
@@ -900,6 +940,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
           * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations, specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
         - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a customer with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
+
+    13. MANDATORY PRE-OUTPUT INTERNAL VERIFICATION (6 EVALUATION GATES):
+        Before returning each question, internally verify it against these 6 evaluation gates:
+        * GATE 1 - MATERIAL-SUPPORTED LEARNING OBJECTIVE: Does the question assess knowledge, vocabulary, grammar, or communicative functions taught in the material? (A question FAILS ONLY when it primarily measures common sense or external knowledge rather than a material-supported learning objective).
+        * GATE 2 - LEVEL FIT: Is the question strictly calibrated to CEFR {level}? (REJECT if too advanced or too simplistic).
+        * GATE 3 - NATURALNESS & IDIOMACY: Is the target-language wording 100% natural, idiomatic, and examiner-grade in {language}? (REJECT if awkward, literal translationese, or robotic).
+        * GATE 4 - UNIQUENESS OF THE CORRECT ANSWER: Does the question have exactly ONE clearly defensible correct answer? (REJECT if ambiguous or if multiple options could be defended).
+        * GATE 5 - DISTRACTOR PLAUSIBILITY: Are all 3 distractors plausible alternatives reflecting realistic learner confusions (source-inspired or natural CEFR error forms)? (REJECT if absurd, cartoonish, or off-domain).
+        * GATE 6 - SEMANTIC DUPLICATION & COVERAGE: Does the question cover a different part, section, or learning objective of the material than the other questions in this set? (REJECT if it repeats a concept, pattern, or word already tested).
+        --> If any candidate question fails ANY check, DISCARD IT and REPLACE it with a fully compliant question before producing your JSON response!
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
@@ -925,6 +975,9 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
       "data": [
         {{
           "type": "mcq",
+          "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
+          "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
+          "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
           "prompt": "Authentic question 100% in {language}",
           "translation_en": "Natural English translation of the prompt",
           "translation_tr": "Doğal Türkçe çevirisi",
@@ -937,18 +990,18 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     }}
     
     CRITICAL MANDATES:
-    1) PRIMARY SOURCE OF TRUTH (STRICT GROUNDING): The provided lesson material is the single authoritative source of truth. Questions and correct answers MUST be 100% grounded in the taught vocabulary, rules, facts, and dialogues. Do not introduce unsupported vocabulary, unintroduced grammar tenses, outside facts, unstated logistics, or speculative assumptions.
-    2) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 2 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
-    3) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
-    4) EXACTLY ONE DEFENSIBLE ANSWER & 3 PLAUSIBLE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, plausible distractors from the same situational domain that model genuine learner errors without being absurd, cartoonish, or off-domain.
-    5) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    6) ZERO SEMANTIC DUPLICATES: Every question tests a distinct facet; zero duplicate concepts, duplicate answers, or duplicate learning objectives within the batch or across recent rounds.
-    7) ZERO SPECULATIVE INFERENCES: Rely strictly on what is explicitly stated in the lesson material; no unstated locations, unannounced costs, or invented logistics.
+    1) MATERIAL-SUPPORTED LEARNING OBJECTIVES: Questions must assess knowledge, vocabulary, grammar patterns, relationships, or communicative functions explicitly taught or demonstrated in the material. Questions may transfer taught knowledge into fresh CEFR-appropriate contexts, but must never require external facts, unstated assumptions, generic world knowledge, or invented lesson content.
+    2) GATE 1 - COMMON SENSE REJECTION: A question FAILS only when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported objective.
+    3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 2 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+    4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
+    5) EXACTLY ONE DEFENSIBLE ANSWER & 3 PLAUSIBLE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, plausible distractors reflecting realistic learner confusions (prefer source-inspired; allow natural CEFR error forms; zero absurdities).
+    6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+    7) ZERO SEMANTIC DUPLICATES: Every question tests a distinct facet; zero duplicate concepts, duplicate answers, or duplicate learning objectives within the batch or across recent rounds.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
-    10) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
+    10) CONCISE EXPLANATIONS & METADATA: 'why' and 'why_tr' MUST be 1 short concise sentence (max 15 words). 'evidence' and 'material_section' MUST be concise reference pointers (NO chain-of-thought).
     11) NATURAL AUTHENTIC {language} & EXAMINER-GRADE POLISH: Prompts, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and impeccable grammatical elegance matching official CEFR {level} examinations.
-    12) B1 CALIBRATION & LITERAL DEDUCTIVE RIGOR: For B1, use clear standard everyday language; strictly avoid C1/B2 dense bureaucratic jargon or heavy infrastructure dispatch compounds. The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences or unstated locations. All 4 options must match CEFR {level}."""
+    12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Verify each question against the 6 gates (Material support, Level fit, Naturalness, Uniqueness of answer, Distractor plausibility, Semantic duplication/coverage) before returning JSON."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -1010,6 +1063,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             # Reject prompts containing Turkish instructional words (must be 100% target language)
             tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
             if any(m in p.lower() for m in tr_prompt_markers):
+                continue
+
+            # GATE 1 COMMON SENSE & TRIVIAL CATEGORY MATCHING REJECTION:
+            # Fails only when the question primarily measures generic common sense / world knowledge rather than a material-supported learning objective
+            clean_p_lower = p.lower()
+            stereotypical_category_patterns = [
+                r'\b(?:dónde|donde|where|wo|où|ou|dove)\s+(?:trabaja|trabajan|works?|arbeitet|travaille|lavora)\s+(?:un|una|el|la|a|an|the|ein|eine|der|die|das|un|une|le|la|uno)\s+(?:médico|médica|doctor|profesor|profesora|maestro|maestra|cocinero|cocinera|camarero|camarera|bombero|bombera|policía|arzt|ärztin|lehrer|lehrerin|koch|köchin|kellner|kellnerin|médecin|professeur|cuisinier|serveur|pompiers?|policier|medico|professore|cuoco|cameriere)\b',
+                r'\b(?:qué|que|what|was|que|cosa)\s+(?:haces|hace|do you do|macht man|fais-tu|fai)\s+(?:si|cuando|when|wenn|quand|quando)\s+(?:tienes\s+hambre|tienes\s+sed|you are hungry|you are thirsty|man hunger hat|man durst hat)\b'
+            ]
+            if any(re.search(pat, clean_p_lower) for pat in stereotypical_category_patterns):
                 continue
 
             # Clean and deduplicate distractors (must not match answer and must be distinct)
@@ -1209,7 +1272,10 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 "distractors": clean_d[:3],
                 "options": opts,
                 "why": why_en,
-                "why_tr": why_tr
+                "why_tr": why_tr,
+                "evidence": str(item.get("evidence", "")).strip()[:180],
+                "material_section": str(item.get("material_section", "")).strip()[:100],
+                "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
             })
             if len(final) >= c:
                 break
