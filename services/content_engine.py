@@ -288,7 +288,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 )
                 if new_qs:
                     for q in new_qs:
-                        if len(questions) >= c_count: break
                         q_id = str(uuid.uuid4())
                         distractors = q.get("distractors", [])
                         options = [q.get("answer", "")] + distractors
@@ -386,7 +385,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
             )
             if new_qs:
                 for q in new_qs:
-                    if len(questions) >= c_count: break
                     tid = q.get("topic_id") or py_random.choice(topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
