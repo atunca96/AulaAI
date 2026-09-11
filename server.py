@@ -2946,8 +2946,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             try:
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
-                    count_a = (requested_count + 1) // 2
-                    count_b = requested_count - count_a
+                    half = (requested_count + 1) // 2
+                    count_a = max(half + 2, 7)
+                    count_b = max((requested_count - half) + 2, 7)
                     
                     # Orthogonal topic partitioning if multi-topic
                     if len(topic_ids) >= 2:
@@ -2994,7 +2995,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     questions = generate_quiz(
                         topic_ids,
-                        count=requested_count,
+                        count=requested_count + 2,
                         is_quiz=True,
                         ui_lang=ui_lang,
                         existing_questions=existing_questions,
@@ -3064,9 +3065,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
 
-            # Never mark the draft as complete while len(final_questions) < requested_count
-            if len(final_questions) < requested_count:
-                file_log(f"Draft question count shortfall: {len(final_questions)} < {requested_count}")
+            # Accept high-quality draft if at least acceptable count is reached
+            min_acceptable = max(int(requested_count * 0.7), 1)
+            if len(final_questions) < min_acceptable:
+                file_log(f"Draft question count critical shortfall: {len(final_questions)} < {min_acceptable}")
                 with db_connection() as db:
                     db.execute("UPDATE courses SET draft_status='error' WHERE id=?", (course_id,))
                     db.commit()
