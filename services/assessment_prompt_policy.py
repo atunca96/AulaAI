@@ -30,9 +30,6 @@ def install(ai_engine_module):
         rewritten = [dict(m) if isinstance(m, dict) else m for m in messages]
         old_system = str(rewritten[system_idx].get("content", ""))
 
-        # Remove the two legacy sections that most strongly conflict with objective-first
-        # generation. They rewarded cosmetic scenario variety and supplied archetypes the
-        # model repeatedly imitated. All language/CEFR/translation/distractor rules remain.
         old_system = re.sub(
             r"\n\s*6\. THEMATIC BREADTH & AUTHENTIC COMMUNICATIVE EXPANSION:.*?(?=\n\s*7\. DISTRACTOR)",
             "\n",
@@ -46,8 +43,6 @@ def install(ai_engine_module):
             flags=re.S,
         )
 
-        # Remove individual legacy examples that can anchor generation to a specific
-        # language or shallow exercise style.
         legacy_examples = [
             '* Example: "¿Cuánto es setenta más treinta?"\n',
             '* Example: "¿En cuál de las siguientes palabras la letra \'g\' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]\n',
@@ -55,44 +50,47 @@ def install(ai_engine_module):
         for example in legacy_examples:
             old_system = old_system.replace(example, "")
 
-        v63_policy = """
-ASSESSMENT ENGINE V6.3 — UNIVERSAL OBJECTIVE-FIRST POLICY
+        v64_policy = """
+ASSESSMENT ENGINE V6.4 — EVIDENCE-GROUNDED OBJECTIVE POLICY
 
-This policy applies to every supported language, CEFR level, topic, source type, quiz and activity. It overrides weaker or conflicting variety instructions.
+This policy applies to every supported language, CEFR level, topic, quiz and activity. It overrides weaker or conflicting variety instructions.
 
-1. DERIVE THE LEARNING TARGETS FIRST
-Before writing any question, silently map the distinct teachable targets actually supported by THIS topic/source. Targets may include vocabulary use/contrast, grammar form-function, communicative function, pragmatics, pronunciation, orthography only when explicitly taught, discourse, and comprehension. Do not invent unrelated targets merely to fill the batch.
+1. SOURCE EVIDENCE IS THE AUTHORITY
+The SOURCE MATERIAL may contain an ASSESSMENT EVIDENCE PACK extracted from the existing lesson. Every learning objective and every correct answer must be supported by that evidence. Do not invent a new target merely because it is broadly related to the topic title.
 
-2. ONE TARGET PER QUESTION; ONE QUESTION PER TARGET
-Each question must test one clear target, and no two questions may test materially the same target. Changing names, numbers, nouns, examples, direction, setting, or story does not create a new target. If the learner performs essentially the same mental/language operation twice, replace one.
+2. DERIVE TEACHING POINTS BEFORE QUESTIONS
+Silently extract a list of distinct teachable points from the source: vocabulary meanings/usages, grammar rules and form-function contrasts, communicative functions, pragmatic/register choices, pronunciation distinctions, explicitly taught orthography, examples, dialogue patterns and comprehension targets. Build questions from those points, not from general knowledge about the topic.
 
-3. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
-Treat supplied previous questions as already-used objectives. Do not paraphrase, reverse, rename, renumber, or re-skin them. Reuse a broad theme only when the new question tests a genuinely different language distinction.
+3. ONE TEACHING POINT PER QUESTION
+Each question must test one clear source-backed point, and no two questions may test materially the same point. Changing names, numbers, objects, direction, setting or story does not create a new objective. If two questions require essentially the same knowledge or operation, replace one.
 
-4. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
-The correct option must depend primarily on knowledge of the target language and the lesson. Reject ideas solvable mainly by arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic, or facts explicitly stated in the prompt unless that exact skill is explicitly taught by the source.
+4. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
+Treat supplied previous questions as already-used objectives. Do not paraphrase, reverse, rename, renumber or re-skin them. Reuse a broad theme only if the new item tests a genuinely different source-backed distinction.
 
-5. SOURCE-FAITHFUL EXPANSION
-Stay within the pedagogical scope of the topic. Natural CEFR-appropriate contextualization is allowed, but do not introduce outside facts just to create apparent variety. Narrow topics should vary linguistic distinctions, usage, register, form, comprehension or communicative purpose rather than unrelated content.
+5. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
+The correct option must depend primarily on knowledge of the target language and lesson. Reject questions solvable mainly by arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic or facts explicitly stated in the prompt unless the source itself explicitly teaches that exact skill.
 
-6. FORMAT SERVES THE TARGET
-Choose the question format that best tests the target: situational choice, dialogue response, contextual comprehension, form/meaning discrimination, sentence completion, interpretation, or another appropriate form. Do not force every topic into the same template. No single archetype should dominate the batch.
+6. DO NOT FILL GAPS WITH INVENTED CONTENT
+If the source supports fewer distinct high-quality objectives than the requested batch size, deepen valid source-backed contrasts, usage conditions, register choices, comprehension or examples. Never pad the batch with unrelated facts, generic topic trivia or artificial math/logic tasks.
 
-7. NO SHALLOW META QUESTIONS
-Do not test string length, letter count, which answer merely looks correctly spelled, one-word-vs-multiple-word trivia, accent/tilde presence, character shape, or similar visual properties unless that exact orthographic distinction is explicitly taught. Pronunciation/alphabet topics must test authentic sound-letter use, not symbol trivia.
+7. FORMAT SERVES THE TEACHING POINT
+Choose the format best suited to the source-backed target: contextual meaning, situational choice, dialogue response, form-function discrimination, sentence completion, interpretation, comprehension or another appropriate form. Do not use different formats merely to disguise a repeated target.
 
-8. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
-Correct answer and distractors must share the same grammatical/semantic class and be plausible at the learner's level. Distractors should reflect realistic confusions around the target, not random wrong answers, absurd alternatives, or obvious visual/length giveaways.
+8. NO SHALLOW META QUESTIONS
+Do not test string length, letter count, which answer merely looks correctly spelled, one-word-vs-multiple-word trivia, accent/tilde presence, character shape or similar visual properties unless that exact orthographic distinction is explicitly taught in the source.
 
-9. FINAL AUDIT BEFORE JSON
-Silently label every proposed question with its one-line learning objective. Compare every pair. Replace any pair with overlapping objectives. Replace any item that depends more on outside knowledge than language knowledge, leaks its answer, drifts outside the topic/source, or can be solved reliably by a non-speaker.
+9. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
+Correct answer and distractors must share the same grammatical/semantic class and be plausible at the learner's level. Distractors should reflect realistic confusions around the exact source-backed target, not random wrong answers or visual giveaways.
+
+10. FINAL EVIDENCE AUDIT
+Before returning JSON, silently label every question with (a) its one-line learning objective and (b) the source evidence that supports it. Replace any item that lacks clear source support, overlaps another objective, depends more on outside knowledge than language knowledge, leaks its answer, or could be solved reliably by a non-speaker.
 """
 
         rewritten[system_idx]["content"] = (
-            v63_policy
+            v64_policy
             + old_system.replace(
                 "Pedagogic Assessment Engine (V5)",
-                "Pedagogic Assessment Engine (V6.3)",
+                "Pedagogic Assessment Engine (V6.4)",
                 1,
             )
         )
@@ -104,8 +102,6 @@ Silently label every proposed question with its one-line learning objective. Com
             if "TASK: Generate EXACTLY" not in content:
                 continue
 
-            # Remove legacy random emphasis/format blocks that compete with the universal
-            # objective-first policy. Keep task, topic, source, history and JSON schema.
             content = re.sub(
                 r"\n\s*PEDAGOGICAL EMPHASIS:.*?(?=\n\s*JSON STRUCTURE:)",
                 "\n",
@@ -113,9 +109,9 @@ Silently label every proposed question with its one-line learning objective. Com
                 flags=re.S,
             )
             rewritten[i]["content"] = (
-                "OBJECTIVE-FIRST REQUIREMENT: Derive distinct teachable targets from THIS topic/source before writing questions. "
-                "Each item must test a different target-language objective; cosmetic scenario changes do not count as diversity. "
-                "Do not substitute arithmetic, general knowledge, trivia, or visual pattern tasks unless the source explicitly teaches that skill.\n\n"
+                "EVIDENCE-GROUNDED REQUIREMENT: Use the SOURCE MATERIAL as the authority. First extract distinct teaching points that are explicitly supported there, then write one question per teaching point. "
+                "Do not generate objectives from the topic title alone. Do not pad the set with arithmetic, general knowledge, trivia, chronology, visual-pattern or meta-spelling tasks unless the source explicitly teaches that exact skill. "
+                "Every correct answer must be traceable to the source evidence.\n\n"
                 + content
             )
             break

@@ -1,11 +1,12 @@
 """Lightweight semantic diversity guard for AI-generated assessments.
 
 The guard is language/CEFR/topic agnostic. It keeps a broader local history for
-post-generation duplicate filtering, while sending only a small recent window to
-the model and allowing at most one repair call. Lesson/material generation is not
-involved.
+post-generation duplicate filtering, sends only a small recent window to the model,
+and grounds assessment generation in a compact read-only evidence pack extracted
+from the already-generated lesson content. Lesson/material generation is untouched.
 """
 
+import json
 import threading
 import unicodedata
 from difflib import SequenceMatcher
@@ -35,8 +36,9 @@ _ANSWER_GLUE = {
 _TOPIC_HISTORY = {}
 _HISTORY_LOCK = threading.Lock()
 _HISTORY_LIMIT = 80
-_MODEL_HISTORY_LIMIT = 24
+_MODEL_HISTORY_LIMIT = 18
 _MAX_REPAIR_ROUNDS = 1
+_EVIDENCE_LIMIT = 7000
 
 _META_MARKERS = (
     "tilde", "acento grafico", "acento gráfico", "una sola palabra", "en una sola palabra",
@@ -196,6 +198,79 @@ def _remember(key, questions):
             del history[:-_HISTORY_LIMIT]
 
 
+def _add_evidence(lines, label, value):
+    if value is None:
+        return
+    if isinstance(value, (dict, list)):
+        try:
+            value = json.dumps(value, ensure_ascii=False)
+        except Exception:
+            value = str(value)
+    text = " ".join(str(value).split())
+    if text:
+        lines.append(f"{label}: {text}")
+
+
+def _build_evidence_pack(topic_content):
+    """Read lesson output and compact it for assessment grounding only."""
+    if not isinstance(topic_content, dict):
+        return ""
+
+    lines = []
+    pages = topic_content.get("pages") or []
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        _add_evidence(lines, "PAGE", page.get("title"))
+        _add_evidence(lines, "EXPLANATION", page.get("text"))
+        _add_evidence(lines, "CONTEXT", page.get("context"))
+        _add_evidence(lines, "PITFALL", page.get("pitfall"))
+
+        for item in page.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            term = item.get("term") or item.get("target") or item.get("word")
+            meaning = item.get("translation") or item.get("meaning") or item.get("english")
+            example = item.get("example") or item.get("sentence") or item.get("example_en")
+            parts = [str(x).strip() for x in (term, meaning, example) if x]
+            if parts:
+                _add_evidence(lines, "ITEM", " | ".join(parts))
+
+        for rule in page.get("rules") or []:
+            if not isinstance(rule, dict):
+                continue
+            parts = [rule.get("rule"), rule.get("explanation"), rule.get("example"), rule.get("analysis")]
+            parts = [str(x).strip() for x in parts if x]
+            if parts:
+                _add_evidence(lines, "RULE", " | ".join(parts))
+
+        for comp in page.get("comparisons") or []:
+            if isinstance(comp, dict):
+                parts = [comp.get("context"), comp.get("target"), comp.get("translation"), comp.get("note")]
+                parts = [str(x).strip() for x in parts if x]
+                if parts:
+                    _add_evidence(lines, "CONTRAST", " | ".join(parts))
+            else:
+                _add_evidence(lines, "CONTRAST", comp)
+
+        for turn in page.get("dialogue") or []:
+            if isinstance(turn, dict):
+                text = turn.get("text") or turn.get("line")
+                _add_evidence(lines, "DIALOGUE", text)
+
+    # Support older/non-page topic content without changing it.
+    if not lines:
+        for key in ("words", "vocabulary", "grammar_rules", "rules", "examples", "dialogue", "conversations", "notes"):
+            if topic_content.get(key):
+                _add_evidence(lines, key.upper(), topic_content.get(key))
+
+    if not lines:
+        return ""
+
+    pack = "ASSESSMENT EVIDENCE PACK — USE ONLY TEACHING POINTS SUPPORTED HERE:\n" + "\n".join(lines)
+    return pack[:_EVIDENCE_LIMIT]
+
+
 def _with_existing(args, kwargs, existing):
     call_args = list(args)
     call_kwargs = dict(kwargs)
@@ -205,6 +280,28 @@ def _with_existing(args, kwargs, existing):
     else:
         call_kwargs["existing_questions"] = existing
     return call_args, call_kwargs
+
+
+def _with_evidence(args, kwargs):
+    call_args = list(args)
+    call_kwargs = dict(kwargs)
+    # Respect explicit PDF/source overrides. Otherwise derive an assessment-only
+    # evidence pack from the already-generated topic content.
+    existing_override = _arg(call_args, call_kwargs, "source_text_override", 9, None)
+    if existing_override:
+        return call_args, call_kwargs, False
+
+    topic_content = _arg(call_args, call_kwargs, "topic_content", 2, None)
+    evidence = _build_evidence_pack(topic_content)
+    if not evidence:
+        return call_args, call_kwargs, False
+
+    if len(call_args) >= 10:
+        call_args[9] = evidence
+        call_kwargs.pop("source_text_override", None)
+    else:
+        call_kwargs["source_text_override"] = evidence
+    return call_args, call_kwargs, True
 
 
 def install(ai_engine_module):
@@ -225,12 +322,10 @@ def install(ai_engine_module):
         h_key = _history_key(args, kwargs)
         history = _get_history(h_key)
 
-        # Full history is used locally for filtering, but only a compact recent window
-        # goes into the LLM prompt. This prevents regeneration from getting slower as
-        # the session grows.
         full_prior = supplied_prior + history
         model_prior = full_prior[-_MODEL_HISTORY_LIMIT:]
         first_args, first_kwargs = _with_existing(args, kwargs, model_prior)
+        first_args, first_kwargs, evidence_used = _with_evidence(first_args, first_kwargs)
 
         first = original(*first_args, **first_kwargs)
         accepted = dedupe_questions(first, prior=full_prior, limit=requested)
@@ -249,6 +344,7 @@ def install(ai_engine_module):
             if len(repair_args) >= 5:
                 repair_args[4] = repair_kwargs.pop("count")
             repair_args, repair_kwargs = _with_existing(repair_args, repair_kwargs, repair_prior)
+            repair_args, repair_kwargs, _ = _with_evidence(repair_args, repair_kwargs)
 
             extra = original(*repair_args, **repair_kwargs)
             fresh = dedupe_questions(extra, prior=full_prior + accepted, limit=missing)
@@ -261,7 +357,7 @@ def install(ai_engine_module):
                 f.write(
                     f"[ASSESSMENT-DIVERSITY] requested={requested} first={len(first or [])} "
                     f"rejected={rejected} history={len(history)} model_history={len(model_prior)} "
-                    f"final={len(accepted)} repairs={repair_round}\n"
+                    f"evidence={int(evidence_used)} final={len(accepted)} repairs={repair_round}\n"
                 )
         except Exception:
             pass
