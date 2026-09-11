@@ -590,31 +590,34 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         answers_str = ", ".join(f"'{ans}'" for ans in forbidden_answers[-25:])
         forbidden_clause = f"""
 ================================================================================
-STRICT CROSS-TEST DIVERSITY & ANTI-REPETITION MANDATE (ALL CEFR LEVELS A1-C2):
+STRICT CROSS-SET CONCEPT DIVERSITY & ANTI-REPETITION MANDATE (ALL CEFR LEVELS):
 ================================================================================
 The user is generating a subsequent or alternative assessment set for this topic.
 You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
-1. BANNED PREVIOUS PROMPTS & SCENARIOS (ABSOLUTE ZERO TOLERANCE):
-   DO NOT replicate, copy, or slightly rephrase any of these previously tested scenarios, questions, or dialogue stems:
+1. BANNED PREVIOUS PROMPTS, SCENARIOS & CORE LEARNING CONCEPTS (ABSOLUTE ZERO TOLERANCE):
+   DO NOT replicate, copy, rephrase, or re-test any of the learning objectives or underlying rules tested in these previous questions:
 {prompts_list}
+   - CONCEPT & REGULATION EXHAUSTION: If a previous question already tested a specific rule, policy, operational incident, or scenario mechanic (e.g. ticket flexibility / lifting train-binding / flex-ticket, passenger rights claims, platform change navigation, replacement bus service, route closures, medical emergencies), that ENTIRE CONCEPT is completely EXHAUSTED! You MUST explore other untouched operational, interpersonal, and communicative facets of the theme!
 
-2. FRESH VOCABULARY & NATURAL PERSPECTIVES:
+2. UNTOUCHED FACETS & LEARNING OBJECTIVES TO TEST INSTEAD:
    - Target items touched in earlier quizzes: [{answers_str}]
    - Prioritize testing OTHER relevant vocabulary, idioms, phrases, or conversational scenarios from the theme.
-   - If testing related vocabulary, embed it in a completely distinct, realistic, practical scenario with fresh distractors.
+   - Untouched facets include: seat reservations and coach positioning / carriage sequence, quiet compartment etiquette, boarding assistance for passengers with reduced mobility, luggage restrictions and stowage, ticket machine operations, missed connections and alternative route planning, onboard bistro/catering protocols, lost property procedures, schedule adjustments, polite inquiries to train attendants, etc.
+   - ZERO REPETITION of the same scenario archetype or operational rule across sets!
 
-3. NATURAL & AUTHENTIC REAL-LIFE LANGUAGE (CRITICAL):
+3. NATURAL & AUTHENTIC REAL-LIFE LANGUAGE (CRITICAL ACROSS ALL LANGUAGES & LEVELS):
    - Use ONLY natural, authentic language that native speakers and real public institutions actually use in everyday life.
    - NEVER invent artificial, overly convoluted, or stiff unnatural phrasing. Keep it natural, idiomatic, and realistic.
 ================================================================================
 """
 
     clean_lvl = (level or "A1").upper().strip()
-    is_beginner = any(x in clean_lvl for x in ["A1", "A2"])
-    is_intermediate = any(x in clean_lvl for x in ["B1", "B2"])
+    is_a1_a2 = any(x in clean_lvl for x in ["A1", "A2"])
+    is_b1 = "B1" in clean_lvl
+    is_b2 = "B2" in clean_lvl
 
-    if is_beginner:
+    if is_a1_a2:
         variety_focuses = [
             "Focus on real-world communicative dialogues: asking for assistance, public navigation, and travel exchanges.",
             "Focus on everyday domestic scenarios: home routines, appointments, schedules, and social interactions.",
@@ -622,13 +625,21 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             "Focus on social introductions, describing people, personal hobbies, and expressing natural preferences.",
             "Focus on foundational phonological contrasts, clear pronunciation distinctions in real words, and sentence completion."
         ]
-    elif is_intermediate:
+    elif is_b1:
         variety_focuses = [
-            "Focus on practical and natural workplace communication: clear emails, teamwork, and realistic meeting dialogues.",
-            "Focus on expressing viewpoints, polite disagreement, structured argumentation, and justifying personal opinions.",
-            "Focus on narrative discourse: recounting past experiences, unexpected travel anecdotes, and future hypotheses.",
-            "Focus on communicative nuance: resolving practical misunderstandings, lodging courteous complaints, and negotiating.",
-            "Focus on natural discourse connectors, idiomatic phrasal usage, and natural syntactic sentence flow."
+            "Focus on authentic everyday travel & service communication: understanding standard announcements, finding alternatives, and asking conductors/staff for assistance.",
+            "Focus on practical workplace interactions: clear and direct emails, daily coordination, and standard meeting exchanges.",
+            "Focus on expressing personal opinions, everyday preferences, and simple justifications with standard connectors.",
+            "Focus on navigating unexpected everyday travel disruptions: delays, platform changes, and missing connections in clear standard language.",
+            "Focus on polite inquiries, checking information, confirming schedules, and resolving everyday misunderstandings."
+        ]
+    elif is_b2:
+        variety_focuses = [
+            "Focus on professional and workplace communication: nuanced emails, teamwork, problem-solving, and formal negotiation.",
+            "Focus on structured argumentation, weighing pros and cons, and justifying complex perspectives.",
+            "Focus on narrative discourse: recounting detailed experiences, unexpected complications, and hypothetical scenarios.",
+            "Focus on communicative nuance: formal customer complaints, institutional procedures, and contractual/passenger rights.",
+            "Focus on natural discourse connectors, sophisticated idiomatic collocations, and varied syntactic structures."
         ]
     else:  # C1 / C2 Advanced
         variety_focuses = [
@@ -686,15 +697,24 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     7. DISTRACTOR PLAUSIBILITY, COMPETITIVENESS & LENGTH SYMMETRY MANDATE (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
-       - STRICT ZERO-TOLERANCE BAN ON COMIC, ABSURD, OR CARTOONISH DISTRACTORS:
-         * Every distractor MUST be a realistic, serious, and pedagogically plausible alternative that an actual learner might mistakenly choose.
-         * NEVER generate comical, cartoonish, or obviously impossible options (e.g., NEVER suggest transferring by bicycle or taxi when public rail/bus transit is discussed, free lifetime travel passes, vehicles driving backwards, firing staff members, or bizarre physical reactions).
-         * Distractors must represent genuine learner misconceptions, near-synonyms with subtle contextual differences, or realistic real-world operational alternatives within the exact same semantic domain.
-       - NO OFF-TARGET OR FOREIGN DISTRACTORS: Every distractor must be a genuine, grammatically valid item native to {language}. NEVER use characters, symbols, or orthography foreign to {language}.
+       - ABSOLUTE ZERO-TOLERANCE BAN ON OFF-DOMAIN, ANACHRONISTIC, OR WEIRD DISTRACTORS:
+         * NEVER inject nouns or concepts from unrelated daily life domains into distractors (e.g. ABSOLUTELY NO fitness studio / gym, cinema, supermarket, or leisure club options when testing transport, workplace, or healthcare).
+         * NEVER inject absurd temporal or anachronistic shifts (e.g. ABSOLUTELY NO "timetable for next year", "last month's schedule", or arbitrary future dates).
+         * NEVER inject pseudo-philosophical, ideological, or bizarre stylistic adjectives/attitudes (e.g. ABSOLUTELY NO "rückwärtsgewandt", "utopisch", "nostalgisch", "philosophisch").
+         * NEVER generate comical, cartoonish, or obviously impossible options (e.g. no bicycles in rail transit, no lifetime free passes, no vehicles driving backwards, no firing staff).
+       - HOW TO CONSTRUCT 3 HIGH-QUALITY COMPETITIVE DISTRACTORS:
+         * Distractor 1 (Plausible Misunderstanding): Represents a learner misinterpreting a key detail in the prompt (e.g. confusing the origin with the destination station, or confusing a partial cancellation with a full cancellation).
+         * Distractor 2 (Misapplied Real-World Procedure): Represents a real action common in this domain that is incorrect for this specific scenario (e.g. waiting at the original platform instead of changing platforms, or assuming a new ticket must be bought when existing tickets are honored).
+         * Distractor 3 (Alternative Relevant communicative reaction): Represents another realistic, plausible learner choice or polite phrase within the exact same situation.
+       - NO OFF-TARGET OR FOREIGN DISTRACTORS: Every distractor must be a genuine, grammatically valid item native to {language}. NEVER use characters or orthography foreign to {language}.
        - NO TRIVIAL VISUAL GIVEAWAYS: A learner must NOT be able to identify the correct answer by visual elimination, option length difference, or ridiculous distractors.
        - STRICT BAN ON META-ALPHABET TRIVIA: For alphabet/phonetics topics, test genuine pronunciation in real words or minimal pairs, never trivia about letter names or string properties.
-    8. COMMUNICATIVE QUESTION ARCHETYPES & FORMAT VARIETY (CRITICAL):
+
+    8. COMMUNICATIVE QUESTION ARCHETYPES & IN-BATCH CONCEPT DIVERSITY (CRITICAL):
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
+       - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY (ZERO REPETITION OF THE SAME RULE):
+         * All {gen_count} questions within this batch MUST test completely distinct communicative and operational objectives.
+         * ABSOLUTELY NEVER include two questions testing the same rule or scenario archetype (e.g. NEVER generate two questions about ticket validity/lifting train-binding, or two questions about replacement bus services in the same batch). Every single question must target a fresh aspect of the theme.
        - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
          Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
          a) SITUATIONAL PRAGMATICS (NO BLANK): Real-world social scenario where the student chooses what to say.
@@ -706,6 +726,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             * Example: "¿Cuál de las siguientes expresiones se usa exclusivamente para despedirse por la noche?"
          d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK):
             * Example: "Normalmente mis compañeros y yo __________ en la biblioteca después de las clases."
+
     9. STRICT ZERO-TOLERANCE BAN ON ARITHMETIC & MATH CALCULATIONS (CRITICAL):
        - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask 'ocho más tres', 'sumar cincuenta más veinte', 'multiplicar cinco por dos', 'cuánto es X más Y', 'wie viel ist X plus Y', 'combien font X plus Y', 'сколько будет X плюс Y').
        - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
@@ -713,11 +734,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
         - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
-        - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
-          * Use the precise, authentic functional collocations native to the specific domain. For example, in transit/services, distinguish between passenger areas (which are "out of service", "closed", or "inaccessible") and catering/commercial services (which are "unstaffed" or "no dining service available"). In healthcare, distinguish clearly between diagnostic procedures, symptoms, and treatments. In commerce/workplace, use standard operational expressions.
+        - AUTHENTIC FORMULAS & REGISTER ACCURACY:
+          * In public announcements and transit, use standard authentic phrasing: e.g. when intermediate stops are omitted or bypassed, state that those stations are not served (e.g. "Diese Bahnhöfe werden heute nicht bedient"), NOT that the train "passes through them without stopping". For delays, use natural spoken/broadcast phrasing (e.g. "Verspätung von ca. 30 Minuten") rather than stiff artificial terms.
+          * Distinguish between passenger service areas (which are "closed", "out of service", or "inaccessible") and catering/commercial services (which are "unstaffed" or "no dining service available").
+          * In healthcare, distinguish clearly between diagnostic procedures, symptoms, and treatments. In commerce/workplace, use standard operational expressions.
           * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker (e.g. avoid clumsy verb repetitions in adversative clauses where standard native grammar uses concise coordination).
         - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
-          * Use the genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic (transport, health, shopping, dining, workplace, housing, socializing).
+          * Use genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic (transport, health, shopping, dining, workplace, housing, socializing).
           * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
           * In response options and dialogues, use natural, realistic human phrasing suited to CEFR {level}, NEVER stiff or artificial academic test-maker jargon.
         - Keep language vibrant, culturally authentic, and realistic across every theme.
@@ -727,12 +750,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         - Every question MUST test genuine communicative reasoning, situational reaction ("What should the person say or do?"), practical decision-making, or real-world consequence ("What does this information imply?").
 
     12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (UNIVERSAL ACROSS ALL CEFR LEVELS):
-        - STRICT LOGICAL TRUTH & ZERO UNSTATED INVENTIONS:
-          * The correct answer MUST be strictly, directly, and unambiguously verifiable from the scenario text alone.
-          * ABSOLUTELY NEVER invent unstated logistical specifics (e.g., do not hallucinate unannounced pickup locations like "in front of the station building", specific platforms, or unmentioned departure points unless explicitly stated in the scenario).
-          * ABSOLUTELY NEVER hallucinate unannounced legal/policy entitlements (e.g., do not claim automatic hotel accommodation rights, unlimited refund guarantees, or complimentary meals unless explicitly announced in the text).
-          * ABSOLUTELY NEVER add unannounced procedural constraints (e.g., claiming something must be done "in advance" or "at a counter" when the announcement didn't specify it).
-          * The correct answer must be airtight, self-contained, and 100% faithful to the prompt text without speculative outside assumptions.
+        - STRICT LITERAL DEDUCTION & ZERO INFERENCE LEAPS:
+          * The question stem and the correct answer MUST be strictly, mathematically, and directly verifiable from what is EXPLICITLY stated in the scenario.
+          * ZERO SPECULATIVE INFERENCE: If the scenario states an operational event occurs (e.g. a detour / Umleitung, a technical check, or bad weather), NEVER infer an unstated consequence (e.g. do NOT ask "Why does the travel time change?" or assert that travel time has changed unless the scenario explicitly states that travel time or arrival time has changed).
+          * ACCURATE OPERATIONAL DESCRIPTIONS: If intermediate stops are cancelled ("Zwischenhalte entfallen"), the only strictly true conclusion is that those stations are not served ("werden heute nicht bedient"). Do NOT assert that the train "passes through them without stopping" (diverted trains may take completely different tracks miles away!).
+          * PRECISE TERMINOLOGICAL BOUNDARIES:
+            - Do not over-narrow broad terms: A general passenger rights claim or form applies broadly to multiple passenger rights, NOT solely to delay compensation unless specifically restricted in the prompt.
+            - Do not over-generalize specific cancellations: A service cancelled without a replacement run ("ersatzlos ausfallen") strictly means that specific train run has no direct replacement vehicle provided for it; do NOT assert that all public transport in the region has stopped.
+            - Do not over-specify transport categories: If an announcement refers generally to alternative connections, do NOT arbitrarily label them as "local/regional trains" (Nahverkehr) or "buses" unless specified.
+          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities (e.g. hotel vouchers, taxi fares, monetary refunds) as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
+          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced pickup locations (e.g. "in front of the station building"), specific platforms, or unmentioned departure points unless explicitly stated in the scenario.
         - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a passenger with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
@@ -773,13 +800,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY ZERO comic, absurd, or cartoonish options (e.g. no bicycles, no lifetime passes, no backwards driving).
-    3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
-    4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
-    5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
-    6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    7) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations, and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
-    8) LOGICAL RIGOR & ZERO UNSTATED ADDITIONS: The correct answer must be 100% verifiable from the prompt text alone. NEVER fabricate unstated logistical locations, unannounced policy entitlements (e.g. hotel, refund), or invented constraints. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
+    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY NO off-domain nouns (no gym/fitness, no cinema), NO anachronisms (no next year's schedule), and NO weird adjectives (no rückwärtsgewandt).
+    3) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule or communicative scenario. Zero duplicate concepts (no repeating train-binding lifting, no repeating replacement buses).
+    4) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
+    5) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+    6) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
+    7) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
+    8) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations (e.g. 'Bahnhöfe werden nicht bedient', 'Verspätung von ca. X Min'), and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
+    9) LITERAL DEDUCTIVE RIGOR & ZERO INFERENCE LEAPS: The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences (do not assume travel time changed from a detour unless stated; do not over-narrow general passenger rights; do not hallucinate unconditional hotel/taxi entitlements). Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
