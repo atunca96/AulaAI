@@ -1124,10 +1124,11 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).ratio() > 0.94 for fp_key in forbidden_prompt_keys):
                     continue
 
-            # Reject prompts containing Turkish instructional words (must be 100% target language)
-            tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
-            if any(m in p.lower() for m in tr_prompt_markers):
-                continue
+            # Reject prompts containing Turkish instructional words ONLY if target language is NOT Turkish (must be 100% target language)
+            if not any(k in language.lower() for k in ["turkish", "türkçe", "turkce"]):
+                tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
+                if any(m in p.lower() for m in tr_prompt_markers):
+                    continue
 
             # GATE 1 COMMON SENSE & TRIVIAL CATEGORY MATCHING REJECTION:
             # Fails only when the question primarily measures generic common sense / world knowledge rather than a material-supported learning objective

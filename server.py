@@ -365,11 +365,11 @@ def is_test_conflict(cand, accepted):
             return True
 
     # 6. Multi-word idiom or key phrase giveaway (e.g. "gozunu karartmak" / "gozunu karartti")
-    for phrase in [cand_a, acc_a]:
+    for phrase, other_prompt in [(cand_a, norm_acc_p), (acc_a, norm_cand_p)]:
         p_words = [w for w in normalize_prompt_text(phrase).split() if len(w) >= 4]
         if len(p_words) >= 2:
             p_prefix = " ".join(p_words[:2])
-            if p_prefix in norm_acc_p or p_prefix in norm_cand_p:
+            if p_prefix in other_prompt:
                 return True
 
     # 7. Shared grammatical construction markers in prompts
@@ -2986,8 +2986,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 4, 9)
-                    count_b = max((requested_count - half) + 4, 9)
+                    count_a = max(half + 6, 12)
+                    count_b = max((requested_count - half) + 6, 12)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
@@ -3028,7 +3028,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     questions = generate_quiz(
                         topic_ids,
-                        count=requested_count + 4,
+                        count=requested_count + 6,
                         is_quiz=True,
                         ui_lang=ui_lang,
                         existing_questions=existing_questions,
@@ -3077,7 +3077,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         if len(final_questions) >= requested_count:
                             break
 
-                # PASS 3 (DATABASE SAFETY NET): If still short, backfill from approved course questions in DB
+                # PASS 3 (DATABASE SAFETY NET): If still short, backfill from available course questions in DB
                 if len(final_questions) < requested_count and topic_ids:
                     try:
                         with db_connection() as db:
@@ -3085,7 +3085,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             db_qs = db.execute(f"""
                                 SELECT id, topic_id, type, prompt, answer, distractors, difficulty
                                 FROM questions
-                                WHERE topic_id IN ({placeholders}) AND approved = 1
+                                WHERE topic_id IN ({placeholders})
                                 ORDER BY RANDOM() LIMIT 25
                             """, list(topic_ids)).fetchall()
                             for r in db_qs:
@@ -3122,6 +3122,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                     break
                     except Exception as edb:
                         file_log(f"Safety net DB backfill error: {edb}")
+
+                # PASS 4 (CANDIDATE POOL GUARANTEED BACKFILL): Ensure test NEVER has fewer than requested_count
+                if len(final_questions) < requested_count:
+                    for q in (questions or []):
+                        if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                            continue
+                        p = (q.get("prompt") or "").strip()
+                        a = (q.get("answer") or "").strip()
+                        if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                            continue
+                        if any(normalize_prompt_text(a) == normalize_prompt_text(fq.get("answer", "")) for fq in final_questions):
+                            continue
+                        final_questions.append(q)
+                        if len(final_questions) >= requested_count:
+                            break
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
