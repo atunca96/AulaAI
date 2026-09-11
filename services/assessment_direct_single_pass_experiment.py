@@ -1,8 +1,8 @@
-"""Temporary assessment-only minimal direct writer.
+"""Assessment-only minimal direct writer.
 
-Bypasses the legacy ai_generate_questions implementation entirely. It calls the current
-provider wrapper directly with a compact assessment prompt and a minimal JSON schema.
-Lesson/material generation is untouched.
+Calls the current provider wrapper once with a deliberately small pedagogical prompt
+and a minimal JSON contract. The requested question count is authoritative: no
+oversampling, ranking, refill, or semantic repair is performed here.
 """
 
 import json
@@ -58,11 +58,9 @@ def install(ai_engine_module, raw_generate_questions=None):
 
     def direct_generate(*args, **kwargs):
         topic_title = _arg(args, kwargs, "topic_title", 0, "")
-        topic_type = _arg(args, kwargs, "topic_type", 1, "mixed")
         topic_content = _arg(args, kwargs, "topic_content", 2, "")
         language = _arg(args, kwargs, "language", 3, "Target language")
         level = _arg(args, kwargs, "level", 5, "A1")
-        existing_questions = _arg(args, kwargs, "existing_questions", 6, None) or []
         source_text_override = _arg(args, kwargs, "source_text_override", 9, None)
         model_override = _arg(args, kwargs, "model_override", 10, None)
         material_language = _arg(args, kwargs, "material_language", 11, "en")
@@ -73,53 +71,31 @@ def install(ai_engine_module, raw_generate_questions=None):
         except Exception:
             requested = 10
 
-        # Numerical headroom only; no semantic candidate filtering/ranking.
-        asked = requested + (4 if requested >= 8 else max(3, requested))
-
+        # The user-requested count is the provider-requested count. No headroom.
+        asked = requested
         source = _source_text(topic_content, source_text_override)
-        recent = []
-        for q in existing_questions[:20]:
-            if isinstance(q, dict) and q.get("prompt"):
-                recent.append(str(q.get("prompt"))[:240])
-        recent_block = "\n".join(f"- {p}" for p in recent)
 
-        system = f"""You write assessments for learners studying {language} at CEFR {level}.
-Create natural, source-grounded multiple-choice questions for the taught competence.
-Use only the supplied source for tested facts/rules.
-The instructional/UI language is {instruction_language}: write question stems and explanatory option wording in {instruction_language}.
-Keep authentic {language} words, phrases, letters, forms, and pronunciations unchanged when they are the item being tested or selected.
-Do not write the whole stem in {language} merely because the course language is {language}.
-Each question must have exactly one correct answer and exactly three distinct plausible distractors.
-Distractors must be realistic learner confusions, not absurd filler or broken pseudoforms.
-Keep stem and options aligned, CEFR-appropriate, concise, and unambiguous.
-Avoid arithmetic/general-knowledge proxies, meta-linguistic trivia, answer leaks, cosmetic repeats,
-and repeated underlying objectives when the source supports variety. For speaking/functional content,
-prefer authentic situations and natural responses. For grammar, use genuine competing forms.
-For vocabulary, use nearby semantic alternatives. Silently audit quality before returning.
-Return JSON only. Do not output translations, explanations, why fields, rationales, objective keys,
-metadata, commentary, or any fields other than prompt, answer, and distractors."""
+        system = "You are an expert language teacher creating a rigorous, fair CEFR-aligned assessment."
 
-        user = f"""Generate EXACTLY {asked} unique {topic_type} MCQs.
+        user = f"""Create a {requested}-question assessment based on the lesson material below for a CEFR {level} {language} class.
+
+The test should accurately measure what students learned and be pedagogically appropriate for their CEFR level. Choose the most important knowledge and skills to assess yourself. Questions should not be repetitive, and distractors should be plausible and appropriate for the class level.
+
+Write the assessment in {instruction_language}, while preserving authentic {language} words, phrases, letters, and forms when they are being tested.
+
 TOPIC: {topic_title}
-LEVEL: {level}
-COURSE LANGUAGE: {language}
-INSTRUCTION LANGUAGE: {instruction_language}
-SOURCE MATERIAL:
+
+LESSON MATERIAL:
 {source}
 
-AVOID REPEATING THESE RECENT PROMPTS WHEN POSSIBLE:
-{recent_block or '- none'}
+Return exactly {requested} multiple-choice questions as JSON.
+Each question must contain only:
+- prompt
+- answer
+- exactly 3 distractors
 
-Return exactly this compact shape:
-{{
-  "data": [
-    {{
-      "prompt": "question in {instruction_language}, preserving tested {language} forms",
-      "answer": "correct answer",
-      "distractors": ["wrong option 1", "wrong option 2", "wrong option 3"]
-    }}
-  ]
-}}"""
+Return this shape:
+{{"data":[{{"prompt":"...","answer":"...","distractors":["...","...","..."]}}]}}"""
 
         target_model = model_override or getattr(ai_engine_module, "MODEL_STRUCTURAL", None)
         if target_model and str(target_model).lower() in {"none", "offline", "skip", "disabled"}:
