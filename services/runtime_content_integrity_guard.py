@@ -2,17 +2,19 @@
 
 import os
 
-_MARKER = "AULA_RUNTIME_CONTENT_INTEGRITY_V2"
+_MARKER = "AULA_RUNTIME_CONTENT_INTEGRITY_V3"
 
 
 def _runtime_js():
     return r'''
 
-/* AULA_RUNTIME_CONTENT_INTEGRITY_V2 */
+/* AULA_RUNTIME_CONTENT_INTEGRITY_V3 */
 (function () {
-  const CACHE_KEY = 'aula_runtime_translation_cache_v2';
+  const CACHE_KEY = 'aula_runtime_translation_cache_v3';
   const pending = new Map();
   let activeStudyTopicId = null;
+  let activeStudyPageIdx = 0;
+  let rerenderTimer = null;
 
   function uiLang() {
     try { return (typeof currentLang !== 'undefined' && currentLang === 'tr') ? 'tr' : 'en'; }
@@ -27,12 +29,13 @@ def _runtime_js():
   function norm(v) { return String(v || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR'); }
   function looksEnglish(v) {
     const s = String(v || '').trim();
-    if (!s || /[А-Яа-яЁё\u0400-\u04FF\u0600-\u06FF\u3040-\u30FF\u3400-\u9FFF]/.test(s)) return false;
-    return (s.match(/\b(the|a|an|is|are|and|or|in|for|with|of|to|word|letter|sound|vowel|consonant|stress|pronounced|first|final|always|used|means|home|house|build|homeless|correct|option)\b/gi) || []).length >= 1;
+    if (!s) return false;
+    const latinView = s.replace(/[А-Яа-яЁё\u0400-\u04FF\u0600-\u06FF\u3040-\u30FF\u3400-\u9FFF]/g, ' ');
+    return (latinView.match(/\b(the|a|an|is|are|and|or|in|for|with|of|to|word|letter|sound|vowel|consonant|stress|pronounced|first|final|always|used|means|home|house|build|homeless|correct|option|plural|singular)\b/gi) || []).length >= 1;
   }
   function looksTurkish(v) {
     const s = String(v || '').trim();
-    return !!s && /[çğıöşüÇĞİÖŞÜ]|\b(bir|bu|şu|ve|ile|için|nasıl|nedir|hangisi|kelime|harf|ses|vurgu|okunur|telaffuz|doğru|seçenek|evde|evler)\b/i.test(s);
+    return !!s && /[çğıöşüÇĞİÖŞÜ]|\b(bir|bu|şu|ve|ile|için|nasıl|nedir|hangisi|kelime|harf|ses|vurgu|okunur|telaffuz|doğru|seçenek|evde|evler|çoğul|tekil)\b/i.test(s);
   }
 
   function scrubEnglish(v) {
@@ -59,6 +62,14 @@ def _runtime_js():
     return { text: safe, restore(v) { let s = String(v || ''); keep.forEach((x,i) => { s = s.replaceAll(`__AULA_KEEP_${i}__`, x); }); return s; } };
   }
 
+  function rerenderActiveSoon() {
+    if (!activeStudyTopicId || typeof window.showStudyTopic !== 'function') return;
+    clearTimeout(rerenderTimer);
+    rerenderTimer = setTimeout(() => {
+      try { window.showStudyTopic(activeStudyTopicId, activeStudyPageIdx, { preserveScroll: true }); } catch (_) {}
+    }, 40);
+  }
+
   function translateAsync(source, target, done) {
     const raw = String(source || '').trim();
     if (!raw) return;
@@ -72,61 +83,83 @@ def _runtime_js():
       body: JSON.stringify({text: protectedValue.text, target_lang: target})
     }).then(r => r.ok ? r.json() : null).then(data => {
       const value = protectedValue.restore(data && data.translated || '').trim();
-      if (value) { cache[key] = value; saveCache(cache); }
+      if (value && norm(value) !== norm(raw)) { cache[key] = value; saveCache(cache); }
       return value;
     }).finally(() => pending.delete(key));
-    pending.set(key, promise); promise.then(v => { if (v) done(v); }).catch(() => {});
+    pending.set(key, promise);
+    promise.then(v => { if (v) done(v); }).catch(() => {});
   }
 
-  // Alphabet cards must use one canonical phonetics bank in both UI languages.
+  // Letter cards: explicit persisted language fields are authoritative. Never let
+  // getClientLetterPhonetics fall back to the legacy Spanish alphabet for Russian/etc.
   function installExplanationResolver() {
     const original = window.resolveItemExplanation;
-    if (typeof original !== 'function' || original.__aulaCanonicalV2) return;
+    if (typeof original !== 'function' || original.__aulaCanonicalV3) return;
+
     function wrapped(item, term, translation, lang) {
       const target = lang || uiLang();
-      try {
-        const clean = String(term || '').trim();
-        if (typeof isLetterLike === 'function' && isLetterLike(clean) &&
-            typeof extractBaseLetter === 'function' && typeof getClientLetterPhonetics === 'function') {
-          const phon = getClientLetterPhonetics(courseLang() || 'Spanish', extractBaseLetter(clean)) || {};
-          const canonical = target === 'tr' ? phon.explanation_tr : phon.explanation_en;
-          if (canonical) return target === 'en' ? scrubEnglish(canonical) : canonical;
+      const clean = String(term || '').trim();
+      let isLetter = false;
+      try { isLetter = typeof isLetterLike === 'function' && isLetterLike(clean); } catch (_) {}
+
+      if (isLetter && item && typeof item === 'object') {
+        const en = String(item.explanation_en || item.english_explanation || item.explanation || '').trim();
+        const tr = String(item.explanation_tr || item.turkish_explanation || '').trim();
+        if (target === 'en') {
+          if (en && !looksTurkish(en)) return scrubEnglish(en);
+          if (tr) {
+            const cache = loadCache(), key = `en|${tr}`;
+            if (cache[key]) return scrubEnglish(cache[key]);
+            translateAsync(tr, 'en', v => { if (v) { item.explanation_en = scrubEnglish(v); rerenderActiveSoon(); } });
+          }
+          return '';
         }
-      } catch (_) {}
+        if (tr && !looksEnglish(tr)) return tr;
+        if (en) {
+          const cache = loadCache(), key = `tr|${en}`;
+          if (cache[key]) return cache[key];
+          translateAsync(en, 'tr', v => { if (v) { item.explanation_tr = v; item.turkish_explanation = v; rerenderActiveSoon(); } });
+        }
+        return '';
+      }
+
       const value = original.call(this, item, term, translation, target);
       return target === 'en' ? scrubEnglish(value) : value;
     }
-    wrapped.__aulaCanonicalV2 = true;
+    wrapped.__aulaCanonicalV3 = true;
     window.resolveItemExplanation = wrapped;
   }
 
   function installEnglishScrubber() {
     const original = window.sanitizeEnglishExplanation;
-    if (typeof original !== 'function' || original.__aulaCanonicalV2) return;
+    if (typeof original !== 'function' || original.__aulaCanonicalV3) return;
     function wrapped(text, term) { return scrubEnglish(original.call(this, text, term)); }
-    wrapped.__aulaCanonicalV2 = true;
+    wrapped.__aulaCanonicalV3 = true;
     window.sanitizeEnglishExplanation = wrapped;
   }
 
-  // Prefer persisted prompt_en/prompt_tr. Lazy translation remains legacy-only fallback.
   function installPromptResolver() {
     const original = window.resolveStudyPrompt;
-    if (typeof original !== 'function' || original.__aulaCanonicalV2) return;
+    if (typeof original !== 'function' || original.__aulaCanonicalV3) return;
     function wrapped(page, topic) {
       if (!page || typeof page !== 'object') return original.call(this, page, topic);
       const target = uiLang();
       const direct = String(target === 'tr' ? page.prompt_tr : page.prompt_en || '').trim();
-      if (direct) return direct;
+      if (direct) return target === 'en' ? scrubEnglish(direct) : direct;
       const source = String(page.prompt || page.question || '').trim();
       if (!source) return original.call(this, page, topic);
-      if ((target === 'tr' && looksTurkish(source)) || (target === 'en' && looksEnglish(source))) return source;
+      if ((target === 'tr' && looksTurkish(source)) || (target === 'en' && looksEnglish(source))) return target === 'en' ? scrubEnglish(source) : source;
       const cache = loadCache(), key = `${target}|${source}`;
-      if (cache[key]) return cache[key];
-      translateAsync(source, target, translated => { if (translated) { page[target === 'tr' ? 'prompt_tr' : 'prompt_en'] = translated; } });
-      // Never flash the wrong-language source. A neutral placeholder is legacy fallback only.
+      if (cache[key]) return target === 'en' ? scrubEnglish(cache[key]) : cache[key];
+      translateAsync(source, target, translated => {
+        if (translated) {
+          page[target === 'tr' ? 'prompt_tr' : 'prompt_en'] = target === 'en' ? scrubEnglish(translated) : translated;
+          rerenderActiveSoon();
+        }
+      });
       return target === 'tr' ? 'Soru hazırlanıyor…' : 'Preparing question…';
     }
-    wrapped.__aulaCanonicalV2 = true;
+    wrapped.__aulaCanonicalV3 = true;
     window.resolveStudyPrompt = wrapped;
   }
 
@@ -139,11 +172,30 @@ def _runtime_js():
     return null;
   }
 
+  function translateLegacyOption(page, option, target, index, total, localized) {
+    const text = String(option || '').trim();
+    const m = text.match(/^(\[[^\]]+\]|«[^»]+»|“[^”]+”|'[^']+'|"[^"]+")\s*\((.+)\)$/);
+    const prefix = m ? m[1] : '';
+    const note = m ? m[2] : text;
+    const already = target === 'tr' ? looksTurkish(note) : (looksEnglish(note) && !looksTurkish(note));
+    if (already || (!looksEnglish(note) && !looksTurkish(note))) {
+      localized[index] = text;
+      return Promise.resolve();
+    }
+    return new Promise(resolve => {
+      translateAsync(note, target, value => {
+        localized[index] = value ? (prefix ? `${prefix} (${value})` : value) : text;
+        resolve();
+      });
+    });
+  }
+
   function prepareLocalizedMcq(topic) {
     if (!topic || !topic.content) return;
     let content = topic.content;
-    if (typeof content === 'string') { try { content = JSON.parse(content); } catch (_) { return; } }
+    if (typeof content === 'string') { try { content = JSON.parse(content); topic.content = content; } catch (_) { return; } }
     const target = uiLang();
+
     for (const p of (content.pages || [])) {
       if (!p || !(p.type === 'mcq' || p.prompt)) continue;
       if (!p.__aulaBaseMcq) {
@@ -153,63 +205,96 @@ def _runtime_js():
           answer: p.answer
         };
       }
-      const opts = target === 'tr' ? p.options_tr : p.options_en;
-      const ds = target === 'tr' ? p.distractors_tr : p.distractors_en;
-      const ans = target === 'tr' ? p.answer_tr : p.answer_en;
-      p.options = Array.isArray(opts) && opts.length ? opts.slice() : p.__aulaBaseMcq.options.slice();
-      p.distractors = Array.isArray(ds) && ds.length ? ds.slice() : p.__aulaBaseMcq.distractors.slice();
-      p.answer = ans || p.__aulaBaseMcq.answer;
+
+      const persistedOpts = target === 'tr' ? p.options_tr : p.options_en;
+      const persistedDs = target === 'tr' ? p.distractors_tr : p.distractors_en;
+      const persistedAns = target === 'tr' ? p.answer_tr : p.answer_en;
+      if (Array.isArray(persistedOpts) && persistedOpts.length) {
+        p.options = persistedOpts.slice();
+        p.distractors = Array.isArray(persistedDs) && persistedDs.length ? persistedDs.slice() : p.__aulaBaseMcq.distractors.slice();
+        p.answer = persistedAns || p.__aulaBaseMcq.answer;
+        continue;
+      }
+
+      // Legacy classrooms only: translate explanatory option prose in the background,
+      // persist it in memory, then rerender automatically. New classrooms never enter here.
+      const base = p.__aulaBaseMcq.options.length
+        ? p.__aulaBaseMcq.options.slice()
+        : (p.__aulaBaseMcq.distractors || []).concat(p.__aulaBaseMcq.answer || []).filter(Boolean);
+      if (!base.length || p.__aulaLegacyLocalizationPending === target) continue;
+      p.__aulaLegacyLocalizationPending = target;
+      const localized = new Array(base.length);
+      Promise.all(base.map((opt, i) => translateLegacyOption(p, opt, target, i, base.length, localized))).then(() => {
+        if (target === 'tr') p.options_tr = localized.slice(); else p.options_en = localized.slice();
+        const rawAnswer = String(p.__aulaBaseMcq.answer || '');
+        const answerIndex = base.map(x => String(x || '')).indexOf(rawAnswer);
+        if (answerIndex >= 0) {
+          if (target === 'tr') p.answer_tr = localized[answerIndex]; else p.answer_en = localized[answerIndex];
+        }
+        p.__aulaLegacyLocalizationPending = '';
+        rerenderActiveSoon();
+      }).catch(() => { p.__aulaLegacyLocalizationPending = ''; });
     }
   }
 
   function applyActiveTopicHighlight() {
     if (!activeStudyTopicId) return;
     const id = String(activeStudyTopicId).replace(/['"\\]/g, '');
-    const selectors = [
-      `[onclick*="showStudyTopic('${id}'"]`, `[onclick*="showStudyTopic(\"${id}\""]`,
-      `[onclick*="startStudyFirst('${id}'"]`, `[onclick*="startStudyFirst(\"${id}\""]`
-    ];
     document.querySelectorAll('[data-aula-active-study="1"]').forEach(el => {
       el.removeAttribute('data-aula-active-study');
-      el.style.removeProperty('background'); el.style.removeProperty('border-left'); el.style.removeProperty('color');
+      el.style.removeProperty('background');
+      el.style.removeProperty('border-left');
+      el.style.removeProperty('color');
     });
-    for (const sel of selectors) {
-      document.querySelectorAll(sel).forEach(el => {
-        el.setAttribute('data-aula-active-study','1');
-        el.style.background = 'var(--accent-glow)';
-        el.style.borderLeft = '3px solid var(--accent)';
-        el.style.color = 'var(--text-primary)';
+
+    const candidates = Array.from(document.querySelectorAll('.study-topic-btn[data-topic-id]'))
+      .filter(el => String(el.getAttribute('data-topic-id')) === id);
+    if (!candidates.length) {
+      document.querySelectorAll('[onclick]').forEach(el => {
+        const code = el.getAttribute('onclick') || '';
+        if ((code.includes('showStudyTopic') || code.includes('startStudyFirst')) && code.includes(id)) candidates.push(el);
       });
     }
+    candidates.forEach(el => {
+      el.setAttribute('data-aula-active-study', '1');
+      el.style.background = 'var(--accent-glow)';
+      el.style.borderLeft = '3px solid var(--accent)';
+      el.style.color = 'var(--text-primary)';
+    });
   }
 
   function installStudyWrapper() {
     const original = window.showStudyTopic;
-    if (typeof original !== 'function' || original.__aulaCanonicalV2) return;
+    if (typeof original !== 'function' || original.__aulaCanonicalV3) return;
     function wrapped(topicId, pageIdx, options) {
       activeStudyTopicId = topicId;
+      activeStudyPageIdx = Number.isFinite(Number(pageIdx)) ? Number(pageIdx) : 0;
       prepareLocalizedMcq(findTopic(topicId));
       const result = original.call(this, topicId, pageIdx, options);
       setTimeout(applyActiveTopicHighlight, 0);
       return result;
     }
-    wrapped.__aulaCanonicalV2 = true;
+    wrapped.__aulaCanonicalV3 = true;
     window.showStudyTopic = wrapped;
   }
 
   function installToggleWrapper() {
     const original = window.toggleLanguage;
-    if (typeof original !== 'function' || original.__aulaCanonicalV2) return;
+    if (typeof original !== 'function' || original.__aulaCanonicalV3) return;
     function wrapped() {
       const result = original.apply(this, arguments);
+      const storedTopic = localStorage.getItem('aula_last_topic');
+      const storedPage = parseInt(localStorage.getItem('aula_last_page') || '0', 10);
+      if (!activeStudyTopicId && storedTopic) activeStudyTopicId = storedTopic;
+      if (Number.isFinite(storedPage)) activeStudyPageIdx = storedPage;
       if (activeStudyTopicId) {
         prepareLocalizedMcq(findTopic(activeStudyTopicId));
-        setTimeout(applyActiveTopicHighlight, 20);
-        setTimeout(applyActiveTopicHighlight, 150);
+        setTimeout(applyActiveTopicHighlight, 0);
+        setTimeout(applyActiveTopicHighlight, 100);
       }
       return result;
     }
-    wrapped.__aulaCanonicalV2 = true;
+    wrapped.__aulaCanonicalV3 = true;
     window.toggleLanguage = wrapped;
   }
 
@@ -236,6 +321,10 @@ def _runtime_js():
     installPromptResolver();
     installStudyWrapper();
     installToggleWrapper();
+    try {
+      activeStudyTopicId = localStorage.getItem('aula_last_topic') || null;
+      activeStudyPageIdx = parseInt(localStorage.getItem('aula_last_page') || '0', 10) || 0;
+    } catch (_) {}
     const observer = new MutationObserver(postProcess);
     observer.observe(document.body, {childList:true, subtree:true});
     postProcess();
@@ -254,7 +343,6 @@ def _append(module):
     try:
         with open(bundle_file, "r", encoding="utf-8") as f:
             content = f.read()
-        # Do not append duplicate V2 guard. V1 may remain in static history; V2 owns the final wrappers.
         if _MARKER in content:
             return
         with open(bundle_file, "a", encoding="utf-8") as f:
@@ -264,7 +352,7 @@ def _append(module):
 
 
 def install(bilingual_finisher_module):
-    if getattr(bilingual_finisher_module, "_aula_runtime_integrity_v2_installed", False):
+    if getattr(bilingual_finisher_module, "_aula_runtime_integrity_v3_installed", False):
         return
     raw_rebuild = bilingual_finisher_module.rebuild_bilingual_bundle
 
@@ -274,5 +362,5 @@ def install(bilingual_finisher_module):
         return result
 
     bilingual_finisher_module.rebuild_bilingual_bundle = guarded_rebuild_bilingual_bundle
-    bilingual_finisher_module._aula_runtime_integrity_v2_installed = True
+    bilingual_finisher_module._aula_runtime_integrity_v3_installed = True
     _append(bilingual_finisher_module)
