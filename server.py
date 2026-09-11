@@ -2407,12 +2407,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             merged_existing = []
             seen_prompts = set()
             for q in retained_batches_qs:
-                p = (q.get("prompt") or "").strip()
-                if p and p.lower() not in seen_prompts:
-                    seen_prompts.add(p.lower())
-                    merged_existing.append(q)
+                if isinstance(q, dict):
+                    p = (q.get("prompt") or "").strip()
+                    if p and p.lower() not in seen_prompts:
+                        seen_prompts.add(p.lower())
+                        merged_existing.append(q)
 
-            if not merged_existing and isinstance(client_existing, list):
+            if isinstance(client_existing, list):
                 for q in client_existing:
                     if isinstance(q, dict):
                         p = (q.get("prompt") or "").strip()
@@ -2908,13 +2909,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             seen_prompts = set()
             
             for q in retained_batches_qs:
-                p = (q.get("prompt") or "").strip()
-                if p and p.lower() not in seen_prompts:
-                    seen_prompts.add(p.lower())
-                    merged_existing.append(q)
+                if isinstance(q, dict):
+                    p = (q.get("prompt") or "").strip()
+                    if p and p.lower() not in seen_prompts:
+                        seen_prompts.add(p.lower())
+                        merged_existing.append(q)
 
-            # If client provided existing questions (from client last 2 batches) and server had none
-            if not merged_existing and isinstance(client_existing, list):
+            # Current batch context (e.g. from client request or active draft)
+            if isinstance(client_existing, list):
                 for q in client_existing:
                     if isinstance(q, dict):
                         p = (q.get("prompt") or "").strip()
