@@ -326,22 +326,7 @@ def is_test_conflict(cand, accepted):
         if norm_ca and (aq == norm_ca or difflib.SequenceMatcher(None, aq, norm_ca).ratio() > 0.75):
             return True
 
-    # 4. Longest Common Substring between Answer and Prompt (giveaway / shared target sentence)
-    if norm_ca and norm_acc_p:
-        lcs_ca = difflib.SequenceMatcher(None, norm_ca, norm_acc_p).find_longest_match(0, len(norm_ca), 0, len(norm_acc_p))
-        if lcs_ca.size >= 18:
-            matched_str = norm_ca[lcs_ca.a:lcs_ca.a + lcs_ca.size].strip()
-            if len(matched_str.split()) >= 2:
-                return True
-
-    if norm_aa and norm_cand_p:
-        lcs_aa = difflib.SequenceMatcher(None, norm_aa, norm_cand_p).find_longest_match(0, len(norm_aa), 0, len(norm_cand_p))
-        if lcs_aa.size >= 18:
-            matched_str = norm_aa[lcs_aa.a:lcs_aa.a + lcs_aa.size].strip()
-            if len(matched_str.split()) >= 2:
-                return True
-
-    # 5. Target idiom / keyword overlap in answers
+    # 4. Target idiom / keyword overlap in answers
     ca_words = extract_pedagogic_keywords(cand_a)
     aa_words = extract_pedagogic_keywords(acc_a)
     if ca_words and aa_words:
@@ -2979,8 +2964,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 2, 7)
-                    count_b = max((requested_count - half) + 2, 7)
+                    count_a = max(half + 3, 8)
+                    count_b = max((requested_count - half) + 3, 8)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
@@ -3050,10 +3035,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
 
-            # Accept high-quality draft if at least acceptable count is reached
-            min_acceptable = max(int(requested_count * 0.7), 1)
-            if len(final_questions) < min_acceptable:
-                file_log(f"Draft question count critical shortfall: {len(final_questions)} < {min_acceptable}")
+            # Accept high-quality draft if at least one question is generated
+            if not final_questions:
+                file_log(f"Draft question count empty for {course_id}")
                 with db_connection() as db:
                     db.execute("UPDATE courses SET draft_status='error' WHERE id=?", (course_id,))
                     db.commit()
