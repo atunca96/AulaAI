@@ -55,6 +55,39 @@ class AssessmentGuardTests(unittest.TestCase):
         result = dedupe_questions(questions)
         self.assertEqual(len(result), 2)
 
+    def test_canonical_objective_key_dedupes_different_surface_questions(self):
+        questions = [
+            {
+                "prompt": "¿Qué conector aparece en cuarenta y cinco?",
+                "answer": "y",
+                "why": "[[OBJ:numbers:30-plus-conjunction:apply]] La conjunción y une decena y unidad.",
+            },
+            {
+                "prompt": "¿Cómo se enlazan treinta y dos?",
+                "answer": "con y",
+                "why": "[[OBJ:numbers:30-plus-conjunction:apply]] La misma regla se aplica aquí.",
+            },
+        ]
+        result = dedupe_questions(questions)
+        self.assertEqual(len(result), 1)
+        self.assertNotIn("[[OBJ:", result[0]["why"])
+
+    def test_distinct_objective_keys_survive(self):
+        questions = [
+            {
+                "prompt": "¿Qué forma adopta uno delante de un sustantivo masculino?",
+                "answer": "un",
+                "why": "[[OBJ:numbers:uno-apocope:apply]] Uno se apocopa delante de masculino singular.",
+            },
+            {
+                "prompt": "¿Qué conector aparece en cuarenta y cinco?",
+                "answer": "y",
+                "why": "[[OBJ:numbers:30-plus-conjunction:apply]] Y une decena y unidad.",
+            },
+        ]
+        result = dedupe_questions(questions)
+        self.assertEqual(len(result), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
