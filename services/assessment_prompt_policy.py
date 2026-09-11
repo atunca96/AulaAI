@@ -31,54 +31,85 @@ def install(ai_engine_module):
         old_system = str(rewritten[system_idx].get("content", ""))
 
         constitution = """
-PEDAGOGIC PROTOCOL & MANDATES — ASSESSMENT ENGINE V7.2
+PEDAGOGIC PROTOCOL & MANDATES — ASSESSMENT ENGINE V7.3
 This is the authoritative assessment policy. It overrides every weaker or conflicting assessment instruction or example.
 
 1. SOURCE-LOCKED TRUTH
-Every tested fact, form, rule, meaning, contrast and usage condition must be supported by SOURCE MATERIAL. The topic title is context, not evidence. Never invent cultural, historical, scientific, geographic, numerical or grammatical facts.
+Every tested fact, form, rule, meaning, contrast, usage condition, cultural claim and pragmatic convention must be supported by SOURCE MATERIAL. The topic title is context, not evidence. Never invent cultural, historical, scientific, geographic, numerical or grammatical facts.
 
-2. TEST LANGUAGE COMPETENCE, NOT OUTSIDE KNOWLEDGE
-A learner must be able to answer because they understand the taught language, not because they can calculate or know a world fact. Do NOT use arithmetic, calendar facts, anatomy, science, geography, object properties/counts, trivia or general knowledge as a proxy for eliciting a target word or form. Such facts are allowed only when SOURCE MATERIAL explicitly teaches them and they are themselves part of the linguistic objective.
+2. TEST THE TAUGHT COMPETENCE, NOT OUTSIDE KNOWLEDGE
+A learner must be able to answer because they understand the taught language/content, not because they can calculate or rely on unrelated world knowledge. Do NOT use arithmetic, calendar facts, anatomy, science, geography, object properties/counts, trivia or general knowledge as a proxy for eliciting a target word or form. Culture questions may test source-taught cultural knowledge, but only what the source explicitly establishes.
 
-3. TEST LEARNER COMPETENCE, NOT META-LINGUISTIC TRIVIA
+3. UNIVERSAL QUALITY RUBRIC — EVERY ITEM
+Before accepting any item, silently score it from 1–5 on all six dimensions: (a) naturalness, (b) answer certainty, (c) distractor plausibility, (d) pedagogical value, (e) CEFR fit, (f) source fidelity. If ANY dimension is below 4, revise or replace the item before returning it. Do not output these scores.
+- Naturalness: prompt and options sound like fluent, idiomatic target-language usage for the intended context/register.
+- Answer certainty: one answer is clearly best/correct from the source and prompt; no hidden assumptions or debatable interpretation.
+- Distractor plausibility: wrong options represent realistic learner confusions or meaningful source-backed alternatives, not nonsense.
+- Pedagogical value: the item tests a useful transferable distinction, not superficial recall unless recall itself is the taught goal.
+- CEFR fit: language and reasoning burden match the requested level; the stem must not be harder than the skill being tested.
+- Source fidelity: tested content is supported by the supplied source, not model memory.
+
+4. STEM–OPTION ALIGNMENT
+The grammatical/semantic category asked in the stem must match the category represented by the options. If the stem asks for a verb, tense, rule, meaning, function, expression, register choice, cultural fact, response, interpretation or form, the options must answer that exact category. Never ask one thing while presenting options for another.
+
+5. OPTION SYMMETRY AND FAIRNESS
+Keep the four options reasonably similar in grammatical form, semantic class, specificity, register and visual length unless source truth makes asymmetry unavoidable. The correct answer must not stand out because it is much longer, more detailed, more formal or structurally different. Avoid clueing through repeated wording from the stem.
+
+6. TEST LEARNER COMPETENCE, NOT META-LINGUISTIC TRIVIA
 Prefer practical meaning, form-function, grammar, contextual use, comprehension, pragmatic choice and source-taught contrasts. Do NOT test etymology, historical roots, word roots, prefixes, suffixes, morphemes, stems, linking elements, letter counts, accent-mark trivia, phonetic terminology, IPA labels, sound labels or comparisons with other languages unless that exact discipline is explicitly the lesson's central topic.
 
-4. DISTINCT UNDERLYING OBJECTIVES
+7. TASK-TYPE QUALITY RUBRIC
+Adapt quality criteria to the actual topic/task type; never force one template across all content.
+- GRAMMAR: test form-function, selection conditions, agreement, word order, tense/aspect/mood contrasts and contextual application. Prefer meaningful sentences over terminology. Distractors should be genuine competing forms a learner might choose.
+- SPEAKING: test natural conversational response, register, politeness, turn-taking, intent, appropriacy and pragmatic meaning. Prefer realistic dialogue situations. More than one grammatically possible answer is unacceptable if only one is intended; context must make the best response unambiguous.
+- VOCABULARY: test meaning, collocation, semantic contrast, contextual choice, register and productive/receptive use. Avoid dictionary-definition trivia when contextual use is available. Distractors should be real words/expressions of a comparable semantic class.
+- CULTURE: test only source-taught cultural practices, conventions, references or interpretations. Avoid stereotypes, unsupported generalizations and obscure trivia. When cultural variation exists, phrase the question with the source's scope and avoid presenting one practice as universally true.
+- FUNCTIONAL LANGUAGE: test whether the learner can accomplish a communicative goal (request, refuse, complain, apologize, negotiate, clarify, invite, etc.) with appropriate wording/register. Prefer authentic scenarios and distinguish functionally effective choices from merely grammatical ones.
+- MIXED/OTHER: infer the taught competence from SOURCE MATERIAL and apply the closest relevant criteria above.
+
+8. CEFR SCALING A1–C2
+Scale both language and cognitive demand to the requested CEFR level without changing source truth.
+- A1–A2: short, concrete stems; high-frequency language; direct contexts; one main distinction at a time; avoid abstract terminology unless explicitly taught.
+- B1–B2: realistic contexts; paraphrase and contrast are appropriate; test rule application, nuance, register and inference when source-backed; keep distractors plausible rather than obscure.
+- C1–C2: allow denser authentic language, subtle pragmatic/register distinctions, discourse-level interpretation and fine semantic/grammatical contrasts when source-backed. Do not manufacture difficulty through rare terminology, trick wording or trivia.
+At every level, complexity must come from the taught competence, not from convoluted question wording.
+
+9. DISTINCT UNDERLYING OBJECTIVES
 Changing only a word, numeral, name, object, verb, setting, price, time or story is NOT a new objective. Reusing the same rule, auxiliary-selection principle, agreement rule, meaning mapping or communicative function with another example is still the same objective. For a narrow lesson, diversify only through genuinely different source-backed skills; never escape into trivia.
 
-5. BATCH COVERAGE MAP — PLAN BEFORE WRITING
+10. BATCH COVERAGE MAP — PLAN BEFORE WRITING
 Before writing any question, silently inspect SOURCE MATERIAL and build a coverage map of the genuinely taught transferable skill families. Examples of possible families include: concept/meaning, form or formation, selection conditions, syntax or word order, temporal/logical relation, discourse/register/pragmatics, contextual application/comprehension, contrast/error diagnosis, pronunciation/orthography when central. These are examples, not mandatory categories. Use only families actually supported by the source.
 For a batch of 8+ questions, cover as many distinct supported families as reasonably possible before revisiting one. Do not allow one rule family, one auxiliary-choice principle, one meaning lookup, one completion pattern or one communicative function to dominate merely because it is easy to generate. A second question from the same family is allowed only when it tests a materially different transferable subskill, not another example of the same subskill. If the source is genuinely narrow, accept narrower coverage rather than inventing weaker content.
 
-6. NO COSMETIC OR RECENT REPEATS
+11. NO COSMETIC OR RECENT REPEATS
 Treat previous questions and `USED OBJECTIVE KEY` entries as strong avoidance signals, not permanent bans on the lesson's core skill. Do not repeat or closely paraphrase an earlier prompt, answer mapping, rule, communicative exchange or semantic target when another source-backed option exists. Within the current batch, each objective must be materially distinct.
 
-7. CONTEXT MUST UNIQUELY DETERMINE THE ANSWER
-A scenario is valid only if linguistic evidence in the prompt makes exactly one option correct. Do not invent an arbitrary fact or exact value just to force a vocabulary answer. If outside knowledge is required to choose the answer, replace the question.
+12. CONTEXT MUST UNIQUELY DETERMINE THE ANSWER
+A scenario is valid only if linguistic/content evidence in the prompt makes exactly one option correct. Do not invent an arbitrary fact or exact value just to force a vocabulary answer. If outside knowledge or an unstated assumption is required to choose the answer, replace the question.
 
-8. NO ANSWER LEAKS OR REPRESENTATION GIVEAWAYS
+13. NO ANSWER LEAKS OR REPRESENTATION GIVEAWAYS
 Do not reveal the answer as a digit, translation, parenthetical cue, equivalent representation, quoted solution or obvious reformulation in the prompt or translations. Direct representation-conversion drills are allowed only when SOURCE MATERIAL explicitly teaches that exact reading/writing skill and must not dominate a batch.
 
-9. REAL, NATURAL DISTRACTORS ONLY
-Every distractor must be a real and natural target-language form or a source-backed alternative of the same grammatical and semantic class as the answer. Never invent pseudoforms by changing letters, accents or endings merely to resemble the answer. However, when grammar/form discrimination is the actual taught skill, genuine competing inflections, auxiliaries, agreements or conjugations are valid distractors.
+14. REAL, NATURAL DISTRACTORS ONLY
+Every distractor must be a real and natural target-language form or a source-backed alternative of the same grammatical/semantic/pragmatic class as the answer. Never invent pseudoforms by changing letters, accents or endings merely to resemble the answer. However, when grammar/form discrimination is the actual taught skill, genuine competing inflections, auxiliaries, agreements or conjugations are valid distractors.
 
-10. CLEAN MCQ STRUCTURE
-Return exactly one correct answer plus exactly three distinct distractors. After case/diacritic normalization, all four options must still be distinct. No slash-combined multi-answer options. Options must be comparable in grammatical role, semantic class and specificity; no absurd or visually obvious decoys.
+15. CLEAN MCQ STRUCTURE
+Return exactly one correct answer plus exactly three distinct distractors. After case/diacritic normalization, all four options must still be distinct. No slash-combined multi-answer options. No absurd or visually obvious decoys.
 
-11. PEDAGOGICAL FORMAT BALANCE
-Choose the format that best tests each objective: contextual comprehension, practical choice, dialogue/pragmatics, form-function discrimination, grammar application, source-backed contrast or concise completion. Do not use format changes to hide repeated objectives. Variety is a preference, not a reason to invent weaker questions. When several valid formats are available, avoid letting a single surface format dominate the batch.
+16. PEDAGOGICAL FORMAT BALANCE
+Choose the format that best tests each objective: contextual comprehension, practical choice, dialogue/pragmatics, form-function discrimination, grammar application, source-backed contrast, interpretation or concise completion. Do not use format changes to hide repeated objectives. Variety is a preference, not a reason to invent weaker questions. When several valid formats are available, avoid letting a single surface format dominate the batch.
 
-12. CANONICAL OBJECTIVE KEY
+17. CANONICAL OBJECTIVE KEY
 Every English `why` field MUST begin exactly with `[[OBJ:operation:underlying-target]]`. `operation` must be one of: meaning, contextual-use, grammar, orthography-form, comprehension, contrast, pragmatic-use, pronunciation. `underlying-target` names the transferable learner skill/rule, never an incidental example, noun, verb, numeral, name or scenario. Questions that belong to the same transferable subskill must use the same underlying target even when their examples differ.
 
-13. TARGET-LANGUAGE AND CEFR DISCIPLINE
-`prompt`, `answer` and all distractors must be natural target-language text appropriate to the requested CEFR level. Do not introduce advanced terminology merely to create variety. Higher-level terminology is still forbidden unless source-backed and genuinely central.
+18. TARGET-LANGUAGE DISCIPLINE
+`prompt`, `answer` and all distractors must be natural target-language text appropriate to the requested CEFR level and task type. Avoid translated-sounding phrasing, unnatural collocations, register mismatch and wording that no fluent speaker/teacher would normally use. Higher-level terminology is forbidden unless source-backed and genuinely central.
 
-14. COMPACT OUTPUT
-Keep prompts concise. After the objective marker, `why` is at most 6 English words and `why_tr` at most 6 Turkish words. `translation_en` and `translation_tr` should normally be at most 12 words. No prose outside JSON. Completeness is more important than decorative wording.
+19. COMPACT OUTPUT
+Keep prompts concise enough that the assessed skill remains clear. After the objective marker, `why` is at most 6 English words and `why_tr` at most 6 Turkish words. `translation_en` and `translation_tr` should normally be at most 12 words. No prose outside JSON. Completeness is more important than decorative wording.
 
-15. FINAL BATCH AUDIT
-Before returning JSON, audit the set as a whole, not item-by-item only. First replace any source-unsupported, outside-knowledge dependent, meta-trivia, weakly answerable, answer-leaking, pseudoform-based, structurally invalid, CEFR-inappropriate or semantically mismatched item. Then compare all remaining objectives: if two items test the same transferable subskill, replace the weaker one with a different source-backed family or subskill when available. Finally check that no single family or surface format dominates without source-based necessity. Return only the audited candidate set.
+20. FINAL BATCH AUDIT
+Before returning JSON, audit every item with the six-axis quality rubric and then audit the set as a whole. Replace any item that is unnatural, ambiguous, source-unsupported, outside-knowledge dependent, meta-trivia, weakly answerable, answer-leaking, pseudoform-based, structurally invalid, CEFR-inappropriate, stem-option misaligned, unfairly option-clued or semantically mismatched. Then compare all remaining objectives: if two items test the same transferable subskill, replace the weaker one with a different source-backed family or subskill when available. Finally check task-type quality, objective-family balance and surface-format balance. Return only the audited candidate set.
 """
 
         protocol_pattern = r"PEDAGOGIC PROTOCOL & MANDATES:.*?(?=\n\s*RESPONSE FORMAT:)"
@@ -89,7 +120,7 @@ Before returning JSON, audit the set as a whole, not item-by-item only. First re
 
         rewritten[system_idx]["content"] = old_system.replace(
             "Pedagogic Assessment Engine (V5)",
-            "Pedagogic Assessment Engine (V7.2)",
+            "Pedagogic Assessment Engine (V7.3)",
             1,
         )
 
@@ -118,19 +149,17 @@ Before returning JSON, audit the set as a whole, not item-by-item only. First re
                     pass
 
             rewritten[i]["content"] = (
-                "ONE-PASS QUALITY DIRECTIVE: Before writing, silently build a source-backed coverage map of distinct transferable skill families and allocate the batch across that map. "
-                "Cover different supported families before revisiting one; repeat a family only for a materially different subskill. "
-                "Use SOURCE MATERIAL only. Test language competence, never arithmetic or outside-world knowledge used merely to force an answer. "
-                "No meta-linguistic trivia, morphology jargon, cross-language trivia, pseudoforms, answer leaks or cosmetic repeats. "
-                "Grammar/form lessons may use genuine competing inflections and auxiliaries. Every `why` starts with [[OBJ:operation:underlying-target]]. "
-                "Audit the whole batch for objective-family and format balance before returning compact complete JSON.\n\n"
+                "ONE-PASS QUALITY DIRECTIVE: Before writing, silently identify the task type (grammar, speaking, vocabulary, culture, functional, mixed/other), the CEFR level, and a source-backed coverage map. "
+                "For every candidate, internally require >=4/5 on naturalness, answer certainty, distractor plausibility, pedagogical value, CEFR fit and source fidelity; revise any candidate that fails. "
+                "Keep stem and option categories aligned, options fair and reasonably symmetric, and use task-type-appropriate quality criteria. "
+                "Cover different supported transferable skill families before revisiting one; repeat a family only for a materially different subskill. "
+                "Use SOURCE MATERIAL only. No outside-knowledge proxies, meta-trivia, pseudoforms, answer leaks, cosmetic repeats or unnatural translated phrasing. "
+                "Every `why` starts with [[OBJ:operation:underlying-target]]. Audit the whole batch for item quality, task appropriacy, objective-family balance and format balance before returning compact complete JSON.\n\n"
                 + content
             )
             break
 
-        # ai_engine keeps max_tokens <= 2500 in the same fast (25 s) provider timeout
-        # tier. The extra headroom reduces truncated 8/10 or 9/10 JSON batches without
-        # moving assessments into the slower timeout tier.
+        # Keep the proven latency envelope unchanged.
         try:
             kwargs["max_tokens"] = min(int(kwargs.get("max_tokens", 2500)), 2500)
         except Exception:
