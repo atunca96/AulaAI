@@ -56,15 +56,34 @@ def _log_route(mode, requested_count, is_quiz):
     )
 
 
-def _log_fallback(request_id, requested_count, returned_count):
+def _log_fallback(request_id, requested_count, returned_count, mode="v2"):
     _emit_line(
-        f"[ASSESSMENT-SAFETY] request_id={request_id} v2_hard_gate_failed "
+        f"[ASSESSMENT-SAFETY] request_id={request_id} mode={mode} v2_hard_gate_failed "
         f"requested={requested_count} returned={returned_count} fallback=legacy"
     )
 
 
+def _run_legacy_fallback(router_module, *, topic_ids, requested, ui_lang, existing_questions, source_text, request_id):
+    common = {
+        "topic_ids": list(topic_ids or []),
+        "count": requested,
+        "ui_lang": ui_lang,
+        "existing_questions": existing_questions,
+    }
+    fallback, _ = router_module._run_engine(
+        "legacy",
+        is_quiz=False,
+        progress_callback=None,
+        source_text=source_text,
+        request_id=request_id,
+        shadow=False,
+        **common,
+    )
+    return fallback
+
+
 def install(router_module, content_engine_module):
-    """Install safe defaults and an explicit-V2 fallback without touching legacy/material code."""
+    """Install safe defaults and V2 hard-gate fallback without touching material code."""
     if getattr(content_engine_module, "_assessment_safety_installed", False):
         return
 
@@ -87,9 +106,8 @@ def install(router_module, content_engine_module):
         requested = _safe_count(count)
         _log_route(mode, requested, is_quiz)
 
-        # Legacy and shadow already have the desired safety behavior once the router's
-        # mode functions above are replaced. Only explicit V2 needs hard-gate fallback.
-        if mode != "v2":
+        # Legacy never needs a V2 gate.
+        if mode == "legacy":
             return routed_generate(
                 topic_ids=topic_ids,
                 count=requested,
@@ -99,6 +117,50 @@ def install(router_module, content_engine_module):
                 progress_callback=progress_callback,
             )
 
+        # Normal shadow calibration is legacy-primary and remains unchanged. If V2 is
+        # explicitly made shadow-primary, run the router side-effect-free first so an
+        # incomplete/malformed V2 set can never be persisted before the hard gate runs.
+        if mode == "shadow":
+            if shadow_primary() != "v2":
+                return routed_generate(
+                    topic_ids=topic_ids,
+                    count=requested,
+                    is_quiz=is_quiz,
+                    ui_lang=ui_lang,
+                    existing_questions=existing_questions,
+                    progress_callback=progress_callback,
+                )
+
+            result = routed_generate(
+                topic_ids=topic_ids,
+                count=requested,
+                is_quiz=False,
+                ui_lang=ui_lang,
+                existing_questions=existing_questions,
+                progress_callback=progress_callback,
+            )
+            if _hard_gate_pass(result, requested):
+                if is_quiz:
+                    router_module._persist_primary_questions(result)
+                return result
+
+            request_id = uuid.uuid4().hex
+            source_text = router_module._source_text(topic_ids)
+            _log_fallback(request_id, requested, len(result or []), mode="shadow-primary-v2")
+            fallback = _run_legacy_fallback(
+                router_module,
+                topic_ids=topic_ids,
+                requested=requested,
+                ui_lang=ui_lang,
+                existing_questions=existing_questions,
+                source_text=source_text,
+                request_id=request_id,
+            )
+            if is_quiz:
+                router_module._persist_primary_questions(fallback)
+            return fallback
+
+        # Explicit V2 mode: run side-effect-free until structural hard gates pass.
         request_id = uuid.uuid4().hex
         source_text = router_module._source_text(topic_ids)
         common = {
@@ -107,8 +169,6 @@ def install(router_module, content_engine_module):
             "ui_lang": ui_lang,
             "existing_questions": existing_questions,
         }
-
-        # Run V2 side-effect-free until it passes the non-negotiable structural gates.
         result, _ = router_module._run_engine(
             "v2",
             is_quiz=False,
@@ -124,15 +184,15 @@ def install(router_module, content_engine_module):
                 router_module._persist_primary_questions(result)
             return result
 
-        _log_fallback(request_id, requested, len(result or []))
-        fallback, _ = router_module._run_engine(
-            "legacy",
-            is_quiz=False,
-            progress_callback=None,
+        _log_fallback(request_id, requested, len(result or []), mode="v2")
+        fallback = _run_legacy_fallback(
+            router_module,
+            topic_ids=topic_ids,
+            requested=requested,
+            ui_lang=ui_lang,
+            existing_questions=existing_questions,
             source_text=source_text,
             request_id=request_id,
-            shadow=False,
-            **common,
         )
         if is_quiz:
             router_module._persist_primary_questions(fallback)
