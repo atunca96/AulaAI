@@ -46,9 +46,9 @@ try:
 except Exception:
     pass
 
-# Material bilingual canonicalization. After the normal lesson/bilingual pipeline, persist
-# deterministic EN/TR explanation pairs and localized embedded MCQ fields so first paint
-# never depends on a delayed browser-side translation.
+# Material bilingual canonicalization. After normal lesson generation/finalization,
+# persist fact-aligned native EN/TR pedagogical views and localized embedded MCQ fields.
+# A good Turkish explanation is preserved rather than flattened into literal English parity.
 try:
     from .material_bilingual_canonicalizer import install as _install_material_bilingual_canonicalizer
     _install_material_bilingual_canonicalizer(_bilingual_finisher, _ai_engine)
