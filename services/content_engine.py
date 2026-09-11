@@ -532,7 +532,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
     from services.state import bump_version
     bump_version()
 
-    final_set = questions if is_quiz else questions[:c_count]
+    final_set = questions
     if progress_callback:
         progress_callback(100, "Sorular hazır!" if ui_lang == "tr" else "Questions ready!")
 

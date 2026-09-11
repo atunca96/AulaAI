@@ -2362,7 +2362,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 is_quiz=False,
                 ui_lang=ui_lang,
                 existing_questions=existing_questions,
-                progress_callback=progress_cb
+                progress_callback=progress_cb,
+                generation_seed=py_random.randint(100, 99999)
             )
 
             # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
@@ -2828,7 +2829,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
             def ticker_worker():
                 last_written_p = 0
-                est_time = (count * 1.5) + 5
+                est_time = max(6.0, (count * 0.25) + 4.5)
                 start_time = time.time()
                 
                 while not state.is_done:
