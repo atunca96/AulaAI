@@ -8862,49 +8862,80 @@ function getSeenQuestions(topicId) {
   return list.slice(-50); // Pass last 50 seen questions for rich cross-test diversity
 }
 
-function registerDraftSeenQuestions(courseId, questions) {
-  if (!Array.isArray(questions)) return;
+window._draftSeenBatches = window._draftSeenBatches || {};
+
+function registerDraftSeenQuestions(courseId, questions, chapterId = 'all') {
+  if (!Array.isArray(questions) || questions.length === 0) return;
   const cid = String(courseId || (currentCourse && currentCourse.id) || 'default');
-  if (!window._draftSeenQuestions[cid]) {
+  const tid = String(chapterId || 'all');
+  const key = `${cid}_${tid}`;
+
+  if (!window._draftSeenBatches[key]) {
     try {
-      const stored = localStorage.getItem(`aula_draft_seen_${cid}`);
-      window._draftSeenQuestions[cid] = stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem(`aula_draft_batches_${key}`);
+      const parsed = stored ? JSON.parse(stored) : [];
+      window._draftSeenBatches[key] = Array.isArray(parsed) ? parsed : [];
     } catch(e) {
-      window._draftSeenQuestions[cid] = [];
+      window._draftSeenBatches[key] = [];
     }
   }
-  for (const q of questions) {
-    if (q && (q.prompt || q.answer)) {
-      const pKey = _normalizeKey(q.prompt);
-      const aKey = _normalizeKey(q.answer);
-      const exists = window._draftSeenQuestions[cid].some(
-        sq => (pKey && _normalizeKey(sq.prompt) === pKey) || (aKey && _normalizeKey(sq.answer) === aKey)
-      );
-      if (!exists) {
-        window._draftSeenQuestions[cid].push({
-          prompt: q.prompt || '',
-          answer: q.answer || ''
-        });
-      }
+
+  const cleanBatch = questions
+    .filter(q => q && (q.prompt || q.answer))
+    .map(q => ({ prompt: String(q.prompt || '').trim(), answer: String(q.answer || '').trim() }))
+    .filter(q => q.prompt || q.answer);
+
+  if (cleanBatch.length === 0) return;
+
+  const currentBatches = window._draftSeenBatches[key];
+  const lastBatch = currentBatches.length > 0 ? currentBatches[currentBatches.length - 1] : null;
+
+  let isDuplicateBatch = false;
+  if (lastBatch && Array.isArray(lastBatch) && lastBatch.length === cleanBatch.length) {
+    if (lastBatch.every((lq, idx) => lq.prompt === cleanBatch[idx].prompt)) {
+      isDuplicateBatch = true;
     }
   }
-  window._draftSeenQuestions[cid] = window._draftSeenQuestions[cid].slice(-20);
+
+  if (!isDuplicateBatch) {
+    currentBatches.push(cleanBatch);
+  }
+
+  // Retain all questions from exactly the two most recent completed quiz drafts
+  window._draftSeenBatches[key] = currentBatches.slice(-2);
   try {
-    localStorage.setItem(`aula_draft_seen_${cid}`, JSON.stringify(window._draftSeenQuestions[cid]));
+    localStorage.setItem(`aula_draft_batches_${key}`, JSON.stringify(window._draftSeenBatches[key]));
   } catch(e) {}
 }
 
-function getDraftSeenQuestions(courseId) {
+function getDraftSeenQuestions(courseId, chapterId = 'all') {
   const cid = String(courseId || (currentCourse && currentCourse.id) || 'default');
-  if (!window._draftSeenQuestions[cid]) {
+  const tid = String(chapterId || 'all');
+  const key = `${cid}_${tid}`;
+
+  if (!window._draftSeenBatches[key]) {
     try {
-      const stored = localStorage.getItem(`aula_draft_seen_${cid}`);
-      window._draftSeenQuestions[cid] = stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem(`aula_draft_batches_${key}`);
+      const parsed = stored ? JSON.parse(stored) : [];
+      window._draftSeenBatches[key] = Array.isArray(parsed) ? parsed : [];
     } catch(e) {
-      window._draftSeenQuestions[cid] = [];
+      window._draftSeenBatches[key] = [];
     }
   }
-  return window._draftSeenQuestions[cid].slice(-20);
+
+  // Flatten exactly the last 2 completed batches
+  const batches = window._draftSeenBatches[key].slice(-2);
+  const flattened = [];
+  for (const batch of batches) {
+    if (Array.isArray(batch)) {
+      for (const q of batch) {
+        if (q && (q.prompt || q.answer)) {
+          flattened.push({ prompt: q.prompt || '', answer: q.answer || '' });
+        }
+      }
+    }
+  }
+  return flattened;
 }
 
 let activityProgressInterval = null;
@@ -9141,7 +9172,7 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
     } finally {
       isDraftPollingActive = false;
     }
-  }, 400);
+  }, 1000);
 }
 
 async function launchActivity() {
@@ -9702,9 +9733,9 @@ async function createQuiz() {
   const targetCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
   if (currentDraft && Array.isArray(currentDraft.questions)) {
-    registerDraftSeenQuestions(targetCourseId, currentDraft.questions);
+    registerDraftSeenQuestions(targetCourseId, currentDraft.questions, chapterId);
   }
-  const existingQuestions = getDraftSeenQuestions(targetCourseId);
+  const existingQuestions = getDraftSeenQuestions(targetCourseId, chapterId);
 
   try {
     const res = await api('/draft/generate', { 
@@ -9720,7 +9751,7 @@ async function createQuiz() {
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('quiz', btn, originalText, (questions) => {
-      registerDraftSeenQuestions(targetCourseId, questions);
+      registerDraftSeenQuestions(targetCourseId, questions, chapterId);
       currentDraft = {
         type: 'quiz',
         title: title,
@@ -10914,9 +10945,9 @@ async function createAssignment() {
   const targetCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
   if (currentDraft && Array.isArray(currentDraft.questions)) {
-    registerDraftSeenQuestions(targetCourseId, currentDraft.questions);
+    registerDraftSeenQuestions(targetCourseId, currentDraft.questions, chapterId);
   }
-  const existingQuestions = getDraftSeenQuestions(targetCourseId);
+  const existingQuestions = getDraftSeenQuestions(targetCourseId, chapterId);
 
   try {
     const res = await api('/draft/generate', { 
@@ -10932,7 +10963,7 @@ async function createAssignment() {
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('assignment', btn, originalText, (questions) => {
-      registerDraftSeenQuestions(targetCourseId, questions);
+      registerDraftSeenQuestions(targetCourseId, questions, chapterId);
       currentDraft = {
         type: 'assignment',
         title: title,
@@ -10960,7 +10991,7 @@ function openDraftModal() {
 function closeDraftModal() {
   if (currentDraft && Array.isArray(currentDraft.questions)) {
     const cid = currentDraft.course_id || courseId || (currentCourse && currentCourse.id);
-    registerDraftSeenQuestions(cid, currentDraft.questions);
+    registerDraftSeenQuestions(cid, currentDraft.questions, currentDraft.chapter_id);
   }
   document.getElementById('draft-modal').classList.add('hidden');
   currentDraft = null;

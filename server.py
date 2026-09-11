@@ -22,6 +22,8 @@ import random as py_random
 import re
 import traceback
 import concurrent.futures
+import unicodedata
+import difflib
 
 logging.basicConfig(level=logging.WARNING, format='%(message)s')
 from urllib.parse import urlparse, parse_qs
@@ -229,46 +231,124 @@ def set_activity_task(task_id, data):
             data["created_at"] = now
             _activity_tasks[task_id] = data
 
-_draft_course_seen_questions = {}
+_draft_course_batches = {}
 _draft_course_lock = threading.Lock()
 
-def record_course_draft_questions(course_id, questions):
-    if not course_id or not isinstance(questions, list): return
-    cid = str(course_id)
-    with _draft_course_lock:
-        if cid not in _draft_course_seen_questions:
-            _draft_course_seen_questions[cid] = []
-        new_items = []
-        for q in questions:
-            if isinstance(q, dict) and (q.get("prompt") or q.get("answer")):
-                p = str(q.get("prompt", "")).strip()
-                a = str(q.get("answer", "")).strip()
-                if p and not any(eq.get("prompt") == p for eq in _draft_course_seen_questions[cid]):
-                    _draft_course_seen_questions[cid].append({"prompt": p, "answer": a})
-                    new_items.append((_uid(), cid, p, a))
-        _draft_course_seen_questions[cid] = _draft_course_seen_questions[cid][-20:]
-        if new_items:
-            try:
-                with db_connection() as db:
-                    db.executemany("INSERT OR IGNORE INTO draft_history (id, course_id, prompt, answer) VALUES (?,?,?,?)", new_items)
-                    db.commit()
-            except Exception as e:
-                print(f"[DB] Error recording draft history: {e}")
+def _get_draft_batch_key(course_id, topic_id="all"):
+    return f"{str(course_id)}:{str(topic_id or 'all')}"
 
-def get_course_draft_questions(course_id):
-    if not course_id: return []
+def normalize_prompt_text(text):
+    if not text:
+        return ""
+    t = unicodedata.normalize('NFKD', str(text).lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    t = re.sub(r'[^\w\s]', ' ', t)
+    return " ".join(t.split())
+
+def is_near_identical_question(p1, p2):
+    norm1 = normalize_prompt_text(p1)
+    norm2 = normalize_prompt_text(p2)
+    if not norm1 or not norm2:
+        return False
+    if norm1 == norm2:
+        return True
+    return difflib.SequenceMatcher(None, norm1, norm2).ratio() > 0.88
+
+def record_course_draft_batch(course_id, questions, topic_id="all"):
+    """
+    Retain all questions from exactly the two most recent completed quiz drafts for the same course/topic.
+    """
+    if not course_id or not isinstance(questions, list) or len(questions) == 0:
+        return
     cid = str(course_id)
+    tid = str(topic_id or "all")
+    key = _get_draft_batch_key(cid, tid)
+
+    clean_batch = []
+    seen = set()
+    for q in questions:
+        if isinstance(q, dict) and (q.get("prompt") or q.get("answer")):
+            p = str(q.get("prompt", "")).strip()
+            a = str(q.get("answer", "")).strip()
+            if p and p.lower() not in seen:
+                seen.add(p.lower())
+                clean_batch.append({"prompt": p, "answer": a})
+
+    if not clean_batch:
+        return
+
     with _draft_course_lock:
-        if cid not in _draft_course_seen_questions:
-            _draft_course_seen_questions[cid] = []
+        if key not in _draft_course_batches:
+            _draft_course_batches[key] = []
+
+        last_batch = _draft_course_batches[key][-1] if _draft_course_batches[key] else None
+        is_duplicate_batch = False
+        if last_batch and len(last_batch) == len(clean_batch):
+            if all(lq.get("prompt") == cq.get("prompt") for lq, cq in zip(last_batch, clean_batch)):
+                is_duplicate_batch = True
+
+        if not is_duplicate_batch:
+            _draft_course_batches[key].append(clean_batch)
+            _draft_course_batches[key] = _draft_course_batches[key][-2:]
+
+        try:
+            with db_connection() as db:
+                batch_id = _uid()
+                db.execute(
+                    "INSERT INTO draft_test_batches (id, course_id, topic_id, questions_json, created_at) VALUES (?,?,?,?,datetime('now'))",
+                    (batch_id, cid, tid, json.dumps(clean_batch, ensure_ascii=False))
+                )
+                db.execute("""
+                    DELETE FROM draft_test_batches 
+                    WHERE course_id=? AND topic_id=? AND id NOT IN (
+                        SELECT id FROM draft_test_batches WHERE course_id=? AND topic_id=? ORDER BY created_at DESC, rowid DESC LIMIT 2
+                    )
+                """, (cid, tid, cid, tid))
+                db.commit()
+        except Exception as e:
+            print(f"[DB] Error recording draft batch: {e}")
+
+def get_course_draft_batches(course_id, topic_id="all"):
+    """
+    Returns all questions from exactly the two most recent completed quiz drafts for the same course/topic.
+    Questions from the third-most-recent test or older must not be loaded into generation context or used for duplicate filtering.
+    """
+    if not course_id:
+        return []
+    cid = str(course_id)
+    tid = str(topic_id or "all")
+    key = _get_draft_batch_key(cid, tid)
+
+    with _draft_course_lock:
+        if key not in _draft_course_batches or not _draft_course_batches[key]:
+            _draft_course_batches[key] = []
             try:
                 with db_connection() as db:
-                    rows = db.execute("SELECT prompt, answer FROM draft_history WHERE course_id=? ORDER BY created_at DESC LIMIT 20", (cid,)).fetchall()
+                    rows = db.execute(
+                        "SELECT questions_json FROM draft_test_batches WHERE course_id=? AND topic_id=? ORDER BY created_at ASC, rowid ASC",
+                        (cid, tid)
+                    ).fetchall()
+                    rows = rows[-2:]
                     for r in rows:
-                        _draft_course_seen_questions[cid].append({"prompt": r["prompt"], "answer": r["answer"]})
+                        if r["questions_json"]:
+                            b_qs = json.loads(r["questions_json"])
+                            if isinstance(b_qs, list):
+                                _draft_course_batches[key].append(b_qs)
             except Exception as e:
-                print(f"[DB] Error loading draft history: {e}")
-        return list(_draft_course_seen_questions.get(cid, []))[-20:]
+                print(f"[DB] Error loading draft batches: {e}")
+
+        result = []
+        for batch in _draft_course_batches[key][-2:]:
+            for q in batch:
+                if isinstance(q, dict) and q.get("prompt"):
+                    result.append(q)
+        return result
+
+def record_course_draft_questions(course_id, questions, topic_id="all"):
+    record_course_draft_batch(course_id, questions, topic_id)
+
+def get_course_draft_questions(course_id, topic_id="all"):
+    return get_course_draft_batches(course_id, topic_id)
 
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
@@ -2571,6 +2651,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         body = self._read_body()
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
+        topic_key = str(chapter_id or "all")
         ui_lang = body.get("ui_lang", "en")
         client_existing = body.get("existing_questions") or []
         try:
@@ -2588,19 +2669,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if prev_draft and prev_draft["draft_result"]:
                 try:
                     prev_qs = json.loads(prev_draft["draft_result"])
-                    if isinstance(prev_qs, list):
-                        record_course_draft_questions(course_id, prev_qs)
+                    if isinstance(prev_qs, list) and prev_qs:
+                        record_course_draft_batch(course_id, prev_qs, topic_key)
                 except Exception:
                     pass
-
-            # Also fetch existing questions from DB for this course
-            db_existing_rows = db.execute("""
-                SELECT q.prompt, q.answer FROM questions q
-                JOIN topics t ON q.topic_id = t.id
-                JOIN chapters ch ON t.chapter_id = ch.id
-                WHERE ch.course_id = ?
-            """, (course_id,)).fetchall()
-            db_existing = [{"prompt": r["prompt"], "answer": r["answer"]} for r in db_existing_rows if r["prompt"] or r["answer"]]
                 
             if chapter_id and chapter_id != "all" and chapter_id != "":
                 # Smart Lookup: Is this a Chapter or a Topic?
@@ -2623,40 +2695,37 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 
             topic_ids = [t["id"] for t in topics]
 
-            # Merge server-side seen draft questions + client questions (strictly capped to last 2 rounds: max 20 questions)
+            # Retain all questions from exactly the two most recent completed quiz drafts for the same course/topic
+            retained_batches_qs = get_course_draft_batches(course_id, topic_key)
             merged_existing = []
             seen_prompts = set()
             
-            for q in get_course_draft_questions(course_id)[-20:]:
+            for q in retained_batches_qs:
                 p = (q.get("prompt") or "").strip()
-                if p and p not in seen_prompts:
-                    seen_prompts.add(p)
+                if p and p.lower() not in seen_prompts:
+                    seen_prompts.add(p.lower())
                     merged_existing.append(q)
 
-            if isinstance(client_existing, list):
-                recent_client = client_existing[-20:]
-                record_course_draft_questions(course_id, recent_client)
-                for q in recent_client:
+            # If client provided existing questions (from client last 2 batches) and server had none
+            if not merged_existing and isinstance(client_existing, list):
+                for q in client_existing:
                     if isinstance(q, dict):
                         p = (q.get("prompt") or "").strip()
-                        if p and p not in seen_prompts:
-                            seen_prompts.add(p)
+                        if p and p.lower() not in seen_prompts:
+                            seen_prompts.add(p.lower())
                             merged_existing.append(q)
-
-            # Strictly cap to the last 20 questions (2 rounds) so test 4 never reaches test 1 cache
-            merged_existing = merged_existing[-20:]
 
             db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
             db.commit()
             
         import threading
-        thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang, merged_existing))
+        thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang, merged_existing, topic_key))
         thread.daemon = True
         thread.start()
         
         self._send_json({"status": "success"})
 
-    def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en", existing_questions=None):
+    def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en", existing_questions=None, topic_key="all"):
         try:
             from services.content_engine import generate_quiz
             
@@ -2697,13 +2766,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ticker_thread.start()
 
             requested_count = int(count)
+            retained_existing_prompts = [
+                (q.get("prompt") or "").strip() for q in (existing_questions or [])
+                if isinstance(q, dict) and q.get("prompt")
+            ]
+
             try:
                 # Retain previous questions and pass existing_questions to enforce variety
                 questions = generate_quiz(topic_ids, count=requested_count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions)
                 
-                # ── V5 UNIFIED PASS-THROUGH (MIRROR ACTIVITY LOGIC) ──
-                # We trust generate_quiz (which uses Gemini 2.5 V5) completely.
-                final_questions = [q for q in (questions or []) if isinstance(q, dict) and q.get("prompt") and q.get("answer")]
+                # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
+                final_questions = []
+                for q in (questions or []):
+                    if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                        continue
+                    p = q.get("prompt", "")
+                    if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                        continue
+                    if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                        continue
+                    final_questions.append(q)
+                    if len(final_questions) >= requested_count:
+                        break
 
                 # If the final valid question list contains fewer than the requested count,
                 # generate only the missing number of questions using the same existing generator
@@ -2728,18 +2812,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     )
                     if not fresh_qs:
                         break
-                    seen_prompts = {(q.get("prompt") or "").strip().lower() for q in final_questions}
                     added_any = False
                     for q in fresh_qs:
                         if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
                             continue
-                        p_norm = (q.get("prompt") or "").strip().lower()
-                        if p_norm not in seen_prompts:
-                            seen_prompts.add(p_norm)
-                            final_questions.append(q)
-                            added_any = True
-                            if len(final_questions) >= requested_count:
-                                break
+                        p = q.get("prompt", "")
+                        if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                            continue
+                        if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                            continue
+                        final_questions.append(q)
+                        added_any = True
+                        if len(final_questions) >= requested_count:
+                            break
                     if not added_any:
                         break
             finally:
@@ -2755,7 +2840,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return
 
             final_questions = final_questions[:requested_count]
-            record_course_draft_questions(course_id, final_questions)
+            record_course_draft_batch(course_id, final_questions, topic_key)
 
             with db_connection() as db:
                 db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 

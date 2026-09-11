@@ -453,6 +453,16 @@ def init_db():
         )''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_draft_history_course ON draft_history(course_id)')
 
+        # Persistent Draft Test Batches (stores completed test batches for the last 2 batches rule)
+        c.execute('''CREATE TABLE IF NOT EXISTS draft_test_batches (
+            id TEXT PRIMARY KEY,
+            course_id TEXT,
+            topic_id TEXT,
+            questions_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_draft_test_batches ON draft_test_batches(course_id, topic_id, created_at)')
+
         # Purge orphan unlinked draft questions prematurely inserted by older versions
         try:
             c.execute('''DELETE FROM questions 
