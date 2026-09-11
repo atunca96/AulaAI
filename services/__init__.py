@@ -31,15 +31,14 @@ except Exception:
     pass
 
 # Curriculum-only reliability layer. It replaces only ai_generate_curriculum with
-# an exact 6x5, one-retry bounded generator. Lesson/material generation is untouched.
+# an exact 6x5, one-retry bounded generator.
 try:
     from .curriculum_direct_generator import install as _install_curriculum_direct_generator
     _install_curriculum_direct_generator(_ai_engine)
 except Exception:
     pass
 
-# Bilingual finishing integrity: never persist English text as a Turkish translation,
-# and guard stale pre-fix classrooms on the frontend. Material generation is untouched.
+# Bilingual finishing integrity: never persist English text as a Turkish translation.
 try:
     from . import bilingual_finisher as _bilingual_finisher
     from .bilingual_translation_guard import install as _install_bilingual_translation_guard
@@ -47,9 +46,17 @@ try:
 except Exception:
     pass
 
-# Frontend-only language integrity for already-generated material. This removes the
-# legacy Spanish dialogue fallback from non-Spanish courses, keeps English explanations
-# free of Turkish-reference wording, and localizes embedded study MCQs to the UI language.
+# Material bilingual canonicalization. After normal lesson generation/finalization,
+# persist fact-aligned native EN/TR pedagogical views and localized embedded MCQ fields.
+# A good Turkish explanation is preserved rather than flattened into literal English parity.
+try:
+    from .material_bilingual_canonicalizer import install as _install_material_bilingual_canonicalizer
+    _install_material_bilingual_canonicalizer(_bilingual_finisher, _ai_engine)
+except Exception:
+    pass
+
+# Frontend language/state integrity for already-generated material and deterministic
+# rendering of the canonical fields created above.
 try:
     from .runtime_content_integrity_guard import install as _install_runtime_content_integrity_guard
     _install_runtime_content_integrity_guard(_bilingual_finisher)
@@ -65,7 +72,6 @@ except Exception:
     pass
 
 # Route unified assessment generation according to ASSESSMENT_ENGINE=legacy|v2|shadow.
-# Lesson/material generation is not changed.
 try:
     from . import content_engine as _content_engine
     from . import assessment_router_v2 as _assessment_router_v2
@@ -89,16 +95,13 @@ try:
         pass
 
     # Manual calibration capture is explicitly opt-in via ASSESSMENT_SHADOW_CAPTURE=1.
-    # It only wraps V2 shadow results and never changes routing/persistence behavior.
     try:
         from .assessment_shadow_capture import install as _install_assessment_shadow_capture
         _install_assessment_shadow_capture(_assessment_router_v2)
     except Exception:
         pass
 
-    # Safety is deliberately installed after the router: missing/invalid flags fail
-    # closed to legacy, shadow calibration defaults to legacy primary, and explicit
-    # V2 falls back to legacy if count/structure hard gates fail.
+    # Safety is deliberately installed after the router.
     from .assessment_safety import install as _install_assessment_safety
     _install_assessment_safety(_assessment_router_v2, _content_engine)
 except Exception:
