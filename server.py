@@ -2269,11 +2269,31 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             course_id = post_data.get("course_id")
             user_id = post_data.get("user_id") or self._get_user_id() or "anonymous"
             ui_lang = post_data.get("ui_lang", "en")
-            count = int(post_data.get("count", 10))
-            existing_questions = post_data.get("existing_questions") or []
+            count = min(20, max(1, int(post_data.get("count", 5))))
+            client_existing = post_data.get("existing_questions") or []
             
             if not topic_id or not course_id:
                 return self._send_error("Missing info")
+
+            topic_key = str(topic_id)
+
+            # Retain all questions from exactly the two most recent completed test batches for this course/topic
+            retained_batches_qs = get_course_draft_batches(course_id, topic_key)
+            merged_existing = []
+            seen_prompts = set()
+            for q in retained_batches_qs:
+                p = (q.get("prompt") or "").strip()
+                if p and p.lower() not in seen_prompts:
+                    seen_prompts.add(p.lower())
+                    merged_existing.append(q)
+
+            if not merged_existing and isinstance(client_existing, list):
+                for q in client_existing:
+                    if isinstance(q, dict):
+                        p = (q.get("prompt") or "").strip()
+                        if p and p.lower() not in seen_prompts:
+                            seen_prompts.add(p.lower())
+                            merged_existing.append(q)
                 
             task_id = str(uuid.uuid4())
             initial_data = {
@@ -2291,7 +2311,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # Start background thread
             import threading
             file_log(f"Starting background generation task {task_id} for course {course_id}, user {user_id}, topic {topic_id}")
-            thread = threading.Thread(target=self._bg_generate_activities, args=(task_id, course_id, topic_id, count, ui_lang, user_id, existing_questions))
+            thread = threading.Thread(target=self._bg_generate_activities, args=(task_id, course_id, topic_id, count, ui_lang, user_id, merged_existing, topic_key))
             thread.daemon = True
             thread.start()
             
@@ -2302,7 +2322,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send_error(str(e))
 
-    def _bg_generate_activities(self, task_id, course_id, topic_id, count, ui_lang="en", user_id=None, existing_questions=None):
+    def _bg_generate_activities(self, task_id, course_id, topic_id, count, ui_lang="en", user_id=None, existing_questions=None, topic_key=None):
         import re
         import random as py_random
         import time
@@ -2321,24 +2341,85 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         msg_init = "Ders içeriği taranıyor..." if ui_lang == "tr" else "Scanning lesson content..."
         update_prog(15, message=msg_init)
 
+        if not topic_key:
+            topic_key = str(topic_id)
+
         try:
             from services.content_engine import generate_assessment_set
 
             def progress_cb(pct, msg=None):
                 update_prog(pct, message=msg)
 
-            final_questions = generate_assessment_set(
+            requested_count = int(count)
+            retained_existing_prompts = [
+                (q.get("prompt") or "").strip() for q in (existing_questions or [])
+                if isinstance(q, dict) and q.get("prompt")
+            ]
+
+            questions = generate_assessment_set(
                 topic_ids=[topic_id],
-                count=count,
+                count=requested_count,
                 is_quiz=False,
                 ui_lang=ui_lang,
                 existing_questions=existing_questions,
                 progress_callback=progress_cb
             )
 
+            # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
+            final_questions = []
+            for q in (questions or []):
+                if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                    continue
+                p = q.get("prompt", "")
+                if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                    continue
+                if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                    continue
+                final_questions.append(q)
+                if len(final_questions) >= requested_count:
+                    break
+
+            # Top-up pass if valid candidate list has fewer than requested_count
+            max_topup_attempts = 3
+            topup_attempt = 0
+            while len(final_questions) < requested_count and topup_attempt < max_topup_attempts:
+                topup_attempt += 1
+                missing = requested_count - len(final_questions)
+                combined_existing = (existing_questions or []) + final_questions
+                fresh_qs = generate_assessment_set(
+                    topic_ids=[topic_id],
+                    count=missing,
+                    is_quiz=False,
+                    ui_lang=ui_lang,
+                    existing_questions=combined_existing,
+                    progress_callback=progress_cb
+                )
+                if not fresh_qs:
+                    break
+                added_any = False
+                for q in fresh_qs:
+                    if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                        continue
+                    p = q.get("prompt", "")
+                    if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                        continue
+                    if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                        continue
+                    final_questions.append(q)
+                    added_any = True
+                    if len(final_questions) >= requested_count:
+                        break
+                if not added_any:
+                    break
+
+            final_questions = final_questions[:requested_count]
+
+            # Record batch into last 2 completed batches history
+            record_course_draft_batch(course_id, final_questions, topic_key)
+
             msg_done = "Sorular hazır!" if ui_lang == "tr" else "Questions ready!"
             update_prog(100, status='done', results=final_questions, message=msg_done)
-            print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} fresh questions.")
+            print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} questions.")
 
         except Exception as e:
             msg = f"BG Activity Error: {str(e)}"
@@ -2655,7 +2736,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         ui_lang = body.get("ui_lang", "en")
         client_existing = body.get("existing_questions") or []
         try:
-            count = int(body.get("count", 10))
+            count = min(20, max(1, int(body.get("count", 10))))
         except (ValueError, TypeError):
             count = 10
             
@@ -2675,15 +2756,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     pass
                 
             if chapter_id and chapter_id != "all" and chapter_id != "":
-                # Smart Lookup: Is this a Chapter or a Topic?
+                # Quizzes strictly cover the entire unit (Chapter)
                 is_chapter = db.execute("SELECT id FROM chapters WHERE id = ?", (chapter_id,)).fetchone()
                 if is_chapter:
                     topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
                 else:
-                    # Treat as a specific topic
-                    is_topic = db.execute("SELECT id FROM topics WHERE id = ?", (chapter_id,)).fetchone()
-                    if is_topic:
-                        topics = [{"id": chapter_id}]
+                    # If a topic ID was passed, expand to its full parent chapter so quizzes always cover the full unit
+                    is_topic = db.execute("SELECT chapter_id FROM topics WHERE id = ?", (chapter_id,)).fetchone()
+                    if is_topic and is_topic["chapter_id"]:
+                        topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (is_topic["chapter_id"],)).fetchall()
                     else:
                         topics = []
             else:

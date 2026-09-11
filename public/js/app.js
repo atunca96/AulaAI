@@ -8761,13 +8761,15 @@ function populateSelects() {
   const quizSelect = document.getElementById('quiz-chapter-select');
   if (quizSelect) {
     const prevQuizVal = quizSelect.value;
-    quizSelect.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+    const allUnitsText = currentLang === 'tr' ? 'Tüm Üniteler' : (t('AllChapters') || 'All Units');
+    quizSelect.innerHTML = `<option value="">${allUnitsText}</option>` + chapterOpts;
     if (prevQuizVal) quizSelect.value = prevQuizVal;
   }
   const as = document.getElementById('assignment-chapter-select');
   if (as) {
     const prevAsVal = as.value;
-    as.innerHTML = `<option value="">${t('AllTopics')}</option>` + topicOpts;
+    const allUnitsText = currentLang === 'tr' ? 'Tüm Üniteler' : (t('AllChapters') || 'All Units');
+    as.innerHTML = `<option value="">${allUnitsText}</option>` + chapterOpts;
     if (prevAsVal) as.value = prevAsVal;
   }
 }
@@ -9018,6 +9020,7 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
             // Retrieve current topic title if available (without polluting content.activities cache)
             const actSelect = document.getElementById('activity-topic-select');
             const curTid = topicId || (actSelect ? actSelect.value : null);
+            registerDraftSeenQuestions(activeCourseId, data.results, curTid);
             registerSeenQuestions(curTid, data.results);
 
             let currentTopic = null;
@@ -9197,9 +9200,10 @@ async function launchActivity() {
 
   try {
     if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
+      registerDraftSeenQuestions(activeCourseId, _lastActivityData.activities, topicId);
       registerSeenQuestions(topicId, _lastActivityData.activities);
     }
-    const existingQuestions = getSeenQuestions(topicId);
+    const existingQuestions = getDraftSeenQuestions(activeCourseId, topicId);
 
     // 1. Kick off the background task
     const res = await api('/activity/start', {
@@ -9207,7 +9211,7 @@ async function launchActivity() {
       body: { 
         topic_id: topicId, 
         course_id: activeCourseId, 
-        count: 10, 
+        count: 5, 
         ui_lang: currentLang, 
         user_id: currentUser ? currentUser.id : null,
         existing_questions: existingQuestions
@@ -9728,7 +9732,7 @@ async function createQuiz() {
 
   const title = document.getElementById('quiz-title').value || 'Quiz';
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
-  const count = parseInt(document.getElementById('quiz-count').value) || 10;
+  const count = Math.min(20, Math.max(1, parseInt(document.getElementById('quiz-count').value) || 10));
 
   const targetCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
@@ -10640,9 +10644,10 @@ async function startPractice(tid, title) {
 
   try {
     if (_lastActivityData && Array.isArray(_lastActivityData.activities)) {
+      registerDraftSeenQuestions(courseId, _lastActivityData.activities, tid);
       registerSeenQuestions(tid, _lastActivityData.activities);
     }
-    const existingQuestions = getSeenQuestions(tid);
+    const existingQuestions = getDraftSeenQuestions(courseId, tid);
 
     // 1. Kick off the background task
     const res = await api('/activity/start', {
@@ -10650,7 +10655,7 @@ async function startPractice(tid, title) {
       body: { 
         topic_id: tid, 
         course_id: courseId, 
-        count: 10, 
+        count: 5, 
         ui_lang: currentLang,
         user_id: currentUser ? currentUser.id : null,
         existing_questions: existingQuestions
@@ -10940,7 +10945,7 @@ async function createAssignment() {
 
   const title = document.getElementById('assignment-title').value || 'Assignment';
   const chapterId = document.getElementById('assignment-chapter-select').value || null;
-  const count = parseInt(document.getElementById('assignment-count').value) || 10;
+  const count = Math.min(20, Math.max(1, parseInt(document.getElementById('assignment-count').value) || 10));
 
   const targetCourseId = courseId || (currentCourse && currentCourse.id) || localStorage.getItem('aula_last_course');
 
