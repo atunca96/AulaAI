@@ -10,6 +10,7 @@ import json
 import math
 import re
 from collections import Counter, OrderedDict
+from difflib import SequenceMatcher
 
 _INTERNAL_OP_RE = re.compile(r"^\s*\[\[AULAOBJ:([a-z-]+)\]\]\s*", re.I)
 
@@ -61,6 +62,38 @@ def _form_focused(gate, headers, question):
         or "grammaire" in h
         or "grammatica" in h
     )
+
+
+def _pseudoform_suspicious_count(gate, question, source_text):
+    """Count strong spelling-neighbour signals without treating one neighbour as proof."""
+    answer_raw = str((question or {}).get("answer", "") or "").strip()
+    answer = gate._single_token(answer_raw)
+    answer_compact = gate._compact(answer_raw)
+    source_words = set(gate._norm(source_text).split())
+    source_compact = gate._compact(source_text)
+    suspicious = 0
+
+    for raw in (question or {}).get("distractors") or []:
+        d_raw = str(raw or "").strip()
+        d = gate._single_token(d_raw)
+        d_compact = gate._compact(d_raw)
+        if not d_compact or d_compact == answer_compact:
+            suspicious += 1
+            continue
+        if d and d in source_words:
+            continue
+        if d_compact and d_compact in source_compact and len(d_compact) >= 4:
+            continue
+
+        if answer and d:
+            ratio = SequenceMatcher(None, answer, d).ratio()
+            distance = gate._edit_distance(answer, d)
+        else:
+            ratio = SequenceMatcher(None, answer_compact, d_compact).ratio()
+            distance = gate._edit_distance(answer_compact, d_compact)
+        if distance <= 1 or ratio >= 0.76:
+            suspicious += 1
+    return suspicious
 
 
 def _extra_quality_reason(gate, question, headers):
@@ -185,6 +218,21 @@ def install(ai_engine_module):
 
     if not getattr(gate, "_legacy_domain_general_calibrated", False):
         original_quality_reason = gate._quality_reason
+        original_pseudoform = gate._pseudoform_distractors
+
+        def calibrated_pseudoform_distractors(question, source_text):
+            # Preserve explicit orthography/form exemptions first.
+            headers = gate._topic_headers(source_text)
+            if _form_focused(gate, headers, question):
+                return False
+            if not original_pseudoform(question, source_text):
+                return False
+            # One close-looking distractor is weak evidence and causes false positives
+            # across inflection-rich languages. Require a cluster of at least two
+            # unsupported near-forms before hard-rejecting the whole MCQ.
+            return _pseudoform_suspicious_count(gate, question, source_text) >= 2
+
+        gate._pseudoform_distractors = calibrated_pseudoform_distractors
 
         def calibrated_quality_reason(question, *, source_text, headers, accepted, prior, operation_counts, requested):
             reason = original_quality_reason(
@@ -197,8 +245,6 @@ def install(ai_engine_module):
                 requested=requested,
             )
             if reason == "operation_overconcentration":
-                reason = None
-            if reason == "pseudoform_distractors" and _form_focused(gate, headers, question):
                 reason = None
             if reason:
                 return reason
