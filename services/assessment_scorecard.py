@@ -109,9 +109,34 @@ _MATH_STEMS = (
     "topla", "carp", "çarp",
 )
 
+_SOUND_TERMS = (
+    "sound", "sonid", "ses", "laut", "suono", "son",
+)
+
+_SOUND_LABEL_STEMS = (
+    "soft", "hard", "suave", "fuerte", "voiced", "voiceless", "sonoro", "sordo",
+    "tap", "trill", "rhotic", "alveolar", "fricative", "fricativ", "occlusive",
+    "oclusiv", "affricate", "africad", "plosive", "nasal", "approximant", "vibrant",
+    "vibrante",
+)
+
+
+def _has_ipa_like_notation(raw):
+    """Cheap marker for phonetic transcription such as /s/, /θ/, /k/, /ɾ/."""
+    for match in re.findall(r"/([^/\n]{1,12})/", str(raw or "")):
+        token = match.strip()
+        if not token:
+            continue
+        # Avoid treating ordinary slash-separated prose as IPA unless the payload is
+        # short and contains alphabetic/IPA-ish symbols rather than spaces/words.
+        if len(token.split()) == 1 and any(ch.isalpha() or ord(ch) > 127 for ch in token):
+            return True
+    return False
+
 
 def _outside_meta_proxy_reason(q):
-    p = _norm(q.get("prompt"))
+    raw = str(q.get("prompt", ""))
+    p = _norm(raw)
     if not p:
         return None
 
@@ -122,17 +147,22 @@ def _outside_meta_proxy_reason(q):
     if any(_norm(marker) in p for marker in _META_EXACT_MARKERS):
         return "letter_or_spelling_trivia"
 
-    raw = str(q.get("prompt", ""))
     if re.search(r"\b\d+\s*[+×*/]\s*\d+\b", raw):
         return "arithmetic"
     if any(_norm(stem) in p for stem in _MATH_STEMS):
         return "arithmetic"
 
-    # A question that explicitly contrasts named sound qualities/labels is suspicious
-    # as assessment meta-knowledge. This is deliberately conservative and remains a proxy.
-    sound_terms = ("sound", "sonid", "sonido", "ses", "laut", "suono", "son")
-    contrast_terms = ("soft", "hard", "suave", "fuerte", "voiced", "voiceless", "sonoro", "sordo")
-    if any(_norm(x) in p for x in sound_terms) and sum(1 for x in contrast_terms if _norm(x) in p) >= 2:
+    has_sound_term = any(_norm(x) in p for x in _SOUND_TERMS)
+    sound_label_count = sum(1 for x in _SOUND_LABEL_STEMS if _norm(x) in p)
+
+    # Explicit IPA transcription in a question about sounds/letters is a strong signal
+    # that the learner is being tested on phonetic meta-knowledge rather than language use.
+    if _has_ipa_like_notation(raw) and (has_sound_term or "letter" in p or "letra" in p):
+        return "phonetic_transcription_trivia"
+
+    # Named phonetic categories such as tap/trill/fricative are also suspicious even
+    # when only one label appears (e.g. "sonido de r simple (tap)").
+    if has_sound_term and sound_label_count >= 1:
         return "sound_label_trivia"
 
     return None
@@ -192,7 +222,7 @@ def build_scorecard(questions, requested_count, source_text=""):
     )
 
     return {
-        "score_version": "shadow_proxy_v2",
+        "score_version": "shadow_proxy_v3",
         "composite_score": round(composite * 100.0, 2),
         "composite_score_provisional": True,
         "cutover_eligible": False,
