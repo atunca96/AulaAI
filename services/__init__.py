@@ -9,12 +9,14 @@ try:
     from .assessment_legacy_calibration import install as _install_assessment_legacy_calibration
     from .assessment_small_supplement_pool import install as _install_assessment_small_supplement_pool
     from .assessment_pseudoform_precision import install as _install_assessment_pseudoform_precision
+    from .assessment_batch_balance_prompt import install as _install_assessment_batch_balance_prompt
     _install_assessment_prompt_policy(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
     _install_assessment_legacy_calibration(_ai_engine)
     _install_assessment_small_supplement_pool()
     _install_assessment_pseudoform_precision()
+    _install_assessment_batch_balance_prompt(_ai_engine)
 except Exception:
     # Never block application startup if legacy assessment safeguards cannot initialize.
     pass
