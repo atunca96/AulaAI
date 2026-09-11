@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 
 from services.assessment_scorecard import _outside_meta_proxy_reason
 
-VALIDATOR_VERSION = "question_validator_v3"
+VALIDATOR_VERSION = "question_validator_v4"
 
 
 def _norm(value):
@@ -33,9 +33,7 @@ def _containment(a, b):
 
 
 def _level_rank(level):
-    return {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}.get(
-        str(level or "").upper(), 1
-    )
+    return {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}.get(str(level or "").upper(), 1)
 
 
 def _topic_central(topic_source, markers):
@@ -66,41 +64,25 @@ def _answer_grounded(answer, objective, source_text):
     answer_n = _norm(answer)
     if not answer_n:
         return False
-    combined = _norm(
-        f"{objective.get('target', '')} {objective.get('evidence', '')} {source_text or ''}"
-    )
+    combined = _norm(f"{objective.get('target', '')} {objective.get('evidence', '')} {source_text or ''}")
     if answer_n in combined:
         return True
     answer_tokens = _tokens(answer_n, 2)
     combined_tokens = _tokens(combined, 2)
-    if not answer_tokens:
-        return False
-    return _containment(answer_tokens, combined_tokens) >= 0.70
+    return bool(answer_tokens and _containment(answer_tokens, combined_tokens) >= 0.70)
 
 
 def _alignment_score(objective_tokens, candidate_text):
     candidate_tokens = _tokens(candidate_text, 3)
     if not candidate_tokens:
         return 0.0
-    return max(
-        _containment(objective_tokens, candidate_tokens),
-        _containment(candidate_tokens, objective_tokens),
-    )
+    return max(_containment(objective_tokens, candidate_tokens), _containment(candidate_tokens, objective_tokens))
 
 
 def _aligned(question, objective):
-    """Check objective/question alignment without assuming both are in one language.
-
-    Planner objectives are normally English while learner-facing prompts are in the
-    target language. The writer already returns translation_en/translation_tr, so use
-    those bridge fields before falling back to the learner-facing prompt.
-    """
-    objective_tokens = _tokens(
-        f"{objective.get('target', '')} {objective.get('evidence', '')}", 3
-    )
+    objective_tokens = _tokens(f"{objective.get('target', '')} {objective.get('evidence', '')}", 3)
     if not objective_tokens:
         return True
-
     answer = str(question.get("answer", ""))
     candidates = [
         f"{question.get('translation_en', '')} {answer}",
@@ -108,27 +90,22 @@ def _aligned(question, objective):
         f"{question.get('prompt', '')} {answer}",
     ]
     scores = [_alignment_score(objective_tokens, text) for text in candidates if str(text).strip()]
-    if not scores:
-        return True
-    return max(scores) >= 0.16
+    return True if not scores else max(scores) >= 0.16
 
 
 def _meta_allowed(question, objective, topic_source, level):
     probe = dict(question)
-    probe["prompt"] = " ".join(
-        [
-            str(question.get("prompt", "")),
-            str(question.get("answer", "")),
-            " ".join(str(x) for x in (question.get("distractors") or [])),
-        ]
-    )
+    probe["prompt"] = " ".join([
+        str(question.get("prompt", "")),
+        str(question.get("answer", "")),
+        " ".join(str(x) for x in (question.get("distractors") or [])),
+    ])
     reason = _outside_meta_proxy_reason(probe)
     if not reason:
         return True, None
 
     objective_text = _objective_text(objective)
     rank = _level_rank(level)
-
     pronunciation_markers = (
         "pronunciation", "pronunciacion", "pronunciación", "phonetic", "fonet",
         "phonology", "fonolog", "sound", "sonido", "ses", "laut", "suono",
@@ -137,20 +114,26 @@ def _meta_allowed(question, objective, topic_source, level):
         "etymology", "etymol", "etimol", "word origin", "historical root",
         "latin root", "raiz latina", "kelime koken", "kelime köken",
     )
+    orthography_markers = (
+        "orthography", "orthographic", "spelling", "accentuation", "diacritic",
+        "ortografia", "ortografía", "acentuacion", "acentuación", "tilde",
+        "imla", "yazim", "yazım",
+    )
 
-    if reason in {
-        "phonology_terminology", "sound_label_trivia", "phonetic_transcription_trivia"
-    }:
+    if reason in {"phonology_terminology", "sound_label_trivia", "phonetic_transcription_trivia"}:
         objective_pronunciation = any(_norm(x) in objective_text for x in pronunciation_markers)
-        central = _topic_central(topic_source, pronunciation_markers)
-        if objective_pronunciation and central and rank >= 3:
+        if objective_pronunciation and _topic_central(topic_source, pronunciation_markers) and rank >= 3:
             return True, None
         return False, f"meta_{reason}"
 
     if reason in {"etymology", "historical_root"}:
         objective_etymology = any(_norm(x) in objective_text for x in etymology_markers)
-        central = _topic_central(topic_source, etymology_markers)
-        if objective_etymology and central and rank >= 5:
+        if objective_etymology and _topic_central(topic_source, etymology_markers) and rank >= 5:
+            return True, None
+        return False, f"meta_{reason}"
+
+    if reason in {"orthography_micro_trivia", "letter_or_spelling_trivia"}:
+        if _topic_central(topic_source, orthography_markers):
             return True, None
         return False, f"meta_{reason}"
 
@@ -158,49 +141,29 @@ def _meta_allowed(question, objective, topic_source, level):
 
 
 def _numeric_answer_leak(question, objective):
-    """Reject strong answer leaks, not ordinary numbers occurring in context."""
     if _form_or_rule_focused(objective):
         return False
     prompt = str(question.get("prompt", ""))
     answer = _norm(question.get("answer"))
     if not answer or any(ch.isdigit() for ch in answer):
         return False
-    return bool(
-        re.search(
-            r"\(\s*\d+(?:[.,]\d+)?\s*(?:€|\$|£|¥|₺)?\s*\)",
-            prompt,
-        )
-    )
+    return bool(re.search(r"\(\s*\d+(?:[.,]\d+)?\s*(?:€|\$|£|¥|₺)?\s*\)", prompt))
 
 
 def _composite_option_shape_reason(question):
-    """Reject synthetic slash-composite answers for multi-blank MCQs.
-
-    A normal MCQ option should be one coherent answer. Writer outputs such as
-    `dos / dos` for two blanks encode multiple slot answers in a UI-specific string
-    rather than a natural target-language option.
-    """
     prompt = str(question.get("prompt", ""))
     if len(re.findall(r"_{2,}", prompt)) < 2:
         return None
-    options = [str(question.get("answer", ""))] + [
-        str(x) for x in (question.get("distractors") or [])
-    ]
-    for option in options:
-        if re.search(r"\w\s*/\s*\w", option, flags=re.UNICODE):
-            return "composite_multi_blank_option"
-    return None
+    options = [str(question.get("answer", ""))] + [str(x) for x in (question.get("distractors") or [])]
+    return "composite_multi_blank_option" if any(re.search(r"\w\s*/\s*\w", option, flags=re.UNICODE) for option in options) else None
 
 
 def _looks_like_pseudoform_distractors(question, objective, source_text):
     if _form_or_rule_focused(objective):
         return False
-
     answer = _norm(question.get("answer"))
-    answer_words = answer.split()
-    if len(answer_words) > 2 or len(answer) < 3:
+    if len(answer.split()) > 2 or len(answer) < 3:
         return False
-
     source_n = _norm(source_text)
     moderate = 0
     strong = 0
@@ -215,19 +178,12 @@ def _looks_like_pseudoform_distractors(question, objective, source_text):
             strong += 1
         elif ratio >= 0.58:
             moderate += 1
-
-    # One extremely close, source-external near-form is enough to be suspicious
-    # (e.g. a foreign-looking/misspelled lexical decoy such as cinco -> cinque).
-    # For looser similarities retain the older two-item threshold to avoid rejecting
-    # ordinary semantically related distractors.
     return strong >= 1 or (strong + moderate) >= 2
 
 
 def validate_question(question, objective, topic_source, level):
-    """Return (accepted: bool, reason: str|None) for one written question."""
     if not isinstance(question, dict) or not isinstance(objective, dict):
         return False, "malformed"
-
     source_text = str((topic_source or {}).get("text", ""))
     if not source_text:
         return False, "topic_source_missing"
@@ -235,25 +191,19 @@ def validate_question(question, objective, topic_source, level):
     allowed, reason = _meta_allowed(question, objective, topic_source or {}, level)
     if not allowed:
         return False, reason
-
     shape_reason = _composite_option_shape_reason(question)
     if shape_reason:
         return False, shape_reason
-
     if _numeric_answer_leak(question, objective):
         return False, "answer_revealed_by_numeric_cue"
-
     aligned = _aligned(question, objective)
     if not aligned:
         return False, "objective_misaligned"
-
     if not _answer_grounded(question.get("answer"), objective, source_text):
         if not (_form_or_rule_focused(objective) and aligned):
             return False, "answer_unsupported"
-
     if _looks_like_pseudoform_distractors(question, objective, source_text):
         return False, "pseudoform_distractors"
-
     return True, None
 
 

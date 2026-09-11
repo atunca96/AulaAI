@@ -10,7 +10,7 @@ import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
 
-VALIDATOR_VERSION = "objective_validator_v1"
+VALIDATOR_VERSION = "objective_validator_v2"
 
 
 def _norm(value):
@@ -38,15 +38,12 @@ def _evidence_supported(claim, source_text):
         return False
     if claim_n in source_n:
         return True
-
     claim_tokens = _tokens(claim_n, 2)
     source_tokens = _tokens(source_n, 2)
     if not claim_tokens:
         return False
     if _containment(claim_tokens, source_tokens) >= 0.68:
         return True
-
-    # Short local fuzzy fallback for close paraphrases. This remains deterministic.
     for segment in re.split(r"[\n.!?;]+", source_n):
         segment = segment.strip()
         if not segment:
@@ -70,6 +67,12 @@ _PHONOLOGY_STEMS = (
     "phonology", "fonolog", "phonetic label", "fonetik terim",
 )
 
+_ORTHOGRAPHY_MICRO_STEMS = (
+    "orthographic accent", "acento ortograf", "accent mark", "accented letter",
+    "accentuation", "acentuacion", "tilde", "diacritic", "diacrit",
+    "aksan isaret", "aksan işaret", "imla isaret", "imla işaret",
+)
+
 _ARITHMETIC_STEMS = (
     "sumar", "suma", "multiplicar", "multiply", "subtract", "addition", "topla", "carp", "çarp",
 )
@@ -81,6 +84,12 @@ _PRONUNCIATION_CENTRAL = (
 
 _ETYMOLOGY_CENTRAL = (
     "etymology", "etymologia", "etimologia", "etimología", "word origin", "kelime koken", "kelime köken",
+)
+
+_ORTHOGRAPHY_CENTRAL = (
+    "orthography", "orthographic", "spelling", "accentuation", "diacritic",
+    "ortografia", "ortografía", "acentuacion", "acentuación", "tilde",
+    "imla", "yazim", "yazım",
 )
 
 
@@ -112,9 +121,11 @@ def _pedagogical_reject_reason(obj, topic_source, level):
             continue
         return reason
 
+    if any(_norm(stem) in joined for stem in _ORTHOGRAPHY_MICRO_STEMS):
+        if not _topic_is_central(topic_source, _ORTHOGRAPHY_CENTRAL):
+            return "orthography_micro_trivia"
+
     if any(_norm(stem) in joined for stem in _PHONOLOGY_STEMS):
-        # Practical pronunciation can be legitimate, but abstract terminology is not
-        # an A1/A2 assessment objective. At higher levels it must be central to the topic.
         practical = any(x in target for x in ("pronounc", "produce", "distinguish sound", "hear", "stress", "intonation"))
         if _level_rank(level) <= 2 and not practical:
             return "abstract_phonology_terminology"
@@ -146,7 +157,6 @@ def _operation_class(obj):
 def _abstract_target(value):
     text = _norm(value)
     text = re.sub(r"\b\d+\b", " n ", text)
-    # Values in quotes often represent the surface item rather than the operation.
     text = re.sub(r"\b[a-z]{1,2}\b", " ", text)
     return " ".join(text.split())
 
@@ -165,7 +175,6 @@ def _duplicate_reason(obj, prior):
             return "same_target"
         if target and old_target and SequenceMatcher(None, target, old_target).ratio() >= 0.91:
             return "near_same_target"
-
         if operation == old_operation == "lexical_lookup":
             old_abstract = _abstract_target(old_target)
             if abstract and old_abstract and SequenceMatcher(None, abstract, old_abstract).ratio() >= 0.84:
@@ -183,7 +192,6 @@ def _duplicate_reason(obj, prior):
 
 
 def validate_objectives(candidates, topic_sources, level, accepted=None):
-    """Return (valid, rejected, report) for planner objectives."""
     valid = []
     rejected = []
     reasons = Counter()
@@ -194,7 +202,6 @@ def validate_objectives(candidates, topic_sources, level, accepted=None):
             reasons["malformed"] += 1
             rejected.append({"reason": "malformed"})
             continue
-
         obj = dict(raw)
         topic_id = str(obj.get("topic_id", ""))
         topic_source = (topic_sources or {}).get(topic_id)
@@ -217,12 +224,11 @@ def validate_objectives(candidates, topic_sources, level, accepted=None):
         valid.append(obj)
 
     total = len(candidates or [])
-    rejected_count = total - len(valid)
     report = {
         "validator_version": VALIDATOR_VERSION,
         "input_count": total,
         "accepted_count": len(valid),
-        "rejected_count": rejected_count,
+        "rejected_count": total - len(valid),
         "accept_rate": round(len(valid) / total, 4) if total else 0.0,
         "reason_counts": dict(sorted(reasons.items())),
     }

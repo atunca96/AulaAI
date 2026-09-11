@@ -81,9 +81,8 @@ def _source_grounded_proxy(q, source_text):
     return bool(prompt and _containment(prompt, src) >= 0.18)
 
 
-# These are suspicious meta-linguistic/trivia cues, not hard pedagogical truth.
-# Stem matching intentionally catches inflectional variants such as Spanish
-# etimologia / etimologica without needing one exact phrase per language.
+# Suspicious meta-linguistic/trivia cues, not hard pedagogical truth.
+# Stem matching intentionally catches inflectional variants across supported languages.
 _META_STEM_GROUPS = {
     "etymology": (
         "etymol", "etimol", "etymolog", "etimolog",
@@ -92,6 +91,11 @@ _META_STEM_GROUPS = {
         "diphthong", "diptong", "ditong", "phonetic", "fonetic",
         "phonolog", "fonolog", "phonem", "fonem", "graphem", "grafem",
         "prosod", "syllab", "silab",
+    ),
+    "orthography_micro_trivia": (
+        "orthographic accent", "acento ortograf", "accent mark", "accented letter",
+        "accentuation", "acentuacion", "tilde", "diacritic", "diacrit",
+        "aksan isaret", "aksan işaret", "imla isaret", "imla işaret",
     ),
     "historical_root": (
         "latin root", "historical root", "raiz latina", "racine latine",
@@ -127,8 +131,6 @@ def _has_ipa_like_notation(raw):
         token = match.strip()
         if not token:
             continue
-        # Avoid treating ordinary slash-separated prose as IPA unless the payload is
-        # short and contains alphabetic/IPA-ish symbols rather than spaces/words.
         if len(token.split()) == 1 and any(ch.isalpha() or ord(ch) > 127 for ch in token):
             return True
     return False
@@ -155,13 +157,9 @@ def _outside_meta_proxy_reason(q):
     has_sound_term = any(_norm(x) in p for x in _SOUND_TERMS)
     sound_label_count = sum(1 for x in _SOUND_LABEL_STEMS if _norm(x) in p)
 
-    # Explicit IPA transcription in a question about sounds/letters is a strong signal
-    # that the learner is being tested on phonetic meta-knowledge rather than language use.
     if _has_ipa_like_notation(raw) and (has_sound_term or "letter" in p or "letra" in p):
         return "phonetic_transcription_trivia"
 
-    # Named phonetic categories such as tap/trill/fricative are also suspicious even
-    # when only one label appears (e.g. "sonido de r simple (tap)").
     if has_sound_term and sound_label_count >= 1:
         return "sound_label_trivia"
 
@@ -222,7 +220,7 @@ def build_scorecard(questions, requested_count, source_text=""):
     )
 
     return {
-        "score_version": "shadow_proxy_v3",
+        "score_version": "shadow_proxy_v4",
         "composite_score": round(composite * 100.0, 2),
         "composite_score_provisional": True,
         "cutover_eligible": False,
