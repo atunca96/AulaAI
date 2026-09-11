@@ -8,6 +8,10 @@ is not involved.
 """
 
 
+def _hard_reject_cluster(suspicious_count):
+    return int(suspicious_count or 0) >= 3
+
+
 def install():
     from services import assessment_legacy_calibration as calibration
     from services import assessment_legacy_filter as gate
@@ -24,7 +28,8 @@ def install():
         # Two near-looking distractors are common among legitimate learner-error options
         # in inflectional/form-choice questions. Require a full three-item unsupported
         # cluster before treating the MCQ as synthetic pseudoform noise.
-        return calibration._pseudoform_suspicious_count(gate, question, source_text) >= 3
+        suspicious = calibration._pseudoform_suspicious_count(gate, question, source_text)
+        return _hard_reject_cluster(suspicious)
 
     gate._pseudoform_distractors = precise_pseudoform_distractors
     gate._assessment_pseudoform_precision_installed = True
