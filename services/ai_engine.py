@@ -586,14 +586,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             t_type = top.get("type", "concept")
             t_vocab = top.get("key_vocab", [])
             t_grammar = top.get("key_grammar", [])
-            t_diag = top.get("key_dialogues", [])
             t_texts = top.get("key_texts", [])
             
             lines = [f"[MODULE TOPIC {idx}: '{t_title}' (Focus: {t_type})]"]
             if t_grammar:
                 lines.append("  Grammar Rules: " + " | ".join(t_grammar[:4]))
-            if t_diag:
-                lines.append("  Dialogues: " + " || ".join(t_diag[:2]))
+            # Note: Dialogues omitted from quiz context to avoid incidental chatter poisoning question focus
             if t_vocab:
                 lines.append("  Target Vocabulary: " + ", ".join(t_vocab[:8]))
             if t_texts:
@@ -617,18 +615,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 if txt:
                     p_lines.append(f"Passage / Explanations:\n{txt[:1200]}")
 
-            # Dialogue exchanges
-            if p.get("dialogue") and isinstance(p["dialogue"], list):
-                diag_lines = []
-                for d in p["dialogue"][:8]:
-                    if isinstance(d, dict):
-                        spk = d.get("speaker") or "Speaker"
-                        txt = d.get("text") or d.get("line") or ""
-                        trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
-                        if txt:
-                            diag_lines.append(f"  {spk}: \"{txt}\"" + (f" ({trans})" if trans else ""))
-                if diag_lines:
-                    p_lines.append("Authentic Dialogue Exchanges:\n" + "\n".join(diag_lines))
+            # Note: Dialogue exchanges are omitted from quiz source material to prevent
+            # incidental conversational chatter or irrelevant filler vocabulary from confusing target objectives.
 
             # Items (Vocabulary / Grammar / Examples)
             if p.get("items") and isinstance(p["items"], list):
@@ -655,8 +643,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             "AUTHORITATIVE LESSON SOURCE MATERIAL (PRIMARY EVIDENCE SOURCE OF TRUTH):",
             "================================================================================",
             "The learner has studied the following lesson material. Your questions MUST be strictly",
-            "material-dependent: test information, dialogues, vocabulary, grammar patterns, relationships,",
-            "and details that a learner needs to recall or understand from THIS MATERIAL itself.",
+            "material-dependent: test target vocabulary, grammar patterns, rules, relationships,",
+            "and core concepts taught in THIS MATERIAL itself.",
             "Do NOT ask questions that can be answered by generic common sense or world knowledge.",
             "--------------------------------------------------------------------------------"
         ]
@@ -819,7 +807,7 @@ REPETITION & COVERAGE RULES:
        - STRICT BAN ON COMMON SENSE & OBVIOUS CATEGORY MATCHING (GATE 1 CRITERION):
          * A question FAILS when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported learning objective.
          * Examples of forbidden generic questions: asking where a doctor works (hospital), what you do when hungry (eat), or generic train delay common sense that anyone knows without studying the lesson.
-         * Questions MUST require understanding of the target language structures, collocations, dialogues, or distinctions taught in the lesson.
+         * Questions MUST require understanding of the target language structures, collocations, or distinctions taught in the lesson.
        - MULTI-PART & OBJECTIVE COVERAGE:
          * Across the {gen_count} questions in this batch, cover different parts, sections, and learning objectives from the material instead of repeatedly testing the same concept, sentence pattern, vocabulary item, or grammar rule.
          * Map questions across the different numbered PARTS/sections provided in the source material.
@@ -865,9 +853,9 @@ REPETITION & COVERAGE RULES:
          * ABSOLUTELY NEVER repeatedly test the same rule, grammatical inflection, or vocabulary category through near-identical sentence templates (e.g. NEVER generate multiple questions that all use the exact same carrier pattern like "Completa la frase: [Person] [verb] [object]" or test the same verb conjugation repeatedly).
        - MANDATORY DISTRIBUTION OF COGNITIVE TASKS ACROSS EACH BATCH:
          Distribute the {gen_count} questions across diverse styles. At most 3-4 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
-         a) PRAGMATIC / SITUATIONAL DECISION (COMMUNICATIVE REACTION - NO BLANK):
-            Real-world social interaction or dialogue from the lesson where the learner selects the natural, appropriate response or polite formula to say.
-         b) FUNCTIONAL COMPREHENSION & DEDUCTION (DIALOGUE / READING UNDERSTANDING - NO BLANK):
+          a) PRAGMATIC / SITUATIONAL DECISION (COMMUNICATIVE REACTION - NO BLANK):
+             Real-world social interaction where the learner selects the natural, appropriate response or polite formula to say based on taught expressions.
+          b) FUNCTIONAL COMPREHENSION & DEDUCTION (READING UNDERSTANDING - NO BLANK):
             Testing specific meaning, speaker intentions, schedule/time details, or communicative purpose directly stated in the lesson material WITHOUT speculative leaps.
          c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 3-4 PER BATCH):
             Rich communicative sentence testing a specific taught conjugation, preposition, or lexical distinction in context.
