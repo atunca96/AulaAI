@@ -123,9 +123,21 @@ def log_shadow_comparison(request_id, primary_trace, shadow_trace):
 
 
 def _write_metric(prefix, payload):
+    """Write metrics to both Railway-visible stdout and the local diagnostic file."""
     try:
         line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    except Exception:
+        return
+
+    rendered = f"[{prefix}] {line}"
+    try:
+        print(rendered, flush=True)
+    except Exception:
+        pass
+
+    try:
         with open("pipeline.log", "a", encoding="utf-8") as handle:
-            handle.write(f"[{prefix}] {line}\n")
+            handle.write(rendered + "\n")
+            handle.flush()
     except Exception:
         pass
