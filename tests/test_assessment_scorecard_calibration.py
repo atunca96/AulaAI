@@ -44,6 +44,31 @@ class AssessmentScorecardCalibrationTests(unittest.TestCase):
         }
         self.assertEqual(_outside_meta_proxy_reason(q), "sound_label_trivia")
 
+    def test_live_linking_prefix_failure_is_flagged(self):
+        q = {
+            "prompt": "¿Cuál es el prefijo de enlace característico utilizado para formar estos números?",
+            "answer": "veinti-",
+            "distractors": ["treinti-", "veinte y", "dieciy-"],
+        }
+        self.assertEqual(_outside_meta_proxy_reason(q), "morphology_terminology")
+
+    def test_live_other_languages_failure_is_flagged(self):
+        q = {
+            "prompt": "¿Qué distingue a cuatro respecto a otras lenguas romances?",
+            "answer": "Se escribe con cu.",
+            "distractors": ["a", "b", "c"],
+        }
+        self.assertEqual(_outside_meta_proxy_reason(q), "cross_language_trivia")
+
+    def test_operation_metadata_can_defer_central_pronunciation_to_final_gate(self):
+        q = {
+            "prompt": "¿Qué palabra presenta el diptongo 'ei'?",
+            "answer": "seis",
+            "distractors": ["tres", "diez", "once"],
+            "_objective_operation": "pronunciation",
+        }
+        self.assertIsNone(_outside_meta_proxy_reason(q))
+
     def test_normal_form_function_question_is_not_flagged(self):
         q = {
             "prompt": "¿Cómo cambia el número 'uno' cuando precede a un sustantivo masculino como 'café'?",
