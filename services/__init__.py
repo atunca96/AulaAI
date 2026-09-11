@@ -6,9 +6,11 @@ try:
     from .assessment_prompt_policy import install as _install_assessment_prompt_policy
     from .assessment_guard import install as _install_assessment_guard
     from .assessment_evidence_balance import install as _install_assessment_evidence_balance
+    from .assessment_legacy_calibration import install as _install_assessment_legacy_calibration
     _install_assessment_prompt_policy(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
+    _install_assessment_legacy_calibration(_ai_engine)
 except Exception:
     # Never block application startup if legacy assessment safeguards cannot initialize.
     pass
@@ -29,8 +31,8 @@ try:
     from .assessment_router_v2 import install as _install_assessment_router_v2
     _install_assessment_router_v2(_content_engine)
 
-    # Small legacy-only post-filter: remove known meta/trivia failures and ask the
-    # existing legacy generator to refill only the missing slots. This does not use V2.
+    # Legacy-only deterministic final quality gate. The candidate calibration above
+    # preselects from a small one-call pool; this remains the final safety net.
     try:
         from .assessment_legacy_filter import install as _install_assessment_legacy_filter
         _install_assessment_legacy_filter(_assessment_router_v2)
