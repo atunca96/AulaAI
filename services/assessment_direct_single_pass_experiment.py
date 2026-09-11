@@ -24,7 +24,19 @@ def install(ai_engine_module, raw_generate_questions):
         except Exception:
             requested = 10
 
-        questions = raw_generate_questions(*args, **kwargs) or []
+        # Direct mode intentionally keeps zero semantic filtering. We only ask Gemini
+        # for a little numerical headroom because live runs often return slightly fewer
+        # parsed MCQs than requested. The caller still receives at most `requested` items.
+        asked = requested + (4 if requested >= 8 else max(3, requested))
+        call_args = list(args)
+        call_kwargs = dict(kwargs)
+        if len(call_args) > 4:
+            call_args[4] = asked
+            call_kwargs.pop("count", None)
+        else:
+            call_kwargs["count"] = asked
+
+        questions = raw_generate_questions(*call_args, **call_kwargs) or []
         public = []
         for q in questions:
             if not isinstance(q, dict):
@@ -40,7 +52,7 @@ def install(ai_engine_module, raw_generate_questions):
         result = public[:requested]
         try:
             print(
-                f"[ASSESSMENT-DIRECT-EXPERIMENT] requested={requested} "
+                f"[ASSESSMENT-DIRECT-EXPERIMENT] requested={requested} asked={asked} "
                 f"received={len(questions)} returned={len(result)} filters=0 repairs=0",
                 flush=True,
             )
