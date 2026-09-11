@@ -10,9 +10,10 @@ class AssessmentGuardV68Tests(unittest.TestCase):
 
     def _q(self, i, operation="contextual-use", target=None):
         target = target or f"distinct-target-{i}"
+        token = f"token{i}"
         return {
-            "prompt": f"Context question {i}",
-            "answer": f"answer{i}",
+            "prompt": f"Use {token} in a distinct learner situation.",
+            "answer": f"answer-{token}",
             "distractors": [f"d{i}a", f"d{i}b", f"d{i}c"],
             "why": f"[[OBJ:{operation}:{target}]] grounded explanation",
             "why_tr": "açıklama",
