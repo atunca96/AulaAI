@@ -321,6 +321,18 @@ def batch_translate_strings(strings, target_lang="tr"):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     cache_lock = threading.Lock()
 
+    turkish_rules = ""
+    if dest_name == "Turkish":
+        turkish_rules = """
+CRITICAL TURKISH ANTI-PATTERNS — STRICTLY FORBIDDEN:
+A. NO parenthetical glosses: NEVER write "(Meksika'dan)", "(otuz bir güne sahiptir)" or any similar parenthetical explanation inside a translation. Just translate naturally.
+B. NO gender hacks: Turkish has NO grammatical gender. NEVER write "kadındır" or "erkektir" to mark a subject's gender in a nationality/identity context. Just use the nationality adjective directly: ✅ "O Meksikalıdır." not ❌ "O bir Meksikalı kadındır."
+C. NO tense calques for ordering: When Spanish 'quería', French 'je voudrais', German 'ich hätte gern' appear in an ordering/polite-request context, translate using natural Turkish speech-act formulas: ✅ "alabilir miyim?" / "rica ediyorum" — NOT ❌ "istiyordum" / "rica ediyordum".
+D. NO 'sahiptir'/'sahibim' for physical possession: Use 'var' structures instead. ✅ "güzel gözleri var" / "yeşil gözlüdür" — NOT ❌ "güzel gözlere sahiptir".
+E. NO 'çok' with ungradable adjectives: ✅ "devasa", "muazzam" — NOT ❌ "çok devasa", "çok muazzam".
+F. NO unnatural articles before food items in ordering: ✅ "kızarmış ekmek" — NOT ❌ "bir kızarmış ekmek".
+"""
+
     def translate_chunk(chunk_idx, chunk):
         indexed_input = {str(idx): chunk[idx] for idx in range(len(chunk))}
         prompt = f"""You are a master bilingual language educator and expert translator.
@@ -331,15 +343,7 @@ STRICT RULES:
 - Keep ALL foreign target terms, Spanish/Greek words, and phrases in single quotes EXACTLY as they are. E.g. 'lavarse', 'por vs para', 'el alfabeto'.
 - Translate explanations, instructions, example sentences, and meanings naturally, warmly, and clearly into {dest_name}.
 - You MUST return a JSON object with the EXACT SAME string keys ("0", "1", ...) mapping each key to its {dest_name} translation string.
-{"" if dest_name != "Turkish" else """
-CRITICAL TURKISH ANTI-PATTERNS — STRICTLY FORBIDDEN:
-A. NO parenthetical glosses: NEVER write "(Meksika'dan)", "(otuz bir güne sahiptir)" or any similar parenthetical explanation inside a translation. Just translate naturally.
-B. NO gender hacks: Turkish has NO grammatical gender. NEVER write "kadındır" or "erkektir" to mark a subject's gender in a nationality/identity context. Just use the nationality adjective directly: ✅ "O Meksikalıdır." not ❌ "O bir Meksikalı kadındır."
-C. NO tense calques for ordering: When Spanish 'quería', French 'je voudrais', German 'ich hätte gern' appear in an ordering/polite-request context, translate using natural Turkish speech-act formulas: ✅ "alabilir miyim?" / "rica ediyorum" — NOT ❌ "istiyordum" / "rica ediyordum".
-D. NO 'sahiptir'/'sahibim' for physical possession: Use 'var' structures instead. ✅ "güzel gözleri var" / "yeşil gözlüdür" — NOT ❌ "güzel gözlere sahiptir".
-E. NO 'çok' with ungradable adjectives: ✅ "devasa", "muazzam" — NOT ❌ "çok devasa", "çok muazzam".
-F. NO unnatural articles before food items in ordering: ✅ "kızarmış ekmek" — NOT ❌ "bir kızarmış ekmek".
-"""}
+{turkish_rules}
 Input:
 {json.dumps(indexed_input, ensure_ascii=False, indent=2)}
 """
@@ -553,9 +557,9 @@ def finalize_course_bilingual_data(course_id: str):
 
     # 1. Collect all titles and content strings
     to_translate_to_tr = []
-    
+
     from services.curriculum_translator import is_clean_turkish
-    
+
     # Chapters
     for ch in chapters:
         if ch["title"] and (not ch["title_tr"] or not is_clean_turkish(ch["title_tr"])):
@@ -566,12 +570,12 @@ def finalize_course_bilingual_data(course_id: str):
     for t in topics:
         if t["title"] and (not t["title_tr"] or not is_clean_turkish(t["title_tr"])):
             to_translate_to_tr.append(t["title"].strip())
-            
+
         try:
             content = json.loads(t["content"] or "{}")
         except Exception:
             content = {}
-            
+
         pages = content.get("pages", [])
         for p in pages:
             # Page title
@@ -713,7 +717,7 @@ def finalize_course_bilingual_data(course_id: str):
                                 it["translation_tr"] = v_tr
                                 it["turkish"] = v_tr
                             it["translation_en"] = v_clean
-                        
+
                         # Explanation enrichment & translation
                         expl = it.get("explanation") or it.get("explanation_en") or ""
                         is_tr_expl = bool(re.search(r'[çğıöşüÇĞİÖŞÜ]|\b(sesi|gibi|açık|net|okunur|asla|harfi|anlamına|gelir)\b', expl, re.I))
@@ -749,7 +753,7 @@ def finalize_course_bilingual_data(course_id: str):
                     p["explanation_tr"] = trans_map.get(p["explanation"].strip(), p["explanation"])
 
             # Save enriched bilingual content
-            db.execute("UPDATE topics SET title_tr = ?, content = ? WHERE id = ?", 
+            db.execute("UPDATE topics SET title_tr = ?, content = ? WHERE id = ?",
                        (t_tr, json.dumps(content, ensure_ascii=False), tid))
         db.commit()
 
