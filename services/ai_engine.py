@@ -854,9 +854,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - EXACTLY ONE DEFENSIBLE CORRECT ANSWER:
          * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
          * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
-       - REALISTIC LEARNER CONFUSIONS (PREFER SOURCE-INSPIRED, ALLOW NATURAL ERROR FORMS):
-         * Distractors must be plausible for a learner at CEFR {level} and preferably reflect realistic misunderstandings or confusions from the lesson material (e.g. contrasting forms, false friends, common agreement/conjugation errors, competing vocabulary taught in the lesson).
-         * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate incorrect forms (e.g. wrong verb conjugation, wrong preposition, wrong gender) are explicitly welcomed when they produce a more natural, authentic, and pedagogically valid question.
+       - HIGH-CALIBER DISTRACTOR RIGOR & NEAR-MISS COMPETITIVENESS (NO EASY FILLERS):
+         * Distractors must be challenging, sophisticated, and closely competing options that require genuine linguistic discernment to rule out.
+         * ZERO easy 'throwaway' or filler options that a student can eliminate at a superficial glance without thinking.
+         * At least 1-2 distractors in EVERY question MUST be high-probability 'near-miss' traps:
+           - In grammar: Use adjacent real forms (subtle agreement mismatches, correct tense but wrong grammatical person, subtle word-order inversion errors, or common irregular/regular overgeneralizations).
+           - In vocabulary/collocations: Use other real words from the exact same semantic field or plausible near-synonyms that do not fit the specific collocational frame, register, or preposition.
+           - In comprehension/dialogue: Distractors should describe other real actions, characters, or facts mentioned elsewhere in the text/dialogue (plausible misattributions), requiring careful reading rather than superficial elimination.
+         * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate incorrect forms and common learner traps are explicitly welcomed when they produce a more competitive, natural, and pedagogically rigorous question.
          * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, or trivially dismissible choices.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
        - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
@@ -947,7 +952,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         * GATE 2 - LEVEL FIT: Is the question strictly calibrated to CEFR {level}? (REJECT if too advanced or too simplistic).
         * GATE 3 - NATURALNESS & IDIOMACY: Is the target-language wording 100% natural, idiomatic, and examiner-grade in {language}? (REJECT if awkward, literal translationese, or robotic).
         * GATE 4 - UNIQUENESS OF THE CORRECT ANSWER: Does the question have exactly ONE clearly defensible correct answer? (REJECT if ambiguous or if multiple options could be defended).
-        * GATE 5 - DISTRACTOR PLAUSIBILITY: Are all 3 distractors plausible alternatives reflecting realistic learner confusions (source-inspired or natural CEFR error forms)? (REJECT if absurd, cartoonish, or off-domain).
+        * GATE 5 - DISTRACTOR RIGOR & NEAR-MISS COMPETITIVENESS: Are all 3 distractors genuinely competitive, plausible, and challenging for a learner at CEFR {level}? At least 1-2 distractors must be high-probability near-miss traps (adjacent grammatical forms, semantic-field competitors, or plausible misattributions). (REJECT if any distractor is an easy throwaway, filler, absurd, or trivial to eliminate).
         * GATE 6 - SEMANTIC DUPLICATION & COVERAGE: Does the question cover a different part, section, or learning objective of the material than the other questions in this set? (REJECT if it repeats a concept, pattern, or word already tested).
         --> If any candidate question fails ANY check, DISCARD IT and REPLACE it with a fully compliant question before producing your JSON response!
     
@@ -994,7 +999,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     2) GATE 1 - COMMON SENSE REJECTION: A question FAILS only when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported objective.
     3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 2 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
     4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
-    5) EXACTLY ONE DEFENSIBLE ANSWER & 3 PLAUSIBLE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, plausible distractors reflecting realistic learner confusions (prefer source-inspired; allow natural CEFR error forms; zero absurdities).
+    5) EXACTLY ONE DEFENSIBLE ANSWER & 3 HIGH-CALIBER COMPETITIVE DISTRACTORS: Every question MUST have 1 indisputable correct answer and 3 closely-competing, rigorous distractors reflecting realistic learner confusions and high-probability near-miss traps (adjacent real grammatical forms, genuine semantic-field competitors, or plausible misattributions from the material). ZERO easy throwaways or filler options.
     6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
     7) ZERO SEMANTIC DUPLICATES: Every question tests a distinct facet; zero duplicate concepts, duplicate answers, or duplicate learning objectives within the batch or across recent rounds.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
