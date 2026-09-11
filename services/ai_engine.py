@@ -752,7 +752,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
-            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=4000, temperature=target_temp, json_mode=True, allow_fallback=True)
+            calc_max_tokens = min(3200, max(900, gen_count * 240))
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []
         if isinstance(res, list):
@@ -782,7 +783,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if forbidden_prompt_keys:
                 if clean_p_token in forbidden_prompt_keys:
                     continue
-                if any(len(fp_key) > 20 and (fp_key in clean_p_token or clean_p_token in fp_key) for fp_key in forbidden_prompt_keys):
+                # Character similarity check: reject only if prompt is near-duplicate (>84% similar)
+                if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).quick_ratio() > 0.84 for fp_key in forbidden_prompt_keys):
                     continue
 
             # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch
