@@ -2964,8 +2964,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 3, 8)
-                    count_b = max((requested_count - half) + 3, 8)
+                    count_a = max(half + 1, 6)
+                    count_b = max((requested_count - half) + 1, 6)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
