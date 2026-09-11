@@ -2383,6 +2383,22 @@ TRACK 2 — TURKISH PEDAGOGICAL TRACK ('title_tr', 'text_tr', 'explanation_tr', 
 </bilingual_pedagogical_tracks>
 {source_rule}
 
+<strict_rules_and_comparisons_mandate>
+STRICT GROUNDING & EXTRACTION FOR RULES (pages[].rules) & COMPARISONS (pages[].comparisons):
+1. SOURCE-SUPPORTED OR FORM-INHERENT FUNCTION ONLY:
+   - A rule in 'pages[].rules' must describe ONLY a linguistic function that is explicitly supported by the source material or is unambiguously inherent to the taught form.
+   - ABSOLUTE BAN ON REVERSE-ENGINEERING: NEVER infer a grammatical rule from an example sentence, dialogue, pragmatic tone, lexical verb, or surrounding context.
+2. BAN ON ENCODING CONTEXTUAL EFFECTS AS INHERENT FORM MEANINGS:
+   - Do NOT encode contextual effects such as irony, skepticism, continuity, determination, politeness, legal force, certainty, or interpersonal stance as inherent meanings of a suffix or construction unless the source explicitly teaches that exact form–function relationship.
+3. DISCOURSE MARKERS & CONSTRUCTIONS:
+   - For discourse markers and constructions, store their core semantic/syntactic function separately from optional pragmatic uses.
+4. NO RULE CREATION BY MERE OCCURRENCE:
+   - Do NOT create a rule merely because a form appears in the source.
+   - If the source does not explicitly teach a defensible rule, OMIT the rule instead of synthesizing one (leave 'rules': [] or present the content via vocabulary, overview, or authentic examples).
+5. AUTHENTIC EXAMPLES & NATURAL COMPARISONS:
+   - Preserve authentic examples and comparisons ('pages[].comparisons') ONLY when they are natural, source-supported, and do not overgeneralize.
+</strict_rules_and_comparisons_mandate>
+
 <output_schema>
 Return ONLY valid JSON matching this schema:
 {{
@@ -2408,9 +2424,9 @@ Return ONLY valid JSON matching this schema:
       ],
       "rules": [
         {{
-          "rule": "Grammar rule in English",
+          "rule": "Grammar rule in English (only if explicitly taught or inherent to form)",
           "rule_tr": "Grammar rule in Turkish",
-          "explanation": "Pedagogical breakdown in English",
+          "explanation": "Core semantic/syntactic breakdown (do not attribute contextual/pragmatic effects as inherent meanings)",
           "explanation_tr": "Pedagogical breakdown in Turkish",
           "example": "Example in {language}",
           "example_en": "English translation",
@@ -2421,12 +2437,12 @@ Return ONLY valid JSON matching this schema:
       ],
       "comparisons": [
         {{
-          "context": "Contrast context in English",
+          "context": "Source-supported contrast context in English",
           "context_tr": "Karşılaştırma bağlamı Türkçe",
           "target": "Structure in {language}",
           "translation": "English contrast",
           "translation_tr": "Turkish contrast",
-          "note": "English note",
+          "note": "English note (natural, not overgeneralized)",
           "note_tr": "Turkish note"
         }}
       ],
@@ -2468,6 +2484,12 @@ In your internal reasoning process, plan the pedagogical arc for this {level} {l
    - English fields: Explain strictly for English speakers. Zero Turkish mentions.
    - Turkish fields: Explain strictly for Turkish speakers. Natural, authentic Turkish. Zero English word comparisons.
 5. Completeness: Never skip items in a defined sequence (e.g. alphabets or number ranges).
+6. Strict Grammar Rules & Comparisons Grounding (pages[].rules & pages[].comparisons):
+   - A rule must describe only a linguistic function that is explicitly supported by the source material or is unambiguously inherent to the taught form; NEVER infer a grammatical rule from an example sentence, dialogue, pragmatic tone, lexical verb, or surrounding context.
+   - Do not encode contextual effects such as irony, skepticism, continuity, determination, politeness, legal force, certainty, or interpersonal stance as inherent meanings of a suffix or construction unless the source explicitly teaches that exact form–function relationship.
+   - For discourse markers and constructions, store their core semantic/syntactic function separately from optional pragmatic uses.
+   - Do not create a rule merely because a form appears in the source; if the source does not explicitly teach a defensible rule, omit the rule instead of synthesizing one.
+   - Preserve authentic examples and comparisons only when they are natural, source-supported, and do not overgeneralize.
 Then generate the complete, exhaustive JSON lesson structure.
 
 CRITICAL: Do NOT summarize. Do NOT write brief pages. Generate the FULL, DEEP, AUTHENTIC educational content.
