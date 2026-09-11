@@ -229,6 +229,29 @@ def set_activity_task(task_id, data):
             data["created_at"] = now
             _activity_tasks[task_id] = data
 
+_draft_course_seen_questions = {}
+_draft_course_lock = threading.Lock()
+
+def record_course_draft_questions(course_id, questions):
+    if not course_id or not isinstance(questions, list): return
+    cid = str(course_id)
+    with _draft_course_lock:
+        if cid not in _draft_course_seen_questions:
+            _draft_course_seen_questions[cid] = []
+        for q in questions:
+            if isinstance(q, dict) and (q.get("prompt") or q.get("answer")):
+                p = str(q.get("prompt", "")).strip()
+                a = str(q.get("answer", "")).strip()
+                if p and not any(eq.get("prompt") == p for eq in _draft_course_seen_questions[cid]):
+                    _draft_course_seen_questions[cid].append({"prompt": p, "answer": a})
+        _draft_course_seen_questions[cid] = _draft_course_seen_questions[cid][-100:]
+
+def get_course_draft_questions(course_id):
+    if not course_id: return []
+    cid = str(course_id)
+    with _draft_course_lock:
+        return list(_draft_course_seen_questions.get(cid, []))
+
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler with REST API routing."""
@@ -2531,7 +2554,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
         ui_lang = body.get("ui_lang", "en")
-        existing_questions = body.get("existing_questions") or []
+        client_existing = body.get("existing_questions") or []
         try:
             count = int(body.get("count", 10))
         except (ValueError, TypeError):
@@ -2541,6 +2564,25 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not course_id:
                 course = db.execute("SELECT id FROM courses LIMIT 1").fetchone()
                 if course: course_id = course["id"]
+
+            # Save any previous draft questions before resetting draft_result
+            prev_draft = db.execute("SELECT draft_result FROM courses WHERE id=?", (course_id,)).fetchone()
+            if prev_draft and prev_draft["draft_result"]:
+                try:
+                    prev_qs = json.loads(prev_draft["draft_result"])
+                    if isinstance(prev_qs, list):
+                        record_course_draft_questions(course_id, prev_qs)
+                except Exception:
+                    pass
+
+            # Also fetch existing questions from DB for this course
+            db_existing_rows = db.execute("""
+                SELECT q.prompt, q.answer FROM questions q
+                JOIN topics t ON q.topic_id = t.id
+                JOIN chapters ch ON t.chapter_id = ch.id
+                WHERE ch.course_id = ?
+            """, (course_id,)).fetchall()
+            db_existing = [{"prompt": r["prompt"], "answer": r["answer"]} for r in db_existing_rows if r["prompt"] or r["answer"]]
                 
             if chapter_id and chapter_id != "all" and chapter_id != "":
                 # Smart Lookup: Is this a Chapter or a Topic?
@@ -2562,24 +2604,43 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 """, (course_id,)).fetchall()
                 
             topic_ids = [t["id"] for t in topics]
+
+            # Merge server-side seen draft questions + DB existing questions + client questions
+            merged_existing = []
+            seen_prompts = set()
             
-        # Start background thread for generation
-            import threading
-            with db_connection() as db:
-                db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
-                db.commit()
-                
-            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang, existing_questions))
-            thread.daemon = True
-            thread.start()
+            for q in get_course_draft_questions(course_id):
+                p = (q.get("prompt") or "").strip()
+                if p and p not in seen_prompts:
+                    seen_prompts.add(p)
+                    merged_existing.append(q)
+
+            if isinstance(client_existing, list):
+                record_course_draft_questions(course_id, client_existing)
+                for q in client_existing:
+                    if isinstance(q, dict):
+                        p = (q.get("prompt") or "").strip()
+                        if p and p not in seen_prompts:
+                            seen_prompts.add(p)
+                            merged_existing.append(q)
+
+            for q in db_existing:
+                p = (q.get("prompt") or "").strip()
+                if p and p not in seen_prompts:
+                    seen_prompts.add(p)
+                    merged_existing.append(q)
+
+            db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
+            db.commit()
             
-            self._send_json({"status": "success"})
+        import threading
+        thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang, merged_existing))
+        thread.daemon = True
+        thread.start()
+        
+        self._send_json({"status": "success"})
 
     def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en", existing_questions=None):
-        # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
-        with db_connection() as db:
-            db.execute("UPDATE courses SET draft_progress=0, draft_status='generating', draft_result=NULL WHERE id=?", (course_id,))
-            db.commit()
         try:
             from services.content_engine import generate_quiz
             
@@ -2600,24 +2661,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             state = ProgressState()
 
             def ticker_worker():
-                p = 10
-                # AI generates in a single fast batch call
-                # Realistic estimate: ~1.5s per question + 5s overhead
+                last_written_p = 0
                 est_time = (count * 1.5) + 5
                 start_time = time.time()
                 
                 while not state.is_done:
-                    time.sleep(0.5)
+                    time.sleep(1.0)
                     elapsed = time.time() - start_time
                     
-                    # Asymptotic curve
                     import math
                     k = 2.0 / est_time 
-                    predicted_p = 95 * (1 - math.exp(-k * elapsed))
-                    
-                    if predicted_p > p: p = predicted_p
-                    if p > 98: p = 98
-                    update_draft_prog(int(p))
+                    predicted_p = int(95 * (1 - math.exp(-k * elapsed)))
+                    if predicted_p > 98: predicted_p = 98
+                    if predicted_p >= last_written_p + 4:
+                        last_written_p = predicted_p
+                        update_draft_prog(predicted_p)
             
             ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
             ticker_thread.start()
@@ -2632,6 +2690,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # ── V5 UNIFIED PASS-THROUGH (MIRROR ACTIVITY LOGIC) ──
             # We trust generate_quiz (which uses Gemini 2.5 V5) completely.
             final_questions = questions[:count]
+            record_course_draft_questions(course_id, final_questions)
 
             with db_connection() as db:
                 db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 

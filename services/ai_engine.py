@@ -515,7 +515,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 5, int(c * 1.5))
+    gen_count = max(c + 6, int(c * 1.6), 16)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     

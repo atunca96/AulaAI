@@ -401,9 +401,50 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "why_tr": why_tr
                     })
 
-        # Supplementary AI pass if first batch yielded fewer than requested
+        # Try satisfying any minor shortfall from pre-approved topic questions first to avoid slow secondary AI calls
         if len(questions) < c_count:
             still_needed = c_count - len(questions)
+            with db_connection() as db_conn:
+                placeholders = ",".join("?" * len(topic_ids))
+                existing_rows = db_conn.execute(
+                    f"SELECT id, topic_id, type, prompt, answer, distractors, difficulty FROM questions WHERE topic_id IN ({placeholders}) AND approved = 1 ORDER BY RANDOM() LIMIT ?",
+                    list(topic_ids) + [still_needed * 3]
+                ).fetchall()
+                for r in existing_rows:
+                    if len(questions) >= c_count: break
+                    p_text = r["prompt"]
+                    a_text = r["answer"]
+                    if any(q.get("prompt") == p_text or q.get("answer") == a_text for q in questions):
+                        continue
+                    if forbidden_questions and any(isinstance(fq, dict) and (fq.get("prompt") == p_text or fq.get("answer") == a_text) for fq in forbidden_questions):
+                        continue
+                    try:
+                        d_list = json.loads(r["distractors"]) if r["distractors"] else []
+                    except Exception:
+                        d_list = []
+                    if len(d_list) < 3:
+                        continue
+                    opts = [a_text] + d_list[:3]
+                    py_random.shuffle(opts)
+                    questions.append({
+                        "id": r["id"],
+                        "topic_id": r["topic_id"],
+                        "type": r["type"],
+                        "prompt": p_text,
+                        "translation": "",
+                        "translation_en": "",
+                        "translation_tr": "",
+                        "answer": a_text,
+                        "distractors": d_list,
+                        "options": opts,
+                        "difficulty": r["difficulty"],
+                        "why": "Correct answer based on the lesson.",
+                        "why_tr": "Ders içeriğine göre doğru seçenek."
+                    })
+
+        # Supplementary AI pass if first batch and DB still yielded fewer than requested
+        if len(questions) < c_count:
+            still_needed = max(c_count - len(questions), 3)
             sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
             if len(topic_ids) == 1 and 'topic_title' in locals():
                 extra_qs = ai_generate_questions(
