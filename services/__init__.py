@@ -3,6 +3,8 @@
 # Keep the legacy assessment safeguards available for the legacy engine.
 try:
     from . import ai_engine as _ai_engine
+    # Temporary experiment: preserve the raw assessment generator before any guard/calibration wrappers.
+    _raw_assessment_generate_questions = _ai_engine.ai_generate_questions
     from .assessment_prompt_policy import install as _install_assessment_prompt_policy
     from .assessment_guard import install as _install_assessment_guard
     from .assessment_evidence_balance import install as _install_assessment_evidence_balance
@@ -10,6 +12,7 @@ try:
     from .assessment_small_supplement_pool import install as _install_assessment_small_supplement_pool
     from .assessment_pseudoform_precision import install as _install_assessment_pseudoform_precision
     from .assessment_batch_balance_prompt import install as _install_assessment_batch_balance_prompt
+    from .assessment_direct_single_pass_experiment import install as _install_assessment_direct_single_pass_experiment
     _install_assessment_prompt_policy(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
@@ -17,6 +20,8 @@ try:
     _install_assessment_small_supplement_pool()
     _install_assessment_pseudoform_precision()
     _install_assessment_batch_balance_prompt(_ai_engine)
+    # TEMPORARY: bypass all assessment candidate filtering/repair and expose one raw model pass.
+    _install_assessment_direct_single_pass_experiment(_ai_engine, _raw_assessment_generate_questions)
 except Exception:
     # Never block application startup if legacy assessment safeguards cannot initialize.
     pass
