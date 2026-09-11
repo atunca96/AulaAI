@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from services.assessment_direct_single_pass_experiment import install
+from services.assessment_scorecard import _valid_mcq
 
 
 def _fake_module(items):
@@ -62,6 +63,7 @@ def test_direct_writer_uses_ui_language_not_course_language():
 
     assert len(result) == 10
     assert result[0]["prompt"] == "Question 1?"
+    assert all(_valid_mcq(question) for question in result)
     system = calls[0][0][0]["content"]
     user = calls[0][0][1]["content"]
     assert "instructional/UI language is Turkish" in system
@@ -84,5 +86,6 @@ def test_direct_writer_defaults_to_english_instruction_language():
     )
 
     assert len(result) == 3
+    assert all(_valid_mcq(question) for question in result)
     system = calls[0][0][0]["content"]
     assert "instructional/UI language is English" in system
