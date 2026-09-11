@@ -88,6 +88,42 @@ class AssessmentGuardTests(unittest.TestCase):
         result = dedupe_questions(questions)
         self.assertEqual(len(result), 2)
 
+    def test_prior_objective_key_is_soft_when_surface_target_is_new(self):
+        prior = [
+            {
+                "prompt": "En una lista aparece el número cinco. ¿Cómo se expresa?",
+                "answer": "cinco",
+                "why": "[[OBJ:numbers:basic-cardinal-recognition]] Reconoce un cardinal básico.",
+            }
+        ]
+        candidates = [
+            {
+                "prompt": "En un billete aparece el número ocho. ¿Qué palabra corresponde a esa cifra?",
+                "answer": "ocho",
+                "why": "[[OBJ:numbers:basic-cardinal-recognition]] Reconoce otro cardinal básico.",
+            }
+        ]
+        result = dedupe_questions(candidates, prior=prior)
+        self.assertEqual(len(result), 1)
+
+    def test_prior_true_semantic_repeat_remains_blocked_even_with_objective_key(self):
+        prior = [
+            {
+                "prompt": "¿Cómo se escriben los números del 16 al 29?",
+                "answer": "En una sola palabra.",
+                "why": "[[OBJ:numbers:16-29-orthography]] Regla ortográfica.",
+            }
+        ]
+        candidates = [
+            {
+                "prompt": "Según la regla ortográfica, ¿cómo se escriben los números comprendidos entre 16 y 29?",
+                "answer": "Como una sola palabra.",
+                "why": "[[OBJ:numbers:16-29-orthography]] La misma regla.",
+            }
+        ]
+        result = dedupe_questions(candidates, prior=prior)
+        self.assertEqual(len(result), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
