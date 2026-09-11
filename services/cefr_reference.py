@@ -551,7 +551,8 @@ CRITICAL CEFR B1 DIFFICULTY & REGISTER CALIBRATION (STRICT STANDARD EVERYDAY LAN
 - B1 REPRESENTS INDEPENDENT EVERYDAY THRESHOLD MASTERY (Alltagssprache / clear standard language).
 - STRICT BAN ON C1/B2 HYPER-TECHNICAL BUREAUCRATIC OVERLOAD:
   * Do NOT use heavy administrative officialese, hyper-technical engineering/infrastructure jargon, or dense legalistic compound nouns.
-  * For example, in transit/services, avoid overloading the test with specialized dispatch terminology or obscure tariff rules. Use clear standard everyday expressions (e.g. general technical problem, boarding assistance, schedule delay, polite staff inquiry).
+  * For example, in transit/services, avoid overloading the test with specialized dispatch terminology ('Fahrzeugmangel', 'Stellwerkstörung', etc.) or obscure tariff rules. Use clear standard everyday expressions (e.g. 'technisches Problem / Störung', 'Hilfe beim Einsteigen', 'Zugausfall', polite staff inquiry).
+  * Use modern living terminology: In German transit, use 'Sitzplatzreservierung' (ABSOLUTELY NEVER outdated 'Platzkarte').
   * A learner at B1 needs to communicate, ask for help, understand standard public announcements, and solve practical travel/daily situations, NOT act as a legal dispatcher or transport authority lawyer!
 """
     elif lvl_key in ["A1", "A2"]:
@@ -559,6 +560,9 @@ CRITICAL CEFR B1 DIFFICULTY & REGISTER CALIBRATION (STRICT STANDARD EVERYDAY LAN
 CRITICAL CEFR {lvl_key} DIFFICULTY & LEARNER ERROR MODELING:
 - YOU ARE AUTHORING MATERIAL FOR {lvl_key} ({universal_spec['name']}).
 - USE SHORT, CLEAR, CONCRETE SCENARIOS grounded in immediate everyday life.
+- FOR PROFESSIONS & WORKPLACES: Use authentic recognized professions (e.g. médico, abogado, profesor, enfermera, mecánico, periodista, camarero, cocinero).
+  * Use natural native phrasing (e.g. in Spanish, 'Es profesora' or 'Es profesora en un colegio', NEVER unnatural 'profesora de colegio').
+  * STRICT BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER invent synthetic combinations like 'periodista digital' or 'mecánica oficial'.
 - FOR NUMBERS & VOCABULARY: Distractors must NOT merely be adjacent numbers. They must model authentic learner error patterns (e.g. compounding errors, apocope/gender agreement, false friends).
 - EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms (e.g. 'medianoche' / 'las doce de la noche', NEVER artificial 'las cero horas').
 """
