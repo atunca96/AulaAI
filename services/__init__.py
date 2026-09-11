@@ -29,6 +29,14 @@ try:
     from .assessment_router_v2 import install as _install_assessment_router_v2
     _install_assessment_router_v2(_content_engine)
 
+    # Small legacy-only post-filter: remove known meta/trivia failures and ask the
+    # existing legacy generator to refill only the missing slots. This does not use V2.
+    try:
+        from .assessment_legacy_filter import install as _install_assessment_legacy_filter
+        _install_assessment_legacy_filter(_assessment_router_v2)
+    except Exception:
+        pass
+
     # Objective validation is optional at startup: if it cannot initialize, routing still
     # continues to the safety layer below instead of silently losing fail-closed defaults.
     try:
