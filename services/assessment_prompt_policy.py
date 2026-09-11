@@ -46,7 +46,7 @@ def install(ai_engine_module):
         )
 
         policy = """
-ASSESSMENT ENGINE V6.7 — SOURCE-GROUNDED OBJECTIVE SCHEDULER
+ASSESSMENT ENGINE V6.8 — SOURCE-GROUNDED OBJECTIVE SCHEDULER
 
 This policy applies to every supported language, CEFR level and topic. It overrides weaker or conflicting variety instructions.
 
@@ -54,44 +54,44 @@ This policy applies to every supported language, CEFR level and topic. It overri
 Use only teaching points supported by the supplied lesson evidence. The topic title alone is never sufficient evidence for a question target.
 
 2. TEST LEARNER COMPETENCE, NOT LINGUISTIC TRIVIA
-Prefer knowledge a learner actually needs to understand, produce, choose or interpret the target language. Descriptive terminology, etymology, historical roots, abstract phonetic labels and spelling trivia are assessable only when they are explicitly a central learning objective of the source, appropriate for the CEFR level, and useful to the learner. When a practical application can test the same point, test the application instead of asking for terminology.
+Prefer knowledge a learner actually needs to understand, produce, choose or interpret the target language. Descriptive terminology, etymology, historical roots, abstract phonetic labels, accent-mark trivia and spelling micro-trivia are assessable only when explicitly central to the source, level-appropriate and useful. When practical application can test the same point, test the application instead of terminology.
 
-3. DISTINCT OBJECTIVES INSIDE THE CURRENT BATCH
-Every item in the CURRENT response must test a materially different source-backed objective. Changing only a word, numeral, name, example, setting or story is not enough. Canonical objective keys must be unique within the current response.
+3. DISTINCT UNDERLYING OBJECTIVES INSIDE THE CURRENT BATCH
+Every item in the CURRENT response must test a materially different source-backed objective. Changing only a word, numeral, kinship term, name, example, setting, price, time, object or story is NOT a new objective. Sibling vocabulary items tested through the same lookup/use operation count as the same broad objective unless the source teaches a genuinely different usage condition, rule, contrast or communicative function. Do not fill a batch with multiple cosmetic variants of the same operation.
 
 4. PREVIOUS OBJECTIVES ARE SOFT PRIORITIES, NOT LIFETIME BANS
-Previous-question context may contain entries beginning with `USED OBJECTIVE KEY`. Prefer objectives that have not been used recently. However, if the lesson is narrow and unused objectives are exhausted, you MAY revisit a broader previously used area only when the new item tests a materially different sub-target, application, form-function distinction, usage condition or comprehension demand. Do not repeat the same fact/question with different decoration. When revisiting a broad area, use a refined canonical key that describes the genuinely different sub-target.
+Previous-question context may contain entries beginning with `USED OBJECTIVE KEY`. Prefer objectives that have not been used recently. If the lesson is narrow and unused objectives are exhausted, revisit a broader area only when the new item tests a materially different sub-target, application, form-function distinction, usage condition or comprehension demand. Do not repeat the same fact/question with different decoration.
 
 5. TRUE REPEATS REMAIN FORBIDDEN
-Never repeat or closely paraphrase an earlier prompt, answer mapping, rule question, communicative exchange or semantic target. Examples such as asking the same spelling rule again, the same restaurant phrase again, or the same form-function fact with slightly different wording are still repeats.
+Never repeat or closely paraphrase an earlier prompt, answer mapping, rule question, communicative exchange or semantic target. A new scenario does not make an old objective new.
 
-6. EVIDENCE BREADTH
-When multiple evidence families are available, use several of them. A 10-item batch should normally draw from at least three available families and no single family should dominate. Never invent outside content just to satisfy breadth.
+6. BREADTH BEFORE COSMETIC VARIETY
+When the source supports it, distribute a 10-item batch across at least four distinct operations/evidence families and normally use no more than three items from the same broad operation. Valid operations include meaning, contextual use, grammar, orthographic form, comprehension, contrast, pragmatic use and pronunciation. If the source genuinely lacks that breadth, use materially different sub-targets rather than inventing outside content.
 
 7. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
-Reject questions solvable mainly through arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic or facts stated directly in the prompt unless that exact skill is explicitly taught by the lesson.
+Reject questions solvable mainly through arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance or common-sense logic. The context must uniquely support the intended answer. Do not invent a situation that only weakly suggests an exact answer: for example, merely saying that weather is very cold does not uniquely imply zero degrees. Do not reveal the answer as a digit, translation, parenthetical cue or equivalent representation in the prompt.
 
 8. FORMAT SERVES THE OBJECTIVE
 Use situational choice, dialogue response, contextual comprehension, form-function discrimination, sentence completion, interpretation or another suitable form according to the source-backed objective. Do not use a new format merely to disguise a repeated objective.
 
 9. DISTRACTORS REPRESENT REAL CONFUSIONS
-All options must be grammatically and semantically comparable and plausible at the learner's level. Avoid absurd alternatives, visual giveaways and options that can be eliminated without target-language knowledge.
+All options must be grammatically and semantically comparable and plausible at the learner's level. For meaning/context/usage questions, distractors must be real, natural target-language forms supported by the lesson or normal language use; never invent pseudoforms or borrow lookalikes from another language. Deliberate misspellings are allowed only when the objective itself explicitly tests orthographic/form discrimination. Avoid absurd alternatives and visual giveaways.
 
-10. CANONICAL OBJECTIVE KEY — MANDATORY
-For every generated question, the `why` field MUST begin with exactly one marker: [[OBJ:canonical-key]]. After the marker, write one short English explanation. The key must be lowercase English, concise and describe the underlying linguistic/communicative objective rather than the scenario. Equivalent objectives inside the current batch must use the same key and therefore cannot both survive. Do not put this marker in any other field.
+10. CANONICAL OBJECTIVE KEY — MANDATORY STRUCTURE
+For every generated question, the English `why` field MUST begin with exactly one marker in this form: [[OBJ:operation:underlying-target]]. `operation` MUST be exactly one of: meaning, contextual-use, grammar, orthography-form, comprehension, contrast, pragmatic-use, pronunciation. `underlying-target` must describe the transferable linguistic/communicative target, never the scenario, example name or incidental numeral. Questions that differ only by sibling vocabulary item or scenario but test the same operation and transferable target MUST use the same key and therefore cannot both survive. After the marker, write one short English explanation. Do not put the marker in any other field.
 
 11. COMPACT OUTPUT
-Keep `why` and `why_tr` to one short sentence each. Keep translations natural but concise. Do not add prose outside the required JSON. This is required so the complete requested batch fits in one response.
+Keep `why` and `why_tr` to one short sentence each. Keep translations natural but concise. Do not add prose outside the required JSON. Complete JSON is more important than decorative wording.
 
 12. FINAL AUDIT
-Before returning JSON, verify that current-batch objective keys are unique, every item has source support, no earlier question is semantically repeated, and every item is appropriate for the learner level.
+Before returning JSON, verify that every current-batch objective is materially distinct, every item has source support, no earlier question is semantically repeated, every context uniquely determines its answer, distractors are legitimate, and every item is appropriate for the learner level.
 """
 
         rewritten[system_idx]["content"] = (
             policy
             + old_system.replace(
                 "Pedagogic Assessment Engine (V5)",
-                "Pedagogic Assessment Engine (V6.7)",
+                "Pedagogic Assessment Engine (V6.8)",
                 1,
             )
         )
@@ -111,11 +111,8 @@ Before returning JSON, verify that current-batch objective keys are unique, ever
                 flags=re.S,
             )
 
-            # The core generator normally over-asks (e.g. 15 candidates for a 10-item
-            # batch). With translations + explanations that can exceed the 25-second,
-            # 2000-token assessment budget and produce truncated JSON. Ask for at most
-            # ten complete candidates per call; the guard performs one bounded refill
-            # only when validation leaves a partial batch.
+            # Large over-generation caused truncation and latency. Keep one compact
+            # first batch; the guard performs a single small bounded repair if needed.
             match = re.search(r"TASK: Generate EXACTLY\s+(\d+)", content)
             if match:
                 try:
@@ -126,10 +123,10 @@ Before returning JSON, verify that current-batch objective keys are unique, ever
                     pass
 
             rewritten[i]["content"] = (
-                "OBJECTIVE-SCHEDULER REQUIREMENT: Ground every item in the SOURCE MATERIAL. Keep every objective unique inside this response. "
-                "Treat any `USED OBJECTIVE KEY` entries in previous-question context as objectives to avoid when unused source-backed alternatives exist, not as permanent bans. "
-                "Never repeat the same semantic question/fact from an earlier round. The English `why` field must begin with [[OBJ:canonical-key]]. "
-                "Keep translations and explanations concise so the full JSON batch completes.\n\n"
+                "OBJECTIVE-SCHEDULER REQUIREMENT: Ground every item in SOURCE MATERIAL and make underlying objectives materially distinct, not merely different scenarios or sibling vocabulary examples. "
+                "Treat `USED OBJECTIVE KEY` entries as objectives to avoid when unused source-backed alternatives exist. "
+                "The English `why` field must begin with [[OBJ:operation:underlying-target]], using one allowed operation from the system policy. "
+                "Contexts must uniquely determine the answer; distractors must be legitimate; keep output compact and complete.\n\n"
                 + content
             )
             break
@@ -140,9 +137,9 @@ Before returning JSON, verify that current-batch objective keys are unique, ever
         except Exception:
             kwargs["max_tokens"] = 2000
         try:
-            kwargs["temperature"] = min(float(kwargs.get("temperature", 0.55)), 0.55)
+            kwargs["temperature"] = min(float(kwargs.get("temperature", 0.50)), 0.50)
         except Exception:
-            kwargs["temperature"] = 0.55
+            kwargs["temperature"] = 0.50
         kwargs["allow_fallback"] = False
 
         return original_call(rewritten, *args, **kwargs)
