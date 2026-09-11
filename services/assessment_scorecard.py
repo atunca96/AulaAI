@@ -97,6 +97,16 @@ _META_STEM_GROUPS = {
         "accentuation", "acentuacion", "tilde", "diacritic", "diacrit",
         "aksan isaret", "aksan işaret", "imla isaret", "imla işaret",
     ),
+    "morphology_terminology": (
+        "morphem", "morfem", "morpholog", "morfolog", "prefix", "prefij",
+        "suffix", "sufij", "affix", "afij", "linking element", "linking prefix",
+        "elemento de enlace", "prefijo de enlace", "word stem", "raiz morf", "raíz morf",
+    ),
+    "cross_language_trivia": (
+        "other romance language", "otras lenguas romances", "otra lengua romance",
+        "other languages", "otras lenguas", "a diferencia de otras lenguas",
+        "compared with other languages", "rispetto ad altre lingue", "anderen sprachen",
+    ),
     "historical_root": (
         "latin root", "historical root", "raiz latina", "racine latine",
         "radice latina", "lateinische wurzel", "latin koken", "latin köken",
@@ -106,6 +116,8 @@ _META_STEM_GROUPS = {
 _META_EXACT_MARKERS = (
     "letter count", "how many letters", "which letter", "phonetic label",
     "acento grafico", "cuantas letras", "kaç harf", "hangi harf",
+    "which spelling feature", "que rasgo ortografico", "qué rasgo ortográfico",
+    "combination of letters", "combinacion de letras", "combinación de letras",
 )
 
 _MATH_STEMS = (
@@ -220,7 +232,7 @@ def build_scorecard(questions, requested_count, source_text=""):
     )
 
     return {
-        "score_version": "shadow_proxy_v4",
+        "score_version": "shadow_proxy_v5",
         "composite_score": round(composite * 100.0, 2),
         "composite_score_provisional": True,
         "cutover_eligible": False,
