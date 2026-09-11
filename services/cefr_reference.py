@@ -139,7 +139,10 @@ LANGUAGE_CEFR_STANDARDS = {
     "Spanish": {
         "institution": "Instituto Cervantes - Plan Curricular del Instituto Cervantes (PCIC)",
         "levels": {
-            "A1": {"grammar": "Presente de indicativo, concordancia género/número, verbos ser/estar/tener/ir, interrogativos básicos."},
+            "A1": {
+                "grammar": "Presente de indicativo, concordancia género/número, verbos ser/estar/tener/ir, interrogativos básicos.",
+                "lexicon": "Léxico cotidiano y profesiones auténticas (profesor, médico, enfermero, camarero, mecánico; frases naturales como 'es profesora en un colegio', sin etiquetas artificiales)."
+            },
             "A2": {"grammar": "Pretérito perfecto, pretérito indefinido vs imperfecto básico, pronombres de OD y OI, perífrasis de futuro."},
             "B1": {"grammar": "Subjuntivo presente (deseo, duda, emoción), oraciones temporales y de relativo, condicional simple, pretérito pluscuamperfecto."},
             "B2": {"grammar": "Subjuntivo imperfecto, condicional compuesto, estilo indirecto avanzado, conectores discursivos (sin embargo, por tanto, a pesar de)."},
@@ -157,7 +160,10 @@ LANGUAGE_CEFR_STANDARDS = {
         "levels": {
             "A1": {"grammar": "Präsens, trennbare Verben, Perfekt basics, Akkusativ/Dativ basics, Satzklammer."},
             "A2": {"grammar": "Perfekt, Präteritum von Hilfsverben, Modalverben im Präteritum, Nebensätze mit weil/dass, Komparativ."},
-            "B1": {"grammar": "Konjunktiv II (Wunsch/Höflichkeit), Passiv Präsens, Relativsätze, Infinitiv mit zu, temporale Nebensätze."},
+            "B1": {
+                "grammar": "Konjunktiv II (Wunsch/Höflichkeit), Passiv Präsens, Relativsätze, Infinitiv mit zu, temporale Nebensätze.",
+                "lexicon": "Alltägliche Standardsprache (kein veraltetes 'Platzkarte', sondern 'Sitzplatzreservierung'; keine interne Dispositionsfachsprache wie 'Fahrzeugmangel', sondern 'technische Störung')."
+            },
             "B2": {"grammar": "Passiv in allen Zeiten, Passiversatzformen, Konjunktiv I (indirekte Rede), Partizipialattribute, feste Nomen-Verb-Verbindungen."},
             "C1": {
                 "institution_reference": "Goethe-Zertifikat C1 / telc Deutsch C1 Hochschule",
@@ -173,7 +179,10 @@ LANGUAGE_CEFR_STANDARDS = {
         "levels": {
             "A1": {"grammar": "Présent de l'indicatif, articles définis/indéfinis, genre et nombre, négation simple (ne... pas), interrogations de base."},
             "A2": {"grammar": "Passé composé vs imparfait (sensibilisation), pronoms COD/COI, futur simple, comparatif/superlatif."},
-            "B1": {"grammar": "Subjonctif présent (obligation, sentiment, doute), conditionnel présent, discours indirect au présent, pronoms relatifs qui/que/dont/où."},
+            "B1": {
+                "grammar": "Subjonctif présent (obligation, sentiment, doute), conditionnel présent, discours indirect au présent, pronoms relatifs qui/que/dont/où.",
+                "lexicon": "Langage courant standard (éviter le jargon administratif ferroviaire; privilégier 'problème technique', 'changement de voie', 'retard')."
+            },
             "B2": {"grammar": "Subjonctif passé, conditionnel passé, passif, double pronominalisation, connecteurs logiques (bien que, afin que, pourtant)."},
             "C1": {
                 "institution_reference": "DALF C1 (Diplôme Approfondi de Langue Française) / CIEP",
@@ -548,11 +557,11 @@ CRITICAL NEGATIVE CONSTRAINT (STRICT ZERO-TOLERANCE BAN):
         forbidden_summary = f"""
 CRITICAL CEFR B1 DIFFICULTY & REGISTER CALIBRATION (STRICT STANDARD EVERYDAY LANGUAGE):
 - YOU ARE AUTHORING MATERIAL FOR B1 ({universal_spec['name']}).
-- B1 REPRESENTS INDEPENDENT EVERYDAY THRESHOLD MASTERY (Alltagssprache / clear standard language).
+- B1 REPRESENTS INDEPENDENT EVERYDAY THRESHOLD MASTERY (clear standard everyday language).
 - STRICT BAN ON C1/B2 HYPER-TECHNICAL BUREAUCRATIC OVERLOAD:
   * Do NOT use heavy administrative officialese, hyper-technical engineering/infrastructure jargon, or dense legalistic compound nouns.
-  * For example, in transit/services, avoid overloading the test with specialized dispatch terminology ('Fahrzeugmangel', 'Stellwerkstörung', etc.) or obscure tariff rules. Use clear standard everyday expressions (e.g. 'technisches Problem / Störung', 'Hilfe beim Einsteigen', 'Zugausfall', polite staff inquiry).
-  * Use modern living terminology: In German transit, use 'Sitzplatzreservierung' (ABSOLUTELY NEVER outdated 'Platzkarte').
+  * Avoid overloading the test with specialized dispatch terminology or obscure tariff rules. Use clear standard everyday expressions (e.g. general technical problem, boarding assistance, schedule delay, polite staff inquiry).
+  * Use modern living terminology in {language}: ABSOLUTELY NEVER outdated, obsolete, or archaic terms.
   * A learner at B1 needs to communicate, ask for help, understand standard public announcements, and solve practical travel/daily situations, NOT act as a legal dispatcher or transport authority lawyer!
 """
     elif lvl_key in ["A1", "A2"]:
@@ -560,11 +569,11 @@ CRITICAL CEFR B1 DIFFICULTY & REGISTER CALIBRATION (STRICT STANDARD EVERYDAY LAN
 CRITICAL CEFR {lvl_key} DIFFICULTY & LEARNER ERROR MODELING:
 - YOU ARE AUTHORING MATERIAL FOR {lvl_key} ({universal_spec['name']}).
 - USE SHORT, CLEAR, CONCRETE SCENARIOS grounded in immediate everyday life.
-- FOR PROFESSIONS & WORKPLACES: Use authentic recognized professions (e.g. médico, abogado, profesor, enfermera, mecánico, periodista, camarero, cocinero).
-  * Use natural native phrasing (e.g. in Spanish, 'Es profesora' or 'Es profesora en un colegio', NEVER unnatural 'profesora de colegio').
-  * STRICT BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER invent synthetic combinations like 'periodista digital' or 'mecánica oficial'.
+- FOR PROFESSIONS & WORKPLACES: Use authentic recognized professions in {language}.
+  * Use natural native phrasing and standard prepositions customary in {language}.
+  * STRICT BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER invent synthetic combinations (like 'digital journalist' or 'official mechanic').
 - FOR NUMBERS & VOCABULARY: Distractors must NOT merely be adjacent numbers. They must model authentic learner error patterns (e.g. compounding errors, apocope/gender agreement, false friends).
-- EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms (e.g. 'medianoche' / 'las doce de la noche', NEVER artificial 'las cero horas').
+- EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms customary to native speakers of {language}, NEVER artificial mechanical formulas in everyday conversation.
 """
 
     specific_rules = ""

@@ -517,6 +517,45 @@ def get_language_profile(language):
     if language in agglutinative: return "agglutinative"
     return "inflected"
 
+LANGUAGE_CALIBRATION_REGISTRY = {
+    "german": {
+        "banned_terms": ["platzkarte"],
+        "b1_banned_terms": ["fahrzeugmangel"],
+        "normalizers": []
+    },
+    "spanish": {
+        "banned_terms": [],
+        "b1_banned_terms": [],
+        "normalizers": [
+            (r'\bprofesora de colegio\b', 'profesora en un colegio'),
+            (r'\bprofesor de colegio\b', 'profesor en un colegio'),
+            (r'\bperiodista digital\b', 'periodista'),
+            (r'\bmecánica oficial\b', 'mecánica'),
+            (r'\bmecánico oficial\b', 'mecánico'),
+        ]
+    },
+    "french": {
+        "banned_terms": [],
+        "b1_banned_terms": [],
+        "normalizers": []
+    },
+    "italian": {
+        "banned_terms": [],
+        "b1_banned_terms": [],
+        "normalizers": []
+    },
+    "russian": {
+        "banned_terms": [],
+        "b1_banned_terms": [],
+        "normalizers": []
+    },
+    "turkish": {
+        "banned_terms": [],
+        "b1_banned_terms": [],
+        "normalizers": []
+    }
+}
+
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en"):
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
@@ -726,19 +765,19 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
          * All 3 distractors MUST be closely competing, plausible alternatives within the EXACT SAME situational context.
          * If the correct answer is an operational action (e.g. an action a passenger takes during a delay), all 3 distractors MUST ALSO be realistic operational actions that an actual passenger might consider, NOT absurd or easily dismissible non-sequiturs.
          * Distractors must NOT be so far away or irrelevant that the correct answer is obvious by superficial elimination.
-       - AUTHENTIC OCCUPATIONS & WORKPLACES (BAN ON ARTIFICIAL FRANKENSTEIN COMBOS):
-         * When testing professions, occupations, or workplaces, distractors MUST be genuine, everyday recognized professions (e.g., médico, abogado, profesor, enfermera, mecánico, periodista, camarero, ingeniero).
-         * STRICT ZERO-TOLERANCE BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER generate synthetic adjective-noun combos like 'periodista digital', 'mecánica oficial', 'abogado técnico', or made-up job titles. Keep professions standard and natural.
+       - AUTHENTIC OCCUPATIONS & ROLES (BAN ON ARTIFICIAL FRANKENSTEIN COMBOS):
+         * When testing professions, occupations, or workplaces, distractors MUST be genuine, everyday recognized professions in {language}.
+         * STRICT ZERO-TOLERANCE BAN ON ARTIFICIAL COMPOSITE LABELS: NEVER generate synthetic adjective-noun combos or made-up job titles (e.g. 'digital journalist', 'official mechanic', 'technical lawyer'). Keep professions standard and natural in {language}.
        - EXACTLY ONE DEFENSIBLE CORRECT ANSWER MANDATE (ZERO MULTI-ANSWER DEFECTS):
          * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt.
          * All 3 distractors MUST be unequivocally and demonstrably false.
          * If the question asks about a grammatical, orthographic, or syntactic property (e.g. gender, conjugation, agreement, spelling), ABSOLUTELY NEVER generate a distractor that ALSO possesses that target property! (e.g. if asking for a word with a specific grammatical feature, NONE of the 3 distractors may exhibit that feature).
        - AUTHENTIC LEARNER ERROR MODELING (NOT JUST ADJACENT NUMBERS):
-         * When testing vocabulary, numbers, or forms, distractors MUST NOT merely be adjacent numbers (e.g. 16, 17, 19 for 18).
+         * When testing vocabulary, numbers, or forms, distractors MUST NOT merely be adjacent numbers.
          * Distractors MUST model genuine, typical learner error archetypes:
-           a) Structural/compounding mistakes (e.g. in Spanish, 'diez y ocho' vs 'dieciocho', 'veinte y dos' vs 'veintidós').
-           b) Grammatical apocope and agreement errors (e.g. 'veintiuno' vs 'veintiún' vs 'veintiuna estudiantes').
-           c) High-frequency false friends or phonetic near-matches (e.g. 'receta' vs 'cuenta').
+           a) Structural/compounding mistakes in {language} (e.g. archaic separate forms vs modern unified compounding).
+           b) Grammatical agreement, gender, case, or apocope errors native to {language}.
+           c) High-frequency false friends or phonetic near-matches.
            d) Pragmatic or register mismatches.
        - ABSOLUTE ZERO-TOLERANCE BAN ON OFF-DOMAIN, ANACHRONISTIC, OR WEIRD DISTRACTORS:
          * NEVER inject nouns or concepts from unrelated daily life domains into distractors (e.g. ABSOLUTELY NO fitness studio / gym, cinema, supermarket, or leisure club options when testing transport, workplace, or healthcare).
@@ -749,17 +788,17 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - NO TRIVIAL VISUAL GIVEAWAYS: A learner must NOT be able to identify the correct answer by visual elimination, option length difference, or ridiculous distractors.
 
     8. COMMUNICATIVE FOCUS & IN-BATCH CONCEPT DIVERSITY (CRITICAL):
-       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
+       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in {language}?", or shallow "Which option means X?". NEVER ask the student to translate words between languages!
        - STRICT ZERO-TOLERANCE BAN ON TRIVIAL 1-WORD COLLOCATION BLANKS:
-         * NEVER test a fixed multi-word collocation by simply removing the single obvious verb (e.g. NEVER ask 'mit verminderter Geschwindigkeit _____ -> fahren', 'Zähne _____ -> putzen').
+         * NEVER test a fixed multi-word collocation by simply removing the single obvious verb.
          * Fill-in-the-blank questions (max 2 per set) MUST test grammatical inflection, conjugation, mood, tense, preposition, or nuanced lexical discrimination in a rich communicative sentence.
        - STRICT BAN ON CIRCULAR TAUTOLOGIES & REPETITIVE DEFINITIONS:
-         * NEVER ask shallow definition questions that define a word with its own stem or root (e.g. NEVER ask 'Was ist eine Betriebsstörung? -> ein betriebliches oder technisches Problem', 'What is X? -> an X thing').
-         * Every question MUST test communicative understanding, situational choices ('What should the traveler do?'), or functional consequences, NOT dictionary circularity.
+         * NEVER ask shallow definition questions that define a word with its own stem or root (e.g. "What is an X? -> An X thing").
+         * Every question MUST test communicative understanding, situational choices ('What should the person do/say?'), or functional consequences, NOT dictionary circularity.
        - STRICT BAN ON COMMERCIAL PRODUCT TRIVIA & INVENTED LEGAL THRESHOLDS:
-         * AulaAI is a language learning platform, NOT a railway ticketing manual or legal statute exam!
-         * NEVER test proprietary commercial product brand names or ticket portfolio specifics (e.g. DO NOT ask what a 'City-Ticket', specific railcard tier, or regional subscription bundle includes).
-         * NEVER test or invent arbitrary disputed legal/regulatory numerical thresholds (e.g. DO NOT claim that 'delay over 30 minutes' lifts ticket restrictions, or test refund percentages).
+         * AulaAI is a language learning platform, NOT a transportation ticketing manual or legal statute exam!
+         * NEVER test proprietary commercial product brand names or ticket portfolio specifics.
+         * NEVER test or invent arbitrary disputed legal/regulatory numerical thresholds.
          * Test real communicative situations: how to ask staff for advice, how to report an issue, how to request an alternative route, or how to rebook politely.
        - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY (ZERO REPETITION OF THE SAME RULE):
          * All {gen_count} questions within this batch MUST test completely distinct communicative and operational objectives.
@@ -767,27 +806,22 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
          Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
          a) SITUATIONAL PRAGMATICS (NO BLANK): Real-world social scenario where the student chooses what to say.
-            * Example: "Estás en la recepción de un hotel y necesitas la clave del wifi. ¿Qué dices al recepcionista?"
          b) COMMUNICATIVE REACTION (NO BLANK): Choosing the natural response to a person.
-            * Example: "— Muchísimas gracias por tu ayuda con la maleta.\n— ¿Cuál es la respuesta educada habitual?"
-         c) CONCEPTUAL & COMMUNICATIVE UNDERSTANDING (NO BLANK):
-            * Example: "¿Qué hora es si el reloj marca las tres y cuarto de la tarde?"
-            * Example: "¿Cuál de las siguientes expresiones se usa exclusivamente para despedirse por la noche?"
-         d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK):
-            * Example: "Normalmente mis compañeros y yo __________ en la biblioteca después de las clases."
+         c) CONCEPTUAL & COMMUNICATIVE UNDERSTANDING (NO BLANK): Asking practical times, schedules, rules, or meanings.
+         d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK): Rich communicative context with a grammatical or lexical blank.
 
     9. STRICT ZERO-TOLERANCE BAN ON ARITHMETIC & MATH CALCULATIONS (CRITICAL):
-       - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask 'ocho más tres', 'sumar cincuenta más veinte', 'multiplicar cinco por dos', 'cuánto es X más Y', 'wie viel ist X plus Y', 'combien font X plus Y', 'сколько будет X плюс Y').
+       - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask math problems in {language}).
        - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
-       - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking the price of a ticket '¿Cuánto cuesta el billete?', asking the time '¿A qué hora sale el autobús?', hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
+       - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking prices, asking times, hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
     
     10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
         - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
         - MODERN LIVING TERMINOLOGY & ACCURACY:
-          * In German transit/travel: use modern standard 'Sitzplatzreservierung' (ABSOLUTELY NEVER outdated 'Platzkarte').
-          * In German B1: use clear everyday terms like 'technische Störung / technisches Problem / Zugausfall' (ABSOLUTELY NEVER bureaucratic dispatch jargon like 'Fahrzeugmangel').
-          * In Spanish: use natural authentic phrasing: 'Es profesora' or 'Es profesora en un colegio' (ABSOLUTELY NEVER unnatural 'profesora de colegio'). Distractors must be authentic, standard real-world professions.
-        - EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms (e.g. in Spanish, midnight is 'medianoche' or 'las doce de la noche', NEVER artificial 'las cero horas' in everyday conversation).
+          * Use contemporary standard living vocabulary in {language}; ABSOLUTELY NEVER outdated, obsolete, or archaic terms.
+          * For B1 and intermediate levels, use clear everyday standard expressions; ABSOLUTELY NEVER bureaucratic dispatch jargon, hyper-technical infrastructure terms, or officialese.
+          * In workplace and personal descriptions, use natural authentic phrasing and standard prepositions native to {language}.
+        - EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms customary to native speakers of {language} (e.g. natural expressions for midnight, noon, or daily routines), NEVER artificial mechanical formulas (like 'zero hours') in everyday conversation.
         - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
           * Use the genuine, authentic functional collocations native to {language} for the specific domain of '{topic_title}'.
           * Service notices and institutional announcements: Use authentic standard institutional terminology native to {language} (e.g. clearly distinguish between facilities/services being closed or unavailable vs. unstaffed; distinguish between scheduled stops/services that are not served vs. physically bypassing them).
@@ -806,14 +840,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
     12. RIGOROUS LOGICAL FIDELITY & CEFR LEVEL CALIBRATION (UNIVERSAL):
         - B1 LEVEL CALIBRATION DIRECTIVE (CRITICAL):
-          * Level B1 represents independent everyday communicative competence (Alltagssprache / clear standard language).
+          * Level B1 represents independent everyday communicative competence (clear standard everyday language).
           * STRICT BAN ON C1/B2 BUREAUCRATIC OVERLOAD AT B1:
-            - NEVER flood a B1 lesson with dense infrastructure jargon, official railway dispatch terms, or hyper-complex compound nouns (e.g. in German transport, strictly avoid overusing terms like 'Betriebsstörung im Stellwerk', 'Oberleitungsschaden', 'umgekehrte Wagenreihung', 'veränderte Tarifbestimmungen', 'mobilitätseingeschränkt', 'Fahrzeugmangel').
-            - Use clear standard everyday expressions (e.g. 'technisches Problem', 'andere Wagenreihenfolge', 'Hilfe beim Einsteigen', 'geänderte Ticketregeln').
-            - Focus on the traveler's communicative actions and understanding of clear standard announcements, NOT technical engineering or corporate tariff law.
+            - NEVER flood a B1 lesson with dense infrastructure jargon, official technical dispatch terms, or hyper-complex compound nouns.
+            - Use clear standard everyday expressions (e.g. general technical problem, schedule delay, polite staff inquiry).
+            - Focus on the traveler's communicative actions and understanding of clear standard public notices, NOT technical engineering or corporate tariff law.
         - COMPLETE & SELF-CONTAINED CONTEXT:
           * The scenario MUST provide all necessary context so that the correct answer is logically undeniable and the only possible choice.
-          * Never mention unexplained premises (e.g. "two cars with changed tariff rules" without explaining what the rules are) and expect the learner to guess.
+          * Never mention unexplained premises and expect the learner to guess.
         - STRICT LITERAL DEDUCTION & ZERO INFERENCE LEAPS:
           * The question stem and the correct answer MUST be strictly, mathematically, and directly verifiable from what is EXPLICITLY stated in the scenario.
           * ZERO SPECULATIVE INFERENCE: If the scenario states an event or incident occurs, NEVER infer an unstated consequence or cause (e.g. do NOT assert that duration, costs, schedules, or outcomes have changed unless the scenario explicitly mentions that change).
@@ -822,8 +856,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             - Do not over-narrow broad terms: A general policy, right, document, or procedure applies broadly, NOT solely to one specific sub-case unless specifically restricted in the prompt.
             - Do not over-generalize specific exceptions: If one specific service, item, or route is unavailable, do NOT assert that all options in that category are cancelled.
             - Do not over-specify categories: If an announcement or person refers generally to an alternative or solution, do NOT arbitrarily label it with a specific sub-category unless specified in the text.
-          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities/remedies (e.g. vouchers, refunds, compensation, special accommodations) as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
-          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations (e.g. "in front of the station building"), specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
+          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities/remedies as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
+          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations, specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
         - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a customer with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
@@ -865,7 +899,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
     2) EXACTLY 4 OPTIONS & EXACTLY ONE DEFENSIBLE ANSWER: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' that are definitively FALSE.
-    3) COMPETITIVE DISTRACTOR PROXIMITY: All 3 distractors MUST be closely competing, plausible alternative choices within the exact same situation (e.g. realistic traveler actions, authentic professions). NEVER create distant, weird, or easily dismissible non-sequiturs. For professions, use genuine occupations (médico, abogado, etc.), NEVER artificial combos like 'periodista digital' or 'mecánica oficial'.
+    3) COMPETITIVE DISTRACTOR PROXIMITY: All 3 distractors MUST be closely competing, plausible alternative choices within the exact same situation (e.g. realistic traveler actions, authentic recognized professions in {language}). NEVER create distant, weird, or easily dismissible non-sequiturs. NEVER use artificial composite combos (like 'digital journalist' or 'official mechanic').
     4) STRICT ZERO-TOLERANCE BAN ON TRIVIAL BLANKS & CIRCULAR TAUTOLOGIES: NEVER test trivial 1-word collocation blanks ('mit verminderter Geschwindigkeit _____ -> fahren'). NEVER ask circular definition tautologies ('Was ist eine Betriebsstörung? -> ein betriebliches Problem').
     5) NO COMMERCIAL PRODUCT TRIVIA: Never test commercial brand names or ticket bundle portfolio specifics (no City-Ticket minutiae). Never test arbitrary disputed legal thresholds (no 'over 30 minutes' rules).
     6) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
@@ -873,8 +907,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     10) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    11) NATURAL AUTHENTIC {language}: Use genuine living idioms, modern terms ('Sitzplatzreservierung' never 'Platzkarte'; 'Es profesora en un colegio' never 'profesora de colegio'), and natural native syntax in {language}.
-    12) B1 CALIBRATION & LITERAL DEDUCTIVE RIGOR: For B1, use clear standard language (Alltagssprache); strictly avoid C1/B2 dense bureaucratic jargon ('Fahrzeugmangel', etc.) or heavy infrastructure dispatch compounds. The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences or unstated locations. All 4 options must match CEFR {level}."""
+    11) NATURAL AUTHENTIC {language}: Use genuine living idioms, modern living terms (never outdated or archaic words), and natural native syntax in {language}.
+    12) B1 CALIBRATION & LITERAL DEDUCTIVE RIGOR: For B1, use clear standard everyday language; strictly avoid C1/B2 dense bureaucratic jargon or heavy infrastructure dispatch compounds. The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences or unstated locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -1046,8 +1080,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                             is_giveaway = True
                             break
 
-            # Reject circular tautological definition questions (e.g. "Was ist eine Betriebsstörung? -> ein betriebliches Problem")
-            def_question_patterns = [r'\bwas ist (?:eine?|der|das|die)?\s*([a-zäöüß]+)', r'\bqué es (?:el|la|un|una)?\s*([a-záéíóúñ]+)', r'\bwhat is (?:a|an|the)?\s*([a-z]+)']
+            # Multilingual circular tautological definition detector
+            def_question_patterns = [
+                r'\bwas ist (?:eine?|der|das|die)?\s*([a-zäöüß]+)',
+                r'\bqué es (?:el|la|un|una)?\s*([a-záéíóúñ]+)',
+                r'\bwhat is (?:a|an|the)?\s*([a-z]+)',
+                r'\bqu[\'’]est-ce qu(?:e|\')\s*(?:un|une|le|la|les)?\s*([a-zàâçéèêëîïôûùü]+)',
+                r'\b(?:che\s+)?cos[\'’]è\s*(?:un|uno|una|il|lo|la)?\s*([a-zàèéìòóù]+)',
+                r'\bo que é (?:um|uma|o|a)?\s*([a-zà-ú]+)',
+                r'([a-zçğıöşü]+)\s+nedir\b'
+            ]
             for pat in def_question_patterns:
                 m = re.search(pat, clean_p)
                 if m:
@@ -1058,38 +1100,33 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                             is_giveaway = True
                             break
 
-            # Reject trivial 1-word collocation blanks (e.g. "mit verminderter Geschwindigkeit _____ -> fahren")
+            # Universal trivial 1-word collocation blank detector
             if "_" in p and len(clean_a.split()) == 1:
-                trivial_verbs = ["fahren", "gehen", "machen", "haben", "sein", "ser", "estar", "haber", "hacer", "ir"]
+                trivial_verbs = {"fahren", "gehen", "machen", "haben", "sein", "ser", "estar", "haber", "hacer", "ir", "aller", "faire", "fare", "andare"}
                 if clean_a in trivial_verbs:
                     pre_blank_match = re.search(r'(\w+)\s*_{2,}', p.lower())
                     if pre_blank_match:
                         pre_word = pre_blank_match.group(1)
-                        if pre_word in ["geschwindigkeit", "tempo", "zähne", "bett", "hause"]:
+                        if pre_word in ["geschwindigkeit", "tempo", "vitesse", "velocidad", "velocità", "zähne", "bett", "hause"]:
                             is_giveaway = True
 
-            # Reject outdated or bureaucratic German terms (Platzkarte / Fahrzeugmangel at B1)
-            if any(g in language.lower() for g in ["german", "deutsch", "almanca"]):
-                if "platzkarte" in clean_p or "platzkarte" in clean_a or any("platzkarte" in d.lower() for d in clean_d):
-                    is_giveaway = True
-                if is_b1 and "fahrzeugmangel" in clean_p:
-                    is_giveaway = True
-
-            # Spanish naturalness & artificial profession distractor sanitization
-            if any(s in language.lower() for s in ["spanish", "español", "ispanyolca"]):
-                p = re.sub(r'\bprofesora de colegio\b', 'profesora en un colegio', p, flags=re.IGNORECASE)
-                a = re.sub(r'\bprofesora de colegio\b', 'profesora en un colegio', a, flags=re.IGNORECASE)
-                p = re.sub(r'\bprofesor de colegio\b', 'profesor en un colegio', p, flags=re.IGNORECASE)
-                a = re.sub(r'\bprofesor de colegio\b', 'profesor en un colegio', a, flags=re.IGNORECASE)
-                clean_d = [re.sub(r'\bprofesora de colegio\b', 'profesora en un colegio', d, flags=re.IGNORECASE) for d in clean_d]
-                clean_d = [re.sub(r'\bprofesor de colegio\b', 'profesor en un colegio', d, flags=re.IGNORECASE) for d in clean_d]
-
-                def _sanitize_profession_dist(text):
-                    text = re.sub(r'\bperiodista digital\b', 'periodista', text, flags=re.IGNORECASE)
-                    text = re.sub(r'\bmecánica oficial\b', 'mecánica', text, flags=re.IGNORECASE)
-                    text = re.sub(r'\bmecánico oficial\b', 'mecánico', text, flags=re.IGNORECASE)
-                    return text
-                clean_d = [_sanitize_profession_dist(d) for d in clean_d]
+            # Dynamic Language Calibration Registry (Clean, data-driven, language-agnostic runner)
+            calib_key = next((k for k in LANGUAGE_CALIBRATION_REGISTRY if k in language.lower()), None)
+            if calib_key:
+                calib = LANGUAGE_CALIBRATION_REGISTRY[calib_key]
+                for banned in calib.get("banned_terms", []):
+                    if banned in clean_p or banned in clean_a or any(banned in d.lower() for d in clean_d):
+                        is_giveaway = True
+                        break
+                if is_b1:
+                    for b1_banned in calib.get("b1_banned_terms", []):
+                        if b1_banned in clean_p or b1_banned in clean_a or any(b1_banned in d.lower() for d in clean_d):
+                            is_giveaway = True
+                            break
+                for pat, repl in calib.get("normalizers", []):
+                    p = re.sub(pat, repl, p, flags=re.IGNORECASE)
+                    a = re.sub(pat, repl, a, flags=re.IGNORECASE)
+                    clean_d = [re.sub(pat, repl, d, flags=re.IGNORECASE) for d in clean_d]
                 clean_d = list(dict.fromkeys(clean_d))
                 if len(clean_d) < 3:
                     is_giveaway = True
