@@ -6,6 +6,7 @@ try:
     # Temporary experiment: preserve the raw assessment generator before any guard/calibration wrappers.
     _raw_assessment_generate_questions = _ai_engine.ai_generate_questions
     from .assessment_prompt_policy import install as _install_assessment_prompt_policy
+    from .assessment_output_budget import install as _install_assessment_output_budget
     from .assessment_guard import install as _install_assessment_guard
     from .assessment_evidence_balance import install as _install_assessment_evidence_balance
     from .assessment_legacy_calibration import install as _install_assessment_legacy_calibration
@@ -14,6 +15,7 @@ try:
     from .assessment_batch_balance_prompt import install as _install_assessment_batch_balance_prompt
     from .assessment_direct_single_pass_experiment import install as _install_assessment_direct_single_pass_experiment
     _install_assessment_prompt_policy(_ai_engine)
+    _install_assessment_output_budget(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
     _install_assessment_legacy_calibration(_ai_engine)
