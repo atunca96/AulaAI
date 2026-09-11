@@ -81,25 +81,65 @@ def _source_grounded_proxy(q, source_text):
     return bool(prompt and _containment(prompt, src) >= 0.18)
 
 
-_META_MARKERS = (
-    "etymology", "etymological", "latin root", "historical root", "letter count",
-    "how many letters", "which letter", "diphthong", "phonetic label", "acento grafico",
-    "acento gráfico", "cuantas letras", "cuántas letras", "raiz latina", "raíz latina",
-    "etimologia", "etimología", "kaç harf", "hangi harf",
+# These are suspicious meta-linguistic/trivia cues, not hard pedagogical truth.
+# Stem matching intentionally catches inflectional variants such as Spanish
+# etimologia / etimologica without needing one exact phrase per language.
+_META_STEM_GROUPS = {
+    "etymology": (
+        "etymol", "etimol", "etymolog", "etimolog",
+    ),
+    "phonology_terminology": (
+        "diphthong", "diptong", "ditong", "phonetic", "fonetic",
+        "phonolog", "fonolog", "phonem", "fonem", "graphem", "grafem",
+        "prosod", "syllab", "silab",
+    ),
+    "historical_root": (
+        "latin root", "historical root", "raiz latina", "racine latine",
+        "radice latina", "lateinische wurzel", "latin koken", "latin köken",
+    ),
+}
+
+_META_EXACT_MARKERS = (
+    "letter count", "how many letters", "which letter", "phonetic label",
+    "acento grafico", "cuantas letras", "kaç harf", "hangi harf",
+)
+
+_MATH_STEMS = (
+    "sumar", "suma", "multiplicar", "multiply", "subtract", "addition",
+    "topla", "carp", "çarp",
 )
 
 
-def _outside_meta_proxy(q):
+def _outside_meta_proxy_reason(q):
     p = _norm(q.get("prompt"))
     if not p:
-        return False
-    if any(_norm(marker) in p for marker in _META_MARKERS):
-        return True
+        return None
+
+    for reason, stems in _META_STEM_GROUPS.items():
+        if any(_norm(stem) in p for stem in stems):
+            return reason
+
+    if any(_norm(marker) in p for marker in _META_EXACT_MARKERS):
+        return "letter_or_spelling_trivia"
+
     raw = str(q.get("prompt", ""))
     if re.search(r"\b\d+\s*[+×*/]\s*\d+\b", raw):
-        return True
-    math_markers = ("sumar", "suma", "multiplicar", "multiply", "add", "subtract", "topla", "çarp")
-    return any(_norm(m) in p for m in math_markers)
+        return "arithmetic"
+    if any(_norm(stem) in p for stem in _MATH_STEMS):
+        return "arithmetic"
+
+    # A question that explicitly contrasts named sound qualities/labels is suspicious
+    # as assessment meta-knowledge. This is deliberately conservative and remains a proxy.
+    sound_terms = ("sound", "sonid", "sonido", "ses", "laut", "suono", "son")
+    contrast_terms = ("soft", "hard", "suave", "fuerte", "voiced", "voiceless", "sonoro", "sordo")
+    if any(_norm(x) in p for x in sound_terms) and sum(1 for x in contrast_terms if _norm(x) in p) >= 2:
+        return "sound_label_trivia"
+
+    return None
+
+
+def _outside_meta_proxy(q):
+    return _outside_meta_proxy_reason(q) is not None
 
 
 def _pair_rate(questions, fn):
@@ -129,7 +169,16 @@ def build_scorecard(questions, requested_count, source_text=""):
 
     question_dup = _pair_rate(qs, _question_near_repeat)
     objective_dup_proxy = _pair_rate(qs, _objective_proxy_repeat)
-    outside_meta = round(sum(1 for q in qs if _outside_meta_proxy(q)) / requested, 4)
+
+    meta_reasons = {}
+    flagged_meta = 0
+    for q in qs:
+        reason = _outside_meta_proxy_reason(q)
+        if not reason:
+            continue
+        flagged_meta += 1
+        meta_reasons[reason] = meta_reasons.get(reason, 0) + 1
+    outside_meta = round(flagged_meta / requested, 4)
     count_match = len(qs) == requested
 
     grounding_component = 1.0 if grounding_rate is None else grounding_rate
@@ -143,8 +192,10 @@ def build_scorecard(questions, requested_count, source_text=""):
     )
 
     return {
-        "score_version": "shadow_proxy_v1",
+        "score_version": "shadow_proxy_v2",
         "composite_score": round(composite * 100.0, 2),
+        "composite_score_provisional": True,
+        "cutover_eligible": False,
         "requested_count_match": count_match,
         "returned_count": len(qs),
         "valid_mcq_rate": round(min(1.0, valid_rate), 4),
@@ -152,10 +203,11 @@ def build_scorecard(questions, requested_count, source_text=""):
         "question_duplicate_rate": question_dup,
         "objective_duplicate_proxy_rate": objective_dup_proxy,
         "outside_meta_proxy_rate": outside_meta,
+        "outside_meta_proxy_reason_counts": meta_reasons,
         "hard_gates": {
             "count_match": count_match,
             "valid_structure": valid_rate >= 0.99,
         },
         "manual_calibration_required": True,
-        "proxy_warning": "Grounding/objective/meta metrics are deterministic proxies, not final pedagogical validation.",
+        "proxy_warning": "Grounding/objective/meta metrics are deterministic proxies, not final pedagogical validation or cutover gates.",
     }
