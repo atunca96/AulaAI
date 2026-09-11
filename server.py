@@ -2737,9 +2737,24 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     accepted_questions.append(q)
 
             try:
-                # 1. Normal generation and filtering pipeline completes
-                initial_questions = generate_quiz(topic_ids, count=requested_count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions) or []
-                process_candidates(initial_questions)
+                # For a requested 10-question draft, replace the single large initial generation call
+                # with two concurrent generation calls of 7 candidates each using the exact same material context,
+                # CEFR level, grounding rules, quality prompt, model settings, and validation rules.
+                if requested_count == 10:
+                    import concurrent.futures
+                    seed_a = int(time.time() * 1000) % 999999
+                    seed_b = (seed_a + 54321) % 999999
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                        fut_a = executor.submit(generate_quiz, topic_ids, count=7, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions, generation_seed=seed_a)
+                        fut_b = executor.submit(generate_quiz, topic_ids, count=7, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions, generation_seed=seed_b)
+                        initial_a = fut_a.result() or []
+                        initial_b = fut_b.result() or []
+                    initial_candidates = initial_a + initial_b
+                else:
+                    initial_candidates = generate_quiz(topic_ids, count=requested_count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions) or []
+
+                # Merge the 14 candidates, run existing deduplication and quality filters on the combined pool, and keep the first 10 valid unique questions
+                process_candidates(initial_candidates)
 
                 # 2. Enforce exact requested count via small top-up generation only for missing amount
                 topup_attempt = 0

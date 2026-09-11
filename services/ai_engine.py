@@ -556,7 +556,7 @@ LANGUAGE_CALIBRATION_REGISTRY = {
     }
 }
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en"):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None):
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
@@ -787,7 +787,10 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             "Focus on register flexibility: discriminating between natural formal, colloquial, journalistic, and literary expressions.",
             "Focus on advanced collocations, polysemous lexical subtleties, and authentic idiomatic usage."
         ]
-    selected_variety_focus = py_random.choice(variety_focuses)
+    if generation_seed is not None:
+        selected_variety_focus = py_random.Random(generation_seed).choice(variety_focuses)
+    else:
+        selected_variety_focus = py_random.choice(variety_focuses)
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
@@ -1008,8 +1011,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     11) NATURAL AUTHENTIC {language} & EXAMINER-GRADE POLISH: Prompts, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and impeccable grammatical elegance matching official CEFR {level} examinations.
     12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Verify each question against the 6 gates (Material support, Level fit, Naturalness, Uniqueness of answer, Distractor plausibility, Semantic duplication/coverage) before returning JSON."""
 
-    # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
-    seed = int(time.time() * 1000) % 999999
+    # MAX VARIETY SEED: Uses high-precision timestamp or explicit generation_seed to ensure varied candidates
+    seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
