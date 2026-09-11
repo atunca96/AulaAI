@@ -34,15 +34,33 @@ def _hard_gate_pass(questions, requested_count):
     return bool(gates.get("count_match") and gates.get("valid_structure"))
 
 
-def _log_fallback(request_id, requested_count, returned_count):
+def _emit_line(line):
     try:
-        with open("pipeline.log", "a", encoding="utf-8") as handle:
-            handle.write(
-                f"[ASSESSMENT-SAFETY] request_id={request_id} v2_hard_gate_failed "
-                f"requested={requested_count} returned={returned_count} fallback=legacy\n"
-            )
+        print(line, flush=True)
     except Exception:
         pass
+    try:
+        with open("pipeline.log", "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+            handle.flush()
+    except Exception:
+        pass
+
+
+def _log_route(mode, requested_count, is_quiz):
+    primary = shadow_primary() if mode == "shadow" else mode
+    secondary = ("v2" if primary == "legacy" else "legacy") if mode == "shadow" else "none"
+    _emit_line(
+        f"[ASSESSMENT-ROUTE] mode={mode} primary={primary} secondary={secondary} "
+        f"requested={requested_count} is_quiz={1 if is_quiz else 0}"
+    )
+
+
+def _log_fallback(request_id, requested_count, returned_count):
+    _emit_line(
+        f"[ASSESSMENT-SAFETY] request_id={request_id} v2_hard_gate_failed "
+        f"requested={requested_count} returned={returned_count} fallback=legacy"
+    )
 
 
 def install(router_module, content_engine_module):
@@ -66,20 +84,21 @@ def install(router_module, content_engine_module):
         progress_callback=None,
     ):
         mode = engine_mode()
+        requested = _safe_count(count)
+        _log_route(mode, requested, is_quiz)
 
         # Legacy and shadow already have the desired safety behavior once the router's
         # mode functions above are replaced. Only explicit V2 needs hard-gate fallback.
         if mode != "v2":
             return routed_generate(
                 topic_ids=topic_ids,
-                count=count,
+                count=requested,
                 is_quiz=is_quiz,
                 ui_lang=ui_lang,
                 existing_questions=existing_questions,
                 progress_callback=progress_callback,
             )
 
-        requested = _safe_count(count)
         request_id = uuid.uuid4().hex
         source_text = router_module._source_text(topic_ids)
         common = {
