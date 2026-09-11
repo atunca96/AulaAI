@@ -2477,11 +2477,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 update_prog(pct, message=msg)
 
             requested_count = int(count)
+            t_flow_start = time.time()
             retained_existing_prompts = [
                 (q.get("prompt") or "").strip() for q in (existing_questions or [])
                 if isinstance(q, dict) and q.get("prompt")
             ]
 
+            t_ai_start = time.time()
             questions = generate_assessment_set(
                 topic_ids=[topic_id],
                 count=requested_count,
@@ -2491,8 +2493,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 progress_callback=progress_cb,
                 generation_seed=py_random.randint(100, 99999)
             )
+            t_ai_duration = time.time() - t_ai_start
 
-            # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
+            t_filter_start = time.time()
+            # PASS 1: Strict filter (no repeated prompt from recent rounds or within selection)
             final_questions = []
             for q in (questions or []):
                 if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
@@ -2506,46 +2510,114 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if len(final_questions) >= requested_count:
                     break
 
-            # Top-up pass if valid candidate list has fewer than requested_count
-            max_topup_attempts = 3
-            topup_attempt = 0
-            while len(final_questions) < requested_count and topup_attempt < max_topup_attempts:
-                topup_attempt += 1
-                missing = requested_count - len(final_questions)
-                combined_existing = (existing_questions or []) + final_questions
-                fresh_qs = generate_assessment_set(
-                    topic_ids=[topic_id],
-                    count=missing,
-                    is_quiz=False,
-                    ui_lang=ui_lang,
-                    existing_questions=combined_existing,
-                    progress_callback=progress_cb
-                )
-                if not fresh_qs:
-                    break
-                added_any = False
-                for q in fresh_qs:
+            # PASS 2: Reuse remaining candidates from initial generation whose prompts are distinct before any top-up
+            if len(final_questions) < requested_count:
+                for q in (questions or []):
                     if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
                         continue
                     p = q.get("prompt", "")
-                    if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                    if any(q.get("id") == fq.get("id") or q.get("prompt") == fq.get("prompt") for fq in final_questions):
                         continue
                     if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
                         continue
                     final_questions.append(q)
-                    added_any = True
                     if len(final_questions) >= requested_count:
                         break
-                if not added_any:
-                    break
+
+            # PASS 3: Check database course questions for topic before triggering any AI top-up
+            if len(final_questions) < requested_count and topic_id:
+                try:
+                    with db_connection() as db:
+                        db_qs = db.execute("""
+                            SELECT id, topic_id, type, prompt, answer, distractors, difficulty
+                            FROM questions WHERE topic_id = ? ORDER BY RANDOM() LIMIT 15
+                        """, (topic_id,)).fetchall()
+                        for r in db_qs:
+                            rp = r["prompt"]
+                            ra = r["answer"]
+                            if any(is_near_identical_question(rp, fq.get("prompt", "")) for fq in final_questions):
+                                continue
+                            try:
+                                d_list = json.loads(r["distractors"]) if r["distractors"] else []
+                            except Exception:
+                                d_list = []
+                            if len(d_list) < 3:
+                                continue
+                            opts = [ra] + d_list[:3]
+                            py_random.shuffle(opts)
+                            final_questions.append({
+                                "id": r["id"],
+                                "topic_id": r["topic_id"],
+                                "type": r["type"],
+                                "prompt": rp,
+                                "translation": "",
+                                "translation_en": "",
+                                "translation_tr": "",
+                                "answer": ra,
+                                "distractors": d_list[:3],
+                                "options": opts,
+                                "difficulty": r["difficulty"],
+                                "why": "Lesson reference.",
+                                "why_tr": "Ders içeriğine göre doğru seçenek."
+                            })
+                            if len(final_questions) >= requested_count:
+                                break
+                except Exception as edb:
+                    file_log(f"DB backfill error: {edb}")
+            t_filter_duration = time.time() - t_filter_start
+
+            # Top-up pass ONLY if initial candidate pool and DB were exhausted and shortfall remains
+            t_topup_duration = 0.0
+            if len(final_questions) < requested_count:
+                t_topup_start = time.time()
+                max_topup_attempts = 2
+                topup_attempt = 0
+                while len(final_questions) < requested_count and topup_attempt < max_topup_attempts:
+                    topup_attempt += 1
+                    missing = requested_count - len(final_questions)
+                    combined_existing = (existing_questions or []) + final_questions
+                    fresh_qs = generate_assessment_set(
+                        topic_ids=[topic_id],
+                        count=missing,
+                        is_quiz=False,
+                        ui_lang=ui_lang,
+                        existing_questions=combined_existing,
+                        progress_callback=progress_cb
+                    )
+                    if not fresh_qs:
+                        break
+                    added_any = False
+                    for q in fresh_qs:
+                        if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                            continue
+                        p = q.get("prompt", "")
+                        if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                            continue
+                        if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                            continue
+                        final_questions.append(q)
+                        added_any = True
+                        if len(final_questions) >= requested_count:
+                            break
+                    if not added_any:
+                        break
+                t_topup_duration = time.time() - t_topup_start
+                file_log(f"[QUIZ-TIMING] Activity top-up pass={t_topup_duration:.2f}s (shortfall={requested_count - len(final_questions)})")
+            else:
+                file_log("[QUIZ-TIMING] Activity top-up: 0.00s (candidate pool sufficient)")
 
             final_questions = final_questions[:requested_count]
 
+            t_persist_start = time.time()
             # Record batch into last 2 completed batches history
             record_course_draft_batch(course_id, final_questions, topic_key)
 
             msg_done = "Sorular hazır!" if ui_lang == "tr" else "Questions ready!"
             update_prog(100, status='done', results=final_questions, message=msg_done)
+            t_persist_duration = time.time() - t_persist_start
+            t_flow_duration = time.time() - t_flow_start
+
+            file_log(f"[QUIZ-TIMING] Activity: Main AI call={t_ai_duration:.2f}s | Parsing/filtering/reuse={t_filter_duration:.3f}s | Top-up={t_topup_duration:.2f}s | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s")
             print(f"[BG] Activity generation COMPLETED for task {task_id} (user {user_id}) with {len(final_questions)} questions.")
 
         except Exception as e:
@@ -2984,8 +3056,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if isinstance(q, dict) and q.get("answer")
             ]
 
+            t_flow_start = time.time()
             try:
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
+                t_ai_start = time.time()
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
                     count_a = max(half + 6, 12)
@@ -3036,7 +3110,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         existing_questions=existing_questions,
                         generation_seed=101
                     )
+                t_ai_duration = time.time() - t_ai_start
                 
+                t_filter_start = time.time()
                 # PASS 1: Strict filter (no repeated prompt, no repeated answer from recent rounds, zero test conflict)
                 final_questions = []
                 for q in (questions or []):
@@ -3139,6 +3215,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         final_questions.append(q)
                         if len(final_questions) >= requested_count:
                             break
+                t_filter_duration = time.time() - t_filter_start
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
@@ -3152,13 +3229,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 return
 
             final_questions = final_questions[:requested_count]
+
+            t_persist_start = time.time()
             record_course_draft_batch(course_id, final_questions, topic_key)
 
             with db_connection() as db:
                 db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 
                            (json.dumps(final_questions, ensure_ascii=False), course_id))
                 db.commit()
+            t_persist_duration = time.time() - t_persist_start
+            t_flow_duration = time.time() - t_flow_start
             
+            file_log(f"[QUIZ-TIMING] Draft: Main AI calls={t_ai_duration:.2f}s (candidates={len(questions)}) | Filtering/dedup/backfill={t_filter_duration:.3f}s | Top-up=0.00s | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s")
             print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
                 
         except Exception as e:

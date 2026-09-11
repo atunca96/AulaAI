@@ -423,72 +423,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "cognitive_task": q.get("cognitive_task", "")
                     })
 
-        # Supplementary AI pass ONLY if first batch yielded severely fewer than requested and not in quiz mode
-        if not is_quiz and len(questions) < max(int(c_count * 0.5), 1):
-            still_needed = max(c_count - len(questions), 3)
-            sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
-            if len(topic_ids) == 1 and 'topic_title' in locals():
-                extra_qs = ai_generate_questions(
-                    topic_title=topic_title,
-                    topic_type=topic_type,
-                    topic_content=topic_content,
-                    language=base_lang,
-                    count=still_needed,
-                    level=course_level,
-                    existing_questions=sub_forbidden,
-                    is_quiz=is_quiz,
-                    material_language=material_language,
-                    generation_seed=(generation_seed + 1) if generation_seed is not None else None
-                )
-            elif 'topics_summary' in locals():
-                extra_qs = ai_generate_questions(
-                    topic_title="Quiz/Review",
-                    topic_type="mixed_curriculum",
-                    topic_content={"topics": topics_summary},
-                    language=base_lang,
-                    count=still_needed,
-                    level=course_level,
-                    existing_questions=sub_forbidden,
-                    is_quiz=is_quiz,
-                    material_language=material_language,
-                    generation_seed=(generation_seed + 1) if generation_seed is not None else None
-                )
-            else:
-                extra_qs = []
 
-            if extra_qs:
-                for q in extra_qs:
-                    if len(questions) >= c_count: break
-                    tid = q.get("topic_id") or topic_ids[0]
-                    q_id = str(uuid.uuid4())
-                    distractors = q.get("distractors", [])
-                    if len(distractors) < 3:
-                        continue
-                    options = [q.get("answer", "")] + distractors[:3]
-                    py_random.shuffle(options)
-                    t_en = q.get("translation_en") or q.get("translation", "")
-                    t_tr = q.get("translation_tr") or q.get("translation", "")
-                    why_en = q.get("why", "Correct answer based on the lesson.")
-                    why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
-
-                    if re.search(r'_{2,}', q.get("prompt", "")):
-                        t_en, t_tr = _sanitize_blank_translations(q.get("prompt", ""), q.get("answer", ""), t_en, t_tr, why_en, why_tr)
-
-                    questions.append({
-                        "id": q_id,
-                        "topic_id": tid,
-                        "type": q.get("type", "mcq"),
-                        "prompt": q.get("prompt", ""),
-                        "translation": t_tr if material_language == "tr" else t_en,
-                        "translation_en": t_en,
-                        "translation_tr": t_tr,
-                        "answer": q.get("answer", ""),
-                        "distractors": distractors,
-                        "options": options,
-                        "difficulty": course_level,
-                        "why": why_en,
-                        "why_tr": why_tr
-                    })
 
     if progress_callback:
         progress_callback(75, "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy...")

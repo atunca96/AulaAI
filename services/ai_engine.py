@@ -572,13 +572,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
-    authoritative_tokens = set()
-
     # Use override if provided (for speed during build), else extract concise target material
     if source_text_override:
         content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:8000]}"
-        for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', source_text_override.lower()):
-            authoritative_tokens.add(tok)
     elif isinstance(topic_content, dict) and "topics" in topic_content:
         parts = [
             "================================================================================",
@@ -596,23 +592,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             lines = [f"[MODULE TOPIC {idx}: '{t_title}' (Focus: {t_type})]"]
             if t_grammar:
                 lines.append("  Grammar Rules: " + " | ".join(t_grammar[:4]))
-                for g in t_grammar:
-                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', g.lower()):
-                        authoritative_tokens.add(tok)
             if t_diag:
                 lines.append("  Dialogues: " + " || ".join(t_diag[:2]))
-                for d in t_diag:
-                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', d.lower()):
-                        authoritative_tokens.add(tok)
             if t_vocab:
                 lines.append("  Target Vocabulary: " + ", ".join(t_vocab[:8]))
-                for v in t_vocab:
-                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', v.lower()):
-                        authoritative_tokens.add(tok)
             if t_texts:
                 lines.append("  Reading Passage: " + t_texts[0][:300])
-                for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', t_texts[0].lower()):
-                    authoritative_tokens.add(tok)
             parts.append("\n".join(lines))
         parts.append("================================================================================")
         content_str = "\n\n".join(parts)
@@ -631,8 +616,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 txt = p.get("text").strip()
                 if txt:
                     p_lines.append(f"Passage / Explanations:\n{txt[:1200]}")
-                    for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', txt.lower()):
-                        authoritative_tokens.add(tok)
 
             # Dialogue exchanges
             if p.get("dialogue") and isinstance(p["dialogue"], list):
@@ -644,8 +627,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         trans = (d.get("line_tr") or d.get("translation_tr")) if material_language == "tr" else (d.get("line_en") or d.get("translation_en") or d.get("translation") or "")
                         if txt:
                             diag_lines.append(f"  {spk}: \"{txt}\"" + (f" ({trans})" if trans else ""))
-                            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', txt.lower()):
-                                authoritative_tokens.add(tok)
                 if diag_lines:
                     p_lines.append("Authentic Dialogue Exchanges:\n" + "\n".join(diag_lines))
 
@@ -663,11 +644,6 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                             if ex: item_display += f" — Example: '{ex}'"
                             if expl: item_display += f" — Rule/Note: {expl}"
                             item_lines.append(item_display)
-                            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', term.lower()):
-                                authoritative_tokens.add(tok)
-                            if ex:
-                                for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', ex.lower()):
-                                    authoritative_tokens.add(tok)
                 if item_lines:
                     p_lines.append("Target Lexicon, Patterns & Examples:\n" + "\n".join(item_lines))
 
@@ -690,12 +666,8 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             content_str = "\n\n".join(parts)
         else:
             content_str = json.dumps(topic_content, ensure_ascii=False)[:3500]
-            for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', content_str.lower()):
-                authoritative_tokens.add(tok)
     else:
         content_str = str(topic_content)[:3500]
-        for tok in re.findall(r'\b[a-zA-ZÀ-ÿ]{3,}\b', content_str.lower()):
-            authoritative_tokens.add(tok)
     
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     from services.cefr_reference import get_cefr_conditioning
@@ -943,6 +915,9 @@ REPETITION & COVERAGE RULES:
           * Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt.
         - NATURALNESS, TECHNICAL PRECISION & PEDAGOGICAL APPROPRIATENESS (MANDATORY):
           * The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology, exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording.
+          * Every linguistic, grammatical, pragmatic, or domain explanation must be technically precise and no broader than the source supports; never treat a contextual effect as an inherent meaning of a form.
+          * Ensure the stem and keyed answer test EXACTLY the same concept.
+          * For conjunction and discourse-marker items, verify that the actual logical relation between clauses (e.g. contrast, consequence, addition, concession, cause, condition) exactly matches the target function.
           * Stems, answers, and distractors must all be idiomatic, grammatically valid, functionally plausible, and mutually consistent, while avoiding artificial wording, misleading terminology, or options that are trivially eliminable for the wrong reason.
           * Within the current test and the two retained previous batches, avoid exact or effectively repeated questions, including the same target tested again with essentially the same context and cognitive task, while still allowing the same broader learning objective to reappear in a genuinely different context or task.
           * Preserve strict material grounding, CEFR {level} appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity.
@@ -985,8 +960,8 @@ REPETITION & COVERAGE RULES:
         Before returning each question, internally verify it against these 6 evaluation gates:
         * GATE 1 - MATERIAL-SUPPORTED LEARNING OBJECTIVE: Does the question assess knowledge, vocabulary, grammar, or communicative functions taught in the material? (A question FAILS ONLY when it primarily measures common sense or external knowledge rather than a material-supported learning objective).
         * GATE 2 - LEVEL FIT: Is the question strictly calibrated to CEFR {level}? (REJECT if too advanced or too simplistic).
-        * GATE 3 - CONTEXTUAL NATURALNESS, TECHNICAL PRECISION & NO MALFORMED WORDING: Is every generated question fully natural and idiomatic in context, technically precise in its linguistic and domain terminology, and pedagogically appropriate for the target CEFR {level}? Ensure there is NO malformed or contextually unnatural wording. Stems, answers, and distractors must all be idiomatic, grammatically valid, functionally plausible, and mutually consistent, while avoiding artificial wording, misleading terminology, or options that are trivially eliminable for the wrong reason. Prefer clarity and authentic usage over artificial difficulty or forced variety. Use precise linguistic and domain terminology when describing grammar, pronunciation, meaning, or usage. Reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required). Collocational arguments, complements, and surrounding phrases must be authentic in real living usage (e.g. prefer natural constructions such as “Ekibinizi tenzih ederek...” rather than forcing “tenzih etmek” onto an unnatural abstract object). (Resolve all issues during generation itself; REJECT if artificial, malformed, misleading, awkward, linguistically imprecise, or contextually unnatural).
-        * GATE 4 - EXACTLY ONE DEFENSIBLE CORRECT ANSWER (ZERO AMBIGUITY): Does every multiple-choice item have exactly ONE defensible correct answer in the full sentence and context? Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. (Resolve ambiguity during generation itself; REJECT if ambiguous, open to multiple interpretations, or if any distractor could also be defended as valid).
+        * GATE 3 - CONTEXTUAL NATURALNESS, TECHNICAL PRECISION & ACCURATE EXPLANATIONS: Is every generated question fully natural and idiomatic in context, technically precise in its linguistic and domain terminology, and pedagogically appropriate for the target CEFR {level}? Ensure there is NO malformed or contextually unnatural wording. Every linguistic, grammatical, pragmatic, or domain explanation must be technically precise and no broader than the source supports; never treat a contextual effect as an inherent meaning of a form. Ensure the stem and keyed answer test exactly the same concept. For conjunction and discourse-marker items, verify that the actual logical relation between clauses exactly matches the target function. Stems, answers, and distractors must all be idiomatic, grammatically valid, functionally plausible, and mutually consistent, while avoiding artificial wording, misleading terminology, or options that are trivially eliminable for the wrong reason. Prefer clarity and authentic usage over artificial difficulty or forced variety. Reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required). Collocational arguments, complements, and surrounding phrases must be authentic in real living usage. (Resolve all issues during generation itself; REJECT if artificial, malformed, misleading, awkward, linguistically imprecise, or contextually unnatural).
+        * GATE 4 - EXACTLY ONE DEFENSIBLE CORRECT ANSWER (ZERO AMBIGUITY): Does every multiple-choice item have exactly ONE defensible correct answer in the full sentence and context? Ensure the stem and keyed answer test exactly the same concept, and for conjunction/discourse-marker items verify that the actual logical relation between clauses exactly matches the target function. Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. (Resolve ambiguity during generation itself; REJECT if ambiguous, open to multiple interpretations, or if any distractor could also be defended as valid).
         * GATE 5 - PLAUSIBLE SAME-LEVEL DISTRACTORS & NATURAL OPTIONS: Does EVERY single option (the correct answer AND all 3 distractors) stand on its own as a completely natural, grammatically valid, and authentic expression in {language}, with zero malformed or contextually unnatural wording? Stems, answers, and distractors must all be idiomatic, grammatically valid, functionally plausible, and mutually consistent, while avoiding artificial wording, misleading terminology, or options trivially eliminable for the wrong reason. Distractors must be plausible options that compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable, while strictly ensuring no distractor is also valid for the stem. Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt. A distractor must be wrong because of meaning, pragmatic fit, or context, NEVER because the option itself is ungrammatical, awkward, invented, or malformed! (ABSOLUTELY REJECT if any distractor is itself grammatically unnatural, malformed, invented, structurally/idiomatically implausible in the sentence frame, or trivially eliminable due to category mismatch). Where appropriate, are at least two distractors plausible near-miss options from the same grammatical or semantic category as the answer?
         * GATE 6 - REPETITION PREVENTION vs. OBJECTIVE COVERAGE: Within the current test and the two retained previous batches, avoid exact or effectively repeated questions, including the same target tested again with essentially the same context and cognitive task, while still allowing the same broader learning objective to reappear in a genuinely different context or task. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. (REJECT any question that effectively duplicates a previously tested target in essentially the same context and cognitive task).
         --> If any candidate question fails ANY check, DISCARD IT and REPLACE it with a fully compliant question before producing your JSON response!
@@ -1055,27 +1030,30 @@ REPETITION & COVERAGE RULES:
     2) GATE 1 - COMMON SENSE REJECTION: A question FAILS only when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported objective.
     3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 3-4 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
     4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
-    5) EXACTLY ONE DEFENSIBLE ANSWER & PLAUSIBLE SAME-LEVEL DISTRACTORS: Every multiple-choice item MUST have exactly one defensible correct answer in the full sentence and context. Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. Distractors must be plausible options that compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable. Resolve ambiguity during generation itself. Ensure stems, answers, and distractors are all idiomatic, grammatically valid, functionally plausible, and mutually consistent, with NO malformed or contextually unnatural wording, avoiding artificial wording, misleading terminology, or options trivially eliminable for the wrong reason. EVERY single option (answer and all 3 distractors) MUST ITSELF be 100% grammatically valid, natural, and authentic in {language}. Require distractors to be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt. Strictly reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required). Collocational arguments, complements, and surrounding phrases must be 100% authentic in real living usage (e.g. “Ekibinizi tenzih ederek...”). ZERO easy throwaways, filler options, or trivially eliminable distractors.
+    5) EXACTLY ONE DEFENSIBLE ANSWER & PLAUSIBLE SAME-LEVEL DISTRACTORS: Every multiple-choice item MUST have exactly one defensible correct answer in the full sentence and context. Ensure the stem and keyed answer test EXACTLY the same concept. For conjunction and discourse-marker items, verify that the actual logical relation between clauses (e.g. contrast, consequence, addition, concession, cause, condition) exactly matches the target function. Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. Distractors must be plausible options that compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable. Resolve ambiguity during generation itself. Ensure stems, answers, and distractors are all idiomatic, grammatically valid, functionally plausible, and mutually consistent, with NO malformed or contextually unnatural wording, avoiding artificial wording, misleading terminology, or options trivially eliminable for the wrong reason. EVERY single option (answer and all 3 distractors) MUST ITSELF be 100% grammatically valid, natural, and authentic in {language}. Require distractors to be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt. Strictly reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required). Collocational arguments, complements, and surrounding phrases must be 100% authentic in real living usage (e.g. “Ekibinizi tenzih ederek...”). ZERO easy throwaways, filler options, or trivially eliminable distractors.
     6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
     7) AVOID EXACT/EFFECTIVE REPETITION & ALLOW BROADER OBJECTIVE COVERAGE: Within the current test and the two retained previous batches, avoid exact or effectively repeated questions, including the same target tested again with essentially the same context and cognitive task, while still allowing the same broader learning objective to reappear in a genuinely different context or task. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity.
     8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     10) CONCISE EXPLANATIONS & METADATA: 'why' and 'why_tr' MUST be 1 short concise sentence (max 15 words). 'evidence' and 'material_section' MUST be concise reference pointers (NO chain-of-thought).
-    11) NATURALNESS, TECHNICAL PRECISION & AUTHENTIC USAGE: The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology (when describing grammar, pronunciation, meaning, or usage), exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording. Stems, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and examiner-grade precision. Resolve all issues during generation itself.
-    12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Internally verify each question against the 6 gates (Material grounding, Level fit, Natural context & technical precision with no malformed wording, Exactly one defensible correct answer, Plausible same-level distractors, Anti-repetition vs. broader objective coverage) before returning JSON. Every multiple-choice item must have exactly one defensible correct answer in the full sentence and context; ensure no distractor is valid for the same stem. Distractors must compete at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable. Within the current test and the two retained previous batches, avoid exact or effectively repeated questions (same target in essentially same context/task), while allowing the same broader learning objective to reappear in a genuinely different context or task. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. Resolve ambiguity and all issues during generation itself."""
+    11) NATURALNESS, TECHNICAL PRECISION & AUTHENTIC USAGE: The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology (when describing grammar, pronunciation, meaning, or usage), exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording. Every linguistic, grammatical, pragmatic, or domain explanation must be technically precise and no broader than the source supports; never treat a contextual effect as an inherent meaning of a form. Ensure the stem and keyed answer test exactly the same concept, and for conjunction/discourse-marker items verify that the actual logical relation between clauses exactly matches the target function. Stems, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and examiner-grade precision. Resolve all issues during generation itself.
+    12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Internally verify each question against the 6 gates (Material grounding, Level fit, Natural context & technical precision with accurate explanations and no malformed wording, Exactly one defensible correct answer with verified clause logical relations for connectors, Plausible same-level distractors, Anti-repetition vs. broader objective coverage) before returning JSON. Every multiple-choice item must have exactly one defensible correct answer in the full sentence and context; ensure no distractor is valid for the same stem. Ensure every explanation is technically precise and no broader than the source supports, never treat a contextual effect as an inherent meaning, and ensure the stem and keyed answer test exactly the same concept. Distractors must compete at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable. Within the current test and the two retained previous batches, avoid exact or effectively repeated questions (same target in essentially same context/task), while allowing the same broader learning objective to reappear in a genuinely different context or task. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. Resolve ambiguity and all issues during generation itself."""
 
     # MAX VARIETY SEED: Uses generation_seed if provided to differentiate sub-batches, else high-precision timestamp
     seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
+        t_ai_duration = 0.0
         if model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"]:
             res = None
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
             calc_max_tokens = min(5000, max(1500, gen_count * 250))
+            t_ai_start = time.time()
             res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True)
+            t_ai_duration = time.time() - t_ai_start
         
         raw_list = []
         if isinstance(res, list):
@@ -1083,6 +1061,7 @@ REPETITION & COVERAGE RULES:
         elif isinstance(res, dict):
             raw_list = res.get("data") or res.get("questions") or res.get("items") or res.get("quiz") or res.get("activities") or []
         
+        t_filter_start = time.time()
         # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER ──
         final = []
         for item in raw_list:
@@ -1436,7 +1415,10 @@ REPETITION & COVERAGE RULES:
             if material_language == "tr" and q.get("translation"):
                 q["translation"] = _sanitize_turkish_content(heal_turkish_syntax(q["translation"]))
 
+        t_filter_duration = time.time() - t_filter_start
+
         with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-TIMING] {topic_title} (req={c}): Main AI call={t_ai_duration:.2f}s | Parsing/filtering/dedup={t_filter_duration:.3f}s | Valid={len(final)}/{len(raw_list)}\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
         return final[:gen_count]
