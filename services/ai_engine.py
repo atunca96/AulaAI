@@ -606,7 +606,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
 3. NATURAL & AUTHENTIC REAL-LIFE LANGUAGE (CRITICAL):
    - Use ONLY natural, authentic language that native speakers and real public institutions actually use in everyday life.
-   - NEVER invent artificial, overly convoluted, or stiff bureaucratic phrasing (e.g. avoid bizarre officialese like "zur Pause verpflichtet"). Keep it natural, idiomatic, and realistic.
+   - NEVER invent artificial, overly convoluted, or stiff unnatural phrasing. Keep it natural, idiomatic, and realistic.
 ================================================================================
 """
 
@@ -683,13 +683,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - Use the provided source material and vocabulary as your pedagogical baseline for CEFR {level}.
        - You have FULL PEDAGOGICAL FREEDOM to draw upon the rich, natural conversational vocabulary, diverse situational dialogues, cultural expressions, and communicative scenarios of authentic {language} appropriate for level {level} within the theme of '{topic_title}'.
        - Never artificially restrict questions to ONLY the exact 5-8 sample words listed when generating multiple rounds of questions; expand freely into natural variations, related phrases, and real-life dialogues suited to this topic and level so every regeneration is fresh and engaging.
-    7. DISTRACTOR PLAUSIBILITY & LENGTH SYMMETRY MANDATE (CRITICAL):
+    7. DISTRACTOR PLAUSIBILITY, COMPETITIVENESS & LENGTH SYMMETRY MANDATE (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
-       - NO ABSURD OR OFF-TARGET DISTRACTORS: Every single distractor must be a genuine, grammatically plausible, authentic item from {language}. NEVER use letters, symbols, or words that do not belong to {language} (e.g. NEVER use 'Ç' in Spanish, NEVER use characters from other alphabets).
-       - NO TRIVIAL VISUAL GIVEAWAYS: A beginner or non-speaker must NOT be able to identify the correct answer at a glance using visual elimination, option length difference, or obvious foreign elements.
-       - STRICT BAN ON META-ALPHABET TRIVIA: NEVER ask shallow trivia like "¿Qué letra es exclusiva del español?", "¿Cuál de estas letras tiene una tilde?", or "¿Qué letra representa el sonido X?". For phonetics/alphabet topics, test genuine pronunciation in REAL words or minimal pairs:
-         * Good: "¿En cuál de las siguientes palabras la letra 'g' se pronuncia con un sonido fuerte (/x/) ante vocal?" [gente, gato, goma, gusto]
+       - STRICT ZERO-TOLERANCE BAN ON COMIC, ABSURD, OR CARTOONISH DISTRACTORS:
+         * Every distractor MUST be a realistic, serious, and pedagogically plausible alternative that an actual learner might mistakenly choose.
+         * NEVER generate comical, cartoonish, or obviously impossible options (e.g., NEVER suggest transferring by bicycle or taxi when public rail/bus transit is discussed, free lifetime travel passes, vehicles driving backwards, firing staff members, or bizarre physical reactions).
+         * Distractors must represent genuine learner misconceptions, near-synonyms with subtle contextual differences, or realistic real-world operational alternatives within the exact same semantic domain.
+       - NO OFF-TARGET OR FOREIGN DISTRACTORS: Every distractor must be a genuine, grammatically valid item native to {language}. NEVER use characters, symbols, or orthography foreign to {language}.
+       - NO TRIVIAL VISUAL GIVEAWAYS: A learner must NOT be able to identify the correct answer by visual elimination, option length difference, or ridiculous distractors.
+       - STRICT BAN ON META-ALPHABET TRIVIA: For alphabet/phonetics topics, test genuine pronunciation in real words or minimal pairs, never trivia about letter names or string properties.
     8. COMMUNICATIVE QUESTION ARCHETYPES & FORMAT VARIETY (CRITICAL):
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
        - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
@@ -710,6 +713,9 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
         - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
+        - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
+          * Use the precise, authentic functional collocations native to the specific domain. For example, in transit/services, distinguish between passenger areas (which are "out of service", "closed", or "inaccessible") and catering/commercial services (which are "unstaffed" or "no dining service available"). In healthcare, distinguish clearly between diagnostic procedures, symptoms, and treatments. In commerce/workplace, use standard operational expressions.
+          * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker (e.g. avoid clumsy verb repetitions in adversative clauses where standard native grammar uses concise coordination).
         - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
           * Use the genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic (transport, health, shopping, dining, workplace, housing, socializing).
           * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
@@ -721,8 +727,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         - Every question MUST test genuine communicative reasoning, situational reaction ("What should the person say or do?"), practical decision-making, or real-world consequence ("What does this information imply?").
 
     12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (UNIVERSAL ACROSS ALL CEFR LEVELS):
-        - STRICT LOGICAL TRUTH: The correct answer MUST be strictly and logically verifiable from the provided scenario without fabricating unstated speculative assumptions, unannounced actions, or unsupported motives.
-        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit point with a final destination; do not confuse a symptom with a medical diagnosis; do not confuse a preliminary inquiry with a confirmed agreement).
+        - STRICT LOGICAL TRUTH & ZERO UNSTATED INVENTIONS:
+          * The correct answer MUST be strictly, directly, and unambiguously verifiable from the scenario text alone.
+          * ABSOLUTELY NEVER invent unstated logistical specifics (e.g., do not hallucinate unannounced pickup locations like "in front of the station building", specific platforms, or unmentioned departure points unless explicitly stated in the scenario).
+          * ABSOLUTELY NEVER hallucinate unannounced legal/policy entitlements (e.g., do not claim automatic hotel accommodation rights, unlimited refund guarantees, or complimentary meals unless explicitly announced in the text).
+          * ABSOLUTELY NEVER add unannounced procedural constraints (e.g., claiming something must be done "in advance" or "at a counter" when the announcement didn't specify it).
+          * The correct answer must be airtight, self-contained, and 100% faithful to the prompt text without speculative outside assumptions.
+        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a passenger with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
     RESPONSE FORMAT:
@@ -762,13 +773,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible 'distractors' in the 'distractors' array.
+    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY ZERO comic, absurd, or cartoonish options (e.g. no bicycles, no lifetime passes, no backwards driving).
     3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
     4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    7) NATURAL AUTHENTIC {language}: Use genuine living idioms, collocations, and standard service phrases of {language}. Never use clunky literalisms or artificial test-maker clichés.
-    8) LOGICAL & CONTEXTUAL RIGOR: The correct answer must be strictly supported by the prompt text without speculative unstated assumptions. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
+    7) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations, and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
+    8) LOGICAL RIGOR & ZERO UNSTATED ADDITIONS: The correct answer must be 100% verifiable from the prompt text alone. NEVER fabricate unstated logistical locations, unannounced policy entitlements (e.g. hotel, refund), or invented constraints. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
