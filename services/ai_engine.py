@@ -556,13 +556,13 @@ LANGUAGE_CALIBRATION_REGISTRY = {
     }
 }
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en"):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None):
+    c = int(count)
+    gen_count = max(c + 2, int(c * 1.25), 6)
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
-        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} API={api_status}\n")
     
-    c = int(count)
-    gen_count = max(c + 5, int(c * 1.5), 15)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -787,7 +787,10 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             "Focus on register flexibility: discriminating between natural formal, colloquial, journalistic, and literary expressions.",
             "Focus on advanced collocations, polysemous lexical subtleties, and authentic idiomatic usage."
         ]
-    selected_variety_focus = py_random.choice(variety_focuses)
+    if generation_seed is not None:
+        selected_variety_focus = variety_focuses[int(generation_seed) % len(variety_focuses)]
+    else:
+        selected_variety_focus = py_random.choice(variety_focuses)
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
@@ -1008,8 +1011,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     11) NATURAL AUTHENTIC {language} & EXAMINER-GRADE POLISH: Prompts, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and impeccable grammatical elegance matching official CEFR {level} examinations.
     12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Verify each question against the 6 gates (Material support, Level fit, Naturalness, Uniqueness of answer, Distractor plausibility, Semantic duplication/coverage) before returning JSON."""
 
-    # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
-    seed = int(time.time() * 1000) % 999999
+    # MAX VARIETY SEED: Uses generation_seed if provided to differentiate sub-batches, else high-precision timestamp
+    seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
@@ -1282,7 +1285,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 "material_section": str(item.get("material_section", "")).strip()[:100],
                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
             })
-            if len(final) >= c:
+            if len(final) >= gen_count:
                 break
         
         # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
@@ -1382,7 +1385,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
-        return final[:c]
+        return final[:gen_count]
     except Exception as e:
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n")

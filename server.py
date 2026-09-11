@@ -2853,8 +2853,50 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ]
 
             try:
-                # Retain previous questions and pass existing_questions to enforce variety
-                questions = generate_quiz(topic_ids, count=requested_count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions)
+                # Concurrent sub-batch generation for speed (7-10s) when count >= 8
+                if requested_count >= 8:
+                    count_a = (requested_count + 1) // 2
+                    count_b = requested_count - count_a
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                        future_a = executor.submit(
+                            generate_quiz,
+                            topic_ids,
+                            count=count_a,
+                            is_quiz=True,
+                            ui_lang=ui_lang,
+                            existing_questions=existing_questions,
+                            generation_seed=101
+                        )
+                        future_b = executor.submit(
+                            generate_quiz,
+                            topic_ids,
+                            count=count_b,
+                            is_quiz=True,
+                            ui_lang=ui_lang,
+                            existing_questions=existing_questions,
+                            generation_seed=202
+                        )
+                        res_a = []
+                        res_b = []
+                        try:
+                            res_a = future_a.result() or []
+                        except Exception as ea:
+                            file_log(f"Sub-batch A error: {ea}")
+                        try:
+                            res_b = future_b.result() or []
+                        except Exception as eb:
+                            file_log(f"Sub-batch B error: {eb}")
+                    questions = res_a + res_b
+                else:
+                    questions = generate_quiz(
+                        topic_ids,
+                        count=requested_count,
+                        is_quiz=True,
+                        ui_lang=ui_lang,
+                        existing_questions=existing_questions,
+                        generation_seed=101
+                    )
                 
                 # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
                 final_questions = []
@@ -2873,9 +2915,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # If the final valid question list contains fewer than the requested count,
                 # generate only the missing number of questions using the same existing generator
                 # and pass all already accepted questions as existing_questions so duplicates are avoided.
-                # Append valid fresh questions until the requested count is reached.
-                # Do not re-run or regenerate questions that already passed.
-                max_fill_attempts = 5
+                max_fill_attempts = 4
                 fill_attempt = 0
                 while len(final_questions) < requested_count and fill_attempt < max_fill_attempts:
                     fill_attempt += 1
@@ -2889,7 +2929,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         count=missing_count,
                         is_quiz=True,
                         ui_lang=ui_lang,
-                        existing_questions=combined_existing
+                        existing_questions=combined_existing,
+                        generation_seed=300 + fill_attempt
                     )
                     if not fresh_qs:
                         break

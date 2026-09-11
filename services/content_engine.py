@@ -201,7 +201,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None):
+def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None):
     """
     Unified assessment generation engine for both Quizzes and Activities.
     - If single topic (Activities): loads topic directly with 100% topic fidelity.
@@ -284,7 +284,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     level=course_level,
                     existing_questions=forbidden_questions,
                     is_quiz=is_quiz,
-                    material_language=material_language
+                    material_language=material_language,
+                    generation_seed=generation_seed
                 )
                 if new_qs:
                     for q in new_qs:
@@ -381,7 +382,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 level=course_level,
                 existing_questions=forbidden_questions,
                 is_quiz=is_quiz,
-                material_language=material_language
+                material_language=material_language,
+                generation_seed=generation_seed
             )
             if new_qs:
                 for q in new_qs:
@@ -433,7 +435,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     level=course_level,
                     existing_questions=sub_forbidden,
                     is_quiz=is_quiz,
-                    material_language=material_language
+                    material_language=material_language,
+                    generation_seed=(generation_seed + 1) if generation_seed is not None else None
                 )
             elif 'topics_summary' in locals():
                 extra_qs = ai_generate_questions(
@@ -445,7 +448,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     level=course_level,
                     existing_questions=sub_forbidden,
                     is_quiz=is_quiz,
-                    material_language=material_language
+                    material_language=material_language,
+                    generation_seed=(generation_seed + 1) if generation_seed is not None else None
                 )
             else:
                 extra_qs = []
@@ -528,15 +532,15 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
     from services.state import bump_version
     bump_version()
 
-    final_set = questions[:c_count]
+    final_set = questions if is_quiz else questions[:c_count]
     if progress_callback:
         progress_callback(100, "Sorular hazır!" if ui_lang == "tr" else "Questions ready!")
 
     return final_set
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None, generation_seed=None):
     """Backward compatibility wrapper delegating to unified generate_assessment_set."""
-    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback)
+    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback, generation_seed=generation_seed)
 
 
 def generate_dialogue_activity(language="Unknown"):
