@@ -123,7 +123,7 @@ def _outside_meta_proxy_reason(q):
         return "letter_or_spelling_trivia"
 
     raw = str(q.get("prompt", ""))
-    if re.search(r"\b\d+\s*[+×*/-]\s*\d+\b", raw):
+    if re.search(r"\b\d+\s*[+×*/]\s*\d+\b", raw):
         return "arithmetic"
     if any(_norm(stem) in p for stem in _MATH_STEMS):
         return "arithmetic"
