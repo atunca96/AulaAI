@@ -2986,8 +2986,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 2, 7)
-                    count_b = max((requested_count - half) + 2, 7)
+                    count_a = max(half + 4, 9)
+                    count_b = max((requested_count - half) + 4, 9)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
@@ -3028,14 +3028,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 else:
                     questions = generate_quiz(
                         topic_ids,
-                        count=requested_count + 2,
+                        count=requested_count + 4,
                         is_quiz=True,
                         ui_lang=ui_lang,
                         existing_questions=existing_questions,
                         generation_seed=101
                     )
                 
-                # Enforce strict no-repeat rule: no exact or near-identical question may survive final selection
+                # PASS 1: Strict filter (no repeated prompt, no repeated answer from recent rounds, zero test conflict)
                 final_questions = []
                 for q in (questions or []):
                     if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
@@ -3053,6 +3053,75 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     final_questions.append(q)
                     if len(final_questions) >= requested_count:
                         break
+
+                # PASS 2 (SAFETY NET): If strict cross-test answer filter left a shortfall (< requested_count),
+                # backfill from candidates whose PROMPTS are completely unique and have zero test conflicts,
+                # relaxing only the cross-test identical answer check with older test rounds.
+                if len(final_questions) < requested_count:
+                    for q in (questions or []):
+                        if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
+                            continue
+                        p = q.get("prompt", "")
+                        a = q.get("answer", "")
+                        if any(q.get("id") == fq.get("id") or q.get("prompt") == fq.get("prompt") for fq in final_questions):
+                            continue
+                        if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
+                            continue
+                        if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                            continue
+                        if any(normalize_prompt_text(a) == normalize_prompt_text(fq.get("answer", "")) for fq in final_questions):
+                            continue
+                        if any(is_test_conflict(q, fq) for fq in final_questions):
+                            continue
+                        final_questions.append(q)
+                        if len(final_questions) >= requested_count:
+                            break
+
+                # PASS 3 (DATABASE SAFETY NET): If still short, backfill from approved course questions in DB
+                if len(final_questions) < requested_count and topic_ids:
+                    try:
+                        with db_connection() as db:
+                            placeholders = ",".join("?" * len(topic_ids))
+                            db_qs = db.execute(f"""
+                                SELECT id, topic_id, type, prompt, answer, distractors, difficulty
+                                FROM questions
+                                WHERE topic_id IN ({placeholders}) AND approved = 1
+                                ORDER BY RANDOM() LIMIT 25
+                            """, list(topic_ids)).fetchall()
+                            for r in db_qs:
+                                rp = r["prompt"]
+                                ra = r["answer"]
+                                if any(is_near_identical_question(rp, fq.get("prompt", "")) for fq in final_questions):
+                                    continue
+                                if any(normalize_prompt_text(ra) == normalize_prompt_text(fq.get("answer", "")) for fq in final_questions):
+                                    continue
+                                try:
+                                    d_list = json.loads(r["distractors"]) if r["distractors"] else []
+                                except Exception:
+                                    d_list = []
+                                if len(d_list) < 3:
+                                    continue
+                                opts = [ra] + d_list[:3]
+                                py_random.shuffle(opts)
+                                final_questions.append({
+                                    "id": r["id"],
+                                    "topic_id": r["topic_id"],
+                                    "type": r["type"],
+                                    "prompt": rp,
+                                    "translation": "",
+                                    "translation_en": "",
+                                    "translation_tr": "",
+                                    "answer": ra,
+                                    "distractors": d_list[:3],
+                                    "options": opts,
+                                    "difficulty": r["difficulty"],
+                                    "why": "Lesson reference.",
+                                    "why_tr": "Ders içeriğine göre doğru seçenek."
+                                })
+                                if len(final_questions) >= requested_count:
+                                    break
+                    except Exception as edb:
+                        file_log(f"Safety net DB backfill error: {edb}")
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)

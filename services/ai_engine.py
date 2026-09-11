@@ -68,19 +68,25 @@ def is_transparent_cognate(word1: str, word2: str, threshold: float = 0.65) -> b
             return True
     return difflib.SequenceMatcher(None, w1, w2).ratio() >= threshold
 
-def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) -> bool:
+def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str, language: str = "") -> bool:
     """Detect if the prompt itself contains an obvious cognate giveaway of the target answer.
     Applies ONLY when the prompt is written in the instructional language (English/Turkish)
     asking for a target language word that is practically identical in spelling."""
     if not prompt or not answer:
         return False
 
+    # NEVER apply to target language immersion questions (prompts in the language being taught)
+    if language:
+        lang_lower = language.lower()
+        if any(k in lang_lower for k in ["turkish", "türkçe", "turkce"]):
+            return False
+
     # Applies ONLY when the prompt is written in the instructional language (English/Turkish)
     # asking for a translation. Authentic target-language immersion questions are NOT cognate giveaways.
     p_lower = str(prompt).lower()
     instructional_markers = [
-        "what does", "what is", "how do you say", "meaning of", "translate", "which of the following means",
-        "hangisi", "anlamına gelir", "karşılığı nedir", "nasıl denir", "türkçe anlamı", "ne anlama gelir"
+        "what does", "what is the translation", "how do you say", "meaning of", "translate", "which of the following means",
+        "anlamına gelir", "karşılığı nedir", "nasıl denir", "türkçe anlamı", "ne anlama gelir"
     ]
     if not any(m in p_lower for m in instructional_markers):
         return False
@@ -558,7 +564,7 @@ LANGUAGE_CALIBRATION_REGISTRY = {
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None):
     c = int(count)
-    gen_count = max(c + 4, int(c * 1.5), 10)
+    gen_count = max(c + 5, int(c * 1.5), 14)
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} focus={focus_directive} API={api_status}\n")
@@ -1214,7 +1220,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 is_giveaway = True
 
             # Reject transparent cognate giveaways only if prompt itself gives away the answer
-            if is_transparent_cognate_giveaway(p, "", a):
+            if is_transparent_cognate_giveaway(p, "", a, language):
                 is_giveaway = True
 
             # Reject hybrid Frankenstein questions where target language blank is inside instructional language sentence
