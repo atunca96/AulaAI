@@ -29,6 +29,14 @@ try:
     from .assessment_router_v2 import install as _install_assessment_router_v2
     _install_assessment_router_v2(_content_engine)
 
+    # Objective validation is optional at startup: if it cannot initialize, routing still
+    # continues to the safety layer below instead of silently losing fail-closed defaults.
+    try:
+        from .assessment_engine_v2_validated import install as _install_assessment_objective_validator
+        _install_assessment_objective_validator(_assessment_router_v2)
+    except Exception:
+        pass
+
     # Safety is deliberately installed after the router: missing/invalid flags fail
     # closed to legacy, shadow calibration defaults to legacy primary, and explicit
     # V2 falls back to legacy if count/structure hard gates fail.
