@@ -28,6 +28,22 @@ class AssessmentScorecardCalibrationTests(unittest.TestCase):
         }
         self.assertEqual(_outside_meta_proxy_reason(q), "sound_label_trivia")
 
+    def test_live_ipa_transcription_failure_is_flagged(self):
+        q = {
+            "prompt": "¿Qué número básico contiene dos sonidos diferentes de la letra 'c' (/s/ o /θ/ y luego /k/)?",
+            "answer": "cinco",
+            "distractors": ["ocho", "tres", "siete"],
+        }
+        self.assertEqual(_outside_meta_proxy_reason(q), "phonetic_transcription_trivia")
+
+    def test_live_tap_label_failure_is_flagged(self):
+        q = {
+            "prompt": "¿Cuál de los siguientes números contiene un sonido de 'r' simple (tap)?",
+            "answer": "tres",
+            "distractors": ["ocho", "diez", "seis"],
+        }
+        self.assertEqual(_outside_meta_proxy_reason(q), "sound_label_trivia")
+
     def test_normal_form_function_question_is_not_flagged(self):
         q = {
             "prompt": "¿Cómo cambia el número 'uno' cuando precede a un sustantivo masculino como 'café'?",
