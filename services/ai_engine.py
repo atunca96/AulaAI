@@ -598,13 +598,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 1. BANNED PREVIOUS PROMPTS, SCENARIOS & CORE LEARNING CONCEPTS (ABSOLUTE ZERO TOLERANCE):
    DO NOT replicate, copy, rephrase, or re-test any of the learning objectives or underlying rules tested in these previous questions:
 {prompts_list}
-   - CONCEPT & REGULATION EXHAUSTION: If a previous question already tested a specific rule, policy, operational incident, or scenario mechanic (e.g. ticket flexibility / lifting train-binding / flex-ticket, passenger rights claims, platform change navigation, replacement bus service, route closures, medical emergencies), that ENTIRE CONCEPT is completely EXHAUSTED! You MUST explore other untouched operational, interpersonal, and communicative facets of the theme!
+   - CONCEPT & REGULATION EXHAUSTION: If a previous question already tested a specific rule, social convention, operational procedure, or scenario mechanic within '{topic_title}', that ENTIRE CONCEPT is completely EXHAUSTED! You MUST explore other untouched operational, interpersonal, and communicative facets of '{topic_title}'!
 
 2. UNTOUCHED FACETS & LEARNING OBJECTIVES TO TEST INSTEAD:
    - Target items touched in earlier quizzes: [{answers_str}]
-   - Prioritize testing OTHER relevant vocabulary, idioms, phrases, or conversational scenarios from the theme.
-   - Untouched facets include: seat reservations and coach positioning / carriage sequence, quiet compartment etiquette, boarding assistance for passengers with reduced mobility, luggage restrictions and stowage, ticket machine operations, missed connections and alternative route planning, onboard bistro/catering protocols, lost property procedures, schedule adjustments, polite inquiries to train attendants, etc.
-   - ZERO REPETITION of the same scenario archetype or operational rule across sets!
+   - Prioritize testing OTHER relevant vocabulary, idioms, phrases, or conversational scenarios from the theme of '{topic_title}'.
+   - Explore other completely untouched practical, social, procedural, and communicative dimensions of '{topic_title}' appropriate for CEFR {level}.
+   - ZERO REPETITION of the same scenario archetype, communicative function, or specific situational challenge across sets!
 
 3. NATURAL & AUTHENTIC REAL-LIFE LANGUAGE (CRITICAL ACROSS ALL LANGUAGES & LEVELS):
    - Use ONLY natural, authentic language that native speakers and real public institutions actually use in everyday life.
@@ -734,13 +734,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
         - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
-        - AUTHENTIC FORMULAS & REGISTER ACCURACY:
-          * In public announcements and transit, use standard authentic phrasing: e.g. when intermediate stops are omitted or bypassed, state that those stations are not served (e.g. "Diese Bahnhöfe werden heute nicht bedient"), NOT that the train "passes through them without stopping". For delays, use natural spoken/broadcast phrasing (e.g. "Verspätung von ca. 30 Minuten") rather than stiff artificial terms.
-          * Distinguish between passenger service areas (which are "closed", "out of service", or "inaccessible") and catering/commercial services (which are "unstaffed" or "no dining service available").
-          * In healthcare, distinguish clearly between diagnostic procedures, symptoms, and treatments. In commerce/workplace, use standard operational expressions.
-          * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker (e.g. avoid clumsy verb repetitions in adversative clauses where standard native grammar uses concise coordination).
+        - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
+          * Use the genuine, authentic functional collocations native to {language} for the specific domain of '{topic_title}'.
+          * Service notices and institutional announcements: Use authentic standard institutional terminology native to {language} (e.g. clearly distinguish between facilities/services being closed or unavailable vs. unstaffed; distinguish between scheduled stops/services that are not served vs. physically bypassing them).
+          * In spoken/broadcast notices, use natural, concise native phrasing rather than stiff or artificial test-maker jargon.
+          * Distinguish between professional actions, diagnostic terms, symptoms, treatments, commercial requests, and interpersonal norms relevant to '{topic_title}'.
+          * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker of {language}.
         - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
-          * Use genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic (transport, health, shopping, dining, workplace, housing, socializing).
+          * Use genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic.
           * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
           * In response options and dialogues, use natural, realistic human phrasing suited to CEFR {level}, NEVER stiff or artificial academic test-maker jargon.
         - Keep language vibrant, culturally authentic, and realistic across every theme.
@@ -752,15 +753,15 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (UNIVERSAL ACROSS ALL CEFR LEVELS):
         - STRICT LITERAL DEDUCTION & ZERO INFERENCE LEAPS:
           * The question stem and the correct answer MUST be strictly, mathematically, and directly verifiable from what is EXPLICITLY stated in the scenario.
-          * ZERO SPECULATIVE INFERENCE: If the scenario states an operational event occurs (e.g. a detour / Umleitung, a technical check, or bad weather), NEVER infer an unstated consequence (e.g. do NOT ask "Why does the travel time change?" or assert that travel time has changed unless the scenario explicitly states that travel time or arrival time has changed).
-          * ACCURATE OPERATIONAL DESCRIPTIONS: If intermediate stops are cancelled ("Zwischenhalte entfallen"), the only strictly true conclusion is that those stations are not served ("werden heute nicht bedient"). Do NOT assert that the train "passes through them without stopping" (diverted trains may take completely different tracks miles away!).
+          * ZERO SPECULATIVE INFERENCE: If the scenario states an event or incident occurs, NEVER infer an unstated consequence or cause (e.g. do NOT assert that duration, costs, schedules, or outcomes have changed unless the scenario explicitly mentions that change).
+          * ACCURATE OPERATIONAL DESCRIPTIONS: Describe consequences using literal, factual statements directly derived from the scenario text without imaginative embellishments.
           * PRECISE TERMINOLOGICAL BOUNDARIES:
-            - Do not over-narrow broad terms: A general passenger rights claim or form applies broadly to multiple passenger rights, NOT solely to delay compensation unless specifically restricted in the prompt.
-            - Do not over-generalize specific cancellations: A service cancelled without a replacement run ("ersatzlos ausfallen") strictly means that specific train run has no direct replacement vehicle provided for it; do NOT assert that all public transport in the region has stopped.
-            - Do not over-specify transport categories: If an announcement refers generally to alternative connections, do NOT arbitrarily label them as "local/regional trains" (Nahverkehr) or "buses" unless specified.
-          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities (e.g. hotel vouchers, taxi fares, monetary refunds) as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
-          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced pickup locations (e.g. "in front of the station building"), specific platforms, or unmentioned departure points unless explicitly stated in the scenario.
-        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a passenger with staff; do not confuse a temporary delay with a complete cancellation).
+            - Do not over-narrow broad terms: A general policy, right, document, or procedure applies broadly, NOT solely to one specific sub-case unless specifically restricted in the prompt.
+            - Do not over-generalize specific exceptions: If one specific service, item, or route is unavailable, do NOT assert that all options in that category are cancelled.
+            - Do not over-specify categories: If an announcement or person refers generally to an alternative or solution, do NOT arbitrarily label it with a specific sub-category unless specified in the text.
+          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities/remedies (e.g. vouchers, refunds, compensation, special accommodations) as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
+          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations, specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
+        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a customer with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
     RESPONSE FORMAT:
@@ -800,14 +801,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY NO off-domain nouns (no gym/fitness, no cinema), NO anachronisms (no next year's schedule), and NO weird adjectives (no rückwärtsgewandt).
-    3) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule or communicative scenario. Zero duplicate concepts (no repeating train-binding lifting, no repeating replacement buses).
+    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY NO off-domain nouns, NO absurd temporal anachronisms, and NO weird/pseudo-philosophical adjectives.
+    3) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
     4) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
     5) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     6) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     7) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    8) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations (e.g. 'Bahnhöfe werden nicht bedient', 'Verspätung von ca. X Min'), and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
-    9) LITERAL DEDUCTIVE RIGOR & ZERO INFERENCE LEAPS: The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences (do not assume travel time changed from a detour unless stated; do not over-narrow general passenger rights; do not hallucinate unconditional hotel/taxi entitlements). Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
+    8) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations, and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
+    9) LITERAL DEDUCTIVE RIGOR & ZERO INFERENCE LEAPS: The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
