@@ -30,6 +30,14 @@ except Exception:
     # Never block application startup if legacy assessment safeguards cannot initialize.
     pass
 
+# Curriculum-only reliability layer. It replaces only ai_generate_curriculum with
+# an exact 6x5, one-retry bounded generator. Lesson/material generation is untouched.
+try:
+    from .curriculum_direct_generator import install as _install_curriculum_direct_generator
+    _install_curriculum_direct_generator(_ai_engine)
+except Exception:
+    pass
+
 # Install one outer provider timer AFTER legacy wrappers but BEFORE V2 imports _call_ai.
 # This gives legacy and V2 identical provider_ms/provider_calls instrumentation.
 try:
