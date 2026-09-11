@@ -71,21 +71,45 @@ class AssessmentQuestionValidatorTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, "pseudoform_distractors")
 
-    def test_rejects_numeric_cue_that_reveals_context_answer(self):
+    def test_rejects_parenthetical_numeric_cue_even_when_objective_has_no_digit(self):
         objective = {
             "id": "o1", "topic_id": "1", "skill": "contextual use",
-            "target": "Use seis for a train ticket price", "evidence": "6 euros is expressed as seis euros",
+            "target": "Use seis for a train ticket price",
+            "evidence": "seis is used for the ticket price in the lesson",
             "question_mode": "completion",
         }
         question = {
             "prompt": "—¿Cuánto cuesta? —Cuesta _____ euros (6 €).",
+            "translation_en": "How much is it? It costs _____ euros (6 €).",
             "answer": "seis", "distractors": ["cinco", "siete", "ocho"],
         }
         ok, reason = validate_question(
-            question, objective, self._source(text="6 euros is expressed as seis euros"), "A1"
+            question, objective,
+            self._source(text="The ticket costs seis euros in the lesson. seis cinco siete ocho."),
+            "A1",
         )
         self.assertFalse(ok)
         self.assertEqual(reason, "answer_revealed_by_numeric_cue")
+
+    def test_allows_cross_language_question_via_english_translation_bridge(self):
+        objective = {
+            "id": "o1", "topic_id": "1", "skill": "contextual use",
+            "target": "Use cero to express zero temperature",
+            "evidence": "cero is used for zero degrees",
+            "question_mode": "completion",
+        }
+        question = {
+            "prompt": "El termómetro marca _____ grados esta noche.",
+            "translation_en": "The thermometer reads _____ degrees tonight.",
+            "translation_tr": "Termometre bu gece _____ dereceyi gösteriyor.",
+            "answer": "cero", "distractors": ["uno", "dos", "tres"],
+        }
+        ok, reason = validate_question(
+            question, objective,
+            self._source(text="cero is used for zero degrees. uno dos tres"), "A1"
+        )
+        self.assertTrue(ok)
+        self.assertIsNone(reason)
 
     def test_allows_grounded_context_question(self):
         objective = {
@@ -94,8 +118,9 @@ class AssessmentQuestionValidatorTests(unittest.TestCase):
             "question_mode": "completion",
         }
         question = {
-            "prompt": "El termómetro marca _____ grados esta noche.", "answer": "cero",
-            "distractors": ["uno", "dos", "tres"],
+            "prompt": "El termómetro marca _____ grados esta noche.",
+            "translation_en": "The thermometer reads _____ degrees tonight.",
+            "answer": "cero", "distractors": ["uno", "dos", "tres"],
         }
         ok, reason = validate_question(
             question, objective,
@@ -111,7 +136,8 @@ class AssessmentQuestionValidatorTests(unittest.TestCase):
             "question_mode": "form-choice",
         }
         question = {
-            "prompt": "¿Cómo se escribe 24?", "answer": "veinticuatro",
+            "prompt": "¿Cómo se escribe 24?", "translation_en": "How do you write 24?",
+            "answer": "veinticuatro",
             "distractors": ["veinte y cuatro", "veinti cuatro", "veintecuatro"],
         }
         ok, reason = validate_question(
