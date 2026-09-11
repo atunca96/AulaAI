@@ -61,7 +61,7 @@ class LegacyQualityGateTests(unittest.TestCase):
             "difficulty": "A1",
         }
 
-    def test_filters_meta_and_refills_to_requested_count_before_persist(self):
+    def test_filters_meta_and_uses_at_most_one_outer_refill(self):
         calls = []
         persisted = []
 
@@ -69,7 +69,7 @@ class LegacyQualityGateTests(unittest.TestCase):
             calls.append(dict(kwargs))
             if len(calls) == 1:
                 return [self._clean(i) for i in range(8)] + [self._meta(8), self._meta(9)]
-            return [self._clean(100 + i) for i in range(kwargs["count"])]
+            return [self._clean(20 + i) for i in range(kwargs["count"])]
 
         router = types.SimpleNamespace(
             _LEGACY_GENERATOR=legacy,
@@ -86,7 +86,6 @@ class LegacyQualityGateTests(unittest.TestCase):
         self.assertEqual(len(result), 10)
         self.assertEqual(len(persisted), 10)
         self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[0]["count"], 10)
         self.assertTrue(all(call["is_quiz"] is False for call in calls))
         self.assertFalse(any("fonet" in q["prompt"].lower() for q in result))
 
@@ -97,7 +96,7 @@ class LegacyQualityGateTests(unittest.TestCase):
             calls.append(dict(kwargs))
             if len(calls) == 1:
                 return [self._clean(i) for i in range(14)] + [self._meta(14)]
-            return [self._clean(200 + i) for i in range(kwargs["count"])]
+            return [self._clean(20 + i) for i in range(kwargs["count"])]
 
         router = types.SimpleNamespace(
             _LEGACY_GENERATOR=legacy,
@@ -112,6 +111,7 @@ class LegacyQualityGateTests(unittest.TestCase):
         )
         self.assertEqual(len(result), 15)
         self.assertEqual(calls[0]["count"], 15)
+        self.assertLessEqual(len(calls), 2)
 
     def test_no_refill_when_initial_batch_is_clean(self):
         calls = []
@@ -134,30 +134,38 @@ class LegacyQualityGateTests(unittest.TestCase):
         self.assertEqual(len(result), 7)
         self.assertEqual(len(calls), 1)
 
-    def test_rejects_live_cross_language_and_morphology_trivia(self):
-        cross = {
-            "prompt": "¿Qué característica ortográfica distingue a cuatro respecto a otras lenguas romances?",
-            "answer": "Se escribe con cu en lugar de qu",
-            "distractors": ["Lleva tilde", "Empieza con k", "Termina con e"],
-            "difficulty": "A1",
-        }
-        morph = {
-            "prompt": "¿Cuál es el prefijo de enlace característico de los números 21 al 29?",
-            "answer": "veinti-",
-            "distractors": ["treinti-", "veinte y", "dieciy-"],
-            "difficulty": "A1",
-        }
+    def test_rejects_cross_language_and_morphology_trivia(self):
+        cases = [
+            ({
+                "prompt": "¿Qué característica ortográfica distingue a cuatro respecto a otras lenguas romances?",
+                "answer": "Se escribe con cu en lugar de qu",
+                "distractors": ["Lleva tilde", "Empieza con k", "Termina con e"],
+                "difficulty": "A1",
+            }, "cross_language_trivia"),
+            ({
+                "prompt": "¿Cuál es el prefijo de enlace característico de los números 21 al 29?",
+                "answer": "veinti-",
+                "distractors": ["treinti-", "veinte y", "dieciy-"],
+                "difficulty": "A1",
+            }, "morphology_terminology"),
+            ({
+                "prompt": "¿Cuál pertenece al grupo de raíces irregulares únicas?",
+                "answer": "doce",
+                "distractors": ["diecisiete", "veintidós", "treinta"],
+                "difficulty": "A1",
+            }, "morphology_terminology"),
+        ]
         headers = assessment_legacy_filter._topic_headers("TOPIC Numbers (vocabulary)")
-        for q, expected in ((cross, "cross_language_trivia"), (morph, "morphology_terminology")):
+        for q, expected in cases:
             reason = assessment_legacy_filter._quality_reason(
                 q, source_text="TOPIC Numbers (vocabulary)", headers=headers,
                 accepted=[], prior=[], operation_counts={}, requested=10,
             )
             self.assertEqual(reason, expected)
 
-    def test_rejects_live_pseudoform_distractors(self):
+    def test_rejects_single_word_pseudoform_distractors(self):
         q = {
-            "prompt": "¿Cómo se escribe de forma correcta el número que sigue al siete?",
+            "prompt": "Selecciona la forma enseñada para esta situación.",
             "answer": "ocho",
             "distractors": ["otto", "ohto", "otxo"],
             "difficulty": "A1",
@@ -165,6 +173,21 @@ class LegacyQualityGateTests(unittest.TestCase):
         reason = assessment_legacy_filter._quality_reason(
             q,
             source_text="TOPIC Numbers (vocabulary)\nocho siete nueve diez",
+            headers="topic numbers vocabulary",
+            accepted=[], prior=[], operation_counts={}, requested=10,
+        )
+        self.assertEqual(reason, "pseudoform_distractors")
+
+    def test_rejects_multiword_glued_pseudoforms(self):
+        q = {
+            "prompt": "Selecciona la forma correcta enseñada para esta cantidad.",
+            "answer": "treinta y uno",
+            "distractors": ["treintiuno", "treintauno", "treintayuno"],
+            "difficulty": "A1",
+        }
+        reason = assessment_legacy_filter._quality_reason(
+            q,
+            source_text="TOPIC Numbers (vocabulary)\ntreinta y uno",
             headers="topic numbers vocabulary",
             accepted=[], prior=[], operation_counts={}, requested=10,
         )
@@ -195,6 +218,21 @@ class LegacyQualityGateTests(unittest.TestCase):
         reason = assessment_legacy_filter._quality_reason(
             q,
             source_text="TOPIC Numbers (vocabulary)\nseis cinco siete ocho",
+            headers="topic numbers vocabulary",
+            accepted=[], prior=[], operation_counts={}, requested=10,
+        )
+        self.assertEqual(reason, "answer_revealed")
+
+    def test_rejects_direct_digit_to_word_giveaway(self):
+        q = {
+            "prompt": "¿Qué palabra indica la cantidad 3?",
+            "answer": "tres",
+            "distractors": ["cinco", "siete", "nueve"],
+            "difficulty": "A1",
+        }
+        reason = assessment_legacy_filter._quality_reason(
+            q,
+            source_text="TOPIC Numbers (vocabulary)\ntres cinco siete nueve",
             headers="topic numbers vocabulary",
             accepted=[], prior=[], operation_counts={}, requested=10,
         )
