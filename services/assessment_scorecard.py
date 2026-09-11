@@ -82,9 +82,7 @@ def _source_grounded_proxy(q, source_text):
 
 
 _META_STEM_GROUPS = {
-    "etymology": (
-        "etymol", "etimol", "etymolog", "etimolog",
-    ),
+    "etymology": ("etymol", "etimol", "etymolog", "etimolog"),
     "phonology_terminology": (
         "diphthong", "diptong", "ditong", "phonetic", "fonetic",
         "phonolog", "fonolog", "phonem", "fonem", "graphem", "grafem",
@@ -124,11 +122,7 @@ _MATH_STEMS = (
     "sumar", "suma", "multiplicar", "multiply", "subtract", "addition",
     "topla", "carp", "çarp",
 )
-
-_SOUND_TERMS = (
-    "sound", "sonid", "ses", "laut", "suono", "son",
-)
-
+_SOUND_TERMS = ("sound", "sonid", "ses", "laut", "suono", "son")
 _SOUND_LABEL_STEMS = (
     "soft", "hard", "suave", "fuerte", "voiced", "voiceless", "sonoro", "sordo",
     "tap", "trill", "rhotic", "alveolar", "fricative", "fricativ", "occlusive",
@@ -140,10 +134,22 @@ _SOUND_LABEL_STEMS = (
 def _has_ipa_like_notation(raw):
     for match in re.findall(r"/([^/\n]{1,12})/", str(raw or "")):
         token = match.strip()
-        if not token:
-            continue
-        if len(token.split()) == 1 and any(ch.isalpha() or ord(ch) > 127 for ch in token):
+        if token and len(token.split()) == 1 and any(ch.isalpha() or ord(ch) > 127 for ch in token):
             return True
+    return False
+
+
+def _operation_allows_meta(reason, q):
+    """Early guard escape hatch; final legacy gate still checks topic centrality."""
+    op = str((q or {}).get("_objective_operation", "") or "").strip().lower()
+    if reason in {"phonology_terminology", "phonetic_transcription_trivia", "sound_label_trivia"}:
+        return op == "pronunciation"
+    if reason in {"orthography_micro_trivia", "letter_or_spelling_trivia"}:
+        return op == "orthography-form"
+    if reason == "morphology_terminology":
+        return op in {"grammar", "orthography-form"}
+    if reason == "cross_language_trivia":
+        return op == "contrast"
     return False
 
 
@@ -155,10 +161,14 @@ def _outside_meta_proxy_reason(q):
 
     for reason, stems in _META_STEM_GROUPS.items():
         if any(_norm(stem) in p for stem in stems):
+            if _operation_allows_meta(reason, q):
+                continue
             return reason
 
     if any(_norm(marker) in p for marker in _META_EXACT_MARKERS):
-        return "letter_or_spelling_trivia"
+        reason = "letter_or_spelling_trivia"
+        if not _operation_allows_meta(reason, q):
+            return reason
 
     if re.search(r"\b\d+\s*[+×*/]\s*\d+\b", raw):
         return "arithmetic"
@@ -169,10 +179,14 @@ def _outside_meta_proxy_reason(q):
     sound_label_count = sum(1 for x in _SOUND_LABEL_STEMS if _norm(x) in p)
 
     if _has_ipa_like_notation(raw) and (has_sound_term or "letter" in p or "letra" in p):
-        return "phonetic_transcription_trivia"
+        reason = "phonetic_transcription_trivia"
+        if not _operation_allows_meta(reason, q):
+            return reason
 
     if has_sound_term and sound_label_count >= 1:
-        return "sound_label_trivia"
+        reason = "sound_label_trivia"
+        if not _operation_allows_meta(reason, q):
+            return reason
 
     return None
 
