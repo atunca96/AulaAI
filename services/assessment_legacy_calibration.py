@@ -1,15 +1,14 @@
-"""Congress calibration for the stable legacy assessment path.
+"""Domain-general calibration for the stable legacy assessment path.
 
-Prompt-first generation stays authoritative. This layer only makes the existing
-legacy path use a small one-call candidate pool before content_engine sees the
-questions, so deterministic quality rejection does not cascade into repeated LLM
-refills. Lesson/material generation is never touched.
+Prompt-first generation stays authoritative. This layer adds only cheap deterministic
+calibration: a small candidate headroom when output is naturally short, topic-aware
+validation, and soft diversity selection. It never touches lesson/material generation.
 """
 
 import json
 import math
 import re
-from collections import Counter
+from collections import Counter, OrderedDict
 
 
 def _set_count(args, kwargs, value):
@@ -34,48 +33,116 @@ def _source_text(guard, args, kwargs):
     return f"TOPIC {title} ({topic_type})\n{body}"[:120000]
 
 
+def _level_rank(value):
+    return {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}.get(
+        str(value or "A1").upper(), 1
+    )
+
+
+def _form_focused(gate, headers, question):
+    op = str((question or {}).get("_objective_operation", "") or "").lower()
+    h = gate._norm(headers)
+    return (
+        op in {"grammar", "orthography-form"}
+        or " grammar" in f" {h}"
+        or "grammatik" in h
+        or "gramatica" in h
+        or "grammaire" in h
+        or "grammatica" in h
+    )
+
+
 def _extra_quality_reason(gate, question, headers):
+    """High-precision, domain-general failures only."""
     p = gate._norm((question or {}).get("prompt", ""))
     if not p:
         return None
 
-    # Orthographic micro-trivia that is not useful in an ordinary vocabulary/
-    # grammar topic: "which word starts with...", "se escribe con ... inicial", etc.
-    letter_shape = (
-        "se escribe con" in p and "inicial" in p
-        or "empieza con" in p
-        or "comienza con" in p
-        or "starts with" in p
-        or "begins with" in p
-        or "commence par" in p
-        or "inizia con" in p
-        or "beginnt mit" in p
-        or "ile baslar" in p
-        or "ile basliyor" in p
+    # Letter-shape trivia is meta-linguistic unless spelling/orthography is central.
+    letter_shape_markers = (
+        "starts with", "begins with", "which letter", "what letter",
+        "se escribe con", "empieza con", "comienza con", "que letra", "qué letra",
+        "beginnt mit", "welcher buchstabe", "commence par", "quelle lettre",
+        "inizia con", "quale lettera", "hangi harf", "ile baslar", "ile basliyor",
     )
-    if letter_shape and not gate._central(headers, gate._ORTHOGRAPHY_CENTRAL):
-        return "letter_or_spelling_trivia"
+    if any(marker in p for marker in letter_shape_markers):
+        if not gate._central(headers, gate._ORTHOGRAPHY_CENTRAL):
+            return "letter_or_spelling_trivia"
 
-    # Morphology jargon variants that previously escaped the narrower stem list.
-    morphology_terms = (
-        "raiz irregular", "root irregular", "irregular root", "word root",
-        "lexical root", "radice irregolare", "racine irreguliere",
-        "unregelmassige wurzel", "kelime koku", "sozcuk koku",
+    # Morphological terminology is allowed only when morphology/form analysis is central.
+    morphology_markers = (
+        "word root", "lexical root", "irregular root", "morphological root",
+        "raiz irregular", "raiz lexica", "racine lexicale", "radice lessicale",
+        "wortstamm", "wortwurzel", "kelime koku", "sozcuk koku",
     )
-    if any(term in p for term in morphology_terms) and not gate._central(headers, gate._MORPHOLOGY_CENTRAL):
-        return "morphology_terminology"
+    if any(marker in p for marker in morphology_markers):
+        if not gate._central(headers, gate._MORPHOLOGY_CENTRAL):
+            return "morphology_terminology"
 
-    # Arithmetic disguised in words is not language competence for ordinary language
-    # lessons. Keep this deliberately high precision rather than banning every word
-    # meaning "more" or "plus" in natural prose.
-    arithmetic_phrases = (
-        "formado por diez mas", "formed by ten plus", "sum of", "difference of",
-        "product of", "toplami", "artinin", "plus seven", "plus eight", "plus nine",
+    # Arithmetic is not language competence unless mathematics itself is the source topic.
+    # This catches symbolic arithmetic and common arithmetic instructions across several
+    # language families without depending on any particular vocabulary topic.
+    if re.search(r"\b\d+(?:[.,]\d+)?\s*[+\-×*/÷]\s*\d+(?:[.,]\d+)?\b", p):
+        return "arithmetic"
+    arithmetic_markers = (
+        "sum of", "difference of", "product of", "divided by", "subtract", "multiply",
+        "suma de", "diferencia de", "producto de", "dividido por", "resta", "multiplica",
+        "summe von", "differenz von", "produkt von", "geteilt durch", "subtrahiere", "multipliziere",
+        "somme de", "difference de", "produit de", "divise par",
+        "somma di", "differenza di", "prodotto di", "diviso per",
+        "toplami", "farki", "carpimi", "bolumu",
     )
-    if any(term in p for term in arithmetic_phrases):
+    if any(marker in p for marker in arithmetic_markers):
         return "arithmetic"
 
     return None
+
+
+def _candidate_count(guard, args, kwargs, requested):
+    topic_type = guard._norm(guard._arg(args, kwargs, "topic_type", 1, ""))
+    level = _level_rank(guard._arg(args, kwargs, "level", 5, "A1"))
+
+    # Grammar/mixed and B1+ items are naturally longer; oversampling them increases
+    # truncation risk and latency. Shorter A1/A2 vocabulary/context sets can afford a
+    # small headroom so the deterministic gate has choices without another LLM call.
+    verbose = (
+        "grammar" in topic_type
+        or "mixed" in topic_type
+        or level >= 3
+    )
+    if verbose or requested < 5:
+        return requested
+    headroom = max(2, int(math.ceil(requested * 0.20)))
+    return min(24, requested + headroom)
+
+
+def _diversity_key(gate, question):
+    op = str((question or {}).get("_objective_operation", "") or "").strip().lower()
+    if op:
+        return op
+    return gate._operation_signature(question)
+
+
+def _round_robin_select(gate, candidates, requested):
+    """Prefer breadth without rejecting otherwise valid questions."""
+    buckets = OrderedDict()
+    for question in candidates:
+        buckets.setdefault(_diversity_key(gate, question), []).append(question)
+    selected = []
+    while len(selected) < requested and buckets:
+        progressed = False
+        for key in list(buckets):
+            bucket = buckets[key]
+            if bucket:
+                selected.append(bucket.pop(0))
+                progressed = True
+                if len(selected) >= requested:
+                    break
+            if not bucket:
+                buckets.pop(key, None)
+        if not progressed:
+            break
+    return selected[:requested]
 
 
 def install(ai_engine_module):
@@ -85,15 +152,17 @@ def install(ai_engine_module):
     from services import assessment_guard as guard
     from services import assessment_legacy_filter as gate
 
-    # One provider call should normally be enough. The base generator already asks for
-    # an over-complete raw JSON pool, and this wrapper adds a small accepted-candidate
-    # headroom. Disable the guard's own second LLM call; content_engine remains the
-    # single bounded fallback if the first pass truly comes back short.
+    # There must be only one LLM refill owner. Content engine remains the bounded
+    # supplementary pass; the semantic guard itself never starts another provider call.
     guard._MAX_REPAIR_ROUNDS = 0
 
-    # Operation concentration is a ranking preference, not a correctness failure.
-    # Rejecting it hard caused valid 10-question requests to collapse to 8/10.
-    if not getattr(gate, "_legacy_operation_calibrated", False):
+    # Keep canonical objective metadata through the in-memory candidate stage. The final
+    # legacy gate strips all _objective_* fields before anything is returned publicly.
+    def _keep_internal_question(q):
+        return dict(q) if isinstance(q, dict) else q
+    guard._public_question = _keep_internal_question
+
+    if not getattr(gate, "_legacy_domain_general_calibrated", False):
         original_quality_reason = gate._quality_reason
 
         def calibrated_quality_reason(question, *, source_text, headers, accepted, prior, operation_counts, requested):
@@ -106,14 +175,23 @@ def install(ai_engine_module):
                 operation_counts=operation_counts,
                 requested=requested,
             )
+
+            # Format concentration is a ranking preference, never a correctness failure.
             if reason == "operation_overconcentration":
                 reason = None
+
+            # Near-form alternatives are often the whole point of a grammar/form question
+            # (auxiliary choice, agreement, conjugation, case, etc.). Do not apply a
+            # spelling-pseudoform heuristic when form discrimination is central.
+            if reason == "pseudoform_distractors" and _form_focused(gate, headers, question):
+                reason = None
+
             if reason:
                 return reason
             return _extra_quality_reason(gate, question, headers)
 
         gate._quality_reason = calibrated_quality_reason
-        gate._legacy_operation_calibrated = True
+        gate._legacy_domain_general_calibrated = True
 
     original = ai_engine_module.ai_generate_questions
 
@@ -123,23 +201,18 @@ def install(ai_engine_module):
         except Exception:
             requested = 10
 
-        # Small dynamic headroom: 10->12, 15->18, 20->24. Never inflate tiny one-off
-        # requests excessively and never exceed the prompt policy's 24-candidate cap.
-        headroom = max(2, int(math.ceil(requested * 0.20))) if requested >= 5 else 1
-        candidate_count = min(24, requested + headroom)
+        candidate_count = _candidate_count(guard, args, kwargs, requested)
         call_args, call_kwargs = _set_count(args, kwargs, candidate_count)
         candidates = original(*call_args, **call_kwargs) or []
 
         source_text = _source_text(guard, args, kwargs)
         headers = gate._topic_headers(source_text)
         prior = list(guard._arg(args, kwargs, "existing_questions", 6, []) or [])
-        accepted = []
+        clean = []
         operation_counts = Counter()
         reasons = Counter()
 
         for question in candidates:
-            if len(accepted) >= requested:
-                break
             if not isinstance(question, dict):
                 reasons["malformed"] += 1
                 continue
@@ -147,7 +220,7 @@ def install(ai_engine_module):
                 question,
                 source_text=source_text,
                 headers=headers,
-                accepted=accepted,
+                accepted=clean,
                 prior=prior,
                 operation_counts=operation_counts,
                 requested=requested,
@@ -156,7 +229,9 @@ def install(ai_engine_module):
                 reasons[reason] += 1
                 continue
             operation_counts[gate._operation_signature(question)] += 1
-            accepted.append(question)
+            clean.append(question)
+
+        accepted = _round_robin_select(gate, clean, requested)
 
         try:
             print(
