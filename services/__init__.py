@@ -68,6 +68,13 @@ except Exception:
 # Unified assessment routing.
 try:
     from . import content_engine as _content_engine
+
+    # The historical content engine contains a top-up AI pass. Keep the old code for
+    # rollback, but guarantee that one assessment request can make only one provider
+    # question-generation call.
+    from .assessment_single_provider_call import install as _install_assessment_single_provider_call
+    _install_assessment_single_provider_call(_content_engine, _ai_engine)
+
     from . import assessment_router_v2 as _assessment_router_v2
     from .assessment_router_v2 import install as _install_assessment_router_v2
     _install_assessment_router_v2(_content_engine)
