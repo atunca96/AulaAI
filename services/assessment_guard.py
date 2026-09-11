@@ -10,6 +10,8 @@ import threading
 import unicodedata
 from difflib import SequenceMatcher
 
+from services.assessment_scorecard import _outside_meta_proxy_reason
+
 _TOPIC_HISTORY = {}
 _HISTORY_LOCK = threading.Lock()
 _HISTORY_LIMIT = 80
@@ -33,14 +35,11 @@ _ANSWER_GLUE = {
     "benim", "senin", "onun", "bir", "bu", "o", "dir", "dır", "dur", "dür",
 }
 
-_META_MARKERS = (
-    "tilde", "acento grafico", "acento gráfico", "una sola palabra", "en una sola palabra",
-    "cuantas letras", "cuántas letras", "que letra", "qué letra", "written as one word",
-    "how many letters", "which letter", "has an accent mark", "tek kelime", "kac harf",
-    "kaç harf", "hangi harf",
-)
-
 _OBJ_RE = re.compile(r"^\s*\[\[OBJ:([^\]]+)\]\]\s*", re.I)
+_ALLOWED_OBJECTIVE_OPERATIONS = {
+    "meaning", "contextual-use", "grammar", "orthography-form", "comprehension",
+    "contrast", "pragmatic-use", "pronunciation",
+}
 
 
 def _norm(text):
@@ -110,15 +109,32 @@ def _answer_overlap(a, b):
     return _containment(_ngrams(a, 2), _ngrams(b, 2))
 
 
+def _objective_parts(raw_key):
+    raw = str(raw_key or "").strip().lower()
+    if ":" not in raw:
+        return "", _norm(raw)
+    operation_raw, target_raw = raw.split(":", 1)
+    operation = operation_raw.strip()
+    if operation not in _ALLOWED_OBJECTIVE_OPERATIONS:
+        operation = ""
+    return operation, _norm(target_raw)
+
+
 def _prepare_question(q):
     if not isinstance(q, dict):
         return q
     why = str(q.get("why", "") or "")
     match = _OBJ_RE.match(why)
     if match:
-        key = _norm(match.group(1))
+        raw_key = match.group(1).strip()
+        key = _norm(raw_key)
+        operation, target = _objective_parts(raw_key)
         if key:
             q["_objective_key"] = key
+        if operation:
+            q["_objective_operation"] = operation
+        if target:
+            q["_objective_target"] = target
         q["why"] = why[match.end():].lstrip(" :-—")
     return q
 
@@ -130,6 +146,17 @@ def _objective_same(q1, q2):
         return False
     if k1 == k2 or SequenceMatcher(None, k1, k2).ratio() >= 0.92:
         return True
+
+    op1 = str(q1.get("_objective_operation", ""))
+    op2 = str(q2.get("_objective_operation", ""))
+    target1 = _norm(q1.get("_objective_target", ""))
+    target2 = _norm(q2.get("_objective_target", ""))
+    if op1 and op1 == op2 and target1 and target2:
+        if SequenceMatcher(None, target1, target2).ratio() >= 0.82:
+            return True
+        if _semantic_overlap(target1, target2) >= 0.55:
+            return True
+
     t1, t2 = set(k1.split()), set(k2.split())
     return len(t1) >= 2 and len(t2) >= 2 and _containment(t1, t2) >= 0.85
 
@@ -157,26 +184,22 @@ def _same_batch_target(q1, q2):
     return _objective_same(q1, q2) or _same_surface_target(q1, q2)
 
 
-def _is_shallow_meta(q):
-    prompt = _norm(q.get("prompt"))
-    return bool(prompt) and any(_norm(marker) in prompt for marker in _META_MARKERS)
+def _meta_reason(q):
+    try:
+        return _outside_meta_proxy_reason(q)
+    except Exception:
+        return None
 
 
 def dedupe_questions(candidates, prior=None, limit=None):
-    """Keep one objective per batch; block true semantic repeats across prior rounds.
-
-    Prior objective keys are intentionally not absolute bans. A narrow lesson can run
-    out of lifetime-unique objectives after several regenerations. The model receives
-    prior keys as soft scheduling hints, while this filter still rejects genuinely
-    repeated questions/concepts by prompt+answer semantics.
-    """
+    """Keep one objective per batch; block meta/trivia and true semantic repeats."""
     accepted = []
     refs = [_prepare_question(q) for q in (prior or []) if isinstance(q, dict)]
     for raw in candidates or []:
         if not isinstance(raw, dict) or not raw.get("prompt") or not raw.get("answer"):
             continue
         q = _prepare_question(raw)
-        if _is_shallow_meta(q):
+        if _meta_reason(q):
             continue
         if any(_same_surface_target(q, old) for old in refs):
             continue
@@ -223,6 +246,8 @@ def _remember(key, questions):
                     "prompt": q.get("prompt", ""),
                     "answer": q.get("answer", ""),
                     "_objective_key": q.get("_objective_key", ""),
+                    "_objective_operation": q.get("_objective_operation", ""),
+                    "_objective_target": q.get("_objective_target", ""),
                 })
         if len(history) > _HISTORY_LIMIT:
             del history[:-_HISTORY_LIMIT]
@@ -276,6 +301,8 @@ def _public_question(q):
         return q
     public = dict(q)
     public.pop("_objective_key", None)
+    public.pop("_objective_operation", None)
+    public.pop("_objective_target", None)
     return public
 
 
@@ -308,18 +335,22 @@ def install(ai_engine_module):
             1 for q in (first or [])
             if isinstance(q, dict) and not _prepare_question(q).get("_objective_key")
         )
+        meta_rejected = sum(
+            1 for q in (first or [])
+            if isinstance(q, dict) and _meta_reason(_prepare_question(q))
+        )
 
         repair_round = 0
         missing = requested - len(accepted)
-        # One bounded refill for any partial usable batch. V6.7 keeps each model call
-        # small, so this restores the requested count without unbounded retry loops.
+        # One bounded repair is normally enough now that meta/trivia is rejected here,
+        # before the outer legacy post-filter. Keep the repair compact for latency.
         if _MAX_REPAIR_ROUNDS and missing > 0 and accepted:
             repair_round = 1
             seen = [q for q in (first or []) if isinstance(q, dict)]
             repair_context = _model_context(full_prior, accepted + seen)
             repair_args = list(args)
             repair_kwargs = dict(kwargs)
-            repair_count = min(10, missing + 4)
+            repair_count = min(8, max(missing, missing + 2))
             if len(repair_args) >= 5:
                 repair_args[4] = repair_count
                 repair_kwargs.pop("count", None)
@@ -333,12 +364,14 @@ def install(ai_engine_module):
         _remember(key, accepted)
 
         try:
+            line = (
+                f"[ASSESSMENT-DIVERSITY] requested={requested} first={first_count} "
+                f"rejected={rejected} meta_rejected={meta_rejected} objective_missing={objective_missing} "
+                f"history={len(history)} final={len(accepted)} repairs={repair_round}"
+            )
+            print(line, flush=True)
             with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(
-                    f"[ASSESSMENT-DIVERSITY] requested={requested} first={first_count} "
-                    f"rejected={rejected} objective_missing={objective_missing} history={len(history)} "
-                    f"final={len(accepted)} repairs={repair_round}\n"
-                )
+                f.write(line + "\n")
         except Exception:
             pass
 
