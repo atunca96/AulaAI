@@ -4,6 +4,7 @@ Runs after the writer and before a question is accepted. No LLM or embedding cal
 Lesson/material generation is never called or modified.
 """
 
+import re
 import unicodedata
 from collections import Counter
 from difflib import SequenceMatcher
@@ -92,7 +93,17 @@ def _aligned(question, objective):
 
 
 def _meta_allowed(question, objective, topic_source, level):
-    reason = _outside_meta_proxy_reason(question)
+    # Probe prompt + answer + distractors. The live V2 failure placed IPA notation in
+    # the answer, which a prompt-only meta check could not see.
+    probe = dict(question)
+    probe["prompt"] = " ".join(
+        [
+            str(question.get("prompt", "")),
+            str(question.get("answer", "")),
+            " ".join(str(x) for x in (question.get("distractors") or [])),
+        ]
+    )
+    reason = _outside_meta_proxy_reason(probe)
     if not reason:
         return True, None
 
@@ -108,7 +119,9 @@ def _meta_allowed(question, objective, topic_source, level):
         "latin root", "raiz latina", "kelime koken", "kelime köken",
     )
 
-    if reason in {"phonology_terminology", "sound_label_trivia", "ipa_transcription", "named_phonetic_label"}:
+    if reason in {
+        "phonology_terminology", "sound_label_trivia", "phonetic_transcription_trivia"
+    }:
         objective_pronunciation = any(_norm(x) in objective_text for x in pronunciation_markers)
         central = _topic_central(topic_source, pronunciation_markers)
         if objective_pronunciation and central and rank >= 3:
@@ -125,14 +138,29 @@ def _meta_allowed(question, objective, topic_source, level):
     return False, f"meta_{reason}"
 
 
+def _numeric_answer_leak(question, objective):
+    if _form_or_rule_focused(objective):
+        return False
+    prompt = str(question.get("prompt", ""))
+    answer = _norm(question.get("answer"))
+    if not answer or any(ch.isdigit() for ch in answer):
+        return False
+    prompt_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", prompt))
+    if not prompt_numbers:
+        return False
+    objective_text = str(
+        f"{objective.get('target', '')} {objective.get('evidence', '')}"
+    )
+    objective_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", objective_text))
+    return bool(prompt_numbers & objective_numbers)
+
+
 def _looks_like_pseudoform_distractors(question, objective, source_text):
     if _form_or_rule_focused(objective):
         return False
 
     answer = _norm(question.get("answer"))
     answer_words = answer.split()
-    # This guard targets fake lexical forms such as do/dosa/dosas, not sentence-level
-    # contrast distractors where most of the sentence is intentionally shared.
     if len(answer_words) > 2 or len(answer) < 3:
         return False
 
@@ -160,6 +188,9 @@ def validate_question(question, objective, topic_source, level):
     allowed, reason = _meta_allowed(question, objective, topic_source or {}, level)
     if not allowed:
         return False, reason
+
+    if _numeric_answer_leak(question, objective):
+        return False, "answer_revealed_by_numeric_cue"
 
     aligned = _aligned(question, objective)
     if not aligned:
