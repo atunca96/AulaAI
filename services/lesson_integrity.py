@@ -7,9 +7,32 @@ reported as successful while lessons are blank.
 
 import json
 
+_PAGE_METADATA_KEYS = {"type", "title", "title_tr", "id", "sort_order"}
+
+
+def _has_displayable_value(value):
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (int, float, bool)):
+        return True
+    if isinstance(value, list):
+        return any(_has_displayable_value(item) for item in value)
+    if isinstance(value, dict):
+        return any(_has_displayable_value(item) for item in value.values())
+    return False
+
+
+def _page_has_content(page):
+    if not isinstance(page, dict) or not page:
+        return False
+    return any(
+        key not in _PAGE_METADATA_KEYS and _has_displayable_value(value)
+        for key, value in page.items()
+    )
+
 
 def has_lesson_pages(content):
-    """Return True only when a lesson payload contains at least one non-empty page."""
+    """Return True only when a lesson payload contains at least one usable content page."""
     if isinstance(content, str):
         try:
             content = json.loads(content or "{}")
@@ -20,7 +43,7 @@ def has_lesson_pages(content):
     pages = content.get("pages")
     if not isinstance(pages, list) or not pages:
         return False
-    return any(isinstance(page, dict) and bool(page) for page in pages)
+    return any(_page_has_content(page) for page in pages)
 
 
 def find_empty_lessons(course_id):
