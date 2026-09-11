@@ -47,6 +47,15 @@ try:
 except Exception:
     pass
 
+# Frontend-only language integrity for already-generated material. This removes the
+# legacy Spanish dialogue fallback from non-Spanish courses, keeps English explanations
+# free of Turkish-reference wording, and localizes embedded study MCQs to the UI language.
+try:
+    from .runtime_content_integrity_guard import install as _install_runtime_content_integrity_guard
+    _install_runtime_content_integrity_guard(_bilingual_finisher)
+except Exception:
+    pass
+
 # Install one outer provider timer AFTER legacy wrappers but BEFORE V2 imports _call_ai.
 # This gives legacy and V2 identical provider_ms/provider_calls instrumentation.
 try:

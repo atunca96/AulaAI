@@ -6,6 +6,7 @@ Lesson/material generation is untouched.
 """
 
 import json
+import unicodedata
 
 
 def _arg(args, kwargs, name, index, default=None):
@@ -27,6 +28,30 @@ def _source_text(topic_content, source_text_override):
     return str(topic_content or "")[:8000]
 
 
+def _norm_option(value):
+    text = unicodedata.normalize("NFKD", str(value or "").lower())
+    chars = []
+    for ch in text:
+        if unicodedata.combining(ch):
+            continue
+        chars.append(ch if (ch.isalnum() or ch.isspace()) else " ")
+    return " ".join("".join(chars).split())
+
+
+def _structurally_valid(prompt, answer, distractors):
+    if not prompt or not answer or not isinstance(distractors, list) or len(distractors) != 3:
+        return False
+    norms = [_norm_option(answer)] + [_norm_option(x) for x in distractors]
+    return bool(all(norms) and len(set(norms)) == 4)
+
+
+def _instruction_language(material_language):
+    value = str(material_language or "en").strip().lower()
+    if value in {"tr", "turkish", "türkçe", "turkce"}:
+        return "Turkish"
+    return "English"
+
+
 def install(ai_engine_module, raw_generate_questions=None):
     if getattr(ai_engine_module, "_assessment_direct_single_pass_experiment", False):
         return
@@ -40,6 +65,8 @@ def install(ai_engine_module, raw_generate_questions=None):
         existing_questions = _arg(args, kwargs, "existing_questions", 6, None) or []
         source_text_override = _arg(args, kwargs, "source_text_override", 9, None)
         model_override = _arg(args, kwargs, "model_override", 10, None)
+        material_language = _arg(args, kwargs, "material_language", 11, "en")
+        instruction_language = _instruction_language(material_language)
 
         try:
             requested = max(1, int(_arg(args, kwargs, "count", 4, 10) or 10))
@@ -56,9 +83,12 @@ def install(ai_engine_module, raw_generate_questions=None):
                 recent.append(str(q.get("prompt"))[:240])
         recent_block = "\n".join(f"- {p}" for p in recent)
 
-        system = f"""You are a {language} assessment writer for CEFR {level}.
+        system = f"""You write assessments for learners studying {language} at CEFR {level}.
 Create natural, source-grounded multiple-choice questions for the taught competence.
-Use only the supplied source for tested facts/rules. Keep prompts and all options in {language}.
+Use only the supplied source for tested facts/rules.
+The instructional/UI language is {instruction_language}: write question stems and explanatory option wording in {instruction_language}.
+Keep authentic {language} words, phrases, letters, forms, and pronunciations unchanged when they are the item being tested or selected.
+Do not write the whole stem in {language} merely because the course language is {language}.
 Each question must have exactly one correct answer and exactly three distinct plausible distractors.
 Distractors must be realistic learner confusions, not absurd filler or broken pseudoforms.
 Keep stem and options aligned, CEFR-appropriate, concise, and unambiguous.
@@ -72,6 +102,8 @@ metadata, commentary, or any fields other than prompt, answer, and distractors."
         user = f"""Generate EXACTLY {asked} unique {topic_type} MCQs.
 TOPIC: {topic_title}
 LEVEL: {level}
+COURSE LANGUAGE: {language}
+INSTRUCTION LANGUAGE: {instruction_language}
 SOURCE MATERIAL:
 {source}
 
@@ -82,8 +114,8 @@ Return exactly this compact shape:
 {{
   "data": [
     {{
-      "prompt": "question in {language}",
-      "answer": "correct answer in {language}",
+      "prompt": "question in {instruction_language}, preserving tested {language} forms",
+      "answer": "correct answer",
       "distractors": ["wrong option 1", "wrong option 2", "wrong option 3"]
     }}
   ]
@@ -117,15 +149,21 @@ Return exactly this compact shape:
             distractors = q.get("distractors")
             if not prompt or not answer or not isinstance(distractors, list):
                 continue
+
+            answer_norm = _norm_option(answer)
             clean = []
+            seen_norms = set()
             for d in distractors:
                 text = str(d or "").strip()
-                if text and text.casefold() != answer.casefold() and text.casefold() not in {x.casefold() for x in clean}:
+                norm = _norm_option(text)
+                if text and norm and norm != answer_norm and norm not in seen_norms:
                     clean.append(text)
+                    seen_norms.add(norm)
                 if len(clean) == 3:
                     break
-            if len(clean) != 3:
+            if not _structurally_valid(prompt, answer, clean):
                 continue
+
             options = [answer] + clean
             try:
                 qid = ai_engine_module._uid()
@@ -147,7 +185,8 @@ Return exactly this compact shape:
         try:
             print(
                 f"[ASSESSMENT-DIRECT-MINIMAL] requested={requested} asked={asked} "
-                f"received={len(raw_items)} returned={len(public)} fields=prompt,answer,distractors",
+                f"received={len(raw_items)} returned={len(public)} instruction={instruction_language} "
+                f"fields=prompt,answer,distractors",
                 flush=True,
             )
         except Exception:
