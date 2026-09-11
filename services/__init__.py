@@ -7,6 +7,7 @@ try:
     _raw_assessment_generate_questions = _ai_engine.ai_generate_questions
     from .assessment_prompt_policy import install as _install_assessment_prompt_policy
     from .assessment_output_budget import install as _install_assessment_output_budget
+    from .assessment_minimal_output import install as _install_assessment_minimal_output
     from .assessment_guard import install as _install_assessment_guard
     from .assessment_evidence_balance import install as _install_assessment_evidence_balance
     from .assessment_legacy_calibration import install as _install_assessment_legacy_calibration
@@ -14,9 +15,10 @@ try:
     from .assessment_pseudoform_precision import install as _install_assessment_pseudoform_precision
     from .assessment_batch_balance_prompt import install as _install_assessment_batch_balance_prompt
     from .assessment_direct_single_pass_experiment import install as _install_assessment_direct_single_pass_experiment
-    # Install the 5k budget INSIDE the prompt-policy wrapper so the policy's legacy
-    # 2500 clamp is overridden only for assessment calls at the final provider boundary.
+    # Provider boundary first, then minimal schema, then prompt policy outermost.
+    # Runtime order becomes: prompt policy -> minimal output -> budget -> provider.
     _install_assessment_output_budget(_ai_engine)
+    _install_assessment_minimal_output(_ai_engine)
     _install_assessment_prompt_policy(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
