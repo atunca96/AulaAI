@@ -2661,6 +2661,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en", existing_questions=None):
         try:
             from services.content_engine import generate_quiz
+            from services.ai_engine import audit_questions_lightweight
             
             def update_draft_prog(p):
                 for retry in range(5):
@@ -2698,25 +2699,78 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ticker_thread = threading.Thread(target=ticker_worker, daemon=True)
             ticker_thread.start()
 
+            requested_count = int(count)
+            course_lang = "Unknown"
+            course_level = "A1"
+            with db_connection() as db:
+                c_row = db.execute("SELECT language, level FROM courses WHERE id=?", (course_id,)).fetchone()
+                if c_row:
+                    if c_row["language"]: course_lang = c_row["language"]
+                    if c_row["level"]: course_level = c_row["level"]
+
+            accepted_questions = []
+            seen_prompts = set()
+            seen_answers = set()
+
+            def process_candidates(candidates):
+                nonlocal accepted_questions
+                if not candidates:
+                    return
+                verdicts = audit_questions_lightweight(candidates, language=course_lang, level=course_level)
+                for idx, q in enumerate(candidates):
+                    if len(accepted_questions) >= requested_count:
+                        break
+                    p = (q.get("prompt") or "").strip()
+                    a = (q.get("answer") or "").strip()
+                    p_norm = p.lower()
+                    a_norm = a.lower()
+                    if not p or not a:
+                        continue
+                    if p_norm in seen_prompts or a_norm in seen_answers:
+                        continue
+                    is_passed, reason = verdicts[idx] if idx < len(verdicts) else (True, "")
+                    if not is_passed:
+                        print(f"[BG DRAFT QUALITY] Rejected question ({reason}): {p[:60]}")
+                        continue
+                    seen_prompts.add(p_norm)
+                    seen_answers.add(a_norm)
+                    accepted_questions.append(q)
+
             try:
-                # Retain previous questions and pass existing_questions to enforce variety
-                questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions)
+                # 1. Normal generation and filtering pipeline completes
+                initial_questions = generate_quiz(topic_ids, count=requested_count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions) or []
+                process_candidates(initial_questions)
+
+                # 2. Enforce exact requested count via small top-up generation only for missing amount
+                topup_attempt = 0
+                max_topup_attempts = 3
+                while len(accepted_questions) < requested_count and topup_attempt < max_topup_attempts:
+                    topup_attempt += 1
+                    missing = requested_count - len(accepted_questions)
+                    print(f"[BG DRAFT] Top-up pass {topup_attempt}: generating {missing} missing question(s)...")
+                    topup_existing = (existing_questions or []) + accepted_questions
+                    topup_qs = generate_quiz(topic_ids, count=missing, is_quiz=True, ui_lang=ui_lang, existing_questions=topup_existing) or []
+                    process_candidates(topup_qs)
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
 
-            # ── V5 UNIFIED PASS-THROUGH (MIRROR ACTIVITY LOGIC) ──
-            # We trust generate_quiz (which uses Gemini 2.5 V5) completely.
-            final_questions = questions[:count]
-            record_course_draft_questions(course_id, final_questions)
+            # 3. Only mark draft_status='done' when requested count has been reached
+            if len(accepted_questions) >= requested_count:
+                final_questions = accepted_questions[:requested_count]
+                record_course_draft_questions(course_id, final_questions)
 
-            with db_connection() as db:
-                db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 
-                           (json.dumps(final_questions, ensure_ascii=False), course_id))
-                db.commit()
-            
-            print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
-                
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET draft_status='done', draft_progress=100, draft_result=? WHERE id=?", 
+                               (json.dumps(final_questions, ensure_ascii=False), course_id))
+                    db.commit()
+                print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with exact count {len(final_questions)}.")
+            else:
+                print(f"[BG] Quiz Draft incomplete: got {len(accepted_questions)}/{requested_count}. Refusing to mark 'done'.")
+                with db_connection() as db:
+                    db.execute("UPDATE courses SET draft_status='error' WHERE id=?", (course_id,))
+                    db.commit()
+                    
         except Exception as e:
             file_log(f"BG Draft Error: {e}")
             with db_connection() as db:
