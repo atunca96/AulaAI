@@ -737,8 +737,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
           "translation_tr": "Doğal Türkçe çevirisi",
           "answer": "Correct answer in {language}",
           "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
-          "why": "Pedagogical explanation in English",
-          "why_tr": "Türkçe pedagojik açıklama"
+          "why": "Short 1-sentence reason (max 15 words)",
+          "why_tr": "Kısa 1 cümlelik pedagojik açıklama (en fazla 15 kelime)"
         }}
       ]
     }}
@@ -748,7 +748,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible 'distractors' in the 'distractors' array.
     3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
     4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
-    5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates)."""
+    5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
+    6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -791,8 +792,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if forbidden_prompt_keys:
                 if clean_p_token in forbidden_prompt_keys:
                     continue
-                # Character similarity check: reject only if prompt is near-duplicate (>84% similar)
-                if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).quick_ratio() > 0.84 for fp_key in forbidden_prompt_keys):
+                # Character similarity check: reject only if prompt is near-duplicate (>80% similar)
+                if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).quick_ratio() > 0.80 for fp_key in forbidden_prompt_keys):
                     continue
 
             # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch

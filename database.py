@@ -443,6 +443,16 @@ def init_db():
             PRIMARY KEY(assignment_id, question_id)
         )''')
 
+        # Persistent Draft History to prevent repeats across restarts/deploys
+        c.execute('''CREATE TABLE IF NOT EXISTS draft_history (
+            id TEXT PRIMARY KEY,
+            course_id TEXT,
+            prompt TEXT,
+            answer TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_draft_history_course ON draft_history(course_id)')
+
         # REFACTORED: Enrollment Management
         c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
             id TEXT PRIMARY KEY,

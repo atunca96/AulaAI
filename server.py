@@ -238,18 +238,36 @@ def record_course_draft_questions(course_id, questions):
     with _draft_course_lock:
         if cid not in _draft_course_seen_questions:
             _draft_course_seen_questions[cid] = []
+        new_items = []
         for q in questions:
             if isinstance(q, dict) and (q.get("prompt") or q.get("answer")):
                 p = str(q.get("prompt", "")).strip()
                 a = str(q.get("answer", "")).strip()
                 if p and not any(eq.get("prompt") == p for eq in _draft_course_seen_questions[cid]):
                     _draft_course_seen_questions[cid].append({"prompt": p, "answer": a})
+                    new_items.append((_uid(), cid, p, a))
         _draft_course_seen_questions[cid] = _draft_course_seen_questions[cid][-100:]
+        if new_items:
+            try:
+                with db_connection() as db:
+                    db.executemany("INSERT OR IGNORE INTO draft_history (id, course_id, prompt, answer) VALUES (?,?,?,?)", new_items)
+                    db.commit()
+            except Exception as e:
+                print(f"[DB] Error recording draft history: {e}")
 
 def get_course_draft_questions(course_id):
     if not course_id: return []
     cid = str(course_id)
     with _draft_course_lock:
+        if cid not in _draft_course_seen_questions:
+            _draft_course_seen_questions[cid] = []
+            try:
+                with db_connection() as db:
+                    rows = db.execute("SELECT prompt, answer FROM draft_history WHERE course_id=? ORDER BY created_at DESC LIMIT 100", (cid,)).fetchall()
+                    for r in rows:
+                        _draft_course_seen_questions[cid].append({"prompt": r["prompt"], "answer": r["answer"]})
+            except Exception as e:
+                print(f"[DB] Error loading draft history: {e}")
         return list(_draft_course_seen_questions.get(cid, []))
 
 

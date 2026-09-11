@@ -9071,10 +9071,12 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
 
 let draftProgressInterval = null;
 
-function startDraftPolling(type, btn, originalText, callback) {
+function startDraftPolling(type, btn, originalText, callback, targetCid) {
   const container = document.getElementById(`${type}-gen-progress`);
   const fill = document.getElementById(`${type}-gen-fill`);
   const pctText = document.getElementById(`${type}-gen-pct`);
+
+  const cidToUse = targetCid || courseId || (currentCourse && currentCourse.id) || 'default';
 
   if (container) {
     container.classList.remove('hidden');
@@ -9088,7 +9090,7 @@ function startDraftPolling(type, btn, originalText, callback) {
 
   draftProgressInterval = setInterval(async () => {
     try {
-      const data = await api(`/draft/progress?course_id=${courseId}&v=${Date.now()}`);
+      const data = await api(`/draft/progress?course_id=${cidToUse}&v=${Date.now()}`);
 
       if (data.status === 'generating') {
         const pct = data.percentage || 0;
@@ -9727,7 +9729,7 @@ async function createQuiz() {
         questions: questions
       };
       openDraftModal();
-    });
+    }, targetCourseId);
   } catch (err) {
     btn.textContent = originalText;
     btn.disabled = false;
@@ -10940,7 +10942,7 @@ async function createAssignment() {
         questions: questions
       };
       openDraftModal();
-    });
+    }, targetCourseId);
   } catch (err) {
     btn.textContent = originalText;
     btn.disabled = false;
