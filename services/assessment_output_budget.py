@@ -10,7 +10,7 @@ def install(ai_engine_module):
             for m in messages
         ):
             kwargs = dict(kwargs)
-            kwargs["max_tokens"] = 5000
+            kwargs["max_tokens"] = 10000
         return original_call(messages, *args, **kwargs)
     ai_engine_module._call_ai = budgeted_call
     ai_engine_module._assessment_output_budget_installed = True
