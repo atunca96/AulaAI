@@ -21,7 +21,8 @@ _ENGLISH_MARKERS = re.compile(
 _TURKISH_MARKERS = re.compile(
     r"[çğıöşüÇĞİÖŞÜ]|\b(ve|bir|bu|şu|ile|için|olarak|kullanılır|"
     r"kullanılan|isim|fiil|sıfat|zarf|dişil|eril|vurgu|hece|ek|"
-    r"günlük|konuşma|anlamına|gelir|telaffuz|edilir)\b",
+    r"günlük|konuşma|anlamına|gelir|telaffuz|edilir|ifade|sözcük|"
+    r"kelime|cümle|zamir|çekim|çoğul|tekil|resmi|samimi)\b",
     re.IGNORECASE,
 )
 
@@ -39,13 +40,22 @@ def _looks_obviously_english(text):
     return en_hits >= 2 and tr_hits == 0
 
 
+def _looks_turkish(text):
+    text = str(text or "").strip()
+    if not text:
+        return False
+    return bool(_TURKISH_MARKERS.search(text)) and not _looks_obviously_english(text)
+
+
 def _is_bad_translation(source, translated, target_lang="tr"):
     source = str(source or "").strip()
     translated = str(translated or "").strip()
     if not source or not translated:
         return True
     if _norm(source) == _norm(translated):
-        return True
+        # Some lesson fields are already authored in Turkish and legitimately need
+        # no translation. Do not force a second model rewrite of correct Turkish.
+        return not (target_lang == "tr" and _looks_turkish(source))
     if target_lang == "tr" and _looks_obviously_english(translated):
         return True
     return False
@@ -97,7 +107,7 @@ def _frontend_guard_js():
     const text = String(value || '').trim();
     if (!text) return false;
     const en = text.match(/\b(the|and|is|are|was|were|in|on|at|for|with|of|to|from|used|use|noun|verb|adjective|adverb|feminine|masculine|gender|standard|term|speech|notice|stress|syllable|ending|everyday|grammatically|pronounced|means|refers|expression|phrase)\b/gi) || [];
-    const tr = text.match(/[çğıöşüÇĞİÖŞÜ]|\b(ve|bir|bu|şu|ile|için|olarak|kullanılır|kullanılan|isim|fiil|sıfat|zarf|dişil|eril|vurgu|hece|ek|günlük|konuşma|anlamına|gelir|telaffuz|edilir)\b/gi) || [];
+    const tr = text.match(/[çğıöşüÇĞİÖŞÜ]|\b(ve|bir|bu|şu|ile|için|olarak|kullanılır|kullanılan|isim|fiil|sıfat|zarf|dişil|eril|vurgu|hece|ek|günlük|konuşma|anlamına|gelir|telaffuz|edilir|ifade|sözcük|kelime|cümle|zamir|çekim|çoğul|tekil|resmi|samimi)\b/gi) || [];
     return en.length >= 2 && tr.length === 0;
   }
 
@@ -161,7 +171,7 @@ def _frontend_guard_js():
         const english = String(item.explanation_en || item.explanation || item.english_explanation || '').trim();
         const turkish = String(item.explanation_tr || item.turkish_explanation || item.desc_tr || '').trim();
         const badStoredTurkish = turkish && (
-          (english && norm(turkish) === norm(english)) || looksEnglish(turkish)
+          (english && norm(turkish) === norm(english) && looksEnglish(turkish)) || looksEnglish(turkish)
         );
 
         if (badStoredTurkish) {
@@ -242,6 +252,13 @@ def install(module):
         results = raw_batch(requested, target_lang=target_lang) or {}
         if target_lang != "tr" or not requested:
             return results
+
+        # Strings that are already valid Turkish are legitimate identity mappings;
+        # insert them explicitly so downstream code never falls back to an English
+        # source merely because the translator was not asked to rewrite Turkish.
+        for source in requested:
+            if source not in results and _looks_turkish(source):
+                results[source] = source
 
         unresolved = [
             source for source in requested
