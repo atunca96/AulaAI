@@ -88,7 +88,6 @@ def _batch_select(guard, gate, questions, requested, args, kwargs):
     meta_used = 0
     targets = []
     primary = []
-    deferred = []
 
     for q in questions or []:
         if not isinstance(q, dict) or not gate._valid_mcq(q):
@@ -97,7 +96,6 @@ def _batch_select(guard, gate, questions, requested, args, kwargs):
         if target and any(_same_target(guard, target, old) for old in targets):
             continue
         if op in _META_OPS and meta_used >= meta_cap:
-            deferred.append(q)
             continue
         primary.append(q)
         if target:
@@ -173,6 +171,19 @@ def install(ai_engine_module):
         gate._strip_internal = strip_target_marker
         gate._assessment_target_marker_strip_installed = True
 
+    # Record the real deterministic rejection classes while candidate calibration runs.
+    # The recorder is inert outside a stabilizer-owned assessment call.
+    quality_reason = gate._quality_reason
+    if not getattr(gate, "_assessment_rejection_recorder_installed", False):
+        def recording_quality_reason(*args, **kwargs):
+            reason = quality_reason(*args, **kwargs)
+            bucket = getattr(ai_engine_module, "_assessment_rejection_counter", None)
+            if reason and isinstance(bucket, Counter):
+                bucket[reason] += 1
+            return reason
+        gate._quality_reason = recording_quality_reason
+        gate._assessment_rejection_recorder_installed = True
+
     # Repair guidance is injected only while the stabilizer owns an assessment rescue.
     governed_call = ai_engine_module._call_ai
     def guided_call(messages, *args, **kwargs):
@@ -211,27 +222,11 @@ def install(ai_engine_module):
     if not callable(direct_generate):
         direct_generate = calibrated_generate
 
-    def stabilized_generate(*args, **kwargs):
-        try:
-            requested = max(1, int(_arg(guard, args, kwargs, "count", 4, 10) or 10))
-        except Exception:
-            requested = 10
-
-        prior = list(_arg(guard, args, kwargs, "existing_questions", 6, []) or [])
-        source_text = _source_text(guard, args, kwargs)
-
-        # Normal calibrated path: one writer call plus its single bounded repair at most.
-        initial = calibrated_generate(*args, **kwargs) or []
-        selected = _batch_select(guard, gate, initial, requested, args, kwargs)
-        if len(selected) >= requested:
-            return selected[:requested]
-
-        # One final guided rescue. Unlike content_engine's blind supplementary pass, this
-        # knows exactly why candidates failed and which canonical objectives are already used.
-        missing = requested - len(selected)
+    def _guided_direct(args, kwargs, requested, prior, selected, reasons, source_text):
+        missing = max(1, requested - len(selected))
         rescue_n = min(12, max(6, missing * 3 + 3))
         rescue_args, rescue_kwargs = _set_count(args, kwargs, rescue_n)
-        rescue_context = prior + [q for q in initial if isinstance(q, dict)] + selected
+        rescue_context = prior + list(selected)
         try:
             rescue_args, rescue_kwargs = guard._with_existing(rescue_args, rescue_kwargs, rescue_context)
         except Exception:
@@ -243,14 +238,9 @@ def install(ai_engine_module):
             if target:
                 accepted_targets.append(target)
 
-        # Re-run the deterministic quality reason over initial items only to summarize
-        # failure classes for the model; this does not remove any additional questions.
-        _, initial_reasons = _quality_filter(
-            guard, gate, initial, source_text, prior, [], requested
-        )
         ai_engine_module._assessment_repair_guidance = {
             "missing": missing,
-            "reasons": dict(initial_reasons),
+            "reasons": dict(reasons or {}),
             "targets": accepted_targets,
         }
         try:
@@ -262,12 +252,62 @@ def install(ai_engine_module):
             guard, gate, rescue_raw, source_text, rescue_context, selected, requested
         )
         final = _batch_select(guard, gate, combined, requested, args, kwargs)
+        return final, rescue_n, len(rescue_raw), rescue_reasons
+
+    def stabilized_generate(*args, **kwargs):
+        try:
+            requested = max(1, int(_arg(guard, args, kwargs, "count", 4, 10) or 10))
+        except Exception:
+            requested = 10
+
+        prior = list(_arg(guard, args, kwargs, "existing_questions", 6, []) or [])
+        source_text = _source_text(guard, args, kwargs)
+
+        # A small supplementary call from content_engine already has a large prior set.
+        # Bypass the calibrated wrapper's own repair so this completion costs one provider
+        # call, not another nested two-call chain.
+        if requested <= 4 and len(prior) >= 8:
+            final, rescue_n, rescue_received, rescue_reasons = _guided_direct(
+                args, kwargs, requested, prior, [], {"supplementary_completion": requested}, source_text
+            )
+            try:
+                print(
+                    "[ASSESSMENT-FINAL-STABILIZER] supplementary=1 "
+                    f"requested={requested} rescue_asked={rescue_n} rescue_received={rescue_received} "
+                    f"final={len(final)} rescue_reasons={dict(sorted(rescue_reasons.items()))}",
+                    flush=True,
+                )
+            except Exception:
+                pass
+            return final[:requested]
+
+        # Normal calibrated path: one writer call plus its single bounded repair at most.
+        rejection_counter = Counter()
+        ai_engine_module._assessment_rejection_counter = rejection_counter
+        try:
+            initial = calibrated_generate(*args, **kwargs) or []
+        finally:
+            ai_engine_module._assessment_rejection_counter = None
+
+        selected = _batch_select(guard, gate, initial, requested, args, kwargs)
+        if len(selected) >= requested:
+            return selected[:requested]
+
+        # Add batch-level reasons that deterministic per-item filters cannot see.
+        if len(selected) < len(initial):
+            rejection_counter["batch_objective_or_meta_concentration"] += len(initial) - len(selected)
+
+        final, rescue_n, rescue_received, rescue_reasons = _guided_direct(
+            args, kwargs, requested, prior + [q for q in initial if isinstance(q, dict)],
+            selected, rejection_counter, source_text
+        )
 
         try:
             print(
                 "[ASSESSMENT-FINAL-STABILIZER] "
                 f"requested={requested} before={len(selected)} rescue_asked={rescue_n} "
-                f"rescue_received={len(rescue_raw)} final={len(final)} "
+                f"rescue_received={rescue_received} final={len(final)} "
+                f"initial_reasons={dict(sorted(rejection_counter.items()))} "
                 f"rescue_reasons={dict(sorted(rescue_reasons.items()))}",
                 flush=True,
             )
