@@ -9078,7 +9078,6 @@ function startActivityPolling(targetId, title, taskId = null, topicId = null) {
 }
 
 let draftProgressInterval = null;
-let isDraftPollingActive = false;
 
 function startDraftPolling(type, btn, originalText, callback, targetCid) {
   const container = document.getElementById(`${type}-gen-progress`);
@@ -9095,15 +9094,9 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
   if (fill) fill.style.width = '0%';
   if (pctText) pctText.textContent = '0%';
 
-  if (draftProgressInterval) {
-    clearInterval(draftProgressInterval);
-    draftProgressInterval = null;
-  }
-  isDraftPollingActive = false;
+  if (draftProgressInterval) clearInterval(draftProgressInterval);
 
   draftProgressInterval = setInterval(async () => {
-    if (isDraftPollingActive) return;
-    isDraftPollingActive = true;
     try {
       const data = await api(`/draft/progress?course_id=${cidToUse}&v=${Date.now()}`);
 
@@ -9112,10 +9105,7 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
         if (fill) fill.style.width = pct + '%';
         if (pctText) pctText.textContent = pct + '%';
       } else if (data.status === 'done') {
-        if (draftProgressInterval) {
-          clearInterval(draftProgressInterval);
-          draftProgressInterval = null;
-        }
+        clearInterval(draftProgressInterval);
         if (fill) fill.style.width = '100%';
         if (pctText) pctText.textContent = '100%';
 
@@ -9129,10 +9119,7 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
           if (data.questions) callback(data.questions);
         }, 500);
       } else if (data.status === 'error') {
-        if (draftProgressInterval) {
-          clearInterval(draftProgressInterval);
-          draftProgressInterval = null;
-        }
+        clearInterval(draftProgressInterval);
         if (container) container.classList.add('hidden');
         if (btn) {
           btn.textContent = originalText;
@@ -9143,10 +9130,8 @@ function startDraftPolling(type, btn, originalText, callback, targetCid) {
       }
     } catch (err) {
       console.error("Draft Polling Error:", err);
-    } finally {
-      isDraftPollingActive = false;
     }
-  }, 1000);
+  }, 300);
 }
 
 async function launchActivity() {

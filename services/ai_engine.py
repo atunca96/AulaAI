@@ -24,7 +24,7 @@ with open("pipeline.log", "a", encoding="utf-8") as f:
     f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [INIT] ai_engine.py loaded\n")
 import unicodedata
 import difflib
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
 def _uid():
     return str(uuid.uuid4())
@@ -556,7 +556,7 @@ LANGUAGE_CALIBRATION_REGISTRY = {
     }
 }
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en"):
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
@@ -787,10 +787,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             "Focus on register flexibility: discriminating between natural formal, colloquial, journalistic, and literary expressions.",
             "Focus on advanced collocations, polysemous lexical subtleties, and authentic idiomatic usage."
         ]
-    if generation_seed is not None:
-        selected_variety_focus = py_random.Random(generation_seed).choice(variety_focuses)
-    else:
-        selected_variety_focus = py_random.choice(variety_focuses)
+    selected_variety_focus = py_random.choice(variety_focuses)
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
@@ -1011,8 +1008,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     11) NATURAL AUTHENTIC {language} & EXAMINER-GRADE POLISH: Prompts, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and impeccable grammatical elegance matching official CEFR {level} examinations.
     12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Verify each question against the 6 gates (Material support, Level fit, Naturalness, Uniqueness of answer, Distractor plausibility, Semantic duplication/coverage) before returning JSON."""
 
-    # MAX VARIETY SEED: Uses high-precision timestamp or explicit generation_seed to ensure varied candidates
-    seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
+    # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
+    seed = int(time.time() * 1000) % 999999
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     
     try:
@@ -1390,105 +1387,6 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n")
         return []
-
-def audit_questions_lightweight(questions: List[Dict], language: str = "Unknown", level: str = "A1") -> List[Tuple[bool, str]]:
-    """
-    Lightweight quality check before accepting questions.
-    Rejects ONLY questions where:
-    1. More than one option could reasonably be defended in the given context.
-    2. A distractor is obviously absurd, unrelated, or trivially eliminable at the requested CEFR level.
-    Accepts questions that already meet standard quality without demanding extra complexity or harder distractors.
-    """
-    if not questions:
-        return []
-
-    results = {}
-    items_to_ai = []
-
-    for idx, q in enumerate(questions):
-        if not isinstance(q, dict):
-            results[idx] = (False, "Invalid question structure")
-            continue
-
-        p = str(q.get("prompt") or "").strip()
-        a = str(q.get("answer") or "").strip()
-        distractors = q.get("distractors") or []
-        opts = [str(o).strip() for o in q.get("options") or ([a] + distractors)]
-
-        if not p or not a:
-            results[idx] = (False, "Missing prompt or answer")
-            continue
-
-        # Check 1: Must have 4 options
-        if len(opts) < 4:
-            results[idx] = (False, "Fewer than 4 options")
-            continue
-
-        # Check 2: All options must be strictly distinct
-        opts_lower = [o.lower() for o in opts]
-        if len(set(opts_lower)) < len(opts_lower):
-            results[idx] = (False, "Duplicate options found in question")
-            continue
-
-        # Check 3: Obvious absurd/placeholder options
-        absurd_tokens = {"[...]", "none of the above", "all of the above", "none", "hepsi", "hiçbiri", "n/a", "undefined"}
-        if any(o.lower() in absurd_tokens for o in opts):
-            results[idx] = (False, "Placeholder or meta-option in choices")
-            continue
-
-        # Check 4: Extreme length disparity (trivially eliminable distractor)
-        if any(len(o) <= 2 for o in opts) and max(len(o) for o in opts) >= 30:
-            results[idx] = (False, "Extreme length asymmetry among options")
-            continue
-
-        items_to_ai.append((idx, q))
-
-    # If no AI available or nothing left to check, return deterministic verdicts
-    if not items_to_ai or not is_ai_available():
-        return [results.get(i, (True, "")) for i in range(len(questions))]
-
-    # Single batch AI evaluation for the remaining items
-    ai_payload = []
-    for orig_idx, q in items_to_ai:
-        ai_payload.append({
-            "id": orig_idx,
-            "prompt": q.get("prompt"),
-            "answer": q.get("answer"),
-            "distractors": (q.get("distractors") or [])[:3]
-        })
-
-    system_prompt = f"""You are a lightweight quality auditor for CEFR {level} {language} assessment questions.
-Evaluate each question against ONLY these two rejection criteria:
-1. AMBIGUITY: More than one option could reasonably be defended in the given context (e.g. ambiguous prompt where multiple options are valid answers, or overlapping synonyms).
-2. DISTRACTOR QUALITY: A distractor is obviously absurd, unrelated, or trivially eliminable at CEFR {level} (e.g. off-topic random noun for a verb question, cartoonish word, or placeholder).
-
-CRITICAL DIRECTIVES:
-- Accept questions that meet standard CEFR {level} quality.
-- Do NOT reject questions that already pass standard quality.
-- Do NOT demand extra difficulty or artificial complexity.
-- Do NOT make distractors artificially harder.
-
-Output JSON:
-{{
-  "evaluations": [
-    {{"id": <int>, "pass": <true|false>, "reason": "<short 5-10 word reason if rejected>"}}
-  ]
-}}"""
-
-    user_prompt = f"Evaluate these {len(ai_payload)} questions:\n{json.dumps(ai_payload, ensure_ascii=False)}"
-
-    try:
-        res = _call_ai([{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], max_tokens=min(1200, max(400, len(ai_payload) * 80)), temperature=0.0, json_mode=True)
-        if res and isinstance(res, dict):
-            evals = res.get("evaluations") or res.get("data") or []
-            for ev in evals:
-                if isinstance(ev, dict) and "id" in ev:
-                    results[ev["id"]] = (bool(ev.get("pass", True)), str(ev.get("reason", "")))
-    except Exception as e:
-        print(f"[QUALITY AUDIT ERROR] {e}")
-
-    # Return final verdicts in original order
-    return [results.get(i, (True, "")) for i in range(len(questions))]
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None, material_language="en"):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, model_override=model_override, material_language=material_language)
