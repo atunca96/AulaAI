@@ -2,7 +2,7 @@
 
 Language, CEFR and topic agnostic. Material generation is not involved.
 Within a batch, canonical objective keys are strict. Across regenerations, prior
-objective keys are soft scheduling hints while true semantic repeats remain blocked.
+objective keys are soft scheduling hints while only true near-copies remain blocked.
 """
 
 import re
@@ -184,6 +184,29 @@ def _same_batch_target(q1, q2):
     return _objective_same(q1, q2) or _same_surface_target(q1, q2)
 
 
+def _prior_near_copy(q1, q2):
+    """Hard-block only genuine cross-run copies; prior objectives stay soft."""
+    p1, p2 = _norm(q1.get("prompt")), _norm(q2.get("prompt"))
+    a1, a2 = _norm(q1.get("answer")), _norm(q2.get("answer"))
+    if not p1 or not p2:
+        return False
+    if p1 == p2:
+        return True
+
+    prompt_ratio = SequenceMatcher(None, p1, p2).ratio()
+    answer_overlap = _answer_overlap(a1, a2)
+
+    # Same answer + almost identical wording is a real regeneration duplicate.
+    if a1 and a1 == a2 and prompt_ratio >= 0.84:
+        return True
+
+    # Extremely close paraphrases remain blocked even if answer formatting differs.
+    if prompt_ratio >= 0.95 and answer_overlap >= 0.70:
+        return True
+
+    return False
+
+
 def _meta_reason(q):
     try:
         return _outside_meta_proxy_reason(q)
@@ -192,7 +215,7 @@ def _meta_reason(q):
 
 
 def dedupe_questions(candidates, prior=None, limit=None):
-    """Keep one objective per batch; block meta/trivia and true semantic repeats."""
+    """Strict inside one batch; cross-run history blocks only genuine near-copies."""
     accepted = []
     refs = [_prepare_question(q) for q in (prior or []) if isinstance(q, dict)]
     for raw in candidates or []:
@@ -201,7 +224,7 @@ def dedupe_questions(candidates, prior=None, limit=None):
         q = _prepare_question(raw)
         if _meta_reason(q):
             continue
-        if any(_same_surface_target(q, old) for old in refs):
+        if any(_prior_near_copy(q, old) for old in refs):
             continue
         if any(_same_batch_target(q, old) for old in accepted):
             continue
@@ -342,8 +365,6 @@ def install(ai_engine_module):
 
         repair_round = 0
         missing = requested - len(accepted)
-        # One bounded repair is normally enough now that meta/trivia is rejected here,
-        # before the outer legacy post-filter. Keep the repair compact for latency.
         if _MAX_REPAIR_ROUNDS and missing > 0 and accepted:
             repair_round = 1
             seen = [q for q in (first or []) if isinstance(q, dict)]
