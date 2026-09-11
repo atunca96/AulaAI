@@ -125,6 +125,102 @@ SPANISH_NUMBER_WORDS = {
     "mil": ("one thousand", "bin")
 }
 
+MULTILINGUAL_NUMBER_WORDS = {
+    # Spanish
+    'cero', 'uno', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez',
+    'once', 'doce', 'trece', 'catorce', 'quince', 'dieciseis', 'diecisiete', 'dieciocho', 'diecinueve',
+    'veinte', 'veintiuno', 'veintidos', 'veintitres', 'veinticuatro', 'veinticinco', 'veintiseis', 'veintisiete', 'veintiocho', 'veintinueve',
+    'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa', 'cien', 'ciento', 'mil',
+    # English
+    'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+    'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen',
+    'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety', 'hundred', 'thousand',
+    # German
+    'null', 'eins', 'zwei', 'drei', 'vier', 'funf', 'sechs', 'sieben', 'acht', 'neun', 'zehn',
+    'elf', 'zwolf', 'dreizehn', 'vierzehn', 'funfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn',
+    'zwanzig', 'dreissig', 'vierzig', 'funfzig', 'sechzig', 'siebzig', 'achtzig', 'neunzig', 'hundert', 'tausend',
+    # French
+    'zero', 'un', 'une', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix',
+    'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'cent', 'mille',
+    # Russian
+    'ноль', 'один', 'одна', 'два', 'две', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять',
+    'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать',
+    'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто', 'сто', 'тысяча',
+    # Italian
+    'zero', 'uno', 'una', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci',
+    'undici', 'dodici', 'tredici', 'quattordici', 'quindici', 'sedici', 'diciassette', 'diciotto', 'diciannove',
+    'venti', 'trenta', 'quaranta', 'cinquanta', 'sessanta', 'settanta', 'ottanta', 'novanta', 'cento', 'mille',
+    # Turkish
+    'sifir', 'bir', 'iki', 'uc', 'dort', 'bes', 'alti', 'yedi', 'sekiz', 'dokuz', 'on',
+    'yirmi', 'otuz', 'kirk', 'elli', 'altmis', 'yetmis', 'seksen', 'doksan', 'yuz', 'bin'
+}
+
+MATH_OPERATORS = {
+    'mas', 'menos', 'por', 'dividido',
+    'plus', 'minus', 'times', 'divided',
+    'mal', 'geteilt',
+    'fois', 'divise',
+    'плюс', 'минус', 'умножить', 'разделить',
+    'piu', 'meno', 'diviso',
+    'arti', 'eksi', 'carpi', 'bolu'
+}
+
+MATH_ACTION_VERBS = {
+    'sumar', 'restar', 'multiplicar', 'dividir',
+    'add', 'subtract', 'multiply', 'divide',
+    'addieren', 'subtrahieren', 'multiplizieren', 'dividieren',
+    'additionner', 'soustraire', 'multiplier', 'diviser',
+    'сложить', 'вычесть', 'умножить', 'разделить', 'прибавить',
+    'sommare', 'sottrarre', 'moltiplicare', 'dividere',
+    'toplamak', 'cikarmak', 'carpmak', 'bolmek'
+}
+
+CALC_QUESTION_PATTERNS = [
+    r'\bcuanto\s+es\b', r'\bcombien\s+font\b', r'\bwie\s+viel\s+ist\b',
+    r'\bсколько\s+будет\b', r'\bwhat\s+is\b', r'\bquanto\s+fa\b',
+    r'\bkac\s+eder\b', r'\btoplami\s+kactir\b', r'\bresultado\s+de\b'
+]
+
+def is_arithmetic_question(prompt: str) -> bool:
+    """
+    Language-agnostic detector for arithmetic and math drill questions.
+    Catches pure calculations in both digits and spelled-out words across all languages:
+    e.g. 'ocho más tres', 'multiplicar cinco por dos', 'sumar cincuenta más veinte',
+    '¿Cuánto es setenta más treinta?', 'Wie viel ist fünf plus zwei?', etc.
+    """
+    if not prompt:
+        return False
+    
+    # 1. Direct digits with math operators: 5 + 3, 10 / 2, 7 x 4
+    if re.search(r'\b\d+\s*[\+\-\*\/×÷=]\s*\d+\b', prompt):
+        return True
+    
+    clean = _normalize_token(prompt)
+    words = clean.split()
+    if not words:
+        return False
+
+    # 2. Math action verbs combined with numbers or calculation context
+    for i, w in enumerate(words):
+        if w in MATH_ACTION_VERBS:
+            surrounding = words[max(0, i-4):min(len(words), i+6)]
+            if any(sw in MULTILINGUAL_NUMBER_WORDS or sw.isdigit() for sw in surrounding):
+                return True
+
+    # 3. Calculation question stems combined with arithmetic operators
+    for cq in CALC_QUESTION_PATTERNS:
+        if re.search(cq, clean):
+            if any(op in words for op in MATH_OPERATORS):
+                return True
+
+    # 4. Pattern: [number_word] [math_operator] [number_word] (e.g. 'ocho mas tres', 'cinco por dos')
+    for i in range(len(words) - 2):
+        w1, op, w2 = words[i], words[i+1], words[i+2]
+        if (w1 in MULTILINGUAL_NUMBER_WORDS or w1.isdigit()) and op in MATH_OPERATORS and (w2 in MULTILINGUAL_NUMBER_WORDS or w2.isdigit()):
+            return True
+
+    return False
+
 def _sanitize_blank_translations(prompt: str, answer: str, t_en: str, t_tr: str, why: str = "", why_tr: str = "", topic_content: dict = None):
     """
     Ensures that if the question prompt contains a blank (e.g. '_____'),
@@ -595,10 +691,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
          b) COMMUNICATIVE REACTION (NO BLANK): Choosing the natural response to a person.
             * Example: "— Muchísimas gracias por tu ayuda con la maleta.\n— ¿Cuál es la respuesta educada habitual?"
          c) CONCEPTUAL & COMMUNICATIVE UNDERSTANDING (NO BLANK):
-            * Example: "¿Cuánto es setenta más treinta?"
+            * Example: "¿Qué hora es si el reloj marca las tres y cuarto de la tarde?"
             * Example: "¿Cuál de las siguientes expresiones se usa exclusivamente para despedirse por la noche?"
          d) CONTEXTUAL SENTENCE COMPLETION (WITH BLANK):
             * Example: "Normalmente mis compañeros y yo __________ en la biblioteca después de las clases."
+    9. STRICT ZERO-TOLERANCE BAN ON ARITHMETIC & MATH CALCULATIONS (CRITICAL):
+       - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask 'ocho más tres', 'sumar cincuenta más veinte', 'multiplicar cinco por dos', 'cuánto es X más Y', 'wie viel ist X plus Y', 'combien font X plus Y', 'сколько будет X плюс Y').
+       - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
+       - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking the price of a ticket '¿Cuánto cuesta el billete?', asking the time '¿A qué hora sale el autobús?', hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
@@ -617,6 +717,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     - Provide a RICH MIX of question types!
     - DO NOT make all questions fill-in-the-blank! At most 2 questions should have a blank ('_____').
     - The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
+    - ABSOLUTELY ZERO ARITHMETIC: NEVER ask math operations (sumar, multiplicar, 'más', 'plus'). Test numbers only via time, prices, or schedules!
     
     JSON STRUCTURE:
     {{
@@ -638,7 +739,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
     2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible 'distractors' in the 'distractors' array.
     3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
-    4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word."""
+    4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+    5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates)."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -730,6 +832,10 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
             # STRICT MANDATE: MUST have at least 3 distractors so total options is ALWAYS 4!
             if len(clean_d) < 3:
+                continue
+
+            # Reject pure math operations and arithmetic drill questions
+            if is_arithmetic_question(p) or is_arithmetic_question(a):
                 continue
 
             # Programmatic Anti-Giveaway & Anti-Trivia Verification
@@ -869,6 +975,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 if page.get("type") == "mcq" and page.get("prompt") and page.get("answer"):
                     prompt_txt = str(page.get("prompt", "")).strip()
                     ans_txt = str(page.get("answer", "")).strip()
+                    if is_arithmetic_question(prompt_txt) or is_arithmetic_question(ans_txt):
+                        continue
                     p_tok = _normalize_token(prompt_txt)
                     a_tok = _normalize_token(ans_txt)
                     if forbidden_prompt_keys and p_tok in forbidden_prompt_keys:
