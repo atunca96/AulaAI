@@ -71,6 +71,22 @@ class AssessmentQuestionValidatorTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, "pseudoform_distractors")
 
+    def test_rejects_numeric_cue_that_reveals_context_answer(self):
+        objective = {
+            "id": "o1", "topic_id": "1", "skill": "contextual use",
+            "target": "Use seis for a train ticket price", "evidence": "6 euros is expressed as seis euros",
+            "question_mode": "completion",
+        }
+        question = {
+            "prompt": "—¿Cuánto cuesta? —Cuesta _____ euros (6 €).",
+            "answer": "seis", "distractors": ["cinco", "siete", "ocho"],
+        }
+        ok, reason = validate_question(
+            question, objective, self._source(text="6 euros is expressed as seis euros"), "A1"
+        )
+        self.assertFalse(ok)
+        self.assertEqual(reason, "answer_revealed_by_numeric_cue")
+
     def test_allows_grounded_context_question(self):
         objective = {
             "id": "o1", "topic_id": "1", "skill": "contextual use",
