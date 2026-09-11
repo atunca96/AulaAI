@@ -87,7 +87,7 @@ CEFR_FRAMEWORK = {
         ),
         "lexical_profile": (
             "Sophisticated, academic, and literary vocabulary. Extensive idiomatic and metaphorical repertoire. "
-            "Subtle connotations, polysemy, register modulation (bureaucratic, academic, satirical). "
+            "Subtle connotations, polysemy, register modulation (authentic formal, academic, conversational, journalistic). "
             "Collocations with precise semantic boundaries. Zero reliance on basic or high-frequency elementary words."
         ),
         "syntactic_profile": (

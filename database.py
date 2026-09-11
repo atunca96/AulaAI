@@ -453,6 +453,15 @@ def init_db():
         )''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_draft_history_course ON draft_history(course_id)')
 
+        # Purge orphan unlinked draft questions prematurely inserted by older versions
+        try:
+            c.execute('''DELETE FROM questions 
+                WHERE approved = 1 
+                  AND id NOT IN (SELECT question_id FROM quiz_questions)
+                  AND id NOT IN (SELECT question_id FROM assignment_questions)''')
+        except Exception:
+            pass
+
         # REFACTORED: Enrollment Management
         c.execute('''CREATE TABLE IF NOT EXISTS enrollments (
             id TEXT PRIMARY KEY,

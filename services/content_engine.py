@@ -385,8 +385,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "why_tr": why_tr
                     })
 
-        # Supplementary AI pass ONLY if first batch yielded significantly fewer than requested
-        if len(questions) < max(c_count - 1, 1):
+        # Supplementary AI pass ONLY if first batch yielded severely fewer than requested (e.g. < 70%)
+        if len(questions) < max(int(c_count * 0.7), 1):
             still_needed = max(c_count - len(questions), 3)
             sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
             if len(topic_ids) == 1 and 'topic_title' in locals():
@@ -434,14 +434,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     if re.search(r'_{2,}', q.get("prompt", "")):
                         t_en, t_tr = _sanitize_blank_translations(q.get("prompt", ""), q.get("answer", ""), t_en, t_tr, why_en, why_tr)
 
-                    if is_quiz:
-                        with db_connection() as db_conn:
-                            db_conn.execute(
-                                "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
-                            )
-                            db_conn.commit()
-
                     questions.append({
                         "id": q_id,
                         "topic_id": tid,
@@ -461,8 +453,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
     if progress_callback:
         progress_callback(75, "Pedagojik kurallar ve seçenekler doğrulanıyor..." if ui_lang == "tr" else "Validating options and pedagogy...")
 
-    # Strict Topic-Isolated Safety Net (Only if questions < count)
-    if len(questions) < c_count:
+    # Strict Topic-Isolated Safety Net (Only for non-quiz offline activities if questions < count)
+    if not is_quiz and len(questions) < c_count:
         with db_connection() as db_conn:
             placeholders = ",".join("?" * len(topic_ids))
             existing_rows = db_conn.execute(

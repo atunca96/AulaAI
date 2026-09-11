@@ -523,7 +523,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 3, int(c * 1.3), 13)
+    gen_count = max(c + 4, int(c * 1.4), 14)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -585,9 +585,9 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         forbidden_prompts.append(p)
 
     forbidden_clause = ""
-    if forbidden_answers or forbidden_prompts:
-        answers_str = ", ".join(f"'{ans}'" for ans in forbidden_answers[:40])
-        prompts_list = "\n".join(f"- {p[:120]}" for p in forbidden_prompts[-20:])
+    if forbidden_prompts or forbidden_answers:
+        prompts_list = "\n".join(f"- {p[:120]}" for p in forbidden_prompts[-25:])
+        answers_str = ", ".join(f"'{ans}'" for ans in forbidden_answers[-25:])
         forbidden_clause = f"""
 ================================================================================
 STRICT CROSS-TEST DIVERSITY & ANTI-REPETITION MANDATE (ALL CEFR LEVELS A1-C2):
@@ -595,18 +595,18 @@ STRICT CROSS-TEST DIVERSITY & ANTI-REPETITION MANDATE (ALL CEFR LEVELS A1-C2):
 The user is generating a subsequent or alternative assessment set for this topic.
 You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
-1. BANNED PREVIOUS TARGET ANSWERS (ABSOLUTE ZERO TOLERANCE):
-   The following words/expressions were ALREADY tested as correct answers in previous rounds:
-   [{answers_str}]
-   --> ABSOLUTELY NEVER make ANY of these words (or their accented, inflected, or plural variants) the correct answer!
-   --> You MUST select COMPLETELY DIFFERENT target vocabulary items, verbs, idioms, or communicative structures suited to CEFR {level}.
-
-2. BANNED PREVIOUS PROMPTS & SCENARIOS:
-   DO NOT replicate or slightly rephrase any of these previously tested scenarios, questions, or dialogue stems:
+1. BANNED PREVIOUS PROMPTS & SCENARIOS (ABSOLUTE ZERO TOLERANCE):
+   DO NOT replicate, copy, or slightly rephrase any of these previously tested scenarios, questions, or dialogue stems:
 {prompts_list}
 
-3. DIVERSE COMMUNICATIVE & SITUATIONAL ROTATION:
-   Vary the communicative context widely. If previous questions explored one context (e.g. cafe, ordering, or greeting), you MUST explore ENTIRELY DIFFERENT authentic settings appropriate for CEFR {level} (e.g. travel/transport, workplace/academic discussion, market/shopping, home/family, asking directions, social debate, scheduling).
+2. FRESH VOCABULARY & NATURAL PERSPECTIVES:
+   - Target items touched in earlier quizzes: [{answers_str}]
+   - Prioritize testing OTHER relevant vocabulary, idioms, phrases, or conversational scenarios from the theme.
+   - If testing related vocabulary, embed it in a completely distinct, realistic, practical scenario with fresh distractors.
+
+3. NATURAL & AUTHENTIC REAL-LIFE LANGUAGE (CRITICAL):
+   - Use ONLY natural, authentic language that native speakers and real public institutions actually use in everyday life.
+   - NEVER invent artificial, overly convoluted, or stiff bureaucratic phrasing (e.g. avoid bizarre officialese like "zur Pause verpflichtet"). Keep it natural, idiomatic, and realistic.
 ================================================================================
 """
 
@@ -624,19 +624,19 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         ]
     elif is_intermediate:
         variety_focuses = [
-            "Focus on professional and workplace communication: formal email tone, team collaboration, and meeting dialogues.",
+            "Focus on practical and natural workplace communication: clear emails, teamwork, and realistic meeting dialogues.",
             "Focus on expressing viewpoints, polite disagreement, structured argumentation, and justifying personal opinions.",
             "Focus on narrative discourse: recounting past experiences, unexpected travel anecdotes, and future hypotheses.",
             "Focus on communicative nuance: resolving practical misunderstandings, lodging courteous complaints, and negotiating.",
-            "Focus on natural discourse connectors, idiomatic phrasal usage, and syntactic sentence transformation."
+            "Focus on natural discourse connectors, idiomatic phrasal usage, and natural syntactic sentence flow."
         ]
     else:  # C1 / C2 Advanced
         variety_focuses = [
-            "Focus on sophisticated academic and professional register precision, rhetoric, and formal discourse norms.",
-            "Focus on pragmatic implicature, subtle socio-cultural idioms, irony, and conversational subtext.",
+            "Focus on natural advanced register precision, idiomatic mastery, and authentic contemporary discourse norms.",
+            "Focus on pragmatic implicature, natural socio-cultural idioms, irony, and conversational subtext.",
             "Focus on complex argumentation, societal debates, abstract concepts, and multi-perspective reasoning.",
-            "Focus on register flexibility: discriminating between formal, colloquial, journalistic, and literary expressions.",
-            "Focus on advanced collocations, polysemous lexical subtleties, and complex syntactic subordination."
+            "Focus on register flexibility: discriminating between natural formal, colloquial, journalistic, and literary expressions.",
+            "Focus on advanced collocations, polysemous lexical subtleties, and authentic idiomatic usage."
         ]
     selected_variety_focus = py_random.choice(variety_focuses)
 
@@ -708,6 +708,12 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
        - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking the price of a ticket '¿Cuánto cuesta el billete?', asking the time '¿A qué hora sale el autobús?', hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
     
+    10. NATURAL & AUTHENTIC COMMUNICATIVE LANGUAGE (CRITICAL - NO ARTIFICIAL OFFICIALESE):
+        - All questions, scenarios, dialogues, and answer options MUST use NATURAL, REAL-WORLD, CONTEMPORARY language as actually spoken and written by native speakers and real public institutions in everyday life.
+        - ABSOLUTELY NEVER fabricate artificial, hyper-bureaucratic, stiff, or convoluted formulations that may be grammatically possible on paper but are NEVER used by real people (e.g. NEVER invent unnatural bureaucratic jargon like "zur Pause verpflichtet", wooden administrative officialese, or bizarre pseudo-formal phrasing).
+        - Keep questions clear, engaging, realistic, and communicatively authentic for CEFR {level}.
+        - Scenarios should feature realistic dialogues, practical situations, natural interpersonal exchanges, or genuine standard public communication—NOT stiff, wooden, or overly convoluted textbook puzzles.
+    
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
 
@@ -749,7 +755,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     3) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
     4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
-    6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs."""
+    6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
+    7) NATURAL REAL-LIFE LANGUAGE ONLY: Use authentic language that native speakers actually use in daily life and public settings. NEVER invent clumsy, artificial, or hyper-bureaucratic phrasing (e.g. avoid awkward officialese like "zur Pause verpflichtet"). Keep sentences clear, practical, and idiomatic."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -761,7 +768,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
-            calc_max_tokens = min(5500, max(1500, gen_count * 320))
+            calc_max_tokens = min(5000, max(1500, gen_count * 250))
             res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []
@@ -782,23 +789,20 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if not (p and a and isinstance(d, list)):
                 continue
 
-            # STRICT DIVERSITY FILTER: Absolute rejection of any repeated prompt or target answer from previous rounds
             clean_a_token = _normalize_token(a)
             clean_p_token = _normalize_token(p)
 
-            if forbidden_answer_keys and clean_a_token in forbidden_answer_keys:
+            # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch
+            if any(_normalize_token(f.get("answer")) == clean_a_token for f in final):
                 continue
 
+            # STRICT DIVERSITY FILTER: Absolute rejection of any repeated or near-duplicate prompt from previous rounds
             if forbidden_prompt_keys:
                 if clean_p_token in forbidden_prompt_keys:
                     continue
                 # Character similarity check: reject only if prompt is near-duplicate (>80% similar)
                 if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).quick_ratio() > 0.80 for fp_key in forbidden_prompt_keys):
                     continue
-
-            # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch
-            if any(_normalize_token(f.get("answer")) == clean_a_token for f in final):
-                continue
 
             # Reject prompts containing Turkish instructional words (must be 100% target language)
             tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
@@ -895,13 +899,14 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
             # Reject hybrid Frankenstein questions where target language blank is inside instructional language sentence
             if ("______" in p or "____" in p) and not is_giveaway:
-                blank_lines = [line for line in p.split("\n") if "____" in line]
-                for bl in blank_lines:
-                    tr_markers = [" ve ", " ile ", " için ", " her ", " sabah ", " ben ", " bir ", " bu ", " saat ", "de ", "da ", "ya ", "ye ", "yim", "yım"]
-                    bl_lower = bl.lower()
-                    if any(m in bl_lower for m in tr_markers) and not any(w in bl_lower for w in ["¿", "¡", " que ", " de ", " la ", " el ", " en ", " por ", " para ", " con ", " un ", " una ", " al ", " del "]):
-                        is_giveaway = True
-                        break
+                if "turkish" not in language.lower() and "türkçe" not in language.lower():
+                    blank_lines = [line for line in p.split("\n") if "____" in line]
+                    for bl in blank_lines:
+                        tr_unique_markers = [" için ", " sabah ", " çünkü ", " lütfen ", " hangisi ", " boşluğa ", " seçiniz "]
+                        bl_lower = bl.lower()
+                        if any(m in bl_lower for m in tr_unique_markers):
+                            is_giveaway = True
+                            break
                 
             if is_giveaway:
                 continue
