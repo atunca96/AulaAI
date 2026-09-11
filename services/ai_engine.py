@@ -681,10 +681,13 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
          * CORRECT: prompt="... Le devuelvo _____ euros." -> translation_tr="... Size _____ euro para üstü veriyorum."
        - 'why': Concise pedagogical explanation in English.
        - 'why_tr': Concise pedagogical explanation in Turkish.
-    3. STRICT ANTI-GIVEAWAY MANDATE:
+    3. STRICT ANTI-GIVEAWAY & BAN ON META-ORTHOGRAPHIC TRIVIA:
        - The prompt MUST NEVER contain the correct answer or any stem/part of the answer.
-       - NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling of characters (e.g., NEVER ask 'Which letter name has the word X in it?', 'Which word ends in Y?').
-       - For alphabet and pronunciation topics, test genuine sound-to-letter correspondences in authentic words, silent letters, or minimal pairs.
+       - STRICT ZERO-TOLERANCE BAN ON META-ORTHOGRAPHIC & ALPHABET TRIVIA:
+         * NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling features (e.g. NEVER ask 'Which word has a tilde / graphic accent?', 'Which letter is silent?', 'Which word ends in Y?', 'Which number between 16 and 29 has a tilde?').
+         * Testing "Which word has a tilde?" is shallow trivia and often creates multiple correct answers.
+         * Test spelling, orthography, and accents EXCLUSIVELY in authentic communicative sentence contexts (e.g. "Tengo _____ años." where only ONE option is correctly spelled, and all 3 distractors are typical learner spelling errors).
+       - For phonetics/alphabet topics, test genuine pronunciation in real words or minimal pairs.
     4. STRICT ANTI-COGNATE & REAL-CHALLENGE MANDATE:
        - NEVER ask questions where the target answer is an obvious transparent cognate identical to English/Turkish.
        - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
@@ -694,27 +697,38 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - Use the provided source material and vocabulary as your pedagogical baseline for CEFR {level}.
        - You have FULL PEDAGOGICAL FREEDOM to draw upon the rich, natural conversational vocabulary, diverse situational dialogues, cultural expressions, and communicative scenarios of authentic {language} appropriate for level {level} within the theme of '{topic_title}'.
        - Never artificially restrict questions to ONLY the exact 5-8 sample words listed when generating multiple rounds of questions; expand freely into natural variations, related phrases, and real-life dialogues suited to this topic and level so every regeneration is fresh and engaging.
-    7. DISTRACTOR PLAUSIBILITY, COMPETITIVENESS & LENGTH SYMMETRY MANDATE (CRITICAL):
+    7. DISTRACTOR PLAUSIBILITY, LEARNER ERROR MODELING & EXACTLY ONE ANSWER (CRITICAL):
        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer, more detailed, or more explanatory than the distractors. If the answer is 3 words, distractors must be 3 words.
+       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER MANDATE (ZERO MULTI-ANSWER DEFECTS):
+         * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt.
+         * All 3 distractors MUST be unequivocally and demonstrably false.
+         * If the question asks about a grammatical, orthographic, or syntactic property (e.g. gender, conjugation, agreement, spelling), ABSOLUTELY NEVER generate a distractor that ALSO possesses that target property! (e.g. if asking for a word with a specific grammatical feature, NONE of the 3 distractors may exhibit that feature).
+       - AUTHENTIC LEARNER ERROR MODELING (NOT JUST ADJACENT NUMBERS):
+         * When testing vocabulary, numbers, or forms, distractors MUST NOT merely be adjacent numbers (e.g. 16, 17, 19 for 18).
+         * Distractors MUST model genuine, typical learner error archetypes:
+           a) Structural/compounding mistakes (e.g. in Spanish, 'diez y ocho' vs 'dieciocho', 'veinte y dos' vs 'veintidós').
+           b) Grammatical apocope and agreement errors (e.g. 'veintiuno' vs 'veintiún' vs 'veintiuna estudiantes').
+           c) High-frequency false friends or phonetic near-matches (e.g. 'receta' vs 'cuenta').
+           d) Pragmatic or register mismatches.
        - ABSOLUTE ZERO-TOLERANCE BAN ON OFF-DOMAIN, ANACHRONISTIC, OR WEIRD DISTRACTORS:
          * NEVER inject nouns or concepts from unrelated daily life domains into distractors (e.g. ABSOLUTELY NO fitness studio / gym, cinema, supermarket, or leisure club options when testing transport, workplace, or healthcare).
          * NEVER inject absurd temporal or anachronistic shifts (e.g. ABSOLUTELY NO "timetable for next year", "last month's schedule", or arbitrary future dates).
          * NEVER inject pseudo-philosophical, ideological, or bizarre stylistic adjectives/attitudes (e.g. ABSOLUTELY NO "rückwärtsgewandt", "utopisch", "nostalgisch", "philosophisch").
-         * NEVER generate comical, cartoonish, or obviously impossible options (e.g. no bicycles in rail transit, no lifetime free passes, no vehicles driving backwards, no firing staff).
-       - HOW TO CONSTRUCT 3 HIGH-QUALITY COMPETITIVE DISTRACTORS:
-         * Distractor 1 (Plausible Misunderstanding): Represents a learner misinterpreting a key detail in the prompt (e.g. confusing the origin with the destination station, or confusing a partial cancellation with a full cancellation).
-         * Distractor 2 (Misapplied Real-World Procedure): Represents a real action common in this domain that is incorrect for this specific scenario (e.g. waiting at the original platform instead of changing platforms, or assuming a new ticket must be bought when existing tickets are honored).
-         * Distractor 3 (Alternative Relevant communicative reaction): Represents another realistic, plausible learner choice or polite phrase within the exact same situation.
+         * NEVER generate comical, cartoonish, or obviously impossible options.
        - NO OFF-TARGET OR FOREIGN DISTRACTORS: Every distractor must be a genuine, grammatically valid item native to {language}. NEVER use characters or orthography foreign to {language}.
        - NO TRIVIAL VISUAL GIVEAWAYS: A learner must NOT be able to identify the correct answer by visual elimination, option length difference, or ridiculous distractors.
-       - STRICT BAN ON META-ALPHABET TRIVIA: For alphabet/phonetics topics, test genuine pronunciation in real words or minimal pairs, never trivia about letter names or string properties.
 
-    8. COMMUNICATIVE QUESTION ARCHETYPES & IN-BATCH CONCEPT DIVERSITY (CRITICAL):
+    8. COMMUNICATIVE FOCUS & IN-BATCH CONCEPT DIVERSITY (CRITICAL):
        - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in Spanish?", or "Aşağıdakilerden hangisi X anlamına gelir?". NEVER ask the student to translate words between languages!
+       - STRICT BAN ON COMMERCIAL PRODUCT TRIVIA & INVENTED LEGAL THRESHOLDS:
+         * AulaAI is a language learning platform, NOT a railway ticketing manual or legal statute exam!
+         * NEVER test proprietary commercial product brand names or ticket portfolio specifics (e.g. DO NOT ask what a 'City-Ticket', specific railcard tier, or regional subscription bundle includes).
+         * NEVER test or invent arbitrary disputed legal/regulatory numerical thresholds (e.g. DO NOT claim that 'delay over 30 minutes' lifts ticket restrictions, or test refund percentages).
+         * Test real communicative situations: how to ask staff for advice, how to report an issue, how to request an alternative route, or how to rebook politely.
        - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY (ZERO REPETITION OF THE SAME RULE):
          * All {gen_count} questions within this batch MUST test completely distinct communicative and operational objectives.
-         * ABSOLUTELY NEVER include two questions testing the same rule or scenario archetype (e.g. NEVER generate two questions about ticket validity/lifting train-binding, or two questions about replacement bus services in the same batch). Every single question must target a fresh aspect of the theme.
+         * ABSOLUTELY NEVER include two questions testing the same rule or scenario archetype. Every single question must target a fresh aspect of the theme.
        - FORMAT VARIETY MANDATE (DO NOT MAKE ALL QUESTIONS FILL-IN-THE-BLANKS):
          Distribute the {gen_count} questions across diverse styles. At most 2 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
          a) SITUATIONAL PRAGMATICS (NO BLANK): Real-world social scenario where the student chooses what to say.
@@ -734,6 +748,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
         - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
+        - EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms (e.g. in Spanish, midnight is 'medianoche' or 'las doce de la noche', NEVER artificial 'las cero horas' in everyday conversation).
         - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
           * Use the genuine, authentic functional collocations native to {language} for the specific domain of '{topic_title}'.
           * Service notices and institutional announcements: Use authentic standard institutional terminology native to {language} (e.g. clearly distinguish between facilities/services being closed or unavailable vs. unstaffed; distinguish between scheduled stops/services that are not served vs. physically bypassing them).
@@ -750,7 +765,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         - NEVER ask shallow meta-questions that merely ask the student to parrot, quote, or trivially summarize what a speaker literally just uttered in the prompt.
         - Every question MUST test genuine communicative reasoning, situational reaction ("What should the person say or do?"), practical decision-making, or real-world consequence ("What does this information imply?").
 
-    12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (UNIVERSAL ACROSS ALL CEFR LEVELS):
+    12. RIGOROUS LOGICAL FIDELITY & CEFR LEVEL CALIBRATION (UNIVERSAL):
+        - B1 LEVEL CALIBRATION DIRECTIVE (CRITICAL):
+          * Level B1 represents independent everyday communicative competence (Alltagssprache / clear standard language).
+          * STRICT BAN ON C1/B2 BUREAUCRATIC OVERLOAD AT B1:
+            - NEVER flood a B1 lesson with dense infrastructure jargon, official railway dispatch terms, or hyper-complex compound nouns (e.g. in German transport, strictly avoid overusing terms like 'Betriebsstörung im Stellwerk', 'Oberleitungsschaden', 'umgekehrte Wagenreihung', 'veränderte Tarifbestimmungen', 'mobilitätseingeschränkt').
+            - Use clear standard everyday expressions (e.g. 'technisches Problem', 'andere Wagenreihenfolge', 'Hilfe beim Einsteigen', 'geänderte Ticketregeln').
+            - Focus on the traveler's communicative actions and understanding of clear standard announcements, NOT technical engineering or corporate tariff law.
+        - COMPLETE & SELF-CONTAINED CONTEXT:
+          * The scenario MUST provide all necessary context so that the correct answer is logically undeniable and the only possible choice.
+          * Never mention unexplained premises (e.g. "two cars with changed tariff rules" without explaining what the rules are) and expect the learner to guess.
         - STRICT LITERAL DEDUCTION & ZERO INFERENCE LEAPS:
           * The question stem and the correct answer MUST be strictly, mathematically, and directly verifiable from what is EXPLICITLY stated in the scenario.
           * ZERO SPECULATIVE INFERENCE: If the scenario states an event or incident occurs, NEVER infer an unstated consequence or cause (e.g. do NOT assert that duration, costs, schedules, or outcomes have changed unless the scenario explicitly mentions that change).
@@ -760,7 +784,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             - Do not over-generalize specific exceptions: If one specific service, item, or route is unavailable, do NOT assert that all options in that category are cancelled.
             - Do not over-specify categories: If an announcement or person refers generally to an alternative or solution, do NOT arbitrarily label it with a specific sub-category unless specified in the text.
           * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities/remedies (e.g. vouchers, refunds, compensation, special accommodations) as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
-          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations, specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
+          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations (e.g. "in front of the station building"), specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
         - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a customer with staff; do not confuse a temporary delay with a complete cancellation).
         - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
@@ -801,14 +825,16 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     CRITICAL MANDATES:
     1) 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
-    2) EXACTLY 4 OPTIONS: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' in the 'distractors' array. ABSOLUTELY NO off-domain nouns, NO absurd temporal anachronisms, and NO weird/pseudo-philosophical adjectives.
-    3) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
-    4) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
-    5) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
-    6) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
-    7) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    8) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations, and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés.
-    9) LITERAL DEDUCTIVE RIGOR & ZERO INFERENCE LEAPS: The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
+    2) EXACTLY 4 OPTIONS & EXACTLY ONE DEFENSIBLE ANSWER: Every question MUST have 1 correct 'answer' and EXACTLY 3 plausible, realistic 'distractors' that are definitively FALSE. Never generate distractors that also satisfy the question prompt (e.g. if asking for a specific spelling/grammatical property, no distractor may share that property).
+    3) LEARNER ERROR DISTRACTORS: When testing vocabulary, numbers, or forms, distractors must model typical learner error patterns (compounding errors like 'diez y ocho', gender/apocope errors like 'veintiuno estudiantes', false friends). Never use just adjacent numbers.
+    4) NO COMMERCIAL PRODUCT TRIVIA: Never test commercial brand names or ticket bundle portfolio specifics (no City-Ticket minutiae). Never test arbitrary disputed legal thresholds (no 'over 30 minutes' rules).
+    5) IN-BATCH & CROSS-SET DIVERSITY: Every single question in this batch MUST test a completely different operational rule, social function, or communicative scenario. Zero duplicate concepts within or across batches.
+    6) DIVERSE FORMATS: Mix situational questions, dialogue reactions, conceptual questions, and at most 2 sentence completions.
+    7) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+    8) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
+    9) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
+    10) NATURAL AUTHENTIC {language}: Use genuine living idioms, domain-accurate collocations, and natural native syntax in {language}. Avoid clunky literalisms or artificial test-maker clichés (e.g. use 'medianoche' / 'las doce de la noche', never 'las cero horas').
+    11) B1 CALIBRATION & LITERAL DEDUCTIVE RIGOR: For B1, use clear standard language (Alltagssprache); strictly avoid C1/B2 dense bureaucratic jargon or heavy infrastructure dispatch compounds. The correct answer must be 100% verifiable from the prompt text alone without unwarranted speculative inferences or unstated locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
@@ -928,6 +954,26 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
                 "alfabesinde bulunan tek", "alfabesine özgü", "exclusivo del alfabeto"
             ]
             if any(t in clean_p for t in trivia_indicators):
+                is_giveaway = True
+
+            # Reject meta-orthographic accent/spelling trivia (e.g. "Which word has a tilde?")
+            meta_accent_indicators = [
+                "tilde grafica", "lleva tilde", "se escribe con tilde", "con tilde",
+                "accent aigu", "accent grave", "con acento", "hat einen akzent",
+                "hangi kelimede sapka", "which word has an accent", "has a tilde", "se escribe tradicionalmente con tilde"
+            ]
+            if any(mai in clean_p for mai in meta_accent_indicators):
+                is_giveaway = True
+
+            # Multi-answer accent sanity check: If prompt asks about accents, never allow multiple options with accents
+            if any(w in clean_p for w in ["tilde", "acento", "accent"]):
+                accent_opts = [o for o in [a] + clean_d[:3] if re.search(r'[áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛ]', o)]
+                if len(accent_opts) > 1:
+                    is_giveaway = True
+
+            # Reject proprietary commercial product trivia (e.g. City-Ticket, BahnCard rules)
+            product_trivia = ["city ticket", "city-ticket", "bahncard", "abonnement general", "cartes de reduction"]
+            if any(pt in clean_p for pt in product_trivia):
                 is_giveaway = True
 
             # Reject non-target language characters in options (e.g., 'ç' in Spanish)

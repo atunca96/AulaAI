@@ -528,7 +528,7 @@ def get_cefr_conditioning(language: str, level: str, topic: str = "", topic_type
     lang_level_spec = lang_standards.get("levels", {}).get(lvl_key, {})
     institution = lang_standards.get("institution", f"Council of Europe CEFR Companion Volume ({language})")
 
-    # Build Negative Constraints (Forbidden Lexicon)
+    # Build Negative Constraints (Forbidden Lexicon & Level Difficulty Calibration)
     forbidden_summary = ""
     is_advanced = lvl_key in ["B2", "C1", "C2"]
     if is_advanced:
@@ -543,6 +543,24 @@ CRITICAL NEGATIVE CONSTRAINT (STRICT ZERO-TOLERANCE BAN):
   [{forbidden_sample}]
 - NEVER treat a {lvl_key} topic like an introductory cultural trivia lesson. Adult {lvl_key} learners have already mastered basic vocabulary years ago.
 - EVERY vocabulary term MUST be an advanced, academic, literary, polysemous, or idiomatic lexical item appropriate for university-level discourse.
+"""
+    elif lvl_key == "B1":
+        forbidden_summary = f"""
+CRITICAL CEFR B1 DIFFICULTY & REGISTER CALIBRATION (STRICT STANDARD EVERYDAY LANGUAGE):
+- YOU ARE AUTHORING MATERIAL FOR B1 ({universal_spec['name']}).
+- B1 REPRESENTS INDEPENDENT EVERYDAY THRESHOLD MASTERY (Alltagssprache / clear standard language).
+- STRICT BAN ON C1/B2 HYPER-TECHNICAL BUREAUCRATIC OVERLOAD:
+  * Do NOT use heavy administrative officialese, hyper-technical engineering/infrastructure jargon, or dense legalistic compound nouns.
+  * For example, in transit/services, avoid overloading the test with specialized dispatch terminology or obscure tariff rules. Use clear standard everyday expressions (e.g. general technical problem, boarding assistance, schedule delay, polite staff inquiry).
+  * A learner at B1 needs to communicate, ask for help, understand standard public announcements, and solve practical travel/daily situations, NOT act as a legal dispatcher or transport authority lawyer!
+"""
+    elif lvl_key in ["A1", "A2"]:
+        forbidden_summary = f"""
+CRITICAL CEFR {lvl_key} DIFFICULTY & LEARNER ERROR MODELING:
+- YOU ARE AUTHORING MATERIAL FOR {lvl_key} ({universal_spec['name']}).
+- USE SHORT, CLEAR, CONCRETE SCENARIOS grounded in immediate everyday life.
+- FOR NUMBERS & VOCABULARY: Distractors must NOT merely be adjacent numbers. They must model authentic learner error patterns (e.g. compounding errors, apocope/gender agreement, false friends).
+- EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms (e.g. 'medianoche' / 'las doce de la noche', NEVER artificial 'las cero horas').
 """
 
     specific_rules = ""
