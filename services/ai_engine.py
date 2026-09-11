@@ -75,11 +75,14 @@ def is_transparent_cognate_giveaway(prompt: str, translation: str, answer: str) 
     if not prompt or not answer:
         return False
 
-    # If the prompt is written in the target language (e.g. Spanish question, dialogue, or sentence completion),
-    # it is an authentic target-language immersion question and NOT a cross-lingual cognate giveaway.
-    target_markers = ["¿", "¡", "cuál", "frase", "opción", "diálogo", "subrayada", "completa", "selecciona", "verbo", "indica", "expresa", "significa", "dice", "palabra", "tiempo verbal"]
+    # Applies ONLY when the prompt is written in the instructional language (English/Turkish)
+    # asking for a translation. Authentic target-language immersion questions are NOT cognate giveaways.
     p_lower = str(prompt).lower()
-    if any(m in p_lower for m in target_markers):
+    instructional_markers = [
+        "what does", "what is", "how do you say", "meaning of", "translate", "which of the following means",
+        "hangisi", "anlamına gelir", "karşılığı nedir", "nasıl denir", "türkçe anlamı", "ne anlama gelir"
+    ]
+    if not any(m in p_lower for m in instructional_markers):
         return False
 
     clean_a = normalize_text_for_cognate(answer)
@@ -452,18 +455,23 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
 
-                        if "choices" in res_json:
-                            content = res_json["choices"][0]["message"]["content"].strip()
-                            with open("pipeline.log", "a", encoding="utf-8") as f:
-                                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-OK] {len(content)} chars ← {target_model}\n")
+                        if "choices" in res_json and res_json["choices"]:
+                            msg = res_json["choices"][0].get("message", {})
+                            raw_content = msg.get("content") or ""
+                            if not raw_content and "reasoning" in msg and msg["reasoning"]:
+                                raw_content = msg["reasoning"]
+                            content = str(raw_content).strip()
+                            if content:
+                                with open("pipeline.log", "a", encoding="utf-8") as f:
+                                    f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-OK] {len(content)} chars ← {target_model}\n")
 
-                            data = _extract_and_parse_json(content)
-                            if data:
-                                return data
+                                data = _extract_and_parse_json(content)
+                                if data:
+                                    return data
                             # JSON parse failed on this attempt; retry on the same model instead of falling back
                             with open("pipeline.log", "a", encoding="utf-8") as f:
                                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-PARSE-FAIL] Could not parse JSON from {target_model} (attempt {attempt+1}/{max_attempts}). Retrying {target_model}...\n")
-                            time.sleep(1.5 * (attempt + 1))
+                            time.sleep(1.0 * (attempt + 1))
                             continue
                 except Exception as e:
                     err_str = str(e)
@@ -515,7 +523,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} API={api_status}\n")
     
     c = int(count)
-    gen_count = max(c + 6, int(c * 1.6), 16)
+    gen_count = max(c + 3, int(c * 1.3), 13)
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
@@ -752,7 +760,7 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
-            calc_max_tokens = min(3200, max(900, gen_count * 240))
+            calc_max_tokens = min(5500, max(1500, gen_count * 320))
             res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []

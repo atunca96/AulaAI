@@ -297,14 +297,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         t_tr = q.get("translation_tr") or q.get("translation", "")
                         why_en = q.get("why", "Correct answer based on the lesson.")
                         why_tr = q.get("why_tr", "Ders içeriğine göre doğru seçenek.")
-                        
-                        if is_quiz:
-                            with db_connection() as db_conn:
-                                db_conn.execute(
-                                    "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                    (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
-                                )
-                                db_conn.commit()
 
                         questions.append({
                             "id": q_id,
@@ -377,14 +369,6 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     if re.search(r'_{2,}', q.get("prompt", "")):
                         t_en, t_tr = _sanitize_blank_translations(q.get("prompt", ""), q.get("answer", ""), t_en, t_tr, why_en, why_tr)
 
-                    if is_quiz:
-                        with db_connection() as db_conn:
-                            db_conn.execute(
-                                "INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, approved) VALUES (?,?,?,?,?,?,?,1)",
-                                (q_id, tid, q.get("type", "mcq"), q.get("prompt", ""), q.get("answer", ""), json.dumps(distractors), course_level)
-                            )
-                            db_conn.commit()
-
                     questions.append({
                         "id": q_id,
                         "topic_id": tid,
@@ -401,49 +385,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "why_tr": why_tr
                     })
 
-        # Try satisfying any minor shortfall from pre-approved topic questions first to avoid slow secondary AI calls
-        if len(questions) < c_count:
-            still_needed = c_count - len(questions)
-            with db_connection() as db_conn:
-                placeholders = ",".join("?" * len(topic_ids))
-                existing_rows = db_conn.execute(
-                    f"SELECT id, topic_id, type, prompt, answer, distractors, difficulty FROM questions WHERE topic_id IN ({placeholders}) AND approved = 1 ORDER BY RANDOM() LIMIT ?",
-                    list(topic_ids) + [still_needed * 3]
-                ).fetchall()
-                for r in existing_rows:
-                    if len(questions) >= c_count: break
-                    p_text = r["prompt"]
-                    a_text = r["answer"]
-                    if any(q.get("prompt") == p_text or q.get("answer") == a_text for q in questions):
-                        continue
-                    if forbidden_questions and any(isinstance(fq, dict) and (fq.get("prompt") == p_text or fq.get("answer") == a_text) for fq in forbidden_questions):
-                        continue
-                    try:
-                        d_list = json.loads(r["distractors"]) if r["distractors"] else []
-                    except Exception:
-                        d_list = []
-                    if len(d_list) < 3:
-                        continue
-                    opts = [a_text] + d_list[:3]
-                    py_random.shuffle(opts)
-                    questions.append({
-                        "id": r["id"],
-                        "topic_id": r["topic_id"],
-                        "type": r["type"],
-                        "prompt": p_text,
-                        "translation": "",
-                        "translation_en": "",
-                        "translation_tr": "",
-                        "answer": a_text,
-                        "distractors": d_list,
-                        "options": opts,
-                        "difficulty": r["difficulty"],
-                        "why": "Correct answer based on the lesson.",
-                        "why_tr": "Ders içeriğine göre doğru seçenek."
-                    })
-
-        # Supplementary AI pass if first batch and DB still yielded fewer than requested
-        if len(questions) < c_count:
+        # Supplementary AI pass ONLY if first batch yielded significantly fewer than requested
+        if len(questions) < max(c_count - 1, 1):
             still_needed = max(c_count - len(questions), 3)
             sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
             if len(topic_ids) == 1 and 'topic_title' in locals():
