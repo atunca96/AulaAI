@@ -38,6 +38,15 @@ try:
 except Exception:
     pass
 
+# Bilingual finishing integrity: never persist English text as a Turkish translation,
+# and guard stale pre-fix classrooms on the frontend. Material generation is untouched.
+try:
+    from . import bilingual_finisher as _bilingual_finisher
+    from .bilingual_translation_guard import install as _install_bilingual_translation_guard
+    _install_bilingual_translation_guard(_bilingual_finisher)
+except Exception:
+    pass
+
 # Install one outer provider timer AFTER legacy wrappers but BEFORE V2 imports _call_ai.
 # This gives legacy and V2 identical provider_ms/provider_calls instrumentation.
 try:
