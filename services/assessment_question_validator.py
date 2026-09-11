@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 
 from services.assessment_scorecard import _outside_meta_proxy_reason
 
-VALIDATOR_VERSION = "question_validator_v1"
+VALIDATOR_VERSION = "question_validator_v2"
 
 
 def _norm(value):
@@ -78,18 +78,39 @@ def _answer_grounded(answer, objective, source_text):
     return _containment(answer_tokens, combined_tokens) >= 0.70
 
 
+def _alignment_score(objective_tokens, candidate_text):
+    candidate_tokens = _tokens(candidate_text, 3)
+    if not candidate_tokens:
+        return 0.0
+    return max(
+        _containment(objective_tokens, candidate_tokens),
+        _containment(candidate_tokens, objective_tokens),
+    )
+
+
 def _aligned(question, objective):
+    """Check objective/question alignment without assuming both are in one language.
+
+    Planner objectives are normally English while learner-facing prompts are in the
+    target language. The writer already returns translation_en/translation_tr, so use
+    those bridge fields before falling back to the learner-facing prompt.
+    """
     objective_tokens = _tokens(
         f"{objective.get('target', '')} {objective.get('evidence', '')}", 3
     )
-    question_tokens = _tokens(
-        f"{question.get('prompt', '')} {question.get('answer', '')}", 3
-    )
-    if not objective_tokens or not question_tokens:
+    if not objective_tokens:
         return True
-    return _containment(objective_tokens, question_tokens) >= 0.18 or _containment(
-        question_tokens, objective_tokens
-    ) >= 0.18
+
+    answer = str(question.get("answer", ""))
+    candidates = [
+        f"{question.get('translation_en', '')} {answer}",
+        f"{question.get('translation_tr', '')} {answer}",
+        f"{question.get('prompt', '')} {answer}",
+    ]
+    scores = [_alignment_score(objective_tokens, text) for text in candidates if str(text).strip()]
+    if not scores:
+        return True
+    return max(scores) >= 0.16
 
 
 def _meta_allowed(question, objective, topic_source, level):
@@ -139,20 +160,24 @@ def _meta_allowed(question, objective, topic_source, level):
 
 
 def _numeric_answer_leak(question, objective):
+    """Reject strong answer leaks, not ordinary numbers occurring in context.
+
+    A parenthetical numeric gloss such as `(6)` or `(6 €)` while the expected answer
+    is an alphabetic target-language form directly gives away the response. Restricting
+    this to parenthetical cues avoids topic-specific or broad digit heuristics.
+    """
     if _form_or_rule_focused(objective):
         return False
     prompt = str(question.get("prompt", ""))
     answer = _norm(question.get("answer"))
     if not answer or any(ch.isdigit() for ch in answer):
         return False
-    prompt_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", prompt))
-    if not prompt_numbers:
-        return False
-    objective_text = str(
-        f"{objective.get('target', '')} {objective.get('evidence', '')}"
+    return bool(
+        re.search(
+            r"\(\s*\d+(?:[.,]\d+)?\s*(?:€|\$|£|¥|₺)?\s*\)",
+            prompt,
+        )
     )
-    objective_numbers = set(re.findall(r"\b\d+(?:[.,]\d+)?\b", objective_text))
-    return bool(prompt_numbers & objective_numbers)
 
 
 def _looks_like_pseudoform_distractors(question, objective, source_text):
