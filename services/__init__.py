@@ -14,8 +14,10 @@ try:
     from .assessment_pseudoform_precision import install as _install_assessment_pseudoform_precision
     from .assessment_batch_balance_prompt import install as _install_assessment_batch_balance_prompt
     from .assessment_direct_single_pass_experiment import install as _install_assessment_direct_single_pass_experiment
-    _install_assessment_prompt_policy(_ai_engine)
+    # Install the 5k budget INSIDE the prompt-policy wrapper so the policy's legacy
+    # 2500 clamp is overridden only for assessment calls at the final provider boundary.
     _install_assessment_output_budget(_ai_engine)
+    _install_assessment_prompt_policy(_ai_engine)
     _install_assessment_guard(_ai_engine)
     _install_assessment_evidence_balance(_ai_engine)
     _install_assessment_legacy_calibration(_ai_engine)
