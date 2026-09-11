@@ -150,9 +150,10 @@ def _candidate_count(guard, args, kwargs, requested):
 def _repair_count(requested, missing):
     if missing <= 0:
         return 0
-    # This is the only LLM repair. Give it enough headroom to finish the set in one
-    # bounded pass instead of leaving 9/10 and triggering downstream refill chains.
-    return min(max(4, missing * 2 + 2), max(4, min(8, requested)))
+    # This is the only LLM repair. Give narrow/high-rejection topics enough candidates
+    # to finish the requested set in this same bounded provider call, so content_engine
+    # does not need to open a third supplementary call for a leftover 1–2 items.
+    return min(max(6, missing * 3 + 4), max(6, min(12, requested + 2)))
 
 
 def _diversity_key(gate, question):
