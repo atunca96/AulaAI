@@ -21,12 +21,12 @@ def test_runtime_v4_uses_persisted_bilingual_fields_and_no_async_note_rewrite(tm
     assert "translateAsync" not in text
 
 
-def test_runtime_v4_highlight_is_based_on_real_topic_id(tmp_path):
+def test_runtime_v4_highlight_is_based_on_real_topic_id():
     js = guard._runtime_js()
     assert ".study-topic-btn[data-topic-id]" in js
     assert "aula_last_topic" in js
     assert "classList.contains('active')" in js
-    assert "first" not in js.lower() or "first" not in "default-first-topic"
+    assert "getAttribute('data-topic-id')" in js
 
 
 def test_runtime_v4_installs_early_instead_of_waiting_only_for_dom_ready():
