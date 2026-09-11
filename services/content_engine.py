@@ -201,7 +201,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None):
+def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None, focus_directive=None):
     """
     Unified assessment generation engine for both Quizzes and Activities.
     - If single topic (Activities): loads topic directly with 100% topic fidelity.
@@ -285,7 +285,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     existing_questions=forbidden_questions,
                     is_quiz=is_quiz,
                     material_language=material_language,
-                    generation_seed=generation_seed
+                    generation_seed=generation_seed,
+                    focus_directive=focus_directive
                 )
                 if new_qs:
                     for q in new_qs:
@@ -383,7 +384,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 existing_questions=forbidden_questions,
                 is_quiz=is_quiz,
                 material_language=material_language,
-                generation_seed=generation_seed
+                generation_seed=generation_seed,
+                focus_directive=focus_directive
             )
             if new_qs:
                 for q in new_qs:
@@ -538,9 +540,9 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
     return final_set
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None, generation_seed=None):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None, generation_seed=None, focus_directive=None):
     """Backward compatibility wrapper delegating to unified generate_assessment_set."""
-    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback, generation_seed=generation_seed)
+    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback, generation_seed=generation_seed, focus_directive=focus_directive)
 
 
 def generate_dialogue_activity(language="Unknown"):

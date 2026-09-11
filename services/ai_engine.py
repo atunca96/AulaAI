@@ -556,12 +556,12 @@ LANGUAGE_CALIBRATION_REGISTRY = {
     }
 }
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None):
     c = int(count)
-    gen_count = max(c + 2, int(c * 1.25), 6)
+    gen_count = max(c + 4, int(c * 1.5), 8)
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
-        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} API={api_status}\n")
+        f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} focus={focus_directive} API={api_status}\n")
     
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
@@ -961,6 +961,27 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
+
+    if focus_directive == "focus_grammar":
+        system += f"""
+
+    ================================================================================
+    SUB-BATCH SPECIALIZATION - GRAMMAR & SYNTACTIC STRUCTURES (STRICT MANDATE):
+    ================================================================================
+    Focus 100% on grammatical rules, syntactic patterns, verb conjugations, morphological suffixes,
+    and formal clause coordination taught in the material.
+    ABSOLUTELY DO NOT test colloquial idioms, slang phrases, or conversational metaphors in this sub-batch.
+    Test distinct grammatical objectives across each of the {gen_count} questions."""
+    elif focus_directive == "focus_lexicon":
+        system += f"""
+
+    ================================================================================
+    SUB-BATCH SPECIALIZATION - IDIOMS, LEXICON & PRAGMATIC SITUATIONS (STRICT MANDATE):
+    ================================================================================
+    Focus 100% on rich lexical distinctions, authentic idioms, professional expressions, and
+    situational communicative reactions taught in the material.
+    ABSOLUTELY DO NOT test repetitive grammatical suffix drills or tense conjugations in this sub-batch.
+    Test distinct idioms, vocabulary domains, and situations across each of the {gen_count} questions."""
 
     user = f"""TASK: Generate EXACTLY {gen_count} unique {topic_type} questions.
     TOPIC: {topic_title}

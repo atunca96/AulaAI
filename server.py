@@ -254,6 +254,92 @@ def is_near_identical_question(p1, p2):
         return True
     return difflib.SequenceMatcher(None, norm1, norm2).ratio() > 0.88
 
+def extract_pedagogic_keywords(text):
+    if not text:
+        return set()
+    norm = normalize_prompt_text(text)
+    stopwords = {
+        "hangisi", "hangisinde", "asagidaki", "cumlede", "dogru", "yanlis", "olarak",
+        "kullanilmistir", "vardir", "yoktur", "ifadesi", "anlamina", "gelen", "uygun",
+        "seciniz", "cumledeki", "bosluga", "hangisinin", "paragrafta", "verilen",
+        "which", "where", "what", "when", "that", "this", "from", "with", "have", "been",
+        "cual", "donde", "como", "para", "pero", "esta", "este", "es", "son", "un", "una"
+    }
+    words = [w for w in norm.split() if len(w) >= 3 and w not in stopwords]
+    return set(words)
+
+def is_test_conflict(cand, accepted):
+    """
+    Evaluates test-internal independence between two questions:
+    1. Prompt stem similarity: > 85% duplicate prompt text.
+    2. Answer equivalence: normalized answers are identical or near-identical (> 80%).
+    3. Target idiom/lemma overlap: candidate answer shares significant root/idiom with accepted answer.
+    4. Suffix / morphological target identity: e.g. both test '-casina / -cesine'.
+    5. Answer giveaway / clue: candidate's answer appears directly inside accepted question's prompt (or vice versa).
+    """
+    if not isinstance(cand, dict) or not isinstance(accepted, dict):
+        return False
+    cand_p = cand.get("prompt", "")
+    acc_p = accepted.get("prompt", "")
+    cand_a = cand.get("answer", "")
+    acc_a = accepted.get("answer", "")
+
+    # 1. Prompt similarity
+    if is_near_identical_question(cand_p, acc_p):
+        return True
+
+    # 2. Answer equivalence
+    norm_ca = normalize_prompt_text(cand_a)
+    norm_aa = normalize_prompt_text(acc_a)
+    if norm_ca and norm_aa:
+        if norm_ca == norm_aa:
+            return True
+        if difflib.SequenceMatcher(None, norm_ca, norm_aa).ratio() > 0.80:
+            return True
+
+    # 3. Target idiom / keyword overlap in answers
+    ca_words = extract_pedagogic_keywords(cand_a)
+    aa_words = extract_pedagogic_keywords(acc_a)
+    if ca_words and aa_words:
+        shared = ca_words & aa_words
+        if len(shared) >= 2:
+            return True
+        if len(ca_words) == 1 and len(aa_words) == 1 and list(ca_words)[0] == list(aa_words)[0]:
+            return True
+        for cw in ca_words:
+            for aw in aa_words:
+                if len(cw) >= 6 and len(aw) >= 6 and (cw in aw or aw in cw):
+                    return True
+                if cw.endswith(('cesine', 'casina')) and aw.endswith(('cesine', 'casina')):
+                    return True
+
+    # 4. Anti-Clue / Giveaway: candidate answer tokens in accepted prompt, or accepted answer tokens in candidate prompt
+    if len(norm_ca) >= 5 and f" {norm_ca} " in f" {normalize_prompt_text(acc_p)} ":
+        return True
+    if len(norm_aa) >= 5 and f" {norm_aa} " in f" {normalize_prompt_text(cand_p)} ":
+        return True
+
+    norm_acc_p = normalize_prompt_text(acc_p)
+    norm_cand_p = normalize_prompt_text(cand_p)
+
+    for aw in aa_words:
+        if len(aw) >= 5:
+            stem = aw[:5]
+            if stem in norm_cand_p:
+                return True
+    for cw in ca_words:
+        if len(cw) >= 5:
+            stem = cw[:5]
+            if stem in norm_acc_p:
+                return True
+
+    # 5. Shared grammatical construction markers in prompts
+    for kw in ["casina", "cesine", "karartmak", "karartarak", "karart"]:
+        if kw in norm_cand_p and kw in norm_acc_p:
+            return True
+
+    return False
+
 def record_course_draft_batch(course_id, questions, topic_id="all"):
     """
     Retain all questions from exactly the two most recent completed quiz drafts for the same course/topic.
@@ -2852,31 +2938,47 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 (q.get("prompt") or "").strip() for q in (existing_questions or [])
                 if isinstance(q, dict) and q.get("prompt")
             ]
+            retained_existing_answers = [
+                (q.get("answer") or "").strip() for q in (existing_questions or [])
+                if isinstance(q, dict) and q.get("answer")
+            ]
 
             try:
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 if requested_count >= 8:
                     count_a = (requested_count + 1) // 2
                     count_b = requested_count - count_a
+                    
+                    # Orthogonal topic partitioning if multi-topic
+                    if len(topic_ids) >= 2:
+                        mid = len(topic_ids) // 2
+                        topics_a = topic_ids[:mid]
+                        topics_b = topic_ids[mid:]
+                    else:
+                        topics_a = topic_ids
+                        topics_b = topic_ids
+
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                         future_a = executor.submit(
                             generate_quiz,
-                            topic_ids,
+                            topics_a,
                             count=count_a,
                             is_quiz=True,
                             ui_lang=ui_lang,
                             existing_questions=existing_questions,
-                            generation_seed=101
+                            generation_seed=101,
+                            focus_directive="focus_grammar"
                         )
                         future_b = executor.submit(
                             generate_quiz,
-                            topic_ids,
+                            topics_b,
                             count=count_b,
                             is_quiz=True,
                             ui_lang=ui_lang,
                             existing_questions=existing_questions,
-                            generation_seed=202
+                            generation_seed=202,
+                            focus_directive="focus_lexicon"
                         )
                         res_a = []
                         res_b = []
@@ -2905,9 +3007,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
                         continue
                     p = q.get("prompt", "")
+                    a = q.get("answer", "")
+                    # Check against previous 2 completed test batches
                     if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
                         continue
-                    if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                    if any(normalize_prompt_text(a) == normalize_prompt_text(rep_a) for rep_a in retained_existing_answers):
+                        continue
+                    # Enforce strict test-internal independence (zero duplicate suffixes, idioms, or answer leaks)
+                    if any(is_test_conflict(q, fq) for fq in final_questions):
                         continue
                     final_questions.append(q)
                     if len(final_questions) >= requested_count:
@@ -2916,7 +3023,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 # If the final valid question list contains fewer than the requested count,
                 # generate only the missing number of questions using the same existing generator
                 # and pass all already accepted questions as existing_questions so duplicates are avoided.
-                max_fill_attempts = 4
+                max_fill_attempts = 1
                 fill_attempt = 0
                 while len(final_questions) < requested_count and fill_attempt < max_fill_attempts:
                     fill_attempt += 1
@@ -2940,9 +3047,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
                             continue
                         p = q.get("prompt", "")
+                        a = q.get("answer", "")
                         if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
                             continue
-                        if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
+                        if any(normalize_prompt_text(a) == normalize_prompt_text(rep_a) for rep_a in retained_existing_answers):
+                            continue
+                        if any(is_test_conflict(q, fq) for fq in final_questions):
                             continue
                         final_questions.append(q)
                         added_any = True
