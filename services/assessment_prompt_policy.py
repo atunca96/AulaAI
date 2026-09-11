@@ -31,7 +31,7 @@ def install(ai_engine_module):
         old_system = str(rewritten[system_idx].get("content", ""))
 
         constitution = """
-PEDAGOGIC PROTOCOL & MANDATES — ASSESSMENT ENGINE V7.3
+PEDAGOGIC PROTOCOL & MANDATES — ASSESSMENT ENGINE V7.4 FINAL
 This is the authoritative assessment policy. It overrides every weaker or conflicting assessment instruction or example.
 
 1. SOURCE-LOCKED TRUTH
@@ -54,6 +54,19 @@ The grammatical/semantic category asked in the stem must match the category repr
 
 5. OPTION SYMMETRY AND FAIRNESS
 Keep the four options reasonably similar in grammatical form, semantic class, specificity, register and visual length unless source truth makes asymmetry unavoidable. The correct answer must not stand out because it is much longer, more detailed, more formal or structurally different. Avoid clueing through repeated wording from the stem.
+
+5A. DISTRACTOR SOPHISTICATION — FINAL QUALITY GATE
+All THREE distractors must be individually plausible to a learner at the requested CEFR level before the item may be returned. A distractor is valid only if a competent teacher could name the learner misconception that would cause someone to choose it.
+- Never use caricatured, absurd, comic, obviously rude, semantically unrelated or broken-language options merely to fill three slots.
+- Do not make the correct answer the only fluent, polite, complete, technical or contextually coherent option.
+- Prefer near-miss errors: wrong but real tense/mood/auxiliary/agreement, a plausible collocation, a semantically adjacent word, a register mismatch, an overgeneralized rule, a pragmatically weaker response, or a source-backed conceptual confusion.
+- For SPEAKING/FUNCTIONAL items, every option should be something a real speaker could plausibly say in that situation; wrong answers should fail through nuance, register, politeness, intent or appropriacy rather than obvious nonsense.
+- For VOCABULARY items, distractors should normally be real words/expressions from the same semantic field or nearby source-backed concepts, not unrelated categories.
+- For GRAMMAR items, use genuine competing forms a learner could realistically overgeneralize; do not invent misspellings or malformed pseudoforms unless orthographic/form discrimination is explicitly the taught objective.
+- For CULTURE items, wrong answers must remain plausible interpretations within the source's scope; do not fabricate stereotypes or ridiculous claims.
+- Scale error subtlety by CEFR: A1–A2 = simple high-frequency confusions; B1–B2 = realistic form/function/collocation/register confusions; C1–C2 = subtle pragmatic, discourse, semantic or stylistic distinctions.
+- Before returning each MCQ, perform a BLIND-OPTION CHECK: imagine the correct-answer label is hidden. If one option is obviously more fluent, detailed, formal, specific or sensible than the other three, rewrite the distractors.
+- Perform a THREE-MISCONCEPTION CHECK: silently identify a distinct plausible misconception behind each wrong option. If you cannot, replace that distractor.
 
 6. TEST LEARNER COMPETENCE, NOT META-LINGUISTIC TRIVIA
 Prefer practical meaning, form-function, grammar, contextual use, comprehension, pragmatic choice and source-taught contrasts. Do NOT test etymology, historical roots, word roots, prefixes, suffixes, morphemes, stems, linking elements, letter counts, accent-mark trivia, phonetic terminology, IPA labels, sound labels or comparisons with other languages unless that exact discipline is explicitly the lesson's central topic.
@@ -91,10 +104,10 @@ A scenario is valid only if linguistic/content evidence in the prompt makes exac
 Do not reveal the answer as a digit, translation, parenthetical cue, equivalent representation, quoted solution or obvious reformulation in the prompt or translations. Direct representation-conversion drills are allowed only when SOURCE MATERIAL explicitly teaches that exact reading/writing skill and must not dominate a batch.
 
 14. REAL, NATURAL DISTRACTORS ONLY
-Every distractor must be a real and natural target-language form or a source-backed alternative of the same grammatical/semantic/pragmatic class as the answer. Never invent pseudoforms by changing letters, accents or endings merely to resemble the answer. However, when grammar/form discrimination is the actual taught skill, genuine competing inflections, auxiliaries, agreements or conjugations are valid distractors.
+Every distractor must be a real and natural target-language form or a source-backed alternative of the same grammatical/semantic/pragmatic class as the answer. Never invent pseudoforms by changing letters, accents or endings merely to resemble the answer. However, when grammar/form discrimination is the actual taught skill, genuine competing inflections, auxiliaries, agreements or conjugations are valid distractors. A distractor that is instantly dismissible without knowing the lesson is a failed distractor and must be rewritten.
 
 15. CLEAN MCQ STRUCTURE
-Return exactly one correct answer plus exactly three distinct distractors. After case/diacritic normalization, all four options must still be distinct. No slash-combined multi-answer options. No absurd or visually obvious decoys.
+Return exactly one correct answer plus exactly three distinct distractors. After case/diacritic normalization, all four options must still be distinct. No slash-combined multi-answer options. No absurd or visually obvious decoys. The item should challenge knowledge of the target competence, not test-taking skill.
 
 16. PEDAGOGICAL FORMAT BALANCE
 Choose the format that best tests each objective: contextual comprehension, practical choice, dialogue/pragmatics, form-function discrimination, grammar application, source-backed contrast, interpretation or concise completion. Do not use format changes to hide repeated objectives. Variety is a preference, not a reason to invent weaker questions. When several valid formats are available, avoid letting a single surface format dominate the batch.
@@ -109,7 +122,7 @@ Every English `why` field MUST begin exactly with `[[OBJ:operation:underlying-ta
 Keep prompts concise enough that the assessed skill remains clear. After the objective marker, `why` is at most 6 English words and `why_tr` at most 6 Turkish words. `translation_en` and `translation_tr` should normally be at most 12 words. No prose outside JSON. Completeness is more important than decorative wording.
 
 20. FINAL BATCH AUDIT
-Before returning JSON, audit every item with the six-axis quality rubric and then audit the set as a whole. Replace any item that is unnatural, ambiguous, source-unsupported, outside-knowledge dependent, meta-trivia, weakly answerable, answer-leaking, pseudoform-based, structurally invalid, CEFR-inappropriate, stem-option misaligned, unfairly option-clued or semantically mismatched. Then compare all remaining objectives: if two items test the same transferable subskill, replace the weaker one with a different source-backed family or subskill when available. Finally check task-type quality, objective-family balance and surface-format balance. Return only the audited candidate set.
+Before returning JSON, audit every item with the six-axis quality rubric and then audit the set as a whole. Replace any item that is unnatural, ambiguous, source-unsupported, outside-knowledge dependent, meta-trivia, weakly answerable, answer-leaking, pseudoform-based, structurally invalid, CEFR-inappropriate, stem-option misaligned, unfairly option-clued or semantically mismatched. Run the BLIND-OPTION CHECK and THREE-MISCONCEPTION CHECK on every MCQ; if any distractor is absurd, broken, unrelated, visibly weaker or impossible to justify as a realistic learner error, rewrite it. Then compare all remaining objectives: if two items test the same transferable subskill, replace the weaker one with a different source-backed family or subskill when available. Finally check task-type quality, objective-family balance and surface-format balance. Return only the audited candidate set.
 """
 
         protocol_pattern = r"PEDAGOGIC PROTOCOL & MANDATES:.*?(?=\n\s*RESPONSE FORMAT:)"
@@ -120,7 +133,7 @@ Before returning JSON, audit every item with the six-axis quality rubric and the
 
         rewritten[system_idx]["content"] = old_system.replace(
             "Pedagogic Assessment Engine (V5)",
-            "Pedagogic Assessment Engine (V7.3)",
+            "Pedagogic Assessment Engine (V7.4 FINAL)",
             1,
         )
 
@@ -151,6 +164,7 @@ Before returning JSON, audit every item with the six-axis quality rubric and the
             rewritten[i]["content"] = (
                 "ONE-PASS QUALITY DIRECTIVE: Before writing, silently identify the task type (grammar, speaking, vocabulary, culture, functional, mixed/other), the CEFR level, and a source-backed coverage map. "
                 "For every candidate, internally require >=4/5 on naturalness, answer certainty, distractor plausibility, pedagogical value, CEFR fit and source fidelity; revise any candidate that fails. "
+                "All three distractors must be realistic CEFR-appropriate learner errors or source-backed confusions, never absurd fillers; run a blind-option check so the correct answer cannot be spotted by fluency, length, register, specificity or obviousness, and silently identify a distinct learner misconception behind each distractor. "
                 "Keep stem and option categories aligned, options fair and reasonably symmetric, and use task-type-appropriate quality criteria. "
                 "Cover different supported transferable skill families before revisiting one; repeat a family only for a materially different subskill. "
                 "Use SOURCE MATERIAL only. No outside-knowledge proxies, meta-trivia, pseudoforms, answer leaks, cosmetic repeats or unnatural translated phrasing. "
