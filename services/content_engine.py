@@ -356,10 +356,10 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                                                 disp = f"[CONTRAST] {c_tgt}" + (f": {c_note[:120]}" if c_note else "")
                                                 if len(key_grammar) < 6: key_grammar.append(disp)
 
-                                    # Extract items (vocab & fallback grammar)
+                                    # Extract items (Target lexicon & lexical evidence - NEVER promoted to grammar rules)
                                     for it in p.get("items", []):
                                         if isinstance(it, dict):
-                                            term = (it.get("term") or it.get("word") or it.get("rule") or "").strip()
+                                            term = (it.get("term") or it.get("word") or "").strip()
                                             tr_val = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
                                             ex = (it.get("example") or it.get("sample") or "").strip()
                                             expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
@@ -367,9 +367,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                                                 disp = f"{term} ({tr_val})" if tr_val else term
                                                 if ex: disp += f" [ex: {ex}]"
                                                 if expl: disp += f" [note: {expl[:100]}]"
-                                                if (any(k in ptype for k in ["grammar", "rule", "pattern"]) or "rule" in it) and len(key_grammar) < 6:
-                                                    key_grammar.append(disp)
-                                                elif len(key_terms) < 8:
+                                                if len(key_terms) < 8:
                                                     key_terms.append(disp)
 
                                     # Compact reading context: budget-conscious, prioritizing rules over narrative text

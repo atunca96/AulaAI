@@ -3068,6 +3068,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     topics_a = topic_ids
                     topics_b = topic_ids
 
+                    # Check if selected topics contain explicit grammar rules or contrasts
+                    has_explicit_grammar = False
+                    try:
+                        with db_connection() as db:
+                            placeholders = ','.join('?' for _ in topic_ids)
+                            rows = db.execute(f"SELECT content FROM topics WHERE id IN ({placeholders})", topic_ids).fetchall()
+                            for r in rows:
+                                if r and r[0]:
+                                    c_data = json.loads(r[0]) if isinstance(r[0], str) else r[0]
+                                    if isinstance(c_data, dict):
+                                        for p in c_data.get("pages", []):
+                                            if isinstance(p, dict) and (p.get("rules") or p.get("comparisons")):
+                                                has_explicit_grammar = True
+                                                break
+                                if has_explicit_grammar:
+                                    break
+                    except Exception as e_check:
+                        file_log(f"Error checking topic grammar rules: {e_check}")
+                        has_explicit_grammar = True
+
+                    dir_a = "focus_grammar" if has_explicit_grammar else None
+
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                         future_a = executor.submit(
@@ -3078,7 +3100,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             ui_lang=ui_lang,
                             existing_questions=existing_questions,
                             generation_seed=101,
-                            focus_directive="focus_grammar"
+                            focus_directive=dir_a
                         )
                         future_b = executor.submit(
                             generate_quiz,

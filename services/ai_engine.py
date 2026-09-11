@@ -631,11 +631,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             # Structural Contrasts & Nuances (Primary source for grammatical distinctions)
             if p.get("comparisons") and isinstance(p["comparisons"], list):
                 comp_lines = []
-                for c in p["comparisons"][:3]:
-                    if isinstance(c, dict):
-                        c_tgt = (c.get("target") or "").strip()
-                        c_ctx = (c.get("context_tr") if material_language == "tr" and c.get("context_tr") else (c.get("context") or "")).strip()
-                        c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
+                for comp in p["comparisons"][:3]:
+                    if isinstance(comp, dict):
+                        c_tgt = (comp.get("target") or "").strip()
+                        c_ctx = (comp.get("context_tr") if material_language == "tr" and comp.get("context_tr") else (comp.get("context") or "")).strip()
+                        c_note = (comp.get("note_tr") if material_language == "tr" and comp.get("note_tr") else (comp.get("note") or "")).strip()
                         if c_tgt:
                             c_disp = f"  * [CONTRAST] '{c_tgt}'" + (f" ({c_ctx})" if c_ctx else "") + (f": {c_note[:140]}" if c_note else "")
                             comp_lines.append(c_disp)
@@ -846,50 +846,53 @@ REPETITION & COVERAGE RULES:
        - MULTI-PART & OBJECTIVE COVERAGE:
          * Across the {gen_count} questions in this batch, cover different parts, sections, and learning objectives from the material instead of repeatedly testing the same concept, sentence pattern, vocabulary item, or grammar rule.
          * Map questions across the different numbered PARTS/sections provided in the source material.
-       - EXPLICIT RULES & COMPARISONS AS PRIMARY GRAMMAR SOURCE (CRITICAL MANDATE):
-         * Treat explicit rules ('[RULE]') and comparisons ('[CONTRAST]') as the PRIMARY and authoritative source of truth for grammar, inflection, and syntactic function questions.
-         * Treat vocabulary items, example sentences, narrative passages, and dialogue ONLY as lexical and contextual evidence, NEVER as proof of a new grammatical rule or function unless directly supported by a matching explicit taught rule.
-         * ZERO REVERSE-ENGINEERING OF GRAMMAR RULES: NEVER reverse-engineer or invent a grammatical rule, morphological function, or pragmatic force from an incidental example sentence, dialogue line, suffix, or collocation.
-         * NO FORCED GRAMMAR QUESTIONS: If a topic has no explicit source-supported grammar rule, do NOT force a grammar question from it; generate lexical, contextual, comprehension, or usage questions instead.
-         * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
+        - STRICT SOURCE GROUNDING ACROSS ALL LINGUISTIC DOMAINS (CRITICAL MANDATE):
+          * A grammar, vocabulary, discourse, pragmatic, pronunciation, orthographic, or functional rule may be stored or tested ONLY when it is explicitly supported by the source material or is an unambiguously inherent property of the taught target.
+          * ABSOLUTE BAN ON REVERSE-ENGINEERING: NEVER promote an incidental form, word, dialogue line, example, contextual effect, register effect, pragmatic inference, or model-generated interpretation into a learning rule merely because it appears in the material.
+          * Treat explicit rules ('[RULE]') and structural comparisons ('[CONTRAST]') as the PRIMARY and authoritative source of truth for grammar, inflection, and syntactic function questions.
+          * Treat vocabulary items, example sentences, narrative passages, and dialogue ONLY as lexical and contextual evidence, NEVER as proof of a new grammatical rule or function unless directly supported by a matching explicit taught rule.
+          * Keep core linguistic meaning and syntactic function strictly separate from optional contextual, rhetorical, or pragmatic effects.
+          * Treat dialogues and examples as contextual evidence unless the source explicitly foregrounds their language as a learning target.
+          * NO FORCED GRAMMAR QUESTIONS: If a topic has no explicit source-supported grammar rule or comparison, do NOT force or synthesize a grammar question from it; generate supported lexical, contextual, comprehension, or communicative usage questions instead.
+          * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
 
-    7. DISTRACTOR PLAUSIBILITY, REALISTIC LEARNER CONFUSIONS & CEFR CALIBRATION (CRITICAL):
-       - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
-       - STRICT CEFR {level} DIFFICULTY PRESERVATION:
-         * Strictly respect CEFR {level} linguistic limits across all questions, prompts, and all 4 options.
-         * Keep all target-language wording natural, idiomatic, and examiner-grade in {language}.
-         * Avoid overly advanced vocabulary, dense bureaucracy, or complex syntax above CEFR {level}.
-       - EXACTLY ONE DEFENSIBLE CORRECT ANSWER:
-         * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
-         * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
-       - HIGH-CALIBER DISTRACTOR RIGOR & NEAR-MISS COMPETITIVENESS (NO EASY FILLERS):
-         * Distractors must be challenging, sophisticated, and closely competing options that require genuine linguistic discernment to rule out.
-         * ZERO easy 'throwaway' or filler options that a student can eliminate at a superficial glance without thinking.
-          * EVERY OPTION MUST ITSELF BE GRAMMATICALLY NATURAL & AUTONOMOUSLY WELL-FORMED:
-            - Every single option (the correct answer AND all 3 distractors) MUST ITSELF be a 100% grammatically natural, authentic, and attested expression in {language}.
-            - SAFEGUARD 1 - REAL, CORRECTLY FORMED DISTRACTORS: Every distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms just to make an option incorrect. If natural parallel forms do not exist, use a plausible semantic or functional distractor instead.
-            - A distractor must be incorrect solely because of the CONTEXT, MEANING, PRAGMATIC FIT, or SUBTLE COLLOCATIONAL MISMATCH with the scenario — NEVER because the option itself is ungrammatical gibberish, an impossible morphological invention, or an unnatural phrase in the language!
-            - Avoid and reject any distractor that can be eliminated merely because it sounds unnatural, malformed, invented, or structurally impossible in isolation (e.g. NEVER fabricate artificial suffix combinations like "fark etmeksizinmiş", "gözetircisine", "öleceğince", non-existent verb forms, or broken morphological compounds).
-          * At least 1-2 (and where appropriate at least TWO) distractors in EVERY question MUST be plausible near-miss options drawn from the exact same grammatical or semantic category as the answer:
-            - In grammar: Use real, grammatically natural alternative forms (subtle agreement mismatches, correct tense but wrong grammatical person, subtle word-order inversion errors, or real, attested alternative converbs/suffixes).
-            - In vocabulary/collocations: Use other real, natural words from the exact same semantic field or plausible near-synonyms that do not fit the specific collocational frame, register, or preposition.
-            - In comprehension: Distractors should describe other real, grammatically natural statements mentioned elsewhere in the text (plausible misattributions), requiring careful reading rather than superficial elimination.
-          * SAFEGUARD - COMPLETE NATIVE CONSTRUCTION & ARGUMENT STRUCTURE (CRITICAL):
-            - For fixed expressions and collocations, validate the complete native construction before using it in either the correct answer or a distractor; the expression must take the exact natural person/object/complement and case pattern required by real usage, and an interpretable but non-native collocation is unacceptable.
-            - For idioms, fixed expressions, collocations, and formal phrases, preserve their authentic argument structure and lexical selection exactly: verify which person, object, case, complement, or collocate the expression naturally takes, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
-            - Validate collocational naturalness before accepting a question: a word may be semantically related yet must still be rejected if its argument, complement, or surrounding phrase is unnatural in real usage (for example, prefer natural constructions such as “Ekibinizi tenzih ederek...” rather than forcing “tenzih etmek” onto an unnatural abstract object). Do not make questions artificially harder.
-         * REJECTION OF SUPERFICIALLY FORMAL BUT SEMANTICALLY MISSELECTED VOCABULARY:
-           - Strictly reject words that sound superficially elevated, archaic, or formal but are semantically or idiomatically misselected in context (e.g. reject “salahiyet” where “selamet” is required).
-           - Never use an elevated register or learned word merely for cosmetic formality if its actual definition, argument structure, or idiomatic domain does not fit the context with 100% precision.
-         * IDIOMATIC PLAUSIBILITY IN THE EXACT SENTENCE FRAME:
-           - A distractor must make sense syntactically and idiomatically within the frame, representing a genuine, plausible near-miss rather than an awkward or arbitrary substitution.
-         * LINGUISTIC LEVEL & FUNCTIONAL CATEGORY MATCHING:
-           - When possible, distractors should compete with the correct answer at the same linguistic level and functional category.
-           - Avoid making the answer obvious by mixing it with options from clearly different grammatical, pragmatic, or register categories.
-         * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate real incorrect forms and common learner traps are explicitly welcomed when they produce a more competitive, natural, and pedagogically rigorous question.
-         * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, or trivially dismissible choices.
-       - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
-       - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
+     7. DISTRACTOR PLAUSIBILITY, REALISTIC LEARNER CONFUSIONS & CEFR CALIBRATION (CRITICAL):
+        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
+        - STRICT CEFR {level} DIFFICULTY PRESERVATION:
+          * Strictly respect CEFR {level} linguistic limits across all questions, prompts, and all 4 options.
+          * Keep all target-language wording natural, idiomatic, and examiner-grade in {language}.
+          * Avoid overly advanced vocabulary, dense bureaucracy, or complex syntax above CEFR {level}.
+        - EXACTLY ONE DEFENSIBLE CORRECT ANSWER:
+          * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
+          * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
+        - HIGH-CALIBER DISTRACTOR RIGOR & NEAR-MISS COMPETITIVENESS (NO EASY FILLERS):
+          * Distractors must be challenging, sophisticated, and closely competing options that require genuine linguistic discernment to rule out.
+          * ZERO easy 'throwaway' or filler options that a student can eliminate at a superficial glance without thinking.
+           * EVERY OPTION MUST ITSELF BE GRAMMATICALLY NATURAL & AUTONOMOUSLY WELL-FORMED:
+             - Every single option (the correct answer AND all 3 distractors) MUST ITSELF be a 100% grammatically natural, authentic, and attested expression in {language}.
+             - SAFEGUARD 1 - REAL, CORRECTLY FORMED DISTRACTORS: Every distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms just to make an option incorrect. If natural parallel forms do not exist, use a plausible semantic or functional distractor instead.
+             - A distractor must be incorrect solely because of the CONTEXT, MEANING, PRAGMATIC FIT, or SUBTLE COLLOCATIONAL MISMATCH with the scenario — NEVER because the option itself is ungrammatical gibberish, an impossible morphological invention, or an unnatural phrase in {language}!
+             - Avoid and reject any distractor that can be eliminated merely because it sounds unnatural, malformed, invented, or structurally impossible in isolation (e.g. NEVER fabricate artificial affix combinations, non-existent verb inflections, or broken morphological compounds).
+           * At least 1-2 (and where appropriate at least TWO) distractors in EVERY question MUST be plausible near-miss options drawn from the exact same grammatical or semantic category as the answer:
+             - In grammar: Use real, grammatically natural alternative forms (subtle agreement mismatches, correct tense but wrong grammatical person, subtle word-order inversion errors, or real, attested alternative inflectional forms).
+             - In vocabulary/collocations: Use other real, natural words from the exact same semantic field or plausible near-synonyms that do not fit the specific collocational frame, register, or preposition.
+             - In comprehension: Distractors should describe other real, grammatically natural statements mentioned elsewhere in the text (plausible misattributions), requiring careful reading rather than superficial elimination.
+           * SAFEGUARD - COMPLETE NATIVE CONSTRUCTION & TARGET-LANGUAGE VALIDATION (CRITICAL):
+             - Validate fixed expressions, collocations, morphology, syntax, semantic relations, and comparisons strictly according to {language} itself rather than through translation-based assumptions or cross-lingual calques.
+             - For idioms, fixed expressions, collocations, and formal phrases, preserve their authentic argument structure and lexical selection exactly as required in {language}: verify which person, object, case, complement, preposition, or collocate the expression naturally takes in {language}, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
+             - Validate collocational naturalness before accepting a question: a word may be semantically related yet must still be rejected if its argument, complement, or surrounding phrase is unnatural in real usage in {language}. Do not make questions artificially harder.
+          * REJECTION OF SUPERFICIALLY FORMAL BUT SEMANTICALLY MISSELECTED VOCABULARY:
+            - Strictly reject words that sound superficially elevated, archaic, or formal but are semantically or idiomatically misselected in context.
+            - Never use an elevated register or learned word merely for cosmetic formality if its actual definition, argument structure, or idiomatic domain does not fit the context with 100% precision in {language}.
+          * IDIOMATIC PLAUSIBILITY IN THE EXACT SENTENCE FRAME:
+            - A distractor must make sense syntactically and idiomatically within the frame, representing a genuine, plausible near-miss rather than an awkward or arbitrary substitution.
+          * LINGUISTIC LEVEL & FUNCTIONAL CATEGORY MATCHING:
+            - When possible, distractors should compete with the correct answer at the same linguistic level and functional category.
+            - Avoid making the answer obvious by mixing it with options from clearly different grammatical, pragmatic, or register categories.
+          * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate real incorrect forms and common learner traps are explicitly welcomed when they produce a more competitive, natural, and pedagogically rigorous question.
+          * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, or trivially dismissible choices.
+        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
+        - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
 
     8. COGNITIVE TASK & QUESTION FORMAT VARIETY (AVOIDING REPETITIVE TESTING PATTERNS):
        - ABSOLUTE BAN ON REPETITIVE TESTING PATTERNS:
@@ -943,17 +946,20 @@ REPETITION & COVERAGE RULES:
           * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
           * In response options and dialogues, use natural, realistic human phrasing suited to CEFR {level}, NEVER stiff or artificial academic test-maker jargon.
         - SEMANTIC PRECISION OVER SUPERFICIAL FORMALITY:
-          * Strictly reject semantically misselected but superficially formal vocabulary in context (e.g. “salahiyet” where “selamet” is required).
-          * Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt.
-        - STRUCTURAL RULE - EXPLICIT SOURCE-SUPPORTED GRAMMAR & ZERO REVERSE-ENGINEERING (CRITICAL):
+          * Strictly reject semantically misselected but superficially formal vocabulary in context.
+          * Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt in {language}.
+        - STRUCTURAL RULE - EXPLICIT SOURCE-SUPPORTED GROUNDING ACROSS ALL DOMAINS (CRITICAL):
+          * A grammar, vocabulary, discourse, pragmatic, pronunciation, orthographic, or functional rule may be tested ONLY when it is explicitly supported by the source material or is an unambiguously inherent property of the taught target.
           * Treat explicit rules ('[RULE]') and comparisons ('[CONTRAST]') as the primary source for grammar/function questions; treat items, examples, narrative text, and dialogue only as lexical/contextual evidence unless they are supported by a matching explicit taught rule.
           * NEVER reverse-engineer a grammatical rule or pragmatic function from an incidental example, dialogue line, suffix, or collocation.
-          * If a topic has no explicit source-supported grammar rule, do NOT force a grammar question from it; generate lexical, contextual, comprehension, or usage questions instead.
-          * Keep dialogue excluded from target selection.
+          * Keep core linguistic meaning and syntactic function strictly separate from optional contextual, rhetorical, or pragmatic effects.
+          * Treat dialogues and examples as contextual evidence unless the source explicitly foregrounds their language as a learning target.
+          * If a topic has no explicit source-supported grammar rule or comparison, do NOT force a grammar question from it; generate supported lexical, contextual, comprehension, or communicative usage questions instead.
+          * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
         - STRUCTURAL RULE - NO SPURIOUS MORPHEME-ATTRIBUTION & NATURAL WHOLE-EXPRESSION TESTING:
           * Do NOT generate meta-linguistic questions that attribute a pragmatic, rhetorical, continuity, completion, certainty, legal, intensity, or discourse meaning to a suffix, ending, case marker, or grammatical construction unless the source explicitly teaches that exact form–function relationship.
           * When the material teaches an idiom, fixed expression, collocation, discourse marker, or pragmatic phrase, test the whole expression naturally in context instead of decomposing it into morphemes or inventing a grammatical explanation.
-          * SAFEGUARD 1 - COMPLETE NATIVE CONSTRUCTION & ARGUMENT STRUCTURE (CRITICAL): For fixed expressions and collocations, validate the complete native construction before using it in either the correct answer or a distractor; the expression must take the exact natural person/object/complement and case pattern required by real usage, and an interpretable but non-native collocation is unacceptable. Preserve authentic argument structure and lexical selection exactly: verify which person, object, case, complement, or collocate the expression naturally takes, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
+          * SAFEGUARD 1 - COMPLETE NATIVE CONSTRUCTION & TARGET-LANGUAGE VALIDATION (CRITICAL): For fixed expressions and collocations, validate the complete native construction before using it in either the correct answer or a distractor; the expression must take the exact natural person/object/complement, preposition, and case pattern required by real usage in {language}, and an interpretable but non-native collocation is unacceptable. Validate strictly according to {language} itself, never through translation-based assumptions or cross-lingual calques. Preserve authentic argument structure and lexical selection exactly: verify which person, object, case, complement, preposition, or collocate the expression naturally takes in {language}, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
           * SAFEGUARD 2 - FORM-INHERENT SEMANTIC CONTRIBUTION vs. CONTEXT (CRITICAL): For grammar questions, describe only the semantic contribution encoded by the grammatical form itself; never attribute a meaning to the form merely because that meaning is supplied by the lexical verb, surrounding words, discourse context, or real-world situation. If the intended meaning depends on the whole sentence rather than the form itself, ask about the meaning of the complete construction or sentence instead of claiming that the suffix encodes it.
           * DISTRACTOR AUTHENTICITY SAFEGUARD (CRITICAL): Every distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms just to make an option incorrect. If natural parallel forms do not exist, use a plausible semantic or functional distractor instead.
           * For genuine morphology items, test only source-supported grammatical distinctions and use authentic natural alternatives; if a clean morphology question cannot be produced, generate a contextual meaning/usage question instead.
@@ -1017,12 +1023,13 @@ REPETITION & COVERAGE RULES:
         system += f"""
 
     ================================================================================
-    SUB-BATCH SPECIALIZATION - GRAMMAR & SYNTACTIC STRUCTURES (STRICT MANDATE):
+    SUB-BATCH SPECIALIZATION - GRAMMAR & STRUCTURAL FOCUS:
     ================================================================================
-    Focus 100% on grammatical rules, syntactic patterns, verb conjugations, morphological suffixes,
-    and formal clause coordination taught in the material.
-    ABSOLUTELY DO NOT test colloquial idioms, slang phrases, or conversational metaphors in this sub-batch.
-    Test distinct grammatical objectives across each of the {gen_count} questions."""
+    Prioritize explicit grammar rules ('[RULE]') and structural contrasts ('[CONTRAST]')
+    taught in the source material.
+    CRITICAL NON-GRAMMAR FALLBACK: If the provided source material lacks explicit taught grammar rules
+    or structural contrasts, do NOT force or reverse-engineer grammar questions; generate supported
+    lexical, communicative, situational, comprehension, or usage questions instead."""
     elif focus_directive == "focus_lexicon":
         system += f"""
 
@@ -1467,8 +1474,9 @@ REPETITION & COVERAGE RULES:
             
         return final[:gen_count]
     except Exception as e:
+        import traceback
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n{traceback.format_exc()}\n")
         return []
 
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None, material_language="en"):
@@ -1818,10 +1826,10 @@ def _normalize_lesson_pages(data, topic, language, level):
             if isinstance(p.get("text"), list):
                 p["text"] = "\n".join(f"• {x.get('text', '') if isinstance(x, dict) else str(x)}" for x in p["text"])
             # Deduce or correct page type based on actual contents
-            if p.get("items") or p.get("vocabulary"):
-                p["type"] = "vocabulary"
-            elif p.get("rules") or p.get("grammar"):
+            if p.get("rules") or p.get("grammar") or p.get("comparisons"):
                 p["type"] = "grammar"
+            elif p.get("items") or p.get("vocabulary"):
+                p["type"] = "vocabulary"
             elif p.get("dialogue") or p.get("conversations"):
                 p["type"] = "examples"
             elif p.get("prompt") or p.get("options") or p.get("distractors"):
@@ -1902,26 +1910,28 @@ def _normalize_lesson_pages(data, topic, language, level):
                         })
                 p["items"] = clean_items
 
-            # Ensure comparisons is always a list of well-formed objects with bilingual support
+            # Ensure comparisons is always a list of well-formed objects with bilingual support (no synthetic metadata)
             if "comparisons" in p and isinstance(p["comparisons"], list):
                 norm_comps = []
                 for c in p["comparisons"]:
                     if isinstance(c, dict):
-                        norm_comps.append({
-                            "context": c.get("context") or "Register & Nuance Contrast",
-                            "context_tr": c.get("context_tr") or "Kullanım ve Anlam Karşılaştırması",
-                            "target": c.get("target") or c.get("sentence") or c.get("text") or "",
-                            "translation": c.get("translation") or c.get("meaning") or "",
-                            "translation_tr": c.get("translation_tr") or "",
-                            "note": c.get("note") or c.get("explanation") or "",
-                            "note_tr": c.get("note_tr") or ""
-                        })
+                        tgt = str(c.get("target") or c.get("sentence") or c.get("text") or "").strip()
+                        if tgt:
+                            norm_comps.append({
+                                "context": str(c.get("context") or "").strip(),
+                                "context_tr": str(c.get("context_tr") or "").strip(),
+                                "target": tgt,
+                                "translation": str(c.get("translation") or c.get("meaning") or "").strip(),
+                                "translation_tr": str(c.get("translation_tr") or "").strip(),
+                                "note": str(c.get("note") or c.get("explanation") or "").strip(),
+                                "note_tr": str(c.get("note_tr") or "").strip()
+                            })
                     elif isinstance(c, str) and c.strip():
                         parts = c.split("=")
                         if len(parts) >= 2:
                             norm_comps.append({
-                                "context": "Register & Nuance Contrast",
-                                "context_tr": "Kullanım ve Anlam Karşılaştırması",
+                                "context": "",
+                                "context_tr": "",
                                 "target": parts[0].strip().strip("'\""),
                                 "translation": "",
                                 "translation_tr": "",
@@ -1930,8 +1940,8 @@ def _normalize_lesson_pages(data, topic, language, level):
                             })
                         else:
                             norm_comps.append({
-                                "context": "Register & Nuance Contrast",
-                                "context_tr": "Kullanım ve Anlam Karşılaştırması",
+                                "context": "",
+                                "context_tr": "",
                                 "target": c.strip().strip("'\""),
                                 "translation": "",
                                 "translation_tr": "",
@@ -1940,29 +1950,26 @@ def _normalize_lesson_pages(data, topic, language, level):
                             })
                 p["comparisons"] = norm_comps
 
-            # Ensure grammar rules have distinct, meaningful titles and explanations
+            # Ensure grammar rules preserve authentic, non-synthetic fields
             if "rules" in p and isinstance(p["rules"], list):
-                for r_idx, r in enumerate(p["rules"]):
+                norm_rules = []
+                for r in p["rules"]:
                     if isinstance(r, dict):
-                        r_rule = str(r.get("rule", "")).strip()
-                        if not r_rule or len(r_rule) < 3:
-                            r["rule"] = f"Grammar Principle {r_idx + 1}"
-                        if not r.get("explanation"):
-                            r_ex = r.get("example") or r.get("target") or ""
-                            if r_ex:
-                                r["explanation"] = f"Key grammatical pattern illustrated by '{r_ex}'."
-                            elif r_rule:
-                                r["explanation"] = f"Focus on understanding the structural role of {r_rule}."
-                            else:
-                                r["explanation"] = "Examine the grammatical structure and sentence pattern."
-                        if "rule_tr" in r:
-                            r["rule_tr"] = str(r["rule_tr"]).strip()
-                        if "explanation_tr" in r:
-                            r["explanation_tr"] = str(r["explanation_tr"]).strip()
-                        if "example_tr" in r:
-                            r["example_tr"] = str(r["example_tr"]).strip()
-                        if "analysis_tr" in r:
-                            r["analysis_tr"] = str(r["analysis_tr"]).strip()
+                        r_name = str(r.get("rule") or "").strip()
+                        r_expl = str(r.get("explanation") or "").strip()
+                        if r_name or r_expl:
+                            norm_rules.append({
+                                "rule": r_name,
+                                "rule_tr": str(r.get("rule_tr") or "").strip(),
+                                "explanation": r_expl,
+                                "explanation_tr": str(r.get("explanation_tr") or "").strip(),
+                                "example": str(r.get("example") or "").strip(),
+                                "example_en": str(r.get("example_en") or "").strip(),
+                                "example_tr": str(r.get("example_tr") or "").strip(),
+                                "analysis": str(r.get("analysis") or "").strip(),
+                                "analysis_tr": str(r.get("analysis_tr") or "").strip()
+                            })
+                p["rules"] = norm_rules
 
             # Ensure dialogue preserves translations
             if "dialogue" in p and isinstance(p["dialogue"], list):
