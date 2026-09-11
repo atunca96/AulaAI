@@ -268,14 +268,21 @@ def extract_pedagogic_keywords(text):
     words = [w for w in norm.split() if len(w) >= 3 and w not in stopwords]
     return set(words)
 
+def extract_prompt_quotes(text):
+    if not text:
+        return []
+    raw_quotes = re.findall(r'["\'\u201c\u2018]([^\u201d\u2019"\'\n]{6,})["\'\u201d\u2019]', str(text))
+    return [normalize_prompt_text(q) for q in raw_quotes if len(normalize_prompt_text(q)) >= 6]
+
 def is_test_conflict(cand, accepted):
     """
     Evaluates test-internal independence between two questions:
-    1. Prompt stem similarity: > 85% duplicate prompt text.
+    1. Prompt stem similarity: > 82% duplicate prompt text.
     2. Answer equivalence: normalized answers are identical or near-identical (> 80%).
-    3. Target idiom/lemma overlap: candidate answer shares significant root/idiom with accepted answer.
-    4. Suffix / morphological target identity: e.g. both test '-casina / -cesine'.
-    5. Answer giveaway / clue: candidate's answer appears directly inside accepted question's prompt (or vice versa).
+    3. Prompt Quotes Comparison: target sentences in quotes match (> 75%) or match another question's answer.
+    4. Longest Common Substring between Answer and Prompt: multi-word shared target >= 18 chars.
+    5. Target idiom/lemma overlap: candidate answer shares significant root/idiom with accepted answer.
+    6. Suffix / morphological target identity: e.g. both test '-casina / -cesine'.
     """
     if not isinstance(cand, dict) or not isinstance(accepted, dict):
         return False
@@ -284,20 +291,57 @@ def is_test_conflict(cand, accepted):
     cand_a = cand.get("answer", "")
     acc_a = accepted.get("answer", "")
 
-    # 1. Prompt similarity
-    if is_near_identical_question(cand_p, acc_p):
-        return True
-
-    # 2. Answer equivalence
+    norm_cand_p = normalize_prompt_text(cand_p)
+    norm_acc_p = normalize_prompt_text(acc_p)
     norm_ca = normalize_prompt_text(cand_a)
     norm_aa = normalize_prompt_text(acc_a)
+
+    # 1. Prompt similarity
+    if norm_cand_p and norm_acc_p:
+        if is_near_identical_question(cand_p, acc_p) or difflib.SequenceMatcher(None, norm_cand_p, norm_acc_p).ratio() > 0.82:
+            return True
+
+    # 2. Answer equivalence
     if norm_ca and norm_aa:
         if norm_ca == norm_aa:
             return True
         if difflib.SequenceMatcher(None, norm_ca, norm_aa).ratio() > 0.80:
             return True
 
-    # 3. Target idiom / keyword overlap in answers
+    # 3. Prompt Quotes Comparison (target sentence duplication & giveaway)
+    cand_quotes = extract_prompt_quotes(cand_p)
+    acc_quotes = extract_prompt_quotes(acc_p)
+    
+    # Prompt quote vs Prompt quote (both testing near-identical target sentences)
+    for cq in cand_quotes:
+        for aq in acc_quotes:
+            if cq == aq or difflib.SequenceMatcher(None, cq, aq).ratio() > 0.75:
+                return True
+
+    # Prompt quote vs Answers (one asks about the sentence that the other gives as answer)
+    for cq in cand_quotes:
+        if norm_aa and (cq == norm_aa or difflib.SequenceMatcher(None, cq, norm_aa).ratio() > 0.75):
+            return True
+    for aq in acc_quotes:
+        if norm_ca and (aq == norm_ca or difflib.SequenceMatcher(None, aq, norm_ca).ratio() > 0.75):
+            return True
+
+    # 4. Longest Common Substring between Answer and Prompt (giveaway / shared target sentence)
+    if norm_ca and norm_acc_p:
+        lcs_ca = difflib.SequenceMatcher(None, norm_ca, norm_acc_p).find_longest_match(0, len(norm_ca), 0, len(norm_acc_p))
+        if lcs_ca.size >= 18:
+            matched_str = norm_ca[lcs_ca.a:lcs_ca.a + lcs_ca.size].strip()
+            if len(matched_str.split()) >= 2:
+                return True
+
+    if norm_aa and norm_cand_p:
+        lcs_aa = difflib.SequenceMatcher(None, norm_aa, norm_cand_p).find_longest_match(0, len(norm_aa), 0, len(norm_cand_p))
+        if lcs_aa.size >= 18:
+            matched_str = norm_aa[lcs_aa.a:lcs_aa.a + lcs_aa.size].strip()
+            if len(matched_str.split()) >= 2:
+                return True
+
+    # 5. Target idiom / keyword overlap in answers
     ca_words = extract_pedagogic_keywords(cand_a)
     aa_words = extract_pedagogic_keywords(acc_a)
     if ca_words and aa_words:
@@ -313,16 +357,7 @@ def is_test_conflict(cand, accepted):
                 if cw.endswith(('cesine', 'casina')) and aw.endswith(('cesine', 'casina')):
                     return True
 
-    # 4. Anti-Clue / Giveaway: candidate full answer phrase appears directly inside accepted prompt (or vice versa)
-    if len(norm_ca) >= 6 and f" {norm_ca} " in f" {normalize_prompt_text(acc_p)} ":
-        return True
-    if len(norm_aa) >= 6 and f" {norm_aa} " in f" {normalize_prompt_text(cand_p)} ":
-        return True
-
-    norm_acc_p = normalize_prompt_text(acc_p)
-    norm_cand_p = normalize_prompt_text(cand_p)
-
-    # Multi-word idiom or key phrase giveaway (e.g. "gozunu karartmak" / "gozunu karartti")
+    # 6. Multi-word idiom or key phrase giveaway (e.g. "gozunu karartmak" / "gozunu karartti")
     for phrase in [cand_a, acc_a]:
         p_words = [w for w in normalize_prompt_text(phrase).split() if len(w) >= 4]
         if len(p_words) >= 2:
@@ -330,7 +365,7 @@ def is_test_conflict(cand, accepted):
             if p_prefix in norm_acc_p or p_prefix in norm_cand_p:
                 return True
 
-    # 5. Shared grammatical construction markers in prompts
+    # 7. Shared grammatical construction markers in prompts
     for kw in ["casina", "cesine"]:
         if kw in norm_cand_p and kw in norm_acc_p:
             return True
