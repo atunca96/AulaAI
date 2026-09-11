@@ -50,47 +50,50 @@ def install(ai_engine_module):
         for example in legacy_examples:
             old_system = old_system.replace(example, "")
 
-        v64_policy = """
-ASSESSMENT ENGINE V6.4 — EVIDENCE-GROUNDED OBJECTIVE POLICY
+        v65_policy = """
+ASSESSMENT ENGINE V6.5 — BALANCED EVIDENCE POLICY
 
 This policy applies to every supported language, CEFR level, topic, quiz and activity. It overrides weaker or conflicting variety instructions.
 
 1. SOURCE EVIDENCE IS THE AUTHORITY
-The SOURCE MATERIAL may contain an ASSESSMENT EVIDENCE PACK extracted from the existing lesson. Every learning objective and every correct answer must be supported by that evidence. Do not invent a new target merely because it is broadly related to the topic title.
+The SOURCE MATERIAL may contain a BALANCED ASSESSMENT EVIDENCE pack extracted read-only from the existing lesson. Every learning objective and every correct answer must be supported by that evidence. Do not invent a new target merely because it is broadly related to the topic title.
 
 2. DERIVE TEACHING POINTS BEFORE QUESTIONS
-Silently extract a list of distinct teachable points from the source: vocabulary meanings/usages, grammar rules and form-function contrasts, communicative functions, pragmatic/register choices, pronunciation distinctions, explicitly taught orthography, examples, dialogue patterns and comprehension targets. Build questions from those points, not from general knowledge about the topic.
+Silently extract distinct teachable points from the available evidence families: TARGETS, USAGE, RULES, CONTRASTS, DIALOGUE, PITFALLS and CONTEXT. Build questions from those points rather than from general knowledge about the topic.
 
-3. ONE TEACHING POINT PER QUESTION
-Each question must test one clear source-backed point, and no two questions may test materially the same point. Changing names, numbers, objects, direction, setting or story does not create a new objective. If two questions require essentially the same knowledge or operation, replace one.
+3. COVER AVAILABLE EVIDENCE FAMILIES
+If three or more evidence families are available, a 10-item batch should use at least three families and no single family should normally supply more than four items. If two families are available, use both. Only ignore this breadth rule when the source genuinely lacks enough valid material. Never invent outside content to satisfy breadth.
 
-4. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
+4. DO NOT CONFUSE ITEM VARIETY WITH OBJECTIVE VARIETY
+Changing only the tested word, numeral, name, object or example while asking the learner to perform the same lookup operation is NOT sufficient diversity when richer source evidence exists. For example, ten separate "identify/write the form for X" items are one repeated assessment operation even if X changes ten times. Test use, contrast, interpretation, form-function, dialogue comprehension, register, rule application or other source-backed distinctions when available.
+
+5. PREVIOUS QUESTIONS CONSUME THEIR TARGETS
 Treat supplied previous questions as already-used objectives. Do not paraphrase, reverse, rename, renumber or re-skin them. Reuse a broad theme only if the new item tests a genuinely different source-backed distinction.
 
-5. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
+6. LANGUAGE KNOWLEDGE MUST DECIDE THE ANSWER
 The correct option must depend primarily on knowledge of the target language and lesson. Reject questions solvable mainly by arithmetic, counting, chronology, geography, world knowledge, trivia, visual resemblance, common-sense logic or facts explicitly stated in the prompt unless the source itself explicitly teaches that exact skill.
 
-6. DO NOT FILL GAPS WITH INVENTED CONTENT
+7. DO NOT FILL GAPS WITH INVENTED CONTENT
 If the source supports fewer distinct high-quality objectives than the requested batch size, deepen valid source-backed contrasts, usage conditions, register choices, comprehension or examples. Never pad the batch with unrelated facts, generic topic trivia or artificial math/logic tasks.
 
-7. FORMAT SERVES THE TEACHING POINT
+8. FORMAT SERVES THE TEACHING POINT
 Choose the format best suited to the source-backed target: contextual meaning, situational choice, dialogue response, form-function discrimination, sentence completion, interpretation, comprehension or another appropriate form. Do not use different formats merely to disguise a repeated target.
 
-8. NO SHALLOW META QUESTIONS
+9. NO SHALLOW META QUESTIONS
 Do not test string length, letter count, which answer merely looks correctly spelled, one-word-vs-multiple-word trivia, accent/tilde presence, character shape or similar visual properties unless that exact orthographic distinction is explicitly taught in the source.
 
-9. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
+10. DISTRACTORS MUST REPRESENT REAL CONFUSIONS
 Correct answer and distractors must share the same grammatical/semantic class and be plausible at the learner's level. Distractors should reflect realistic confusions around the exact source-backed target, not random wrong answers or visual giveaways.
 
-10. FINAL EVIDENCE AUDIT
-Before returning JSON, silently label every question with (a) its one-line learning objective and (b) the source evidence that supports it. Replace any item that lacks clear source support, overlaps another objective, depends more on outside knowledge than language knowledge, leaks its answer, or could be solved reliably by a non-speaker.
+11. FINAL EVIDENCE AUDIT
+Before returning JSON, silently label every question with (a) its one-line learning objective, (b) its evidence family and (c) the source evidence supporting it. Replace any item that lacks clear source support, overuses one evidence family without necessity, overlaps another objective, depends more on outside knowledge than language knowledge, leaks its answer, or could be solved reliably by a non-speaker.
 """
 
         rewritten[system_idx]["content"] = (
-            v64_policy
+            v65_policy
             + old_system.replace(
                 "Pedagogic Assessment Engine (V5)",
-                "Pedagogic Assessment Engine (V6.4)",
+                "Pedagogic Assessment Engine (V6.5)",
                 1,
             )
         )
@@ -109,9 +112,9 @@ Before returning JSON, silently label every question with (a) its one-line learn
                 flags=re.S,
             )
             rewritten[i]["content"] = (
-                "EVIDENCE-GROUNDED REQUIREMENT: Use the SOURCE MATERIAL as the authority. First extract distinct teaching points that are explicitly supported there, then write one question per teaching point. "
-                "Do not generate objectives from the topic title alone. Do not pad the set with arithmetic, general knowledge, trivia, chronology, visual-pattern or meta-spelling tasks unless the source explicitly teaches that exact skill. "
-                "Every correct answer must be traceable to the source evidence.\n\n"
+                "BALANCED EVIDENCE REQUIREMENT: Use the SOURCE MATERIAL as the authority. First inspect the available evidence families and derive source-backed teaching points. "
+                "Cover multiple evidence families when available; do not create a batch by repeating the same lookup operation with different words, numbers or examples. "
+                "Do not pad the set with arithmetic, general knowledge, trivia, chronology, visual-pattern or meta-spelling tasks unless the source explicitly teaches that exact skill. Every correct answer must be traceable to source evidence.\n\n"
                 + content
             )
             break
