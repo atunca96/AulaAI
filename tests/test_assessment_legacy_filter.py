@@ -40,7 +40,7 @@ class LegacyQualityGateTests(unittest.TestCase):
         router = types.SimpleNamespace(
             _LEGACY_GENERATOR=legacy,
             _persist_primary_questions=lambda qs: persisted.extend(qs),
-            _source_text=lambda ids: "TOPIC Numbers (vocabulary)\nanswer0 answer1 answer2 answer3 answer4 answer5 answer6 answer7",
+            _source_text=lambda ids: "",
         )
         assessment_legacy_filter.install(router)
 
@@ -68,7 +68,7 @@ class LegacyQualityGateTests(unittest.TestCase):
         router = types.SimpleNamespace(
             _LEGACY_GENERATOR=legacy,
             _persist_primary_questions=lambda qs: None,
-            _source_text=lambda ids: "TOPIC Travel (vocabulary)",
+            _source_text=lambda ids: "",
         )
         assessment_legacy_filter.install(router)
 
@@ -89,7 +89,7 @@ class LegacyQualityGateTests(unittest.TestCase):
         router = types.SimpleNamespace(
             _LEGACY_GENERATOR=legacy,
             _persist_primary_questions=lambda qs: None,
-            _source_text=lambda ids: "TOPIC Classroom (vocabulary)",
+            _source_text=lambda ids: "",
         )
         assessment_legacy_filter.install(router)
 
