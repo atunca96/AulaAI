@@ -9342,7 +9342,7 @@ function renderActivityCard(a, idx, ctx) {
       optionsHTML = (a.options || []).map(o => `<button class="option-btn" data-original="${esc(o)}" onclick="checkMCQ(this, ${escJS(a.answer)}, '${ctx}-${idx}', ${escJS(a.id)})">${fixDiacritics(safeStr(o))}</button>`).join('');
     }
 
-    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${optionsHTML}</div><div class="${fbClass}" id="fb-${ctx}-${idx}">${fbContent}</div>${showExpl ? explBoxHTML : ''}</div>`;
+    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.mcq">${t('draft.mcq')}</span></div>${promptHTML}<div class="options-grid">${optionsHTML}</div>${showExpl ? explBoxHTML : ''}</div>`;
   }
 
   if (a.type === 'fill_blank') {
@@ -9354,19 +9354,17 @@ function renderActivityCard(a, idx, ctx) {
 
     if (savedState && savedState.type === 'fill_blank') {
       cardClass += savedState.isCorrect ? " correct" : " incorrect";
-      fbClass = "feedback-msg " + (savedState.isCorrect ? "correct" : "incorrect");
-      fbContent = savedState.isCorrect ? t('correctMsg') : `<span>${t('incorrectAns')} ${a.answer}</span>`;
       showExpl = true;
       inputAttr = `value="${esc(savedState.val || '')}" disabled`;
     }
 
-    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" ${inputAttr} data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" ${savedState ? 'disabled' : ''} onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}<div class="${fbClass}" id="fb-${ctx}-${idx}">${fbContent}</div>${showExpl ? explBoxHTML : ''}</div>`;
+    return `<div class="${cardClass}" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="draft.fill_blank">${t('draft.fill_blank')}</span></div>${promptHTML}<div style="display:flex;gap:10px;align-items:center;margin-top:12px"><input class="fill-blank-input" id="inp-${ctx}-${idx}" ${inputAttr} data-i18n-placeholder="assign.type_answer" placeholder="${t('assign.type_answer')}" style="flex:1" onkeydown="if(event.key==='Enter')checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})"><button class="btn btn-primary btn-sm" ${savedState ? 'disabled' : ''} onclick="checkFill('${ctx}-${idx}',${escJS(a.answer)},${escJS(a.id)})" data-i18n="check">${t('check')}</button></div>${a.hint ? `<div style="margin-top:8px;font-size:13px;color:var(--text-muted)"><span style="font-weight:600;color:var(--accent);">Hint:</span> ${a.hint}</div>` : ''}${showExpl ? explBoxHTML : ''}</div>`;
   }
 
   if (a.type === 'dialogue_order') {
     const lines = a.scrambled_lines || [];
     const speakers = a.speakers || {};
-    return `<div class="activity-card" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})"><span data-i18n="check">${t('check')}</span></button><div class="feedback-msg hidden" id="fb-${ctx}-${idx}"></div></div>`;
+    return `<div class="activity-card" id="${ctx}-${idx}" data-explanation="${esc(explText)}" style="position:relative">${editBtns}<div class="activity-type-label"><span data-i18n="prac.dialogue">${t('prac.dialogue')}</span></div><div class="activity-prompt" data-i18n="prac.dialogue_order">${t('prac.dialogue_order')}</div><div id="dialogue-${ctx}-${idx}" style="display:flex;flex-direction:column;gap:8px;margin-top:12px">${lines.map((line, li) => `<div class="dialogue-row" style="display:flex;align-items:center;gap:8px" data-line="${esc(line)}"><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,-1)" style="min-width:36px">▲</button><button class="btn btn-ghost btn-sm" onclick="moveDialogueLine(this,1)" style="min-width:36px">▼</button><div style="flex:1;padding:10px 14px;background:var(--bg-input);border:2px solid var(--border);border-radius:var(--radius-sm);font-size:14px"><span style="font-weight:600;color:var(--accent-light);margin-right:8px">${speakers[line] || '?'}:</span>${line}</div></div>`).join('')}</div><button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="checkDialogue('${ctx}-${idx}',${escJS(JSON.stringify(a.correct_order))})"><span data-i18n="check">${t('check')}</span></button></div>`;
   }
   return '';
 }
@@ -9533,14 +9531,7 @@ async function checkMCQ(btn, answer, cardId, qid) {
 
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   const fb = document.getElementById('fb-' + cardId);
-  fb.classList.remove('hidden');
-  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  if (isCorrect) {
-    fb.textContent = t('correctMsg');
-  } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span>`;
-  }
-  fb.onclick = null;
+  if (fb) fb.remove();
 
   // Instant explanation box matching study material (Photo 5 style, zero extra AI usage)
   if (explanation && !card.querySelector('.activity-explanation-box')) {
@@ -9581,14 +9572,7 @@ async function checkFill(id, answer, qid) {
   if (qKey) _answeredQuestionsState[qKey] = stateObj;
 
   const fb = document.getElementById('fb-' + id);
-  fb.classList.remove('hidden');
-  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  if (isCorrect) {
-    fb.textContent = t('correctMsg');
-  } else {
-    fb.innerHTML = `<span>${t('incorrectAns')} ${answer}</span>`;
-  }
-  fb.onclick = null;
+  if (fb) fb.remove();
 
   // Instant explanation box matching study material (Photo 5 style, zero extra AI usage)
   if (explanation && !card.querySelector('.activity-explanation-box')) {
@@ -9671,7 +9655,7 @@ function moveDialogueLine(btn, direction) {
     next.style.transform = 'translateY(-40px)';
     setTimeout(() => {
       row.style.transform = '';
-      next.style.transform = '';
+      prev.style.transform = '';
       container.insertBefore(next, row);
     }, 200);
   }
@@ -9686,11 +9670,9 @@ function checkDialogue(cardId, correctOrderJson) {
   const isCorrect = JSON.stringify(currentOrder) === JSON.stringify(correctOrder);
   card.classList.add(isCorrect ? 'correct' : 'incorrect');
   const fb = document.getElementById('fb-' + cardId);
-  fb.classList.remove('hidden');
-  fb.className = 'feedback-msg ' + (isCorrect ? 'correct' : 'incorrect');
-  fb.textContent = isCorrect ? t('correctMsg') : t('prac.not_quite_right');
+  if (fb) fb.remove();
   if (!isCorrect) {
-    setTimeout(() => { card.classList.remove('incorrect'); fb.classList.add('hidden'); }, 2000);
+    setTimeout(() => { card.classList.remove('incorrect'); }, 2000);
   }
 }
 
