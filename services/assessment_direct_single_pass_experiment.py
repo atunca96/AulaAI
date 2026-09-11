@@ -2,11 +2,10 @@
 
 Calls the current provider wrapper once with a deliberately small pedagogical prompt
 and a minimal JSON contract. The requested question count is authoritative: no
-oversampling, ranking, refill, or semantic repair is performed here.
+oversampling, ranking, semantic repair, or candidate filtering is performed here.
 """
 
 import json
-import unicodedata
 
 
 def _arg(args, kwargs, name, index, default=None):
@@ -26,23 +25,6 @@ def _source_text(topic_content, source_text_override):
         except Exception:
             return str(topic_content)[:8000]
     return str(topic_content or "")[:8000]
-
-
-def _norm_option(value):
-    text = unicodedata.normalize("NFKD", str(value or "").lower())
-    chars = []
-    for ch in text:
-        if unicodedata.combining(ch):
-            continue
-        chars.append(ch if (ch.isalnum() or ch.isspace()) else " ")
-    return " ".join("".join(chars).split())
-
-
-def _structurally_valid(prompt, answer, distractors):
-    if not prompt or not answer or not isinstance(distractors, list) or len(distractors) != 3:
-        return False
-    norms = [_norm_option(answer)] + [_norm_option(x) for x in distractors]
-    return bool(all(norms) and len(set(norms)) == 4)
 
 
 def _instruction_language(material_language):
@@ -71,7 +53,6 @@ def install(ai_engine_module, raw_generate_questions=None):
         except Exception:
             requested = 10
 
-        # The user-requested count is the provider-requested count. No headroom.
         asked = requested
         source = _source_text(topic_content, source_text_override)
 
@@ -79,7 +60,7 @@ def install(ai_engine_module, raw_generate_questions=None):
 
         user = f"""Create a {requested}-question assessment based on the lesson material below for a CEFR {level} {language} class.
 
-The test should accurately measure what students learned and be pedagogically appropriate for their CEFR level. Choose the most important knowledge and skills to assess yourself. Questions should not be repetitive, and distractors should be plausible and appropriate for the class level.
+The test should accurately measure what students learned and be pedagogically appropriate for their CEFR level. Choose the most important knowledge and skills to assess yourself. Assess different parts of the lesson; do not ask multiple questions that test the same fact or rule in slightly different wording. Distractors should be plausible and appropriate for the class level.
 
 Write the assessment in {instruction_language}, while preserving authentic {language} words, phrases, letters, and forms when they are being tested.
 
@@ -92,7 +73,7 @@ Return exactly {requested} multiple-choice questions as JSON.
 Each question must contain only:
 - prompt
 - answer
-- exactly 3 distractors
+- exactly 3 distinct distractors
 
 Return this shape:
 {{"data":[{{"prompt":"...","answer":"...","distractors":["...","...","..."]}}]}}"""
@@ -117,30 +98,19 @@ Return this shape:
             raw_items = data
 
         public = []
-        for q in raw_items:
+        for q in raw_items[:requested]:
             if not isinstance(q, dict):
                 continue
             prompt = str(q.get("prompt", "") or "").strip()
             answer = str(q.get("answer", "") or "").strip()
             distractors = q.get("distractors")
-            if not prompt or not answer or not isinstance(distractors, list):
+            if not prompt or not answer or not isinstance(distractors, list) or len(distractors) != 3:
                 continue
 
-            answer_norm = _norm_option(answer)
-            clean = []
-            seen_norms = set()
-            for d in distractors:
-                text = str(d or "").strip()
-                norm = _norm_option(text)
-                if text and norm and norm != answer_norm and norm not in seen_norms:
-                    clean.append(text)
-                    seen_norms.add(norm)
-                if len(clean) == 3:
-                    break
-            if not _structurally_valid(prompt, answer, clean):
+            clean = [str(d or "").strip() for d in distractors]
+            if not all(clean):
                 continue
 
-            options = [answer] + clean
             try:
                 qid = ai_engine_module._uid()
             except Exception:
@@ -150,13 +120,11 @@ Return this shape:
                 "prompt": prompt,
                 "answer": answer,
                 "distractors": clean,
-                "options": options,
+                "options": [answer] + clean,
             }
             if qid:
                 item["id"] = qid
             public.append(item)
-            if len(public) >= requested:
-                break
 
         try:
             print(
