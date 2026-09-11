@@ -11,7 +11,7 @@ from difflib import SequenceMatcher
 
 from services.assessment_scorecard import _outside_meta_proxy_reason
 
-VALIDATOR_VERSION = "question_validator_v2"
+VALIDATOR_VERSION = "question_validator_v3"
 
 
 def _norm(value):
@@ -114,8 +114,6 @@ def _aligned(question, objective):
 
 
 def _meta_allowed(question, objective, topic_source, level):
-    # Probe prompt + answer + distractors. The live V2 failure placed IPA notation in
-    # the answer, which a prompt-only meta check could not see.
     probe = dict(question)
     probe["prompt"] = " ".join(
         [
@@ -160,12 +158,7 @@ def _meta_allowed(question, objective, topic_source, level):
 
 
 def _numeric_answer_leak(question, objective):
-    """Reject strong answer leaks, not ordinary numbers occurring in context.
-
-    A parenthetical numeric gloss such as `(6)` or `(6 €)` while the expected answer
-    is an alphabetic target-language form directly gives away the response. Restricting
-    this to parenthetical cues avoids topic-specific or broad digit heuristics.
-    """
+    """Reject strong answer leaks, not ordinary numbers occurring in context."""
     if _form_or_rule_focused(objective):
         return False
     prompt = str(question.get("prompt", ""))
@@ -180,6 +173,25 @@ def _numeric_answer_leak(question, objective):
     )
 
 
+def _composite_option_shape_reason(question):
+    """Reject synthetic slash-composite answers for multi-blank MCQs.
+
+    A normal MCQ option should be one coherent answer. Writer outputs such as
+    `dos / dos` for two blanks encode multiple slot answers in a UI-specific string
+    rather than a natural target-language option.
+    """
+    prompt = str(question.get("prompt", ""))
+    if len(re.findall(r"_{2,}", prompt)) < 2:
+        return None
+    options = [str(question.get("answer", ""))] + [
+        str(x) for x in (question.get("distractors") or [])
+    ]
+    for option in options:
+        if re.search(r"\w\s*/\s*\w", option, flags=re.UNICODE):
+            return "composite_multi_blank_option"
+    return None
+
+
 def _looks_like_pseudoform_distractors(question, objective, source_text):
     if _form_or_rule_focused(objective):
         return False
@@ -190,15 +202,25 @@ def _looks_like_pseudoform_distractors(question, objective, source_text):
         return False
 
     source_n = _norm(source_text)
-    suspicious = 0
+    moderate = 0
+    strong = 0
     for distractor in question.get("distractors") or []:
         d = _norm(distractor)
         if not d or len(d.split()) > 2 or d in source_n:
             continue
         ratio = SequenceMatcher(None, answer, d).ratio()
-        if ratio >= 0.58 and abs(len(answer) - len(d)) <= 3:
-            suspicious += 1
-    return suspicious >= 2
+        if abs(len(answer) - len(d)) > 3:
+            continue
+        if ratio >= 0.72:
+            strong += 1
+        elif ratio >= 0.58:
+            moderate += 1
+
+    # One extremely close, source-external near-form is enough to be suspicious
+    # (e.g. a foreign-looking/misspelled lexical decoy such as cinco -> cinque).
+    # For looser similarities retain the older two-item threshold to avoid rejecting
+    # ordinary semantically related distractors.
+    return strong >= 1 or (strong + moderate) >= 2
 
 
 def validate_question(question, objective, topic_source, level):
@@ -214,6 +236,10 @@ def validate_question(question, objective, topic_source, level):
     if not allowed:
         return False, reason
 
+    shape_reason = _composite_option_shape_reason(question)
+    if shape_reason:
+        return False, shape_reason
+
     if _numeric_answer_leak(question, objective):
         return False, "answer_revealed_by_numeric_cue"
 
@@ -221,8 +247,6 @@ def validate_question(question, objective, topic_source, level):
     if not aligned:
         return False, "objective_misaligned"
 
-    # Literal grounding is required for vocabulary/context answers. Grammar/spelling
-    # objectives may legitimately derive a new form from an explicitly taught rule.
     if not _answer_grounded(question.get("answer"), objective, source_text):
         if not (_form_or_rule_focused(objective) and aligned):
             return False, "answer_unsupported"

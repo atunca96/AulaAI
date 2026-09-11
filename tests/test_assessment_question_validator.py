@@ -71,6 +71,43 @@ class AssessmentQuestionValidatorTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(reason, "pseudoform_distractors")
 
+    def test_rejects_single_strong_source_external_pseudoform(self):
+        objective = {
+            "id": "o1", "topic_id": "1", "skill": "contextual use",
+            "target": "Use cinco for five minutes", "evidence": "cinco means five",
+            "question_mode": "completion",
+        }
+        question = {
+            "prompt": "Faltan _____ minutos para las ocho.",
+            "translation_en": "There are _____ minutes until eight.",
+            "answer": "cinco", "distractors": ["cuatro", "seis", "cinque"],
+        }
+        ok, reason = validate_question(
+            question, objective,
+            self._source(text="cinco means five. cuatro means four. seis means six."), "A1"
+        )
+        self.assertFalse(ok)
+        self.assertEqual(reason, "pseudoform_distractors")
+
+    def test_rejects_slash_composite_options_for_multiple_blanks(self):
+        objective = {
+            "id": "o1", "topic_id": "1", "skill": "contextual use",
+            "target": "Use dos with plural nouns", "evidence": "dos is invariant with plural nouns",
+            "question_mode": "completion",
+        }
+        question = {
+            "prompt": "Queremos _____ cafés y _____ manzanas.",
+            "translation_en": "We want _____ coffees and _____ apples.",
+            "answer": "dos / dos",
+            "distractors": ["dos / doas", "dos / duas", "do / dos"],
+        }
+        ok, reason = validate_question(
+            question, objective,
+            self._source(text="dos is invariant with plural nouns. Queremos dos cafés y dos manzanas."), "A1"
+        )
+        self.assertFalse(ok)
+        self.assertEqual(reason, "composite_multi_blank_option")
+
     def test_rejects_parenthetical_numeric_cue_even_when_objective_has_no_digit(self):
         objective = {
             "id": "o1", "topic_id": "1", "skill": "contextual use",
