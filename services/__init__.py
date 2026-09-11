@@ -25,8 +25,15 @@ except Exception:
 # Lesson/material generation is not changed.
 try:
     from . import content_engine as _content_engine
+    from . import assessment_router_v2 as _assessment_router_v2
     from .assessment_router_v2 import install as _install_assessment_router_v2
     _install_assessment_router_v2(_content_engine)
+
+    # Safety is deliberately installed after the router: missing/invalid flags fail
+    # closed to legacy, shadow calibration defaults to legacy primary, and explicit
+    # V2 falls back to legacy if count/structure hard gates fail.
+    from .assessment_safety import install as _install_assessment_safety
+    _install_assessment_safety(_assessment_router_v2, _content_engine)
 except Exception:
-    # Legacy generate_assessment_set remains available if the router cannot load.
+    # Legacy generate_assessment_set remains available if the router/safety layer cannot load.
     pass
