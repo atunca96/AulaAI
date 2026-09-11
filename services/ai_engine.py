@@ -708,23 +708,22 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
        - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
        - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking the price of a ticket '¿Cuánto cuesta el billete?', asking the time '¿A qué hora sale el autobús?', hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
     
-    10. NATURAL & AUTHENTIC COMMUNICATIVE COLLOCATIONS (CRITICAL):
-        - All questions, scenarios, dialogues, and answer options MUST use NATURAL, REAL-WORLD, CONTEMPORARY language as actually spoken and written by native speakers and real public institutions.
-        - Use standard native collocations and service expressions:
-          * For unavailable equipment/facilities: use authentic service phrases like "steht heute nicht zur Verfügung" / "está fuera de servicio" / "out of service" (NEVER literal/clunky phrasing like "Wagen ist nicht benutzbar").
-          * For speed/delay descriptions: use natural expressions like "Ein vorausfahrender Zug verhindert eine höhere Geschwindigkeit" (NEVER mechanical phrasing like "blockiert das schnelle Tempo").
-          * In options, use natural, genuine human phrasing (e.g. "kann den Zug voraussichtlich noch erreichen", NEVER artificial test-author jargon like "hat berechtigte Hoffnung").
-        - Use standard idiomatic public announcements (e.g. "zwischen Zug und Bahnsteig" rather than over-specified variants).
-        - Keep questions clear, engaging, realistic, and communicatively authentic for CEFR {level}.
+    10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
+        - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
+        - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
+          * Use the genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic (transport, health, shopping, dining, workplace, housing, socializing).
+          * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
+          * In response options and dialogues, use natural, realistic human phrasing suited to CEFR {level}, NEVER stiff or artificial academic test-maker jargon.
+        - Keep language vibrant, culturally authentic, and realistic across every theme.
 
-    11. NO TRIVIAL PARAPHRASING ("WHAT DID THEY JUST ASK?"):
-        - NEVER ask shallow meta-questions that merely ask the student to paraphrase what a speaker literally just said (e.g. NEVER ask 'Speaker says: "Werden wir den Zug erreichen?" -> Question: "Was fragt der Fahrgast?" -> Answer: "Ob sie die Weiterfahrt erreichen"').
-        - Every question MUST test communicative problem-solving, situational reactions ("¿Qué debes responder / hacer?"), or genuine deduction ("Was bedeutet diese Information für die Reise?").
+    11. NO TRIVIAL META-PARAPHRASING ("WHAT DID THE SPEAKER JUST SAY / ASK?"):
+        - NEVER ask shallow meta-questions that merely ask the student to parrot, quote, or trivially summarize what a speaker literally just uttered in the prompt.
+        - Every question MUST test genuine communicative reasoning, situational reaction ("What should the person say or do?"), practical decision-making, or real-world consequence ("What does this information imply?").
 
-    12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (NO UNSUPPORTED ASSUMPTIONS):
-        - The correct answer MUST be strictly and logically deduced from the prompt without inventing speculative unstated facts (e.g. if an announcement says "Fahrt endet vorzeitig", the answer must state that the journey ends prematurely, NEVER inventing unannounced specific actions like "an der nächsten Station umsteigen" unless the text explicitly states it).
-        - CONTEXTUAL PRECISION OF LOCATIONS & STOPS: Accurately distinguish between the final destination ("Zielbahnhof / destino final"), transfer stations ("Umsteigebahnhof / estación de transbordo"), and intermediate stops ("Zwischenhalt / parada intermedia"). Never loosely call an intermediate transfer station the "final destination".
-        - All 4 options must be balanced at the exact CEFR {level} register without injecting out-of-level elevated academic vocabulary.
+    12. RIGOROUS LOGICAL & CONTEXTUAL FIDELITY (UNIVERSAL ACROSS ALL CEFR LEVELS):
+        - STRICT LOGICAL TRUTH: The correct answer MUST be strictly and logically verifiable from the provided scenario without fabricating unstated speculative assumptions, unannounced actions, or unsupported motives.
+        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit point with a final destination; do not confuse a symptom with a medical diagnosis; do not confuse a preliminary inquiry with a confirmed agreement).
+        - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
     
     RESPONSE FORMAT:
     Output EXCLUSIVELY a JSON object."""
@@ -768,8 +767,8 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
     4) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
     5) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
     6) CONCISE EXPLANATIONS: 'why' and 'why_tr' MUST be 1 short concise sentence (maximum 15 words each). Never write long paragraphs.
-    7) NATURAL REAL-LIFE COLLOCATIONS: Use authentic service expressions (e.g. 'steht nicht zur Verfügung', 'zwischen Zug und Bahnsteig'). Avoid clunky literalisms or artificial test-maker phrasing (e.g. avoid 'berechtigte Hoffnung').
-    8) LOGICAL & CONTEXTUAL RIGOR: The correct answer must be strictly supported by the prompt text without speculative unstated assumptions. Accurately distinguish transfer stations from final destinations. Options must be balanced at CEFR {level}."""
+    7) NATURAL AUTHENTIC {language}: Use genuine living idioms, collocations, and standard service phrases of {language}. Never use clunky literalisms or artificial test-maker clichés.
+    8) LOGICAL & CONTEXTUAL RIGOR: The correct answer must be strictly supported by the prompt text without speculative unstated assumptions. Maintain accurate contextual entities, roles, and locations. All 4 options must match CEFR {level}."""
 
     # MAX VARIETY SEED: Uses high-precision timestamp to ensure model never repeats
     seed = int(time.time() * 1000) % 999999
