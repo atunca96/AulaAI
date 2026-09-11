@@ -255,6 +255,26 @@ def install(ai_engine_module):
         gate._quality_reason = calibrated_quality_reason
         gate._legacy_domain_general_calibrated = True
 
+    # Candidate calibration already performed the semantic/pedagogical quality pass.
+    # The final legacy gate must not re-classify accepted items under a slightly different
+    # source/header view and shrink a complete set. Keep the final pass structural only.
+    if not getattr(gate, "_legacy_finalizer_structural_only", False):
+        def structural_final_filter(batch, *, source_text, accepted, prior, operation_counts, requested):
+            clean = []
+            rejected = []
+            reasons = Counter()
+            for question in batch or []:
+                if not isinstance(question, dict) or not gate._valid_mcq(question):
+                    reasons["invalid_mcq_structure"] += 1
+                    rejected.append(question)
+                    continue
+                operation_counts[gate._operation_signature(question)] += 1
+                clean.append(question)
+            return clean, rejected, reasons
+
+        gate._filter_batch = structural_final_filter
+        gate._legacy_finalizer_structural_only = True
+
     original = ai_engine_module.ai_generate_questions
 
     def _filter_candidates(candidates, *, source_text, headers, prior, requested, accepted_seed=None):
