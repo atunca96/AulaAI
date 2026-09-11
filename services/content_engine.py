@@ -423,8 +423,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "cognitive_task": q.get("cognitive_task", "")
                     })
 
-        # Supplementary AI pass ONLY if first batch yielded severely fewer than requested (e.g. < 70%)
-        if len(questions) < max(int(c_count * 0.7), 1):
+        # Supplementary AI pass ONLY if first batch yielded severely fewer than requested and not in quiz mode
+        if not is_quiz and len(questions) < max(int(c_count * 0.5), 1):
             still_needed = max(c_count - len(questions), 3)
             sub_forbidden = forbidden_questions + [{"prompt": q["prompt"], "answer": q["answer"]} for q in questions]
             if len(topic_ids) == 1 and 'topic_title' in locals():

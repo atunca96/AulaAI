@@ -313,28 +313,25 @@ def is_test_conflict(cand, accepted):
                 if cw.endswith(('cesine', 'casina')) and aw.endswith(('cesine', 'casina')):
                     return True
 
-    # 4. Anti-Clue / Giveaway: candidate answer tokens in accepted prompt, or accepted answer tokens in candidate prompt
-    if len(norm_ca) >= 5 and f" {norm_ca} " in f" {normalize_prompt_text(acc_p)} ":
+    # 4. Anti-Clue / Giveaway: candidate full answer phrase appears directly inside accepted prompt (or vice versa)
+    if len(norm_ca) >= 6 and f" {norm_ca} " in f" {normalize_prompt_text(acc_p)} ":
         return True
-    if len(norm_aa) >= 5 and f" {norm_aa} " in f" {normalize_prompt_text(cand_p)} ":
+    if len(norm_aa) >= 6 and f" {norm_aa} " in f" {normalize_prompt_text(cand_p)} ":
         return True
 
     norm_acc_p = normalize_prompt_text(acc_p)
     norm_cand_p = normalize_prompt_text(cand_p)
 
-    for aw in aa_words:
-        if len(aw) >= 5:
-            stem = aw[:5]
-            if stem in norm_cand_p:
-                return True
-    for cw in ca_words:
-        if len(cw) >= 5:
-            stem = cw[:5]
-            if stem in norm_acc_p:
+    # Multi-word idiom or key phrase giveaway (e.g. "gozunu karartmak" / "gozunu karartti")
+    for phrase in [cand_a, acc_a]:
+        p_words = [w for w in normalize_prompt_text(phrase).split() if len(w) >= 4]
+        if len(p_words) >= 2:
+            p_prefix = " ".join(p_words[:2])
+            if p_prefix in norm_acc_p or p_prefix in norm_cand_p:
                 return True
 
     # 5. Shared grammatical construction markers in prompts
-    for kw in ["casina", "cesine", "karartmak", "karartarak", "karart"]:
+    for kw in ["casina", "cesine"]:
         if kw in norm_cand_p and kw in norm_acc_p:
             return True
 
@@ -2950,14 +2947,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     count_a = max(half + 2, 7)
                     count_b = max((requested_count - half) + 2, 7)
                     
-                    # Orthogonal topic partitioning if multi-topic
-                    if len(topic_ids) >= 2:
-                        mid = len(topic_ids) // 2
-                        topics_a = topic_ids[:mid]
-                        topics_b = topic_ids[mid:]
-                    else:
-                        topics_a = topic_ids
-                        topics_b = topic_ids
+                    topics_a = topic_ids
+                    topics_b = topic_ids
 
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -3019,47 +3010,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         continue
                     final_questions.append(q)
                     if len(final_questions) >= requested_count:
-                        break
-
-                # If the final valid question list contains fewer than the requested count,
-                # generate only the missing number of questions using the same existing generator
-                # and pass all already accepted questions as existing_questions so duplicates are avoided.
-                max_fill_attempts = 1
-                fill_attempt = 0
-                while len(final_questions) < requested_count and fill_attempt < max_fill_attempts:
-                    fill_attempt += 1
-                    missing_count = requested_count - len(final_questions)
-                    combined_existing = list(existing_questions or []) + [
-                        {"prompt": q.get("prompt"), "answer": q.get("answer")}
-                        for q in final_questions
-                    ]
-                    fresh_qs = generate_quiz(
-                        topic_ids,
-                        count=missing_count,
-                        is_quiz=True,
-                        ui_lang=ui_lang,
-                        existing_questions=combined_existing,
-                        generation_seed=300 + fill_attempt
-                    )
-                    if not fresh_qs:
-                        break
-                    added_any = False
-                    for q in fresh_qs:
-                        if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
-                            continue
-                        p = q.get("prompt", "")
-                        a = q.get("answer", "")
-                        if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
-                            continue
-                        if any(normalize_prompt_text(a) == normalize_prompt_text(rep_a) for rep_a in retained_existing_answers):
-                            continue
-                        if any(is_test_conflict(q, fq) for fq in final_questions):
-                            continue
-                        final_questions.append(q)
-                        added_any = True
-                        if len(final_questions) >= requested_count:
-                            break
-                    if not added_any:
                         break
             finally:
                 state.is_done = True

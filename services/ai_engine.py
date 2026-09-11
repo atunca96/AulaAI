@@ -558,7 +558,7 @@ LANGUAGE_CALIBRATION_REGISTRY = {
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None):
     c = int(count)
-    gen_count = max(c + 4, int(c * 1.5), 9)
+    gen_count = max(c + 5, int(c * 1.6), 11)
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} focus={focus_directive} API={api_status}\n")
@@ -1074,11 +1074,11 @@ You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
             if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in final):
                 continue
 
-            # COGNITIVE TASK VARIETY: Relaxed limit of at most 4 fill-in-the-blank questions per batch
+            # COGNITIVE TASK VARIETY: Allow adequate fill-in-the-blank questions
             has_blank = "_" in p or "____" in p
             if has_blank:
                 current_blanks = sum(1 for f in final if "_" in f.get("prompt", "") or "____" in f.get("prompt", ""))
-                if current_blanks >= 4:
+                if current_blanks >= max(8, int(gen_count * 0.75)):
                     continue
 
             # STRICT DIVERSITY FILTER: Absolute rejection of any repeated or near-duplicate prompt from previous rounds
