@@ -6,6 +6,7 @@ English→Turkish finishing pass fail closed instead of storing English text in
 classrooms that may contain stale English explanation_tr values.
 """
 
+import json
 import os
 import re
 
@@ -59,6 +60,86 @@ def _is_bad_translation(source, translated, target_lang="tr"):
     if target_lang == "tr" and _looks_obviously_english(translated):
         return True
     return False
+
+
+def _needs_translation(source, translated):
+    source = str(source or "").strip()
+    translated = str(translated or "").strip()
+    if not source:
+        return False
+    if not translated:
+        return True
+    if _norm(source) == _norm(translated) and not _looks_turkish(source):
+        return True
+    return _looks_obviously_english(translated)
+
+
+def _clean_lines(value):
+    if not isinstance(value, str):
+        return []
+    result = []
+    for line in value.split("\n"):
+        clean = re.sub(r"^[•\-\*\s]+", "", line).strip()
+        if len(clean) > 2:
+            result.append(clean)
+    return result
+
+
+def _collect_independently_missing_page_sources(course_id):
+    """Cover page text/explanation fields independently.
+
+    The legacy finisher used one combined condition for text_tr and explanation_tr.
+    If one already existed, the other source could be omitted from the translation
+    batch and later copied into a *_tr field unchanged. These extra sources are fed
+    into the same translation batch without altering generated lesson content.
+    """
+    try:
+        from database import db_connection
+        with db_connection() as db:
+            rows = db.execute(
+                """
+                SELECT t.content
+                FROM topics t
+                JOIN chapters ch ON t.chapter_id = ch.id
+                WHERE ch.course_id = ?
+                """,
+                (course_id,),
+            ).fetchall()
+    except Exception:
+        return []
+
+    extra = []
+
+    def add(value):
+        for clean in _clean_lines(value):
+            if clean not in extra:
+                extra.append(clean)
+
+    for row in rows:
+        try:
+            raw = row["content"]
+        except Exception:
+            raw = row[0]
+        try:
+            content = json.loads(raw or "{}") if isinstance(raw, str) else (raw or {})
+        except Exception:
+            continue
+        if not isinstance(content, dict):
+            continue
+
+        for page in content.get("pages", []) or []:
+            if not isinstance(page, dict):
+                continue
+
+            page_text = page.get("text") or page.get("intro") or ""
+            if _needs_translation(page_text, page.get("text_tr")):
+                add(page_text)
+
+            page_expl = page.get("explanation") or ""
+            if _needs_translation(page_expl, page.get("explanation_tr")):
+                add(page_expl)
+
+    return extra
 
 
 def _drop_bad_cached_values(module, sources, target_lang):
@@ -170,9 +251,7 @@ def _frontend_guard_js():
       if (lang === 'tr' && item && typeof item === 'object') {
         const english = String(item.explanation_en || item.explanation || item.english_explanation || '').trim();
         const turkish = String(item.explanation_tr || item.turkish_explanation || item.desc_tr || '').trim();
-        const badStoredTurkish = turkish && (
-          (english && norm(turkish) === norm(english) && looksEnglish(turkish)) || looksEnglish(turkish)
-        );
+        const badStoredTurkish = turkish && looksEnglish(turkish);
 
         if (badStoredTurkish) {
           const cache = loadCache();
@@ -242,6 +321,7 @@ def install(module):
 
     raw_batch = module.batch_translate_strings
     raw_rebuild = module.rebuild_bilingual_bundle
+    raw_finalize = module.finalize_course_bilingual_data
 
     def guarded_batch_translate_strings(strings, target_lang="tr"):
         requested = []
@@ -249,13 +329,19 @@ def install(module):
             if isinstance(value, str) and value.strip() and value.strip() not in requested:
                 requested.append(value.strip())
 
+        # The active course finalizer can contribute sources independently omitted by
+        # the legacy combined text/explanation condition. They enter the same batch,
+        # so downstream trans_map contains them before persistence.
+        if target_lang == "tr":
+            for source in getattr(module, "_aula_bilingual_extra_sources", []) or []:
+                if source and source not in requested:
+                    requested.append(source)
+
         results = raw_batch(requested, target_lang=target_lang) or {}
         if target_lang != "tr" or not requested:
             return results
 
-        # Strings that are already valid Turkish are legitimate identity mappings;
-        # insert them explicitly so downstream code never falls back to an English
-        # source merely because the translator was not asked to rewrite Turkish.
+        # Strings already authored in Turkish are legitimate identity mappings.
         for source in requested:
             if source not in results and _looks_turkish(source):
                 results[source] = source
@@ -287,11 +373,19 @@ def install(module):
         _append_frontend_guard(module)
         return result
 
+    def guarded_finalize_course_bilingual_data(course_id):
+        module._aula_bilingual_extra_sources = _collect_independently_missing_page_sources(course_id)
+        try:
+            return raw_finalize(course_id)
+        finally:
+            module._aula_bilingual_extra_sources = []
+
     module.batch_translate_strings = guarded_batch_translate_strings
     module.rebuild_bilingual_bundle = guarded_rebuild_bilingual_bundle
+    module.finalize_course_bilingual_data = guarded_finalize_course_bilingual_data
     module._aula_bilingual_guard_installed = True
 
-    # Cover classrooms that were built before this guard existed. The tiny JS guard
-    # rejects stale English explanation_tr values and lazily repairs them through the
-    # existing translation endpoint, without regenerating lesson material.
+    # Cover classrooms built before this guard existed. The tiny JS guard rejects
+    # stale English explanation_tr values and lazily repairs them through the existing
+    # translation endpoint, without regenerating lesson material.
     _append_frontend_guard(module)
