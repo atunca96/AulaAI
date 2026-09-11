@@ -227,7 +227,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
         cursor = db_conn.cursor()
         for tid in topic_ids:
             # Pull recent questions for this topic to forbid exact repeats
-            recent = cursor.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 20", (tid,)).fetchall()
+            recent = cursor.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 50", (tid,)).fetchall()
             for r in recent:
                 forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
 
@@ -524,9 +524,9 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
     return final_set
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en"):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None):
     """Backward compatibility wrapper delegating to unified generate_assessment_set."""
-    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, progress_callback=progress_callback)
+    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback)
 
 
 def generate_dialogue_activity(language="Unknown"):

@@ -37,6 +37,19 @@ def normalize_text_for_cognate(text: str) -> str:
     clean = "".join(c for c in nfkd if not unicodedata.combining(c))
     return re.sub(r'[^a-z0-9]', '', clean)
 
+def _normalize_token(text: str) -> str:
+    """
+    Universal, language-agnostic text normalizer for cross-test deduplication.
+    Decomposes Unicode characters (stripping combining diacritical marks, accents, stress marks
+    across Latin, Cyrillic, Greek, etc.), lowercases, and strips non-alphanumeric punctuation.
+    Works universally across all alphabets and languages.
+    """
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize('NFKD', str(text).lower().strip())
+    no_marks = ''.join(c for c in nfkd if unicodedata.category(c) != 'Mn')
+    return re.sub(r'[^\w\s]', '', no_marks).strip()
+
 def is_transparent_cognate(word1: str, word2: str, threshold: float = 0.65) -> bool:
     """Check if two words are transparent cognates (too similar to test directly)."""
     w1 = normalize_text_for_cognate(word1)
@@ -446,37 +459,81 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     elif any(x in topic_title.lower() for x in ["accent", "character", "mark", "diacritic"]):
         ref_data = get_special_chars_prompt(language)
  
-    existing_prompts = set()
-    existing_answers = set()
+    forbidden_answers = []
+    forbidden_prompts = []
+    forbidden_answer_keys = set()
+    forbidden_prompt_keys = set()
+
     if existing_questions and isinstance(existing_questions, list):
         for q in existing_questions:
             if isinstance(q, dict):
                 p = str(q.get("prompt", "")).strip()
                 a = str(q.get("answer", "")).strip()
-                if p: existing_prompts.add(p)
-                if a: existing_answers.add(a.lower())
+                if a:
+                    a_key = _normalize_token(a)
+                    if a_key and a_key not in forbidden_answer_keys:
+                        forbidden_answer_keys.add(a_key)
+                        forbidden_answers.append(a)
+                if p:
+                    p_key = _normalize_token(p)
+                    if p_key and p_key not in forbidden_prompt_keys:
+                        forbidden_prompt_keys.add(p_key)
+                        forbidden_prompts.append(p)
 
     forbidden_clause = ""
-    if existing_questions and len(existing_questions) > 0:
-        qs_list = "\n".join([
-            f"- Prompt: '{q.get('prompt', '')}' | Forbidden Answer: '{q.get('answer', '')}'"
-            for q in existing_questions if isinstance(q, dict) and (q.get('prompt') or q.get('answer'))
-        ])
-        if qs_list.strip():
-            forbidden_clause = f"""
-STRICT DIVERSITY & ANTI-REPETITION MANDATE (ABSOLUTE):
-The user is regenerating activities. You MUST generate COMPLETELY NEW, DIVERSE, and NON-REPEATING questions.
-DO NOT repeat ANY of the following previous prompts, question concepts, or target answers:
-{qs_list}
-Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammatical points, or DIFFERENT communicative scenarios suited to the topic!"""
+    if forbidden_answers or forbidden_prompts:
+        answers_str = ", ".join(f"'{ans}'" for ans in forbidden_answers[:40])
+        prompts_list = "\n".join(f"- {p[:120]}" for p in forbidden_prompts[-20:])
+        forbidden_clause = f"""
+================================================================================
+STRICT CROSS-TEST DIVERSITY & ANTI-REPETITION MANDATE (ALL CEFR LEVELS A1-C2):
+================================================================================
+The user is generating a subsequent or alternative assessment set for this topic.
+You MUST generate COMPLETELY FRESH, NOVEL, DIVERSE, and NON-REPEATING content.
 
-    variety_focuses = [
-        "Focus on real-world communicative dialogues and practical situational exchanges.",
-        "Focus on contextual sentence completion and subtle nuance differentiation.",
-        "Focus on everyday scenarios, social interactions, and practical linguistic tasks.",
-        "Focus on natural conversational idioms, functional expressions, and authentic responses.",
-        "Focus on communicative problem-solving, situational reasoning, and conversational etiquette."
-    ]
+1. BANNED PREVIOUS TARGET ANSWERS (ABSOLUTE ZERO TOLERANCE):
+   The following words/expressions were ALREADY tested as correct answers in previous rounds:
+   [{answers_str}]
+   --> ABSOLUTELY NEVER make ANY of these words (or their accented, inflected, or plural variants) the correct answer!
+   --> You MUST select COMPLETELY DIFFERENT target vocabulary items, verbs, idioms, or communicative structures suited to CEFR {level}.
+
+2. BANNED PREVIOUS PROMPTS & SCENARIOS:
+   DO NOT replicate or slightly rephrase any of these previously tested scenarios, questions, or dialogue stems:
+{prompts_list}
+
+3. DIVERSE COMMUNICATIVE & SITUATIONAL ROTATION:
+   Vary the communicative context widely. If previous questions explored one context (e.g. cafe, ordering, or greeting), you MUST explore ENTIRELY DIFFERENT authentic settings appropriate for CEFR {level} (e.g. travel/transport, workplace/academic discussion, market/shopping, home/family, asking directions, social debate, scheduling).
+================================================================================
+"""
+
+    clean_lvl = (level or "A1").upper().strip()
+    is_beginner = any(x in clean_lvl for x in ["A1", "A2"])
+    is_intermediate = any(x in clean_lvl for x in ["B1", "B2"])
+
+    if is_beginner:
+        variety_focuses = [
+            "Focus on real-world communicative dialogues: asking for assistance, public navigation, and travel exchanges.",
+            "Focus on everyday domestic scenarios: home routines, appointments, schedules, and social interactions.",
+            "Focus on practical transactional tasks: markets, shopping, dining, prices, and courteous customer requests.",
+            "Focus on social introductions, describing people, personal hobbies, and expressing natural preferences.",
+            "Focus on foundational phonological contrasts, clear pronunciation distinctions in real words, and sentence completion."
+        ]
+    elif is_intermediate:
+        variety_focuses = [
+            "Focus on professional and workplace communication: formal email tone, team collaboration, and meeting dialogues.",
+            "Focus on expressing viewpoints, polite disagreement, structured argumentation, and justifying personal opinions.",
+            "Focus on narrative discourse: recounting past experiences, unexpected travel anecdotes, and future hypotheses.",
+            "Focus on communicative nuance: resolving practical misunderstandings, lodging courteous complaints, and negotiating.",
+            "Focus on natural discourse connectors, idiomatic phrasal usage, and syntactic sentence transformation."
+        ]
+    else:  # C1 / C2 Advanced
+        variety_focuses = [
+            "Focus on sophisticated academic and professional register precision, rhetoric, and formal discourse norms.",
+            "Focus on pragmatic implicature, subtle socio-cultural idioms, irony, and conversational subtext.",
+            "Focus on complex argumentation, societal debates, abstract concepts, and multi-perspective reasoning.",
+            "Focus on register flexibility: discriminating between formal, colloquial, journalistic, and literary expressions.",
+            "Focus on advanced collocations, polysemous lexical subtleties, and complex syntactic subordination."
+        ]
     selected_variety_focus = py_random.choice(variety_focuses)
 
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
@@ -592,7 +649,7 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             res = None
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
-            target_temp = 0.85 if (existing_questions or not is_quiz) else 0.7
+            target_temp = 0.95 if existing_questions else 0.90
             res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=4000, temperature=target_temp, json_mode=True, allow_fallback=True)
         
         raw_list = []
@@ -614,15 +671,21 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                 continue
 
             # STRICT DIVERSITY FILTER: Absolute rejection of any repeated prompt or target answer from previous rounds
-            if existing_prompts:
-                p_norm = re.sub(r'[^\w\s]', '', p.lower()).strip()
-                if any(p_norm == re.sub(r'[^\w\s]', '', ep).strip() for ep in existing_prompts):
+            clean_a_token = _normalize_token(a)
+            clean_p_token = _normalize_token(p)
+
+            if forbidden_answer_keys and clean_a_token in forbidden_answer_keys:
+                continue
+
+            if forbidden_prompt_keys:
+                if clean_p_token in forbidden_prompt_keys:
                     continue
-                if any(len(ep) > 15 and (ep in p.lower() or p.lower() in ep) for ep in existing_prompts):
+                if any(len(fp_key) > 20 and (fp_key in clean_p_token or clean_p_token in fp_key) for fp_key in forbidden_prompt_keys):
                     continue
-            if existing_answers:
-                if a.lower().strip() in existing_answers:
-                    continue
+
+            # IN-BATCH DEDUPLICATION: Do not test the same target answer twice in the same batch
+            if any(_normalize_token(f.get("answer")) == clean_a_token for f in final):
+                continue
 
             # Reject prompts containing Turkish instructional words (must be 100% target language)
             tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
@@ -756,15 +819,13 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                 break
         
         # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
-        existing_prompts = set(q.get("prompt", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("prompt"))
-        existing_answers = set(q.get("answer", "").strip() for q in (existing_questions or []) if isinstance(q, dict) and q.get("answer"))
-
         if len(final) < c and isinstance(topic_content, dict):
             # Helper for fallback target language questions
             is_esp = any(s in language.lower() for s in ["spanish", "español", "ispanyolca"])
             is_de = any(s in language.lower() for s in ["german", "deutsch", "almanca"])
             is_fr = any(s in language.lower() for s in ["french", "français", "fransızca"])
             is_it = any(s in language.lower() for s in ["italian", "italiano", "italyanca"])
+            is_ru = any(s in language.lower() for s in ["russian", "русский", "rusça"])
 
             def _make_fallback_prompt(target_term):
                 if is_esp:
@@ -788,6 +849,11 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
                         f"Quale espressione è più adatta in questo contesto comunicativo?: « ______ »",
                         f"Completa la frase in modo naturale: « ______ »"
                     ]
+                elif is_ru:
+                    templates = [
+                        f"Какое выражение лучше всего подходит в данной коммуникативной ситуации?: « ______ »",
+                        f"Дополните предложение естественным образом: « ______ »"
+                    ]
                 else:
                     templates = [
                         f"Which expression is most appropriate in this communicative context?: '______'",
@@ -801,11 +867,15 @@ Every generated question MUST test DIFFERENT vocabulary items, DIFFERENT grammat
             for page in pages:
                 if len(final) >= c: break
                 if page.get("type") == "mcq" and page.get("prompt") and page.get("answer"):
-                    prompt_txt = page.get("prompt")
-                    ans_txt = page.get("answer")
-                    if existing_prompts and prompt_txt in existing_prompts:
+                    prompt_txt = str(page.get("prompt", "")).strip()
+                    ans_txt = str(page.get("answer", "")).strip()
+                    p_tok = _normalize_token(prompt_txt)
+                    a_tok = _normalize_token(ans_txt)
+                    if forbidden_prompt_keys and p_tok in forbidden_prompt_keys:
                         continue
-                    if existing_answers and ans_txt in existing_answers:
+                    if forbidden_answer_keys and a_tok in forbidden_answer_keys:
+                        continue
+                    if any(_normalize_token(f.get("answer")) == a_tok for f in final):
                         continue
                     if not any(f.get("prompt") == prompt_txt for f in final):
                         opts = list(page.get("options", []))

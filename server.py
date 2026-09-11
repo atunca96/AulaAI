@@ -2531,6 +2531,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         course_id = body.get("course_id")
         chapter_id = body.get("chapter_id")
         ui_lang = body.get("ui_lang", "en")
+        existing_questions = body.get("existing_questions") or []
         try:
             count = int(body.get("count", 10))
         except (ValueError, TypeError):
@@ -2568,13 +2569,13 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 db.execute("UPDATE courses SET draft_status='generating', draft_progress=0, draft_result=NULL WHERE id=?", (course_id,))
                 db.commit()
                 
-            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang))
+            thread = threading.Thread(target=self._bg_generate_draft, args=(course_id, topic_ids, count, ui_lang, existing_questions))
             thread.daemon = True
             thread.start()
             
             self._send_json({"status": "success"})
 
-    def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en"):
+    def _bg_generate_draft(self, course_id, topic_ids, count, ui_lang="en", existing_questions=None):
         # RESET PROGRESS IMMEDIATELY TO AVOID 99% STICKINESS
         with db_connection() as db:
             db.execute("UPDATE courses SET draft_progress=0, draft_status='generating', draft_result=NULL WHERE id=?", (course_id,))
@@ -2622,13 +2623,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             ticker_thread.start()
 
             try:
-                # EXORCISM: Clear out old unfiltered questions for these topics before starting
-                with db_connection() as db:
-                    for tid in topic_ids:
-                        db.execute("DELETE FROM questions WHERE topic_id = ?", (tid,))
-                    db.commit()
-                
-                questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang)
+                # Retain previous questions and pass existing_questions to enforce variety
+                questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang, existing_questions=existing_questions)
             finally:
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)

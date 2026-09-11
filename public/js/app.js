@@ -8813,6 +8813,18 @@ function handleActivityTopicChange() {
 
 window._topicSeenQuestions = window._topicSeenQuestions || {};
 
+window._draftSeenQuestions = window._draftSeenQuestions || {};
+
+function _normalizeKey(str) {
+  if (!str) return '';
+  return String(str)
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .trim();
+}
+
 function registerSeenQuestions(topicId, questions) {
   if (!topicId || !Array.isArray(questions)) return;
   const tid = String(topicId);
@@ -8821,8 +8833,10 @@ function registerSeenQuestions(topicId, questions) {
   }
   for (const q of questions) {
     if (q && (q.prompt || q.answer)) {
+      const pKey = _normalizeKey(q.prompt);
+      const aKey = _normalizeKey(q.answer);
       const exists = window._topicSeenQuestions[tid].some(
-        sq => sq.prompt === q.prompt || (sq.answer && sq.answer === q.answer)
+        sq => (pKey && _normalizeKey(sq.prompt) === pKey) || (aKey && _normalizeKey(sq.answer) === aKey)
       );
       if (!exists) {
         window._topicSeenQuestions[tid].push({
@@ -8837,7 +8851,36 @@ function registerSeenQuestions(topicId, questions) {
 function getSeenQuestions(topicId) {
   if (!topicId) return [];
   const list = window._topicSeenQuestions[String(topicId)] || [];
-  return list.slice(-15); // Pass last 15 seen questions for this topic
+  return list.slice(-50); // Pass last 50 seen questions for rich cross-test diversity
+}
+
+function registerDraftSeenQuestions(courseId, questions) {
+  if (!Array.isArray(questions)) return;
+  const cid = String(courseId || 'default');
+  if (!window._draftSeenQuestions[cid]) {
+    window._draftSeenQuestions[cid] = [];
+  }
+  for (const q of questions) {
+    if (q && (q.prompt || q.answer)) {
+      const pKey = _normalizeKey(q.prompt);
+      const aKey = _normalizeKey(q.answer);
+      const exists = window._draftSeenQuestions[cid].some(
+        sq => (pKey && _normalizeKey(sq.prompt) === pKey) || (aKey && _normalizeKey(sq.answer) === aKey)
+      );
+      if (!exists) {
+        window._draftSeenQuestions[cid].push({
+          prompt: q.prompt || '',
+          answer: q.answer || ''
+        });
+      }
+    }
+  }
+}
+
+function getDraftSeenQuestions(courseId) {
+  const cid = String(courseId || 'default');
+  const list = window._draftSeenQuestions[cid] || [];
+  return list.slice(-50); // Pass last 50 seen draft questions
 }
 
 let activityProgressInterval = null;
@@ -9638,11 +9681,26 @@ async function createQuiz() {
   const chapterId = document.getElementById('quiz-chapter-select').value || null;
   const count = parseInt(document.getElementById('quiz-count').value) || 10;
 
+  if (currentDraft && Array.isArray(currentDraft.questions)) {
+    registerDraftSeenQuestions(courseId, currentDraft.questions);
+  }
+  const existingQuestions = getDraftSeenQuestions(courseId);
+
   try {
-    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count, ui_lang: currentLang } });
+    const res = await api('/draft/generate', { 
+      method: 'POST', 
+      body: { 
+        course_id: courseId, 
+        chapter_id: chapterId, 
+        count, 
+        ui_lang: currentLang,
+        existing_questions: existingQuestions
+      } 
+    });
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('quiz', btn, originalText, (questions) => {
+      registerDraftSeenQuestions(courseId, questions);
       currentDraft = {
         type: 'quiz',
         title: title,
@@ -10833,11 +10891,26 @@ async function createAssignment() {
   const chapterId = document.getElementById('assignment-chapter-select').value || null;
   const count = parseInt(document.getElementById('assignment-count').value) || 10;
 
+  if (currentDraft && Array.isArray(currentDraft.questions)) {
+    registerDraftSeenQuestions(courseId, currentDraft.questions);
+  }
+  const existingQuestions = getDraftSeenQuestions(courseId);
+
   try {
-    const res = await api('/draft/generate', { method: 'POST', body: { course_id: courseId, chapter_id: chapterId, count, ui_lang: currentLang } });
+    const res = await api('/draft/generate', { 
+      method: 'POST', 
+      body: { 
+        course_id: courseId, 
+        chapter_id: chapterId, 
+        count, 
+        ui_lang: currentLang,
+        existing_questions: existingQuestions
+      } 
+    });
     if (res.error) throw new Error(res.error);
 
     startDraftPolling('assignment', btn, originalText, (questions) => {
+      registerDraftSeenQuestions(courseId, questions);
       currentDraft = {
         type: 'assignment',
         title: title,
