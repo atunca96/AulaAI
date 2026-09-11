@@ -37,6 +37,14 @@ try:
     except Exception:
         pass
 
+    # Manual calibration capture is explicitly opt-in via ASSESSMENT_SHADOW_CAPTURE=1.
+    # It only wraps V2 shadow results and never changes routing/persistence behavior.
+    try:
+        from .assessment_shadow_capture import install as _install_assessment_shadow_capture
+        _install_assessment_shadow_capture(_assessment_router_v2)
+    except Exception:
+        pass
+
     # Safety is deliberately installed after the router: missing/invalid flags fail
     # closed to legacy, shadow calibration defaults to legacy primary, and explicit
     # V2 falls back to legacy if count/structure hard gates fail.
