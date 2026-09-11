@@ -122,11 +122,13 @@ Before returning JSON, inspect every item and silently replace any item that is 
             )
             break
 
-        # Stay in the fast provider timeout tier and favor instruction adherence.
+        # ai_engine keeps max_tokens <= 2500 in the same fast (25 s) provider timeout
+        # tier. The extra headroom reduces truncated 8/10 or 9/10 JSON batches without
+        # moving assessments into the slower timeout tier.
         try:
-            kwargs["max_tokens"] = min(int(kwargs.get("max_tokens", 2000)), 2000)
+            kwargs["max_tokens"] = min(int(kwargs.get("max_tokens", 2500)), 2500)
         except Exception:
-            kwargs["max_tokens"] = 2000
+            kwargs["max_tokens"] = 2500
         try:
             kwargs["temperature"] = min(float(kwargs.get("temperature", 0.30)), 0.30)
         except Exception:
