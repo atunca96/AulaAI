@@ -109,7 +109,6 @@ def _render_blocks(blocks: List[str], course_name: str, is_tr: bool) -> bytes:
         if not page_open:
             start_page()
 
-        # Trial in remaining space. If it fits, commit it there.
         story = make_story(fragment)
         remaining = fitz.Rect(x0, y, x1, bottom)
         more, filled = story.place(remaining)
@@ -118,14 +117,12 @@ def _render_blocks(blocks: List[str], course_name: str, is_tr: bool) -> bytes:
             y = max(y, filled.y1) + gap
             return
 
-        # It does not fit completely in the remainder. Restart the block on a fresh page.
         if y > top + 2:
             end_page()
             start_page()
             story = make_story(fragment)
             more, filled = story.place(full_rect)
 
-        # If the block itself is taller than one page, allow only this oversized block to flow.
         while True:
             story.draw(device)
             if not more:
@@ -181,19 +178,22 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
             f'<div class="cover-meta">AulaAI — {meta}</div></div>'
         ))
 
+        # Production schema stores canonical chapter/topic titles in `title`.
+        # Localized section/page labels live inside content JSON. Do not assume
+        # non-existent `title_tr` columns here: doing so made PDF export fail at runtime.
         chapters = db.execute(
-            'SELECT id, number, title, title_tr FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC',
+            'SELECT id, number, title FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC',
             (course_id,)
         ).fetchall()
 
         for ch in chapters:
-            ch_id, ch_num, ch_title, ch_title_tr = ch
+            ch_id, ch_num, ch_title = ch
             unit_word = 'Ünite' if is_tr else 'Unit'
-            display_ch = ch_title_tr if (is_tr and ch_title_tr) else ch_title
+            display_ch = ch_title
             unit_prefix = f'<div class="unit">{unit_word} {_e(ch_num)}: {_e(display_ch)}</div>'
 
             topics = db.execute(
-                'SELECT id, type, title, title_tr, content FROM topics WHERE chapter_id = ? ORDER BY sort_order ASC, id ASC',
+                'SELECT id, type, title, content FROM topics WHERE chapter_id = ? ORDER BY sort_order ASC, id ASC',
                 (ch_id,)
             ).fetchall()
 
@@ -203,8 +203,8 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
 
             chapter_prefix_pending = unit_prefix
             for top in topics:
-                top_id, top_type, top_title, top_title_tr, top_content = top
-                display_top = top_title_tr if (is_tr and top_title_tr) else top_title
+                top_id, top_type, top_title, top_content = top
+                display_top = top_title
                 topic_prefix = chapter_prefix_pending + (
                     f'<div class="topic">{_e(display_top or ("Konu" if is_tr else "Topic"))}'
                     f'<span class="topic-kind">{_e(_topic_kind(top_type, is_tr))}</span></div>'
@@ -314,25 +314,25 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         letter = ''
                         display_answer = answer
                         try:
-                            idx = [str(x).strip() for x in raw_options].index(str(answer).strip())
-                            letter = chr(65 + idx)
-                            if idx < len(options):
-                                display_answer = options[idx]
+                            answer_idx = [str(o).strip() for o in raw_options].index(str(answer).strip())
+                            letter = chr(65 + answer_idx)
+                            if answer_idx < len(options):
+                                display_answer = options[answer_idx]
                         except Exception:
                             pass
-                        answers.append({'n': qnum, 'letter': letter, 'answer': display_answer, 'explanation': _pick(page, 'explanation', 'explanation_tr', is_tr)})
+                        answers.append({'number': qnum, 'letter': letter, 'answer': display_answer, 'explanation': _pick(page, 'explanation', 'explanation_tr', is_tr)})
 
                     else:
                         text = _pick(page, 'text', 'text_tr', is_tr)
                         if prefix or text:
                             blocks.append(_block(prefix + (f'<p class="p">{_e(text)}</p>' if text else '')))
 
-    if answers:
-        title = 'Cevap Anahtarı' if is_tr else 'Answer Key'
-        blocks.append(_block(f'<div class="unit">{title}</div>'))
-        for entry in answers:
-            key = f"{entry['n']}. " + (f"{entry['letter']}) " if entry.get('letter') else '') + _e(entry.get('answer'))
-            expl = f' <span class="translation">{_e(entry.get("explanation"))}</span>' if entry.get('explanation') else ''
-            blocks.append(_block(f'<div class="answer"><strong>{key}</strong>{expl}</div>'))
+        if answers:
+            key_title = 'Cevap Anahtarı' if is_tr else 'Answer Key'
+            blocks.append(_block(f'<div class="unit">{key_title}</div>'))
+            for entry in answers:
+                key = f"{entry['number']}. " + ((entry['letter'] + ') ') if entry['letter'] else '') + str(entry['answer'] or '')
+                expl = entry.get('explanation') or ''
+                blocks.append(_block(f'<div class="answer"><strong>{_e(key)}</strong>' + (f'<div class="translation">{_e(expl)}</div>' if expl else '') + '</div>'))
 
     return _render_blocks(blocks, course_name, is_tr), course_name
