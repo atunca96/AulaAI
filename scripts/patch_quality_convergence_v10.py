@@ -28,8 +28,6 @@ ai_path.write_text(ai, encoding='utf-8')
 
 # ---------------------------------------------------------------------------
 # 2) Bilingual finalizer: use every legitimate stored semantic field before AI.
-#    This is language-agnostic and prevents good meanings from being ignored merely
-#    because they were stored under meaning_en/meaning_tr/gloss_* rather than translation.
 # ---------------------------------------------------------------------------
 bi_path = Path('services/bilingual_finisher.py')
 bi = bi_path.read_text(encoding='utf-8')
@@ -56,11 +54,8 @@ src = pdf_path.read_text(encoding='utf-8')
 if 'import re\n' not in src.split('from typing', 1)[0]:
     src = src.replace('import os\n', 'import os\nimport re\n', 1)
 
-# Never print a continuation word in split tables; the repeated table header is enough.
 src = src.replace("    cont = '<div class=\"cont\">devam</div>' if continued else ''\n", "    cont = ''\n", 1)
 
-# Replace v9 vocabulary resolver with a broader safe resolver plus deterministic
-# semantic recovery from other rows / aligned examples. No AI/network calls.
 start = src.find('def _vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str) -> str:\n')
 end = src.find('\ndef _mcq_prompt(', start)
 if start < 0 or end < 0:
@@ -85,11 +80,8 @@ def _direct_vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str) 
         locale_keys = ('en', 'english', 'translation_en', 'meaning_en', 'gloss_en')
 
     leak_values = _alphabet_leak_values(course_lang)
-    candidates = []
-    for key in keys:
-        candidates.append(item.get(key))
+    candidates = [item.get(key) for key in keys]
 
-    # Historical generators sometimes nested localized meanings.
     for container_key in ('translations', 'meanings', 'glosses', 'localized', 'localizations'):
         container = item.get(container_key)
         if isinstance(container, dict):
@@ -109,12 +101,6 @@ def _direct_vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str) 
 
 
 def _aligned_example_gloss(item: dict, term: str, is_tr: bool) -> str:
-    """Recover a phrase gloss only when target and translated example segments align exactly.
-
-    Example: term='¿A qué te dedicas?', target example='—¿A qué te dedicas? —Soy diseñador...',
-    translated example='—What do you do? —I am a designer...'.  This is deterministic
-    alignment of already-stored content, not translation or generation.
-    """
     target_example = str(item.get('example') or item.get('example_target') or item.get('target_example') or '').strip()
     translated = str((item.get('example_tr') if is_tr else item.get('example_en')) or '').strip()
     if not target_example or not translated or not term:
@@ -139,11 +125,12 @@ def _aligned_example_gloss(item: dict, term: str, is_tr: bool) -> str:
 
 def _build_course_vocab_memory(db, course_id: str, course_lang: str):
     memory = {'en': {}, 'tr': {}}
-    rows = db.execute('''
-        SELECT t.content FROM topics t
-        JOIN chapters ch ON t.chapter_id = ch.id
-        WHERE ch.course_id = ?
-    ''', (course_id,)).fetchall()
+    rows = db.execute(
+        'SELECT t.content FROM topics t '
+        'JOIN chapters ch ON t.chapter_id = ch.id '
+        'WHERE ch.course_id = ?',
+        (course_id,),
+    ).fetchall()
     for row in rows:
         raw = row[0] if not hasattr(row, 'keys') else row['content']
         try:
@@ -199,8 +186,6 @@ def _vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str, memory=
 '''
 src = src[:start] + resolver + src[end+1:]
 
-# Build a course-wide memory once; it lets one good occurrence repair another missing
-# occurrence without inventing anything.
 course_anchor = "        semester = course[3] or ''\n\n        paginator = AcademicPaginator(course_name, is_tr)\n"
 course_repl = "        semester = course[3] or ''\n        vocab_memory = _build_course_vocab_memory(db, course_id, course_lang)\n\n        paginator = AcademicPaginator(course_name, is_tr)\n"
 if src.count(course_anchor) != 1:
@@ -213,15 +198,12 @@ if src.count(old_meaning_call) != 1:
     raise RuntimeError(f'vocab meaning call anchor matched {src.count(old_meaning_call)} times')
 src = src.replace(old_meaning_call, new_meaning_call, 1)
 
-# Page titles: if title_tr is absent, reuse the same zero-AI title maps used for
-# chapter/topic titles instead of blindly falling back to English.
 old_title = "                    title = _pick(page, 'title', 'title_tr', is_tr)\n                    section = f'<div class=\"sec\">{_e(title)}</div>' if title else ''\n"
-new_title = """                    raw_page_title = str(page.get('title') or '').strip()\n                    title = _pick(page, 'title', 'title_tr', is_tr)\n                    if is_tr and raw_page_title and not str(page.get('title_tr') or '').strip():\n                        title = _localized_title(raw_page_title, True, page, title_maps)\n                    if ptype == 'mcq' and title:\n                        # Numbering belongs to questions, not the repeated section label.\n                        title = re.sub(r'^\\s*\\d+\\.\\s*', '', str(title)).strip()\n                    section_key = _norm_vocab_key(title) if title else ''\n                    if ptype == 'mcq':\n                        if section_key and section_key == last_mcq_section_key:\n                            section = ''\n                        else:\n                            section = f'<div class=\"sec\">{_e(title)}</div>' if title else ''\n                            last_mcq_section_key = section_key or None\n                    else:\n                        last_mcq_section_key = None\n                        section = f'<div class=\"sec\">{_e(title)}</div>' if title else ''\n"""
+new_title = """                    raw_page_title = str(page.get('title') or '').strip()\n                    title = _pick(page, 'title', 'title_tr', is_tr)\n                    if is_tr and raw_page_title and not str(page.get('title_tr') or '').strip():\n                        title = _localized_title(raw_page_title, True, page, title_maps)\n                    if ptype == 'mcq' and title:\n                        title = re.sub(r'^\\s*\\d+\\.\\s*', '', str(title)).strip()\n                    section_key = _norm_vocab_key(title) if title else ''\n                    if ptype == 'mcq':\n                        if section_key and section_key == last_mcq_section_key:\n                            section = ''\n                        else:\n                            section = f'<div class=\"sec\">{_e(title)}</div>' if title else ''\n                            last_mcq_section_key = section_key or None\n                    else:\n                        last_mcq_section_key = None\n                        section = f'<div class=\"sec\">{_e(title)}</div>' if title else ''\n"""
 if src.count(old_title) != 1:
     raise RuntimeError(f'page title/grouping anchor matched {src.count(old_title)} times')
 src = src.replace(old_title, new_title, 1)
 
-# Track repeated MCQ section titles within each topic.
 loop_anchor = "                for page in pages:\n"
 if src.count(loop_anchor) != 1:
     raise RuntimeError(f'page loop anchor matched {src.count(loop_anchor)} times')
