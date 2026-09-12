@@ -361,16 +361,21 @@ def get_or_assemble_quiz_source(
                     tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
                     ex = (it.get("example") or it.get("sample") or "").strip()
                     expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
+                    # Source-evidence boundary: only serialize explanation if backed by identifiable original source evidence
+                    it_ev = str(it.get("source_evidence") or "").strip()
+                    it_prov = str(it.get("provenance") or "").strip().lower()
+                    is_source_backed_expl = bool(it_ev or it_prov == "source_explicit")
+
                     if term:
                         item_display = f"  * {term}" + (f" ({tr})" if tr else "")
                         if ex: item_display += f" — Example: '{ex}'"
-                        if expl: item_display += f" — Note: {expl[:120]}"
+                        if is_source_backed_expl and expl: item_display += f" — Note: {expl[:120]}"
                         item_lines.append(item_display)
 
                         # For multi-topic summary
                         disp_it = f"{term} ({tr})" if tr else term
                         if ex: disp_it += f" [ex: {ex}]"
-                        if expl: disp_it += f" [note: {expl[:100]}]"
+                        if is_source_backed_expl and expl: disp_it += f" [note: {expl[:100]}]"
                         if len(key_terms) < 8: key_terms.append(disp_it)
             if item_lines:
                 p_lines.append("Target Lexicon & Examples (Lexical Evidence):\n" + "\n".join(item_lines))
