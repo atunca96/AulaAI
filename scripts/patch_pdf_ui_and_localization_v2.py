@@ -1,7 +1,8 @@
 from pathlib import Path
 
-# Safe visual-only PDF patch. No translation calls, DB reads, runtime network work,
-# or PDF content mutation. This only overrides export CSS after the stable patch.
+# Visual-only PDF patch. Keep pagination conservative: PyMuPDF Story can create
+# large blank areas when whole text/table blocks are marked unsplittable. Only keep
+# genuinely small units (question boxes and individual table/dialogue rows) intact.
 server_path = Path("server.py")
 src = server_path.read_text(encoding="utf-8")
 
@@ -10,7 +11,7 @@ anchor = '''.mcq-opts { margin-left: 10px; }
 '''
 replacement = '''.mcq-opts { margin-left: 10px; }
 
-/* AulaAI PDF print cleanup: neutral styling + conservative pagination rules. */
+/* AulaAI PDF print cleanup: neutral styling + compact natural flow. */
 .cover {
   border: none;
   padding-bottom: 12px;
@@ -25,17 +26,8 @@ replacement = '''.mcq-opts { margin-left: 10px; }
   page-break-after: avoid;
   break-after: avoid;
 }
-.unit-title {
-  color: #1f2937;
-  font-size: 11.5pt;
-  line-height: 1.25;
-}
-.topic-card {
-  margin: 10px 0 14px 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-}
+.unit-title { color: #1f2937; font-size: 11.5pt; line-height: 1.25; }
+.topic-card { margin: 10px 0 14px 0; padding: 0; border: none; background: transparent; }
 .topic-title {
   background: transparent;
   color: #111827;
@@ -73,10 +65,17 @@ replacement = '''.mcq-opts { margin-left: 10px; }
   padding: 5px 8px;
   margin: 5px 0 8px 0;
   line-height: 1.35;
-  page-break-inside: avoid;
-  break-inside: avoid;
+  page-break-inside: auto;
+  break-inside: auto;
 }
-.cmp-box,
+.cmp-box {
+  background: transparent;
+  border: 0.5px solid #d1d5db;
+  padding: 6px 8px;
+  margin: 6px 0 8px 0;
+  page-break-inside: auto;
+  break-inside: auto;
+}
 .mcq-box {
   background: transparent;
   border: 0.5px solid #d1d5db;
@@ -96,9 +95,7 @@ replacement = '''.mcq-opts { margin-left: 10px; }
   page-break-inside: avoid;
   break-inside: avoid;
 }
-.spkr,
-.said,
-.said-tr { display: inline; }
+.spkr, .said, .said-tr { display: inline; }
 
 table.vt {
   width: 100%;
@@ -106,8 +103,8 @@ table.vt {
   border-collapse: collapse;
   margin: 5px 0 9px 0;
   font-size: 7.5pt;
-  page-break-inside: avoid;
-  break-inside: avoid;
+  page-break-inside: auto;
+  break-inside: auto;
 }
 table.vt tr {
   page-break-inside: avoid;
@@ -129,23 +126,15 @@ table.vt td {
   word-wrap: break-word;
 }
 table.vt tr:nth-child(even) td { background: #ffffff; }
-.term, .phon, .trans, .ex, .ex-tr {
-  overflow-wrap: anywhere;
-  word-wrap: break-word;
-}
+.term, .phon, .trans, .ex, .ex-tr { overflow-wrap: anywhere; word-wrap: break-word; }
 
-/* Keep a section heading with the block that follows it. */
+/* Headings should stay with what follows, but content itself may flow naturally. */
 .sec-h + table.vt,
 .sec-h + .text-block,
 .sec-h + .mcq-box,
 .sec-h + .cmp-box {
   page-break-before: avoid;
   break-before: avoid;
-}
-
-/* Prefer moving a complete short exercise/table to the next page over splitting it. */
-.mcq-box + .mcq-box {
-  page-break-before: auto;
 }
 """
 '''
@@ -155,4 +144,4 @@ if count != 1:
     raise RuntimeError(f"PDF visual CSS anchor matched {count} times")
 src = src.replace(anchor, replacement, 1)
 server_path.write_text(src, encoding="utf-8")
-print("Applied safe PDF pagination and neutral visual cleanup")
+print("Applied compact PDF flow and neutral visual cleanup")
