@@ -44,7 +44,6 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_semantic_integrity_v9.py \
     && python scripts/patch_assignment_results_parity.py \
     && python scripts/patch_quality_convergence_v10b.py \
-    && python scripts/patch_pdf_async_export_v13.py \
     && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/pdf_renderer_v12.py \
     && python scripts/smoke_test_pdf_renderer.py
 
