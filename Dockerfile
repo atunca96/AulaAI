@@ -40,6 +40,7 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_bilingual_finalizer_stall.py \
     && python scripts/patch_material_mcq_bilingual.py \
     && python scripts/patch_material_mcq_existing_shuffle.py \
+    && python scripts/patch_assessment_persistence.py \
     && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py
 
 CMD ["python", "server.py"]
