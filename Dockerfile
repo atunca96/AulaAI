@@ -43,6 +43,7 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_assessment_persistence.py \
     && python scripts/patch_pdf_semantic_integrity_v9.py \
     && python scripts/patch_assignment_results_parity.py \
+    && python scripts/patch_quality_convergence_v10.py \
     && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py
 
 CMD ["python", "server.py"]
