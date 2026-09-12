@@ -51,6 +51,7 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_material_locale_exact_v18.py \
     && python scripts/patch_material_locale_source_v19.py \
     && python scripts/patch_material_persist_pronunciation_v20.py \
-    && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py
+    && python scripts/patch_disable_bilingual_runtime_v21.py \
+    && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "server.py"]
