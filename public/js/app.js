@@ -11558,6 +11558,15 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
       return '\u200E' + res;
     };
 
+    const courseLang = (currentCourse && (currentCourse.language || currentCourse.target_language)) ||
+                       (topic && (topic.language || topic.target_language)) ||
+                       window.currentDemoLang ||
+                       'Spanish';
+    const courseMatLang = (currentCourse && currentCourse.material_language) ||
+                          (topic && topic.material_language) ||
+                          null;
+    const isTrMaterial = (courseMatLang === 'tr' || currentLang === 'tr');
+
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach((p, pIdx) => {
         const isMcq = (p.type === 'mcq' || p.prompt);
@@ -11811,23 +11820,119 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             }
 
             // Fallback for dialogue / practical application pages if list is empty
-            const isExampleOrDialoguePage = (p.type === 'examples' || p.type === 'dialogue' || (p.title && /practical|application|pratik|uygulama|dialogue|diyalog/i.test(p.title || '')));
-            if (isExampleOrDialoguePage && (!Array.isArray(rawData) || rawData.length === 0) && !isMcq) {
-              const tTitleLower = ((topic && topic.title) || '').toLowerCase();
-              if (tTitleLower.includes('vowel') || tTitleLower.includes('consonant') || tTitleLower.includes('sesli') || tTitleLower.includes('sessiz') || tTitleLower.includes('alphabet') || tTitleLower.includes('pronunciation')) {
-                rawData = [
-                  { speaker: "A", text: "¡Hola! ¿Cómo se escribe tu nombre?", translation: "Hello! How do you spell your name?", translation_tr: "Merhaba! Adın nasıl yazılıyor?" },
-                  { speaker: "B", text: "Se escribe con 'e', 'l', 'e', 'n', 'a': Elena.", translation: "It is spelled with 'e', 'l', 'e', 'n', 'a': Elena.", translation_tr: "'e', 'l', 'e', 'n', 'a' harfleriyle yazılır: Elena." },
-                  { speaker: "A", text: "¿Todas las vocales suenan claras en español?", translation: "Do all vowels sound clear in Spanish?", translation_tr: "İspanyolcada tüm sesli harfler net mi okunur?" },
-                  { speaker: "B", text: "Sí, exactamente. Cada vocal tiene un sonido único.", translation: "Yes, exactly. Each vowel has a unique sound.", translation_tr: "Evet, aynen öyle. Her sesli harfin tek ve net bir sesi vardır." }
-                ];
+            const isExampleOrDialoguePage = (p.type === 'examples' || p.type === 'dialogue' || (p.title && /practical|application|pratik|uygulama|dialogue|diyalog|context|bağlam/i.test(p.title || '')));
+            const hasExistingBodyContent = (text && typeof text === 'string' && text.trim().length > 0) ||
+                                           hasRenderedStructuredRules ||
+                                           (Array.isArray(compList) && compList.length > 0);
+
+            if (isExampleOrDialoguePage && (!Array.isArray(rawData) || rawData.length === 0) && !isMcq && !hasExistingBodyContent) {
+              // 1. Try to extract authentic example sentences from topic's vocabulary items or rules
+              const candidateExamples = [];
+              if (content && Array.isArray(content.pages)) {
+                for (const otherPage of content.pages) {
+                  // If another page has dialogue, we can use it
+                  if (Array.isArray(otherPage.dialogue) && otherPage.dialogue.length > 0) {
+                    otherPage.dialogue.forEach(d => {
+                      if (d && (d.text || d.sentence)) {
+                        candidateExamples.push({
+                          speaker: d.speaker || "A",
+                          text: d.text || d.sentence,
+                          translation: d.line_en || d.translation || d.translation_en || "",
+                          translation_tr: d.line_tr || d.translation_tr || ""
+                        });
+                      }
+                    });
+                    if (candidateExamples.length > 0) break;
+                  }
+                  // Otherwise collect authentic sentences from vocabulary items
+                  const itemList = otherPage.items || otherPage.vocabulary || [];
+                  if (Array.isArray(itemList)) {
+                    for (const itm of itemList) {
+                      if (itm && (itm.example || itm.sentence)) {
+                        candidateExamples.push({
+                          speaker: candidateExamples.length % 2 === 0 ? "A" : "B",
+                          text: itm.example || itm.sentence,
+                          translation: itm.example_en || itm.translation_en || itm.translation || "",
+                          translation_tr: itm.example_tr || itm.translation_tr || ""
+                        });
+                      }
+                      if (candidateExamples.length >= 4) break;
+                    }
+                  }
+                  if (candidateExamples.length >= 4) break;
+                }
+              }
+
+              if (candidateExamples.length > 0) {
+                rawData = candidateExamples;
               } else {
-                rawData = [
-                  { speaker: "A", text: "Buenos días, ¿podemos repasar la lección?", translation: "Good morning, can we review the lesson?", translation_tr: "Günaydın, dersi gözden geçirebilir miyiz?" },
-                  { speaker: "B", text: "Por supuesto, practiquemos estos conceptos juntos.", translation: "Of course, let's practice these concepts together.", translation_tr: "Elbette, bu kavramları birlikte pratik edelim." },
-                  { speaker: "A", text: "¿Es común usar estas frases a diario?", translation: "Is it common to use these phrases daily?", translation_tr: "Bu ifadeleri günlük hayatta kullanmak yaygın mıdır?" },
-                  { speaker: "B", text: "Sí, son expresiones fundamentales en la conversación.", translation: "Yes, they are fundamental expressions in conversation.", translation_tr: "Evet, konuşma dilinde temel ifadelerdir." }
-                ];
+                // Language-aware fallback: strictly match the course target language and material language
+                const cKey = (courseLang || '').toLowerCase().trim();
+                const tTitleLower = ((topic && topic.title) || '').toLowerCase();
+                const isPhoneticsTopic = tTitleLower.includes('vowel') || tTitleLower.includes('consonant') || tTitleLower.includes('sesli') || tTitleLower.includes('sessiz') || tTitleLower.includes('alphabet') || tTitleLower.includes('alfabe') || tTitleLower.includes('pronunciation') || tTitleLower.includes('telaffuz');
+
+                if (cKey.includes('turk') || cKey.includes('türk')) {
+                  if (isPhoneticsTopic) {
+                    rawData = [
+                      { speaker: "A", text: "Merhaba! Adınız nasıl yazılıyor?", translation: "Hello! How do you spell your name?", translation_tr: "Merhaba! Adınız nasıl yazılıyor?" },
+                      { speaker: "B", text: "E-l-e-n-a harfleriyle yazılır: Elena.", translation: "It is spelled with E-l-e-n-a: Elena.", translation_tr: "E-l-e-n-a harfleriyle yazılır: Elena." },
+                      { speaker: "A", text: "Türkçede tüm harfler yazıldığı gibi mi okunur?", translation: "Are all letters in Turkish read as they are written?", translation_tr: "Türkçede tüm harfler yazıldığı gibi mi okunur?" },
+                      { speaker: "B", text: "Evet, genel kural olarak her harfin belirli bir ses değeri vardır.", translation: "Yes, as a general rule each letter has a specific sound value.", translation_tr: "Evet, genel kural olarak her harfin belirli bir ses değeri vardır." }
+                    ];
+                  } else {
+                    rawData = [
+                      { speaker: "A", text: "Günaydın, ders konusunu birlikte pratik edebilir miyiz?", translation: "Good morning, can we practice the lesson topic together?", translation_tr: "Günaydın, ders konusunu birlikte pratik edebilir miyiz?" },
+                      { speaker: "B", text: "Elbette, bu temel ifadeleri adım adım gözden geçirelim.", translation: "Of course, let's review these fundamental expressions step by step.", translation_tr: "Elbette, bu temel ifadeleri adım adım gözden geçirelim." },
+                      { speaker: "A", text: "Bu kalıplar günlük konuşmada sıkça kullanılır mı?", translation: "Are these patterns frequently used in daily conversation?", translation_tr: "Bu kalıplar günlük konuşmada sıkça kullanılır mı?" },
+                      { speaker: "B", text: "Evet, doğal ve akıcı iletişim için çok önemlidir.", translation: "Yes, they are very important for natural and fluent communication.", translation_tr: "Evet, doğal ve akıcı iletişim için çok önemlidir." }
+                    ];
+                  }
+                } else if (cKey.includes('germ') || cKey.includes('deu')) {
+                  rawData = [
+                    { speaker: "A", text: "Guten Tag! Können wir diese Lektion zusammen wiederholen?", translation: "Good day! Can we review this lesson together?", translation_tr: "İyi günler! Bu dersi birlikte tekrar edebilir miyiz?" },
+                    { speaker: "B", text: "Natürlich, lass uns diese Ausdrücke gemeinsam üben.", translation: "Of course, let's practice these expressions together.", translation_tr: "Elbette, bu ifadeleri birlikte pratik edelim." },
+                    { speaker: "A", text: "Werden diese Sätze im Alltag häufig verwendet?", translation: "Are these sentences frequently used in everyday life?", translation_tr: "Bu cümleler günlük hayatta sıkça kullanılır mı?" },
+                    { speaker: "B", text: "Ja, sie sind grundlegend für eine natürliche Kommunikation.", translation: "Yes, they are fundamental for natural communication.", translation_tr: "Evet, doğal bir iletişim için temel niteliktedir." }
+                  ];
+                } else if (cKey.includes('fren') || cKey.includes('fra')) {
+                  rawData = [
+                    { speaker: "A", text: "Bonjour ! Pouvons-nous réviser la leçon ensemble ?", translation: "Hello! Can we review the lesson together?", translation_tr: "Merhaba! Dersi birlikte gözden geçirebilir miyiz?" },
+                    { speaker: "B", text: "Bien sûr, pratiquons ces expressions ensemble.", translation: "Of course, let's practice these expressions together.", translation_tr: "Elbette, bu ifadeleri birlikte pratik edelim." },
+                    { speaker: "A", text: "Ces phrases sont-elles courantes au quotidien ?", translation: "Are these sentences common daily?", translation_tr: "Bu cümleler günlük hayatta yaygın mıdır?" },
+                    { speaker: "B", text: "Oui, elles sont essentielles pour la conversation.", translation: "Yes, they are essential for conversation.", translation_tr: "Evet, konuşma için vazgeçilmezdir." }
+                  ];
+                } else if (cKey.includes('ital')) {
+                  rawData = [
+                    { speaker: "A", text: "Buongiorno! Possiamo ripassare la lezione insieme?", translation: "Good morning! Can we review the lesson together?", translation_tr: "Günaydın! Dersi birlikte gözden geçirebilir miyiz?" },
+                    { speaker: "B", text: "Certamente, facciamo pratica insieme con queste frasi.", translation: "Certainly, let's practice these sentences together.", translation_tr: "Kesinlikle, bu cümlelerle birlikte pratik yapalım." },
+                    { speaker: "A", text: "È comune usare queste espressioni ogni giorno?", translation: "Is it common to use these expressions every day?", translation_tr: "Bu ifadeleri her gün kullanmak yaygın mıdır?" },
+                    { speaker: "B", text: "Sì, sono espressioni fondamentali nella conversazione quotidiana.", translation: "Yes, they are fundamental expressions in daily conversation.", translation_tr: "Evet, günlük konuşmada temel ifadelerdir." }
+                  ];
+                } else if (cKey.includes('engl') || cKey.includes('ing')) {
+                  rawData = [
+                    { speaker: "A", text: "Good morning, could we practice this lesson together?", translation: "Good morning, could we practice this lesson together?", translation_tr: "Günaydın, bu dersi birlikte pratik edebilir miyiz?" },
+                    { speaker: "B", text: "Of course, let's review these key expressions.", translation: "Of course, let's review these key expressions.", translation_tr: "Elbette, bu temel ifadeleri gözden geçirelim." },
+                    { speaker: "A", text: "Are these phrases commonly used in daily conversation?", translation: "Are these phrases commonly used in daily conversation?", translation_tr: "Bu ifadeler günlük konuşmada yaygın olarak kullanılır mı?" },
+                    { speaker: "B", text: "Yes, they are fundamental for natural communication.", translation: "Yes, they are fundamental for natural communication.", translation_tr: "Evet, doğal iletişim için temel ifadelerdir." }
+                  ];
+                } else {
+                  // Target language is Spanish (or default)
+                  if (isPhoneticsTopic) {
+                    rawData = [
+                      { speaker: "A", text: "¡Hola! ¿Cómo se escribe tu nombre?", translation: "Hello! How do you spell your name?", translation_tr: "Merhaba! Adın nasıl yazılıyor?" },
+                      { speaker: "B", text: "Se escribe con 'e', 'l', 'e', 'n', 'a': Elena.", translation: "It is spelled with 'e', 'l', 'e', 'n', 'a': Elena.", translation_tr: "'e', 'l', 'e', 'n', 'a' harfleriyle yazılır: Elena." },
+                      { speaker: "A", text: "¿Todas las vocales suenan claras en español?", translation: "Do all vowels sound clear in Spanish?", translation_tr: "İspanyolcada tüm sesli harfler net mi okunur?" },
+                      { speaker: "B", text: "Sí, exactamente. Cada vocal tiene un sonido único.", translation: "Yes, exactly. Each vowel has a unique sound.", translation_tr: "Evet, aynen öyle. Her sesli harfin tek ve net bir sesi vardır." }
+                    ];
+                  } else {
+                    rawData = [
+                      { speaker: "A", text: "¿Podemos repasar los conceptos clave de esta lección?", translation: "Can we review the key concepts of this lesson?", translation_tr: "Bu dersin temel kavramlarını gözden geçirebilir miyiz?" },
+                      { speaker: "B", text: "Por supuesto, practiquemos estas expresiones juntos.", translation: "Of course, let's practice these expressions together.", translation_tr: "Elbette, bu ifadeleri birlikte pratik edelim." },
+                      { speaker: "A", text: "¿Es común usar estas estructuras en una conversación real?", translation: "Is it common to use these structures in a real conversation?", translation_tr: "Bu yapıları gerçek bir konuşmada kullanmak yaygın mıdır?" },
+                      { speaker: "B", text: "Sí, son expresiones fundamentales para una comunicación natural.", translation: "Yes, they are fundamental expressions for natural communication.", translation_tr: "Evet, doğal bir iletişim için temel ifadelerdir." }
+                    ];
+                  }
+                }
               }
             }
 
@@ -11987,9 +12092,11 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       it.japanese || it.chinese || it.korean || it.term || it.word ||
                       Object.values(it).find(val => typeof val === 'string' && val !== it.speaker && val !== it.role && val !== it.translation && val !== it.translation_tr && val !== it.translation_en) || ""
                     );
-                    const rawTransEn = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning);
-                    const rawTransTr = safeStr(it.translation_tr || it.turkish || it.meaning_tr);
-                    let transText = resolveDualLanguage(rawTransEn, rawTransTr, currentLang, (currentLang === 'tr' ? rawTransTr : rawTransEn));
+                    const rawTransEn = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.line_en);
+                    const rawTransTr = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.line_tr);
+                    let transText = isTrMaterial
+                      ? (rawTransTr || resolveDualLanguage(rawTransEn, rawTransTr, 'tr', rawTransTr || rawTransEn))
+                      : (rawTransEn || resolveDualLanguage(rawTransEn, rawTransTr, 'en', rawTransEn || rawTransTr));
                     if (transText && transText.trim().toLowerCase() === targetText.trim().toLowerCase()) {
                       transText = "";
                     }
@@ -12000,7 +12107,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const avatarLetter = (rawSpeaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
                     const isSingleLetterSpeaker = (rawSpeaker.toUpperCase() === avatarLetter || /^(speaker|konuşmacı|hablante)\s*[a-z0-9]$/i.test(rawSpeaker));
                     const speakerDisplayName = isSingleLetterSpeaker
-                      ? (currentLang === 'tr' ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
+                      ? (isTrMaterial ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
                       : rawSpeaker;
                     const diagId = `diag-bubble-${p.type || 'p'}-${itIdx}`;
 
@@ -12013,9 +12120,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           </div>
                           <div class="dialogue-card-actions">
                             ${transText ? `
-                              <button class="dialogue-trans-toggle-btn active" onclick="toggleDialogueTrans('${diagId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}" aria-expanded="true">
+                              <button class="dialogue-trans-toggle-btn active" onclick="toggleDialogueTrans('${diagId}', this)" title="${isTrMaterial ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}" aria-expanded="true">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                                <span>${currentLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
+                                <span>${isTrMaterial ? 'Çeviri' : 'Meaning'}</span>
                               </button>` : ''}
                             ${targetText ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetText)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
                           </div>
@@ -12025,11 +12132,11 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       </div>`;
                   } else {
                     const k = safeStr(it.term || it.word || it.phrase || it.sentence || it.text || it.character || it.letter || it.symbol || it.spanish || it.japanese || it.chinese || it.korean || it.key || Object.values(it)[0]);
-                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || '');
-                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.tr || '');
+                    const enRawV = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.line_en || '');
+                    const trRawV = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.line_tr || it.tr || '');
 
                     let v = '';
-                    if (currentLang === 'tr') {
+                    if (isTrMaterial) {
                       if (trRawV && trRawV.trim()) {
                         v = trRawV.trim();
                       } else {
