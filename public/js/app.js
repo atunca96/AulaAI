@@ -5587,19 +5587,29 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const termKey = resolveConceptKey(term);
   const transKey = resolveConceptKey(translation);
 
+  // Cache check to guarantee single, deterministic explanation across toggle cycles
+  if (it && typeof it === 'object') {
+    if (lang === 'en' && it._resolved_en) return it._resolved_en;
+    if (lang === 'tr' && it._resolved_tr) return it._resolved_tr;
+  }
+
   // If item already has explicit language-specific explanation, verify it is not tautological
   if (it && typeof it === 'object') {
     const rawLangExpl = (lang === 'tr')
       ? (it.explanation_tr || it.turkish_explanation || it.desc_tr)
-      : (it.explanation_en || it.english_explanation || it.desc_en);
+      : (it.explanation_en || it.english_explanation || it.desc_en || it.explanation);
     if (rawLangExpl && typeof rawLangExpl === 'string' && rawLangExpl.trim().length > 2) {
       if (!TAUTOLOGY_REGEX.test(rawLangExpl)) {
         if (lang === 'tr') {
-          return healTurkishSyntax(humanizeTurkishExplanation(rawLangExpl.trim()));
+          const res = healTurkishSyntax(humanizeTurkishExplanation(rawLangExpl.trim()));
+          it._resolved_tr = res;
+          return res;
         } else {
           const isTr = /[çğıöşüÇĞİÖŞÜ]/.test(rawLangExpl) || /\b(ve|bir|bu|ile|için|olarak|anlatırken|edin|edilmelidir|olmalıdır|göre|kullanılır|ifade|eden|edilir|sesi|gibi|okunur|açık|net)\b/i.test(rawLangExpl);
           if (!isTr) {
-            return sanitizeEnglishExplanation(rawLangExpl.trim(), cleanTerm);
+            const res = sanitizeEnglishExplanation(rawLangExpl.trim(), cleanTerm);
+            it._resolved_en = res;
+            return res;
           }
         }
       }
@@ -5610,22 +5620,35 @@ function resolveItemExplanation(it, term, translation, lang = currentLang) {
   const bankHit = getClientVocabExample(cLang, cleanTerm);
   if (bankHit) {
     const tip = (lang === 'tr') ? bankHit.tip_tr : bankHit.tip_en;
-    if (tip && !TAUTOLOGY_REGEX.test(tip)) return (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(tip)) : sanitizeEnglishExplanation(tip, cleanTerm);
+    if (tip && !TAUTOLOGY_REGEX.test(tip)) {
+      const res = (lang === 'tr') ? healTurkishSyntax(humanizeTurkishExplanation(tip)) : sanitizeEnglishExplanation(tip, cleanTerm);
+      if (it && typeof it === 'object') {
+        if (lang === 'tr') it._resolved_tr = res; else it._resolved_en = res;
+      }
+      return res;
+    }
   }
 
-  // Bidirectional fallback if one language is missing
+  // Bidirectional fallback ONLY if the requested language is completely missing
   if (it && typeof it === 'object') {
-    if (lang === 'en' && it.explanation_tr && typeof it.explanation_tr === 'string' && it.explanation_tr.trim().length > 2) {
-      if (!TAUTOLOGY_REGEX.test(it.explanation_tr)) {
-        const dual = resolveDualLanguage('', it.explanation_tr.trim(), 'en');
+    const hasEnglish = (it.explanation_en || it.english_explanation || it.desc_en || it.explanation);
+    const hasTurkish = (it.explanation_tr || it.turkish_explanation || it.desc_tr);
+
+    if (lang === 'en' && !hasEnglish && hasTurkish && typeof hasTurkish === 'string' && hasTurkish.trim().length > 2) {
+      if (!TAUTOLOGY_REGEX.test(hasTurkish)) {
+        const dual = resolveDualLanguage('', hasTurkish.trim(), 'en');
         if (dual && !/[çğıöşüÇĞİÖŞÜ]/.test(dual)) {
-          return sanitizeEnglishExplanation(dual, cleanTerm);
+          const res = sanitizeEnglishExplanation(dual, cleanTerm);
+          it._resolved_en = res;
+          return res;
         }
       }
-    } else if (lang === 'tr' && (it.explanation_en || it.explanation) && typeof (it.explanation_en || it.explanation) === 'string') {
-      const enVal = (it.explanation_en || it.explanation).trim();
+    } else if (lang === 'tr' && !hasTurkish && hasEnglish && typeof hasEnglish === 'string') {
+      const enVal = hasEnglish.trim();
       if (enVal.length > 2 && !TAUTOLOGY_REGEX.test(enVal)) {
-        return resolveDualLanguage(enVal, '', 'tr');
+        const res = resolveDualLanguage(enVal, '', 'tr');
+        it._resolved_tr = res;
+        return res;
       }
     }
   }
@@ -5686,8 +5709,17 @@ function translatePrompt(text, lang = currentLang) {
     str = str.replace(/Which of the following means '(.*)'\?/i, "Aşağıdakilerden hangisi '$1' anlamına gelir?");
     str = str.replace(/Translate the following sentence:?/i, "Aşağıdaki cümleyi çevirin:");
     str = str.replace(/Translate the following:?/i, "Aşağıdakini çevirin:");
-    str = str.replace(/^Completa la frase:?/i, "Cümleyi tamamlayınız:");
-    str = str.replace(/^Completa el espacio en blanco:?/i, "Boşluğu doldurun:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+que\s+expresa\s+correctamente:?/i, "Doğru ifade eden seçeneği belirleyin:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+que\s+completa\s+correctamente:?/i, "Doğru tamamlayan seçeneği belirleyin:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+(correcta|adecuada):?/i, "Doğru seçeneği seçin:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+gramaticalmente\s+correcta:?/i, "Dilbilgisel olarak doğru seçeneği seçin:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+(frase|oraci[oó]n)\s+(gramaticalmente\s+correcta|correcta)?:?/i, "Dilbilgisel olarak doğru cümleyi seçin:");
+    str = str.replace(/^(Elige|Selecciona|Escoge)\s+la\s+respuesta\s+correcta:?/i, "Doğru cevabı seçin:");
+    str = str.replace(/^(Completa|Rellena)\s+la\s+(frase|oraci[oó]n)\s+(con\s+la\s+forma\s+correcta|con\s+la\s+opci[oó]n\s+correcta|correctamente)?:?/i, "Cümleyi doğru şekilde tamamlayınız:");
+    str = str.replace(/^(Completa|Rellena)\s+la\s+(frase|oraci[oó]n):?/i, "Cümleyi tamamlayınız:");
+    str = str.replace(/^(Completa|Rellena)\s+el\s+espacio\s+en\s+blanco:?/i, "Boşluğu doldurun:");
+    str = str.replace(/^¿?Cu[aá]l\s+(de\s+las\s+siguientes\s+opciones|de\s+las\s+siguientes\s+frases|de\s+las\s+siguientes\s+oraciones)\s+es\s+(gramaticalmente\s+)?(CORRECTA|correcta)\??:?/i, "Aşağıdakilerden hangisi doğrudur?");
+    str = str.replace(/^¿?Cu[aá]l\s+es\s+la\s+opci[oó]n\s+correcta\??:?/i, "Doğru seçenek hangisidir?");
     str = str.replace(/^Selecciona la opción correcta:?/i, "Doğru seçeneği seçin:");
     str = str.replace(/^Elige la opción correcta:?/i, "Doğru seçeneği seçin:");
     str = str.replace(/^Elige la frase gramaticalmente correcta:?/i, "Dilbilgisel olarak doğru cümleyi seçin:");
@@ -6822,9 +6854,15 @@ async function selectClassroom(id, isLecturer = true) {
   const activitySelect = document.getElementById('activity-topic-select');
   if (activitySelect) activitySelect.value = '';
 
-  ['student-roster', 'pending-roster', 'overview-stats', 'at-risk-list', 'quiz-list', 'student-quiz-list', 'assignment-list', 'student-assignment-list', 'inbox-messages', 'student-chat-history', 'topic-difficulty-chart', 'report-content', 'practice-topics', 'progress-chart'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = '';
+  ['student-roster', 'pending-roster', 'overview-stats', 'at-risk-list', 'quiz-list', 'student-quiz-list', 'assignment-list', 'student-assignment-list', 'inbox-messages', 'student-chat-history', 'topic-difficulty-chart', 'report-content', 'practice-topics', 'progress-chart', 'ai-book-content-area', 's-ai-book-content-area', 'ai-book-toc', 's-ai-book-toc'].forEach(elId => {
+    const el = document.getElementById(elId);
+    if (el) {
+      if (elId.includes('content-area')) {
+        el.innerHTML = '<div class="study-card skeleton-loading" style="min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; opacity:0.6;"><div class="spinner" style="width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite;"></div><div style="font-size:13px; color:var(--text-muted);">' + (currentLang === 'tr' ? 'Ders materyali yükleniyor...' : 'Loading course material...') + '</div></div>';
+      } else {
+        el.innerHTML = '';
+      }
+    }
   });
 
   // Reset chat/inbox state
@@ -6994,10 +7032,20 @@ async function selectClassroom(id, isLecturer = true) {
 
   // 4. Restore exact study topic synchronously if on study materials or book
   const isStudyTab = (targetTab === 'study-materials' || targetTab === 'book' || targetTab === 's-study-tab' || targetTab === 's-book');
-  const lastTopic = localStorage.getItem('aula_last_topic');
-  const lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-  if (isStudyTab && lastTopic) {
-    showStudyTopic(lastTopic, lastPage);
+  const courseTopicKey = 'aula_last_topic_' + id;
+  let targetTopic = localStorage.getItem(courseTopicKey);
+  let targetPage = parseInt(localStorage.getItem('aula_last_page_' + id) || '0');
+  if (!targetTopic && curriculum && curriculum.length > 0 && curriculum[0].topics && curriculum[0].topics.length > 0) {
+    targetTopic = curriculum[0].topics[0].id;
+    targetPage = 0;
+  }
+  if (isStudyTab && targetTopic) {
+    showStudyTopic(targetTopic, targetPage);
+  } else if (isStudyTab && (!curriculum || curriculum.length === 0)) {
+    const contentArea = document.getElementById(currentUser.role === 'student' ? 's-ai-book-content-area' : 'ai-book-content-area');
+    if (contentArea) {
+      contentArea.innerHTML = `<div class="study-card" style="padding:40px; text-align:center; color:var(--text-muted); font-size:14px;">${currentLang === 'tr' ? 'Bu sınıf için henüz materyal bulunmuyor.' : 'No materials available for this course yet.'}</div>`;
+    }
   }
 
   // 5. Reveal dashboard ONCE in single paint — directly on user's active tab and topic!
@@ -11423,25 +11471,21 @@ function getEnglishStudyPrompt(basePrompt, promptTr) {
   if (!s && promptTr) s = String(promptTr).trim();
   if (!s) return 'Identify the correct option:';
 
-  // If already an English carrier instruction, return as is
-  const enStarters = ['Choose ', 'Select ', 'Complete ', 'Which ', 'What ', 'How ', 'Why ', 'You ', 'If '];
-  if (enStarters.some(w => s.startsWith(w))) {
-    return s;
-  }
-
-  // Spanish instruction stem replacements to natural English
-  s = s.replace(/^Completa la frase con el posesivo adecuado:?/i, 'Complete the sentence with the appropriate possessive:');
-  s = s.replace(/^Completa la frase con el verbo y adjetivo correctos:?/i, 'Complete the sentence with the correct verb and adjective:');
-  s = s.replace(/^Completa la frase con la forma correcta:?/i, 'Complete the sentence with the correct form:');
-  s = s.replace(/^Completa la frase con la opci[oó]n correcta:?/i, 'Complete the sentence with the correct option:');
-  s = s.replace(/^Completa la frase con la preposici[oó]n correcta:?/i, 'Complete the sentence with the correct preposition:');
-  s = s.replace(/^Completa la frase seg[uú]n la distancia:?/i, 'Complete the sentence according to the distance:');
-  s = s.replace(/^Completa la frase:?/i, 'Complete the sentence:');
-  s = s.replace(/^Completa el espacio en blanco:?/i, 'Fill in the blank:');
-  s = s.replace(/^Elige la opci[oó]n gramaticalmente correcta para se[nñ]alar unos zapatos cerca de la persona con la que hablas:?/i, 'Choose the grammatically correct option to point out shoes near the person you are speaking with:');
-  s = s.replace(/^Elige la opci[oó]n gramaticalmente correcta:?/i, 'Choose the grammatically correct option:');
-  s = s.replace(/^Elige la frase gramaticalmente correcta:?/i, 'Choose the grammatically correct sentence:');
-  s = s.replace(/^Elige la respuesta correcta:?/i, 'Choose the correct answer:');
+  // Spanish / target-language carrier stem replacements to natural English
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+que\s+expresa\s+correctamente:?/i, 'Choose the option that correctly expresses:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+que\s+completa\s+correctamente:?/i, 'Choose the option that correctly completes:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+(correcta|adecuada):?/i, 'Choose the correct option:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+gramaticalmente\s+correcta\s+para\s+.*?:?/i, 'Choose the grammatically correct option:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+opci[oó]n\s+gramaticalmente\s+correcta:?/i, 'Choose the grammatically correct option:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+frase\s+gramaticalmente\s+correcta:?/i, 'Choose the grammatically correct sentence:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+(frase|oraci[oó]n)\s+(gramaticalmente\s+correcta|correcta)?:?/i, 'Choose the correct sentence:');
+  s = s.replace(/^(Elige|Selecciona|Escoge)\s+la\s+respuesta\s+correcta:?/i, 'Choose the correct answer:');
+  s = s.replace(/^(Completa|Rellena)\s+la\s+(frase|oraci[oó]n)\s+(con\s+el\s+posesivo\s+adecuado|con\s+el\s+verbo\s+y\s+adjetivo\s+correctos|con\s+la\s+forma\s+correcta|con\s+la\s+opci[oó]n\s+correcta|con\s+la\s+preposici[oó]n\s+correcta|correctamente)?:?/i, 'Complete the sentence:');
+  s = s.replace(/^(Completa|Rellena)\s+la\s+(frase|oraci[oó]n)\s+seg[uú]n\s+la\s+distancia:?/i, 'Complete the sentence according to the distance:');
+  s = s.replace(/^(Completa|Rellena)\s+la\s+(frase|oraci[oó]n):?/i, 'Complete the sentence:');
+  s = s.replace(/^(Completa|Rellena)\s+el\s+espacio\s+en\s+blanco:?/i, 'Fill in the blank:');
+  s = s.replace(/^¿?Cu[aá]l\s+(de\s+las\s+siguientes\s+opciones|de\s+las\s+siguientes\s+frases|de\s+las\s+siguientes\s+oraciones)\s+es\s+(gramaticalmente\s+)?(CORRECTA|correcta)\??:?/i, 'Which of the following is correct?');
+  s = s.replace(/^¿?Cu[aá]l\s+es\s+la\s+opci[oó]n\s+correcta\??:?/i, 'Which is the correct option:');
   s = s.replace(/^Selecciona la opci[oó]n correcta para completar la descripci[oó]n espacial:?/i, 'Select the correct option to complete the spatial description:');
   s = s.replace(/^Selecciona la opci[oó]n correcta:?/i, 'Select the correct option:');
   s = s.replace(/^Selecciona la respuesta correcta:?/i, 'Select the correct answer:');
@@ -11500,16 +11544,44 @@ function getEnglishStudyPrompt(basePrompt, promptTr) {
   s = s.replace(/^İspanyolca'da '(.*)' nasıl denir\??/i, "How do you say '$1' in Spanish?");
   s = s.replace(/(.*)'da '(.*)' nasıl denir\??/i, "How do you say '$2' in $1?");
 
+  // Translate known Turkish prompt quotation sentences to natural English if in English mode
+  const TURKISH_PROMPT_SENTENCE_MAP_EN = {
+    "Dün haberi öğrendim ve gerçeği kabul etmeyi reddettim.": "Yesterday I found out the news and refused to accept the truth.",
+    "Dün haberi öğrendim ve gerçeği kabul etmeyi reddettim": "Yesterday I found out the news and refused to accept the truth",
+    "Kahvaltıda portakal suyu içerim ve tost yerim": "I drink orange juice and eat toast for breakfast",
+    "Anne babamın şehir dışında güzel bir evi var.": "My parents have a nice house in the suburbs.",
+    "Pablo ve ben Madrid'de yaşıyoruz. Kızlarımız tıp okuyor.": "Pablo and I live in Madrid. Our daughters study medicine.",
+    "Akşamları ailemle yemek yerim ve sonra saat on birde yatarım.": "In the evenings I have dinner with my family and then go to bed at eleven.",
+    "Ufuktaki karlı uzak dağlara bak.": "Look at those snowy distant mountains on the horizon."
+  };
+  s = s.replace(/(['"«])([^'"»]{8,250})(['"»])/g, (full, q1, inner, q2) => {
+    const trimmed = inner.trim();
+    if (TURKISH_PROMPT_SENTENCE_MAP_EN[trimmed]) {
+      return `${q1}${TURKISH_PROMPT_SENTENCE_MAP_EN[trimmed]}${q2}`;
+    }
+    const noDot = trimmed.replace(/\.+$/, '');
+    if (TURKISH_PROMPT_SENTENCE_MAP_EN[noDot]) {
+      return `${q1}${TURKISH_PROMPT_SENTENCE_MAP_EN[noDot]}${trimmed.endsWith('.') ? '.' : ''}${q2}`;
+    }
+    if (/[çğıöşüÇĞİÖŞÜ]/.test(inner)) {
+      const translated = (typeof translateEducationalText === 'function') ? translateEducationalText(inner, 'en') : inner;
+      if (translated && translated !== inner && !/[çğıöşüÇĞİÖŞÜ]/.test(translated)) {
+        return `${q1}${translated}${q2}`;
+      }
+    }
+    return full;
+  });
+
   return s;
 }
 
 function resolveStudyPrompt(p, topic) {
   if (currentLang === 'tr') {
-    if (p.prompt_tr) return p.prompt_tr;
+    if (p.prompt_tr) return translatePrompt(p.prompt_tr, 'tr');
     return translatePrompt(p.prompt || p.question || "Doğru seçeneği belirleyin:", 'tr');
   }
   // English mode (default)
-  if (p.prompt_en) return p.prompt_en;
+  if (p.prompt_en) return getEnglishStudyPrompt(p.prompt_en, p.prompt_tr);
   return getEnglishStudyPrompt(p.prompt || p.question || '', p.prompt_tr);
 }
 
@@ -12094,10 +12166,32 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     );
                     const rawTransEn = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.line_en);
                     const rawTransTr = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.line_tr);
-                    let transText = isTrMaterial
-                      ? (rawTransTr || resolveDualLanguage(rawTransEn, rawTransTr, 'tr', rawTransTr || rawTransEn))
-                      : (rawTransEn || resolveDualLanguage(rawTransEn, rawTransTr, 'en', rawTransEn || rawTransTr));
-                    if (transText && transText.trim().toLowerCase() === targetText.trim().toLowerCase()) {
+                    const isTrUI = (currentLang === 'tr');
+                    const cLangLower = (courseLang || '').toLowerCase().trim();
+                    const isTargetTurkish = cLangLower.includes('turk') || cLangLower.includes('türk');
+                    const isTargetEnglish = cLangLower.includes('engl') || cLangLower.includes('ing');
+
+                    let transText = '';
+                    // Suppress translation if target language matches UI translation language (e.g. studying Turkish with Turkish UI, or English with English UI)
+                    if ((isTrUI && isTargetTurkish) || (!isTrUI && isTargetEnglish)) {
+                      transText = '';
+                    } else if (isTrUI) {
+                      transText = rawTransTr || resolveDualLanguage(rawTransEn, rawTransTr, 'tr', rawTransTr || rawTransEn);
+                    } else {
+                      transText = rawTransEn || resolveDualLanguage(rawTransEn, rawTransTr, 'en', rawTransEn || rawTransTr);
+                    }
+
+                    // Robust normalization helper for duplicate / echo suppression
+                    const normalizeForComparison = (str) => {
+                      if (!str || typeof str !== 'string') return '';
+                      return str
+                        .toLowerCase()
+                        .replace(/[.,!?:;…'"`"“”«»\(\)\[\]\-—–]/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    };
+
+                    if (transText && normalizeForComparison(transText) === normalizeForComparison(targetText)) {
                       transText = "";
                     }
 
@@ -12107,7 +12201,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const avatarLetter = (rawSpeaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
                     const isSingleLetterSpeaker = (rawSpeaker.toUpperCase() === avatarLetter || /^(speaker|konuşmacı|hablante)\s*[a-z0-9]$/i.test(rawSpeaker));
                     const speakerDisplayName = isSingleLetterSpeaker
-                      ? (isTrMaterial ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
+                      ? (isTrUI ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
                       : rawSpeaker;
                     const diagId = `diag-bubble-${p.type || 'p'}-${itIdx}`;
 
@@ -12120,9 +12214,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           </div>
                           <div class="dialogue-card-actions">
                             ${transText ? `
-                              <button class="dialogue-trans-toggle-btn active" onclick="toggleDialogueTrans('${diagId}', this)" title="${isTrMaterial ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}" aria-expanded="true">
+                              <button class="dialogue-trans-toggle-btn active" onclick="toggleDialogueTrans('${diagId}', this)" title="${isTrUI ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}" aria-expanded="true">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                                <span>${isTrMaterial ? 'Çeviri' : 'Meaning'}</span>
+                                <span>${isTrUI ? 'Çeviri' : 'Meaning'}</span>
                               </button>` : ''}
                             ${targetText ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(targetText)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
                           </div>
