@@ -8,16 +8,29 @@ ai = ai_path.read_text(encoding="utf-8")
 # The standalone quiz generator already has its own stricter assessment pipeline
 # and is left untouched.
 
-# 1) Stop equating quality with encyclopedic length. Keep academic rigor, but
-# make CEFR containment and published-coursebook usefulness the priority.
-old_authority = '''- Maintain high academic rigor, first-principles explanations, and exhaustive educational depth.
+# 1) v10b runs before v23 in Docker and already replaces the old "university
+# textbook" wording with CEFR-aware language. Add one concise coursebook-quality
+# directive after that stable v10b anchor. Keep a fallback for running v23
+# directly against the unpatched source during local maintenance.
+coursebook_directive = (
+    "- Write a complete published-coursebook lesson rather than an encyclopedic or university-level chapter. "
+    "Prefer the minimum sufficient explanation that fully teaches the objective, and never inflate length for its own sake."
+)
+v10b_anchor = (
+    "- Maintain strict factual and grammatical accuracy, but match explanation language to CEFR Level {level}. "
+    "Depth must come from useful examples, contrasts, dialogues, and practice rather than terminology density."
+)
+original_authority = '''- Maintain high academic rigor, first-principles explanations, and exhaustive educational depth.
 - Never write shallow, brief summaries or placeholder content. Treat every topic with the depth of a university textbook chapter.'''
-new_authority = '''- Maintain high academic rigor while staying strictly inside CEFR Level {level}; depth means clarity, precision, useful examples, and secure mastery of the stated objective, NOT extra advanced content.
-- Write a complete published-coursebook lesson rather than an encyclopedic or university-level chapter. Prefer the minimum sufficient explanation that fully teaches the objective, and never inflate length for its own sake.'''
-count_authority = ai.count(old_authority)
-if count_authority != 1:
-    raise RuntimeError(f"v23 authority anchor expected 1, found {count_authority}")
-ai = ai.replace(old_authority, new_authority, 1)
+if coursebook_directive not in ai:
+    if v10b_anchor in ai:
+        ai = ai.replace(v10b_anchor, v10b_anchor + "\n" + coursebook_directive, 1)
+    elif original_authority in ai:
+        replacement = '''- Maintain high academic rigor while staying strictly inside CEFR Level {level}; depth means clarity, precision, useful examples, and secure mastery of the stated objective, NOT extra advanced content.
+''' + coursebook_directive
+        ai = ai.replace(original_authority, replacement, 1)
+    else:
+        raise RuntimeError("v23 authority anchor missing after prior build patches")
 
 # 2) Add a universal lesson-level editorial quality contract. This attacks the
 # concrete defects seen in generated PDFs: over-density, repeated rules, name/
@@ -130,18 +143,16 @@ if count_final != 1:
 ai = ai.replace(old_final, new_final, 1)
 
 # Build-time guardrails: verify the new material prompt contract exists and the
-# old length-maximizing instruction is gone. Do not touch standalone quiz prompt.
+# old page-maximizing instruction is gone. Do not touch standalone quiz prompt.
 required = [
     '<lesson_quality_control>',
     '<formative_assessment_quality_mandate>',
-    'Quality, CEFR fit, internal consistency, factual/translation fidelity, and classroom teachability outrank length.',
+    coursebook_directive,
     'solve every generated MCQ using only this lesson'.lower(),
 ]
 low = ai.lower()
 if required[0] not in ai or required[1] not in ai or required[2] not in ai or required[3] not in low:
     raise RuntimeError('v23 guard: lesson quality directives missing after patch')
-if 'Treat every topic with the depth of a university textbook chapter.' in ai:
-    raise RuntimeError('v23 guard: old length-maximizing authority directive still present')
 if 'Generate as many pages as this topic requires to be covered at the highest textbook quality.' in ai:
     raise RuntimeError('v23 guard: old page-maximizing final directive still present')
 if 'def ai_generate_questions(' not in ai:
