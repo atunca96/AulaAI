@@ -3068,21 +3068,17 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                     topics_a = topic_ids
                     topics_b = topic_ids
 
-                    # Check if selected topics contain explicit grammar rules or contrasts
+                    # Check if selected topics contain explicit grammar rules or contrasts (via preassembled cache)
                     has_explicit_grammar = False
                     try:
+                        from services.quiz_source_cache import get_or_assemble_quiz_source
                         with db_connection() as db:
                             placeholders = ','.join('?' for _ in topic_ids)
-                            rows = db.execute(f"SELECT content FROM topics WHERE id IN ({placeholders})", topic_ids).fetchall()
+                            rows = db.execute(f"SELECT id, title, type, content FROM topics WHERE id IN ({placeholders})", topic_ids).fetchall()
                             for r in rows:
-                                if r and r[0]:
-                                    c_data = json.loads(r[0]) if isinstance(r[0], str) else r[0]
-                                    if isinstance(c_data, dict):
-                                        for p in c_data.get("pages", []):
-                                            if isinstance(p, dict) and (p.get("rules") or p.get("comparisons")):
-                                                has_explicit_grammar = True
-                                                break
-                                if has_explicit_grammar:
+                                q_src = get_or_assemble_quiz_source(r["id"], r["title"], r["type"] or "concept", r["content"], ui_lang)
+                                if q_src["has_explicit_grammar"]:
+                                    has_explicit_grammar = True
                                     break
                     except Exception as e_check:
                         file_log(f"Error checking topic grammar rules: {e_check}")
@@ -3262,7 +3258,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             t_persist_duration = time.time() - t_persist_start
             t_flow_duration = time.time() - t_flow_start
             
-            file_log(f"[QUIZ-TIMING] Draft: Main AI calls={t_ai_duration:.2f}s (candidates={len(questions)}) | Filtering/dedup/backfill={t_filter_duration:.3f}s | Top-up=0.00s | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s")
+            log_draft_msg = f"[QUIZ-TIMING] Draft: Main AI calls={t_ai_duration:.2f}s (candidates={len(questions)}) | Filtering/dedup/backfill={t_filter_duration:.3f}s | Top-up=0.00s | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s"
+            file_log(log_draft_msg)
+            print(log_draft_msg)
             print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
                 
         except Exception as e:

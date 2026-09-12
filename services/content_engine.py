@@ -201,7 +201,7 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
-def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None, focus_directive=None):
+def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None, focus_directive=None, timing_ctx=None):
     """
     Unified assessment generation engine for both Quizzes and Activities.
     - If single topic (Activities): loads topic directly with 100% topic fidelity.
@@ -213,9 +213,13 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
     from database import db_connection
     import uuid
     import random as py_random
+    import time
     
     if not topic_ids:
         return []
+
+    if timing_ctx is None:
+        timing_ctx = {}
 
     c_count = int(count)
     if progress_callback:
@@ -223,13 +227,21 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
     forbidden_questions = list(existing_questions or [])
 
-    with db_connection() as db_conn:
-        cursor = db_conn.cursor()
-        for tid in topic_ids:
-            # Pull recent questions for this topic to forbid exact repeats
+    # Fast-path rolling history
+    if is_quiz and not forbidden_questions:
+        with db_connection() as db_conn:
+            cursor = db_conn.cursor()
+            tid = topic_ids[0]
             recent = cursor.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 50", (tid,)).fetchall()
             for r in recent:
                 forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
+    elif not forbidden_questions:
+        with db_connection() as db_conn:
+            cursor = db_conn.cursor()
+            for tid in topic_ids:
+                recent = cursor.execute("SELECT prompt, answer FROM questions WHERE topic_id = ? ORDER BY id DESC LIMIT 50", (tid,)).fetchall()
+                for r in recent:
+                    forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
 
     # Base language & level discovery
     base_lang = "Unknown"
@@ -260,20 +272,29 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
     if is_ai_available():
         from services.ai_engine import ai_generate_questions
+        from services.quiz_source_cache import get_or_assemble_quiz_source
 
         # Case A: Single topic assessment (e.g. Activity) -> 100% topic fidelity
         if len(topic_ids) == 1:
             tid = topic_ids[0]
+            t_db_start = time.perf_counter()
             with db_connection() as db_conn:
                 t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
+            timing_ctx["db_loading"] = time.perf_counter() - t_db_start
             
             if t_row:
                 topic_title = t_row["title"]
                 topic_type = t_row["type"] or "vocabulary"
-                try:
-                    topic_content = json.loads(t_row["content"]) if isinstance(t_row["content"], str) else (t_row["content"] or {})
-                except Exception:
-                    topic_content = {}
+                raw_c = t_row["content"]
+
+                t_assembly_start = time.perf_counter()
+                q_src = get_or_assemble_quiz_source(tid, topic_title, topic_type, raw_c, material_language)
+                timing_ctx["structured_lesson_assembly"] = time.perf_counter() - t_assembly_start
+                
+                t_prov_start = time.perf_counter()
+                topic_content = dict(q_src["parsed_content"])
+                topic_content["_preassembled_content_str"] = q_src["single_topic_content_str"]
+                timing_ctx["provenance_resolution"] = time.perf_counter() - t_prov_start
 
                 new_qs = ai_generate_questions(
                     topic_title=topic_title,
@@ -286,7 +307,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     is_quiz=is_quiz,
                     material_language=material_language,
                     generation_seed=generation_seed,
-                    focus_directive=focus_directive
+                    focus_directive=focus_directive,
+                    timing_ctx=timing_ctx
                 )
                 if new_qs:
                     for q in new_qs:
@@ -321,71 +343,21 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
         # Case B: Multi-topic assessment (e.g. Quiz / Review) -> Balanced cross-topic curriculum
         else:
             target_ids = py_random.sample(topic_ids, min(6, len(topic_ids))) if len(topic_ids) > 6 else list(topic_ids)
-            topics_summary = []
+            t_db_start = time.perf_counter()
+            placeholders = ",".join("?" for _ in target_ids)
             with db_connection() as db_conn:
-                for tid in target_ids:
-                    t_row = db_conn.execute("SELECT title, type, content FROM topics WHERE id = ?", (tid,)).fetchone()
-                    if t_row:
-                        key_terms = []
-                        key_grammar = []
-                        key_texts = []
-                        if t_row["content"]:
-                            try:
-                                tc = json.loads(t_row["content"])
-                                for p in tc.get("pages", []):
-                                    ptype = str(p.get("type", "")).lower()
-                                    ptext = (p.get("text") or "").strip()
+                t_rows = db_conn.execute(f"SELECT id, title, type, content FROM topics WHERE id IN ({placeholders})", target_ids).fetchall()
+            timing_ctx["db_loading"] = time.perf_counter() - t_db_start
 
-                                    # Prioritize explicit rules and comparisons as primary grammar sources
-                                    for r in p.get("rules", []):
-                                        if isinstance(r, dict):
-                                            r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
-                                            r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
-                                            r_ex = (r.get("example") or "").strip()
-                                            r_ev = (r.get("source_evidence") or "").strip()
-                                            if r_name and r_ev:
-                                                disp = f"[RULE] {r_name}"
-                                                if r_expl: disp += f": {r_expl[:150]}"
-                                                if r_ex: disp += f" (ex: '{r_ex}')"
-                                                disp += f" [Source: '{r_ev[:80]}']"
-                                                if len(key_grammar) < 6: key_grammar.append(disp)
+            t_assembly_start = time.perf_counter()
+            topics_summary = []
+            for t_row in t_rows:
+                q_src = get_or_assemble_quiz_source(t_row["id"], t_row["title"], t_row["type"] or "concept", t_row["content"], material_language)
+                topics_summary.append(q_src["multi_topic_summary"])
+            timing_ctx["structured_lesson_assembly"] = time.perf_counter() - t_assembly_start
 
-                                    for c in p.get("comparisons", []):
-                                        if isinstance(c, dict):
-                                            c_tgt = (c.get("target") or "").strip()
-                                            c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
-                                            c_ev = (c.get("source_evidence") or "").strip()
-                                            if c_tgt and c_ev:
-                                                disp = f"[CONTRAST] {c_tgt}" + (f": {c_note[:120]}" if c_note else "")
-                                                disp += f" [Source: '{c_ev[:80]}']"
-                                                if len(key_grammar) < 6: key_grammar.append(disp)
-
-                                    # Extract items (Target lexicon & lexical evidence - NEVER promoted to grammar rules)
-                                    for it in p.get("items", []):
-                                        if isinstance(it, dict):
-                                            term = (it.get("term") or it.get("word") or "").strip()
-                                            tr_val = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or it.get("meaning") or "")).strip()
-                                            ex = (it.get("example") or it.get("sample") or "").strip()
-                                            expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
-                                            if term:
-                                                disp = f"{term} ({tr_val})" if tr_val else term
-                                                if ex: disp += f" [ex: {ex}]"
-                                                if expl: disp += f" [note: {expl[:100]}]"
-                                                if len(key_terms) < 8:
-                                                    key_terms.append(disp)
-
-                                    # Compact reading context: budget-conscious, prioritizing rules over narrative text
-                                    if ptext and len(key_texts) < 1:
-                                        key_texts.append(ptext[:250])
-                            except Exception: pass
-                        topics_summary.append({
-                            "id": tid,
-                            "title": t_row["title"],
-                            "type": t_row["type"],
-                            "key_vocab": key_terms[:8],
-                            "key_grammar": key_grammar[:6],
-                            "key_texts": key_texts[:1]
-                        })
+            t_prov_start = time.perf_counter()
+            timing_ctx["provenance_resolution"] = time.perf_counter() - t_prov_start
 
             new_qs = ai_generate_questions(
                 topic_title="Quiz/Review",
@@ -398,7 +370,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 is_quiz=is_quiz,
                 material_language=material_language,
                 generation_seed=generation_seed,
-                focus_directive=focus_directive
+                focus_directive=focus_directive,
+                timing_ctx=timing_ctx
             )
             if new_qs:
                 for q in new_qs:
@@ -488,9 +461,9 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
     return final_set
 
-def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None, generation_seed=None, focus_directive=None):
+def generate_quiz(topic_ids, student_mastery=None, count=10, progress_callback=None, is_quiz=True, ui_lang="en", existing_questions=None, generation_seed=None, focus_directive=None, timing_ctx=None):
     """Backward compatibility wrapper delegating to unified generate_assessment_set."""
-    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback, generation_seed=generation_seed, focus_directive=focus_directive)
+    return generate_assessment_set(topic_ids=topic_ids, count=count, is_quiz=is_quiz, ui_lang=ui_lang, existing_questions=existing_questions, progress_callback=progress_callback, generation_seed=generation_seed, focus_directive=focus_directive, timing_ctx=timing_ctx)
 
 
 def generate_dialogue_activity(language="Unknown"):

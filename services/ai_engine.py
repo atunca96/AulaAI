@@ -562,9 +562,12 @@ LANGUAGE_CALIBRATION_REGISTRY = {
     }
 }
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None):
     c = int(count)
     gen_count = max(c + 5, int(c * 1.5), 14)
+    if timing_ctx is None:
+        timing_ctx = {}
+
     with open("pipeline.log", "a", encoding="utf-8") as f:
         api_status = "Available" if is_ai_available() else "MISSING KEY"
         f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-START] {topic_title} count={count} gen_count={gen_count} seed={generation_seed} focus={focus_directive} API={api_status}\n")
@@ -572,9 +575,11 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     is_beginner = any(lvl in level.upper() for lvl in ["A1", "A2"])
     instruction_lang_name = "Turkish" if material_language == "tr" else "English"
     
-    # Use override if provided (for speed during build), else extract concise target material
+    # Use override if provided, or preassembled string if provided, or cache lookup, or fallback
     if source_text_override:
         content_str = f"EXTRACTED TEXTBOOK CONTENT:\n{source_text_override[:8000]}"
+    elif isinstance(topic_content, dict) and "_preassembled_content_str" in topic_content:
+        content_str = topic_content["_preassembled_content_str"]
     elif isinstance(topic_content, dict) and "topics" in topic_content:
         parts = [
             "================================================================================",
@@ -599,6 +604,14 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             parts.append("\n".join(lines))
         parts.append("================================================================================")
         content_str = "\n\n".join(parts)
+    elif isinstance(topic_content, dict) and "pages" in topic_content:
+        from services.quiz_source_cache import get_or_assemble_quiz_source
+        t_cache_start = time.perf_counter()
+        q_src = get_or_assemble_quiz_source(str(topic_content.get("id") or topic_title), topic_title, topic_type, topic_content, material_language)
+        if "structured_lesson_assembly" not in timing_ctx:
+            timing_ctx["structured_lesson_assembly"] = time.perf_counter() - t_cache_start
+            timing_ctx["provenance_resolution"] = 0.0001
+        content_str = q_src["single_topic_content_str"]
     elif isinstance(topic_content, dict):
         pages = topic_content.get("pages", [])
         page_sections = []
@@ -696,6 +709,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     else:
         content_str = str(topic_content)[:3500]
     
+    t_prompt_start = time.perf_counter()
     from services.language_data import get_reference_prompt, get_special_chars_prompt, get_pedagogical_guidelines
     from services.cefr_reference import get_cefr_conditioning
     is_alphabet_topic = any(x in topic_title.lower() for x in ["alphabet", "alfabeto", "alfabe", "letters"])
@@ -1097,6 +1111,12 @@ REPETITION & COVERAGE RULES:
     # MAX VARIETY SEED: Uses generation_seed if provided to differentiate sub-batches, else high-precision timestamp
     seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
     user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
+    prompt_chars = len(system) + len(user)
+    prompt_tokens_est = int(prompt_chars / 4.0)
+    t_prompt_duration = time.perf_counter() - t_prompt_start
+    timing_ctx["prompt_construction"] = t_prompt_duration
+    timing_ctx["prompt_chars"] = prompt_chars
+    timing_ctx["prompt_tokens_est"] = prompt_tokens_est
     
     try:
         t_ai_duration = 0.0
@@ -1106,17 +1126,21 @@ REPETITION & COVERAGE RULES:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
             calc_max_tokens = min(5000, max(1500, gen_count * 250))
-            t_ai_start = time.time()
+            t_ai_start = time.perf_counter()
             res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True)
-            t_ai_duration = time.time() - t_ai_start
+            t_ai_duration = time.perf_counter() - t_ai_start
+        timing_ctx["main_ai_generation"] = t_ai_duration
         
+        t_parse_start = time.perf_counter()
         raw_list = []
         if isinstance(res, list):
             raw_list = res
         elif isinstance(res, dict):
             raw_list = res.get("data") or res.get("questions") or res.get("items") or res.get("quiz") or res.get("activities") or []
+        t_parse_duration = time.perf_counter() - t_parse_start
+        timing_ctx["parsing"] = t_parse_duration
         
-        t_filter_start = time.time()
+        t_filter_start = time.perf_counter()
         # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER ──
         final = []
         for item in raw_list:
@@ -1375,6 +1399,48 @@ REPETITION & COVERAGE RULES:
             })
             if len(final) >= gen_count:
                 break
+
+        # Candidate pool full reuse: If shortfall remains, evaluate remaining candidate pool items
+        if len(final) < c and raw_list:
+            for item in raw_list:
+                if not isinstance(item, dict): continue
+                p = str(item.get("prompt", "")).strip()
+                a = str(item.get("answer", "")).strip()
+                d = item.get("distractors", [])
+                if not (p and a and isinstance(d, list)): continue
+                clean_a_token = _normalize_token(a)
+                clean_p_token = _normalize_token(p)
+                if any(_normalize_token(f.get("answer")) == clean_a_token for f in final): continue
+                if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.90 for f in final): continue
+                clean_d = [str(x).strip() for x in d if str(x).strip() and str(x).strip().lower() != a.lower()]
+                clean_d = list(dict.fromkeys(clean_d))
+                if len(clean_d) < 3: continue
+                opts = [a] + clean_d[:3]
+                py_random.shuffle(opts)
+                why_en = item.get("why", "Correct answer based on the material.")
+                why_tr = item.get("why_tr", "Ders içeriğine göre doğru seçenek.")
+                t_en = item.get("translation_en") or item.get("translation", "")
+                t_tr = item.get("translation_tr") or item.get("translation", "")
+                if re.search(r'_{2,}', p):
+                    t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
+                final.append({
+                    "id": _uid(),
+                    "type": "mcq",
+                    "prompt": p,
+                    "translation": t_tr if material_language == "tr" else t_en,
+                    "translation_en": t_en,
+                    "translation_tr": t_tr,
+                    "answer": a,
+                    "distractors": clean_d[:3],
+                    "options": opts,
+                    "why": why_en,
+                    "why_tr": why_tr,
+                    "evidence": str(item.get("evidence", "")).strip()[:180],
+                    "material_section": str(item.get("material_section", "")).strip()[:100],
+                    "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
+                })
+                if len(final) >= c:
+                    break
         
         # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
         if len(final) < c and isinstance(topic_content, dict):
@@ -1470,10 +1536,37 @@ REPETITION & COVERAGE RULES:
             if material_language == "tr" and q.get("translation"):
                 q["translation"] = _sanitize_turkish_content(heal_turkish_syntax(q["translation"]))
 
-        t_filter_duration = time.time() - t_filter_start
+        t_filter_duration = time.perf_counter() - t_filter_start
+        timing_ctx["filter_dedup"] = t_filter_duration
+        t_topup = timing_ctx.get("top_up", 0.0)
+        timing_ctx["top_up"] = t_topup
+
+        t_db = timing_ctx.get("db_loading", 0.0)
+        t_assembly = timing_ctx.get("structured_lesson_assembly", 0.0)
+        t_prov = timing_ctx.get("provenance_resolution", 0.0)
+        t_persist = timing_ctx.get("persistence", 0.0)
+        t_total = t_db + t_assembly + t_prov + t_prompt_duration + t_ai_duration + t_parse_duration + t_filter_duration + t_topup + t_persist
+        timing_ctx["total_elapsed"] = t_total
+
+        log_lines = [
+            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-PERF] Topic: '{topic_title}' (req={c}, count={len(final)}):",
+            f"  1. DB/Content Loading:       {t_db:.4f}s",
+            f"  2. Structured Assembly:      {t_assembly:.4f}s",
+            f"  3. Provenance Resolution:    {t_prov:.4f}s",
+            f"  4. Prompt Construction:      {t_prompt_duration:.4f}s (size: {prompt_chars} chars, ~{prompt_tokens_est} toks)",
+            f"  5. Main AI Generation:       {t_ai_duration:.4f}s",
+            f"  6. Response Parsing:         {t_parse_duration:.4f}s",
+            f"  7. Filter / Deduplication:   {t_filter_duration:.4f}s (valid {len(final)} / {len(raw_list)} candidates)",
+            f"  8. Top-up AI Call:           {t_topup:.4f}s",
+            f"  9. Persistence:              {t_persist:.4f}s",
+            f"  Total Elapsed Time:          {t_total:.4f}s"
+        ]
+        log_str = "\n".join(log_lines)
+        print(log_str)
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-TIMING] {topic_title} (req={c}): Main AI call={t_ai_duration:.2f}s | Parsing/filtering/dedup={t_filter_duration:.3f}s | Valid={len(final)}/{len(raw_list)}\n")
+            f.write(log_str + "\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
         return final[:gen_count]
