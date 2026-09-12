@@ -620,10 +620,12 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
                         r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
                         r_ex = (r.get("example") or "").strip()
-                        if r_name:
+                        r_ev = (r.get("source_evidence") or "").strip()
+                        if r_name and r_ev:
                             r_disp = f"  * [RULE] {r_name}"
                             if r_expl: r_disp += f": {r_expl[:180]}"
                             if r_ex: r_disp += f" — Example: '{r_ex}'"
+                            r_disp += f" [Source: '{r_ev[:100]}']"
                             rule_lines.append(r_disp)
                 if rule_lines:
                     p_lines.append("Explicit Taught Grammar Rules (Primary Grammar Source):\n" + "\n".join(rule_lines))
@@ -636,8 +638,10 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                         c_tgt = (comp.get("target") or "").strip()
                         c_ctx = (comp.get("context_tr") if material_language == "tr" and comp.get("context_tr") else (comp.get("context") or "")).strip()
                         c_note = (comp.get("note_tr") if material_language == "tr" and comp.get("note_tr") else (comp.get("note") or "")).strip()
-                        if c_tgt:
+                        c_ev = (comp.get("source_evidence") or "").strip()
+                        if c_tgt and c_ev:
                             c_disp = f"  * [CONTRAST] '{c_tgt}'" + (f" ({c_ctx})" if c_ctx else "") + (f": {c_note[:140]}" if c_note else "")
+                            c_disp += f" [Source: '{c_ev[:100]}']"
                             comp_lines.append(c_disp)
                 if comp_lines:
                     p_lines.append("Structural Contrasts & Nuances:\n" + "\n".join(comp_lines))
@@ -1916,7 +1920,11 @@ def _normalize_lesson_pages(data, topic, language, level):
                 for c in p["comparisons"]:
                     if isinstance(c, dict):
                         tgt = str(c.get("target") or c.get("sentence") or c.get("text") or "").strip()
-                        if tgt:
+                        ev = str(c.get("source_evidence") or "").strip()
+                        prov = str(c.get("provenance") or "").strip()
+                        if tgt and ev:
+                            if prov not in ("source_explicit", "source_inherent"):
+                                prov = "source_explicit"
                             norm_comps.append({
                                 "context": str(c.get("context") or "").strip(),
                                 "context_tr": str(c.get("context_tr") or "").strip(),
@@ -1925,37 +1933,9 @@ def _normalize_lesson_pages(data, topic, language, level):
                                 "translation_tr": str(c.get("translation_tr") or "").strip(),
                                 "note": str(c.get("note") or c.get("explanation") or "").strip(),
                                 "note_tr": str(c.get("note_tr") or "").strip(),
-                                "source_evidence": str(c.get("source_evidence") or "").strip(),
+                                "source_evidence": ev,
                                 "source_taught": str(c.get("source_taught") or "").strip(),
-                                "provenance": str(c.get("provenance") or "source_explicit").strip()
-                            })
-                    elif isinstance(c, str) and c.strip():
-                        parts = c.split("=")
-                        if len(parts) >= 2:
-                            norm_comps.append({
-                                "context": "",
-                                "context_tr": "",
-                                "target": parts[0].strip().strip("'\""),
-                                "translation": "",
-                                "translation_tr": "",
-                                "note": parts[1].strip().strip("'\""),
-                                "note_tr": "",
-                                "source_evidence": parts[0].strip().strip("'\""),
-                                "source_taught": "",
-                                "provenance": "source_explicit"
-                            })
-                        else:
-                            norm_comps.append({
-                                "context": "",
-                                "context_tr": "",
-                                "target": c.strip().strip("'\""),
-                                "translation": "",
-                                "translation_tr": "",
-                                "note": "",
-                                "note_tr": "",
-                                "source_evidence": c.strip().strip("'\""),
-                                "source_taught": "",
-                                "provenance": "source_explicit"
+                                "provenance": prov
                             })
                 p["comparisons"] = norm_comps
 
@@ -1966,7 +1946,11 @@ def _normalize_lesson_pages(data, topic, language, level):
                     if isinstance(r, dict):
                         r_name = str(r.get("rule") or "").strip()
                         r_expl = str(r.get("explanation") or "").strip()
-                        if r_name or r_expl:
+                        ev = str(r.get("source_evidence") or "").strip()
+                        prov = str(r.get("provenance") or "").strip()
+                        if (r_name or r_expl) and ev:
+                            if prov not in ("source_explicit", "source_inherent"):
+                                prov = "source_explicit"
                             norm_rules.append({
                                 "rule": r_name,
                                 "rule_tr": str(r.get("rule_tr") or "").strip(),
@@ -1977,9 +1961,9 @@ def _normalize_lesson_pages(data, topic, language, level):
                                 "example_tr": str(r.get("example_tr") or "").strip(),
                                 "analysis": str(r.get("analysis") or "").strip(),
                                 "analysis_tr": str(r.get("analysis_tr") or "").strip(),
-                                "source_evidence": str(r.get("source_evidence") or "").strip(),
+                                "source_evidence": ev,
                                 "source_taught": str(r.get("source_taught") or "").strip(),
-                                "provenance": str(r.get("provenance") or "source_explicit").strip()
+                                "provenance": prov
                             })
                 p["rules"] = norm_rules
 
@@ -2404,19 +2388,27 @@ TRACK 2 — TURKISH PEDAGOGICAL TRACK ('title_tr', 'text_tr', 'explanation_tr', 
 
 <strict_rules_and_comparisons_mandate>
 STRICT GROUNDING & SOURCE PROVENANCE FOR RULES (pages[].rules) & COMPARISONS (pages[].comparisons):
-1. STRICT SOURCE PROVENANCE REQUIREMENT:
-   - Every single generated rule in 'pages[].rules' and comparison in 'pages[].comparisons' MUST be directly traced to concrete evidence in the original lesson source material.
-   - For each rule and comparison, provide 'source_evidence' (verbatim textual quote or concrete structural excerpt from the source) and 'source_taught' (what the source explicitly teaches).
-   - BAN ON SECONDARY EVIDENCE: Model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must NEVER count as evidence for another rule.
-2. DISTINGUISHING EXPLICIT SOURCE TEACHING FROM MODEL INFERENCE:
-   - Distinguish what the original source explicitly teaches ('source_taught') from what the enrichment model merely infers.
-   - Persist ONLY the core linguistic, semantic, pragmatic, discourse, orthographic, pronunciation, or functional property that is directly supported by the source evidence.
-3. BAN ON PROMOTING CONTEXTUAL / PRAGMATIC EFFECTS INTO INHERENT TARGET PROPERTIES:
-   - NEVER promote contextual effects, optional interpretations, register associations, rhetorical effects, or consequences of the surrounding sentence (e.g. irony, skepticism, continuity, determination, politeness, legal force, certainty, or interpersonal stance) into inherent properties of the taught target unless the source explicitly teaches that exact form–function relationship.
-   - For discourse markers and constructions, store their core semantic/syntactic function separately from optional pragmatic uses.
+1. STRICT STRUCTURAL BOUNDARY:
+   - 'pages[].rules' is RESERVED EXCLUSIVELY for explicit grammatical rules, verb conjugations/inflections, morphological affixation, syntactic word-order constraints, orthographic accentuation rules, or phonological rules explicitly taught by the source material.
+   - ABSOLUTELY FORBIDDEN IN 'rules':
+     * Pedagogical overview statements or meta-commentary (e.g. 'Language X is phonetic', 'pronunciation follows rules').
+     * Vocabulary lists, noun categories, or thematic word groupings (e.g. 'ticket types', 'family member words').
+     * Conversational formulas or pragmatic advice (e.g. 'be polite').
+   - 'pages[].comparisons' is RESERVED EXCLUSIVELY for explicit grammatical, morphological, syntactic, or aspectual contrasts explicitly taught by the source (e.g. 'ser vs. estar', 'por vs. para', 'el vs. un', subject concord).
+   - ABSOLUTELY FORBIDDEN IN 'comparisons':
+     * Lexical near-synonyms or real-world item pairs (e.g. 'window seat vs aisle seat', 'garment size vs shoe size', 'tea vs coffee').
+     * Conversational courtesy formulas (e.g. 'excuse me vs pardon').
+     * These MUST remain exclusively in 'items' or 'text'.
+2. SEPARATING CORE FORM/FUNCTION FROM CONTEXTUAL & PRAGMATIC EFFECTS:
+   - Separate core form/function meaning from register, discourse effect, speaker attitude, pragmatic implication, intensity, continuity, certainty, evaluation, politeness, irony, skepticism, legal effect, or other meanings contributed by the surrounding sentence.
+   - Store those ONLY when the original material explicitly teaches them as part of that target form.
+3. STRICT SOURCE PROVENANCE & IDENTIFIABLE EVIDENCE:
+   - Every single rule in 'pages[].rules' and comparison in 'pages[].comparisons' MUST be directly traced to concrete evidence in the original lesson source material.
+   - Provide 'source_evidence' (verbatim textual quote or concrete structural excerpt from the source) and 'source_taught' (the core structural property explicitly taught).
+   - BAN ON SECONDARY EVIDENCE: Model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must NEVER count as evidence for a rule.
 4. NO RULE CREATION BY MERE OCCURRENCE (OMIT IF INSUFFICIENT EVIDENCE):
    - Do NOT create a rule merely because a word or form appears in the source.
-   - If the original source does not provide sufficient concrete evidence for a defensible rule, OMIT the rule instead of synthesizing one (leave 'rules': [] or 'comparisons': []).
+   - If the original source does not provide sufficient concrete evidence for a defensible structural rule or contrast, OMIT the rule instead of synthesizing one (return 'rules': [] and/or 'comparisons': []).
 5. AUTHENTIC EXAMPLES & NATURAL COMPARISONS:
    - Preserve authentic examples and comparisons ('pages[].comparisons') ONLY when they are natural, source-supported, and do not overgeneralize.
 </strict_rules_and_comparisons_mandate>
@@ -2446,9 +2438,9 @@ Return ONLY valid JSON matching this schema:
       ],
       "rules": [
         {{
-          "rule": "Grammar rule in English (only if explicitly taught or inherent to form)",
+          "rule": "Grammar rule in English (only if explicitly taught structural rule; zero meta-overviews or vocab labels)",
           "rule_tr": "Grammar rule in Turkish",
-          "explanation": "Core semantic/syntactic breakdown (only directly supported core properties; no contextual/pragmatic speculations)",
+          "explanation": "Core structural/semantic breakdown (only directly supported core properties; zero contextual/pragmatic speculations)",
           "explanation_tr": "Pedagogical breakdown in Turkish",
           "example": "Example in {language}",
           "example_en": "English translation",
@@ -2456,21 +2448,21 @@ Return ONLY valid JSON matching this schema:
           "analysis": "Analysis in English",
           "analysis_tr": "Analysis in Turkish",
           "source_evidence": "Concrete textual quote or structural excerpt from source material",
-          "source_taught": "Core linguistic property explicitly taught by the source",
+          "source_taught": "Core structural property explicitly taught by the source",
           "provenance": "source_explicit" | "source_inherent"
         }}
       ],
       "comparisons": [
         {{
-          "context": "Source-supported contrast context in English",
+          "context": "Source-supported grammatical/syntactic contrast context in English",
           "context_tr": "Karşılaştırma bağlamı Türkçe",
-          "target": "Structure in {language}",
+          "target": "Grammatical contrast pair in {language} (zero lexical/object pairs)",
           "translation": "English contrast",
           "translation_tr": "Turkish contrast",
-          "note": "English note (natural, not overgeneralized)",
+          "note": "Precise grammatical note (natural, not overgeneralized)",
           "note_tr": "Turkish note",
           "source_evidence": "Concrete textual contrast or excerpt from source material",
-          "source_taught": "Specific distinction explicitly taught by the source",
+          "source_taught": "Specific structural distinction explicitly taught by the source",
           "provenance": "source_explicit" | "source_inherent"
         }}
       ],
@@ -2512,12 +2504,13 @@ In your internal reasoning process, plan the pedagogical arc for this {level} {l
    - English fields: Explain strictly for English speakers. Zero Turkish mentions.
    - Turkish fields: Explain strictly for Turkish speakers. Natural, authentic Turkish. Zero English word comparisons.
 5. Completeness: Never skip items in a defined sequence (e.g. alphabets or number ranges).
-6. Strict Grammar Rules & Comparisons Source Provenance (pages[].rules & pages[].comparisons):
+6. Strict Grammar Rules & Comparisons Source Boundary (pages[].rules & pages[].comparisons):
    - A structured rule or comparison may exist only if it can be traced to concrete evidence in the original lesson source itself; model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must never count as evidence for another rule.
+   - Restrict 'rules' strictly to explicit grammatical, inflectional, morphological, syntactic, orthographic, or phonological rules. Never put meta-commentary, pedagogical overviews, or vocabulary categories in 'rules'.
+   - Restrict 'comparisons' strictly to explicit structural/grammatical contrasts. Never put lexical item pairs (e.g. window seat vs aisle seat) in 'comparisons'.
    - For each candidate rule/comparison, distinguish what the original source explicitly teaches ('source_taught') from what the enrichment model merely infers; populate 'source_evidence' with direct textual evidence.
-   - Persist only the core linguistic, semantic, pragmatic, discourse, orthographic, pronunciation, or functional property that is directly supported by the source evidence; do not promote contextual effects, optional interpretations, register associations, rhetorical effects, or consequences of the surrounding sentence into inherent properties of the target.
-   - If the original source does not provide sufficient evidence for a defensible rule, omit it rather than synthesizing one.
-   - Preserve authentic examples and comparisons only when they are natural, source-supported, and do not overgeneralize.
+   - Persist only the core linguistic, semantic, pragmatic, discourse, orthographic, pronunciation, or functional property directly supported by source evidence; do not promote contextual effects, optional interpretations, register associations, rhetorical effects, or consequences of the surrounding sentence into inherent properties of the target.
+   - If the original source does not provide sufficient evidence for a defensible structural rule, omit it rather than synthesizing one.
 Then generate the complete, exhaustive JSON lesson structure.
 
 CRITICAL: Do NOT summarize. Do NOT write brief pages. Generate the FULL, DEEP, AUTHENTIC educational content.

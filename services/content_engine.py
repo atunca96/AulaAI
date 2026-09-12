@@ -342,18 +342,22 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                                             r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
                                             r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
                                             r_ex = (r.get("example") or "").strip()
-                                            if r_name:
+                                            r_ev = (r.get("source_evidence") or "").strip()
+                                            if r_name and r_ev:
                                                 disp = f"[RULE] {r_name}"
                                                 if r_expl: disp += f": {r_expl[:150]}"
                                                 if r_ex: disp += f" (ex: '{r_ex}')"
+                                                disp += f" [Source: '{r_ev[:80]}']"
                                                 if len(key_grammar) < 6: key_grammar.append(disp)
 
                                     for c in p.get("comparisons", []):
                                         if isinstance(c, dict):
                                             c_tgt = (c.get("target") or "").strip()
                                             c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
-                                            if c_tgt:
+                                            c_ev = (c.get("source_evidence") or "").strip()
+                                            if c_tgt and c_ev:
                                                 disp = f"[CONTRAST] {c_tgt}" + (f": {c_note[:120]}" if c_note else "")
+                                                disp += f" [Source: '{c_ev[:80]}']"
                                                 if len(key_grammar) < 6: key_grammar.append(disp)
 
                                     # Extract items (Target lexicon & lexical evidence - NEVER promoted to grammar rules)
