@@ -30,8 +30,8 @@ COPY . .
 
 RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_zero_ai_export.py \
-    && python scripts/patch_pdf_book_pagination.py \
     && python scripts/patch_pdf_picker_ui.py \
-    && python -m py_compile server.py
+    && python scripts/patch_pdf_academic_renderer.py \
+    && python -m py_compile server.py services/pdf_academic_renderer.py
 
 CMD ["python", "server.py"]
