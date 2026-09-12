@@ -734,6 +734,204 @@ def _is_same_batch_semantic_duplicate(item: dict, final_questions: list, topic_c
     return False
 
 
+def _extract_source_backed_metadata(topic_content: Any, material_language: str = "en") -> str:
+    """
+    Extracts only authoritative, source-backed structured metadata (explicit rules, contrasts,
+    and verified lexical items) needed by the Form/Function Attribution verifier.
+    Excludes unsupported commentary and incidental conversational text.
+    """
+    if not isinstance(topic_content, dict):
+        return ""
+    
+    sections = []
+    
+    # 1. Single-topic pages
+    if "pages" in topic_content and isinstance(topic_content["pages"], list):
+        for idx, page in enumerate(topic_content["pages"], 1):
+            p_title = page.get("title", f"Part {idx}")
+            lines = [f"--- SECTION {idx}: '{p_title}' ---"]
+            
+            # Explicit rules
+            rules = page.get("rules", [])
+            if isinstance(rules, list):
+                for r in rules:
+                    if isinstance(r, dict):
+                        r_name = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
+                        r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
+                        r_ex = (r.get("example") or "").strip()
+                        r_ev = (r.get("source_evidence") or "").strip()
+                        if r_name:
+                            disp = f"* [RULE] {r_name}"
+                            if r_expl: disp += f": {r_expl}"
+                            if r_ex: disp += f" — Example: '{r_ex}'"
+                            if r_ev: disp += f" [Source Evidence: '{r_ev}']"
+                            lines.append(disp)
+                            
+            # Structural contrasts
+            comps = page.get("comparisons", [])
+            if isinstance(comps, list):
+                for c in comps:
+                    if isinstance(c, dict):
+                        c_tgt = (c.get("target") or "").strip()
+                        c_ctx = (c.get("context_tr") if material_language == "tr" and c.get("context_tr") else (c.get("context") or "")).strip()
+                        c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
+                        c_ev = (c.get("source_evidence") or "").strip()
+                        if c_tgt:
+                            disp = f"* [CONTRAST] '{c_tgt}'" + (f" ({c_ctx})" if c_ctx else "") + (f": {c_note}" if c_note else "")
+                            if c_ev: disp += f" [Source Evidence: '{c_ev}']"
+                            lines.append(disp)
+                            
+            # Lexical items
+            items = page.get("items", [])
+            if isinstance(items, list):
+                for it in items:
+                    if isinstance(it, dict):
+                        term = (it.get("term") or it.get("word") or "").strip()
+                        tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or "")).strip()
+                        ex = (it.get("example") or "").strip()
+                        it_ev = str(it.get("source_evidence") or "").strip()
+                        it_prov = str(it.get("provenance") or "").strip().lower()
+                        if term:
+                            disp = f"* [LEXICON] {term}" + (f" ({tr})" if tr else "")
+                            if ex: disp += f" — Example: '{ex}'"
+                            if it_ev or it_prov == "source_explicit":
+                                expl = (it.get("explanation_tr") if material_language == "tr" and it.get("explanation_tr") else (it.get("explanation_en") or it.get("explanation") or "")).strip()
+                                if expl: disp += f" — Note: {expl}"
+                                if it_ev: disp += f" [Source Evidence: '{it_ev}']"
+                            lines.append(disp)
+            if len(lines) > 1:
+                sections.append("\n".join(lines))
+
+    # 2. Multi-topic syllabus
+    elif "topics" in topic_content and isinstance(topic_content["topics"], list):
+        for idx, top in enumerate(topic_content["topics"], 1):
+            t_title = top.get("title", "")
+            lines = [f"--- TOPIC {idx}: '{t_title}' ---"]
+            for g in top.get("key_grammar", []):
+                lines.append(f"* [GRAMMAR] {g}")
+            for v in top.get("key_vocab", []):
+                lines.append(f"* [VOCAB] {v}")
+            for txt in top.get("key_texts", []):
+                lines.append(f"* [TEXT] {txt[:200]}")
+            if len(lines) > 1:
+                sections.append("\n".join(lines))
+
+    return "\n\n".join(sections)
+
+
+def _verify_form_function_batch(candidates: List[Dict], topic_content: Any, language: str, level: str, material_language: str = "en", model: Optional[str] = None) -> List[Dict]:
+    """
+    Executes a single, batched LLM verification pass for FORM/FUNCTION ATTRIBUTION across all
+    generated candidate questions, before final candidate selection.
+    
+    Verifies that whenever a stem, answer, distractor, or explanation attributes a semantic,
+    grammatical, pragmatic, rhetorical, discourse, stylistic, or functional property to a form,
+    suffix, morpheme, construction, connector, marker, or pattern, the property is contributed
+    by that form itself and is explicitly supported by source-backed metadata.
+    
+    Rejects candidates where the claimed property comes from the lexical root, surrounding words,
+    main verb, discourse context, register, speaker attitude, or pragmatic inference.
+    Questions testing the complete expression or complete context pass when source-supported.
+    
+    Returns only candidates that passed verification.
+    """
+    if not candidates or not isinstance(candidates, list):
+        return []
+    if model and str(model).lower() in ["none", "offline", "skip", "disabled"]:
+        return candidates
+
+    candidate_items = []
+    for idx, c in enumerate(candidates):
+        if not isinstance(c, dict):
+            continue
+        candidate_items.append({
+            "id": idx,
+            "prompt": str(c.get("prompt", "")).strip(),
+            "answer": str(c.get("answer", "")).strip(),
+            "distractors": [str(d).strip() for d in c.get("distractors", []) if str(d).strip()][:3],
+            "why": str(c.get("why", "")).strip()
+        })
+
+    if not candidate_items:
+        return candidates
+
+    source_meta = _extract_source_backed_metadata(topic_content, material_language)
+    if not source_meta.strip():
+        if isinstance(topic_content, dict) and "_preassembled_content_str" in topic_content:
+            source_meta = str(topic_content["_preassembled_content_str"])[:4000]
+
+    verifier_system = f"""You are the {language} Linguistic Form/Function Attribution Verifier (CEFR {level}).
+Your sole task is to evaluate a batch of multiple-choice quiz questions against the provided source-backed structured metadata.
+
+EVALUATION RULES:
+1. FORM/FUNCTION ATTRIBUTION IDENTIFICATION:
+   Determine whether any stem, keyed answer, distractor, or explanation attributes a semantic, grammatical, pragmatic, rhetorical, discourse, stylistic, or functional property to a specific form, suffix, morpheme, construction, connector, marker, or structural pattern.
+2. SOURCE GROUNDING OF ATTRIBUTED PROPERTY:
+   When such an attribution exists:
+   - Verify that the claimed property is contributed by that form itself AND is explicitly supported by the source-backed metadata.
+   - REJECT (pass: false) if the claimed meaning actually comes from the lexical root, another word in the phrase, the main verb, surrounding sentence, discourse context, register, speaker attitude, pragmatic inference, or rhetorical outcome.
+   - For example: if a complete expression conveys continuity, intensity, hostility, determination, politeness, skepticism, or impartiality while the tested grammatical form itself does not, the candidate FAILS (pass: false) unless the source explicitly teaches that property as inherent to the form.
+3. COMPLETE EXPRESSION / CONTEXT QUESTIONS:
+   Questions asking about the meaning, communicative function, or situational usage of the complete expression or complete sentence context are fully allowed and MUST PASS (pass: true) when source-supported.
+4. STANDARD QUESTIONS:
+   Questions that do not attribute an unsupported property to an isolated form (e.g. situational dialogue, communicative response, vocabulary in context, reading comprehension, authentic source-backed rule) MUST PASS (pass: true).
+
+OUTPUT FORMAT:
+Return EXCLUSIVELY a JSON object with a "verifications" list:
+{{
+  "verifications": [
+    {{"id": 0, "pass": true}},
+    {{"id": 1, "pass": false, "reason": "meaning_supplied_by_lexical_root_or_context"}}
+  ]
+}}
+Output compact JSON only. Absolutely NO chain-of-thought, explanations, or free-form linguistic essays."""
+
+    verifier_user = f"""SOURCE-BACKED STRUCTURED METADATA:
+{source_meta}
+
+CANDIDATE QUESTIONS TO VERIFY:
+{json.dumps(candidate_items, ensure_ascii=False, indent=1)}
+
+Evaluate all {len(candidate_items)} candidate questions in a single JSON response. Compact output only."""
+
+    target_model = model if model else MODEL_STRUCTURAL
+    calc_max_tokens = min(2500, max(400, len(candidate_items) * 60))
+
+    try:
+        res = _call_ai(
+            [{"role": "system", "content": verifier_system}, {"role": "user", "content": verifier_user}],
+            model=target_model,
+            max_tokens=calc_max_tokens,
+            temperature=0.0,
+            json_mode=True,
+            allow_fallback=True
+        )
+    except Exception as e:
+        print(f"[VERIFIER-ERROR] Form/function verification call failed: {e}")
+        return candidates
+
+    verified_list = []
+    if isinstance(res, dict):
+        verified_list = res.get("verifications") or res.get("results") or res.get("items") or res.get("data") or []
+    elif isinstance(res, list):
+        verified_list = res
+
+    failed_ids = set()
+    for v in verified_list:
+        if isinstance(v, dict) and "id" in v:
+            try:
+                vid = int(v.get("id"))
+            except (ValueError, TypeError):
+                continue
+            if v.get("pass") is False:
+                failed_ids.add(vid)
+                fail_reason = v.get("reason", "form_function_attribution_failure")
+                print(f"[VERIFIER-REJECT] Candidate {vid} failed form/function attribution check: {fail_reason}")
+
+    retained = [cand for idx, cand in enumerate(candidates) if idx not in failed_ids]
+    return retained
+
+
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None):
     c = int(count)
     gen_count = max(c + 5, int(c * 1.5), 14)
@@ -1372,6 +1570,15 @@ REPETITION & COVERAGE RULES:
         t_parse_duration = time.perf_counter() - t_parse_start
         timing_ctx["parsing"] = t_parse_duration
 
+        # ── SEPARATE BATCHED FORM/FUNCTION ATTRIBUTION VERIFICATION PASS ──
+        t_verify_start = time.perf_counter()
+        t_verify = 0.0
+        ai_active = not (model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"])
+        if raw_list and ai_active:
+            verified_raw = _verify_form_function_batch(raw_list, topic_content, language, level, material_language, model=target_model)
+            t_verify = time.perf_counter() - t_verify_start
+            raw_list = verified_raw
+        timing_ctx["form_function_verification"] = t_verify
         
         t_filter_start = time.perf_counter()
         # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER HELPER ──
@@ -1726,6 +1933,13 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             if not topup_list:
                 break
 
+            # Separate batched verification pass for newly introduced top-up candidates
+            t_topup_verify_start = time.perf_counter()
+            verified_topup = _verify_form_function_batch(topup_list, topic_content, language, level, material_language, model=target_model)
+            t_topup_verify = time.perf_counter() - t_topup_verify_start
+            timing_ctx["form_function_verification"] = timing_ctx.get("form_function_verification", 0.0) + t_topup_verify
+            topup_list = verified_topup
+
             for item in topup_list:
                 cand = _assemble_valid_candidate(item, final)
                 if cand:
@@ -1865,7 +2079,8 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
         t_assembly = timing_ctx.get("structured_lesson_assembly", 0.0)
         t_prov = timing_ctx.get("provenance_resolution", 0.0)
         t_persist = timing_ctx.get("persistence", 0.0)
-        t_total = t_db + t_assembly + t_prov + t_prompt_duration + t_ai_duration + t_parse_duration + t_filter_duration + t_topup + t_persist
+        t_verify = timing_ctx.get("form_function_verification", 0.0)
+        t_total = t_db + t_assembly + t_prov + t_prompt_duration + t_ai_duration + t_parse_duration + t_verify + t_filter_duration + t_topup + t_persist
         timing_ctx["total_elapsed"] = t_total
 
         log_lines = [
@@ -1876,9 +2091,10 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             f"  4. Prompt Construction:      {t_prompt_duration:.4f}s (size: {prompt_chars} chars, ~{prompt_tokens_est} toks)",
             f"  5. Main AI Generation:       {t_ai_duration:.4f}s",
             f"  6. Response Parsing:         {t_parse_duration:.4f}s",
-            f"  7. Filter / Deduplication:   {t_filter_duration:.4f}s (valid {len(final)} / {len(raw_list)} candidates)",
-            f"  8. Top-up AI Call:           {t_topup:.4f}s",
-            f"  9. Persistence:              {t_persist:.4f}s",
+            f"  7. Form/Function Verifier:   {t_verify:.4f}s",
+            f"  8. Filter / Deduplication:   {t_filter_duration:.4f}s (valid {len(final)} / {len(raw_list)} candidates)",
+            f"  9. Top-up AI Call:           {t_topup:.4f}s",
+            f"  10. Persistence:             {t_persist:.4f}s",
             f"  Total Elapsed Time:          {t_total:.4f}s"
         ]
         log_str = "\n".join(log_lines)
@@ -1886,7 +2102,7 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(log_str + "\n")
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s | Parse: {t_parse_duration:.3f}s | Verifier: {t_verify:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final[:c])}\n")
             
         return final[:c]
