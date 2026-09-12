@@ -13,11 +13,11 @@ else:
     replacement = '''        is_tr = (lang == "tr")
 
         # AULA_ACADEMIC_PDF_RENDERER_V2
-        # Prefer the academic renderer. If anything unexpected happens at runtime,
-        # log it and fall through to the proven legacy exporter below instead of
-        # breaking PDF downloads.
+        # Consolidated production renderer. It is fully local / zero-AI and has
+        # its own legacy-shape + pagination hardening. Keep the proven legacy
+        # exporter below as a final safety fallback.
         try:
-            from services.pdf_academic_renderer import render_course_pdf
+            from services.pdf_renderer_v12 import render_course_pdf
             pdf_bytes, academic_course_name = render_course_pdf(course_id, lang)
             safe_name = "".join(c if (c.isalnum() or c in "-_") else "_" for c in academic_course_name).strip("_") or "Course_Materials"
             filename = f"{safe_name}_AulaAI_{lang.upper()}.pdf"
@@ -41,4 +41,4 @@ else:
         raise RuntimeError(f'academic PDF v2 anchor matched {count} times')
     src = src.replace(anchor, replacement, 1)
     path.write_text(src, encoding='utf-8')
-    print('Enabled academic PDF renderer v2 with legacy fallback')
+    print('Enabled consolidated academic PDF renderer v12 with legacy fallback')
