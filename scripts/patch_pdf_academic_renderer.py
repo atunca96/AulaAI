@@ -18,12 +18,28 @@ else:
         # exporter below as a final safety fallback.
         try:
             from services.pdf_renderer_v12 import render_course_pdf
+            import unicodedata
+            import urllib.parse
+
             pdf_bytes, academic_course_name = render_course_pdf(course_id, lang)
-            safe_name = "".join(c if (c.isalnum() or c in "-_") else "_" for c in academic_course_name).strip("_") or "Course_Materials"
-            filename = f"{safe_name}_AulaAI_{lang.upper()}.pdf"
+
+            # BaseHTTPRequestHandler serializes headers as latin-1. str.isalnum()
+            # accepts Unicode letters, so names such as "İspanyolca", "Çince",
+            # Cyrillic, Chinese, etc. previously survived the sanitizer and could
+            # make Content-Disposition itself crash AFTER a valid PDF had already
+            # been rendered. Keep an ASCII filename fallback and carry the real
+            # UTF-8 name in RFC 5987 filename*= instead.
+            display_filename = f"{academic_course_name}_AulaAI_{lang.upper()}.pdf"
+            ascii_base = unicodedata.normalize("NFKD", str(academic_course_name or "Course_Materials"))
+            ascii_base = ascii_base.encode("ascii", "ignore").decode("ascii")
+            ascii_base = "".join(c if (c.isalnum() or c in "-_") else "_" for c in ascii_base).strip("_") or "Course_Materials"
+            ascii_filename = f"{ascii_base}_AulaAI_{lang.upper()}.pdf"
+            encoded_filename = urllib.parse.quote(display_filename, safe="")
+            disposition = f'''attachment; filename="{ascii_filename}"; filename*=UTF-8''{encoded_filename}'''
+
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
-            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Disposition", disposition)
             self.send_header("Content-Length", str(len(pdf_bytes)))
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Cache-Control", "no-cache")
@@ -41,4 +57,4 @@ else:
         raise RuntimeError(f'academic PDF v2 anchor matched {count} times')
     src = src.replace(anchor, replacement, 1)
     path.write_text(src, encoding='utf-8')
-    print('Enabled consolidated academic PDF renderer v12 with legacy fallback')
+    print('Enabled consolidated academic PDF renderer v12 with Unicode-safe download headers')
