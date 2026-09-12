@@ -35,6 +35,7 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_academic_renderer_v4.py \
     && python scripts/patch_pdf_academic_renderer_v5.py \
     && python scripts/patch_pdf_academic_renderer_v6.py \
+    && python scripts/patch_pdf_academic_renderer_v7.py \
     && python scripts/patch_bilingual_finalizer_stall.py \
     && python scripts/patch_material_mcq_bilingual.py \
     && python scripts/patch_material_mcq_existing_shuffle.py \
