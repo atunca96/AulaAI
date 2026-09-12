@@ -323,7 +323,6 @@ MODEL_TRANSLATOR = os.getenv("MODEL_TRANSLATOR", "google/gemini-3.7-flash")
 MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "google/gemini-3.7-flash")
 MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "google/gemini-3.7-flash")
 MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "google/gemini-3.7-flash")
-QUIZ_VERIFIER_MODEL = os.getenv("QUIZ_VERIFIER_MODEL", "google/gemini-2.5-flash-lite")
 
 def _estimate_llm_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimates OpenRouter / API inference cost in USD based on model family and token counts."""
@@ -849,299 +848,6 @@ def _extract_source_backed_metadata(topic_content: Any, material_language: str =
                 sections.append("\n".join(lines))
 
     return "\n\n".join(sections)
-
-
-_QUIZ_VERIFICATION_CACHE: Dict[str, Dict[str, Any]] = {}
-
-def _make_candidate_verification_cache_key(cand: Dict[str, Any], content_hash: str) -> str:
-    """Computes a deterministic cache key for a quiz candidate relative to its source content hash."""
-    p = str(cand.get("prompt", "")).strip()
-    a = str(cand.get("answer", "")).strip()
-    d = sorted(str(x).strip() for x in cand.get("distractors", []))
-    body = f"{p}|{a}|{','.join(d)}"
-    cand_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()[:24]
-    return f"{content_hash}:{cand_hash}"
-
-
-def _extract_candidate_evidence_fragments(cand: Dict[str, Any], topic_content: Any, material_language: str = "en") -> str:
-    """
-    Extracts minimal, source-backed evidence fragments actually associated with this candidate.
-    Returns 1-3 concise lines matching the candidate's target word, material_section, or rule reference.
-    Aggressively avoids resending full lesson text.
-    """
-    cand_p = str(cand.get("prompt", "")).strip()
-    cand_a = str(cand.get("answer", "")).strip()
-    cand_ev = str(cand.get("evidence", "")).strip()
-    cand_sec = str(cand.get("material_section", "")).strip().lower()
-
-    if not isinstance(topic_content, dict):
-        return f"* [EVIDENCE] {cand_ev[:200]}" if cand_ev else ""
-
-    cand_tokens = set(re.findall(r'\w{3,}', f"{cand_p} {cand_a}".lower()))
-    matched_fragments = []
-
-    # Check pages in topic_content
-    pages = topic_content.get("pages", [])
-    if isinstance(pages, list):
-        for idx, page in enumerate(pages, 1):
-            if not isinstance(page, dict):
-                continue
-            
-            p_title = str(page.get("title", "")).lower()
-            sec_matches = bool(cand_sec and (cand_sec in p_title or f"section {idx}" in cand_sec or f"part {idx}" in cand_sec))
-
-            # 1. Rules
-            for r in page.get("rules", []):
-                if isinstance(r, dict):
-                    r_rule = (r.get("rule_tr") if material_language == "tr" and r.get("rule_tr") else (r.get("rule") or "")).strip()
-                    r_expl = (r.get("explanation_tr") if material_language == "tr" and r.get("explanation_tr") else (r.get("explanation") or "")).strip()
-                    r_ex = (r.get("example") or "").strip()
-                    r_ev = (r.get("source_evidence") or "").strip()
-                    
-                    r_text = f"{r_rule} {r_expl} {r_ex} {r_ev}".lower()
-                    overlap = len(cand_tokens.intersection(set(re.findall(r'\w{3,}', r_text))))
-                    if overlap >= 2 or (overlap >= 1 and sec_matches) or (cand_a and cand_a.lower() in r_text):
-                        frag = f"* [RULE] {r_rule}"
-                        if r_expl: frag += f": {r_expl[:120]}"
-                        if r_ex: frag += f" (e.g. '{r_ex[:80]}')"
-                        if r_ev: frag += f" [Evidence: '{r_ev[:80]}']"
-                        matched_fragments.append(frag)
-
-            # 2. Comparisons / Contrasts
-            for c in page.get("comparisons", []):
-                if isinstance(c, dict):
-                    c_tgt = (c.get("target") or "").strip()
-                    c_note = (c.get("note_tr") if material_language == "tr" and c.get("note_tr") else (c.get("note") or "")).strip()
-                    c_ev = (c.get("source_evidence") or "").strip()
-                    c_text = f"{c_tgt} {c_note} {c_ev}".lower()
-                    overlap = len(cand_tokens.intersection(set(re.findall(r'\w{3,}', c_text))))
-                    if overlap >= 2 or (overlap >= 1 and sec_matches) or (cand_a and cand_a.lower() in c_text):
-                        frag = f"* [CONTRAST] '{c_tgt}'" + (f": {c_note[:120]}" if c_note else "")
-                        if c_ev: frag += f" [Evidence: '{c_ev[:80]}']"
-                        matched_fragments.append(frag)
-
-            # 3. Lexical items
-            for it in page.get("items", []):
-                if isinstance(it, dict):
-                    term = (it.get("term") or it.get("word") or "").strip()
-                    if not term: continue
-                    it_ex = (it.get("example") or "").strip()
-                    it_ev = (it.get("source_evidence") or "").strip()
-                    it_tr = (it.get("translation_tr") if material_language == "tr" and it.get("translation_tr") else (it.get("translation_en") or it.get("translation") or "")).strip()
-                    if term.lower() == cand_a.lower() or term.lower() in cand_p.lower() or (cand_a and cand_a.lower() in term.lower()):
-                        frag = f"* [LEXICON] {term}" + (f" ({it_tr})" if it_tr else "")
-                        if it_ex: frag += f" (e.g. '{it_ex[:80]}')"
-                        if it_ev: frag += f" [Evidence: '{it_ev[:80]}']"
-                        matched_fragments.append(frag)
-
-    # Multi-topic syllabus fallback
-    elif "topics" in topic_content and isinstance(topic_content["topics"], list):
-        for top in topic_content["topics"]:
-            if isinstance(top, dict):
-                for g in top.get("key_grammar", []):
-                    if any(t in str(g).lower() for t in cand_tokens):
-                        matched_fragments.append(f"* [GRAMMAR] {str(g)[:120]}")
-                for v in top.get("key_vocab", []):
-                    if any(t in str(v).lower() for t in cand_tokens):
-                        matched_fragments.append(f"* [VOCAB] {str(v)[:120]}")
-
-    unique_fragments = list(dict.fromkeys(matched_fragments))[:3]
-    if not unique_fragments:
-        if cand_ev:
-            unique_fragments.append(f"* [EVIDENCE] {cand_ev[:200]}")
-        elif isinstance(topic_content, dict) and "pages" in topic_content and topic_content["pages"]:
-            pg0 = topic_content["pages"][0]
-            if pg0.get("rules"):
-                r0 = pg0["rules"][0]
-                unique_fragments.append(f"* [RULE] {r0.get('rule', '')}: {str(r0.get('explanation', ''))[:100]}")
-
-    return "\n".join(unique_fragments)
-
-
-def _verify_quiz_candidates_compact(
-    candidates: List[Dict[str, Any]],
-    topic_content: Any,
-    language: str,
-    level: str,
-    material_language: str = "en",
-    model: Optional[str] = None,
-    content_hash: Optional[str] = None,
-    telemetry: Optional[Dict[str, Any]] = None
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """
-    Executes a late, compact batched LLM verification pass over candidate questions,
-    enforcing BOTH:
-      (A) FORM/FUNCTION ATTRIBUTION INTEGRITY: Suffixes/forms cannot be assigned meanings
-          supplied by lexical roots, predicates, or discourse context unless source-backed.
-      (B) LEXICAL-COMBINATORIAL INTEGRITY: Symmetrically verifies stems, keyed answers,
-          and distractors for authentic head-argument structure, valency, collocation, and naturalness.
-    
-    Checks cache first. Evaluates only uncached candidates. Uses QUIZ_VERIFIER_MODEL with
-    fallback to main model. Returns (passed_candidates, failed_candidates).
-    """
-    if not candidates:
-        return ([], [])
-    if model and str(model).lower() in ["none", "offline", "skip", "disabled"]:
-        return (candidates, [])
-
-    if not content_hash:
-        try:
-            content_hash = get_content_hash(topic_content, material_language=material_language)
-        except Exception:
-            content_hash = "no_hash"
-
-    passed_candidates = []
-    failed_candidates = []
-    uncached_candidates = []
-
-    # 1. Verification cache lookup
-    for cand in candidates:
-        if not isinstance(cand, dict):
-            continue
-        ckey = _make_candidate_verification_cache_key(cand, content_hash)
-        if ckey in _QUIZ_VERIFICATION_CACHE:
-            cached_entry = _QUIZ_VERIFICATION_CACHE[ckey]
-            if cached_entry.get("pass") is True:
-                passed_candidates.append(cand)
-            else:
-                failed_candidates.append(cand)
-            if telemetry is not None:
-                telemetry["cache_hits"] = telemetry.get("cache_hits", 0) + 1
-        else:
-            uncached_candidates.append(cand)
-
-    if not uncached_candidates:
-        return (passed_candidates, failed_candidates)
-
-    # 2. Build aggressively minimized payload (only id, stem, keyed_answer, distractors, evidence)
-    candidate_items = []
-    for sub_id, cand in enumerate(uncached_candidates):
-        frag = _extract_candidate_evidence_fragments(cand, topic_content, material_language)
-        c_entry = {
-            "id": sub_id,
-            "stem": str(cand.get("prompt", "")).strip(),
-            "keyed_answer": str(cand.get("answer", "")).strip(),
-            "distractors": [str(d).strip() for d in cand.get("distractors", []) if str(d).strip()][:3]
-        }
-        if frag:
-            c_entry["evidence"] = frag
-        candidate_items.append(c_entry)
-
-    verifier_system = f"""You are the Linguistic Quiz Verifier ({language}, CEFR {level}).
-Evaluate each candidate question against its provided source evidence fragments and target-language naturalness.
-
-CHECK 1: FORM/FUNCTION ATTRIBUTION INTEGRITY
-- If the stem, keyed answer, distractor, or explanation attributes a semantic, grammatical, pragmatic, rhetorical, discourse, stylistic, or functional property to a form, suffix, morpheme, construction, connector, marker, or pattern:
-  Verify that this property is contributed by that form itself AND is explicitly supported by the source evidence.
-  REJECT (pass: false, failure_category: "form_function_attribution") if the claimed meaning is actually supplied by the lexical root, surrounding words, main predicate, discourse context, register, speaker attitude, pragmatic inference, or rhetorical effect.
-- Questions testing the meaning, communicative function, or usage of the COMPLETE expression or COMPLETE context are valid and MUST PASS if source-supported.
-
-CHECK 2: LEXICAL-COMBINATORIAL INTEGRITY
-- Symmetrically evaluate stem, keyed answer, AND distractors.
-- REJECT (pass: false, failure_category: "lexical_combinatorial") if the stem, keyed answer, or any distractor exhibits unnatural, ungrammatical, or un-collocational head–argument structure, valency, complement selection, case/preposition use, modifier attachment, or mechanical recombination of words/morphemes.
-- All options (keyed answer and distractors) must be natural, attested-in-principle combinations in {language}.
-
-Standard questions passing both checks MUST PASS (pass: true).
-
-OUTPUT FORMAT:
-Return EXCLUSIVELY JSON:
-{{
-  "verifications": [
-    {{"id": 0, "pass": true}},
-    {{"id": 1, "pass": false, "failure_category": "form_function_attribution"}},
-    {{"id": 2, "pass": false, "failure_category": "lexical_combinatorial"}}
-  ]
-}}
-Compact JSON only. No markdown formatting, reasoning, or essays."""
-
-    verifier_user = f"""CANDIDATE QUESTIONS TO VERIFY:
-{json.dumps(candidate_items, ensure_ascii=False, indent=1)}
-
-Evaluate all {len(candidate_items)} candidate questions in a single JSON response. Compact output only."""
-
-    primary_model = QUIZ_VERIFIER_MODEL or "google/gemini-2.5-flash-lite"
-    fallback_model = model if model else MODEL_STRUCTURAL
-    models_to_try = [primary_model]
-    if fallback_model and fallback_model != primary_model:
-        models_to_try.append(fallback_model)
-
-    calc_max_tokens = min(2000, max(250, len(candidate_items) * 50))
-    res = None
-    used_model = primary_model
-    call_usage: Dict[str, Any] = {}
-
-    for m in models_to_try:
-        try:
-            m_usage: Dict[str, Any] = {}
-            res = _call_ai(
-                [{"role": "system", "content": verifier_system}, {"role": "user", "content": verifier_user}],
-                model=m,
-                max_tokens=calc_max_tokens,
-                temperature=0.0,
-                json_mode=True,
-                allow_fallback=False,
-                usage_dict=m_usage
-            )
-            if res and isinstance(res, (dict, list)):
-                v_list = res.get("verifications") if isinstance(res, dict) else res
-                if isinstance(v_list, list) and len(v_list) > 0:
-                    used_model = m
-                    call_usage = m_usage
-                    break
-        except Exception as e:
-            print(f"[VERIFIER-WARN] Verifier on model {m} failed: {e}. Trying fallback...")
-
-    # Record telemetry
-    if telemetry is not None:
-        p_tok = int(call_usage.get("prompt_tokens", len(verifier_system + verifier_user) // 4))
-        c_tok = int(call_usage.get("completion_tokens", 50))
-        c_cost = float(call_usage.get("cost", _estimate_llm_cost(used_model, p_tok, c_tok)))
-        telemetry["prompt_tokens"] = telemetry.get("prompt_tokens", 0) + p_tok
-        telemetry["completion_tokens"] = telemetry.get("completion_tokens", 0) + c_tok
-        telemetry["total_tokens"] = telemetry.get("total_tokens", 0) + (p_tok + c_tok)
-        telemetry["cost"] = telemetry.get("cost", 0.0) + c_cost
-        telemetry["model"] = used_model
-
-    verified_list = []
-    if isinstance(res, dict):
-        verified_list = res.get("verifications") or res.get("results") or res.get("items") or res.get("data") or []
-    elif isinstance(res, list):
-        verified_list = res
-
-    verdict_map: Dict[int, Dict[str, Any]] = {}
-    for v in verified_list:
-        if isinstance(v, dict) and "id" in v:
-            try:
-                vid = int(v.get("id"))
-                verdict_map[vid] = {
-                    "pass": v.get("pass") is not False,
-                    "failure_category": v.get("failure_category") or v.get("reason", "verification_failure")
-                }
-            except (ValueError, TypeError):
-                continue
-
-    for sub_id, cand in enumerate(uncached_candidates):
-        verdict = verdict_map.get(sub_id, {"pass": True})
-        ckey = _make_candidate_verification_cache_key(cand, content_hash)
-        _QUIZ_VERIFICATION_CACHE[ckey] = verdict
-
-        if verdict["pass"]:
-            passed_candidates.append(cand)
-        else:
-            failed_candidates.append(cand)
-            fail_cat = verdict.get("failure_category", "unknown")
-            print(f"[VERIFIER-REJECT] Candidate '{cand.get('prompt', '')[:40]}' failed {fail_cat}")
-
-    return (passed_candidates, failed_candidates)
-
-
-def _verify_form_function_batch(candidates: List[Dict], topic_content: Any, language: str, level: str, material_language: str = "en", model: Optional[str] = None) -> List[Dict]:
-    """
-    Backwards-compatible wrapper that delegates to _verify_quiz_candidates_compact.
-    Returns only candidates that passed verification.
-    """
-    passed, _ = _verify_quiz_candidates_compact(candidates, topic_content, language, level, material_language, model=model)
-    return passed
 
 
 def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None):
@@ -2027,93 +1733,33 @@ REPETITION & COVERAGE RULES:
                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
             }
 
-        # 1. Local Zero-Cost Filtering & Provisional Selection:
-        # First run all existing parsing, grounding, exact-count preparation, deduplication, history,
-        # and candidate-selection logic and provisionally select the requested number of questions.
-        provisional_final = []
-        spare_candidate_pool = []
+        # Direct Candidate Selection from Main Pool
+        final = []
         for item in raw_list:
-            cand = _assemble_valid_candidate(item, provisional_final + spare_candidate_pool)
+            cand = _assemble_valid_candidate(item, final)
             if cand:
-                if len(provisional_final) < c:
-                    provisional_final.append(cand)
-                else:
-                    spare_candidate_pool.append(cand)
+                final.append(cand)
+                if len(final) >= c:
+                    break
 
         t_filter_duration = time.perf_counter() - t_filter_start
         timing_ctx["filter_dedup"] = t_filter_duration
 
-        # 2. Late, Compact Verification Pass over Provisional Candidates:
-        # Enforces BOTH (A) Form/Function Attribution Integrity and (B) Lexical-Combinatorial Integrity
-        # in a single batched request over only provisional final candidates.
-        # Pulls replacements from spare_candidate_pool and verifies ONLY newly introduced replacements.
-        t_verify_start = time.perf_counter()
-        verifier_telemetry: Dict[str, Any] = {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0,
-            "cost": 0.0,
-            "cache_hits": 0,
-            "model": QUIZ_VERIFIER_MODEL
-        }
-        content_hash = get_content_hash(topic_content, title=topic_title, topic_type=topic_type, material_language=material_language)
-        ai_active = not (model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"])
-
-        verified_final = []
-        to_verify_batch = list(provisional_final)
-        spare_index = 0
-
-        while len(verified_final) < c:
-            if not to_verify_batch:
-                # Pool replacement: pull from spare_candidate_pool
-                needed = c - len(verified_final)
-                while spare_index < len(spare_candidate_pool) and len(to_verify_batch) < needed:
-                    cand = spare_candidate_pool[spare_index]
-                    spare_index += 1
-                    # Ensure candidate does not duplicate any already-verified candidate
-                    clean_p = _normalize_token(cand.get("prompt", ""))
-                    if not any(difflib.SequenceMatcher(None, clean_p, _normalize_token(vf.get("prompt", ""))).ratio() > 0.85 for vf in verified_final):
-                        to_verify_batch.append(cand)
-
-            if not to_verify_batch:
-                # Initial candidate pool is exhausted
-                break
-
-            current_candidates = to_verify_batch
-            to_verify_batch = []
-
-            if ai_active:
-                passed, failed = _verify_quiz_candidates_compact(
-                    current_candidates,
-                    topic_content,
-                    language,
-                    level,
-                    material_language,
-                    model=target_model,
-                    content_hash=content_hash,
-                    telemetry=verifier_telemetry
-                )
-                for cand in passed:
-                    if len(verified_final) < c:
-                        verified_final.append(cand)
-            else:
-                for cand in current_candidates:
-                    if len(verified_final) < c:
-                        verified_final.append(cand)
-
-        # 3. Hard invariant shortfall resolution: Perform top-up generation only when initial pool is exhausted
+        # Hard invariant shortfall resolution: Perform top-up generation ONLY if initial candidate pool is genuinely exhausted
         t_topup_start = time.perf_counter()
         t_topup = 0.0
         topup_attempts = 0
         max_topup_attempts = 3
         timing_ctx["topup_ai_cost"] = 0.0
+        timing_ctx["topup_ai_calls"] = 0
+        ai_active = not (model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"])
 
-        while len(verified_final) < c and ai_active and topup_attempts < max_topup_attempts:
+        while len(final) < c and ai_active and topup_attempts < max_topup_attempts:
             topup_attempts += 1
-            shortfall = c - len(verified_final)
+            shortfall = c - len(final)
             cur_forbidden_prompts = list(forbidden_prompts)
             cur_forbidden_answers = list(forbidden_answers)
-            for f in verified_final:
+            for f in final:
                 fp = str(f.get("prompt", "")).strip()
                 fa = str(f.get("answer", "")).strip()
                 if fp and fp not in cur_forbidden_prompts:
@@ -2198,6 +1844,7 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                 allow_fallback=True,
                 usage_dict=topup_usage
             )
+            timing_ctx["topup_ai_calls"] = timing_ctx.get("topup_ai_calls", 0) + 1
             top_c = topup_usage.get("cost")
             if top_c is None:
                 top_c = _estimate_llm_cost(target_model, int(topup_usage.get("prompt_tokens", 800)), int(topup_usage.get("completion_tokens", 400)))
@@ -2212,47 +1859,16 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             if not topup_list:
                 break
 
-            assembled_topup = []
             for item in topup_list:
-                cand = _assemble_valid_candidate(item, verified_final + assembled_topup)
+                cand = _assemble_valid_candidate(item, final)
                 if cand:
-                    assembled_topup.append(cand)
-
-            if not assembled_topup:
-                continue
-
-            needed_topup = c - len(verified_final)
-            candidates_to_verify = assembled_topup[:needed_topup + 2]
-
-            passed_topup, failed_topup = _verify_quiz_candidates_compact(
-                candidates_to_verify,
-                topic_content,
-                language,
-                level,
-                material_language,
-                model=target_model,
-                content_hash=content_hash,
-                telemetry=verifier_telemetry
-            )
-
-            for cand in passed_topup:
-                if len(verified_final) < c:
-                    verified_final.append(cand)
+                    final.append(cand)
+                    if len(final) >= c:
+                        break
 
         if topup_attempts > 0:
             t_topup = time.perf_counter() - t_topup_start
         timing_ctx["top_up"] = t_topup
-
-        t_verify_duration = time.perf_counter() - t_verify_start
-        timing_ctx["verifier_timing"] = t_verify_duration
-        timing_ctx["verifier_tokens_in"] = verifier_telemetry["prompt_tokens"]
-        timing_ctx["verifier_tokens_out"] = verifier_telemetry["completion_tokens"]
-        timing_ctx["verifier_cost"] = verifier_telemetry["cost"]
-        timing_ctx["verifier_model"] = verifier_telemetry["model"]
-        timing_ctx["verifier_cache_hits"] = verifier_telemetry["cache_hits"]
-        timing_ctx["form_function_verification"] = t_verify_duration
-
-        final = verified_final
         
         # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──
         if len(final) < c and isinstance(topic_content, dict):
@@ -2375,23 +1991,18 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
 
         t_filter_duration = timing_ctx.get("filter_dedup", 0.0)
         t_topup = timing_ctx.get("top_up", 0.0)
-        t_verify = timing_ctx.get("verifier_timing", 0.0)
+        topup_calls = timing_ctx.get("topup_ai_calls", 0)
 
         t_db = timing_ctx.get("db_loading", 0.0)
         t_assembly = timing_ctx.get("structured_lesson_assembly", 0.0)
         t_prov = timing_ctx.get("provenance_resolution", 0.0)
         t_persist = timing_ctx.get("persistence", 0.0)
-        t_total = t_db + t_assembly + t_prov + t_prompt_duration + t_ai_duration + t_parse_duration + t_filter_duration + t_verify + t_topup + t_persist
+        t_total = t_db + t_assembly + t_prov + t_prompt_duration + t_ai_duration + t_parse_duration + t_filter_duration + t_topup + t_persist
         timing_ctx["total_elapsed"] = t_total
 
-        v_tok_in = timing_ctx.get("verifier_tokens_in", 0)
-        v_tok_out = timing_ctx.get("verifier_tokens_out", 0)
-        v_cost = timing_ctx.get("verifier_cost", 0.0)
-        v_model = timing_ctx.get("verifier_model", QUIZ_VERIFIER_MODEL)
-        v_hits = timing_ctx.get("verifier_cache_hits", 0)
         main_cost = timing_ctx.get("main_ai_cost", 0.0)
         topup_cost = timing_ctx.get("topup_ai_cost", 0.0)
-        total_cost = main_cost + topup_cost + v_cost
+        total_cost = main_cost + topup_cost
         timing_ctx["total_cost"] = total_cost
 
         log_lines = [
@@ -2403,9 +2014,8 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             f"  5. Main AI Generation:       {t_ai_duration:.4f}s (cost: ${main_cost:.6f})",
             f"  6. Response Parsing:         {t_parse_duration:.4f}s",
             f"  7. Filter / Selection:       {t_filter_duration:.4f}s (valid {len(final)} / {len(raw_list)} candidates)",
-            f"  8. Late Compact Verifier:    {t_verify:.4f}s (tokens: {v_tok_in} in / {v_tok_out} out, cost: ${v_cost:.6f}, model: {v_model}, cache hits: {v_hits})",
-            f"  9. Top-up AI Call:           {t_topup:.4f}s (cost: ${topup_cost:.6f})",
-            f"  10. Persistence:             {t_persist:.4f}s",
+            f"  8. Top-up AI Call:           {t_topup:.4f}s (calls: {topup_calls}, cost: ${topup_cost:.6f})",
+            f"  9. Persistence:              {t_persist:.4f}s",
             f"  Total Elapsed Time:          {t_total:.4f}s",
             f"  Total Generation Cost:       ${total_cost:.6f}"
         ]
@@ -2414,7 +2024,7 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(log_str + "\n")
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s (${main_cost:.6f}) | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Verifier: {t_verify:.3f}s (${v_cost:.6f}, {v_tok_in}+{v_tok_out}t, hits={v_hits}) | Topup: {t_topup:.2f}s | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s | Cost: ${total_cost:.6f}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s (${main_cost:.6f}) | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s (calls={topup_calls}, ${topup_cost:.6f}) | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s | Cost: ${total_cost:.6f}\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final[:c])}\n")
             
         return final[:c]

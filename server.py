@@ -3060,6 +3060,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             try:
                 # Concurrent sub-batch generation for speed (7-10s) when count >= 8
                 t_ai_start = time.time()
+                topup_time = 0.0
+                topup_calls = 0
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
                     count_a = max(half + 6, 12)
@@ -3086,6 +3088,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
                     dir_a = "focus_grammar" if has_explicit_grammar else None
 
+                    timing_ctx_a = {}
+                    timing_ctx_b = {}
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                         future_a = executor.submit(
@@ -3096,7 +3100,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             ui_lang=ui_lang,
                             existing_questions=existing_questions,
                             generation_seed=101,
-                            focus_directive=dir_a
+                            focus_directive=dir_a,
+                            timing_ctx=timing_ctx_a
                         )
                         future_b = executor.submit(
                             generate_quiz,
@@ -3106,7 +3111,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             ui_lang=ui_lang,
                             existing_questions=existing_questions,
                             generation_seed=202,
-                            focus_directive="focus_lexicon"
+                            focus_directive="focus_lexicon",
+                            timing_ctx=timing_ctx_b
                         )
                         res_a = []
                         res_b = []
@@ -3119,15 +3125,21 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                         except Exception as eb:
                             file_log(f"Sub-batch B error: {eb}")
                     questions = res_a + res_b
+                    topup_time = max(timing_ctx_a.get("top_up", 0.0), timing_ctx_b.get("top_up", 0.0))
+                    topup_calls = timing_ctx_a.get("topup_ai_calls", 0) + timing_ctx_b.get("topup_ai_calls", 0)
                 else:
+                    timing_ctx_single = {}
                     questions = generate_quiz(
                         topic_ids,
                         count=requested_count + 6,
                         is_quiz=True,
                         ui_lang=ui_lang,
                         existing_questions=existing_questions,
-                        generation_seed=101
+                        generation_seed=101,
+                        timing_ctx=timing_ctx_single
                     )
+                    topup_time = timing_ctx_single.get("top_up", 0.0)
+                    topup_calls = timing_ctx_single.get("topup_ai_calls", 0)
                 t_ai_duration = time.time() - t_ai_start
                 
                 t_filter_start = time.time()
@@ -3258,7 +3270,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             t_persist_duration = time.time() - t_persist_start
             t_flow_duration = time.time() - t_flow_start
             
-            log_draft_msg = f"[QUIZ-TIMING] Draft: Main AI calls={t_ai_duration:.2f}s (candidates={len(questions)}) | Filtering/dedup/backfill={t_filter_duration:.3f}s | Top-up=0.00s | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s"
+            log_draft_msg = f"[QUIZ-TIMING] Draft: Main AI calls={t_ai_duration:.2f}s (candidates={len(questions)}) | Filtering/dedup/backfill={t_filter_duration:.3f}s | Top-up={topup_time:.2f}s (calls={topup_calls}) | Persistence={t_persist_duration:.3f}s | Total={t_flow_duration:.2f}s"
             file_log(log_draft_msg)
             print(log_draft_msg)
             print(f"[BG] Quiz Draft generation COMPLETED for {course_id} with {len(final_questions)} fresh questions.")
