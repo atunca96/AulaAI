@@ -32,7 +32,14 @@ LESSON QUALITY GATE — HARD REQUIREMENTS:
 - Natural translation is allowed; semantic drift is not.
 - Preserve names, speaker identities, gender where relevant, roles, relationships, places, numbers, dates, times, quantities and polarity consistently across target-language, English and Turkish fields.
 
-5. SELF-CONTAINED EDITORIAL QUALITY
+5. LOCALE ENTAILMENT AND MORPHOLOGICAL PRESERVATION
+- Every localized explanation, translation, gloss and answer-key rationale must be logically entailed by the target-language sentence or rule. Localization must NEVER invent an additional grammatical interpretation merely because a surface form is ambiguous in isolation.
+- Preserve person, number, gender, tense, polarity, definiteness and referent identity exactly when the target language marks them through agreement or morphology.
+- Before accepting a localized sentence pair, perform a silent bidirectional entailment check: (a) does the localization add any claim absent from the target-language source? (b) does it omit or alter any claim encoded by target-language morphology or agreement? If yes, rewrite.
+- Example of a forbidden localization error: target-language 'Sono italiano.' must not be glossed as 'I am Italian (or they are Italian)' when singular adjective agreement makes only the singular reading compatible with that sentence.
+- Do not mix localization language into a target-language carrier sentence unless the exercise explicitly tests translation. A stem such as 'Marco e Chiara ____ language students in Perugia' is forbidden; use a fully target-language sentence or a fully localized meta-instruction with the tested sentence kept intact.
+
+6. SELF-CONTAINED EDITORIAL QUALITY
 - A learner should be able to understand each explanation and solve each exercise using only knowledge explicitly taught up to that point plus ordinary CEFR-{level} carrier language.
 - Do not depend on unexplained technical terminology, unstated cultural knowledge, outside facts or implicit reasoning chains.
 - Before output, silently check correctness, native naturalness, CEFR fit, progression, duplicate content, translation fidelity, entity consistency, heading coherence and agreement between every rule and its examples.
@@ -60,8 +67,9 @@ IN-MATERIAL MCQ STRICT GROUNDING — HARD REQUIREMENTS:
 4. TARGET-LANGUAGE COMPETENCE MUST CARRY THE COGNITIVE LOAD
 - The difficulty must come from understanding or using {language}, not from solving an external logic problem in Turkish/English or from generic world knowledge.
 - The UI/instruction language may say things such as 'choose the correct answer', but the evidence that determines the answer should normally be target-language material or an explicitly taught language rule.
-- Ban family-tree deduction, riddles, arithmetic, arbitrary category puzzles and reasoning chains whose main challenge would be identical even if {language} were removed.
-- For kinship vocabulary, test recognition/use of the target-language kinship item in a linguistically accessible context; do not make the student solve a relationship puzzle in the source language.
+- Ban riddles, arithmetic, arbitrary category puzzles and reasoning chains whose main challenge would be identical even if {language} were removed.
+- FAMILY/RELATIONSHIP CHAIN BAN: do not ask the learner to compute kinship by chaining relations, even when the entire stem is written in {language}. Questions equivalent to 'my mother's mother is my ___', 'my father's sister is my ___', 'the daughter of my uncle is my ___' or any multi-step family-tree deduction are forbidden.
+- Kinship vocabulary must instead be tested through direct identification, direct description, natural dialogue, picture/person labeling, or immediate one-step usage where the target word itself is the linguistic knowledge being tested rather than the relationship calculation.
 
 5. SAFE TRANSFER, NO HIDDEN NEW KNOWLEDGE
 - Taught knowledge may be transferred into a fresh, natural, CEFR-appropriate sentence so the student applies rather than copies the lesson.
@@ -82,12 +90,14 @@ IN-MATERIAL MCQ STRICT GROUNDING — HARD REQUIREMENTS:
 8. CEFR AND LANGUAGE LOAD
 - Keep the stem, scenario and all options at CEFR {level}. Never hide an A1 learning objective inside B1/B2 syntax or vocabulary.
 - At beginner levels, keep carrier syntax shorter and simpler than the knowledge being tested.
+- A carrier sentence must remain internally language-consistent: do not splice English/Turkish explanatory words into an otherwise target-language sentence.
 
 9. SILENT NOVICE-SIMULATION CHECK
 Before returning each MCQ, silently simulate a student who knows ONLY the teaching ledger up to that exact page:
 - Can that student understand every answer-determinative word/form in the stem?
 - Was the tested rule/meaning explicitly taught rather than merely encountered?
 - Does solving the question primarily require {language} competence?
+- Does the question avoid relationship-chain logic, arithmetic, riddles and outside reasoning?
 - Is exactly one answer supported?
 - Can every distractor be rejected for a clear reason tied to taught content?
 If any answer is NO, rewrite the item. If it still cannot pass, OMIT the MCQ rather than fabricate or weaken it.
@@ -96,8 +106,10 @@ If any answer is NO, rewrite the item. If it still cannot pass, OMIT the MCQ rat
 <final_material_preflight_v24>
 FINAL SILENT PRE-FLIGHT BEFORE JSON OUTPUT:
 - Re-solve every material-internal MCQ using only content taught before that question.
-- Remove any MCQ that tests incidental/example-only grammar, untaught answer-determinative vocabulary, outside logic or future content.
+- Remove any MCQ that tests incidental/example-only grammar, untaught answer-determinative vocabulary, outside logic, relationship-chain reasoning or future content.
 - Compare every target-language example against its English/Turkish translation for exact semantic equivalence and entity/number consistency.
+- For every localized explanation and answer-key rationale, verify person/number/gender/tense/polarity readings against target-language morphology; never add alternative readings that the complete sentence does not license.
+- Reject mixed-language carrier sentences caused by localization leakage; keep tested target-language examples intact and localize only the surrounding instruction/explanation.
 - Check that unit/module headings accurately cover their content and that numbering/progression is coherent.
 - Remove repeated explanations that add no new learning value.
 - Prefer omission or simplification over any uncertain linguistic claim.
@@ -117,4 +129,4 @@ if old in s:
     s = s.replace(old, new, 1)
 
 p.write_text(s, encoding='utf-8')
-print('Applied v24: strict lesson grounding, semantic fidelity and novice-solvable formative assessment')
+print('Applied v24: strict grounding, relationship-logic ban, locale entailment and semantic fidelity')
