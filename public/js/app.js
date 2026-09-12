@@ -13448,11 +13448,91 @@ window.handleDemoTTS = function(btn) {
 };
 
 // ── PDF Export ─────────────────────────────────────────────────────────────────
+
+function showPdfLangPicker() {
+  // Returns a Promise resolving to 'en', 'tr', or null (cancelled)
+  return new Promise(resolve => {
+    // Remove any pre-existing modal
+    const prev = document.getElementById('pdf-lang-modal');
+    if (prev) prev.remove();
+
+    const isTr = currentLang === 'tr';
+    const modal = document.createElement('div');
+    modal.id = 'pdf-lang-modal';
+    modal.style.cssText = `
+      position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center;
+      background:rgba(0,0,0,0.45); backdrop-filter:blur(4px);
+    `;
+    modal.innerHTML = `
+      <div style="background:var(--bg-card,#fff); border-radius:16px; padding:28px 32px; width:360px; max-width:90vw;
+                  box-shadow:0 20px 60px rgba(0,0,0,0.25); display:flex; flex-direction:column; gap:18px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <svg style="width:22px;height:22px;color:var(--accent,#6366f1);flex-shrink:0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <h3 style="font-size:16px; font-weight:700; color:var(--text-primary,#0f172a); margin:0;">
+            ${isTr ? 'PDF İndir — Dil Seçin' : 'Download PDF — Choose Language'}
+          </h3>
+        </div>
+        <p style="font-size:13px; color:var(--text-secondary,#64748b); margin:0;">
+          ${isTr
+            ? 'PDF\'nin hangi dilde oluşturulmasını istersiniz?'
+            : 'Which language should the PDF content be generated in?'}
+        </p>
+        <div style="display:flex; gap:10px;">
+          <button id="pdf-lang-en" style="
+            flex:1; padding:12px; border-radius:10px; border:2px solid var(--border,#e2e8f0);
+            background:var(--bg-hover,#f8fafc); cursor:pointer; font-size:14px; font-weight:600;
+            color:var(--text-primary,#0f172a); transition:0.15s ease; display:flex; flex-direction:column;
+            align-items:center; gap:5px;">
+            <span style="font-size:24px;">🇬🇧</span>
+            <span>English</span>
+            <span style="font-size:11px; color:var(--text-muted,#94a3b8); font-weight:400;">Explanations &amp; labels in English</span>
+          </button>
+          <button id="pdf-lang-tr" style="
+            flex:1; padding:12px; border-radius:10px; border:2px solid var(--border,#e2e8f0);
+            background:var(--bg-hover,#f8fafc); cursor:pointer; font-size:14px; font-weight:600;
+            color:var(--text-primary,#0f172a); transition:0.15s ease; display:flex; flex-direction:column;
+            align-items:center; gap:5px;">
+            <span style="font-size:24px;">🇹🇷</span>
+            <span>Türkçe</span>
+            <span style="font-size:11px; color:var(--text-muted,#94a3b8); font-weight:400;">Açıklamalar Türkçe olacak</span>
+          </button>
+        </div>
+        <button id="pdf-lang-cancel" style="
+          background:none; border:none; color:var(--text-muted,#94a3b8); font-size:13px; cursor:pointer;
+          text-align:center; padding:4px 0; text-decoration:underline; text-underline-offset:2px;">
+          ${isTr ? 'İptal' : 'Cancel'}
+        </button>
+      </div>`;
+
+    document.body.appendChild(modal);
+
+    const cleanup = (val) => { modal.remove(); resolve(val); };
+
+    // Hover effects
+    ['pdf-lang-en', 'pdf-lang-tr'].forEach(id => {
+      const btn = modal.querySelector(`#${id}`);
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--accent,#6366f1)'; btn.style.background = 'var(--accent-bg,#eff6ff)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border,#e2e8f0)'; btn.style.background = 'var(--bg-hover,#f8fafc)'; });
+    });
+
+    modal.querySelector('#pdf-lang-en').addEventListener('click', () => cleanup('en'));
+    modal.querySelector('#pdf-lang-tr').addEventListener('click', () => cleanup('tr'));
+    modal.querySelector('#pdf-lang-cancel').addEventListener('click', () => cleanup(null));
+    modal.addEventListener('click', e => { if (e.target === modal) cleanup(null); });
+  });
+}
+
 async function downloadCourseMaterialPDF() {
   if (!courseId) {
     showNotification(currentLang === 'tr' ? 'Lütfen önce bir sınıf seçin.' : 'Please select a classroom first.', 'error');
     return;
   }
+
+  // Show language picker
+  const pdfLang = await showPdfLangPicker();
+  if (!pdfLang) return; // user cancelled
 
   // Update button state
   const btns = document.querySelectorAll('#export-pdf-btn, #s-export-pdf-btn');
@@ -13467,7 +13547,7 @@ async function downloadCourseMaterialPDF() {
     const courseName = (currentCourse && currentCourse.name) || 'Course_Materials';
     const safeFilename = courseName.replace(/[^a-zA-Z0-9_\-\u00C0-\u024F\u0100-\u024F]/g, '_').replace(/_+/g, '_');
 
-    const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/export-pdf`, {
+    const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/export-pdf?lang=${pdfLang}`, {
       method: 'GET',
       headers: { 'X-Session-Token': localStorage.getItem('aula_session') || '' }
     });
@@ -13481,7 +13561,7 @@ async function downloadCourseMaterialPDF() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${safeFilename}_AulaAI.pdf`;
+    a.download = `${safeFilename}_AulaAI_${pdfLang.toUpperCase()}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -13506,3 +13586,4 @@ async function downloadCourseMaterialPDF() {
 }
 
 window.downloadCourseMaterialPDF = downloadCourseMaterialPDF;
+

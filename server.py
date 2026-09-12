@@ -905,6 +905,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     def _export_course_pdf(self, course_id):
         """
         Generate a comprehensive course PDF using PyMuPDF (fitz.Story + HTML).
+        Reads real page-based topic content (overview/vocabulary/grammar/examples/comparisons/mcq).
+        Supports ?lang=en or ?lang=tr query parameter.
         No external APIs — self-contained, local PDF generation only.
         """
         import html as _html
@@ -914,6 +916,33 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._send_error("PyMuPDF (fitz) is not installed. Run: pip install PyMuPDF", 500)
 
         import tempfile, os, json as _json
+        from urllib.parse import urlparse, parse_qs
+
+        # --- Parse lang query param ---
+        parsed = urlparse(self.path)
+        qp = parse_qs(parsed.query)
+        lang = qp.get("lang", ["en"])[0].lower()
+        if lang not in ("en", "tr"):
+            lang = "en"
+        is_tr = (lang == "tr")
+
+        # --- Human-readable topic type labels ---
+        TYPE_LABELS = {
+            "vocabulary": ("Vocabulary", "Kelime Bilgisi"),
+            "grammar": ("Grammar", "Dilbilgisi"),
+            "phonetics": ("Phonetics", "Fonetik"),
+            "functional_language": ("Functional Language", "İşlevsel Dil"),
+            "cultural_context": ("Cultural Context", "Kültürel Bağlam"),
+            "dialogue": ("Dialogue", "Diyalog"),
+            "reading": ("Reading", "Okuma"),
+            "writing": ("Writing", "Yazma"),
+            "listening": ("Listening", "Dinleme"),
+            "speaking": ("Speaking", "Konuşma"),
+        }
+
+        def type_label(t):
+            pair = TYPE_LABELS.get(t, (t.replace("_", " ").title(), t.replace("_", " ").title()))
+            return pair[1] if is_tr else pair[0]
 
         try:
             with db_connection() as db:
@@ -923,60 +952,103 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 ).fetchone()
                 if not c_row:
                     return self._send_error("Course not found", 404)
-                course_name = c_row[1] or "Course Materials"
-                course_lang = c_row[2] or "General"
+                course_name  = c_row[1] or "Course Materials"
+                course_lang  = c_row[2] or "General"
                 course_level = c_row[3] or "All Levels"
-                semester = c_row[4] or ""
+                semester     = c_row[4] or ""
 
                 chapters = db.execute(
                     "SELECT id, number, title FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC",
                     (course_id,)
                 ).fetchall()
 
+            # ── CSS ──────────────────────────────────────────────────────────
             CSS = """
 @page { margin: 0; }
-body { font-family: sans-serif; font-size: 9.5pt; color: #1e293b; line-height: 1.45; }
-.cover { text-align: center; border-bottom: 2px solid #4f46e5; padding-bottom: 14px; margin-bottom: 22px; }
-.cover-title { font-size: 20pt; font-weight: bold; color: #1e1b4b; margin: 0 0 6px 0; }
-.cover-sub { font-size: 11pt; color: #4338ca; font-weight: 600; margin: 0 0 4px 0; }
-.cover-meta { font-size: 8pt; color: #64748b; }
-.unit-card { background: #e0e7ff; border-radius: 4px; padding: 6px 12px; margin-top: 22px; margin-bottom: 12px; border-left: 4px solid #4338ca; }
-.unit-title { font-size: 12pt; font-weight: bold; color: #312e81; margin: 0; }
-.topic-card { margin-top: 14px; margin-bottom: 18px; }
-.topic-title { font-size: 11pt; font-weight: bold; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 8px; }
-.badge { font-size: 7pt; font-weight: bold; background: #e2e8f0; color: #334155; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; margin-left: 6px; }
-.sec-heading { font-size: 8pt; font-weight: bold; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; margin-bottom: 4px; }
-.summary-text { font-size: 9pt; color: #334155; margin-bottom: 8px; font-style: italic; background: #f8fafc; padding: 6px 10px; border-radius: 4px; }
-.rule-box { background: #f8fafc; border-left: 3px solid #6366f1; padding: 6px 10px; margin-bottom: 6px; border-radius: 0 4px 4px 0; }
-.rule-name { font-weight: bold; font-size: 9pt; color: #0f172a; }
-.rule-expl { font-size: 8.5pt; color: #334155; margin-top: 2px; }
-.rule-ex { font-size: 8pt; color: #047857; margin-top: 2px; font-style: italic; }
-table.ct { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 10px; font-size: 8.5pt; }
-table.ct th { background: #f1f5f9; font-weight: bold; color: #334155; border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; }
-table.ct td { border: 1px solid #cbd5e1; padding: 4px 7px; vertical-align: top; }
-table.ct tr:nth-child(even) { background: #f8fafc; }
-.diag-box { background: #fdfefe; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 9px; margin-bottom: 5px; font-size: 8.5pt; }
-.spkr { font-weight: bold; color: #4338ca; }
-.dtrans { color: #64748b; font-style: italic; margin-left: 6px; font-size: 8pt; }
-.mcq-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 9px; margin-bottom: 5px; font-size: 8.5pt; }
-.mcq-q { font-weight: 600; color: #1e293b; }
-.mcq-opt { color: #475569; margin-left: 10px; font-size: 8pt; }
-.mcq-ans { color: #059669; font-weight: 600; margin-top: 2px; font-size: 8pt; }
+body { font-family: sans-serif; font-size: 9.5pt; color: #1e293b; line-height: 1.55; }
+
+/* Cover */
+.cover { text-align: center; border-bottom: 3px solid #4f46e5; padding-bottom: 18px; margin-bottom: 26px; }
+.cover-title  { font-size: 22pt; font-weight: bold; color: #1e1b4b; margin: 0 0 8px 0; }
+.cover-sub    { font-size: 12pt; color: #4338ca; font-weight: 600; margin: 0 0 4px 0; }
+.cover-meta   { font-size: 8pt; color: #64748b; }
+
+/* Unit heading */
+.unit-card  { background: #e0e7ff; padding: 7px 14px; margin-top: 28px; margin-bottom: 14px; border-left: 5px solid #4338ca; }
+.unit-title { font-size: 13pt; font-weight: bold; color: #312e81; margin: 0; }
+
+/* Topic card */
+.topic-card  { margin-top: 16px; margin-bottom: 22px; }
+.topic-title { font-size: 11pt; font-weight: bold; color: #0f172a; border-bottom: 1.5px solid #c7d2fe; padding-bottom: 5px; margin-bottom: 10px; }
+.badge       { font-size: 7.5pt; font-weight: bold; background: #6366f1; color: #fff; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; margin-left: 7px; }
+
+/* Section heading */
+.sec-h { font-size: 8pt; font-weight: bold; color: #4338ca; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 12px; margin-bottom: 5px; border-bottom: 0.5px solid #e0e7ff; padding-bottom: 2px; }
+
+/* Text blocks */
+.text-block { font-size: 9.5pt; color: #334155; margin-bottom: 10px; background: #f8fafc; border-left: 3px solid #c7d2fe; padding: 8px 12px; }
+
+/* Vocabulary table */
+table.vt { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 8.5pt; }
+table.vt th { background: #4f46e5; color: #fff; font-weight: bold; padding: 5px 8px; text-align: left; }
+table.vt td { border: 0.5px solid #c7d2fe; padding: 5px 8px; vertical-align: top; }
+table.vt tr:nth-child(even) td { background: #f5f3ff; }
+.term  { font-weight: bold; color: #1e1b4b; }
+.phon  { color: #6366f1; font-size: 7.5pt; }
+.trans { color: #047857; }
+.ex    { color: #334155; font-style: italic; }
+.ex-tr { color: #64748b; font-size: 8pt; }
+
+/* Comparisons */
+.cmp-box  { background: #fefce8; border: 0.5px solid #fde68a; padding: 6px 10px; margin-bottom: 6px; }
+.cmp-ctx  { font-weight: bold; font-size: 8.5pt; color: #92400e; }
+.cmp-pair { font-size: 8.5pt; color: #1e293b; margin-top: 3px; }
+.cmp-note { font-size: 8pt; color: #64748b; font-style: italic; margin-top: 2px; }
+
+/* Dialogue */
+.diag-line { display: flex; margin-bottom: 6px; font-size: 8.5pt; }
+.spkr { font-weight: bold; color: #4f46e5; min-width: 80px; }
+.said { color: #1e293b; }
+.said-tr { color: #64748b; font-style: italic; font-size: 8pt; margin-left: 4px; }
+
+/* MCQ */
+.mcq-box { background: #f0fdf4; border: 0.5px solid #86efac; padding: 7px 10px; margin-bottom: 7px; }
+.mcq-q   { font-weight: 600; color: #1e293b; margin-bottom: 4px; font-size: 9pt; }
+.mcq-q-tr { color: #475569; font-style: italic; font-size: 8.5pt; margin-bottom: 4px; }
+.mcq-opts { margin-left: 14px; }
+.mcq-opt  { color: #475569; font-size: 8.5pt; margin-bottom: 2px; }
+.mcq-opt.correct { color: #059669; font-weight: bold; }
+.mcq-expl { font-size: 8pt; color: #64748b; margin-top: 5px; border-top: 0.5px solid #bbf7d0; padding-top: 4px; }
 """
+
             E = _html.escape
+
+            def tx(page_dict, en_key, tr_key):
+                """Pick the right language text from a dict."""
+                if is_tr:
+                    return page_dict.get(tr_key) or page_dict.get(en_key) or ""
+                return page_dict.get(en_key) or page_dict.get(tr_key) or ""
+
             parts = [f"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"]
+
             sem_str = f" ({E(semester)})" if semester else ""
+            gen_label = "Kapsamlı Ders Notları ve Alıştırmalar" if is_tr else "Comprehensive Lesson Notes and Exercises"
             parts.append(
-                f'<div class="cover"><div class="cover-title">{E(course_name)}</div>'
-                f'<div class="cover-sub">{E(course_lang)} &middot; Level {E(course_level)}{sem_str}</div>'
-                f'<div class="cover-meta">AulaAI Automated Educational Courseware &middot; Comprehensive Learning Materials</div></div>'
+                f'<div class="cover">'
+                f'<div class="cover-title">{E(course_name)}</div>'
+                f'<div class="cover-sub">{E(course_lang)} &middot; Seviye {E(course_level)}{sem_str}</div>'
+                f'<div class="cover-meta">AulaAI &mdash; {gen_label}</div>'
+                f'</div>'
             )
 
+            # ── Per-chapter/topic ─────────────────────────────────────────────
             with db_connection() as db:
                 for ch in chapters:
                     ch_id, ch_num, ch_title = ch
-                    ch_label = f"Unit {ch_num}: {ch_title or 'Unit'}"
-                    parts.append(f'<div class="unit-card"><div class="unit-title">{E(ch_label)}</div></div>')
+                    unit_word = "Ünite" if is_tr else "Unit"
+                    parts.append(
+                        f'<div class="unit-card"><div class="unit-title">{unit_word} {ch_num}: {E(ch_title or "")}</div></div>'
+                    )
 
                     topics = db.execute(
                         "SELECT id, type, title, content FROM topics WHERE chapter_id = ? ORDER BY sort_order ASC, id ASC",
@@ -993,87 +1065,135 @@ table.ct tr:nth-child(even) { background: #f8fafc; }
 
                         parts.append(
                             f'<div class="topic-card">'
-                            f'<div class="topic-title">{E(top_title or "Topic")} <span class="badge">{E(top_type or "Lesson")}</span></div>'
+                            f'<div class="topic-title">{E(top_title or "Topic")}'
+                            f'<span class="badge">{E(type_label(top_type or "lesson"))}</span></div>'
                         )
 
-                        # Summary
-                        summary = (content_obj.get("summary") or content_obj.get("description") or
-                                   content_obj.get("objective") or "")
-                        if summary:
-                            parts.append(f'<div class="summary-text">{E(str(summary))}</div>')
+                        pages = content_obj.get("pages") or []
 
-                        # Grammar rules
-                        rules = content_obj.get("rules") or content_obj.get("grammar") or []
-                        if isinstance(rules, list) and rules:
-                            parts.append('<div class="sec-heading">Grammar &amp; Language Rules</div>')
-                            for r in rules:
-                                if isinstance(r, dict):
-                                    rn = r.get("rule") or r.get("title") or r.get("name") or "Rule"
-                                    re_ = r.get("explanation") or r.get("explanation_en") or r.get("desc") or ""
-                                    exs = r.get("examples") or r.get("example") or []
-                                    ex_str = " | ".join(str(x) for x in (exs if isinstance(exs, list) else [exs])[:3])
-                                    parts.append(f'<div class="rule-box"><div class="rule-name">{E(str(rn))}</div>')
-                                    if re_: parts.append(f'<div class="rule-expl">{E(str(re_))}</div>')
-                                    if ex_str: parts.append(f'<div class="rule-ex">Examples: {E(ex_str)}</div>')
-                                    parts.append('</div>')
-                                elif isinstance(r, str):
-                                    parts.append(f'<div class="rule-box"><div class="rule-expl">{E(r)}</div></div>')
+                        for page in pages:
+                            ptype = page.get("type", "")
 
-                        # Vocabulary
-                        vocab = content_obj.get("vocabulary") or content_obj.get("words") or []
-                        if isinstance(vocab, list) and vocab:
-                            parts.append('<div class="sec-heading">Key Vocabulary &amp; Expressions</div>')
-                            parts.append('<table class="ct"><tr><th style="width:30%;">Term</th><th style="width:35%;">Meaning</th><th style="width:35%;">Example</th></tr>')
-                            for v in vocab:
-                                if isinstance(v, dict):
-                                    term = (v.get("term") or v.get("word") or v.get("phrase") or
-                                            v.get("spanish") or v.get("text") or v.get("character") or "")
-                                    mean = (v.get("translation_en") or v.get("meaning_en") or
-                                            v.get("meaning") or v.get("translation_tr") or v.get("translation") or "")
-                                    ex = (v.get("example") or v.get("sentence") or
-                                          v.get("example_en") or v.get("example_tr") or "")
+                            # ── OVERVIEW / GRAMMAR text blocks ────────────────
+                            if ptype in ("overview", "grammar"):
+                                title = tx(page, "title", "title_tr")
+                                text  = tx(page, "text", "text_tr")
+                                if title:
+                                    parts.append(f'<div class="sec-h">{E(title)}</div>')
+                                if text:
+                                    parts.append(f'<div class="text-block">{E(text)}</div>')
+
+                            # ── VOCABULARY table ─────────────────────────────
+                            elif ptype == "vocabulary":
+                                title = tx(page, "title", "title_tr")
+                                if title:
+                                    parts.append(f'<div class="sec-h">{E(title)}</div>')
+                                items = page.get("items") or []
+                                if items:
+                                    h_term  = "Terim / Kelime" if is_tr else "Term / Word"
+                                    h_trans = "Anlam" if is_tr else "Translation"
+                                    h_phon  = "Telaffuz" if is_tr else "Phonetic"
+                                    h_ex    = "Örnek Cümle" if is_tr else "Example"
+                                    h_extr  = "Çevirisi" if is_tr else "Meaning"
                                     parts.append(
-                                        f'<tr><td><strong>{E(str(term))}</strong></td>'
-                                        f'<td>{E(str(mean))}</td>'
-                                        f'<td>{E(str(ex))}</td></tr>'
+                                        f'<table class="vt">'
+                                        f'<tr><th style="width:18%;">{h_term}</th>'
+                                        f'<th style="width:12%;">{h_phon}</th>'
+                                        f'<th style="width:22%;">{h_trans}</th>'
+                                        f'<th style="width:28%;">{h_ex}</th>'
+                                        f'<th style="width:20%;">{h_extr}</th></tr>'
                                     )
-                            parts.append('</table>')
+                                    for item in items:
+                                        term   = item.get("term") or item.get("word") or ""
+                                        phon   = item.get("phonetic") or ""
+                                        transl = tx(item, "translation", "translation_tr") or item.get("translation") or ""
+                                        ex     = item.get("example") or item.get("example_en") or ""
+                                        ex_tr  = item.get("example_tr") or item.get("example_en") or ""
+                                        expl   = tx(item, "explanation", "explanation_tr") or ""
+                                        if is_tr:
+                                            ex_show = ex_tr
+                                            transl_show = item.get("translation_tr") or item.get("translation") or ""
+                                            ex_meaning = item.get("example_en") or ex
+                                        else:
+                                            ex_show = ex
+                                            transl_show = item.get("translation") or item.get("translation_en") or ""
+                                            ex_meaning = item.get("example_tr") or ""
+                                        parts.append(
+                                            f'<tr>'
+                                            f'<td><span class="term">{E(str(term))}</span></td>'
+                                            f'<td><span class="phon">{E(str(phon))}</span></td>'
+                                            f'<td><span class="trans">{E(str(transl_show))}</span></td>'
+                                            f'<td><span class="ex">{E(str(ex_show))}</span></td>'
+                                            f'<td><span class="ex-tr">{E(str(ex_meaning))}</span></td>'
+                                            f'</tr>'
+                                        )
+                                    parts.append('</table>')
 
-                        # Dialogue
-                        dialogues = content_obj.get("dialogue") or content_obj.get("dialogues") or []
-                        if isinstance(dialogues, list) and dialogues:
-                            parts.append('<div class="sec-heading">Practical Dialogue</div>')
-                            for d in dialogues:
-                                if isinstance(d, dict):
-                                    spk = d.get("speaker") or d.get("name") or "Person"
-                                    line = d.get("line") or d.get("text") or d.get("spanish") or ""
-                                    trans = d.get("line_en") or d.get("line_tr") or d.get("translation") or ""
+                            # ── COMPARISONS ────────────────────────────────────
+                            elif ptype == "comparisons":
+                                title = tx(page, "title", "title_tr")
+                                text  = tx(page, "text", "text_tr")
+                                if title:
+                                    parts.append(f'<div class="sec-h">{E(title)}</div>')
+                                if text:
+                                    parts.append(f'<div class="text-block">{E(text)}</div>')
+                                for cmp in page.get("comparisons") or []:
+                                    ctx   = tx(cmp, "context", "context_tr") or ""
+                                    targ  = cmp.get("target") or ""
+                                    trans = tx(cmp, "translation", "translation_tr") or ""
+                                    note  = tx(cmp, "note", "note_tr") or cmp.get("note") or ""
                                     parts.append(
-                                        f'<div class="diag-box"><span class="spkr">{E(str(spk))}:</span>'
-                                        f' &ldquo;{E(str(line))}&rdquo;'
+                                        f'<div class="cmp-box">'
+                                        f'<div class="cmp-ctx">{E(ctx)}</div>'
+                                        f'<div class="cmp-pair"><strong>{E(targ)}</strong>'
+                                        f'{(" &rarr; " + E(str(trans))) if trans else ""}</div>'
+                                        f'{("<div class=\"cmp-note\">" + E(str(note)) + "</div>") if note else ""}'
+                                        f'</div>'
                                     )
-                                    if trans:
-                                        parts.append(f'<span class="dtrans">({E(str(trans))})</span>')
-                                    parts.append('</div>')
 
-                        # Quick-check questions (first 4)
-                        questions = content_obj.get("questions") or content_obj.get("practice_questions") or []
-                        if isinstance(questions, list) and questions:
-                            parts.append('<div class="sec-heading">Quick Check Questions</div>')
-                            for qi, q in enumerate(questions[:4]):
-                                if isinstance(q, dict):
-                                    q_prompt = q.get("prompt") or q.get("question") or ""
-                                    q_opts = q.get("options") or []
-                                    q_ans = q.get("answer") or ""
+                            # ── EXAMPLES / DIALOGUE ────────────────────────────
+                            elif ptype == "examples":
+                                title = tx(page, "title", "title_tr")
+                                text  = tx(page, "text", "text_tr")
+                                if title:
+                                    parts.append(f'<div class="sec-h">{E(title)}</div>')
+                                if text:
+                                    parts.append(f'<div class="text-block">{E(text)}</div>')
+                                for d in page.get("dialogue") or []:
+                                    spk    = d.get("speaker") or "?"
+                                    said   = d.get("text") or d.get("line") or ""
+                                    line_en = d.get("line_en") or ""
+                                    line_tr = d.get("line_tr") or ""
+                                    tr_text = line_tr if is_tr else line_en
                                     parts.append(
-                                        f'<div class="mcq-box">'
-                                        f'<div class="mcq-q">{qi+1}. {E(str(q_prompt))}</div>'
+                                        f'<div class="diag-line">'
+                                        f'<span class="spkr">{E(str(spk))}:</span>'
+                                        f'<span class="said">&ldquo;{E(str(said))}&rdquo;'
+                                        f'{(" <span class=\"said-tr\">(" + E(str(tr_text)) + ")</span>") if tr_text else ""}'
+                                        f'</span></div>'
                                     )
-                                    if q_opts:
-                                        parts.append(f'<div class="mcq-opt">Options: {E(", ".join(str(o) for o in q_opts))}</div>')
-                                    if q_ans:
-                                        parts.append(f'<div class="mcq-ans">&#10003; {E(str(q_ans))}</div>')
+
+                            # ── MCQ / PRACTICE QUESTIONS ──────────────────────
+                            elif ptype == "mcq":
+                                prompt    = tx(page, "prompt_en", "prompt_tr") or page.get("prompt") or ""
+                                options   = page.get("options") or []
+                                answer    = page.get("answer") or ""
+                                expl      = tx(page, "explanation", "explanation_tr") or ""
+                                q_title   = tx(page, "title", "title_tr") or ""
+                                if q_title:
+                                    parts.append(f'<div class="sec-h">{E(q_title)}</div>')
+                                parts.append(f'<div class="mcq-box"><div class="mcq-q">{E(str(prompt))}</div>')
+                                if options:
+                                    parts.append('<div class="mcq-opts">')
+                                    for opt in options:
+                                        is_correct = (str(opt).strip() == str(answer).strip())
+                                        cls = 'mcq-opt correct' if is_correct else 'mcq-opt'
+                                        mark = " &#10003;" if is_correct else ""
+                                        parts.append(f'<div class="{cls}">{E(str(opt))}{mark}</div>')
                                     parts.append('</div>')
+                                if expl:
+                                    parts.append(f'<div class="mcq-expl">{E(str(expl))}</div>')
+                                parts.append('</div>')
 
                         parts.append('</div>')  # close topic-card
 
@@ -1087,27 +1207,28 @@ table.ct tr:nth-child(even) { background: #f8fafc; }
             try:
                 story = fitz.Story(html=full_html)
                 writer = fitz.DocumentWriter(temp_path)
-                story.write(writer, lambda n, f: (fitz.paper_rect("a4"), fitz.Rect(38, 42, 557, 798), None))
+                story.write(writer, lambda n, f: (fitz.paper_rect("a4"), fitz.Rect(36, 44, 559, 800), None))
                 writer.close()
 
                 doc = fitz.open(temp_path)
                 total_pages = len(doc)
+                pg_word = "Sayfa" if is_tr else "Page"
                 for idx, page in enumerate(doc):
                     if idx > 0:
                         page.insert_text(
-                            fitz.Point(38, 28),
-                            f"AulaAI Courseware \u2014 {course_name}",
-                            fontsize=7.5, color=(0.45, 0.45, 0.45)
+                            fitz.Point(36, 30),
+                            f"AulaAI \u2014 {course_name}",
+                            fontsize=7, color=(0.45, 0.45, 0.45)
                         )
                     page.insert_text(
-                        fitz.Point(38, 824),
+                        fitz.Point(36, 826),
                         "AulaAI Educational System \u2014 Self-Contained Course Material",
-                        fontsize=7.5, color=(0.45, 0.45, 0.45)
+                        fontsize=7, color=(0.45, 0.45, 0.45)
                     )
                     page.insert_text(
-                        fitz.Point(480, 824),
-                        f"Page {idx + 1} / {total_pages}",
-                        fontsize=7.5, color=(0.45, 0.45, 0.45)
+                        fitz.Point(485, 826),
+                        f"{pg_word} {idx + 1} / {total_pages}",
+                        fontsize=7, color=(0.45, 0.45, 0.45)
                     )
                 pdf_bytes = doc.tobytes()
                 doc.close()
@@ -1118,7 +1239,7 @@ table.ct tr:nth-child(even) { background: #f8fafc; }
                     pass
 
             safe_name = "".join(c if (c.isalnum() or c in "-_") else "_" for c in course_name).strip("_")
-            filename = f"{safe_name}_AulaAI.pdf"
+            filename = f"{safe_name}_AulaAI_{lang.upper()}.pdf"
 
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
