@@ -32,5 +32,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Apply the narrowly scoped PDF heading localization patch at image build time,
+# then syntax-check the resulting server before Railway starts it.
+RUN python scripts/patch_pdf_title_localization.py && python -m py_compile server.py
+
 # Run the server
 CMD ["python", "server.py"]
