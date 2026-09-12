@@ -48,6 +48,8 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/pdf_renderer_v12.py \
     && python scripts/smoke_test_pdf_renderer.py \
     && python scripts/patch_material_locale_stability_v17.py \
-    && python scripts/patch_material_locale_exact_v18.py
+    && python scripts/patch_material_locale_exact_v18.py \
+    && python scripts/patch_material_locale_source_v19.py \
+    && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py
 
 CMD ["python", "server.py"]
