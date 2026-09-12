@@ -25,17 +25,15 @@ RUN apt-get update -qq && apt-get install -y -qq \
 
 WORKDIR /app
 
-# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
-# Apply stable PDF behavior first, then visual-only PDF CSS cleanup.
 RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_ui_and_localization_v2.py \
+    && python scripts/patch_pdf_atomic_blocks.py \
+    && python scripts/patch_pdf_picker_ui.py \
     && python -m py_compile server.py
 
-# Run the server
 CMD ["python", "server.py"]
