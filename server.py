@@ -3197,8 +3197,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                 ORDER BY RANDOM() LIMIT 25
                             """, list(topic_ids)).fetchall()
                             for r in db_qs:
-                                rp = r["prompt"]
-                                ra = r["answer"]
+                                rp = str(r["prompt"] or "").strip()
+                                ra = str(r["answer"] or "").strip()
+                                if "[" in rp or "]" in rp or "[" in ra or "]" in ra:
+                                    continue
                                 if any(is_near_identical_question(rp, fq.get("prompt", "")) for fq in final_questions):
                                     continue
                                 if any(normalize_prompt_text(ra) == normalize_prompt_text(fq.get("answer", "")) for fq in final_questions):
@@ -3207,6 +3209,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                     d_list = json.loads(r["distractors"]) if r["distractors"] else []
                                 except Exception:
                                     d_list = []
+                                d_list = [str(d).strip() for d in d_list if str(d).strip() and "[" not in str(d) and "]" not in str(d)]
                                 if len(d_list) < 3:
                                     continue
                                 opts = [ra] + d_list[:3]
@@ -3238,6 +3241,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                             continue
                         p = (q.get("prompt") or "").strip()
                         a = (q.get("answer") or "").strip()
+                        if "[" in p or "]" in p or "[" in a or "]" in a:
+                            continue
                         if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in final_questions):
                             continue
                         if any(normalize_prompt_text(a) == normalize_prompt_text(fq.get("answer", "")) for fq in final_questions):
@@ -3250,9 +3255,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 state.is_done = True
                 ticker_thread.join(timeout=1.0)
 
-            # Accept high-quality draft if at least one question is generated
-            if not final_questions:
-                file_log(f"Draft question count empty for {course_id}")
+            # Enforce hard completion invariant: Draft is only complete if exactly requested_count questions are assembled
+            if len(final_questions) < requested_count:
+                file_log(f"Draft question count shortfall ({len(final_questions)} < {requested_count}) for {course_id}. Aborting draft.")
+                print(f"[BG] Draft question count shortfall ({len(final_questions)} < {requested_count}) for {course_id}. Marked draft_status='error'.")
                 with db_connection() as db:
                     db.execute("UPDATE courses SET draft_status='error' WHERE id=?", (course_id,))
                     db.commit()

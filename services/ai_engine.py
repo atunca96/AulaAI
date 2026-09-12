@@ -1733,30 +1733,47 @@ REPETITION & COVERAGE RULES:
                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
             }
 
+        # Telemetry tracking for candidate selection, replacement, top-up, and fallback
+        initial_candidate_count = len(raw_list)
+        valid_after_filter_count = 0
+        pool_replacements_used = 0
+        topup_requested = 0
+        topup_returned = 0
+        topup_accepted = 0
+        fallback_attempted = 0
+        fallback_accepted = 0
+        abort_reason = ""
+
         # Direct Candidate Selection from Main Pool
         final = []
-        for item in raw_list:
+        rejected_initial_count = 0
+        for idx, item in enumerate(raw_list):
             cand = _assemble_valid_candidate(item, final)
             if cand:
                 final.append(cand)
+                if rejected_initial_count > 0 or idx >= c:
+                    pool_replacements_used += 1
+                else:
+                    valid_after_filter_count += 1
                 if len(final) >= c:
                     break
+            else:
+                if idx < c:
+                    rejected_initial_count += 1
 
         t_filter_duration = time.perf_counter() - t_filter_start
         timing_ctx["filter_dedup"] = t_filter_duration
 
-        # Hard invariant shortfall resolution: Perform top-up generation ONLY if initial candidate pool is genuinely exhausted
+        # Hard invariant shortfall resolution: Perform at most ONE bounded top-up request ONLY if initial candidate pool is genuinely exhausted
         t_topup_start = time.perf_counter()
         t_topup = 0.0
-        topup_attempts = 0
-        max_topup_attempts = 3
         timing_ctx["topup_ai_cost"] = 0.0
         timing_ctx["topup_ai_calls"] = 0
         ai_active = not (model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"])
 
-        while len(final) < c and ai_active and topup_attempts < max_topup_attempts:
-            topup_attempts += 1
+        if len(final) < c and ai_active:
             shortfall = c - len(final)
+            topup_requested = shortfall
             cur_forbidden_prompts = list(forbidden_prompts)
             cur_forbidden_answers = list(forbidden_answers)
             for f in final:
@@ -1831,7 +1848,7 @@ CRITICAL MANDATES:
 - GATE B (LEXICAL-COMBINATORIAL INTEGRITY - MANDATORY & INDEPENDENT): Independently verify the stem, keyed answer, and every distractor for authentic head–argument structure, valency, subject/object compatibility, complement type, required case/preposition, modifier attachment, collocation, and fixed/semi-fixed expression structure. A phrase is not valid merely because its individual words appear in the source. When a taught expression is transferred into a fresh scenario, only the external scenario may change; its internal lexical-combinatorial structure must remain source-supported or naturally licensed by an attested compatible pattern. Reject and replace any candidate containing an unnatural or mechanically recombined expression, including when it is the keyed correct answer.
 - GATES 1–6: Gate 1 Material combination grounding (no co-occurrence loophole), Gate 2 CEFR {level} fit, Gate 3 Contextual naturalness & technical precision with scenario-only transfer, Gate 4 Exactly one defensible correct answer with intrinsic keyed-answer validation, Gate 5 Plausible same-level competitive distractors (real words, no mutations), Gate 6 In-batch anti-repetition vs. broader objective reuse. Discard and replace any candidate failing any gate.
 
-UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
+UNIQUE_REQUEST_ID: {seed}_topup_1_{py_random.random()}"""
 
             topup_max_tokens = min(3500, max(800, shortfall * 250))
             topup_usage: Dict[str, Any] = {}
@@ -1844,11 +1861,11 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                 allow_fallback=True,
                 usage_dict=topup_usage
             )
-            timing_ctx["topup_ai_calls"] = timing_ctx.get("topup_ai_calls", 0) + 1
+            timing_ctx["topup_ai_calls"] = 1
             top_c = topup_usage.get("cost")
             if top_c is None:
                 top_c = _estimate_llm_cost(target_model, int(topup_usage.get("prompt_tokens", 800)), int(topup_usage.get("completion_tokens", 400)))
-            timing_ctx["topup_ai_cost"] = timing_ctx.get("topup_ai_cost", 0.0) + float(top_c)
+            timing_ctx["topup_ai_cost"] = float(top_c)
 
             topup_list = []
             if isinstance(topup_res, list):
@@ -1856,28 +1873,43 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             elif isinstance(topup_res, dict):
                 topup_list = topup_res.get("data") or topup_res.get("questions") or topup_res.get("items") or topup_res.get("quiz") or topup_res.get("activities") or []
             
-            if not topup_list:
-                break
-
+            topup_returned = len(topup_list)
             for item in topup_list:
                 cand = _assemble_valid_candidate(item, final)
                 if cand:
                     final.append(cand)
+                    topup_accepted += 1
                     if len(final) >= c:
                         break
 
-        if topup_attempts > 0:
             t_topup = time.perf_counter() - t_topup_start
         timing_ctx["top_up"] = t_topup
-        
+
         # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──
         if len(final) < c and isinstance(topic_content, dict):
-            # Helper for fallback target language questions
-            is_esp = any(s in language.lower() for s in ["spanish", "español", "ispanyolca"])
-            is_de = any(s in language.lower() for s in ["german", "deutsch", "almanca"])
-            is_fr = any(s in language.lower() for s in ["french", "français", "fransızca"])
-            is_it = any(s in language.lower() for s in ["italian", "italiano", "italyanca"])
-            is_ru = any(s in language.lower() for s in ["russian", "русский", "rusça"])
+            fallback_attempted = c - len(final)
+            lang_lower = language.lower()
+            is_esp = any(s in lang_lower for s in ["spanish", "español", "ispanyolca"])
+            is_de = any(s in lang_lower for s in ["german", "deutsch", "almanca"])
+            is_fr = any(s in lang_lower for s in ["french", "français", "fransızca"])
+            is_it = any(s in lang_lower for s in ["italian", "italiano", "italyanca"])
+            is_ru = any(s in lang_lower for s in ["russian", "русский", "rusça"])
+            is_tr = any(s in lang_lower for s in ["turkish", "türkçe", "turkce"])
+            is_pt = any(s in lang_lower for s in ["portuguese", "português", "portekizce"])
+            is_en = any(s in lang_lower for s in ["english", "ingilizce"])
+
+            def _clean_fallback_term(raw_text: str) -> str:
+                if not raw_text:
+                    return ""
+                # Strip bracketed annotations: [ex: ...], [note: ...], [RULE: ...], etc.
+                txt = re.sub(r'\[.*?\]', '', str(raw_text))
+                # Strip parenthesized translation/notes: (ticket), (der), etc.
+                txt = re.sub(r'\(.*?\)', '', txt)
+                # Strip leading bullet points, hyphens, or formatting artifacts
+                txt = re.sub(r'^[\*\-\s•]+', '', txt)
+                # Normalize whitespace
+                txt = re.sub(r'\s+', ' ', txt).strip()
+                return txt
 
             def _make_fallback_prompt(target_term):
                 if is_esp:
@@ -1906,11 +1938,23 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                         f"Какое выражение лучше всего подходит в данной коммуникативной ситуации?: « ______ »",
                         f"Дополните предложение естественным образом: « ______ »"
                     ]
-                else:
+                elif is_tr:
+                    templates = [
+                        f"Günlük iletişim bağlamında en uygun ifade hangisidir?: '______'",
+                        f"Cümleyi doğal ve doğru bir şekilde tamamlayınız: '______'"
+                    ]
+                elif is_pt:
+                    templates = [
+                        f"Em uma conversa cotidiana autêntica, qual é a expressão mais adequada?: '______'",
+                        f"Complete a frase de maneira natural e comunicativa: '______'"
+                    ]
+                elif is_en:
                     templates = [
                         f"Which expression is most appropriate in this communicative context?: '______'",
                         f"Complete the sentence naturally: '______'"
                     ]
+                else:
+                    return None
                 return py_random.choice(templates)
 
             # 1. Pull pre-authored MCQs from topic content pages
@@ -1919,9 +1963,14 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
             for page in pages:
                 if len(final) >= c: break
                 if page.get("type") == "mcq" and page.get("prompt") and page.get("answer"):
-                    prompt_txt = str(page.get("prompt", "")).strip()
-                    ans_txt = str(page.get("answer", "")).strip()
+                    prompt_txt = _clean_fallback_term(page.get("prompt", ""))
+                    ans_txt = _clean_fallback_term(page.get("answer", ""))
+                    if not prompt_txt or not ans_txt:
+                        continue
                     if is_arithmetic_question(prompt_txt) or is_arithmetic_question(ans_txt):
+                        continue
+                    # Reject English prompt for non-English quiz
+                    if not is_en and any(eng_w in prompt_txt.lower() for eng_w in ["which of the following", "choose the correct", "what does", "select the best"]):
                         continue
                     p_tok = _normalize_token(prompt_txt)
                     a_tok = _normalize_token(ans_txt)
@@ -1932,9 +1981,16 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                     if any(_normalize_token(f.get("answer")) == a_tok for f in final):
                         continue
                     if not any(f.get("prompt") == prompt_txt for f in final):
-                        opts = list(page.get("options", []))
-                        if not opts:
-                            opts = [page.get("answer")] + page.get("distractors", [])
+                        raw_opts = list(page.get("options", []))
+                        if not raw_opts:
+                            raw_opts = [page.get("answer")] + page.get("distractors", [])
+                        clean_opts = list(dict.fromkeys(_clean_fallback_term(o) for o in raw_opts if _clean_fallback_term(o)))
+                        if ans_txt not in clean_opts:
+                            clean_opts.insert(0, ans_txt)
+                        clean_d = [o for o in clean_opts if _normalize_token(o) != a_tok][:3]
+                        if len(clean_d) < 3:
+                            continue
+                        opts = [ans_txt] + clean_d
                         py_random.shuffle(opts)
                         p_tr = page.get("prompt_tr") or page.get("translation_tr", "")
                         p_en = page.get("prompt") or page.get("translation_en", "")
@@ -1945,40 +2001,60 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                             "translation": p_tr if material_language == "tr" else p_en,
                             "translation_en": p_en,
                             "translation_tr": p_tr,
-                            "answer": page.get("answer"),
-                            "distractors": [x for x in opts if x != page.get("answer")][:3],
+                            "answer": ans_txt,
+                            "distractors": clean_d,
                             "options": opts,
                             "why": page.get("explanation", "Correct choice based on the lesson."),
                             "why_tr": page.get("explanation_tr", page.get("explanation", "Ders içeriğine göre doğru seçenek."))
                         })
+                        fallback_accepted += 1
 
-            # 2. In multi-topic, if AI failed completely, extract from topics key_vocab
+            # 2. In multi-topic or structured items, extract clean vocabulary
             if len(final) < c and "topics" in topic_content:
+                all_clean_vocabs = []
+                for t in topic_content.get("topics", []):
+                    for x in t.get("key_vocab", []):
+                        cln = _clean_fallback_term(x)
+                        if cln and len(cln) >= 2 and not is_arithmetic_question(cln):
+                            all_clean_vocabs.append(cln)
+                all_clean_vocabs = list(dict.fromkeys(all_clean_vocabs))
+
                 for top in topic_content.get("topics", []):
                     if len(final) >= c: break
                     vocabs = top.get("key_vocab", [])
                     for voc in vocabs:
                         if len(final) >= c: break
-                        v_str = str(voc).strip()
-                        if not v_str or any(_normalize_token(f.get("answer")) == _normalize_token(v_str) for f in final):
+                        v_str = _clean_fallback_term(voc)
+                        if not v_str or len(v_str) < 2 or is_arithmetic_question(v_str):
                             continue
-                        all_vocabs = [str(x).strip() for t in topic_content.get("topics", []) for x in t.get("key_vocab", []) if str(x).strip().lower() != v_str.lower()]
-                        if len(all_vocabs) >= 3:
-                            opts = [v_str] + py_random.sample(all_vocabs, 3)
+                        v_tok = _normalize_token(v_str)
+                        if any(_normalize_token(f.get("answer")) == v_tok for f in final):
+                            continue
+                        fallback_stem = _make_fallback_prompt(v_str)
+                        if not fallback_stem:
+                            continue
+                        candidate_distractors = [
+                            x for x in all_clean_vocabs
+                            if _normalize_token(x) != v_tok and difflib.SequenceMatcher(None, _normalize_token(x), v_tok).ratio() < 0.85
+                        ]
+                        if len(candidate_distractors) >= 3:
+                            selected_distractors = py_random.sample(candidate_distractors, 3)
+                            opts = [v_str] + selected_distractors
                             py_random.shuffle(opts)
                             final.append({
                                 "id": _uid(),
                                 "type": "mcq",
-                                "prompt": _make_fallback_prompt(v_str),
+                                "prompt": fallback_stem,
                                 "translation": v_str,
                                 "translation_en": v_str,
                                 "translation_tr": v_str,
                                 "answer": v_str,
-                                "distractors": [x for x in opts if x != v_str][:3],
+                                "distractors": selected_distractors,
                                 "options": opts,
                                 "why": "Target vocabulary item from the lesson.",
                                 "why_tr": "Ders içeriğindeki hedef kelime."
                             })
+                            fallback_accepted += 1
 
         # Sanitize Turkish fields in generated questions
         for q in final:
@@ -1988,6 +2064,16 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
                 q["why_tr"] = _sanitize_turkish_content(heal_turkish_syntax(q["why_tr"]))
             if material_language == "tr" and q.get("translation"):
                 q["translation"] = _sanitize_turkish_content(heal_turkish_syntax(q["translation"]))
+
+        # ── HARD COMPLETION INVARIANT ──
+        # If the requested count still cannot be satisfied after bounded top-up and clean fallback,
+        # cleanly abort and surface a retryable failure (empty list) instead of returning a partial quiz.
+        if len(final) < c:
+            abort_reason = f"shortfall_after_bounded_topup: requested {c}, assembled {len(final)}"
+            print(f"[QUIZ-ABORT] {abort_reason}. Returning empty list to enforce hard completion invariant.")
+            final = []
+        else:
+            final = final[:c]
 
         t_filter_duration = timing_ctx.get("filter_dedup", 0.0)
         t_topup = timing_ctx.get("top_up", 0.0)
@@ -2005,15 +2091,25 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
         total_cost = main_cost + topup_cost
         timing_ctx["total_cost"] = total_cost
 
+        status_str = "COMPLETED" if len(final) == c else f"ABORTED ({abort_reason})"
+        perf_status_line = (
+            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STATUS] Topic: '{topic_title}' | "
+            f"req={c} | init_cands={initial_candidate_count} | valid_filter={valid_after_filter_count} | "
+            f"pool_replacements={pool_replacements_used} | topup_req={topup_requested} | "
+            f"topup_ret={topup_returned} | topup_acc={topup_accepted} | fallback_att={fallback_attempted} | "
+            f"fallback_acc={fallback_accepted} | final={len(final)} | status={status_str}"
+        )
+        print(perf_status_line)
+
         log_lines = [
-            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-PERF] Topic: '{topic_title}' (req={c}, count={len(final[:c])}):",
+            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-PERF] Topic: '{topic_title}' (req={c}, count={len(final)}):",
             f"  1. DB/Content Loading:       {t_db:.4f}s",
             f"  2. Structured Assembly:      {t_assembly:.4f}s",
             f"  3. Provenance Resolution:    {t_prov:.4f}s",
             f"  4. Prompt Construction:      {t_prompt_duration:.4f}s (size: {prompt_chars} chars, ~{prompt_tokens_est} toks)",
             f"  5. Main AI Generation:       {t_ai_duration:.4f}s (cost: ${main_cost:.6f})",
             f"  6. Response Parsing:         {t_parse_duration:.4f}s",
-            f"  7. Filter / Selection:       {t_filter_duration:.4f}s (valid {len(final)} / {len(raw_list)} candidates)",
+            f"  7. Filter / Selection:       {t_filter_duration:.4f}s (valid {valid_after_filter_count + pool_replacements_used} / {len(raw_list)} candidates)",
             f"  8. Top-up AI Call:           {t_topup:.4f}s (calls: {topup_calls}, cost: ${topup_cost:.6f})",
             f"  9. Persistence:              {t_persist:.4f}s",
             f"  Total Elapsed Time:          {t_total:.4f}s",
@@ -2023,11 +2119,12 @@ UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
         print(log_str)
 
         with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(perf_status_line + "\n")
             f.write(log_str + "\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s (${main_cost:.6f}) | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s (calls={topup_calls}, ${topup_cost:.6f}) | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s | Cost: ${total_cost:.6f}\n")
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final[:c])}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
-        return final[:c]
+        return final
     except Exception as e:
         import traceback
         with open("pipeline.log", "a", encoding="utf-8") as f:

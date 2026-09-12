@@ -456,6 +456,10 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
     bump_version()
 
     final_set = questions
+    if is_quiz and len(final_set) < c_count:
+        print(f"[ASSESSMENT-SHORTFALL] Quiz requested {c_count} but assembled {len(final_set)}. Returning empty set to enforce hard completion invariant.")
+        return []
+
     if progress_callback:
         progress_callback(100, "Sorular hazır!" if ui_lang == "tr" else "Questions ready!")
 
