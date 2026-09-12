@@ -633,6 +633,15 @@ def _is_same_batch_semantic_duplicate(item: dict, final_questions: list, topic_c
             return True
 
     # 2. In-batch semantic duplicate comparison against selected questions
+    gen_stopwords = {
+        "cuál", "cual", "opcion", "opción", "correcta", "correcto", "selecciona", "completa",
+        "frase", "oracion", "oración", "pregunta", "respuesta", "indica", "mejor", "adecuada",
+        "adecuado", "which", "what", "correct", "choose", "select", "complete", "sentence",
+        "best", "welche", "welches", "richtig", "richtige", "quelle", "quel", "choisir",
+        "quale", "qual", "hangisi", "doğru", "seçiniz", "cümleyi", "uygun", "seçenek"
+    }
+    cand_words = set(w for w in re.findall(r'\b[a-záéíóúñäöüßçàèìòùâêîôû]{4,}\b', clean_p) if w not in gen_stopwords)
+
     for f in final_questions:
         if not isinstance(f, dict):
             continue
@@ -644,15 +653,35 @@ def _is_same_batch_semantic_duplicate(item: dict, final_questions: list, topic_c
         f_ev = str(f.get("evidence") or "").strip().lower()
         f_why = str(f.get("why") or "").strip().lower()
         f_opts = set(_normalize_token(str(x)) for x in f.get("options", []) if str(x).strip())
+        f_words = set(w for w in re.findall(r'\b[a-záéíóúñäöüßçàèìòùâêîôû]{4,}\b', f_clean_p) if w not in gen_stopwords)
 
         # Exact target answer token match
         if f_clean_a and f_clean_a == clean_a:
             return True
 
-        # Same expression or function asked twice (one is a phrase substring/extension of the other)
-        # when sharing the same cognitive task, evidence, or communicative role
+        # Standalone expression vs. sentence-embedded expression assessing the same target/expression:
+        # Check if one answer contains the other (e.g. 'Buenos días' in 'Buenos días, ¿cómo está usted?')
         if len(clean_a) >= 4 and len(f_clean_a) >= 4:
-            if (clean_a in f_clean_a or f_clean_a in clean_a) and (cand_cog == f_cog or cand_ev == f_ev):
+            if clean_a in f_clean_a or f_clean_a in clean_a:
+                # Same cognitive task or source evidence
+                if (cand_cog and f_cog and cand_cog == f_cog) or (cand_ev and f_ev and cand_ev == f_ev):
+                    return True
+                # Overlapping communicative scenario / context words
+                if cand_words and f_words and (cand_words.intersection(f_words)):
+                    return True
+                # Standalone expression vs sentence-embedded frame (short expression <= 4 words)
+                if len(clean_a.split()) <= 4 or len(f_clean_a.split()) <= 4:
+                    return True
+                # Overlapping reasoning or explanation
+                if cand_why and f_why and (cand_why in f_why or f_why in cand_why):
+                    return True
+
+        # Target expression of one question embedded in the prompt sentence frame of the other
+        if len(clean_a) >= 4 and len(clean_a.split()) <= 4 and clean_a in f_clean_p:
+            if (cand_words and f_words and cand_words.intersection(f_words)) or (cand_cog and f_cog and cand_cog == f_cog):
+                return True
+        if len(f_clean_a) >= 4 and len(f_clean_a.split()) <= 4 and f_clean_a in clean_p:
+            if (cand_words and f_words and cand_words.intersection(f_words)) or (cand_cog and f_cog and cand_cog == f_cog):
                 return True
 
         # Same answer distinction: identical competing option set
@@ -1253,59 +1282,54 @@ REPETITION & COVERAGE RULES:
         timing_ctx["parsing"] = t_parse_duration
         
         t_filter_start = time.perf_counter()
-        # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER ──
-        final = []
-        for item in raw_list:
-            if not isinstance(item, dict): continue
-            
+        # ── V5 RIGOROUS VALIDATION & ANTI-GIVEAWAY FILTER HELPER ──
+        def _assemble_valid_candidate(item, current_final):
+            if not isinstance(item, dict): return None
             p = str(item.get("prompt", "")).strip()
             a = str(item.get("answer", "")).strip()
             d = item.get("distractors", [])
-            
             if not (p and a and isinstance(d, list)):
-                continue
+                return None
 
             clean_a_token = _normalize_token(a)
             clean_p_token = _normalize_token(p)
 
             # IN-BATCH DEDUPLICATION: Reject same-batch semantic near-duplicates and ungrounded concept definitions
-            if _is_same_batch_semantic_duplicate(item, final, topic_content):
-                continue
+            if _is_same_batch_semantic_duplicate(item, current_final, topic_content):
+                return None
 
-            # IN-BATCH PATTERN & PROMPT DIVERSITY: Reject near-identical prompt stems or sentence templates within the batch
-            if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in final):
-                continue
+            # IN-BATCH PATTERN & PROMPT DIVERSITY: Reject near-identical prompt stems or sentence templates
+            if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in current_final):
+                return None
 
             # COGNITIVE TASK VARIETY: Allow adequate fill-in-the-blank questions
             has_blank = "_" in p or "____" in p
             if has_blank:
-                current_blanks = sum(1 for f in final if "_" in f.get("prompt", "") or "____" in f.get("prompt", ""))
-                if current_blanks >= max(8, int(gen_count * 0.75)):
-                    continue
+                current_blanks = sum(1 for f in current_final if "_" in f.get("prompt", "") or "____" in f.get("prompt", ""))
+                if current_blanks >= max(8, int(c * 0.75)):
+                    return None
 
             # STRICT DIVERSITY FILTER: Absolute rejection of any repeated or near-duplicate prompt from previous rounds
             if forbidden_prompt_keys:
                 if clean_p_token in forbidden_prompt_keys:
-                    continue
-                # Character similarity check: reject only if prompt is a true near-duplicate (>94% identical)
+                    return None
                 if any(difflib.SequenceMatcher(None, clean_p_token, fp_key).ratio() > 0.94 for fp_key in forbidden_prompt_keys):
-                    continue
+                    return None
 
-            # Reject prompts containing Turkish instructional words ONLY if target language is NOT Turkish (must be 100% target language)
+            # Reject prompts containing Turkish instructional words ONLY if target language is NOT Turkish
             if not any(k in language.lower() for k in ["turkish", "türkçe", "turkce"]):
                 tr_prompt_markers = ["hangisidir", "aşağıdakilerden", "seçiniz", "cümleyi", "anlamına gelir", "karşılığı nedir", "boşluğu doldur", "uygun kelimeyi"]
                 if any(m in p.lower() for m in tr_prompt_markers):
-                    continue
+                    return None
 
-            # GATE 1 COMMON SENSE & TRIVIAL CATEGORY MATCHING REJECTION:
-            # Fails only when the question primarily measures generic common sense / world knowledge rather than a material-supported learning objective
+            # GATE 1 COMMON SENSE & TRIVIAL CATEGORY MATCHING REJECTION
             clean_p_lower = p.lower()
             stereotypical_category_patterns = [
                 r'\b(?:dónde|donde|where|wo|où|ou|dove)\s+(?:trabaja|trabajan|works?|arbeitet|travaille|lavora)\s+(?:un|una|el|la|a|an|the|ein|eine|der|die|das|un|une|le|la|uno)\s+(?:médico|médica|doctor|profesor|profesora|maestro|maestra|cocinero|cocinera|camarero|camarera|bombero|bombera|policía|arzt|ärztin|lehrer|lehrerin|koch|köchin|kellner|kellnerin|médecin|professeur|cuisinier|serveur|pompiers?|policier|medico|professore|cuoco|cameriere)\b',
                 r'\b(?:qué|que|what|was|que|cosa)\s+(?:haces|hace|do you do|macht man|fais-tu|fai)\s+(?:si|cuando|when|wenn|quand|quando)\s+(?:tienes\s+hambre|tienes\s+sed|you are hungry|you are thirsty|man hunger hat|man durst hat)\b'
             ]
             if any(re.search(pat, clean_p_lower) for pat in stereotypical_category_patterns):
-                continue
+                return None
 
             # Clean and deduplicate distractors (must not match answer and must be distinct)
             clean_d = []
@@ -1334,7 +1358,6 @@ REPETITION & COVERAGE RULES:
                                 if t_str and t_str.lower() != a.lower() and t_str.lower() not in [cd.lower() for cd in clean_d]:
                                     extra_candidates.append(t_str)
 
-                # Filter plausible length candidates
                 extra_candidates = [cand for cand in extra_candidates if abs(len(cand) - len(a)) <= max(len(a), 15)]
                 py_random.shuffle(extra_candidates)
                 for cand in extra_candidates:
@@ -1343,13 +1366,11 @@ REPETITION & COVERAGE RULES:
                     if len(clean_d) >= 3:
                         break
 
-            # STRICT MANDATE: MUST have at least 3 distractors so total options is ALWAYS 4!
             if len(clean_d) < 3:
-                continue
+                return None
 
-            # Reject pure math operations and arithmetic drill questions
             if is_arithmetic_question(p) or is_arithmetic_question(a):
-                continue
+                return None
 
             # Programmatic Anti-Giveaway & Anti-Trivia Verification
             clean_p = re.sub(r'[^\w\s]', ' ', p.lower())
@@ -1357,14 +1378,12 @@ REPETITION & COVERAGE RULES:
             
             is_giveaway = False
             if len(clean_a) >= 3:
-                # Literal quote of answer inside prompt e.g. ' "¿cómo estás?" '
                 quoted_answer_pattern = rf"['\"«“]{re.escape(clean_a)}['\"»”]"
                 if re.search(quoted_answer_pattern, clean_p):
                     is_giveaway = True
                 if clean_p.strip() == clean_a.strip():
                     is_giveaway = True
-            
-            # Reject meta-trivia about letter names, string properties, or alphabet exclusivity
+
             trivia_indicators = [
                 "nombre que incluye", "se llama", "name includes", "includes the word",
                 "harfinin adı", "kelimesini içerir", "which letter has the name",
@@ -1376,7 +1395,6 @@ REPETITION & COVERAGE RULES:
             if any(t in clean_p for t in trivia_indicators):
                 is_giveaway = True
 
-            # Reject meta-orthographic accent/spelling trivia (e.g. "Which word has a tilde?")
             meta_accent_indicators = [
                 "tilde grafica", "lleva tilde", "se escribe con tilde", "con tilde",
                 "accent aigu", "accent grave", "con acento", "hat einen akzent",
@@ -1385,37 +1403,30 @@ REPETITION & COVERAGE RULES:
             if any(mai in clean_p for mai in meta_accent_indicators):
                 is_giveaway = True
 
-            # Multi-answer accent sanity check: If prompt asks about accents, never allow multiple options with accents
             if any(w in clean_p for w in ["tilde", "acento", "accent"]):
                 accent_opts = [o for o in [a] + clean_d[:3] if re.search(r'[áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙâêîôûÂÊÎÔÛ]', o)]
                 if len(accent_opts) > 1:
                     is_giveaway = True
 
-            # Reject proprietary commercial product trivia (e.g. City-Ticket, BahnCard rules)
             product_trivia = ["city ticket", "city-ticket", "bahncard", "abonnement general", "cartes de reduction"]
             if any(pt in clean_p for pt in product_trivia):
                 is_giveaway = True
 
-            # Reject non-target language characters in options (e.g., 'ç' in Spanish)
             if any(s in language.lower() for s in ["spanish", "español", "ispanyolca"]):
                 if any("ç" in o.lower() for o in [a] + clean_d):
                     is_giveaway = True
 
-            # Reject single-letter options for meta questions (like ['Ñ', 'Ç', 'W', 'K'] or ['La letra Ñ', 'La letra Ç'])
             if all(len(re.sub(r'^(la letra|the letter|harf|harfi)\s*', '', opt.lower()).strip()) <= 2 for opt in [a] + clean_d[:3]):
                 is_giveaway = True
 
-            # Reject extreme length disparity where the answer is giveaway long/short
             if clean_d and len(a) > 2.2 * max(len(dist) for dist in clean_d[:3]) and len(a) > 25:
                 is_giveaway = True
             if clean_d and min(len(dist) for dist in clean_d[:3]) > 2.5 * len(a) and min(len(dist) for dist in clean_d[:3]) > 25:
                 is_giveaway = True
 
-            # Reject transparent cognate giveaways only if prompt itself gives away the answer
             if is_transparent_cognate_giveaway(p, "", a, language):
                 is_giveaway = True
 
-            # Reject hybrid Frankenstein questions where target language blank is inside instructional language sentence
             if ("______" in p or "____" in p) and not is_giveaway:
                 if "turkish" not in language.lower() and "türkçe" not in language.lower():
                     blank_lines = [line for line in p.split("\n") if "____" in line]
@@ -1426,7 +1437,6 @@ REPETITION & COVERAGE RULES:
                             is_giveaway = True
                             break
 
-            # Multilingual circular tautological definition detector
             def_question_patterns = [
                 r'\bwas ist (?:eine?|der|das|die)?\s*([a-zäöüß]+)',
                 r'\bqué es (?:el|la|un|una)?\s*([a-záéíóúñ]+)',
@@ -1446,7 +1456,6 @@ REPETITION & COVERAGE RULES:
                             is_giveaway = True
                             break
 
-            # Universal trivial 1-word collocation blank detector
             if "_" in p and len(clean_a.split()) == 1:
                 trivial_verbs = {"fahren", "gehen", "machen", "haben", "sein", "ser", "estar", "haber", "hacer", "ir", "aller", "faire", "fare", "andare"}
                 if clean_a in trivial_verbs:
@@ -1456,7 +1465,6 @@ REPETITION & COVERAGE RULES:
                         if pre_word in ["geschwindigkeit", "tempo", "vitesse", "velocidad", "velocità", "zähne", "bett", "hause"]:
                             is_giveaway = True
 
-            # Dynamic Language Calibration Registry (Clean, data-driven, language-agnostic runner)
             calib_key = next((k for k in LANGUAGE_CALIBRATION_REGISTRY if k in language.lower()), None)
             if calib_key:
                 calib = LANGUAGE_CALIBRATION_REGISTRY[calib_key]
@@ -1478,7 +1486,7 @@ REPETITION & COVERAGE RULES:
                     is_giveaway = True
                 
             if is_giveaway:
-                continue
+                return None
 
             why_en = item.get("why", "Correct answer based on the material.")
             why_tr = item.get("why_tr", item.get("why", "Materyale göre doğru seçenek."))
@@ -1489,11 +1497,10 @@ REPETITION & COVERAGE RULES:
             if re.search(r'_{2,}', p):
                 t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
 
-            # Assemble options with deduplicated distractors (ALWAYS 4 OPTIONS)
             opts = [a] + clean_d[:3]
             py_random.shuffle(opts)
-            
-            final.append({
+
+            return {
                 "id": _uid(),
                 "type": "mcq",
                 "prompt": p,
@@ -1508,52 +1515,130 @@ REPETITION & COVERAGE RULES:
                 "evidence": str(item.get("evidence", "")).strip()[:180],
                 "material_section": str(item.get("material_section", "")).strip()[:100],
                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
-            })
-            if len(final) >= gen_count:
-                break
+            }
 
-        # Candidate pool full reuse: If shortfall remains, evaluate remaining candidate pool items
-        if len(final) < c and raw_list:
-            for item in raw_list:
-                if not isinstance(item, dict): continue
-                p = str(item.get("prompt", "")).strip()
-                a = str(item.get("answer", "")).strip()
-                d = item.get("distractors", [])
-                if not (p and a and isinstance(d, list)): continue
-                if _is_same_batch_semantic_duplicate(item, final, topic_content): continue
-                clean_p_token = _normalize_token(p)
-                if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.90 for f in final): continue
-                clean_d = [str(x).strip() for x in d if str(x).strip() and str(x).strip().lower() != a.lower()]
-                clean_d = list(dict.fromkeys(clean_d))
-                if len(clean_d) < 3: continue
-                opts = [a] + clean_d[:3]
-                py_random.shuffle(opts)
-                why_en = item.get("why", "Correct answer based on the material.")
-                why_tr = item.get("why_tr", "Ders içeriğine göre doğru seçenek.")
-                t_en = item.get("translation_en") or item.get("translation", "")
-                t_tr = item.get("translation_tr") or item.get("translation", "")
-                if re.search(r'_{2,}', p):
-                    t_en, t_tr = _sanitize_blank_translations(p, a, t_en, t_tr, why_en, why_tr, topic_content)
-                final.append({
-                    "id": _uid(),
-                    "type": "mcq",
-                    "prompt": p,
-                    "translation": t_tr if material_language == "tr" else t_en,
-                    "translation_en": t_en,
-                    "translation_tr": t_tr,
-                    "answer": a,
-                    "distractors": clean_d[:3],
-                    "options": opts,
-                    "why": why_en,
-                    "why_tr": why_tr,
-                    "evidence": str(item.get("evidence", "")).strip()[:180],
-                    "material_section": str(item.get("material_section", "")).strip()[:100],
-                    "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
-                })
+        # 1. Evaluate full initial candidate pool (Reject-and-replace: continue selecting until requested count)
+        final = []
+        for item in raw_list:
+            cand = _assemble_valid_candidate(item, final)
+            if cand:
+                final.append(cand)
                 if len(final) >= c:
                     break
+
+        # 2. Hard invariant shortfall resolution: Perform top-up generation for precise shortfall until c is satisfied
+        t_topup_start = time.perf_counter()
+        t_topup = 0.0
+        topup_attempts = 0
+        max_topup_attempts = 3
+        ai_active = not (model_override and str(model_override).lower() in ["none", "offline", "skip", "disabled"])
+
+        while len(final) < c and ai_active and topup_attempts < max_topup_attempts:
+            topup_attempts += 1
+            shortfall = c - len(final)
+            cur_forbidden_prompts = list(forbidden_prompts)
+            cur_forbidden_answers = list(forbidden_answers)
+            for f in final:
+                fp = str(f.get("prompt", "")).strip()
+                fa = str(f.get("answer", "")).strip()
+                if fp and fp not in cur_forbidden_prompts:
+                    cur_forbidden_prompts.append(fp)
+                if fa and fa not in cur_forbidden_answers:
+                    cur_forbidden_answers.append(fa)
+
+            p_list = "\n".join(f"- {p[:120]}" for p in cur_forbidden_prompts[-35:])
+            a_str = ", ".join(f"'{ans}'" for ans in cur_forbidden_answers[-35:])
+            topup_forbidden_clause = f"""
+================================================================================
+ROLLING-HISTORY CONTEXT & REPETITION PREVENTION MANDATE (ALL CEFR LEVELS):
+================================================================================
+Target items already tested in current batch and previous batches (ABSOLUTELY DO NOT REPEAT):
+- Target answers previously tested: [{a_str}]
+- Stems/questions previously tested:
+{p_list}
+================================================================================
+"""
+            topup_user = f"""TASK: Generate EXACTLY {shortfall} unique {topic_type} questions.
+TOPIC: {topic_title}
+LEVEL: {level}
+SOURCE MATERIAL: {content_str}
+{ref_data}
+{topup_forbidden_clause}
+
+PEDAGOGICAL EMPHASIS: {selected_variety_focus}
+VARIETY INSTRUCTION: Vary format, difficulty, and context. Use different scenario styles for every question. Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition, while preferring clarity and authentic usage over artificial difficulty or forced variety.
+
+QUESTION FORMAT VARIETY MANDATE (CRITICAL):
+- Provide a RICH MIX of question types!
+- DO NOT make all questions fill-in-the-blank! At most 1 question should have a blank ('_____').
+- The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
+- ABSOLUTELY ZERO ARITHMETIC: NEVER ask math operations (sumar, multiplicar, 'más', 'plus'). Test numbers only via time, prices, or schedules!
+
+JSON STRUCTURE:
+{{
+  "data": [
+    {{
+      "type": "mcq",
+      "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
+      "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
+      "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
+      "prompt": "Authentic question 100% in {language}",
+      "translation_en": "Natural English translation of the prompt",
+      "translation_tr": "Doğal Türkçe çevirisi",
+      "answer": "Correct answer in {language}",
+      "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
+      "why": "Short 1-sentence reason (max 15 words)",
+      "why_tr": "Kısa 1 cümlelik pedagojik açıklama (en fazla 15 kelime)"
+    }}
+  ]
+}}
+
+CRITICAL MANDATES:
+1) STRICT MATERIAL GROUNDING & CEFR APPROPRIATENESS: Preserve strict material grounding, CEFR {level} appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. Questions must assess knowledge, vocabulary, grammar patterns, relationships, or communicative functions explicitly taught or demonstrated in the material.
+2) GATE 1 - COMMON SENSE REJECTION: A question FAILS only when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported objective.
+3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch. ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options.
+5) EXACTLY ONE DEFENSIBLE ANSWER & PLAUSIBLE SAME-LEVEL DISTRACTORS: Every multiple-choice item MUST have exactly one defensible correct answer in the full sentence and context.
+6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+7) AVOID SAME-BATCH SEMANTIC DUPLICATES & STRICT CONCEPT-DEFINITION GROUNDING: Within the current test and previous batches, treat two questions as duplicates when they assess essentially the same target through the same pragmatic situation, communicative purpose, expression, reasoning path, or answer distinction, even if their wording or format differs. Reusing the same learning objective is allowed ONLY when the new question genuinely tests a different application, context, contrast, or cognitive operation; do not include two items that merely paraphrase the same scenario or ask for the same expression/function twice. For grammatical, rhetorical, semantic, pragmatic, discourse, or literary concepts, never synthesize a broad definition from examples or merge neighboring concepts into one another. A definitional question may test ONLY the properties explicitly supported by the source-backed structured metadata; if the source does not clearly distinguish the target concept, assess recognition or application in context instead.
+8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills.
+10) CONCISE EXPLANATIONS & METADATA: 'why' and 'why_tr' MUST be 1 short concise sentence (max 15 words).
+11) NATURALNESS, TECHNICAL PRECISION & AUTHENTIC USAGE: The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology, exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording.
+12) PRE-OUTPUT 6-GATE SELF-VERIFICATION: Internally verify each question against the 6 gates before returning JSON.
+
+UNIQUE_REQUEST_ID: {seed}_topup_{topup_attempts}_{py_random.random()}"""
+
+            topup_max_tokens = min(3500, max(800, shortfall * 250))
+            topup_res = _call_ai(
+                [{"role": "system", "content": system}, {"role": "user", "content": topup_user}],
+                model=target_model,
+                max_tokens=topup_max_tokens,
+                temperature=target_temp,
+                json_mode=True,
+                allow_fallback=True
+            )
+            topup_list = []
+            if isinstance(topup_res, list):
+                topup_list = topup_res
+            elif isinstance(topup_res, dict):
+                topup_list = topup_res.get("data") or topup_res.get("questions") or topup_res.get("items") or topup_res.get("quiz") or topup_res.get("activities") or []
+            
+            if not topup_list:
+                break
+
+            for item in topup_list:
+                cand = _assemble_valid_candidate(item, final)
+                if cand:
+                    final.append(cand)
+                    if len(final) >= c:
+                        break
+
+        if topup_attempts > 0:
+            t_topup = time.perf_counter() - t_topup_start
+        timing_ctx["top_up"] = t_topup
         
-        # ── DETERMINISTIC CONTENT FALLBACK (Prevents Empty Questions & Loops) ──
+        # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──
         if len(final) < c and isinstance(topic_content, dict):
             # Helper for fallback target language questions
             is_esp = any(s in language.lower() for s in ["spanish", "español", "ispanyolca"])
@@ -1635,8 +1720,33 @@ REPETITION & COVERAGE RULES:
                             "why_tr": page.get("explanation_tr", page.get("explanation", "Ders içeriğine göre doğru seçenek."))
                         })
 
-            # Pre-authored MCQs are pulled if any exist in the topic pages; no broken dummy templates synthesized.
-            pass
+            # 2. In multi-topic, if AI failed completely, extract from topics key_vocab
+            if len(final) < c and "topics" in topic_content:
+                for top in topic_content.get("topics", []):
+                    if len(final) >= c: break
+                    vocabs = top.get("key_vocab", [])
+                    for voc in vocabs:
+                        if len(final) >= c: break
+                        v_str = str(voc).strip()
+                        if not v_str or any(_normalize_token(f.get("answer")) == _normalize_token(v_str) for f in final):
+                            continue
+                        all_vocabs = [str(x).strip() for t in topic_content.get("topics", []) for x in t.get("key_vocab", []) if str(x).strip().lower() != v_str.lower()]
+                        if len(all_vocabs) >= 3:
+                            opts = [v_str] + py_random.sample(all_vocabs, 3)
+                            py_random.shuffle(opts)
+                            final.append({
+                                "id": _uid(),
+                                "type": "mcq",
+                                "prompt": _make_fallback_prompt(v_str),
+                                "translation": v_str,
+                                "translation_en": v_str,
+                                "translation_tr": v_str,
+                                "answer": v_str,
+                                "distractors": [x for x in opts if x != v_str][:3],
+                                "options": opts,
+                                "why": "Target vocabulary item from the lesson.",
+                                "why_tr": "Ders içeriğindeki hedef kelime."
+                            })
 
         # Sanitize Turkish fields in generated questions
         for q in final:
@@ -1660,7 +1770,7 @@ REPETITION & COVERAGE RULES:
         timing_ctx["total_elapsed"] = t_total
 
         log_lines = [
-            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-PERF] Topic: '{topic_title}' (req={c}, count={len(final)}):",
+            f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-PERF] Topic: '{topic_title}' (req={c}, count={len(final[:c])}):",
             f"  1. DB/Content Loading:       {t_db:.4f}s",
             f"  2. Structured Assembly:      {t_assembly:.4f}s",
             f"  3. Provenance Resolution:    {t_prov:.4f}s",
@@ -1678,9 +1788,9 @@ REPETITION & COVERAGE RULES:
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(log_str + "\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s\n")
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final[:c])}\n")
             
-        return final[:gen_count]
+        return final[:c]
     except Exception as e:
         import traceback
         with open("pipeline.log", "a", encoding="utf-8") as f:
