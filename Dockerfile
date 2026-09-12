@@ -1,9 +1,7 @@
 FROM public.ecr.aws/docker/library/python:3.12-slim
 
-# Set unbuffered output for logging
 ENV PYTHONUNBUFFERED=1
 
-# Install Tesseract, language packs, and Poppler (for pdf2image)
 RUN apt-get update -qq && apt-get install -y -qq \
     tesseract-ocr \
     tesseract-ocr-spa \
@@ -32,7 +30,6 @@ COPY . .
 
 RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_ui_and_localization_v2.py \
-    && python scripts/patch_pdf_structural_pagination.py \
     && python scripts/patch_pdf_picker_ui.py \
     && python -m py_compile server.py
 
