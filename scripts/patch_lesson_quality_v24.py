@@ -3,7 +3,7 @@ from pathlib import Path
 p = Path(__file__).resolve().parents[1] / 'services' / 'ai_engine.py'
 s = p.read_text(encoding='utf-8')
 
- rules = '''
+rules = '''
 <lesson_quality_v24>
 - Keep every lesson strictly appropriate to CEFR {level}; depth comes from clarity, useful examples, contrasts and practice, not unnecessary advanced content.
 - Teach the exact objective completely but avoid redundant explanations, tangential rules, speculative details and repetition.
