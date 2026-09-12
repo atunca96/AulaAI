@@ -730,6 +730,41 @@ def init_db():
         except Exception as e:
             print(f"[MIGRATION ERROR] Failed to apply rules & comparisons refresh: {e}")
 
+        # Apply strict source provenance rules & comparisons refresh (v2)
+        try:
+            c.execute("CREATE TABLE IF NOT EXISTS migration_history (key TEXT PRIMARY KEY)")
+            mig_done = c.execute("SELECT 1 FROM migration_history WHERE key = 'strict_source_provenance_rules_refresh_v2'").fetchone()
+            if not mig_done:
+                json_p = os.path.join(os.path.dirname(__file__), "services", "refreshed_rules_comparisons.json")
+                if not os.path.exists(json_p):
+                    json_p = os.path.join(os.getcwd(), "services", "refreshed_rules_comparisons.json")
+                if os.path.exists(json_p):
+                    with open(json_p, "r", encoding="utf-8") as jf:
+                        refresh_map = json.load(jf)
+                    top_rows = c.execute("SELECT id, content FROM topics").fetchall()
+                    for tid, raw_c in top_rows:
+                        if tid in refresh_map and raw_c:
+                            try:
+                                cont = json.loads(raw_c)
+                                pages = cont.get("pages", [])
+                                p_map = refresh_map[tid].get("pages", {})
+                                for p_idx, p in enumerate(pages):
+                                    p.pop("rules", None)
+                                    p.pop("comparisons", None)
+                                    if str(p_idx) in p_map:
+                                        p_data = p_map[str(p_idx)]
+                                        if p_data.get("rules"):
+                                            p["rules"] = p_data["rules"]
+                                        if p_data.get("comparisons"):
+                                            p["comparisons"] = p_data["comparisons"]
+                                c.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(cont, ensure_ascii=False), tid))
+                            except Exception as ex:
+                                print(f"[MIGRATION WARNING] Failed to apply source provenance refresh to topic {tid}: {ex}")
+                    c.execute("INSERT OR IGNORE INTO migration_history (key) VALUES ('strict_source_provenance_rules_refresh_v2')")
+                    print("[MIGRATION] Strict source provenance rules & comparisons refresh (v2) applied successfully.")
+        except Exception as e:
+            print(f"[MIGRATION ERROR] Failed to apply source provenance rules & comparisons refresh: {e}")
+
         db.commit()
 
         # Run demo course seeding ONLY if the DB is actually empty
