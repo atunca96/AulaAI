@@ -32,8 +32,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Apply the stable PDF localization patch only, then syntax-check server.py.
+# Apply stable PDF behavior first, then visual-only PDF CSS cleanup.
 RUN python scripts/patch_pdf_title_localization.py \
+    && python scripts/patch_pdf_ui_and_localization_v2.py \
     && python -m py_compile server.py
 
 # Run the server
