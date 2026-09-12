@@ -15,14 +15,12 @@ import threading
 import time
 import logging
 
-# Configure basic logging to sys.stdout so that logs are captured in pipeline.log (Windows) or container output (Linux)
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] %(name)s: %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 
-# CRITICAL: Ensure project root is in path for imports before anything else
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
@@ -31,13 +29,11 @@ from services.pipeline_v2.orchestrator import start_pipeline_v2
 
 def heartbeat():
     while True:
-        # Using stderr for heartbeat to keep stdout clean for JSON if needed
         print("[PIPELINE] Heartbeat: Worker is still processing...", file=sys.stderr)
         sys.stderr.flush()
         time.sleep(30)
 
 def main():
-    # Load environment variables for worker stability
     if os.path.exists(".env"):
         with open(".env", "r") as f:
             for line in f:
@@ -46,25 +42,23 @@ def main():
                     k, v = line.split("=", 1)
                     os.environ[k.strip()] = v.strip()
 
-    # Start heartbeat in background
     h_thread = threading.Thread(target=heartbeat, daemon=True)
     h_thread.start()
-    
+
     with open("pipeline.log", "a", encoding="utf-8") as f:
         f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Process started with args: {sys.argv}\n")
-    
-    # SINGLETON ENFORCEMENT: Identify course_id for all modes
+
     course_id = None
     if len(sys.argv) >= 2:
         if len(sys.argv) < 5:
-            course_id = sys.argv[1] # REGENERATE mode
+            course_id = sys.argv[1]
         else:
-            course_id = sys.argv[4] # FULL PIPELINE mode
+            course_id = sys.argv[4]
 
     if course_id:
         pid_file = os.path.join("data", "workers", f"{course_id}.pid")
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
-        
+
         if os.path.exists(pid_file):
             try:
                 with open(pid_file, "r") as f:
@@ -78,39 +72,35 @@ def main():
                         os.kill(old_pid, signal.SIGTERM)
                     with open("pipeline.log", "a", encoding="utf-8") as f:
                         f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Terminated stale worker {old_pid} for course {course_id}\n")
-            except: pass
-            
+            except Exception:
+                pass
+
         with open(pid_file, "w") as f:
             f.write(str(os.getpid()))
-    
+
     try:
-        # ROBUST ARG PARSING
-        # Mode 1: REGENERATE (1-3 args after worker.py)
         if 2 <= len(sys.argv) <= 4:
             course_id = sys.argv[1]
             gen_id = sys.argv[2] if len(sys.argv) >= 3 else "LEGACY"
             source_markdown_path = sys.argv[3] if len(sys.argv) == 4 else None
-            
+
             if source_markdown_path == "NONE":
                 source_markdown_path = None
-            
+
             from services.legacy.pdf_pipeline import enrich_classroom_phase2
             from database import db_connection
-            
+
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{time.strftime('%H:%M:%S')}] [WORKER] Starting REGENERATE mode for Course {course_id}\n")
-            
+
             with db_connection() as db:
                 row = db.execute("SELECT name, textbook FROM courses WHERE id=?", (course_id,)).fetchone()
                 course_name = row["name"] if row else "Unknown Course"
                 pdf_path = row["textbook"] if row else None
-                
-                # NUCLEAR RESET: Ensure we start at 0% even if previous build was dirty
                 db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'enriching', build_message = 'Starting lesson rebuild...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
                 db.commit()
-            
+
             try:
-                # FIXED: Use keyword arguments to avoid positional mismatch (source_markdown_path is 4th, gen_id is 5th)
                 enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             except Exception as e:
                 with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -118,11 +108,8 @@ def main():
                     f.write(traceback.format_exc())
                 raise e
             finally:
-                try:
-                    from services.bilingual_finisher import finalize_course_bilingual_data
-                    finalize_course_bilingual_data(course_id)
-                except Exception as b_err:
-                    print(f"[WORKER] Warning: finalize_course_bilingual_data failed: {b_err}")
+                # enrich_classroom_phase2 already performs the single authoritative
+                # bilingual finalization. Do not run it again here.
                 with db_connection() as db:
                     db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', build_message = 'Classroom is ready!' WHERE id=? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
                     db.commit()
@@ -153,7 +140,6 @@ def main():
             with open(manual_toc_path, "r", encoding="utf-8") as f:
                 manual_toc = f.read()
 
-        # NUCLEAR RESET: Start fresh
         from database import db_connection
         with db_connection() as db:
             db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Ders programı analiz ediliyor...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
@@ -161,25 +147,22 @@ def main():
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")
         start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=manual_toc, language=language, level=level, gen_id=gen_id, toc_range=toc_range)
-        
-        # ── PHASE 2: ENRICHMENT ──
+
         print(f"[PIPELINE] Worker starting ENRICHMENT (Phase 2) for Course {course_id}")
         from services.legacy.pdf_pipeline import enrich_classroom_phase2
         from database import db_connection
-        
-        # RE-CALCULATE TOTAL STEPS (Now that curriculum exists)
+
         with db_connection() as db:
             db.execute("""
                 UPDATE courses SET total_steps = (
-                    SELECT COUNT(*) FROM topics t 
-                    JOIN chapters ch ON t.chapter_id = ch.id 
+                    SELECT COUNT(*) FROM topics t
+                    JOIN chapters ch ON t.chapter_id = ch.id
                     WHERE ch.course_id = ?
                 ), build_stage = 'enriching', build_message = 'Ders içerikleri hazırlanıyor...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')
             """, (course_id, course_id, gen_id, gen_id))
             db.commit()
 
         try:
-            # FIXED: Use keyword arguments here too!
             enrich_classroom_phase2(course_id, pdf_path, source_markdown_path=source_markdown_path, gen_id=gen_id)
             print(f"[PIPELINE] Worker finished ENRICHMENT for Course {course_id}")
         except Exception as e:
@@ -187,24 +170,17 @@ def main():
             with db_connection() as db:
                 db.execute("UPDATE courses SET is_building = 0, build_stage = 'failed', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (f"Enrichment error: {str(e)[:120]}", course_id, gen_id, gen_id))
                 db.commit()
-            
-        # Finalize bilingual data before releasing course build
-        try:
-            from services.bilingual_finisher import finalize_course_bilingual_data
-            finalize_course_bilingual_data(course_id)
-        except Exception as b_err:
-            print(f"[PIPELINE] Warning: finalize_course_bilingual_data failed: {b_err}")
 
-        # Finalize
+        # enrich_classroom_phase2 already runs bilingual finalization once.
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
         from database import enroll_permanent_students_in_course
         enroll_permanent_students_in_course(course_id)
-            
+
         print(f"[PIPELINE] Worker finished FULL PIPELINE (V2 + Enrichment) for Course {course_id}")
 
-    except Exception as e:
+    except Exception:
         print("[PIPELINE] FATAL ERROR in worker.py:", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         sys.stderr.flush()
