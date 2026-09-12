@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
 # Set unbuffered output for logging
 ENV PYTHONUNBUFFERED=1
