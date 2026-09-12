@@ -24,7 +24,7 @@
     <link rel="stylesheet" href="/css/styles.css?v=20260911_v016">
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/bilingual_materials.js?v=20260911_v016" defer></script>
-    <script src="/js/app.js?v=20260911_v038" defer></script>
+    <script src="/js/app.js?v=20260912_v210" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
@@ -1050,10 +1050,19 @@
             </section>
             <!-- AI Study Materials Tab (Lecturer) -->
             <section id="tab-study-materials" class="tab-panel">
-                <div class="page-header">
-                    <h1><span data-i18n="Material">Material</span></h1>
-                    <p class="subtitle book-subtitle">Course Materials</p>
+                <div class="page-header" style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+                    <div>
+                        <h1><span data-i18n="Material">Material</span></h1>
+                        <p class="subtitle book-subtitle">Course Materials</p>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding-top:4px;">
+                        <button id="export-pdf-btn" class="btn btn-ghost" onclick="downloadCourseMaterialPDF()" title="Export all course materials as PDF" style="display:flex; align-items:center; gap:6px; font-size:13px; padding:8px 14px; border:1px solid var(--border);">
+                            <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span data-i18n="export_pdf">Export PDF</span>
+                        </button>
+                    </div>
                 </div>
+
                 <!-- Digital Study Container -->
                 <div class="study-container hidden" id="ai-book-container">
                     <div class="study-sidebar">
@@ -1190,10 +1199,19 @@
 
             <!-- Digital Study Tab (Student AI Lessons) -->
             <section id="tab-s-study-tab" class="tab-panel">
-                <div class="page-header" style="margin-bottom: 24px;">
-                    <h1 id="s-study-tab-main-title" data-i18n="Material">Material</h1>
-                    <p class="subtitle" style="color: var(--text-secondary); margin:0;" data-i18n="select_study_topic">Select a topic from the sidebar to begin your lesson</p>
+                <div class="page-header" style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom: 24px;">
+                    <div>
+                        <h1 id="s-study-tab-main-title" data-i18n="Material">Material</h1>
+                        <p class="subtitle" style="color: var(--text-secondary); margin:0;" data-i18n="select_study_topic">Select a topic from the sidebar to begin your lesson</p>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding-top:4px;">
+                        <button id="s-export-pdf-btn" class="btn btn-ghost" onclick="downloadCourseMaterialPDF()" title="Export all course materials as PDF" style="display:flex; align-items:center; gap:6px; font-size:13px; padding:8px 14px; border:1px solid var(--border);">
+                            <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span data-i18n="export_pdf">Export PDF</span>
+                        </button>
+                    </div>
                 </div>
+
                 
                 <div class="study-container" id="s-ai-book-container">
                     <!-- Sidebar -->

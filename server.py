@@ -823,8 +823,16 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return self._tts_speak()
         elif path == "/health" or path == "/api/health":
             return self._send_json({"status": "ok", "time": datetime.now().isoformat()})
+        elif path.startswith("/api/courses/") and path.endswith("/export-pdf"):
+            # Extract course_id from /api/courses/{id}/export-pdf
+            parts = path.split("/")
+            cid = parts[3] if len(parts) >= 5 else None
+            if not cid:
+                return self._send_error("course_id required", 400)
+            return self._export_course_pdf(cid)
         elif path.startswith("/api/"):
             return self._send_error("Not found", 404)
+
         else:
             return self._serve_static(path)
 
@@ -893,6 +901,238 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             print(f"[TTS ERROR] {e}")
             traceback.print_exc()
             return self._send_error(f"TTS failed: {str(e)}")
+
+    def _export_course_pdf(self, course_id):
+        """
+        Generate a comprehensive course PDF using PyMuPDF (fitz.Story + HTML).
+        No external APIs — self-contained, local PDF generation only.
+        """
+        import html as _html
+        try:
+            import fitz
+        except ImportError:
+            return self._send_error("PyMuPDF (fitz) is not installed. Run: pip install PyMuPDF", 500)
+
+        import tempfile, os, json as _json
+
+        try:
+            with db_connection() as db:
+                c_row = db.execute(
+                    "SELECT id, name, language, level, semester FROM courses WHERE id = ?",
+                    (course_id,)
+                ).fetchone()
+                if not c_row:
+                    return self._send_error("Course not found", 404)
+                course_name = c_row[1] or "Course Materials"
+                course_lang = c_row[2] or "General"
+                course_level = c_row[3] or "All Levels"
+                semester = c_row[4] or ""
+
+                chapters = db.execute(
+                    "SELECT id, number, title FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC",
+                    (course_id,)
+                ).fetchall()
+
+            CSS = """
+@page { margin: 0; }
+body { font-family: sans-serif; font-size: 9.5pt; color: #1e293b; line-height: 1.45; }
+.cover { text-align: center; border-bottom: 2px solid #4f46e5; padding-bottom: 14px; margin-bottom: 22px; }
+.cover-title { font-size: 20pt; font-weight: bold; color: #1e1b4b; margin: 0 0 6px 0; }
+.cover-sub { font-size: 11pt; color: #4338ca; font-weight: 600; margin: 0 0 4px 0; }
+.cover-meta { font-size: 8pt; color: #64748b; }
+.unit-card { background: #e0e7ff; border-radius: 4px; padding: 6px 12px; margin-top: 22px; margin-bottom: 12px; border-left: 4px solid #4338ca; }
+.unit-title { font-size: 12pt; font-weight: bold; color: #312e81; margin: 0; }
+.topic-card { margin-top: 14px; margin-bottom: 18px; }
+.topic-title { font-size: 11pt; font-weight: bold; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 8px; }
+.badge { font-size: 7pt; font-weight: bold; background: #e2e8f0; color: #334155; padding: 2px 6px; border-radius: 3px; text-transform: uppercase; margin-left: 6px; }
+.sec-heading { font-size: 8pt; font-weight: bold; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; margin-bottom: 4px; }
+.summary-text { font-size: 9pt; color: #334155; margin-bottom: 8px; font-style: italic; background: #f8fafc; padding: 6px 10px; border-radius: 4px; }
+.rule-box { background: #f8fafc; border-left: 3px solid #6366f1; padding: 6px 10px; margin-bottom: 6px; border-radius: 0 4px 4px 0; }
+.rule-name { font-weight: bold; font-size: 9pt; color: #0f172a; }
+.rule-expl { font-size: 8.5pt; color: #334155; margin-top: 2px; }
+.rule-ex { font-size: 8pt; color: #047857; margin-top: 2px; font-style: italic; }
+table.ct { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 10px; font-size: 8.5pt; }
+table.ct th { background: #f1f5f9; font-weight: bold; color: #334155; border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; }
+table.ct td { border: 1px solid #cbd5e1; padding: 4px 7px; vertical-align: top; }
+table.ct tr:nth-child(even) { background: #f8fafc; }
+.diag-box { background: #fdfefe; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 9px; margin-bottom: 5px; font-size: 8.5pt; }
+.spkr { font-weight: bold; color: #4338ca; }
+.dtrans { color: #64748b; font-style: italic; margin-left: 6px; font-size: 8pt; }
+.mcq-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 5px 9px; margin-bottom: 5px; font-size: 8.5pt; }
+.mcq-q { font-weight: 600; color: #1e293b; }
+.mcq-opt { color: #475569; margin-left: 10px; font-size: 8pt; }
+.mcq-ans { color: #059669; font-weight: 600; margin-top: 2px; font-size: 8pt; }
+"""
+            E = _html.escape
+            parts = [f"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"]
+            sem_str = f" ({E(semester)})" if semester else ""
+            parts.append(
+                f'<div class="cover"><div class="cover-title">{E(course_name)}</div>'
+                f'<div class="cover-sub">{E(course_lang)} &middot; Level {E(course_level)}{sem_str}</div>'
+                f'<div class="cover-meta">AulaAI Automated Educational Courseware &middot; Comprehensive Learning Materials</div></div>'
+            )
+
+            with db_connection() as db:
+                for ch in chapters:
+                    ch_id, ch_num, ch_title = ch
+                    ch_label = f"Unit {ch_num}: {ch_title or 'Unit'}"
+                    parts.append(f'<div class="unit-card"><div class="unit-title">{E(ch_label)}</div></div>')
+
+                    topics = db.execute(
+                        "SELECT id, type, title, content FROM topics WHERE chapter_id = ? ORDER BY sort_order ASC, id ASC",
+                        (ch_id,)
+                    ).fetchall()
+
+                    for top_id, top_type, top_title, top_content_str in topics:
+                        content_obj = {}
+                        if top_content_str:
+                            try:
+                                content_obj = _json.loads(top_content_str)
+                            except Exception:
+                                pass
+
+                        parts.append(
+                            f'<div class="topic-card">'
+                            f'<div class="topic-title">{E(top_title or "Topic")} <span class="badge">{E(top_type or "Lesson")}</span></div>'
+                        )
+
+                        # Summary
+                        summary = (content_obj.get("summary") or content_obj.get("description") or
+                                   content_obj.get("objective") or "")
+                        if summary:
+                            parts.append(f'<div class="summary-text">{E(str(summary))}</div>')
+
+                        # Grammar rules
+                        rules = content_obj.get("rules") or content_obj.get("grammar") or []
+                        if isinstance(rules, list) and rules:
+                            parts.append('<div class="sec-heading">Grammar &amp; Language Rules</div>')
+                            for r in rules:
+                                if isinstance(r, dict):
+                                    rn = r.get("rule") or r.get("title") or r.get("name") or "Rule"
+                                    re_ = r.get("explanation") or r.get("explanation_en") or r.get("desc") or ""
+                                    exs = r.get("examples") or r.get("example") or []
+                                    ex_str = " | ".join(str(x) for x in (exs if isinstance(exs, list) else [exs])[:3])
+                                    parts.append(f'<div class="rule-box"><div class="rule-name">{E(str(rn))}</div>')
+                                    if re_: parts.append(f'<div class="rule-expl">{E(str(re_))}</div>')
+                                    if ex_str: parts.append(f'<div class="rule-ex">Examples: {E(ex_str)}</div>')
+                                    parts.append('</div>')
+                                elif isinstance(r, str):
+                                    parts.append(f'<div class="rule-box"><div class="rule-expl">{E(r)}</div></div>')
+
+                        # Vocabulary
+                        vocab = content_obj.get("vocabulary") or content_obj.get("words") or []
+                        if isinstance(vocab, list) and vocab:
+                            parts.append('<div class="sec-heading">Key Vocabulary &amp; Expressions</div>')
+                            parts.append('<table class="ct"><tr><th style="width:30%;">Term</th><th style="width:35%;">Meaning</th><th style="width:35%;">Example</th></tr>')
+                            for v in vocab:
+                                if isinstance(v, dict):
+                                    term = (v.get("term") or v.get("word") or v.get("phrase") or
+                                            v.get("spanish") or v.get("text") or v.get("character") or "")
+                                    mean = (v.get("translation_en") or v.get("meaning_en") or
+                                            v.get("meaning") or v.get("translation_tr") or v.get("translation") or "")
+                                    ex = (v.get("example") or v.get("sentence") or
+                                          v.get("example_en") or v.get("example_tr") or "")
+                                    parts.append(
+                                        f'<tr><td><strong>{E(str(term))}</strong></td>'
+                                        f'<td>{E(str(mean))}</td>'
+                                        f'<td>{E(str(ex))}</td></tr>'
+                                    )
+                            parts.append('</table>')
+
+                        # Dialogue
+                        dialogues = content_obj.get("dialogue") or content_obj.get("dialogues") or []
+                        if isinstance(dialogues, list) and dialogues:
+                            parts.append('<div class="sec-heading">Practical Dialogue</div>')
+                            for d in dialogues:
+                                if isinstance(d, dict):
+                                    spk = d.get("speaker") or d.get("name") or "Person"
+                                    line = d.get("line") or d.get("text") or d.get("spanish") or ""
+                                    trans = d.get("line_en") or d.get("line_tr") or d.get("translation") or ""
+                                    parts.append(
+                                        f'<div class="diag-box"><span class="spkr">{E(str(spk))}:</span>'
+                                        f' &ldquo;{E(str(line))}&rdquo;'
+                                    )
+                                    if trans:
+                                        parts.append(f'<span class="dtrans">({E(str(trans))})</span>')
+                                    parts.append('</div>')
+
+                        # Quick-check questions (first 4)
+                        questions = content_obj.get("questions") or content_obj.get("practice_questions") or []
+                        if isinstance(questions, list) and questions:
+                            parts.append('<div class="sec-heading">Quick Check Questions</div>')
+                            for qi, q in enumerate(questions[:4]):
+                                if isinstance(q, dict):
+                                    q_prompt = q.get("prompt") or q.get("question") or ""
+                                    q_opts = q.get("options") or []
+                                    q_ans = q.get("answer") or ""
+                                    parts.append(
+                                        f'<div class="mcq-box">'
+                                        f'<div class="mcq-q">{qi+1}. {E(str(q_prompt))}</div>'
+                                    )
+                                    if q_opts:
+                                        parts.append(f'<div class="mcq-opt">Options: {E(", ".join(str(o) for o in q_opts))}</div>')
+                                    if q_ans:
+                                        parts.append(f'<div class="mcq-ans">&#10003; {E(str(q_ans))}</div>')
+                                    parts.append('</div>')
+
+                        parts.append('</div>')  # close topic-card
+
+            parts.append('</body></html>')
+            full_html = "".join(parts)
+
+            # ── Render with fitz.Story ────────────────────────────────────────
+            fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+            os.close(fd)
+
+            try:
+                story = fitz.Story(html=full_html)
+                writer = fitz.DocumentWriter(temp_path)
+                story.write(writer, lambda n, f: (fitz.paper_rect("a4"), fitz.Rect(38, 42, 557, 798), None))
+                writer.close()
+
+                doc = fitz.open(temp_path)
+                total_pages = len(doc)
+                for idx, page in enumerate(doc):
+                    if idx > 0:
+                        page.insert_text(
+                            fitz.Point(38, 28),
+                            f"AulaAI Courseware \u2014 {course_name}",
+                            fontsize=7.5, color=(0.45, 0.45, 0.45)
+                        )
+                    page.insert_text(
+                        fitz.Point(38, 824),
+                        "AulaAI Educational System \u2014 Self-Contained Course Material",
+                        fontsize=7.5, color=(0.45, 0.45, 0.45)
+                    )
+                    page.insert_text(
+                        fitz.Point(480, 824),
+                        f"Page {idx + 1} / {total_pages}",
+                        fontsize=7.5, color=(0.45, 0.45, 0.45)
+                    )
+                pdf_bytes = doc.tobytes()
+                doc.close()
+            finally:
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
+
+            safe_name = "".join(c if (c.isalnum() or c in "-_") else "_" for c in course_name).strip("_")
+            filename = f"{safe_name}_AulaAI.pdf"
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(len(pdf_bytes)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(pdf_bytes)
+
+        except Exception as e:
+            print(f"[PDF EXPORT ERROR] {e}")
+            traceback.print_exc()
+            return self._send_error(f"PDF generation failed: {str(e)}", 500)
 
     def _wipe_curriculum(self):
         """Delete all chapters and topics for a classroom to start fresh."""

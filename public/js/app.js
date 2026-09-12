@@ -769,6 +769,8 @@ const i18n = {
     Lecturer: 'Lecturer', Student: 'Student',
     'Lecturer': 'Lecturer', 'Student': 'Student',
     select_study_topic: 'Select a topic to start studying',
+    export_pdf: 'Export PDF',
+    'study.sidebar_guide': 'Use the sidebar on the left to navigate through units.',
     page: 'PAGE',
     // Student dashboard
     home: 'Home', practice: 'Practice', quizzes: 'Quizzes', myProgress: 'My Progress',
@@ -1584,6 +1586,8 @@ const i18n = {
     'alert.classroom_reset': 'Sınıf Sıfırlandı',
     'alert.classroom_reset_msg': 'Öğretmeniniz bu sınıfı sıfırladı. Sınıf seçim ekranına yönlendirildiniz.',
     select_study_topic: 'Çalışmak için bir konu seçin',
+    export_pdf: 'PDF İndir',
+    'study.sidebar_guide': 'Ünitelere göz atmak için soldaki menüyü kullanın.',
     'student.delete_account': 'Hesabı Sil',
     'student.delete_account_title': 'Hesabı Sil',
     'student.delete_account_msg': 'Hesabınızı kalıcı olarak silmek istediğinizden emin misiniz? Tüm ilerlemeniz ve verileriniz sonsuza dek kaybolacak.',
@@ -11350,6 +11354,12 @@ function renderStudyBook() {
 
   if (!curriculum || curriculum.length === 0) {
     toc.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:10px;">${t('class.no_curriculum') || 'No curriculum loaded.'}</p>`;
+    // Also clear the content area spinner and show a proper empty state
+    const contentAreaId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
+    const contentArea = document.getElementById(contentAreaId);
+    if (contentArea) {
+      contentArea.innerHTML = `<div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; padding:40px;"><div style="font-size:36px; margin-bottom:16px;">📚</div><h3 style="font-size:18px; font-weight:600; color:var(--text-primary); margin-bottom:8px;">${currentLang === 'tr' ? 'Henüz materyal bulunmuyor' : 'No materials available yet'}</h3><p style="font-size:14px; color:var(--text-muted);">${currentLang === 'tr' ? 'Bu sınıf için materyal oluşturulmamış.' : 'No materials have been created for this course.'}</p></div>`;
+    }
     return;
   }
 
@@ -11370,7 +11380,26 @@ function renderStudyBook() {
       </div>
     </div>
   `;}).join('');
+
+  // After rendering TOC — if no active topic exists yet, restore the welcoming placeholder
+  // (prevents the loading spinner from getting permanently stuck)
+  const activeTopicBtn = document.querySelector('.study-topic-btn.active');
+  if (!activeTopicBtn) {
+    const contentAreaId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
+    const contentArea = document.getElementById(contentAreaId);
+    if (contentArea && !contentArea.querySelector('.study-card:not(.skeleton-loading), .study-content-page')) {
+      const emptyTitle = currentLang === 'tr' ? 'Çalışmaya Başlamak İçin Bir Konu Seçin' : 'Select a Topic to Start Studying';
+      const emptyBody = currentLang === 'tr' ? 'Ünitelere göz atmak için soldaki menüyü kullanın.' : 'Use the sidebar on the left to navigate through units.';
+      contentArea.innerHTML = `
+        <div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; padding:40px 20px;">
+          <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:54px;height:54px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
+          <h2 style="font-size:22px; font-weight:600; color:var(--text-primary); margin-bottom:10px;">${emptyTitle}</h2>
+          <p style="font-size:15px; color:var(--text-muted);">${emptyBody}</p>
+        </div>`;
+    }
+  }
 }
+
 
 function highlightPedagogicalTerms(text) {
   if (!text || typeof text !== 'string') return '';
@@ -11637,7 +11666,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     const courseMatLang = (currentCourse && currentCourse.material_language) ||
                           (topic && topic.material_language) ||
                           null;
-    const isTrMaterial = (courseMatLang === 'tr' || currentLang === 'tr');
+    const isTrMaterial = (currentLang === 'tr');
 
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach((p, pIdx) => {
@@ -13417,3 +13446,63 @@ window.handleDemoTTS = function(btn) {
   const lang = window.currentDemoLang || 'Spanish';
   handleTTSClick(btn, text, lang);
 };
+
+// ── PDF Export ─────────────────────────────────────────────────────────────────
+async function downloadCourseMaterialPDF() {
+  if (!courseId) {
+    showNotification(currentLang === 'tr' ? 'Lütfen önce bir sınıf seçin.' : 'Please select a classroom first.', 'error');
+    return;
+  }
+
+  // Update button state
+  const btns = document.querySelectorAll('#export-pdf-btn, #s-export-pdf-btn');
+  const origTexts = [];
+  btns.forEach((btn, i) => {
+    origTexts[i] = btn.innerHTML;
+    btn.innerHTML = `<svg style="width:16px;height:16px;animation:spin 0.8s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> <span>${currentLang === 'tr' ? 'Hazırlanıyor...' : 'Generating...'}</span>`;
+    btn.disabled = true;
+  });
+
+  try {
+    const courseName = (currentCourse && currentCourse.name) || 'Course_Materials';
+    const safeFilename = courseName.replace(/[^a-zA-Z0-9_\-\u00C0-\u024F\u0100-\u024F]/g, '_').replace(/_+/g, '_');
+
+    const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/export-pdf`, {
+      method: 'GET',
+      headers: { 'X-Session-Token': localStorage.getItem('aula_session') || '' }
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(err.error || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeFilename}_AulaAI.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showNotification(
+      currentLang === 'tr' ? '✅ PDF başarıyla indirildi!' : '✅ PDF downloaded successfully!',
+      'success'
+    );
+  } catch (e) {
+    console.error('[PDF Export]', e);
+    showNotification(
+      currentLang === 'tr' ? `PDF oluşturulamadı: ${e.message}` : `Failed to generate PDF: ${e.message}`,
+      'error'
+    );
+  } finally {
+    btns.forEach((btn, i) => {
+      btn.innerHTML = origTexts[i];
+      btn.disabled = false;
+    });
+  }
+}
+
+window.downloadCourseMaterialPDF = downloadCourseMaterialPDF;
