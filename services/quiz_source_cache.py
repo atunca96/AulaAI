@@ -7,17 +7,213 @@ from typing import Dict, Any, Optional, Tuple, List
 _CACHE_LOCK = threading.Lock()
 _QUIZ_SOURCE_CACHE: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
 
-def get_content_hash(content_raw: Any) -> str:
-    """Computes a deterministic MD5 hash for the given topic content."""
+
+def _resolve_quiz_structured_payload(
+    content_raw: Any,
+    topic_id: Optional[str] = None,
+    title: str = "",
+    topic_type: str = "",
+    material_language: str = "en"
+) -> Tuple[Dict[str, Any], Dict[str, Any], str, str]:
+    """
+    Extracts the complete, normalized quiz-relevant structured payload and parsed content_dict.
+    Deterministically captures every field consumed by quiz generation:
+      - refreshed pages[].items (term, translations, meaning, examples, notes, provenance)
+      - refreshed pages[].rules (rule, translations, explanations, examples, source_evidence, provenance)
+      - refreshed pages[].comparisons (target, contrasts, notes, source_evidence, provenance)
+      - pre-authored MCQs (prompt, answer, distractors, options)
+      - reading passages and lexical context (text, text_tr, explanation_tr)
+      - page types and titles (type, title, title_tr)
+      - topic metadata (topic_id, title, topic_type, material_language)
+
+    If content_raw is raw text or lacks structured pages and topic_id is provided,
+    checks SQLite for the persisted structured record so that any database re-enrichment
+    or metadata refresh invalidates the cache even if the original raw source text is unchanged.
+    """
+    content_dict: Dict[str, Any] = {}
+    is_raw_text = False
+    resolved_title = str(title or "").strip()
+    resolved_type = str(topic_type or "").strip()
+
     if isinstance(content_raw, str):
-        return hashlib.md5(content_raw.encode("utf-8")).hexdigest()
-    elif isinstance(content_raw, (dict, list)):
+        s_strip = content_raw.strip()
+        if s_strip.startswith("{") and s_strip.endswith("}"):
+            try:
+                parsed = json.loads(content_raw)
+                if isinstance(parsed, dict):
+                    content_dict = parsed
+                else:
+                    is_raw_text = True
+            except Exception:
+                is_raw_text = True
+        else:
+            is_raw_text = True
+    elif isinstance(content_raw, dict):
+        content_dict = content_raw
+    else:
+        is_raw_text = True
+
+    # If content_dict lacks 'pages' and topic_id is provided, inspect SQLite for persisted structured content
+    pages = content_dict.get("pages")
+    if (not isinstance(pages, list) or len(pages) == 0) and topic_id:
         try:
-            serialized = json.dumps(content_raw, sort_keys=True, ensure_ascii=False)
-            return hashlib.md5(serialized.encode("utf-8")).hexdigest()
+            from database import db_connection
+            with db_connection() as db:
+                row = db.execute("SELECT title, type, content FROM topics WHERE id = ?", (str(topic_id),)).fetchone()
+                if row:
+                    if not resolved_title and row["title"]:
+                        resolved_title = str(row["title"]).strip()
+                    if not resolved_type and row["type"]:
+                        resolved_type = str(row["type"]).strip()
+                    if row["content"]:
+                        raw_db = row["content"]
+                        if isinstance(raw_db, str) and raw_db.strip().startswith("{"):
+                            try:
+                                db_dict = json.loads(raw_db)
+                                if isinstance(db_dict, dict) and isinstance(db_dict.get("pages"), list):
+                                    content_dict = db_dict
+                            except Exception:
+                                pass
+                        elif isinstance(raw_db, dict) and isinstance(raw_db.get("pages"), list):
+                            content_dict = raw_db
         except Exception:
-            return hashlib.md5(str(content_raw).encode("utf-8")).hexdigest()
-    return "empty_content_hash"
+            pass
+
+    # Extract canonical structured pages
+    raw_pages = content_dict.get("pages", []) if isinstance(content_dict, dict) else []
+    structured_pages: List[Dict[str, Any]] = []
+
+    for idx, p in enumerate(raw_pages, 1):
+        if not isinstance(p, dict):
+            continue
+
+        p_entry: Dict[str, Any] = {
+            "type": str(p.get("type") or "content").lower().strip(),
+            "title": str(p.get("title") or "").strip(),
+            "title_tr": str(p.get("title_tr") or "").strip(),
+            "text": str(p.get("text") or "").strip(),
+            "text_tr": str(p.get("text_tr") or "").strip(),
+            "explanation_tr": str(p.get("explanation_tr") or "").strip(),
+        }
+
+        # Pre-authored MCQ
+        if p.get("type") == "mcq" or (p.get("prompt") and p.get("answer")):
+            p_entry["mcq"] = {
+                "prompt": str(p.get("prompt") or "").strip(),
+                "answer": str(p.get("answer") or "").strip(),
+                "distractors": sorted([str(d).strip() for d in p.get("distractors", []) if str(d).strip()]),
+                "options": sorted([str(o).strip() for o in p.get("options", []) if str(o).strip()]),
+            }
+
+        # Rules
+        rules = p.get("rules", [])
+        if isinstance(rules, list):
+            rule_entries = []
+            for r in rules:
+                if isinstance(r, dict):
+                    rule_entries.append({
+                        "rule": str(r.get("rule") or "").strip(),
+                        "rule_tr": str(r.get("rule_tr") or "").strip(),
+                        "explanation": str(r.get("explanation") or "").strip(),
+                        "explanation_tr": str(r.get("explanation_tr") or "").strip(),
+                        "example": str(r.get("example") or "").strip(),
+                        "source_evidence": str(r.get("source_evidence") or "").strip(),
+                        "source_taught": str(r.get("source_taught") or "").strip(),
+                        "provenance": str(r.get("provenance") or "").strip(),
+                    })
+            p_entry["rules"] = rule_entries
+
+        # Comparisons
+        comparisons = p.get("comparisons", [])
+        if isinstance(comparisons, list):
+            comp_entries = []
+            for comp in comparisons:
+                if isinstance(comp, dict):
+                    comp_entries.append({
+                        "target": str(comp.get("target") or "").strip(),
+                        "context": str(comp.get("context") or "").strip(),
+                        "context_tr": str(comp.get("context_tr") or "").strip(),
+                        "note": str(comp.get("note") or "").strip(),
+                        "note_tr": str(comp.get("note_tr") or "").strip(),
+                        "source_evidence": str(comp.get("source_evidence") or "").strip(),
+                        "source_taught": str(comp.get("source_taught") or "").strip(),
+                        "provenance": str(comp.get("provenance") or "").strip(),
+                    })
+            p_entry["comparisons"] = comp_entries
+
+        # Items
+        items = p.get("items", [])
+        if isinstance(items, list):
+            item_entries = []
+            for it in items:
+                if isinstance(it, dict):
+                    item_entries.append({
+                        "term": str(it.get("term") or it.get("word") or it.get("rule") or "").strip(),
+                        "translation": str(it.get("translation") or "").strip(),
+                        "translation_en": str(it.get("translation_en") or "").strip(),
+                        "translation_tr": str(it.get("translation_tr") or "").strip(),
+                        "meaning": str(it.get("meaning") or "").strip(),
+                        "example": str(it.get("example") or it.get("sample") or "").strip(),
+                        "explanation": str(it.get("explanation") or "").strip(),
+                        "explanation_en": str(it.get("explanation_en") or "").strip(),
+                        "explanation_tr": str(it.get("explanation_tr") or "").strip(),
+                        "source_evidence": str(it.get("source_evidence") or "").strip(),
+                        "provenance": str(it.get("provenance") or "").strip(),
+                    })
+            p_entry["items"] = item_entries
+
+        structured_pages.append(p_entry)
+
+    # Any other persisted top-level keys
+    extra_fields: Dict[str, Any] = {}
+    if isinstance(content_dict, dict):
+        for k, v in content_dict.items():
+            if k != "pages":
+                extra_fields[k] = v
+
+    payload: Dict[str, Any] = {
+        "topic_id": str(topic_id or "").strip(),
+        "title": resolved_title,
+        "topic_type": resolved_type,
+        "material_language": str(material_language or "en").strip().lower(),
+        "structured_pages": structured_pages,
+        "extra_fields": extra_fields,
+    }
+    if is_raw_text and isinstance(content_raw, str):
+        payload["raw_source_text"] = content_raw.strip()
+
+    return payload, content_dict, resolved_title, resolved_type
+
+
+def _hash_payload(payload: Dict[str, Any]) -> str:
+    """Computes a deterministic 32-character SHA-256 hash of the complete structured payload."""
+    try:
+        serialized = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:32]
+    except Exception:
+        return hashlib.sha256(str(payload).encode("utf-8")).hexdigest()[:32]
+
+
+def get_content_hash(
+    content_raw: Any,
+    topic_id: Optional[str] = None,
+    title: str = "",
+    topic_type: str = "",
+    material_language: str = "en"
+) -> str:
+    """
+    Computes a deterministic content version hash encompassing every quiz-relevant persisted structured field:
+    pages[].items, pages[].rules, pages[].comparisons, source_evidence, provenance, and pre-authored MCQs.
+    """
+    payload, _, _, _ = _resolve_quiz_structured_payload(
+        content_raw=content_raw,
+        topic_id=topic_id,
+        title=title,
+        topic_type=topic_type,
+        material_language=material_language
+    )
+    return _hash_payload(payload)
+
 
 def invalidate_quiz_source_cache(topic_id: Optional[str] = None):
     """Invalidate cache entries for a specific topic, or clear entire cache if topic_id is None."""
@@ -30,33 +226,46 @@ def invalidate_quiz_source_cache(topic_id: Optional[str] = None):
             for k in keys_to_delete:
                 del _QUIZ_SOURCE_CACHE[k]
 
-def get_or_assemble_quiz_source(topic_id: str, title: str, topic_type: str, content_raw: Any, material_language: str = "en") -> Dict[str, Any]:
+
+def get_or_assemble_quiz_source(
+    topic_id: str,
+    title: str,
+    topic_type: str,
+    content_raw: Any,
+    material_language: str = "en"
+) -> Dict[str, Any]:
     """
     Retrieves the preassembled, validated quiz-source context from cache if available.
     Otherwise, parses and preassembles the structured lesson representation once, caches it, and returns it.
+
+    The cache key is bound to a deterministic hash of the complete quiz-relevant structured payload
+    (including refreshed pages[].items, pages[].rules, pages[].comparisons, provenance, and pre-authored MCQs).
+    A re-enrichment or metadata refresh automatically yields a new hash and invalidates the cached entry
+    even when the original raw source text is unchanged.
     """
     tid_str = str(topic_id or "")
-    c_hash = get_content_hash(content_raw)
+
+    # 1. Resolve structured payload and compute deterministic version hash
+    payload, content_dict, res_title, res_type = _resolve_quiz_structured_payload(
+        content_raw=content_raw,
+        topic_id=topic_id,
+        title=title,
+        topic_type=topic_type,
+        material_language=material_language
+    )
+    c_hash = _hash_payload(payload)
     cache_key = (tid_str, c_hash, material_language)
 
     with _CACHE_LOCK:
         if cache_key in _QUIZ_SOURCE_CACHE:
             return _QUIZ_SOURCE_CACHE[cache_key]
 
-    # Cache miss: assemble once
-    if isinstance(content_raw, str) and content_raw.strip().startswith("{"):
-        try:
-            content_dict = json.loads(content_raw)
-        except Exception:
-            content_dict = {}
-    elif isinstance(content_raw, dict):
-        content_dict = content_raw
-    else:
-        content_dict = {}
-
+    # 2. Cache miss: assemble from resolved structured content
+    eff_title = res_title or title
+    eff_type = res_type or topic_type or "concept"
     pages = content_dict.get("pages", []) if isinstance(content_dict, dict) else []
 
-    # 1. Check has_explicit_grammar
+    # Check has_explicit_grammar
     has_explicit_grammar = False
     for p in pages:
         if not isinstance(p, dict):
@@ -68,7 +277,7 @@ def get_or_assemble_quiz_source(topic_id: str, title: str, topic_type: str, cont
             has_explicit_grammar = True
             break
 
-    # 2. Assemble single-topic content_str
+    # Assemble single-topic content_str and multi-topic summary
     page_sections = []
     key_terms = []
     key_grammar = []
@@ -183,13 +392,17 @@ def get_or_assemble_quiz_source(topic_id: str, title: str, topic_type: str, cont
         parts.extend(page_sections)
         parts.append("================================================================================")
         single_topic_content_str = "\n\n".join(parts)
-    else:
+    elif content_dict:
         single_topic_content_str = json.dumps(content_dict, ensure_ascii=False)[:3500]
+    elif isinstance(content_raw, str):
+        single_topic_content_str = content_raw[:3500]
+    else:
+        single_topic_content_str = ""
 
     multi_topic_summary = {
         "id": tid_str,
-        "title": title,
-        "type": topic_type,
+        "title": eff_title,
+        "type": eff_type,
         "key_vocab": key_terms[:8],
         "key_grammar": key_grammar[:6],
         "key_texts": key_texts[:1]
@@ -207,6 +420,11 @@ def get_or_assemble_quiz_source(topic_id: str, title: str, topic_type: str, cont
     }
 
     with _CACHE_LOCK:
+        # Evict any stale versions for this topic_id and material_language
+        stale_keys = [k for k in _QUIZ_SOURCE_CACHE.keys() if k[0] == tid_str and k[2] == material_language and k[1] != c_hash]
+        for k in stale_keys:
+            del _QUIZ_SOURCE_CACHE[k]
         _QUIZ_SOURCE_CACHE[cache_key] = assembled
 
     return assembled
+
