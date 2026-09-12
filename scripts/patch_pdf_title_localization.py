@@ -6,6 +6,41 @@ src = server_path.read_text(encoding="utf-8")
 patches = []
 
 patches.append((
+    "pdf layout css",
+    '''.mcq-expl { font-size: 8pt; color: #64748b; margin-top: 5px; border-top: 0.5px solid #bbf7d0; padding-top: 4px; }
+"""
+''',
+    '''.mcq-expl { font-size: 8pt; color: #64748b; margin-top: 5px; border-top: 0.5px solid #bbf7d0; padding-top: 4px; }
+
+/* Print/PDF stability: keep logical blocks together and prevent PyMuPDF Story
+   from producing split rows, orphan headings, overlapping dialogue, or clipped text. */
+* { box-sizing: border-box; }
+body { font-size: 9pt; line-height: 1.4; }
+.cover { page-break-after: avoid; }
+.unit-card { margin-top: 20px; margin-bottom: 10px; page-break-after: avoid; }
+.unit-title { line-height: 1.25; }
+.topic-card { margin-top: 12px; margin-bottom: 16px; }
+.topic-title { line-height: 1.3; page-break-after: avoid; }
+.badge { display: inline-block; vertical-align: middle; white-space: nowrap; margin-left: 6px; padding: 1px 5px; }
+.sec-h { page-break-after: avoid; margin-top: 10px; }
+.text-block, .cmp-box, .mcq-box { page-break-inside: avoid; break-inside: avoid; }
+.diag-line { display: block; page-break-inside: avoid; break-inside: avoid; margin-bottom: 5px; }
+.spkr { display: inline; min-width: 0; margin-right: 4px; }
+.said { display: inline; }
+.said-tr { display: inline; margin-left: 3px; }
+
+table.vt { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 6px 0 10px 0; font-size: 7.8pt; }
+table.vt tr { page-break-inside: avoid; break-inside: avoid; }
+table.vt th, table.vt td { overflow-wrap: anywhere; word-wrap: break-word; line-height: 1.3; }
+table.vt th { padding: 4px 6px; }
+table.vt td { padding: 4px 6px; }
+.term, .phon, .trans, .ex, .ex-tr { overflow-wrap: anywhere; word-wrap: break-word; }
+.mcq-q, .mcq-opt, .mcq-expl { line-height: 1.35; }
+.mcq-opts { margin-left: 10px; }
+"""
+'''))
+
+patches.append((
     "title map",
     '''            E = _html.escape
 
@@ -255,4 +290,4 @@ if marker not in app_src:
 '''
     app_path.write_text(app_src, encoding="utf-8")
 
-print("Applied Turkish material/PDF localization and answer-key patch")
+print("Applied Turkish material/PDF localization, answer-key, and stable PDF layout patch")
