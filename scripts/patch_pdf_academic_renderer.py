@@ -35,7 +35,7 @@ else:
             ascii_base = "".join(c if (c.isalnum() or c in "-_") else "_" for c in ascii_base).strip("_") or "Course_Materials"
             ascii_filename = f"{ascii_base}_AulaAI_{lang.upper()}.pdf"
             encoded_filename = urllib.parse.quote(display_filename, safe="")
-            disposition = f'''attachment; filename="{ascii_filename}"; filename*=UTF-8''{encoded_filename}'''
+            disposition = f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
 
             self.send_response(200)
             self.send_header("Content-Type", "application/pdf")
