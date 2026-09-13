@@ -1,5 +1,4 @@
 from pathlib import Path
-import runpy
 
 engine = Path("services/ai_engine.py")
 s = engine.read_text(encoding="utf-8")
@@ -99,7 +98,4 @@ def _v53_instructional(value, is_tr):
 '''
     renderer.write_text(r, encoding="utf-8")
 
-# Apply V54 from the same already-wired build stage; this changes no runtime call topology.
-runpy.run_path(str(Path("scripts") / "patch_release_hardening_v54.py"), run_name="__main__")
-
-print("Applied v53 precision hardening + v54 structural hardening")
+print("Applied v53 precision hardening")
