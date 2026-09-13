@@ -1,4 +1,6 @@
 from pathlib import Path
+import runpy
+
 p=Path(__file__).resolve().parents[1]/'services'/'ai_engine.py'
 s=p.read_text(encoding='utf-8')
 old='    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))\n'
@@ -15,3 +17,7 @@ if old not in s:
 s=s.replace(old,new,1)
 p.write_text(s,encoding='utf-8')
 print('Applied compact material review payload')
+
+# v46 folds the same semantic release contract into the existing generation call,
+# then removes the redundant full-context post-generation model pass.
+runpy.run_path(str(Path(__file__).resolve().parent / 'patch_material_inline_quality_v46.py'), run_name='__main__')
