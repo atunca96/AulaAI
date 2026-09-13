@@ -1,5 +1,4 @@
 from pathlib import Path
-import runpy
 
 p = Path(__file__).resolve().parents[1] / 'services' / 'pdf_academic_renderer.py'
 s = p.read_text(encoding='utf-8')
@@ -15,11 +14,3 @@ if old_cover in s:
 
 p.write_text(s, encoding='utf-8')
 print('Applied v26 PDF polish')
-
-# Keep the Docker chain stable while applying the deterministic publication layer.
-root = Path(__file__).resolve().parents[1]
-patch_path = root / 'scripts' / 'patch_pdf_publication_polish_v28.py'
-if patch_path.exists():
-    runpy.run_path(str(patch_path), run_name='__main__')
-else:
-    print('v26 chain warning: patch_pdf_publication_polish_v28.py not found')
