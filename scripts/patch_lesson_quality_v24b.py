@@ -39,7 +39,7 @@ print('Applied v24b: tighter A1 scope, identity lock, culture safety and quality
 
 # Keep Dockerfile stable: chain the next quality layers from this already-enabled build step.
 root = Path(__file__).resolve().parents[1]
-for patch_name in ('patch_lesson_quality_v24c.py', 'patch_material_publication_audit_v27.py'):
+for patch_name in ('patch_lesson_quality_v24c.py', 'patch_material_publication_audit_v27.py', 'patch_material_publication_audit_v27b.py'):
     patch_path = root / 'scripts' / patch_name
     if patch_path.exists():
         runpy.run_path(str(patch_path), run_name='__main__')
