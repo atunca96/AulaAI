@@ -23,9 +23,6 @@ _CYR_TO_LATIN = {
     "т":"t","Т":"T","у":"u","У":"U","ф":"f","Ф":"F",
 }
 
-# Only visually/orthographically safe Latin characters are converted back to
-# Cyrillic, and only inside a token that already contains Cyrillic. Pure Latin
-# quotations such as "dictionary" are deliberately untouched.
 _LAT_TO_CYR = {
     "a":"а","A":"А","b":"б","B":"В","c":"с","C":"С","e":"е","E":"Е",
     "h":"н","H":"Н","k":"к","K":"К","m":"м","M":"М","o":"о","O":"О",
@@ -257,10 +254,11 @@ def _clean_tree(node, language="", parent_key=""):
             out[key] = _clean_option(text)
         elif key in _TR_KEYS and isinstance(value, str):
             out[key] = _clean_tr_text(value)
+        elif key == "target" and parent_key == "comparisons" and isinstance(value, str):
+            text = _repair_russian_mixed_token_text(value) if _is_russian(language) else value
+            out[key] = _clean_target(text)
         elif key in _TARGET_KEYS and isinstance(value, str) and _is_russian(language):
             out[key] = _repair_russian_mixed_token_text(value)
-        elif key == "target" and parent_key == "comparisons" and isinstance(value, str):
-            out[key] = _clean_target(value)
         elif isinstance(value, (dict, list)):
             out[key] = _clean_tree(value, language, key)
         else:
