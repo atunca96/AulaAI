@@ -28,10 +28,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# PDF architecture is intentionally simple now:
-# - public/js cache-bust patch for fresh downloads
-# - runtime_bootstrap wires /export-pdf to services/pdf_export_bridge.py
-# - services/pdf_academic_renderer.py is the single renderer
+# Single PDF path:
+# frontend -> /export-pdf -> pdf_export_bridge -> pdf_academic_renderer
 RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_bilingual_finalizer_stall.py \
     && python scripts/patch_material_mcq_bilingual.py \
@@ -40,6 +38,7 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_assignment_results_parity.py \
     && python scripts/patch_quality_convergence_v10b.py \
     && python scripts/patch_material_quality_gate_v12.py \
+    && python scripts/smoke_test_pdf_renderer.py \
     && python scripts/patch_material_locale_stability_v17.py \
     && python scripts/patch_material_locale_exact_v18.py \
     && python scripts/patch_material_locale_source_v19.py \
@@ -51,7 +50,6 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_material_final_gate_v29.py \
     && python scripts/patch_material_absolute_quality_v30.py \
     && python scripts/patch_material_language_necessity_v32.py \
-    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/pdf_export_bridge.py services/legacy/pdf_pipeline.py \
-    && python scripts/smoke_test_pdf_renderer.py
+    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/pdf_export_bridge.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]
