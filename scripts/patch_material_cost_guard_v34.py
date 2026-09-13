@@ -1,5 +1,4 @@
 from pathlib import Path
-import runpy
 
 p = Path(__file__).resolve().parents[1] / "services" / "ai_engine.py"
 s = p.read_text(encoding="utf-8")
@@ -35,7 +34,3 @@ if tag not in s:
 
 p.write_text(s, encoding="utf-8")
 print("Applied v34: single whole-lesson publication audit with v33 quality contract")
-
-# Cost-only follow-up. Do not alter the 9.7 quality path; only enable a stable
-# OpenRouter lesson session so repeated prompt prefixes can receive cache hits.
-runpy.run_path(str(Path(__file__).resolve().parent / "patch_openrouter_prompt_cache_v47.py"), run_name="__main__")

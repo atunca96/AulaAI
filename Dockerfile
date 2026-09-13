@@ -44,7 +44,22 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_material_release_integrity_v37.py \
     && python scripts/patch_material_cost_guard_v34.py \
     && python scripts/patch_material_payload_compact_v45.py \
+    && python scripts/patch_openrouter_prompt_cache_v47.py \
+    && python scripts/patch_consolidate_prompt_contract_v49.py \
+    && python scripts/patch_release_hardening_v50.py \
+    && python scripts/test_release_hardening_v50.py \
+    && python scripts/patch_release_hardening_v52.py \
+    && python scripts/patch_release_hardening_v53.py \
+    && python scripts/patch_v54_build_compat.py \
+    && python scripts/patch_release_hardening_v54.py \
+    && python scripts/test_release_hardening_v52.py \
+    && python scripts/test_release_hardening_v54.py \
+    && python scripts/patch_release_hardening_v55.py \
+    && python scripts/test_release_hardening_v55.py \
+    && python scripts/patch_canonical_material_prompt.py \
+    && python scripts/test_canonical_material_prompt.py \
     && python scripts/test_material_release_integrity_v37.py \
-    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/material_quality_guard.py services/legacy/pdf_pipeline.py
+    && python scripts/test_universal_quality.py \
+    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/material_generation_prompt.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/material_quality_guard.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]

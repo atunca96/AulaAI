@@ -3,10 +3,9 @@ from pathlib import Path
 p = Path(__file__).resolve().parents[1] / 'services' / 'ai_engine.py'
 s = p.read_text(encoding='utf-8')
 
-# Cost-only optimization: keep lesson-generation calls on a stable OpenRouter
-# session so repeated prompt prefixes can benefit from provider prompt caching.
-# This intentionally changes no prompt text, model, temperature, token budget,
-# schema, retry policy, validation logic, or publication audit semantics.
+# Give lesson-generation calls a stable OpenRouter session so repeated system-prefix
+# tokens can stay on the same provider and benefit from provider prompt caching.
+# This does not change model, temperature, output budget, lesson schema or retries.
 marker = '_AULAAI_LESSON_CACHE_SESSION_V47'
 func_anchor = 'def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None) -> Optional[Dict]:\n'
 if marker not in s:
@@ -36,6 +35,7 @@ if 'req_payload["session_id"] = _AULAAI_LESSON_CACHE_SESSION_V47' not in s:
         raise RuntimeError('v47 request payload anchor missing')
     s = s.replace(payload_anchor, payload_replacement, 1)
 
+# Surface provider cache hits in the existing usage accumulator at zero API cost.
 usage_anchor = '''                                        usage_dict["model"] = target_model
                                         if "cost" in u_info and u_info["cost"] is not None:
 '''
@@ -56,4 +56,4 @@ if marker not in s:
     raise RuntimeError('v47 session marker missing')
 
 p.write_text(s, encoding='utf-8')
-print('Applied v47 cost-only prompt cache; quality path unchanged')
+print('Applied v47: sticky OpenRouter lesson session + cached-token telemetry')
