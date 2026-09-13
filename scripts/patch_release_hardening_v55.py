@@ -14,6 +14,12 @@ _v55_previous_unsafe_mcq = _v54_unsafe_mcq
 _v55_previous_meta = sanitize_instructional_metalanguage
 
 
+def _v55_fold(text):
+    # v54's Unicode fold intentionally preserves letters; for deterministic
+    # Turkish keyword matching, normalize dotless i as well.
+    return _v54_fold(text).replace("ı", "i")
+
+
 def _v55_option_text(page):
     values = page.get("options") or page.get("choices") or []
     return " ".join(str(v or "") for v in values)
@@ -26,8 +32,8 @@ def _v54_unsafe_mcq(page, material_language):
         return False
     pk = _v54_prompt_key(page, material_language)
     prompt = str(page.get(pk) or "") if pk else ""
-    p = _v54_fold(prompt)
-    opts = _v54_fold(_v55_option_text(page))
+    p = _v55_fold(prompt)
+    opts = _v55_fold(_v55_option_text(page))
 
     workplace_fact = any(x in p for x in (
         "calisiyor", "calisir", "work at", "works at", "works in", "working at", "working in",
@@ -77,8 +83,6 @@ def _v54_display_phonetic(value):
     if not text:
         return ""
 
-    if text.startswith("[[") and text.endswith("]] "):
-        text = text[:-1]
     if text.startswith("[[") and text.endswith("]]" ):
         inner = text[1:-1].strip()
         groups = re.findall(r"\[[^\]\n]+\]", inner)
@@ -106,7 +110,8 @@ def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
     def fold(text):
         import unicodedata
         t = unicodedata.normalize("NFD", str(text or "")).casefold()
-        return "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+        t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+        return t.replace("ı", "i")
 
     p = fold(prompt)
     opts = fold(" ".join(str(v or "") for v in (page.get("options") or page.get("choices") or [])))
