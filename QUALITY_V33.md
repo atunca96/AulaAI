@@ -1,0 +1,1 @@
+AulaAI material QA targets native naturalness, translation fidelity, grammar accuracy, CEFR fit, and assessment validity across supported languages.
