@@ -49,6 +49,6 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_material_final_gate_v29.py \
     && python scripts/patch_material_absolute_quality_v30.py \
     && python scripts/patch_material_language_necessity_v32.py \
-    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/pdf_export_bridge.py services/legacy/pdf_pipeline.py
+    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]
