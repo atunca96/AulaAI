@@ -61,8 +61,8 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_target_language_header_v25.py \
     && python scripts/patch_pdf_polish_v26.py \
     && python scripts/patch_pdf_runtime_localization_v31.py \
-    && python scripts/patch_actual_pdf_export_v34.py \
     && python scripts/patch_pdf_actual_endpoint_v38.py \
+    && python scripts/patch_actual_pdf_export_v34.py \
     && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]
