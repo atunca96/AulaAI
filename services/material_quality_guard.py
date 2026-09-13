@@ -156,9 +156,9 @@ def is_metadata_or_proper_token(token: str) -> bool:
 def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     """
     Language-agnostic validation of Unicode string integrity.
-    Detects invalid noncharacters, replacement characters, surrogates, soft hyphens,
-    and broken controls while preserving all valid combining marks, diacritics, tone marks,
-    stress marks, Arabic tashkeel, Indic viramas, and zero-width joiners/non-joiners.
+    Detects invalid noncharacters, replacement characters, surrogates, and broken controls
+    while preserving all valid combining marks, diacritics, tone marks, stress marks,
+    Arabic tashkeel, Indic viramas, and zero-width joiners/non-joiners.
     """
     if not text or not isinstance(text, str):
         return True, ""
@@ -166,12 +166,6 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     # Check for replacement character (indicating mojibake / broken decoding)
     if "\uFFFD" in text:
         return False, "replacement-character-detected"
-
-    # Check for soft-hyphen or non-breaking hyphen artifacts
-    if "\u00AD" in text:
-        return False, "soft-hyphen-detected"
-    if "\u2011" in text:
-        return False, "non-breaking-hyphen-detected"
 
     # Check for noncharacters (U+FDD0..U+FDEF, U+nFFFE, U+nFFFF)
     for ch in text:
@@ -193,25 +187,15 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
 
 
 def safe_unicode_normalize(text: str) -> str:
-    """
-    Safe Unicode NFC normalization preserving all legitimate linguistic marks.
-    Converts soft hyphens (U+00AD), non-breaking hyphens (U+2011), hyphen character (U+2010),
-    and small/fullwidth hyphens to standard ASCII '-' (U+002D) to prevent visual drops.
-    Preserves legitimate en-dash, em-dash, combining marks, diacritics, and stress marks.
-    Safely strips zero-width non-breaking spaces, word joiners, and noncharacters (U+FFFE, U+FFFF).
-    """
+    """Safe Unicode NFC normalization preserving all legitimate linguistic marks."""
     if not text or not isinstance(text, str):
         return text
-    # Normalize mechanical hyphen equivalents only (preserving legitimate en-dash / em-dash)
-    text = re.sub(r"[\u00AD\u2010\u2011\uFE63\uFF0D]", "-", text)
-    # Strip zero-width space U+200B, byte-order mark U+FEFF, word joiner U+2060, and noncharacters U+FFFE/U+FFFF
-    text = re.sub(r"[\u200B\uFEFF\u2060\uFFFE\uFFFF]", "", text)
     # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
     # Remove null bytes or forbidden non-printing control characters
     cleaned = "".join(
         c for c in normalized
-        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) not in (0xFFFD, 0x00AD, 0xFFFE, 0xFFFF))
+        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) != 0xFFFD)
     )
     return cleaned
 
@@ -335,10 +319,6 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
         if not u_ok:
             return False, u_why
 
-        # Reject unhealed ad-hoc learner respellings
-        if is_adhoc_learner_respelling(text):
-            return False, "adhoc-learner-respelling"
-
         # Reject ad-hoc learner respelling mixed inside or around IPA (e.g. [kæt] kat-uh-lee-nuh)
         has_ipa = ("[" in text and "]" in text) or re.search(r"/(?:[^/\n]{1,120})/", text)
         if has_ipa:
@@ -346,478 +326,6 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
             outside = re.sub(r"/[^/\n]+/", "", outside)
             if re.search(r"\b[A-Za-z]{2,}(?:-[A-Za-z]{2,})+\b", outside):
                 return False, "learner-respelling-mixed-with-ipa"
-
-    return True, ""
-
-
-# ── UNIVERSAL DIALOGUE SPEAKER ROLE LOCALIZATION & LEAKAGE PROTECTION ───────
-
-ROLE_CATALOG: Dict[str, Dict[str, str]] = {
-    "student": {
-        "tr": "Öğrenci", "de": "Schüler", "fr": "Étudiant", "es": "Estudiante", "en": "Student"
-    },
-    "students": {
-        "tr": "Öğrenciler", "de": "Schüler", "fr": "Étudiants", "es": "Estudiantes", "en": "Students"
-    },
-    "teacher": {
-        "tr": "Öğretmen", "de": "Lehrer", "fr": "Professeur", "es": "Profesor", "en": "Teacher"
-    },
-    "teachers": {
-        "tr": "Öğretmenler", "de": "Lehrer", "fr": "Professeurs", "es": "Profesores", "en": "Teachers"
-    },
-    "professor": {
-        "tr": "Profesör", "de": "Professor", "fr": "Professeur", "es": "Profesor", "en": "Professor"
-    },
-    "instructor": {
-        "tr": "Eğitmen", "de": "Dozent", "fr": "Instructeur", "es": "Instructor", "en": "Instructor"
-    },
-    "clerk": {
-        "tr": "Görevli", "de": "Angestellter", "fr": "Employé", "es": "Empleado", "en": "Clerk"
-    },
-    "waiter": {
-        "tr": "Garson", "de": "Kellner", "fr": "Serveur", "es": "Camarero", "en": "Waiter"
-    },
-    "waitress": {
-        "tr": "Garson", "de": "Kellnerin", "fr": "Serveuse", "es": "Camarera", "en": "Waitress"
-    },
-    "customer": {
-        "tr": "Müşteri", "de": "Kunde", "fr": "Client", "es": "Cliente", "en": "Customer"
-    },
-    "doctor": {
-        "tr": "Doktor", "de": "Arzt", "fr": "Médecin", "es": "Médico", "en": "Doctor"
-    },
-    "patient": {
-        "tr": "Hasta", "de": "Patient", "fr": "Patient", "es": "Paciente", "en": "Patient"
-    },
-    "friend": {
-        "tr": "Arkadaş", "de": "Freund", "fr": "Ami", "es": "Amigo", "en": "Friend"
-    },
-    "narrator": {
-        "tr": "Anlatıcı", "de": "Erzähler", "fr": "Narrateur", "es": "Narrador", "en": "Narrator"
-    },
-    "speaker": {
-        "tr": "Konuşmacı", "de": "Sprecher", "fr": "Interlocuteur", "es": "Hablante", "en": "Speaker"
-    },
-    "passenger": {
-        "tr": "Yolcu", "de": "Passagier", "fr": "Passager", "es": "Pasajero", "en": "Passenger"
-    },
-    "driver": {
-        "tr": "Sürücü", "de": "Fahrer", "fr": "Chauffeur", "es": "Conductor", "en": "Driver"
-    },
-    "cashier": {
-        "tr": "Kasiyer", "de": "Kassierer", "fr": "Caissier", "es": "Cajero", "en": "Cashier"
-    },
-    "guide": {
-        "tr": "Rehber", "de": "Reiseleiter", "fr": "Guide", "es": "Guía", "en": "Guide"
-    },
-    "receptionist": {
-        "tr": "Resepsiyonist", "de": "Empfangschef", "fr": "Réceptionniste", "es": "Recepcionista", "en": "Receptionist"
-    },
-    "passerby": {
-        "tr": "Yoldan Geçen", "de": "Passant", "fr": "Passant", "es": "Transeúnte", "en": "Passerby"
-    },
-    "host": {
-        "tr": "Ev Sahibi", "de": "Gastgeber", "fr": "Hôte", "es": "Anfitrión", "en": "Host"
-    },
-    "guest": {
-        "tr": "Konuk", "de": "Gast", "fr": "Invité", "es": "Invitado", "en": "Guest"
-    },
-}
-
-_ROLE_REVERSE_MAP: Dict[str, str] = {}
-for _canon, _locales in ROLE_CATALOG.items():
-    if _canon.casefold() not in _ROLE_REVERSE_MAP:
-        _ROLE_REVERSE_MAP[_canon.casefold()] = _canon
-    for _loc, _name in _locales.items():
-        if _name.casefold() not in _ROLE_REVERSE_MAP:
-            _ROLE_REVERSE_MAP[_name.casefold()] = _canon
-
-
-def sanitize_dialogue_speaker(speaker: str, material_language: str = "en") -> str:
-    """
-    Universal, locale-safe speaker role sanitizer.
-    
-    Architecture & Policy:
-    1. Primary Strategy: Generation-time correct locale role from the model.
-    2. Proper Name Preservation: Authentic proper names (Marco, Anna, Yuki, Ahmed, etc.)
-       across all scripts are preserved untouched.
-    3. High-Confidence Fallback: Known canonical roles for catalogued instructional
-       languages (tr, de, fr, es, en) are normalized to the target instructional language.
-    4. Unknown Locale Safe Fallback: When a foreign English role label is detected but no
-       deterministic mapping exists for material_language, role metadata is safely omitted
-       to prevent English leakage, keeping any associated proper name.
-    5. Strict Idempotence: sanitize(sanitize(x)) == sanitize(x).
-    6. Non-Destructive: Never drops pages or dialogue turns.
-    """
-    if not speaker or not isinstance(speaker, str):
-        return speaker or ""
-
-    s_clean = speaker.strip()
-    if s_clean.endswith(":"):
-        s_clean = s_clean[:-1].strip()
-
-    tgt_lang = str(material_language or "en").strip().lower()[:2]
-
-    # Handle composite format e.g. "Marco (Student)" or "Student (Marco)"
-    m_composite = re.match(r"^(.+?)\s*\((.+?)\)$", s_clean)
-    if m_composite:
-        part1 = m_composite.group(1).strip()
-        part2 = m_composite.group(2).strip()
-        canon2 = _ROLE_REVERSE_MAP.get(part2.casefold())
-        canon1 = _ROLE_REVERSE_MAP.get(part1.casefold())
-        if canon2 and not canon1:
-            loc_dict = ROLE_CATALOG.get(canon2, {})
-            localized_role = loc_dict.get(tgt_lang)
-            if localized_role:
-                return f"{part1} ({localized_role})"
-            elif tgt_lang == "en":
-                return f"{part1} ({loc_dict.get('en', part2)})"
-            else:
-                # Unknown locale: omit untranslated foreign role, preserve proper name
-                return part1
-        elif canon1 and not canon2:
-            loc_dict = ROLE_CATALOG.get(canon1, {})
-            localized_role = loc_dict.get(tgt_lang)
-            if localized_role:
-                return f"{part2} ({localized_role})"
-            elif tgt_lang == "en":
-                return f"{part2} ({loc_dict.get('en', part1)})"
-            else:
-                # Unknown locale: omit untranslated foreign role, preserve proper name
-                return part2
-
-    in_paren = s_clean.startswith("(") and s_clean.endswith(")")
-    raw_name = s_clean[1:-1].strip() if in_paren else s_clean
-    canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
-
-    if not canon_key:
-        # Proper name (Marco, Anna, Yuki, Ahmed, etc.) or uncatalogued locale role (Studente)
-        return f"({raw_name})" if in_paren else raw_name
-
-    loc_dict = ROLE_CATALOG.get(canon_key, {})
-    localized = loc_dict.get(tgt_lang)
-    if localized:
-        return f"({localized})" if in_paren else localized
-
-    # Unknown locale fallback:
-    # canon_key was recognized (e.g. English "Student"), but material_language has no deterministic mapping.
-    if tgt_lang == "en":
-        en_role = loc_dict.get("en") or raw_name
-        return f"({en_role})" if in_paren else en_role
-
-    # Non-English unknown locale: safely omit the unlocalized foreign role to prevent English leakage
-    return ""
-
-
-def validate_dialogue_speaker(speaker: str, material_language: str = "en") -> Tuple[bool, str]:
-    """
-    Universal validation ensuring dialogue speaker roles match the instructional language.
-    Flags unlocalized foreign role labels (e.g. English 'Student' in Turkish, German, or Italian material),
-    while treating authentic proper names ('Marco', 'Anna', 'Yuki') and generation-time locale roles
-    as valid across all languages.
-    """
-    if not speaker or not isinstance(speaker, str):
-        return True, ""
-
-    s_clean = speaker.strip()
-    if s_clean.endswith(":"):
-        s_clean = s_clean[:-1].strip()
-
-    # Extract role from composite e.g. "Marco (Student)"
-    m_composite = re.match(r"^(.+?)\s*\((.+?)\)$", s_clean)
-    if m_composite:
-        role_part = m_composite.group(2).strip()
-        canon_key = _ROLE_REVERSE_MAP.get(role_part.casefold())
-        if not canon_key:
-            return True, ""
-        tgt_lang = str(material_language or "en").strip().lower()[:2]
-        loc_dict = ROLE_CATALOG.get(canon_key, {})
-        expected = loc_dict.get(tgt_lang)
-        if expected and role_part.casefold() != expected.casefold():
-            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}:expected-{expected}"
-        if not expected and tgt_lang != "en" and role_part.casefold() == canon_key:
-            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
-        return True, ""
-
-    in_paren = s_clean.startswith("(") and s_clean.endswith(")")
-    raw_name = s_clean[1:-1].strip() if in_paren else s_clean
-    canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
-
-    if not canon_key:
-        # Proper name or uncatalogued entity -> valid in all languages
-        return True, ""
-
-    tgt_lang = str(material_language or "en").strip().lower()[:2]
-    loc_dict = ROLE_CATALOG.get(canon_key, {})
-    expected = loc_dict.get(tgt_lang)
-    if expected and raw_name.casefold() != expected.casefold():
-        return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}:expected-{expected}"
-    if not expected and tgt_lang != "en" and raw_name.casefold() == canon_key:
-        return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
-
-    return True, ""
-
-
-# ── UNIVERSAL PEDAGOGICAL TABLE & GRAMMATICAL LABEL LOCALIZATION ─────────────
-
-PEDAGOGICAL_LABELS_MAP: Dict[str, Dict[str, str]] = {
-    "hard consonant indicator vowels": {
-        "tr": "Kalın Ünsüz Belirten Ünlüler", "de": "Harte Konsonanten anzeigende Vokale",
-        "fr": "Voyelles indicatrices de consonnes dures", "es": "Vocales indicadoras de consonantes duras",
-    },
-    "soft consonant indicator vowels": {
-        "tr": "İnce Ünsüz Belirten Ünlüler", "de": "Weiche Konsonanten anzeigende Vokale",
-        "fr": "Voyelles indicatrices de consonnes douces", "es": "Vocales indicadoras de consonantes blandas",
-    },
-    "hard vowels": {
-        "tr": "Kalın Ünlüler", "de": "Harte Vokale", "fr": "Voyelles dures", "es": "Vocales duras",
-    },
-    "soft vowels": {
-        "tr": "İnce Ünlüler", "de": "Weiche Vokale", "fr": "Voyelles douces", "es": "Vocales blandas",
-    },
-    "hard consonants": {
-        "tr": "Sert / Kalın Ünsüzler", "de": "Harte Konsonanten", "fr": "Consonnes dures", "es": "Consonantes duras",
-    },
-    "soft consonants": {
-        "tr": "Yumuşak / İnce Ünsüzler", "de": "Weiche Konsonanten", "fr": "Consonnes douces", "es": "Consonantes blandas",
-    },
-    "voiced consonants": {
-        "tr": "Ötümlü (Tonlu) Ünsüzler", "de": "Stimmhafte Konsonanten", "fr": "Consonnes sonores", "es": "Consonantes sonoras",
-    },
-    "voiceless consonants": {
-        "tr": "Ötümsüz (Tonsuz) Ünsüzler", "de": "Stimmlos Konsonanten", "fr": "Consonnes sourdes", "es": "Consonantes sordas",
-    },
-    "stressed vowel": {
-        "tr": "Vurgulu Ünlü", "de": "Betonter Vokal", "fr": "Voyelle accentuée", "es": "Vocal tónica",
-    },
-    "unstressed vowel": {
-        "tr": "Vurgusuz Ünlü", "de": "Unbetonter Vokal", "fr": "Voyelle inaccentuée", "es": "Vocal átona",
-    },
-    "vowel": {
-        "tr": "Ünlü", "de": "Vokal", "fr": "Voyelle", "es": "Vocal",
-    },
-    "consonant": {
-        "tr": "Ünsüz", "de": "Konsonant", "fr": "Consonne", "es": "Consonante",
-    },
-    "noun": {
-        "tr": "İsim", "de": "Nomen", "fr": "Nom", "es": "Sustantivo",
-    },
-    "verb": {
-        "tr": "Fiil", "de": "Verb", "fr": "Verbe", "es": "Verbo",
-    },
-    "adjective": {
-        "tr": "Sıfat", "de": "Adjektiv", "fr": "Adjectif", "es": "Adjetivo",
-    },
-    "adverb": {
-        "tr": "Zarf", "de": "Adverb", "fr": "Adverbe", "es": "Adverbio",
-    },
-    "pronoun": {
-        "tr": "Zamir", "de": "Pronomen", "fr": "Pronom", "es": "Pronombre",
-    },
-    "preposition": {
-        "tr": "Edat", "de": "Präposition", "fr": "Préposition", "es": "Preposición",
-    },
-    "rule": {
-        "tr": "Kural", "de": "Regel", "fr": "Règle", "es": "Regla",
-    },
-    "example": {
-        "tr": "Örnek", "de": "Beispiel", "fr": "Exemple", "es": "Ejemplo",
-    },
-    "exception": {
-        "tr": "İstisna", "de": "Ausnahme", "fr": "Exception", "es": "Excepción",
-    },
-}
-
-
-def sanitize_instructional_label(text: str, material_language: str = "tr") -> str:
-    """
-    Localizes common English pedagogical table headers and grammatical labels into
-    the active instructional language. Leaves intentional non-label content and English
-    tracks untouched.
-    """
-    if not text or not isinstance(text, str):
-        return text or ""
-    tgt_lang = str(material_language or "en").strip().lower()[:2]
-    if tgt_lang == "en":
-        return text
-
-    clean = text.strip()
-    norm_key = clean.casefold()
-
-    # Exact match in catalog
-    if norm_key in PEDAGOGICAL_LABELS_MAP:
-        loc = PEDAGOGICAL_LABELS_MAP[norm_key].get(tgt_lang)
-        if loc:
-            return loc
-
-    # Phrase / contextual replacement (e.g. "Hard Consonant Indicator Vowels: А, О, У, Ы, Э")
-    res = clean
-    for eng_label, locs in sorted(PEDAGOGICAL_LABELS_MAP.items(), key=lambda x: len(x[0]), reverse=True):
-        loc_val = locs.get(tgt_lang)
-        if loc_val:
-            pattern = rf"(?i)\b{re.escape(eng_label)}\b"
-            if re.search(pattern, res):
-                res = re.sub(pattern, loc_val, res)
-
-    return res
-
-
-# ── PHONETIC REPRESENTATION CONSISTENCY & RE-SPELLING DETECTION ──────────────
-
-def is_adhoc_learner_respelling(phon: str) -> bool:
-    """
-    Language-agnostic detection of ad-hoc learner respellings.
-    Distinguishes:
-    1. Standard IPA notation (e.g. '[mʲɪˈtro]', '[ˈka.sa]', '/ˈpe.ro/') -> VALID (False)
-    2. Standard romanization (e.g. Pinyin 'nǐ hǎo', Romaji 'taberu') -> VALID (False)
-    3. Ad-hoc hyphenated learner respellings (e.g. 'mit-ró', 'slo-var\\'', '[mask-va]', '[ˈzdrav-stvu-yte]') -> AD-HOC (True)
-    4. Native-script syllable hyphenation (e.g. 'сло-ва́рь', 'ма-ма') -> AD-HOC (True)
-    """
-    if not phon or not isinstance(phon, str):
-        return False
-    clean = phon.strip()
-    if not clean:
-        return False
-
-    # 1. Native-script syllable division: non-Latin alphabetic characters with hyphens
-    # (e.g. Cyrillic 'сло-ва́рь', Greek, Arabic, etc.)
-    has_non_latin = any(unicodedata.category(c).startswith("L") and not ("a" <= c.lower() <= "z") for c in clean)
-    if has_non_latin and "-" in clean:
-        if re.search(r"[^\W\d_a-zA-Z]-[^\W\d_a-zA-Z]", clean, flags=re.UNICODE):
-            return True
-
-    # 2. Check for bracketed or unbracketed Latin text
-    inside = clean[1:-1].strip() if clean.startswith("[") and clean.endswith("]") else clean
-
-    # Authentic IPA phonetic symbols
-    ipa_symbols = set("ˈˌːˑəɛɪɔʊʌθðʃʒŋɲɹʁʎβɣχħʕʔ mʲpʲbʲtʲdʲkʲɡʲfʲvʲsʲzʲrʲlʲ")
-    has_distinct_ipa = any(c in inside for c in ipa_symbols if c != " ")
-
-    # Check for ad-hoc hyphenated syllable respellings (e.g. mit-ró, slo-var', mask-va, zdrav-stvu-yte)
-    if "-" in inside:
-        parts = [p.strip() for p in inside.split("-") if p.strip()]
-        if len(parts) >= 2:
-            letter_count = sum(1 for c in inside if unicodedata.category(c).startswith("L"))
-            if letter_count >= 4 and not (clean.startswith("/") and clean.endswith("/")):
-                return True
-
-    # Pinyin with standard tone marks without brackets is valid romanization
-    pinyin_tone_chars = set("āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ")
-    if any(c in clean for c in pinyin_tone_chars) and not clean.startswith("["):
-        return False
-
-    # 3. Simple Latin word inside brackets without any IPA symbols (e.g. '[mask-va]', '[zdravstvuyte]')
-    if clean.startswith("[") and clean.endswith("]"):
-        content = clean[1:-1].strip()
-        if not has_distinct_ipa and re.match(r"^[A-Za-z\s\-\'\`]+$", content):
-            return True
-
-    return False
-
-
-def heal_syllable_hyphenated_ipa(text: str) -> str:
-    """
-    Converts ad-hoc syllable-hyphenated IPA into clean, unsplit standard IPA notation.
-    E.g. '[ˈdo-mə]' -> '[ˈdomə]', '[dɐ-ˈma]' -> '[dɐˈma]', '[mʲɪ-ˈtro]' -> '[mʲɪˈtro]'.
-    Leaves true non-IPA ad-hoc respellings (e.g. 'mit-ró', '[mask-va]') untouched so they
-    can be properly flagged or blanked by is_adhoc_learner_respelling.
-    """
-    if not text or not isinstance(text, str):
-        return text or ""
-
-    ipa_indicators = set("ˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐçʝɣʁħʕʔŋɲɳɴɱɭʎʟɾɺⱱβɸθðɹɻɰʍʲʷˤ")
-    _phon_char = r"[a-zA-Zˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐçʝɣʁħʕʔŋɲɳɴɱɭʎʟɾɺⱱβɸθðɹɻɰʍʲʷˤ]"
-
-    def _heal_bracket(m):
-        inner = m.group(1)
-        # Only heal if bracket contains genuine IPA notation or stress marks
-        if not any(c in inner for c in ipa_indicators):
-            return m.group(0)
-        # Remove internal hyphens between phonetic letters/stress marks only
-        healed = re.sub(rf"(?<={_phon_char})-(?={_phon_char})", "", inner)
-        return f"[{healed}]"
-
-    def _heal_slash(m):
-        inner = m.group(1)
-        if not any(c in inner for c in ipa_indicators):
-            return m.group(0)
-        healed = re.sub(rf"(?<={_phon_char})-(?={_phon_char})", "", inner)
-        return f"/{healed}/"
-
-    res = re.sub(r"\[([^\]]+)\]", _heal_bracket, text)
-    res = re.sub(r"/([^/\n]+)/", _heal_slash, res)
-    return res
-
-
-def heal_phonetic_prose(text: str) -> str:
-    """
-    Heals inline bracketed IPA notation inside prose explanations, rules, and notes.
-    E.g. 'дома [dɐ-ˈma]' -> 'дома [dɐˈma]'
-    """
-    if not text or not isinstance(text, str):
-        return text or ""
-    return heal_syllable_hyphenated_ipa(text)
-
-
-def calibrate_rule_scope_consistency(
-    rule_text: str,
-    lesson_context_terms: Set[str],
-    material_language: str = "tr"
-) -> str:
-    """
-    Non-destructive structural validation for grammar rules.
-    Preserves authentic rule prose without inventing linguistic exceptions or performing
-    heuristic semantic rewriting. Semantic rule calibration and scope hedging are
-    governed strictly by the single-pass prompt contract.
-    """
-    if not rule_text or not isinstance(rule_text, str):
-        return rule_text or ""
-    return rule_text
-
-
-# ── FORMATIVE MCQ STRUCTURAL & SEMANTIC VALIDATION ──────────────────────────
-
-def validate_mcq_semantics(page: dict) -> Tuple[bool, str]:
-    """
-    Semantic validation for formative assessment items.
-    Prevents unjustified deductive leaps from world knowledge / stereotypes:
-    1. Birthplace / country of birth does NOT entail nationality or citizenship.
-    2. Workplace does NOT entail specific profession without stated job duties.
-    """
-    if not isinstance(page, dict):
-        return True, ""
-
-    prompt = _norm(page.get("prompt") or page.get("question") or page.get("text")).lower()
-    answer = _norm(page.get("answer")).lower()
-
-    # 1. Birthplace / origin assumption to nationality
-    birthplace_indicators = ("родилась в", "родился в", "born in", "doğdu", "né en", "geboren in")
-    nationality_indicators = (
-        "турчанка", "турок", "turkish", "türk",
-        "испанец", "испанка", "spanish", "ispanyol",
-        "русский", "русская", "russian", "rus",
-        "немец", "немка", "german", "alman",
-        "француз", "француженка", "french", "fransız"
-    )
-    if any(b in prompt for b in birthplace_indicators):
-        if not any(c in prompt for c in ("граждан", "citizenship", "citizen", "vatandaş", "nationality", "milliyet")):
-            if any(n in answer for n in nationality_indicators):
-                return False, "semantic-non-entailment:birthplace-does-not-entail-nationality"
-
-    # 2. Workplace assumption to occupation
-    workplace_indicators = (
-        "работаю в школе", "работает в школе", "works in a school", "okulda çalışıyor", "okulda çalışırım",
-        "работаю в больнице", "работает в больнице", "works in a hospital", "hastanede çalışıyor",
-        "работаю в аэропорту", "works in an airport"
-    )
-    job_duties = (
-        "препода", "учу", "учит", "teach", "ders ver", "öğret", "леч", "heal", "treat", "hastaları",
-        "лечит", "управляет самолетом", "flies airplanes"
-    )
-    if any(w in prompt for w in workplace_indicators):
-        if not any(d in prompt for d in job_duties):
-            if answer in ("teacher", "учитель", "учительница", "öğretmen", "doctor", "врач", "doktor", "pilot", "пилот"):
-                return False, "semantic-non-entailment:workplace-does-not-entail-profession"
 
     return True, ""
 
@@ -854,9 +362,10 @@ def validate_mcq(page: Any) -> Tuple[bool, str]:
     if isinstance(ci, int) and (ci < 0 or ci >= 4 or options[ci] != answer):
         return False, "correct-index-mismatch"
 
-    for key, val in page.items():
-        if key.startswith("options_") and val is not None:
-            localized = [_norm(x) for x in _as_list(val)]
+    for key in ("options_tr", "options_en"):
+        localized = page.get(key)
+        if localized is not None:
+            localized = [_norm(x) for x in _as_list(localized)]
             if len(localized) != 4 or any(not x for x in localized) or len(set(localized)) != 4:
                 return False, f"invalid-{key}"
 
@@ -884,9 +393,6 @@ def enforce_release_hard_gate(data: Any, language: str) -> Any:
     """
     if not isinstance(data, dict):
         raise MaterialReleaseRejected("MATERIAL_RELEASE_HARD_GATE:invalid-data")
-
-    # Run non-destructive integrity enforcement first to heal valid IPA & clean Unicode
-    data = enforce_material_integrity(data, language)
 
     # Verify script integrity & homoglyph protection
     ok1, why1 = _script_gate(data, language)
@@ -919,17 +425,11 @@ def _recursive_clean_unicode(node: Any) -> Any:
     return node
 
 
-def enforce_material_integrity(
-    data: Any,
-    language: Optional[str] = None,
-    material_language: str = "tr"
-) -> Any:
+def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any:
     """
     Language-agnostic structural cleanup and Unicode normalization after generation.
-    Normalizes exotic hyphens, strips soft-hyphens and unprintable artifacts,
-    localizes dialogue speaker roles and pedagogical table labels,
-    heals syllable-hyphenated standard IPA, calibrates overgeneralized rule scopes,
-    prunes structurally or semantically invalid MCQs, and guarantees zero publication defects.
+    Prunes structurally broken MCQs, applies safe Unicode NFC normalization,
+    and guarantees zero defects on published materials with zero extra model cost.
     """
     if not isinstance(data, dict):
         return data
@@ -939,105 +439,10 @@ def enforce_material_integrity(
     if not isinstance(pages, list):
         return out
 
-    # Collect target lexical strings for context checking
-    context_terms = set(_iter_target_lexical_strings(data))
-
     clean = []
     removed = []
     for index, page in enumerate(pages):
-        if not isinstance(page, dict):
-            continue
-        ptype = str(page.get("type") or "").strip().lower()
-
-        # Localize dialogue speaker roles and ensure no English leakage into non-English material
-        if ptype in ("dialogue", "examples"):
-            dialogue = page.get("dialogue")
-            if isinstance(dialogue, list):
-                for turn in dialogue:
-                    if isinstance(turn, dict) and "speaker" in turn:
-                        turn["speaker"] = sanitize_dialogue_speaker(turn["speaker"], material_language)
-
-        # Heal syllable-hyphenated IPA, perform safe relocation & cross-field deduplication, and localize instructional labels in items
-        items = page.get("items") or page.get("vocabulary") or page.get("words") or page.get("table")
-        if isinstance(items, list):
-            for it in items:
-                if isinstance(it, dict):
-                    phon = it.get("phonetic") or it.get("pronunciation") or it.get("ipa") or it.get("transcription")
-                    if phon:
-                        healed_phon = heal_syllable_hyphenated_ipa(phon)
-                        if is_adhoc_learner_respelling(healed_phon):
-                            it["phonetic"] = ""
-                        else:
-                            it["phonetic"] = healed_phon
-                    else:
-                        it["phonetic"] = ""
-
-                    # 1. Structured Phonetic Relocation: If phonetic cell is empty,
-                    # safely relocate explicit trustworthy pronunciation notation from meaning/translation.
-                    # Primary: structured bracketed IPA [x]. Fallback: parenthetical pronunciation markers.
-                    if not it.get("phonetic"):
-                        for trans_k in ("translation", "translation_tr", "meaning", "definition"):
-                            val = it.get(trans_k)
-                            if isinstance(val, str) and val:
-                                # Primary: look for bracketed IPA or slashed phonemic notation
-                                m_ipa = re.search(r"(\[[a-zA-Zʐʝʃʒθðʔʲʷˤˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂçɣʁħʕŋɲɳɴɱɭʎʟɾɺⱱβɸɹɻɰʍ\.\s]+\])", val)
-                                # Fallback: look for explicit labeled pronunciation parentheticals like (ses: [i]) or (ses: i)
-                                m_labeled = re.search(r"\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*([^)]+)\)", val, re.IGNORECASE)
-                                if m_ipa:
-                                    it["phonetic"] = m_ipa.group(1).strip()
-                                    # Clean bracketed IPA and any surrounding labeled parenthetical from the translation field
-                                    cleaned_val = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*\[[^\]]+\]\)", "", val, flags=re.IGNORECASE)
-                                    cleaned_val = cleaned_val.replace(m_ipa.group(1), "").strip()
-                                    cleaned_val = re.sub(r"\s{2,}", " ", cleaned_val).strip()
-                                    it[trans_k] = cleaned_val
-                                    break
-                                elif m_labeled:
-                                    raw_sound = m_labeled.group(1).strip()
-                                    sound_token = raw_sound if (raw_sound.startswith("[") and raw_sound.endswith("]")) else f"[{raw_sound}]"
-                                    it["phonetic"] = sound_token
-                                    cleaned_val = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*[^)]+\)", "", val, flags=re.IGNORECASE).strip()
-                                    it[trans_k] = cleaned_val
-                                    break
-
-                    # 2. Cross-Field Phonetic Consistency & Deduplication:
-                    # When phonetic is populated, ensure meaning/translation does NOT contain a conflicting or redundant pronunciation
-                    if it.get("phonetic"):
-                        for trans_k in ("translation", "translation_tr", "meaning", "definition"):
-                            val = it.get(trans_k)
-                            if isinstance(val, str) and val:
-                                if re.search(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):", val, re.IGNORECASE):
-                                    it[trans_k] = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*[^)]+\)", "", val, flags=re.IGNORECASE).strip()
-
-                    # 3. Localize instructional labels in translation fields
-                    trans = it.get("translation")
-                    trans_tr = it.get("translation_tr")
-                    if material_language == "tr":
-                        if not trans_tr and trans:
-                            it["translation_tr"] = sanitize_instructional_label(trans, "tr")
-                        elif trans_tr:
-                            it["translation_tr"] = sanitize_instructional_label(trans_tr, "tr")
-                    elif material_language != "en":
-                        if not trans_tr and trans:
-                            it["translation_tr"] = sanitize_instructional_label(trans, material_language)
-                        elif trans_tr:
-                            it["translation_tr"] = sanitize_instructional_label(trans_tr, material_language)
-
-        # Sanitize prose phonetics and calibrate rule scopes
-        rules = page.get("rules")
-        if isinstance(rules, list):
-            for r in rules:
-                if isinstance(r, dict):
-                    for rk in ("rule", "rule_tr", "explanation", "explanation_tr"):
-                        if rk in r and isinstance(r[rk], str):
-                            r[rk] = heal_phonetic_prose(r[rk])
-                            r_lang = "en" if (rk.endswith("_en") or rk in ("rule", "explanation")) else material_language
-                            r[rk] = calibrate_rule_scope_consistency(r[rk], context_terms, r_lang)
-
-        for text_k in ("text", "text_tr", "explanation", "explanation_tr", "context", "context_tr"):
-            if text_k in page and isinstance(page[text_k], str):
-                page[text_k] = heal_phonetic_prose(page[text_k])
-
-        if ptype == "mcq":
+        if isinstance(page, dict) and str(page.get("type") or "").strip().lower() == "mcq":
             ok, reason = validate_mcq(page)
             if not ok:
                 removed.append((index, reason))

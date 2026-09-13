@@ -2428,7 +2428,7 @@ def _sanitize_deep_bilingual(obj):
         return [_sanitize_deep_bilingual(x) for x in obj]
     return obj
 
-def _normalize_lesson_pages(data, topic, language, level, material_language="tr"):
+def _normalize_lesson_pages(data, topic, language, level):
     """Ensures lesson dictionary conforms strictly to {"pages": [...]} format, normalizing flexible AI output."""
     if isinstance(data, dict) and isinstance(data.get("pages"), list) and len(data["pages"]) > 0:
         for p in data["pages"]:
@@ -2615,7 +2615,7 @@ def _normalize_lesson_pages(data, topic, language, level, material_language="tr"
                             })
                 p["rules"] = norm_rules
 
-            # Ensure dialogue preserves translations and localizes speaker roles
+            # Ensure dialogue preserves translations
             if "dialogue" in p and isinstance(p["dialogue"], list):
                 for d in p["dialogue"]:
                     if isinstance(d, dict):
@@ -2623,9 +2623,6 @@ def _normalize_lesson_pages(data, topic, language, level, material_language="tr"
                             d["line_en"] = d.get("translation")
                         if not d.get("line_tr") and d.get("translation_tr"):
                             d["line_tr"] = d.get("translation_tr")
-                        if "speaker" in d and isinstance(d["speaker"], str):
-                            from services.material_quality_guard import sanitize_dialogue_speaker
-                            d["speaker"] = sanitize_dialogue_speaker(d["speaker"], material_language)
 
             # Ensure MCQ preserves bilingual prompt and explanation
             if p.get("type") == "mcq" or p.get("prompt"):
@@ -3052,7 +3049,7 @@ Return ONLY valid JSON matching this schema:
       "items": [
         {{
           "term": "Word, character, or phrase in {language}",
-          "phonetic": "[Standard IPA notation, e.g. [mʲɪˈtro] — no ad-hoc syllable respellings]",
+          "phonetic": "[IPA / phonetic guide]",
           "translation": "English meaning or name",
           "translation_tr": "Turkish meaning or name",
           "example": "Authentic example in {language}",
@@ -3094,7 +3091,7 @@ Return ONLY valid JSON matching this schema:
       ],
       "dialogue": [
         {{
-          "speaker": "Speaker personal name or pedagogical role in instructional language ({material_language})",
+          "speaker": "Speaker",
           "text": "Utterance in {language}",
           "line_en": "English translation",
           "line_tr": "Turkish translation"
@@ -3154,7 +3151,7 @@ Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
             json_mode=True,
             allow_fallback=False
         )
-        norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level, material_language=material_language)
+        norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
         if norm_dict and isinstance(norm_dict, dict) and len(norm_dict.get("pages", [])) >= 3:
             lesson_dict = norm_dict
             with open("pipeline.log", "a", encoding="utf-8") as f:

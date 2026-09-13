@@ -67,8 +67,8 @@ def _pick(obj, en_key, tr_key, is_tr):
     if not isinstance(obj, dict):
         return ''
     if is_tr:
-        return obj.get(tr_key) or ''
-    return obj.get(en_key) or ''
+        return obj.get(tr_key) or obj.get(en_key) or ''
+    return obj.get(en_key) or obj.get(tr_key) or ''
 
 
 def _kind(kind, is_tr):
@@ -131,28 +131,17 @@ def _column_exists(db, table: str, column: str) -> bool:
 
 
 def _normalize_content(raw):
-    def _clean_node(node):
-        if isinstance(node, str):
-            if '\u00ad' in node or '\u2011' in node or '\u2010' in node:
-                return re.sub(r'[\u00ad\u2010\u2011]', '-', node)
-            return node
-        if isinstance(node, dict):
-            return {k: _clean_node(v) for k, v in node.items()}
-        if isinstance(node, list):
-            return [_clean_node(x) for x in node]
-        return node
-
     if isinstance(raw, dict):
-        return _clean_node(raw)
+        return raw
     if isinstance(raw, list):
-        return {'pages': _clean_node(raw)}
+        return {'pages': raw}
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
-                return _clean_node(parsed)
+                return parsed
             if isinstance(parsed, list):
-                return {'pages': _clean_node(parsed)}
+                return {'pages': parsed}
         except Exception:
             return {}
     return {}
@@ -259,8 +248,7 @@ def _direct_vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str) 
             continue
         text = str(value or '').strip()
         if text and text.casefold() not in leaks:
-            from services.material_quality_guard import sanitize_instructional_label
-            return sanitize_instructional_label(text, 'tr' if is_tr else 'en')
+            return text
     return ''
 
 
@@ -742,12 +730,11 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         lines = []
                         for d in dialogue_items:
                             if not isinstance(d, dict): d = {'text': str(d)}
-                            spk = d.get('speaker') or d.get('name') or ''
+                            spk = d.get('speaker') or d.get('name') or '?'
                             said = d.get('text') or d.get('line') or d.get('target') or ''
                             translated = (d.get('line_tr') or d.get('translation_tr')) if is_tr else (d.get('line_en') or d.get('translation_en'))
                             trans_html = f' <span class="translation">({_e(translated)})</span>' if translated else ''
-                            spk_html = f'<span class="speaker">{_e(spk)}:</span> ' if spk else ''
-                            lines.append(f'<div class="line">{spk_html}“{_e(said)}”{trans_html}</div>')
+                            lines.append(f'<div class="line"><span class="speaker">{_e(spk)}:</span> “{_e(said)}”{trans_html}</div>')
                         paginator.place_dialogue(intro, lines)
 
                     elif ptype == 'comparisons':
