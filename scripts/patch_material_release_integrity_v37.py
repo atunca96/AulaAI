@@ -25,7 +25,7 @@ helper = r'''
 def _material_release_integrity_v37(data, language, level):
     """Deterministic final fail-closed validation; semantic work is done by the single publication audit."""
     from services.material_quality_guard import enforce_material_integrity
-    return enforce_material_integrity(data, language=language, material_language="tr") if isinstance(data, dict) else data
+    return enforce_material_integrity(data) if isinstance(data, dict) else data
 '''
 
 if 'def _material_release_integrity_v37(' not in s:
@@ -56,7 +56,7 @@ required = [
     'RULE-SCOPE CALIBRATION:',
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
-    'enforce_material_integrity(data,',
+    'enforce_material_integrity(data)',
     call.strip(),
 ]
 missing = [x for x in required if x not in s]
