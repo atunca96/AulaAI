@@ -81,6 +81,14 @@ def _repair_mixed_token_text(value):
     return re.sub(r"[^\W\d_]+", repl, text, flags=re.UNICODE)
 
 
+def _clean_tr_text(value):
+    text = _repair_mixed_token_text(value)
+    text = re.sub(r"\bzero[- ]copula\b", "sıfır bağlayıcı", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bnominatif\b", "Yalın Hâl", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bgenitif\b", "İlgi/Tamlayan Hâli", text, flags=re.IGNORECASE)
+    return text
+
+
 def _prompt(page):
     for key in ("prompt_tr","question_tr","stem_tr","prompt","question","stem","text_tr","text"):
         if page.get(key):
@@ -110,30 +118,50 @@ def _unsafe_mcq(page, language=""):
         return False
     p = _fold(_prompt(page)); e = _fold(_explanation(page)); opts = _fold(" ".join(_options(page)))
 
-    gender_reason = any(x in e for x in ("ozne disil","ozne eril","female subject","male subject","female name","male name","name is feminine","name is masculine"))
+    gender_reason = any(x in e for x in (
+        "ozne disil","ozne eril","female subject","male subject","female name","male name",
+        "name is feminine","name is masculine","kadin ismi","erkek ismi",
+    ))
     if gender_reason and not _explicit_gender_cue(p):
         return True
 
     marital = any(x in opts for x in ("замужем","женат","холост","married","single","evli","bekar"))
-    marital_cue = any(x in p for x in ("evli","bekar","married","single","spouse","wife","husband","esi","karisi","kocasi","замуж","женат","холост","муж","жена"))
+    marital_cue = any(x in p for x in (
+        "evli","bekar","married","single","spouse","wife","husband","esi","karisi","kocasi",
+        "замуж","женат","холост","муж","жена",
+    ))
     if marital and not marital_cue:
         return True
 
-    workplace = any(x in p for x in ("calisiyor","calisir","works at","works in","working at","working in","arbeitet","travaille","trabaja","lavora","trabalha","работает","работа в"))
-    profession = any(x in (p + " " + e) for x in ("meslegi","meslek","profession","occupation","job is","beruf","професс","кем он","кем она"))
+    workplace = any(x in p for x in (
+        "calisiyor","calisir","works at","works in","working at","working in","arbeitet","travaille",
+        "trabaja","lavora","trabalha","работает","работа в",
+    ))
+    profession = any(x in (p + " " + e) for x in (
+        "meslegi","meslek","profession","occupation","job is","beruf","професс","кем он","кем она",
+    ))
     if workplace and profession:
         return True
 
-    location = any(x in p for x in ("dogdu","dogmus","yasiyor","ikamet","born in","lives in","resides in","родил","живет в","живёт в"))
-    identity = any(x in (p + " " + e) for x in ("milliyet","uyruk","nationality","citizen","anadili","native speaker","language ability","националь","граждан"))
+    location = any(x in p for x in (
+        "dogdu","dogmus","yasiyor","ikamet","born in","lives in","resides in","родил","живет в","живёт в",
+    ))
+    identity = any(x in (p + " " + e) for x in (
+        "milliyet","uyruk","nationality","citizen","anadili","native speaker","language ability","националь","граждан",
+    ))
     if location and identity:
         return True
 
     trait = any(x in p for x in ("dakik","punctual","punktlich","ponctuel","puntual","пунктуал"))
-    absolute = any(x in opts for x in ("never","always","niemals","immer","jamais","toujours","nunca","siempre","никогда","всегда"))
+    absolute = any(x in opts for x in (
+        "never","always","niemals","immer","jamais","toujours","nunca","siempre","никогда","всегда",
+    ))
     if trait and absolute:
         return True
 
+    # A standard seven-letter spelling-rule violation is a fabricated Russian
+    # distractor, not a pedagogically valid alternative. Crop the item rather
+    # than silently correcting an answer choice.
     if _is_russian(language) and any(re.search(r"[гкхжчшщ]ы", str(x).casefold()) for x in _options(page)):
         return True
     return False
@@ -158,7 +186,9 @@ def _clean_tree(node, language="", parent_key=""):
         for item in node:
             if isinstance(item, dict) and _unsafe_mcq(item, language):
                 continue
-            cleaned.append(_clean_tree(item, language, parent_key))
+            child = _clean_tree(item, language, parent_key)
+            if child is not None:
+                cleaned.append(child)
         return cleaned
     if not isinstance(node, dict):
         return node
@@ -171,7 +201,7 @@ def _clean_tree(node, language="", parent_key=""):
         elif key == "answer" and isinstance(value, str):
             out[key] = _clean_option(value)
         elif key in _TR_KEYS and isinstance(value, str):
-            out[key] = _repair_mixed_token_text(value)
+            out[key] = _clean_tr_text(value)
         elif key == "target" and parent_key == "comparisons" and isinstance(value, str):
             out[key] = _clean_target(value)
         elif isinstance(value, (dict, list)):
