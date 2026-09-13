@@ -13,7 +13,16 @@ def run():
     assert "# AULAAI_CANONICAL_MATERIAL_PROMPT" in engine
     assert "from services.material_generation_prompt import build_material_prompts" in engine
     assert "system_prompt, user_prompt = build_material_prompts(" in engine
-    assert "Build clean, universal, professor-level prompt with full pedagogical freedom" not in engine
+
+    # Verify the active generate_full_lesson runtime segment is canonical.
+    start = engine.find("def generate_full_lesson(")
+    end = engine.find("def ai_explain_word(", start)
+    assert start >= 0 and end > start
+    lesson_fn = engine[start:end]
+    assert "# AULAAI_CANONICAL_MATERIAL_PROMPT" in lesson_fn
+    assert "system_prompt, user_prompt = build_material_prompts(" in lesson_fn
+    assert "system_prompt = f\"\"\"<role>" not in lesson_fn
+    assert "user_prompt = f\"\"\"Generate a complete" not in lesson_fn
 
     system_prompt, user_prompt = build_material_prompts(
         language="Example Language",
