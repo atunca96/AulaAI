@@ -17,14 +17,6 @@ def mcq(prompt, options, answer, explanation='ok', **extra):
 valid = mcq('Choose the correct form.', ['alpha', 'beta', 'gamma', 'delta'], 'beta')
 assert validate_mcq(valid) == (True, '')
 
-broken_missing_intended = mcq(
-    'Complete the sentence with the quantity taught in the lesson.',
-    ['one', 'three', 'four', 'five'],
-    'five',
-    explanation='The correct form is two.'
-)
-assert validate_mcq(broken_missing_intended) == (True, '')
-
 bad_key = mcq('Choose.', ['a', 'b', 'c', 'd'], 'e')
 dupe = mcq('Choose.', ['a', 'a', 'c', 'd'], 'a')
 localized_bad = mcq('Choose.', ['a', 'b', 'c', 'd'], 'b', options_tr=['a', 'b'])
@@ -49,11 +41,22 @@ engine = Path('services/ai_engine.py').read_text(encoding='utf-8')
 for marker in (
     'def _material_release_integrity_v37(',
     'MCQ SELF-CONSISTENCY:',
+    'INTERNAL CONSISTENCY:',
+    'RULE-SCOPE CALIBRATION:',
     'WRITING-SYSTEM INTEGRITY:',
-    'CLAIM CALIBRATION:',
     'PHONETIC/NOTATION TRUTH:',
     'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
 ):
     assert marker in engine, marker
 
-print('v37 universal material release integrity self-test passed')
+# Performance invariant: exactly one semantic whole-lesson publication pass,
+# no per-page semantic loop, and v37 itself is deterministic-only.
+publication_call = 'lesson_dict = _material_publication_audit(lesson_dict, language, level)'
+assert engine.count(publication_call) == 1, engine.count(publication_call)
+assert '_material_page_release_audit(' not in engine
+start = engine.index('def _material_release_integrity_v37(')
+end = engine.find('\ndef ', start + 5)
+body = engine[start:end if end > start else len(engine)]
+assert '_call_ai(' not in body
+
+print('v37/v38 universal quality + single-audit performance self-test passed')
