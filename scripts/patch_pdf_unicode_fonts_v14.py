@@ -15,6 +15,13 @@ if old_e in s:
 elif "raw = raw.replace('゛', '†')" not in s:
     raise RuntimeError("PDF escape anchor missing")
 
+css_anchor = ".answer { margin: 0 0 4px 0; }\n"
+css_extra = ".answer { margin: 0 0 4px 0; }\n.p, .rule, .dialogue, .line, .translation, .term, .phon, .meaning, .example, .example-tr, .mcq-q, .mcq-opt, table.vocab td { unicode-bidi: plaintext; }\n"
+if "unicode-bidi: plaintext" not in s:
+    if css_anchor not in s:
+        raise RuntimeError("PDF bidi CSS anchor missing")
+    s = s.replace(css_anchor, css_extra, 1)
+
 finish_anchor = "        doc = fitz.open(self.temp_path)\n        total = len(doc)\n"
 finish_insert = """        doc = fitz.open(self.temp_path)
         _fontfile = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
@@ -39,4 +46,4 @@ elif "AulaNotoCJK" not in s:
     raise RuntimeError("PDF symbol postprocess anchor missing")
 
 p.write_text(s, encoding="utf-8")
-print("Applied safe standalone Japanese symbol repair to academic PDF renderer")
+print("Applied Japanese symbol repair and bidirectional text layout support")
