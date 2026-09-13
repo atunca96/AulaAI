@@ -2970,50 +2970,25 @@ Every sentence, dialogue utterance, explanation, and translation MUST sound comp
 </natural_authenticity_mandate>
 
 <anti_patterns_strictly_forbidden>
-ZERO TOLERANCE — STRICTLY FORBIDDEN OUTPUT PATTERNS (read every rule and obey without exception):
+ZERO TOLERANCE — STRICTLY FORBIDDEN OUTPUT PATTERNS (universal across all languages):
 
 RULE A — NO FORCED PHONETIC SENTENCES:
-When teaching pronunciation (e.g. soft-g 'g', silent-h, j-sound), NEVER pack ALL target sounds artificially into one sentence just to illustrate them.
-  ❌ BAD: "El gato de Guillermo es muy gigante." (forces 'g'/'G'/'g' into nonsensical "very giant" context)
-  ❌ BAD: "Guillermo's cat is very giant." (ungradable adjective — giants cannot be 'very' giant)
-  ❌ BAD: "Guillermo'nun kedisi çok devasa." (ungradable adjective rendered with 'çok')
-  ✅ GOOD: "Guillermo tiene un gato gris muy gordo." (natural, gradable adjective, sounds real)
-  ✅ GOOD (EN): "Guillermo has a very fat grey cat." (natural)
-  ✅ GOOD (TR): "Guillermo'nun çok şişman gri bir kedisi var." (natural Turkish possession)
+When teaching pronunciation or orthography, NEVER artificially pack all target sounds or letters into a single contrived sentence. Every sentence must sound like natural, everyday speech.
 
-RULE B — NO PARENTHETICAL METALINGUISTIC GLOSSES IN TURKISH TRANSLATIONS:
-Turkish translations must be clean, direct, natural translations — NOT grammar lectures embedded inside parentheses.
-  ❌ BAD: "O Meksikalıdır (Meksika'dan); o bir Meksikalı kadındır."
-  ❌ BAD: "Ocak ayı otuz bir güne sahiptir (otuz bir çeker)."
-  ✅ GOOD: "O Meksikalıdır."
-  ✅ GOOD: "Ocak otuz bir gün çeker."
-Turkish has NO grammatical gender. NEVER write "kadındır" or "erkektir" to explain a female or male subject's nationality. Turkish nationality adjectives are gender-neutral.
-  ❌ BAD: "O bir Meksikalı kadındır." (Turkish has no gender — redundant and wrong)
-  ✅ GOOD: "O Meksikalı." or "O, Meksika'dan."
+RULE B — NO PARENTHETICAL METALINGUISTIC GLOSSES IN TRANSLATIONS:
+Instructional-language translations must be clean, direct, and idiomatic translations—never grammar lectures or morphological disclaimers embedded inside parentheses.
 
-RULE C — NO TENSE CALQUES FOR COMMUNICATIVE SPEECH ACTS:
-When the target language uses a conventionalized politeness form (e.g. Spanish imperfect 'quería', 'quisiera'; French conditional 'je voudrais'; German Konjunktiv II 'ich hätte gern'), translate its COMMUNICATIVE FUNCTION into Turkish using the natural Turkish speech-act formula — NOT a literal tense-for-tense calque.
-  ❌ BAD: "Günaydın, bir sütlü kahve ve bir kızarmış ekmek rica ediyordum." (past continuous calque of imperfect — unnatural in Turkish ordering)
-  ❌ BAD: "Bir kahve istiyordum." (same problem — literal imperfect calque for ordering)
-  ✅ GOOD: "Günaydın, bir sütlü kahve ve kızarmış ekmek alabilir miyim?" (natural Turkish ordering formula)
-  ✅ GOOD: "Bir kahve rica ediyorum." or "Bir kahve alabilir miyim?" (present or modal — natural)
-Also: 'bir kızarmış ekmek' is unnatural — real Turkish says 'kızarmış ekmek' without the article for food items in ordering contexts.
+RULE C — NO TENSE OR FUNCTIONAL CALQUES FOR COMMUNICATIVE SPEECH ACTS:
+When the target language uses a conventionalized politeness formula or communicative speech act, translate its communicative function using the natural target/instructional idiom—never a literal word-for-word tense calque.
 
-RULE D — NO 'SAHİPTİR' / 'SAHİBİM' FOR POSSESSION (USE VAR/YOK STRUCTURES):
-When the target language uses 'tener' (Spanish), 'avoir' (French), 'haben' (German), 'have' (English) to express possession, NEVER translate into Turkish using 'sahiptir', 'sahibim', 'sahipsin', etc. This is an archaic, bureaucratic Turkish calque.
-  ❌ BAD: "Bir arabam sahibim." / "Güzel gözlere sahiptir."
-  ✅ GOOD: "Bir arabam var." / "Güzel gözleri var."
-  ✅ GOOD: "Yeşil gözlüdür." (predicate adjective for eye color is natural)
-Exception: 'sahiptir' is acceptable ONLY in formal, bureaucratic, or institutional contexts (e.g., "Bu pozisyon X şartına sahiptir").
+RULE D — NO UNNATURAL SYNTACTIC CALQUES FOR POSSESSION OR EXISTENCE:
+Translate possession, existence, and relational states using the natural syntactic structures of the respective languages (e.g. natural existential/predicative structures), never bureaucratic or literal calques.
 
-RULE E — NO UNNATURAL 'ÇOK' WITH UNGRADABLE ADJECTIVES:
-  ❌ BAD: "çok devasa", "çok muazzam", "çok mükemmel", "çok benzersiz", "çok eşsiz"
-  ✅ GOOD: "devasa", "muazzam", "mükemmel", "benzersiz", "eşsiz"
+RULE E — NO UNNATURAL INTENSIFIERS WITH UNGRADABLE ADJECTIVES:
+Adjectives that express absolute or ungradable states must not be modified with unnatural degree adverbs (e.g. 'very essential', 'very unique', 'çok devasa').
 
-RULE F — ENGLISH EXAMPLE SENTENCES MUST BE NATURAL ENGLISH:
-  ❌ BAD: "Guillermo's cat is very giant." (not a real English phrase)
-  ❌ BAD: "She is from Mexico; she is a Mexican woman." (redundant and mechanical)
-  ✅ GOOD: "Guillermo's cat is enormous." / "She's from Mexico — she's Mexican."
+RULE F — ALL EXAMPLE SENTENCES MUST BE IDIOMATIC AND NATURALLY EMBEDDED:
+All examples and dialogue turns in the target language and instructional languages must be fluent, contemporary, and free from translationese, mechanical parallelisms, or artificial textbook tropes.
 </anti_patterns_strictly_forbidden>
 
 <bilingual_pedagogical_tracks>
@@ -3042,7 +3017,7 @@ STRICT GROUNDING & SOURCE PROVENANCE FOR RULES (pages[].rules) & COMPARISONS (pa
      * Pedagogical overview statements or meta-commentary (e.g. 'Language X is phonetic', 'pronunciation follows rules').
      * Vocabulary lists, noun categories, or thematic word groupings (e.g. 'ticket types', 'family member words').
      * Conversational formulas or pragmatic advice (e.g. 'be polite').
-   - 'pages[].comparisons' is RESERVED EXCLUSIVELY for explicit grammatical, morphological, syntactic, or aspectual contrasts explicitly taught by the source (e.g. 'ser vs. estar', 'por vs. para', 'el vs. un', subject concord).
+   - 'pages[].comparisons' is RESERVED EXCLUSIVELY for explicit grammatical, morphological, syntactic, or aspectual contrasts explicitly taught by the source (e.g. aspectual contrasts, copula distinctions, definite vs. indefinite determiners, grammatical concord).
    - ABSOLUTELY FORBIDDEN IN 'comparisons':
      * Lexical near-synonyms or real-world item pairs (e.g. 'window seat vs aisle seat', 'garment size vs shoe size', 'tea vs coffee').
      * Conversational courtesy formulas (e.g. 'excuse me vs pardon').
@@ -3144,13 +3119,10 @@ REASONING DIRECTIVE:
 In your internal reasoning process, plan the pedagogical arc for this {level} {language} lesson:
 1. Target communicative competencies and grammatical structures based on {official_institution} CEFR {level} standards.
 2. Structure the pages with complete academic freedom to best teach this topic.
-3. Authentic & Natural Phrasing (CRITICAL — check EVERY sentence against anti_patterns_strictly_forbidden):
-   - Example sentences: choose realistic, everyday situations; never force multiple sounds into one contrived sentence.
-   - Turkish translations: clean and direct. No parenthetical glosses. No gender hacks ('kadındır'/'erkektir'). No 'sahiptir' for possession ('var' instead). No tense calques for ordering ('rica ediyordum' → 'rica ediyorum' / 'alabilir miyim?').
-   - English translations: idiomatic modern English only. No "very giant", no mechanical parallel constructions.
+3. Authentic & Natural Phrasing:
+   - Target and instructional language: clean, natural, and idiomatic; no parenthetical glosses, no literal translation calques.
 4. Strict Two-Track Isolation:
-   - English fields: Explain strictly for English speakers. Zero Turkish mentions.
-   - Turkish fields: Explain strictly for Turkish speakers. Natural, authentic Turkish. Zero English word comparisons.
+   - English fields for English learners (zero Turkish mentions), Turkish fields for Turkish learners (natural Turkish, zero English comparisons).
 5. Completeness: Never skip items in a defined sequence (e.g. alphabets or number ranges).
 6. Strict Grammar Rules & Comparisons Source Boundary (pages[].rules & pages[].comparisons):
    - A structured rule or comparison may exist only if it can be traced to concrete evidence in the original lesson source itself; model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must never count as evidence for another rule.
