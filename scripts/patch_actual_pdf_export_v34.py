@@ -76,8 +76,15 @@ if footer_assign not in body:
         raise RuntimeError("v34 page/footer anchor missing")
     body = body.replace(pg_anchor, pg_anchor + footer_assign, 1)
 
-body = body.replace('                        "AulaAI Educational System — Self-Contained Course Material",\n', '                        footer_text,\n', 1)
-body = body.replace("                        'AulaAI Educational System — Self-Contained Course Material',\n", '                        footer_text,\n', 1)
+lines = body.splitlines(keepends=True)
+for i, line in enumerate(lines):
+    stripped = line.strip()
+    if "AulaAI Educational System" in stripped and "footer_text =" not in stripped:
+        if stripped.startswith(('"AulaAI Educational System', "'AulaAI Educational System")):
+            indent = line[:len(line) - len(line.lstrip())]
+            lines[i] = indent + "footer_text,\n"
+            break
+body = ''.join(lines)
 
 required = [
     "def _pdf_export_language_name(",
