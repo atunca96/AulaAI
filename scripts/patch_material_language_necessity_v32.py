@@ -9,14 +9,21 @@ new = """7) COUNTERFACTUAL LANGUAGE-NECESSITY TEST (SURGICAL): the learner must 
 count = s.count(old)
 if count != 1:
     raise RuntimeError(f"v32 expected exactly one LANGUAGE-NECESSITY anchor, found {count}")
-
 s = s.replace(old, new, 1)
 
-# Verify surgical scope: only the intended contract is added.
+# Prior lesson context is only needed when the page is an MCQ. Every page still
+# receives the same Gemini 3.7 deep linguistic audit; clean non-MCQ pages simply
+# stop re-reading up to 7000 chars of irrelevant prior material before replying PASS.
+digest_old = '        digest = "\\n".join(prior)[-7000:]\n'
+digest_new = '        digest = "\\n".join(prior)[-7000:] if isinstance(page, dict) and page.get("type") == "mcq" else ""\n'
+if digest_old not in s:
+    raise RuntimeError("v32 audit digest anchor missing")
+s = s.replace(digest_old, digest_new, 1)
+
 if "COUNTERFACTUAL LANGUAGE-NECESSITY TEST (SURGICAL)" not in s:
     raise RuntimeError("v32 replacement missing")
-if old in s:
-    raise RuntimeError("v32 stale language-necessity contract remains")
+if old in s or 'page.get("type") == "mcq"' not in s:
+    raise RuntimeError("v32 verification failed")
 
 p.write_text(s, encoding="utf-8")
-print("Applied v32: surgical counterfactual language-necessity gate only")
+print("Applied v32: counterfactual MCQ gate + lean non-MCQ audit context")
