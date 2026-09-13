@@ -6,6 +6,8 @@ s = p.read_text(encoding="utf-8")
 old_e = "def _e(value):\n    return html.escape(str(value or ''))\n"
 new_e = """def _e(value):
     raw = str(value or '')
+    if '\\u00ad' in raw or '\\u2011' in raw or '\\u2010' in raw:
+        raw = re.sub(r'[\\u00ad\\u2010\\u2011]', '-', raw)
     raw = raw.replace('゛', '†').replace('゜', '‡')
     raw = re.sub(r'(?<![\\u3040-\\u30ff\\u3400-\\u9fff\\uff66-\\uff9f])ー(?![\\u3040-\\u30ff\\u3400-\\u9fff\\uff66-\\uff9f])', '¤', raw)
     return html.escape(raw)

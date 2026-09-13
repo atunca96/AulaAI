@@ -2615,7 +2615,7 @@ def _normalize_lesson_pages(data, topic, language, level):
                             })
                 p["rules"] = norm_rules
 
-            # Ensure dialogue preserves translations
+            # Ensure dialogue preserves translations and localizes speaker roles
             if "dialogue" in p and isinstance(p["dialogue"], list):
                 for d in p["dialogue"]:
                     if isinstance(d, dict):
@@ -2623,6 +2623,9 @@ def _normalize_lesson_pages(data, topic, language, level):
                             d["line_en"] = d.get("translation")
                         if not d.get("line_tr") and d.get("translation_tr"):
                             d["line_tr"] = d.get("translation_tr")
+                        if "speaker" in d and isinstance(d["speaker"], str):
+                            from services.material_quality_guard import sanitize_dialogue_speaker
+                            d["speaker"] = sanitize_dialogue_speaker(d["speaker"], "tr")
 
             # Ensure MCQ preserves bilingual prompt and explanation
             if p.get("type") == "mcq" or p.get("prompt"):
@@ -3049,7 +3052,7 @@ Return ONLY valid JSON matching this schema:
       "items": [
         {{
           "term": "Word, character, or phrase in {language}",
-          "phonetic": "[IPA / phonetic guide]",
+          "phonetic": "[Standard IPA notation, e.g. [mʲɪˈtro] — no ad-hoc syllable respellings]",
           "translation": "English meaning or name",
           "translation_tr": "Turkish meaning or name",
           "example": "Authentic example in {language}",
@@ -3091,7 +3094,7 @@ Return ONLY valid JSON matching this schema:
       ],
       "dialogue": [
         {{
-          "speaker": "Speaker",
+          "speaker": "Speaker name or role in instructional language (e.g. Öğrenci, Garson for Turkish)",
           "text": "Utterance in {language}",
           "line_en": "English translation",
           "line_tr": "Turkish translation"

@@ -13,8 +13,12 @@ if str(ROOT) not in sys.path:
 
 from services.material_quality_guard import (
     validate_mcq,
+    validate_mcq_semantics,
     validate_unicode_integrity,
     safe_unicode_normalize,
+    sanitize_dialogue_speaker,
+    validate_dialogue_speaker,
+    is_adhoc_learner_respelling,
     _script_gate,
     _phonetic_gate,
     enforce_material_integrity,
@@ -135,6 +139,23 @@ def run_tests():
     ok_orph, why_orph = validate_unicode_integrity("\u0301accent")
     assert not ok_orph and "orphaned-combining-mark" in why_orph, "Failed to catch orphaned combining mark"
 
+    # PRODUCTION REGRESSION: Soft hyphens (U+00AD) and non-breaking hyphens (U+2011)
+    # in Russian compound adverbs and Turkish case references
+    prod_hyphen_corruptions = [
+        ("по\u00ADанглийски", "по-английски"),
+        ("по\u00ADиспански", "по-испански"),
+        ("по\u00ADрусски", "по-русски"),
+        ("по\u00ADитальянски", "по-итальянски"),
+        ("по\u00ADнемецки", "по-немецки"),
+        ("İ\u00ADhâlinde", "İ-hâlinde"),
+        ("по\u2011русски", "по-русски"),
+    ]
+    for corrupt, expected_clean in prod_hyphen_corruptions:
+        ok_h, why_h = validate_unicode_integrity(corrupt)
+        assert not ok_h, f"Failed to reject corrupt hyphen code point in: {corrupt}"
+        healed = safe_unicode_normalize(corrupt)
+        assert healed == expected_clean, f"Safe normalize failed on {corrupt}: expected '{expected_clean}', got '{healed}'"
+
     # B) Legitimate combining diacritics across languages -> MUST PASS
     # Turkish, Spanish, German, French, Swedish, Russian, Arabic, Indic
     valid_unicode_samples = [
@@ -146,6 +167,7 @@ def run_tests():
         "йогурт, подъезд, кофе́ (accented stress)",                     # Russian with combining acute
         "كِتَابٌ جَمِيلٌ (with harakat/tashkeel)",                   # Arabic with full vocalization
         "नमस्ते, विद्या (with virama and matras)",                    # Hindi Devanagari
+        "по-русски, по-английски, по-немецки",                       # Russian hyphenated adverbs with ASCII '-'
     ]
     for sample in valid_unicode_samples:
         ok_u, why_u = validate_unicode_integrity(sample)
@@ -158,7 +180,18 @@ def run_tests():
     # ──────────────────────────────────────────────────────────────────────────
     print("  -> Testing Pronunciation-System Consistency...")
 
-    # A) IPA mixed with ad-hoc hyphenated learner respelling -> MUST FAIL
+    # A) PRODUCTION REGRESSION: Ad-hoc learner respellings or native syllable breaks -> MUST DETECT
+    prod_adhoc_respellings = [
+        "mit-ró",
+        "[mask-va]",
+        "сло-ва́рь",
+        "slo-var'",
+        "[ˈzdrav-stvu-yte]",
+    ]
+    for adhoc in prod_adhoc_respellings:
+        assert is_adhoc_learner_respelling(adhoc), f"Failed to detect ad-hoc learner respelling: {adhoc}"
+
+    # IPA mixed with ad-hoc hyphenated learner respelling inside lesson -> MUST FAIL
     mixed_respelling = {
         "pages": [{
             "items": [{"term": "cat", "phonetic": "[kæt] KAT-uh-lee-nuh"}]
@@ -172,12 +205,18 @@ def run_tests():
         "pages": [{
             "items": [
                 {"term": "casa", "phonetic": "[ˈka.sa]"},
-                {"term": "perro", "phonetic": "/ˈpe.ro/"}
+                {"term": "perro", "phonetic": "/ˈpe.ro/"},
+                {"term": "метро", "phonetic": "[mʲɪˈtro]"},
             ]
         }]
     }
     ok_ipa, why_ipa = _phonetic_gate(clean_ipa)
     assert ok_ipa, f"Standard IPA/phonemic rejected: {why_ipa}"
+
+    # Pure IPA strings must NOT be classified as adhoc respellings
+    assert not is_adhoc_learner_respelling("[mʲɪˈtro]")
+    assert not is_adhoc_learner_respelling("[ˈka.sa]")
+    assert not is_adhoc_learner_respelling("/ˈpe.ro/")
 
     # Clean Pinyin without brackets -> MUST PASS
     clean_pinyin = {
@@ -187,11 +226,34 @@ def run_tests():
     }
     ok_pinyin, why_pinyin = _phonetic_gate(clean_pinyin)
     assert ok_pinyin, f"Valid Pinyin representation rejected: {why_pinyin}"
+    assert not is_adhoc_learner_respelling("nǐ hǎo")
 
     # ──────────────────────────────────────────────────────────────────────────
-    # 4. INSTRUCTIONAL-LANGUAGE ISOLATION TESTS
+    # 4. INSTRUCTIONAL-LANGUAGE ISOLATION & ROLE LOCALIZATION TESTS
     # ──────────────────────────────────────────────────────────────────────────
-    print("  -> Testing Instructional-Language Isolation...")
+    print("  -> Testing Instructional-Language Isolation & Role Localization...")
+
+    # PRODUCTION REGRESSION: Untranslated English speaker role labels in Turkish materials
+    assert not validate_dialogue_speaker("(Professor)", "tr")[0]
+    assert not validate_dialogue_speaker("(Student)", "tr")[0]
+    assert not validate_dialogue_speaker("Waiter", "tr")[0]
+    assert not validate_dialogue_speaker("Teacher", "tr")[0]
+    assert not validate_dialogue_speaker("Passerby", "tr")[0]
+
+    # Localized Turkish role labels and proper names -> MUST PASS
+    assert validate_dialogue_speaker("(Profesör)", "tr")[0]
+    assert validate_dialogue_speaker("(Öğrenci)", "tr")[0]
+    assert validate_dialogue_speaker("Garson", "tr")[0]
+    assert validate_dialogue_speaker("Öğretmen", "tr")[0]
+    assert validate_dialogue_speaker("Marco", "tr")[0]
+    assert validate_dialogue_speaker("Anna", "tr")[0]
+
+    # Localization sanitization checks
+    assert sanitize_dialogue_speaker("(Professor)", "tr") == "(Profesör)"
+    assert sanitize_dialogue_speaker("(Student)", "tr") == "(Öğrenci)"
+    assert sanitize_dialogue_speaker("Waiter", "tr") == "Garson"
+    assert sanitize_dialogue_speaker("Teacher", "tr") == "Öğretmen"
+    assert sanitize_dialogue_speaker("Marco", "tr") == "Marco"
 
     # Target lexical string iterator correctly extracts only target language keys
     test_node = {
@@ -220,11 +282,11 @@ def run_tests():
     assert "Almanca eril isim" not in lexical_extracted
 
     # ──────────────────────────────────────────────────────────────────────────
-    # 5. FORMATIVE MCQ VALIDITY TESTS
+    # 5. FORMATIVE MCQ VALIDITY & SEMANTIC ENTAILMENT TESTS
     # ──────────────────────────────────────────────────────────────────────────
-    print("  -> Testing Formative MCQ Validity...")
+    print("  -> Testing Formative MCQ Validity & Semantic Entailment...")
 
-    # Missing prompt -> FAIL
+    # A) Missing prompt -> FAIL
     bad_mcq1 = {"type": "mcq", "options": ["a", "b", "c", "d"], "answer": "a"}
     ok, why = validate_mcq(bad_mcq1)
     assert not ok and why == "missing-prompt", "Did not catch missing prompt"
@@ -249,7 +311,57 @@ def run_tests():
     ok, why = validate_mcq(bad_mcq5)
     assert not ok and why == "correct-index-mismatch", "Did not catch correct index mismatch"
 
-    # Valid MCQ -> PASS
+    # B) PRODUCTION REGRESSION: Semantic non-entailment leaps -> MUST FAIL
+    # 1. Birthplace does NOT entail nationality or citizenship
+    birthplace_leap_mcq = {
+        "type": "mcq",
+        "prompt": "Анна родилась в Турции, она _______.",
+        "options": ["турчанка", "испанка", "немка", "француженка"],
+        "answer": "турчанка",
+        "correct_index": 0,
+        "explanation": "Анна родилась в Турции."
+    }
+    ok_sem1, why_sem1 = validate_mcq(birthplace_leap_mcq)
+    assert not ok_sem1 and "birthplace-does-not-entail-nationality" in why_sem1, f"Failed to reject birthplace-to-nationality leap: {why_sem1}"
+
+    # 2. Workplace does NOT entail profession without stated duties
+    workplace_leap_mcq = {
+        "type": "mcq",
+        "prompt": "Я работаю в школе, я _______.",
+        "options": ["учитель", "водитель", "инженер", "повар"],
+        "answer": "учитель",
+        "correct_index": 0,
+        "explanation": "В школе работают учителя."
+    }
+    ok_sem2, why_sem2 = validate_mcq(workplace_leap_mcq)
+    assert not ok_sem2 and "workplace-does-not-entail-profession" in why_sem2, f"Failed to reject workplace-to-profession leap: {why_sem2}"
+
+    # C) Valid questions with explicit semantic grounding -> MUST PASS
+    # 1. Question with explicit duties stated
+    grounded_profession_mcq = {
+        "type": "mcq",
+        "prompt": "Я преподаю русский язык в школе, я _______.",
+        "options": ["учитель", "водитель", "инженер", "повар"],
+        "answer": "учитель",
+        "correct_index": 0,
+        "explanation": "Преподаватель в школе — это учитель."
+    }
+    ok_gr_prof, why_gr_prof = validate_mcq(grounded_profession_mcq)
+    assert ok_gr_prof, f"Grounded profession MCQ falsely rejected: {why_gr_prof}"
+
+    # 2. Question with explicit citizenship stated
+    grounded_citizenship_mcq = {
+        "type": "mcq",
+        "prompt": "Анна — гражданка Турции, она _______.",
+        "options": ["турчанка", "испанка", "немка", "француженка"],
+        "answer": "турчанка",
+        "correct_index": 0,
+        "explanation": "Гражданка Турции — турчанка."
+    }
+    ok_gr_cit, why_gr_cit = validate_mcq(grounded_citizenship_mcq)
+    assert ok_gr_cit, f"Grounded citizenship MCQ falsely rejected: {why_gr_cit}"
+
+    # Valid structural MCQ -> PASS
     good_mcq = {
         "type": "mcq",
         "prompt": "Which definite article is used with masculine singular nouns in German in the nominative case?",
@@ -275,26 +387,52 @@ def run_tests():
         assert ok, f"Multilingual MCQ rejected: {opts} -> {why}"
 
     # ──────────────────────────────────────────────────────────────────────────
-    # 6. STRUCTURAL INTEGRITY ENFORCEMENT TESTS
+    # 6. STRUCTURAL & END-TO-END LESSON INTEGRITY ENFORCEMENT TESTS
     # ──────────────────────────────────────────────────────────────────────────
-    print("  -> Testing Structural Integrity Enforcement...")
+    print("  -> Testing Structural & End-to-End Lesson Integrity Enforcement...")
 
     lesson_payload = {
         "pages": [
-            {"type": "overview", "title": "Overview", "text": "Lesson foundations."},
+            {"type": "overview", "title": "Overview", "text": "Lesson foundations on по\u00ADрусски."},
+            {
+                "type": "examples",
+                "dialogue": [
+                    {"speaker": "(Professor)", "text": "Здравствуйте!", "line_tr": "Merhaba!"},
+                    {"speaker": "(Student)", "text": "Доброе утро!", "line_tr": "Günaydın!"},
+                ]
+            },
+            {
+                "type": "vocabulary",
+                "items": [
+                    {"term": "метро", "phonetic": "mit-ró", "translation_tr": "metro"},
+                    {"term": "книга", "phonetic": "[ˈknʲi.ɡə]", "translation_tr": "kitap"},
+                ]
+            },
             good_mcq,
-            bad_mcq1,  # Structurally flawed MCQ (missing prompt)
-            bad_mcq3,  # Structurally flawed MCQ (duplicate options)
+            bad_mcq1,  # Structurally broken -> should be pruned
+            bad_mcq3,  # Duplicate options -> should be pruned
+            birthplace_leap_mcq,  # Semantically non-entailed -> should be pruned
             {"type": "grammar", "title": "Rules", "rules": []}
         ]
     }
-    clean_lesson = enforce_material_integrity(lesson_payload, "German")
-    # Non-destructive integrity: preserves all pages without dropping items or reducing page count
-    assert len(clean_lesson["pages"]) == 5, f"Expected 5 preserved pages after non-destructive check, got {len(clean_lesson['pages'])}"
+    clean_lesson = enforce_material_integrity(lesson_payload, "Russian", material_language="tr")
+    # Verified non-destructive cleanup: exactly 5 valid pages remain
+    assert len(clean_lesson["pages"]) == 5, f"Expected 5 valid pages after cleanup, got {len(clean_lesson['pages'])}"
     assert clean_lesson["pages"][0]["type"] == "overview"
-    assert clean_lesson["pages"][1]["type"] == "mcq"
+    # Unicode soft hyphen healed:
+    assert "по-русски" in clean_lesson["pages"][0]["text"]
+    # Dialogue speaker roles localized:
+    assert clean_lesson["pages"][1]["dialogue"][0]["speaker"] == "(Profesör)"
+    assert clean_lesson["pages"][1]["dialogue"][1]["speaker"] == "(Öğrenci)"
+    # Ad-hoc respelling removed from vocabulary:
+    assert clean_lesson["pages"][2]["items"][0]["phonetic"] == ""
+    assert clean_lesson["pages"][2]["items"][1]["phonetic"] == "[ˈknʲi.ɡə]"
+    # MCQ preserved:
+    assert clean_lesson["pages"][3]["type"] == "mcq"
+    # Grammar preserved:
     assert clean_lesson["pages"][4]["type"] == "grammar"
-    assert len(clean_lesson.get("_validation_warnings", [])) == 2
+    # Three invalid MCQs recorded in removed list:
+    assert len(clean_lesson.get("_integrity_removed_mcq", [])) == 3
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. CONTRACT & CEFR CONSISTENCY CHECKS

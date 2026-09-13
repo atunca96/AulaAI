@@ -22,10 +22,10 @@ dupe = mcq('Choose.', ['a', 'a', 'c', 'd'], 'a')
 localized_bad = mcq('Choose.', ['a', 'b', 'c', 'd'], 'b', options_tr=['a', 'b'])
 lesson = {'pages': [valid, bad_key, dupe, localized_bad, {'type': 'overview', 'text': 'Keep me'}]}
 out = enforce_material_integrity(lesson)
-assert len(out['pages']) == 5, out
+assert len(out['pages']) == 2, out
 assert out['pages'][0]['answer'] == 'beta'
-assert out['pages'][4]['type'] == 'overview'
-assert len(out.get('_validation_warnings', [])) == 3
+assert out['pages'][1]['type'] == 'overview'
+assert len(out.get('_integrity_removed_mcq', [])) == 3
 
 for opts, ans in [
     (['дом', 'дома', 'дому', 'домом'], 'дому'),

@@ -731,6 +731,9 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         for d in dialogue_items:
                             if not isinstance(d, dict): d = {'text': str(d)}
                             spk = d.get('speaker') or d.get('name') or '?'
+                            if is_tr:
+                                from services.material_quality_guard import sanitize_dialogue_speaker
+                                spk = sanitize_dialogue_speaker(spk, 'tr')
                             said = d.get('text') or d.get('line') or d.get('target') or ''
                             translated = (d.get('line_tr') or d.get('translation_tr')) if is_tr else (d.get('line_en') or d.get('translation_en'))
                             trans_html = f' <span class="translation">({_e(translated)})</span>' if translated else ''
