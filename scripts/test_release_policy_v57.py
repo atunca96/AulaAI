@@ -1,18 +1,32 @@
-from sitecustomize import _clean_option, _clean_target, _clean_tree
+from sitecustomize import _clean_option, _clean_target, _clean_tree, _clean_tr_text
 
 
 def run():
-    # Existing V56 cleanup remains intact.
+    # Existing publication cleanup remains intact.
     assert _clean_option("Средний род (Neuter)") == "Средний род"
     assert _clean_option("[ɐ] (an unstressed 'a'-like sound)") == "[ɐ]"
+    assert _clean_option("кофе (çekimsiz eril)") == "кофе (çekimsiz eril)"
     assert _clean_target("Чей это [kto]?") == "Чей это?"
     assert _clean_target("мат [mat] / мать [matʲ]") == "мат [mat] / мать [matʲ]"
 
-    # Mixed-script corruption in Turkish learner-facing text is repaired only
-    # when Latin and Cyrillic were accidentally combined inside one token.
+    # Turkish learner-facing text: mixed-script typo + foreign metalanguage.
     data = {"pages": [{"type": "vocabulary", "items": [{"term": "пальто", "example_tr": "Bu benim palтом."}]}]}
     cleaned = _clean_tree(data, language="Russian")
     assert cleaned["pages"][0]["items"][0]["example_tr"] == "Bu benim paltom."
+    assert _clean_tr_text("yönelme hâli (datif)") == "yönelme hâli (Yönelme Hâli)"
+    assert _clean_tr_text("belirtme hâli (akuzatif)") == "belirtme hâli (Belirtme Hâli)"
+    assert _clean_tr_text("Yalın Hâl singular; Genitif plural") == "Yalın Hâl tekil; İlgi/Tamlayan Hâli çoğul"
+    assert _clean_tr_text("masculine / feminine / neuter") == "eril / dişil / nötr"
+
+    # Mixed Latin+Cyrillic corruption inside Russian target text is repaired,
+    # while a deliberate pure-Latin quotation remains untouched.
+    target = {"pages": [{"type": "vocabulary", "items": [
+        {"term": "гулять", "example": "В суббоtu мы гуляем в парке.", "example_tr": "Cumartesi parkta gezeriz."},
+        {"term": "как по-русски", "example": "Как по-русски dictionary?", "example_tr": "Dictionary Rusça nasıl denir?"},
+    ]}]}
+    target_clean = _clean_tree(target, language="Russian")
+    assert target_clean["pages"][0]["items"][0]["example"] == "В субботу мы гуляем в парке."
+    assert "dictionary" in target_clean["pages"][0]["items"][1]["example"]
 
     # Repeated Russian alphabet defects are normalized deterministically.
     alphabet = {"pages": [{"type": "vocabulary", "items": [
@@ -40,7 +54,7 @@ def run():
     }
     assert _clean_tree(bad_gender, language="Russian")["pages"] == []
 
-    # A stem that explicitly states both gender and marital status is safe.
+    # Explicit gender + marital fact remains a legitimate morphology question.
     safe_gender = {
         "pages": [{
             "type": "mcq",
@@ -52,7 +66,22 @@ def run():
     }
     assert len(_clean_tree(safe_gender, language="Russian")["pages"]) == 1
 
-    # A fabricated Russian spelling distractor causes omission of the whole MCQ.
+    # Workplace -> profession is cropped.
+    bad_job = {"pages": [{
+        "type": "mcq", "prompt_tr": "Oleg okulda çalışıyor. Mesleği nedir?",
+        "options": ["учитель", "врач", "инженер", "студент"], "answer": "учитель",
+        "explanation_tr": "Okulda çalıştığı için öğretmendir."
+    }]}
+    assert _clean_tree(bad_job, language="Russian")["pages"] == []
+
+    # Trait -> absolute-frequency inference is cropped.
+    bad_trait = {"pages": [{
+        "type": "mcq", "prompt_tr": "İvan çok dakiktir. İşe ____ geç kalır.",
+        "options": ["никогда", "иногда", "часто", "редко"], "answer": "никогда"
+    }]}
+    assert _clean_tree(bad_trait, language="Russian")["pages"] == []
+
+    # A fabricated Russian spelling distractor crops the whole item.
     bad_distractor = {
         "pages": [{
             "type": "mcq",
