@@ -25,6 +25,10 @@ from services.material_quality_guard import (
     enforce_release_hard_gate,
     is_metadata_or_proper_token,
     MaterialReleaseRejected,
+    sanitize_instructional_label,
+    heal_syllable_hyphenated_ipa,
+    heal_phonetic_prose,
+    calibrate_rule_scope_consistency,
 )
 
 
@@ -579,7 +583,105 @@ def run_tests():
     assert clean_a1 == clean_c2, "Material integrity enforcement diverged across CEFR levels"
 
     # ──────────────────────────────────────────────────────────────────────────
-    # 7. CONTRACT & CEFR CONSISTENCY CHECKS
+    # 7. INSTRUCTIONAL LABEL ISOLATION, IPA HEALING & RULE-SCOPE CONSISTENCY
+    # ──────────────────────────────────────────────────────────────────────────
+    print("  -> Testing Instructional Labels, IPA Healing & Rule Scope Consistency...")
+
+    # A) Pedagogical label localization & English leakage prevention
+    assert sanitize_instructional_label("Hard Consonant Indicator Vowels", material_language="tr") == "Kalın Ünsüz Belirten Ünlüler"
+    assert sanitize_instructional_label("Soft Consonant Indicator Vowels", material_language="tr") == "İnce Ünsüz Belirten Ünlüler"
+    assert sanitize_instructional_label("Hard Consonant Indicator Vowels", material_language="de") == "Harte Konsonanten anzeigende Vokale"
+    assert sanitize_instructional_label("Hard Consonant Indicator Vowels", material_language="fr") == "Voyelles indicatrices de consonnes dures"
+    assert sanitize_instructional_label("Hard Consonant Indicator Vowels", material_language="en") == "Hard Consonant Indicator Vowels"
+    assert sanitize_instructional_label("Hard Consonant Indicator Vowels: А, О, У, Ы, Э", material_language="tr") == "Kalın Ünsüz Belirten Ünlüler: А, О, У, Ы, Э"
+
+    # B) Standard IPA Syllable-Hyphen Healing
+    # [ˈdo-mə] -> [ˈdomə], [dɐ-ˈma] -> [dɐˈma], [mʲɪ-ˈtro] -> [mʲɪˈtro]
+    assert heal_syllable_hyphenated_ipa("[ˈdo-mə]") == "[ˈdomə]"
+    assert heal_syllable_hyphenated_ipa("[dɐ-ˈma]") == "[dɐˈma]"
+    assert heal_syllable_hyphenated_ipa("[mʲɪ-ˈtro]") == "[mʲɪˈtro]"
+    # Prose healing
+    assert heal_phonetic_prose("Örnek olarak дом [ˈdo-mə] ve дома [dɐ-ˈma] sözcükleri.") == "Örnek olarak дом [ˈdomə] ve дома [dɐˈma] sözcükleri."
+    # Ad-hoc non-IPA respellings are NOT healed into valid IPA
+    assert heal_syllable_hyphenated_ipa("[mask-va]") == "[mask-va]"
+    assert is_adhoc_learner_respelling("[mask-va]") is True
+    assert heal_syllable_hyphenated_ipa("mit-ró") == "mit-ró"
+    assert is_adhoc_learner_respelling("mit-ró") is True
+
+    # C) Rule-Scope Calibration & Internal Contradiction Elimination
+    overgeneralized_tr = "11 ile 19 arasındaki tüm sayılarda birincil vurgu daima 'на' hecesindedir."
+    calibrated_tr = calibrate_rule_scope_consistency(overgeneralized_tr, {"оди́ннадцать", "двена́дцать"}, "tr")
+    assert "daima 'на'" not in calibrated_tr
+    assert "genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)" in calibrated_tr
+
+    overgeneralized_en = "In numbers 11 to 19, the primary stress is always on the syllable 'na'."
+    calibrated_en = calibrate_rule_scope_consistency(overgeneralized_en, {"оди́ннадцать"}, "en")
+    assert "always on the syllable 'na'" not in calibrated_en
+    assert "typically on 'на'" in calibrated_en
+
+    # D) End-to-end integration test with enforce_material_integrity
+    lesson_test_payload = {
+        "pages": [
+            {
+                "type": "vocabulary",
+                "title": "Russian Vowels",
+                "title_tr": "Rusça Ünlüler",
+                "items": [
+                    {
+                        "term": "А, О, У, Ы, Э",
+                        "phonetic": "[ˈdo-mə]",
+                        "translation": "Hard Consonant Indicator Vowels",
+                        "translation_tr": ""
+                    },
+                    {
+                        "term": "дома",
+                        "phonetic": "[dɐ-ˈma]",
+                        "translation": "at home",
+                        "translation_tr": "evde"
+                    },
+                    {
+                        "term": "метро",
+                        "phonetic": "mit-ró",  # ad-hoc respelling -> must be blanked
+                        "translation": "subway",
+                        "translation_tr": "metro"
+                    }
+                ]
+            },
+            {
+                "type": "grammar",
+                "title": "Russian Numbers 11-19",
+                "title_tr": "11-19 Arası Sayılar",
+                "text": "дом [ˈdo-mə] ve дома [dɐ-ˈma]",
+                "rules": [
+                    {
+                        "rule": "In numbers 11 to 19, stress is always on the syllable 'na'.",
+                        "rule_tr": "11 ile 19 arasındaki tüm sayılarda birincil vurgu daima 'на' hecesindedir.",
+                        "explanation_tr": "дом [ˈdo-mə] ve дома [dɐ-ˈma]"
+                    }
+                ]
+            }
+        ]
+    }
+    cleaned_test = enforce_material_integrity(lesson_test_payload, "Russian", material_language="tr")
+    p0 = cleaned_test["pages"][0]
+    # Check that [ˈdo-mə] and [dɐ-ˈma] were healed to [ˈdomə] and [dɐˈma]
+    assert p0["items"][0]["phonetic"] == "[ˈdomə]"
+    assert p0["items"][1]["phonetic"] == "[dɐˈma]"
+    # Check that ad-hoc mit-ró was safely blanked
+    assert p0["items"][2]["phonetic"] == ""
+    # Check that English table label was localized to Turkish
+    assert p0["items"][0]["translation_tr"] == "Kalın Ünsüz Belirten Ünlüler"
+
+    p1 = cleaned_test["pages"][1]
+    # Check prose phonetic healing
+    assert p1["text"] == "дом [ˈdomə] ve дома [dɐˈma]"
+    assert p1["rules"][0]["explanation_tr"] == "дом [ˈdomə] ve дома [dɐˈma]"
+    # Check rule calibration
+    assert "genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)" in p1["rules"][0]["rule_tr"]
+    assert "typically on 'на'" in p1["rules"][0]["rule"]
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # 8. CONTRACT & CEFR CONSISTENCY CHECKS
     # ──────────────────────────────────────────────────────────────────────────
     print("  -> Testing Quality Contract Consistency...")
 

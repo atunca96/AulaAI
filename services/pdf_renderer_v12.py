@@ -67,7 +67,14 @@ def _pick(obj, en_key, tr_key, is_tr):
     if not isinstance(obj, dict):
         return ''
     if is_tr:
-        return obj.get(tr_key) or obj.get(en_key) or ''
+        val = obj.get(tr_key)
+        if val:
+            return val
+        en_val = obj.get(en_key)
+        if en_val:
+            from services.material_quality_guard import sanitize_instructional_label
+            return sanitize_instructional_label(en_val, 'tr')
+        return ''
     return obj.get(en_key) or obj.get(tr_key) or ''
 
 
@@ -248,7 +255,8 @@ def _direct_vocab_meaning(item: dict, is_tr: bool, term: str, course_lang: str) 
             continue
         text = str(value or '').strip()
         if text and text.casefold() not in leaks:
-            return text
+            from services.material_quality_guard import sanitize_instructional_label
+            return sanitize_instructional_label(text, 'tr' if is_tr else 'en')
     return ''
 
 

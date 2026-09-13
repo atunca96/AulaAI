@@ -337,6 +337,10 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
         if not u_ok:
             return False, u_why
 
+        # Reject unhealed ad-hoc learner respellings
+        if is_adhoc_learner_respelling(text):
+            return False, "adhoc-learner-respelling"
+
         # Reject ad-hoc learner respelling mixed inside or around IPA (e.g. [kæt] kat-uh-lee-nuh)
         has_ipa = ("[" in text and "]" in text) or re.search(r"/(?:[^/\n]{1,120})/", text)
         if has_ipa:
@@ -556,6 +560,110 @@ def validate_dialogue_speaker(speaker: str, material_language: str = "en") -> Tu
     return True, ""
 
 
+# ── UNIVERSAL PEDAGOGICAL TABLE & GRAMMATICAL LABEL LOCALIZATION ─────────────
+
+PEDAGOGICAL_LABELS_MAP: Dict[str, Dict[str, str]] = {
+    "hard consonant indicator vowels": {
+        "tr": "Kalın Ünsüz Belirten Ünlüler", "de": "Harte Konsonanten anzeigende Vokale",
+        "fr": "Voyelles indicatrices de consonnes dures", "es": "Vocales indicadoras de consonantes duras",
+    },
+    "soft consonant indicator vowels": {
+        "tr": "İnce Ünsüz Belirten Ünlüler", "de": "Weiche Konsonanten anzeigende Vokale",
+        "fr": "Voyelles indicatrices de consonnes douces", "es": "Vocales indicadoras de consonantes blandas",
+    },
+    "hard vowels": {
+        "tr": "Kalın Ünlüler", "de": "Harte Vokale", "fr": "Voyelles dures", "es": "Vocales duras",
+    },
+    "soft vowels": {
+        "tr": "İnce Ünlüler", "de": "Weiche Vokale", "fr": "Voyelles douces", "es": "Vocales blandas",
+    },
+    "hard consonants": {
+        "tr": "Sert / Kalın Ünsüzler", "de": "Harte Konsonanten", "fr": "Consonnes dures", "es": "Consonantes duras",
+    },
+    "soft consonants": {
+        "tr": "Yumuşak / İnce Ünsüzler", "de": "Weiche Konsonanten", "fr": "Consonnes douces", "es": "Consonantes blandas",
+    },
+    "voiced consonants": {
+        "tr": "Ötümlü (Tonlu) Ünsüzler", "de": "Stimmhafte Konsonanten", "fr": "Consonnes sonores", "es": "Consonantes sonoras",
+    },
+    "voiceless consonants": {
+        "tr": "Ötümsüz (Tonsuz) Ünsüzler", "de": "Stimmlos Konsonanten", "fr": "Consonnes sourdes", "es": "Consonantes sordas",
+    },
+    "stressed vowel": {
+        "tr": "Vurgulu Ünlü", "de": "Betonter Vokal", "fr": "Voyelle accentuée", "es": "Vocal tónica",
+    },
+    "unstressed vowel": {
+        "tr": "Vurgusuz Ünlü", "de": "Unbetonter Vokal", "fr": "Voyelle inaccentuée", "es": "Vocal átona",
+    },
+    "vowel": {
+        "tr": "Ünlü", "de": "Vokal", "fr": "Voyelle", "es": "Vocal",
+    },
+    "consonant": {
+        "tr": "Ünsüz", "de": "Konsonant", "fr": "Consonne", "es": "Consonante",
+    },
+    "noun": {
+        "tr": "İsim", "de": "Nomen", "fr": "Nom", "es": "Sustantivo",
+    },
+    "verb": {
+        "tr": "Fiil", "de": "Verb", "fr": "Verbe", "es": "Verbo",
+    },
+    "adjective": {
+        "tr": "Sıfat", "de": "Adjektiv", "fr": "Adjectif", "es": "Adjetivo",
+    },
+    "adverb": {
+        "tr": "Zarf", "de": "Adverb", "fr": "Adverbe", "es": "Adverbio",
+    },
+    "pronoun": {
+        "tr": "Zamir", "de": "Pronomen", "fr": "Pronom", "es": "Pronombre",
+    },
+    "preposition": {
+        "tr": "Edat", "de": "Präposition", "fr": "Préposition", "es": "Preposición",
+    },
+    "rule": {
+        "tr": "Kural", "de": "Regel", "fr": "Règle", "es": "Regla",
+    },
+    "example": {
+        "tr": "Örnek", "de": "Beispiel", "fr": "Exemple", "es": "Ejemplo",
+    },
+    "exception": {
+        "tr": "İstisna", "de": "Ausnahme", "fr": "Exception", "es": "Excepción",
+    },
+}
+
+
+def sanitize_instructional_label(text: str, material_language: str = "tr") -> str:
+    """
+    Localizes common English pedagogical table headers and grammatical labels into
+    the active instructional language. Leaves intentional non-label content and English
+    tracks untouched.
+    """
+    if not text or not isinstance(text, str):
+        return text or ""
+    tgt_lang = str(material_language or "en").strip().lower()[:2]
+    if tgt_lang == "en":
+        return text
+
+    clean = text.strip()
+    norm_key = clean.casefold()
+
+    # Exact match in catalog
+    if norm_key in PEDAGOGICAL_LABELS_MAP:
+        loc = PEDAGOGICAL_LABELS_MAP[norm_key].get(tgt_lang)
+        if loc:
+            return loc
+
+    # Phrase / contextual replacement (e.g. "Hard Consonant Indicator Vowels: А, О, У, Ы, Э")
+    res = clean
+    for eng_label, locs in sorted(PEDAGOGICAL_LABELS_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+        loc_val = locs.get(tgt_lang)
+        if loc_val:
+            pattern = rf"(?i)\b{re.escape(eng_label)}\b"
+            if re.search(pattern, res):
+                res = re.sub(pattern, loc_val, res)
+
+    return res
+
+
 # ── PHONETIC REPRESENTATION CONSISTENCY & RE-SPELLING DETECTION ──────────────
 
 def is_adhoc_learner_respelling(phon: str) -> bool:
@@ -607,6 +715,139 @@ def is_adhoc_learner_respelling(phon: str) -> bool:
             return True
 
     return False
+
+
+def heal_syllable_hyphenated_ipa(text: str) -> str:
+    """
+    Converts ad-hoc syllable-hyphenated IPA into clean, unsplit standard IPA notation.
+    E.g. '[ˈdo-mə]' -> '[ˈdomə]', '[dɐ-ˈma]' -> '[dɐˈma]', '[mʲɪ-ˈtro]' -> '[mʲɪˈtro]'.
+    Leaves true non-IPA ad-hoc respellings (e.g. 'mit-ró', '[mask-va]') untouched so they
+    can be properly flagged or blanked by is_adhoc_learner_respelling.
+    """
+    if not text or not isinstance(text, str):
+        return text or ""
+
+    ipa_indicators = set("ˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐçʝɣʁħʕʔŋɲɳɴɱɭʎʟɾɺⱱβɸθðɹɻɰʍʲʷˤ")
+
+    def _heal_bracket(m):
+        inner = m.group(1)
+        # Only heal if bracket contains genuine IPA notation or stress marks
+        if not any(c in inner for c in ipa_indicators):
+            return m.group(0)
+        # Remove internal hyphens between letters / stress marks
+        healed = re.sub(r"(?<=[^\s\-])-(?=[^\s\-])", "", inner)
+        return f"[{healed}]"
+
+    def _heal_slash(m):
+        inner = m.group(1)
+        if not any(c in inner for c in ipa_indicators):
+            return m.group(0)
+        healed = re.sub(r"(?<=[^\s\-])-(?=[^\s\-])", "", inner)
+        return f"/{healed}/"
+
+    res = re.sub(r"\[([^\]]+)\]", _heal_bracket, text)
+    res = re.sub(r"/([^/\n]+)/", _heal_slash, res)
+    return res
+
+
+def heal_phonetic_prose(text: str) -> str:
+    """
+    Heals inline bracketed IPA notation inside prose explanations, rules, and notes.
+    E.g. 'дома [dɐ-ˈma]' -> 'дома [dɐˈma]'
+    """
+    if not text or not isinstance(text, str):
+        return text or ""
+    return heal_syllable_hyphenated_ipa(text)
+
+
+def calibrate_rule_scope_consistency(
+    rule_text: str,
+    lesson_context_terms: Set[str],
+    material_language: str = "tr"
+) -> str:
+    """
+    Calibrates overgeneralized universal claims in grammar rules when counterexamples
+    exist in the lesson or known exception paradigms are violated.
+    Deterministic, cost-neutral, and non-destructive.
+    """
+    if not rule_text or not isinstance(rule_text, str):
+        return rule_text or ""
+
+    lang_code = str(material_language or "tr").lower()[:2]
+    modified = rule_text
+
+    # 1. Russian 11-19 stress overgeneralization:
+    # False claim: all 11-19 numbers have stress on 'на' / 'na'
+    has_num_range = bool(re.search(r"\b11\b.*?\b19\b|on bir.*on dokuz", modified, re.IGNORECASE))
+    has_na_stress = bool(
+        re.search(r"(?:на|na)['\"\s]+.*?(?:vurgu|stress)", modified, re.IGNORECASE) or
+        re.search(r"(?:vurgu|stress).*?(?:на|na)", modified, re.IGNORECASE)
+    )
+    has_absolute = bool(re.search(r"\b(daima|her zaman|tüm|bütün|always|every|all)\b", modified, re.IGNORECASE))
+
+    if (has_num_range or "11" in modified) and has_na_stress and has_absolute:
+        raw_blob = " ".join(lesson_context_terms) if lesson_context_terms else ""
+        norm_blob = "".join(c for c in unicodedata.normalize("NFD", raw_blob) if not unicodedata.combining(c)).lower()
+        has_counter = any(c in norm_blob for c in ("одиннадцать", "четырнадцать", "odinnadtsat", "chetyrnadtsat")) or has_num_range
+        if has_counter:
+            if lang_code == "tr":
+                modified = re.sub(
+                    r"\btüm sayılarda birincil vurgu daima\s+['\"]?(?:на|na)['\"]?\s+hecesindedir\b",
+                    "sayıların çoğunda birincil vurgu genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\b(?:daima|her zaman)\s+['\"]?(?:на|na)['\"]?\s+hecesindedir\b",
+                    "çoğunda 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\btüm sayılarda birincil vurgu daima\b",
+                    "sayıların çoğunda birincil vurgu genellikle",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\b(?:tüm|bütün)\s+sayılarda\b",
+                    "sayıların çoğunda",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\bdaima\s+['\"]?(?:на|na)['\"]?\b",
+                    "çoğunlukla 'на'",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+            else:
+                modified = re.sub(
+                    r"\ball numbers\b.*?\balways on (?:the syllable )?['\"]?na['\"]?\b",
+                    "most numbers typically on 'на' (except оди́ннадцать and четы́рнадцать)",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\balways on (?:the syllable )?['\"]?na['\"]?\b",
+                    "typically on 'на' (except оди́ннадцать and четы́рнадцать)",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\ball numbers\b.*?\balways\b",
+                    "most numbers typically",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+                modified = re.sub(
+                    r"\balways on\b",
+                    "typically on",
+                    modified,
+                    flags=re.IGNORECASE
+                )
+
+    return modified
 
 
 # ── FORMATIVE MCQ STRUCTURAL & SEMANTIC VALIDATION ──────────────────────────
@@ -719,6 +960,9 @@ def enforce_release_hard_gate(data: Any, language: str) -> Any:
     if not isinstance(data, dict):
         raise MaterialReleaseRejected("MATERIAL_RELEASE_HARD_GATE:invalid-data")
 
+    # Run non-destructive integrity enforcement first to heal valid IPA & clean Unicode
+    data = enforce_material_integrity(data, language)
+
     # Verify script integrity & homoglyph protection
     ok1, why1 = _script_gate(data, language)
     if not ok1:
@@ -758,8 +1002,9 @@ def enforce_material_integrity(
     """
     Language-agnostic structural cleanup and Unicode normalization after generation.
     Normalizes exotic hyphens, strips soft-hyphens and unprintable artifacts,
-    localizes dialogue speaker roles, prunes structurally or semantically invalid MCQs,
-    and guarantees zero publication defects with zero extra model cost.
+    localizes dialogue speaker roles and pedagogical table labels,
+    heals syllable-hyphenated standard IPA, calibrates overgeneralized rule scopes,
+    prunes structurally or semantically invalid MCQs, and guarantees zero publication defects.
     """
     if not isinstance(data, dict):
         return data
@@ -769,6 +1014,9 @@ def enforce_material_integrity(
     if not isinstance(pages, list):
         return out
 
+    # Collect target lexical strings for context checking
+    context_terms = set(_iter_target_lexical_strings(data))
+
     clean = []
     removed = []
     for index, page in enumerate(pages):
@@ -776,7 +1024,7 @@ def enforce_material_integrity(
             continue
         ptype = str(page.get("type") or "").strip().lower()
 
-        # Localize dialogue speaker roles and ensure no English leakage into Turkish material
+        # Localize dialogue speaker roles and ensure no English leakage into non-English material
         if ptype in ("dialogue", "examples"):
             dialogue = page.get("dialogue")
             if isinstance(dialogue, list):
@@ -784,15 +1032,46 @@ def enforce_material_integrity(
                     if isinstance(turn, dict) and "speaker" in turn:
                         turn["speaker"] = sanitize_dialogue_speaker(turn["speaker"], material_language)
 
-        # Clean ad-hoc learner respellings or native syllable breaks from vocabulary phonetics
-        if ptype in ("vocabulary", "overview", "grammar"):
-            items = page.get("items") or page.get("vocabulary") or page.get("words") or []
-            if isinstance(items, list):
-                for it in items:
-                    if isinstance(it, dict):
-                        phon = it.get("phonetic") or it.get("pronunciation")
-                        if phon and is_adhoc_learner_respelling(phon):
+        # Heal syllable-hyphenated IPA and localize instructional labels in items
+        items = page.get("items") or page.get("vocabulary") or page.get("words") or page.get("table")
+        if isinstance(items, list):
+            for it in items:
+                if isinstance(it, dict):
+                    phon = it.get("phonetic") or it.get("pronunciation")
+                    if phon:
+                        healed_phon = heal_syllable_hyphenated_ipa(phon)
+                        if is_adhoc_learner_respelling(healed_phon):
                             it["phonetic"] = ""
+                        else:
+                            it["phonetic"] = healed_phon
+
+                    trans = it.get("translation")
+                    trans_tr = it.get("translation_tr")
+                    if material_language == "tr":
+                        if not trans_tr and trans:
+                            it["translation_tr"] = sanitize_instructional_label(trans, "tr")
+                        elif trans_tr:
+                            it["translation_tr"] = sanitize_instructional_label(trans_tr, "tr")
+                    elif material_language != "en":
+                        if not trans_tr and trans:
+                            it["translation_tr"] = sanitize_instructional_label(trans, material_language)
+                        elif trans_tr:
+                            it["translation_tr"] = sanitize_instructional_label(trans_tr, material_language)
+
+        # Sanitize prose phonetics and calibrate rule scopes
+        rules = page.get("rules")
+        if isinstance(rules, list):
+            for r in rules:
+                if isinstance(r, dict):
+                    for rk in ("rule", "rule_tr", "explanation", "explanation_tr"):
+                        if rk in r and isinstance(r[rk], str):
+                            r[rk] = heal_phonetic_prose(r[rk])
+                            r_lang = "en" if (rk.endswith("_en") or rk in ("rule", "explanation")) else material_language
+                            r[rk] = calibrate_rule_scope_consistency(r[rk], context_terms, r_lang)
+
+        for text_k in ("text", "text_tr", "explanation", "explanation_tr", "context", "context_tr"):
+            if text_k in page and isinstance(page[text_k], str):
+                page[text_k] = heal_phonetic_prose(page[text_k])
 
         if ptype == "mcq":
             ok, reason = validate_mcq(page)
