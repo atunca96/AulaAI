@@ -23,6 +23,15 @@ Teach the topic completely but proportionately to CEFR {level}. Depth means accu
 If the topic contains a closed inventory such as an alphabet/writing system or an explicit number range, cover it completely without omissions.
 </scope_and_depth>
 
+<completeness_contract>
+Every requested curriculum topic must produce a real lesson, never an empty shell.
+- Return at least 3 substantive `pages` for every topic. The runtime acceptance gate requires this same minimum.
+- A substantive page must contain actual learner-facing teaching content: explanation/rules, vocabulary/examples/dialogue, or a valid assessment. A title-only page does not count.
+- Teach before testing. Do not satisfy the minimum with three MCQ-only pages.
+- Do not emit placeholder headings, empty arrays presented as finished content, or topic titles with no instructional body.
+- If one planned claim or assessment is unsafe, replace or omit that element while still teaching the topic through other accurate content. Never collapse the whole topic to zero pages.
+</completeness_contract>
+
 <natural_authenticity>
 Every target-language example, explanation, dialogue and translation must be natural, contemporary, idiomatic and pedagogically useful.
 - No robotic textbook filler, translationese, artificial sound-packed sentences, invented morphology, or unnatural collocations.
@@ -162,7 +171,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
+Verify: at least 3 substantive pages; no title-only/empty page; canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
 Return valid JSON only.
 </final_same_pass_check>"""
 
@@ -171,9 +180,9 @@ Return valid JSON only.
 
 Generate both English and Turkish pedagogical fields in the same JSON.{source_rule}
 
-Plan the lesson silently, then generate it. Cover the topic fully at the appropriate CEFR depth without padding, redundant theory or unnecessary metalanguage. Use authentic language, teach before testing, and omit any rule, pronunciation claim or assessment item you cannot state with high confidence.
+Plan the lesson silently, then generate it. Return at least 3 substantive pages for this topic, because fewer than 3 pages is an incomplete result and will be rejected by the runtime. Cover the topic fully at the appropriate CEFR depth without padding, redundant theory or unnecessary metalanguage. Use authentic language, teach before testing, and omit any individual rule, pronunciation claim or assessment item you cannot state with high confidence without omitting the topic itself.
 
-For closed inventories such as alphabets/writing systems or explicitly requested number ranges, provide the complete inventory. For all other topics, let pedagogical usefulness determine length.
+For closed inventories such as alphabets/writing systems or explicitly requested number ranges, provide the complete inventory. For all other topics, let pedagogical usefulness determine length above the 3-page minimum.
 
 Respond with ONLY the JSON object."""
 
