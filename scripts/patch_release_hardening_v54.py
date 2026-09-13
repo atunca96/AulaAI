@@ -151,15 +151,24 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
 '''
     guard_path.write_text(guard, encoding="utf-8")
 
-# Generation-time semantic contract for alphabet/grapheme inventories. This is
-# language-agnostic: no alphabet or language is hardcoded.
 engine = engine_path.read_text(encoding="utf-8")
 if "AULAAI_GRAPHEME_PHONETICS_V54" not in engine:
-    anchor = "- When pronunciation is pedagogically required or a pronunciation column exists, `phonetic` must be populated and authoritative. Never duplicate or contradict it inside meaning/translation/gloss."
-    addition = anchor + "\n- AULAAI_GRAPHEME_PHONETICS_V54: For alphabet/script/grapheme inventory rows, `phonetic` means BASIC SOUND VALUE(S) IN STANDARD IPA, not the spoken name of the letter and not a transliteration. If a grapheme has context-dependent core realizations, include the defensible main IPA values separated by ` / ` and explain the conditioning briefly in the meaning/explanation field; never pretend a context-sensitive grapheme has one invariant sound. Non-sounding signs/markers must not receive invented IPA."
-    if anchor not in engine:
-        raise RuntimeError("v54 pronunciation contract anchor missing")
-    engine = engine.replace(anchor, addition, 1)
+    anchors = [
+        "- When pronunciation is pedagogically required or a pronunciation column exists, `phonetic` must be populated and is authoritative. Never duplicate or contradict pronunciation inside meaning/translation/gloss.",
+        "- When pronunciation is pedagogically required or a pronunciation column exists, `phonetic` must be populated and authoritative. Never duplicate or contradict it inside meaning/translation/gloss.",
+    ]
+    anchor = next((a for a in anchors if a in engine), None)
+    if anchor is None:
+        heading = "2. PRONUNCIATION — ONE AUTHORITATIVE SYSTEM"
+        pos = engine.find(heading)
+        if pos < 0:
+            raise RuntimeError("v54 pronunciation section missing")
+        line_end = engine.find("\n", pos)
+        insertion = "\n- AULAAI_GRAPHEME_PHONETICS_V54: For alphabet/script/grapheme inventory rows, `phonetic` means BASIC SOUND VALUE(S) IN STANDARD IPA, not the spoken name of the letter and not a transliteration. If a grapheme has context-dependent core realizations, include the defensible main IPA values separated by ` / ` and explain the conditioning briefly in the meaning/explanation field; never pretend a context-sensitive grapheme has one invariant sound. Non-sounding signs/markers must not receive invented IPA."
+        engine = engine[:line_end] + insertion + engine[line_end:]
+    else:
+        addition = anchor + "\n- AULAAI_GRAPHEME_PHONETICS_V54: For alphabet/script/grapheme inventory rows, `phonetic` means BASIC SOUND VALUE(S) IN STANDARD IPA, not the spoken name of the letter and not a transliteration. If a grapheme has context-dependent core realizations, include the defensible main IPA values separated by ` / ` and explain the conditioning briefly in the meaning/explanation field; never pretend a context-sensitive grapheme has one invariant sound. Non-sounding signs/markers must not receive invented IPA."
+        engine = engine.replace(anchor, addition, 1)
     engine_path.write_text(engine, encoding="utf-8")
 
 renderer = renderer_path.read_text(encoding="utf-8")
