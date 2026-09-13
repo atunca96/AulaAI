@@ -46,7 +46,7 @@ for marker in (
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
     'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
-    'AULAAI_INLINE_PUBLICATION_QA_V46',
+    'AULAAI_INLINE_PUBLICATION_QA_V51',
 ):
     assert marker in engine, marker
 
@@ -58,4 +58,4 @@ end = engine.find('\ndef ', start + 5)
 body = engine[start:end if end > start else len(engine)]
 assert '_call_ai(' not in body
 
-print('v37/v46 universal quality + zero-duplicate-audit self-test passed')
+print('v37/v51 universal quality + zero-duplicate-audit self-test passed')
