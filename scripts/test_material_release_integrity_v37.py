@@ -27,15 +27,35 @@ assert out['pages'][0]['answer'] == 'beta'
 assert out['pages'][1]['type'] == 'overview'
 assert len(out.get('_integrity_removed_mcq', [])) == 3
 
+# Script-agnostic structural validation.
 for opts, ans in [
     (['дом', 'дома', 'дому', 'домом'], 'дому'),
     (['كتاب', 'كتب', 'بالكتاب', 'للكتاب'], 'كتاب'),
     (['책', '집', '물', '길'], '집'),
     (['Haus', 'Häuser', 'Hause', 'Hauses'], 'Haus'),
     (['σπίτι', 'δρόμος', 'νερό', 'βιβλίο'], 'νερό'),
+    (['家', '学校', '水', '道'], '学校'),
 ]:
     ok, reason = validate_mcq(mcq('Q', opts, ans))
     assert ok, (opts, ans, reason)
+
+# Universal Unicode repair: impossible/non-text corruption is removed without
+# damaging combining marks, RTL controls, ZWJ/ZWNJ, CJK, Cyrillic or Hangul.
+corrupt = {
+    'pages': [{
+        'type': 'overview',
+        'text': 'mask\ufffeVA | cafe\u0301 | العربية\u200f | فارسی\u200cها | 한글 | 日本語 | русский'
+    }]
+}
+repaired = enforce_material_integrity(corrupt)
+text = repaired['pages'][0]['text']
+assert 'mask-VA' in text, text
+assert 'café' in text, text
+assert '\ufffe' not in text and '\ufffd' not in text
+assert 'العربية\u200f' in text
+assert 'فارسی\u200cها' in text
+assert '한글' in text and '日本語' in text and 'русский' in text
+assert repaired.get('_integrity_unicode_repairs') == 1
 
 engine = Path('services/ai_engine.py').read_text(encoding='utf-8')
 for marker in (
@@ -46,8 +66,16 @@ for marker in (
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
     'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
+    'required predicates',
+    'stress, position, neighboring sounds or register',
 ):
     assert marker in engine, marker
+
+# The core quality contract must be language agnostic: no language-specific
+# exception block is allowed in the shared policy.
+policy = Path('config/material_quality_v33.txt').read_text(encoding='utf-8')
+for forbidden in ('Japanese', 'Chinese', 'Arabic', 'Russian', 'Spanish', 'German'):
+    assert forbidden not in policy, forbidden
 
 # Performance invariant: exactly one semantic whole-lesson publication pass,
 # no per-page semantic loop, and v37 itself is deterministic-only.
@@ -59,4 +87,4 @@ end = engine.find('\ndef ', start + 5)
 body = engine[start:end if end > start else len(engine)]
 assert '_call_ai(' not in body
 
-print('v37/v38 universal quality + single-audit performance self-test passed')
+print('v39 universal quality + Unicode integrity + single-audit performance self-test passed')
