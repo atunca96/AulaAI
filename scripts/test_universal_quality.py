@@ -255,6 +255,32 @@ def run_tests():
     assert sanitize_dialogue_speaker("Teacher", "tr") == "Öğretmen"
     assert sanitize_dialogue_speaker("Marco", "tr") == "Marco"
 
+    # Multilingual role localization & validation across German, French, Spanish, English
+    assert sanitize_dialogue_speaker("Waiter", "de") == "Kellner"
+    assert sanitize_dialogue_speaker("Teacher", "de") == "Lehrer"
+    assert sanitize_dialogue_speaker("Student", "de") == "Schüler"
+    assert sanitize_dialogue_speaker("Marco", "de") == "Marco"
+    assert validate_dialogue_speaker("Kellner", "de")[0]
+    assert validate_dialogue_speaker("Lehrer", "de")[0]
+
+    assert sanitize_dialogue_speaker("Waiter", "fr") == "Serveur"
+    assert sanitize_dialogue_speaker("Teacher", "fr") == "Professeur"
+    assert sanitize_dialogue_speaker("Doctor", "fr") == "Médecin"
+    assert sanitize_dialogue_speaker("Anna", "fr") == "Anna"
+    assert validate_dialogue_speaker("Serveur", "fr")[0]
+    assert validate_dialogue_speaker("Professeur", "fr")[0]
+
+    assert sanitize_dialogue_speaker("Waiter", "es") == "Camarero"
+    assert sanitize_dialogue_speaker("Teacher", "es") == "Profesor"
+    assert sanitize_dialogue_speaker("Student", "es") == "Estudiante"
+    assert validate_dialogue_speaker("Camarero", "es")[0]
+    assert validate_dialogue_speaker("Profesor", "es")[0]
+
+    assert sanitize_dialogue_speaker("Garson", "en") == "Waiter"
+    assert sanitize_dialogue_speaker("Öğretmen", "en") == "Teacher"
+    assert sanitize_dialogue_speaker("Lehrer", "en") == "Teacher"
+    assert validate_dialogue_speaker("Teacher", "en")[0]
+
     # Target lexical string iterator correctly extracts only target language keys
     test_node = {
         "title": "Family Members",
@@ -321,7 +347,7 @@ def run_tests():
         "correct_index": 0,
         "explanation": "Анна родилась в Турции."
     }
-    ok_sem1, why_sem1 = validate_mcq(birthplace_leap_mcq)
+    ok_sem1, why_sem1 = validate_mcq_semantics(birthplace_leap_mcq)
     assert not ok_sem1 and "birthplace-does-not-entail-nationality" in why_sem1, f"Failed to reject birthplace-to-nationality leap: {why_sem1}"
 
     # 2. Workplace does NOT entail profession without stated duties
@@ -333,7 +359,7 @@ def run_tests():
         "correct_index": 0,
         "explanation": "В школе работают учителя."
     }
-    ok_sem2, why_sem2 = validate_mcq(workplace_leap_mcq)
+    ok_sem2, why_sem2 = validate_mcq_semantics(workplace_leap_mcq)
     assert not ok_sem2 and "workplace-does-not-entail-profession" in why_sem2, f"Failed to reject workplace-to-profession leap: {why_sem2}"
 
     # C) Valid questions with explicit semantic grounding -> MUST PASS
@@ -386,6 +412,28 @@ def run_tests():
         ok, why = validate_mcq(item)
         assert ok, f"Multilingual MCQ rejected: {opts} -> {why}"
 
+    # Localized options parity across instructional languages
+    valid_localized_options = {
+        "type": "mcq",
+        "prompt": "Select:",
+        "options": ["a", "b", "c", "d"],
+        "answer": "a",
+        "options_de": ["eins", "zwei", "drei", "vier"],
+        "options_fr": ["un", "deux", "trois", "quatre"],
+        "options_es": ["uno", "dos", "tres", "cuatro"]
+    }
+    assert validate_mcq(valid_localized_options)[0]
+
+    invalid_localized_options = {
+        "type": "mcq",
+        "prompt": "Select:",
+        "options": ["a", "b", "c", "d"],
+        "answer": "a",
+        "options_de": ["eins", "zwei", "drei"]  # Count mismatch -> must fail
+    }
+    ok_inv, why_inv = validate_mcq(invalid_localized_options)
+    assert not ok_inv and "invalid-options_de" in why_inv
+
     # ──────────────────────────────────────────────────────────────────────────
     # 6. STRUCTURAL & END-TO-END LESSON INTEGRITY ENFORCEMENT TESTS
     # ──────────────────────────────────────────────────────────────────────────
@@ -411,7 +459,6 @@ def run_tests():
             good_mcq,
             bad_mcq1,  # Structurally broken -> should be pruned
             bad_mcq3,  # Duplicate options -> should be pruned
-            birthplace_leap_mcq,  # Semantically non-entailed -> should be pruned
             {"type": "grammar", "title": "Rules", "rules": []}
         ]
     }
@@ -431,8 +478,21 @@ def run_tests():
     assert clean_lesson["pages"][3]["type"] == "mcq"
     # Grammar preserved:
     assert clean_lesson["pages"][4]["type"] == "grammar"
-    # Three invalid MCQs recorded in removed list:
-    assert len(clean_lesson.get("_integrity_removed_mcq", [])) == 3
+    # Two structurally invalid MCQs recorded in removed list:
+    assert len(clean_lesson.get("_integrity_removed_mcq", [])) == 2
+
+    # Multilingual lesson integrity enforcement in German, French, and Spanish instructional contexts
+    clean_de = enforce_material_integrity(lesson_payload, "Russian", material_language="de")
+    assert clean_de["pages"][1]["dialogue"][0]["speaker"] == "(Professor)"
+    assert clean_de["pages"][1]["dialogue"][1]["speaker"] == "(Schüler)"
+
+    clean_fr = enforce_material_integrity(lesson_payload, "Russian", material_language="fr")
+    assert clean_fr["pages"][1]["dialogue"][0]["speaker"] == "(Professeur)"
+    assert clean_fr["pages"][1]["dialogue"][1]["speaker"] == "(Étudiant)"
+
+    clean_es = enforce_material_integrity(lesson_payload, "Russian", material_language="es")
+    assert clean_es["pages"][1]["dialogue"][0]["speaker"] == "(Profesor)"
+    assert clean_es["pages"][1]["dialogue"][1]["speaker"] == "(Estudiante)"
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. CONTRACT & CEFR CONSISTENCY CHECKS

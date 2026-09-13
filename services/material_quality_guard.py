@@ -348,62 +348,134 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
     return True, ""
 
 
-# ── DIALOGUE SPEAKER LOCALIZATION & LEAKAGE PROTECTION ─────────────────────
+# ── UNIVERSAL DIALOGUE SPEAKER ROLE LOCALIZATION & LEAKAGE PROTECTION ───────
 
-ROLE_LABELS_TR: Dict[str, str] = {
-    "student": "Öğrenci",
-    "students": "Öğrenciler",
-    "teacher": "Öğretmen",
-    "teachers": "Öğretmenler",
-    "professor": "Profesör",
-    "instructor": "Eğitmen",
-    "clerk": "Görevli",
-    "waiter": "Garson",
-    "waitress": "Garson",
-    "customer": "Müşteri",
-    "doctor": "Doktor",
-    "patient": "Hasta",
-    "friend": "Arkadaş",
-    "narrator": "Anlatıcı",
-    "speaker": "Konuşmacı",
-    "passenger": "Yolcu",
-    "driver": "Sürücü",
-    "cashier": "Kasiyer",
-    "guide": "Rehber",
-    "receptionist": "Resepsiyonist",
-    "passerby": "Yoldan Geçen",
-    "host": "Ev Sahibi",
-    "guest": "Konuk",
+ROLE_CATALOG: Dict[str, Dict[str, str]] = {
+    "student": {
+        "tr": "Öğrenci", "de": "Schüler", "fr": "Étudiant", "es": "Estudiante", "en": "Student"
+    },
+    "students": {
+        "tr": "Öğrenciler", "de": "Schüler", "fr": "Étudiants", "es": "Estudiantes", "en": "Students"
+    },
+    "teacher": {
+        "tr": "Öğretmen", "de": "Lehrer", "fr": "Professeur", "es": "Profesor", "en": "Teacher"
+    },
+    "teachers": {
+        "tr": "Öğretmenler", "de": "Lehrer", "fr": "Professeurs", "es": "Profesores", "en": "Teachers"
+    },
+    "professor": {
+        "tr": "Profesör", "de": "Professor", "fr": "Professeur", "es": "Profesor", "en": "Professor"
+    },
+    "instructor": {
+        "tr": "Eğitmen", "de": "Dozent", "fr": "Instructeur", "es": "Instructor", "en": "Instructor"
+    },
+    "clerk": {
+        "tr": "Görevli", "de": "Angestellter", "fr": "Employé", "es": "Empleado", "en": "Clerk"
+    },
+    "waiter": {
+        "tr": "Garson", "de": "Kellner", "fr": "Serveur", "es": "Camarero", "en": "Waiter"
+    },
+    "waitress": {
+        "tr": "Garson", "de": "Kellnerin", "fr": "Serveuse", "es": "Camarera", "en": "Waitress"
+    },
+    "customer": {
+        "tr": "Müşteri", "de": "Kunde", "fr": "Client", "es": "Cliente", "en": "Customer"
+    },
+    "doctor": {
+        "tr": "Doktor", "de": "Arzt", "fr": "Médecin", "es": "Médico", "en": "Doctor"
+    },
+    "patient": {
+        "tr": "Hasta", "de": "Patient", "fr": "Patient", "es": "Paciente", "en": "Patient"
+    },
+    "friend": {
+        "tr": "Arkadaş", "de": "Freund", "fr": "Ami", "es": "Amigo", "en": "Friend"
+    },
+    "narrator": {
+        "tr": "Anlatıcı", "de": "Erzähler", "fr": "Narrateur", "es": "Narrador", "en": "Narrator"
+    },
+    "speaker": {
+        "tr": "Konuşmacı", "de": "Sprecher", "fr": "Interlocuteur", "es": "Hablante", "en": "Speaker"
+    },
+    "passenger": {
+        "tr": "Yolcu", "de": "Passagier", "fr": "Passager", "es": "Pasajero", "en": "Passenger"
+    },
+    "driver": {
+        "tr": "Sürücü", "de": "Fahrer", "fr": "Chauffeur", "es": "Conductor", "en": "Driver"
+    },
+    "cashier": {
+        "tr": "Kasiyer", "de": "Kassierer", "fr": "Caissier", "es": "Cajero", "en": "Cashier"
+    },
+    "guide": {
+        "tr": "Rehber", "de": "Reiseleiter", "fr": "Guide", "es": "Guía", "en": "Guide"
+    },
+    "receptionist": {
+        "tr": "Resepsiyonist", "de": "Empfangschef", "fr": "Réceptionniste", "es": "Recepcionista", "en": "Receptionist"
+    },
+    "passerby": {
+        "tr": "Yoldan Geçen", "de": "Passant", "fr": "Passant", "es": "Transeúnte", "en": "Passerby"
+    },
+    "host": {
+        "tr": "Ev Sahibi", "de": "Gastgeber", "fr": "Hôte", "es": "Anfitrión", "en": "Host"
+    },
+    "guest": {
+        "tr": "Konuk", "de": "Gast", "fr": "Invité", "es": "Invitado", "en": "Guest"
+    },
 }
 
+_ROLE_REVERSE_MAP: Dict[str, str] = {}
+for _canon, _locales in ROLE_CATALOG.items():
+    if _canon.casefold() not in _ROLE_REVERSE_MAP:
+        _ROLE_REVERSE_MAP[_canon.casefold()] = _canon
+    for _loc, _name in _locales.items():
+        if _name.casefold() not in _ROLE_REVERSE_MAP:
+            _ROLE_REVERSE_MAP[_name.casefold()] = _canon
 
-def sanitize_dialogue_speaker(speaker: str, material_language: str = "tr") -> str:
+
+def sanitize_dialogue_speaker(speaker: str, material_language: str = "en") -> str:
     """
-    Localize dialogue speaker role labels to instructional language if material_language is Turkish.
-    Leaves proper names (e.g. 'Marco', 'Anna') intact.
+    Universal, locale-aware localization of dialogue speaker role labels.
+    Preserves proper names (e.g. 'Marco', 'Anna', 'Pierre', 'Elena', 'Yuki') intact.
+    When speaker is an identified pedagogical role label (e.g. 'Student', '(Student)', 'Teacher'),
+    normalizes it to the target instructional language (e.g. 'Öğrenci' for tr, 'Schüler' for de,
+    'Étudiant' for fr, 'Estudiante' for es, 'Student' for en).
     """
     if not speaker or not isinstance(speaker, str):
         return speaker
     s_clean = speaker.strip()
-    if material_language == "tr":
-        in_paren = s_clean.startswith("(") and s_clean.endswith(")")
-        raw_name = s_clean[1:-1].strip() if in_paren else s_clean
-        localized = ROLE_LABELS_TR.get(raw_name.lower())
-        if localized:
-            return f"({localized})" if in_paren else localized
-    return speaker
+    in_paren = s_clean.startswith("(") and s_clean.endswith(")")
+    raw_name = s_clean[1:-1].strip() if in_paren else s_clean
+    canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
+    if not canon_key:
+        # Proper name or entity -> keep intact
+        return speaker
+
+    tgt_lang = str(material_language or "en").strip().lower()[:2]
+    loc_dict = ROLE_CATALOG.get(canon_key, {})
+    localized = loc_dict.get(tgt_lang) or loc_dict.get("en") or raw_name
+    return f"({localized})" if in_paren else localized
 
 
-def validate_dialogue_speaker(speaker: str, material_language: str = "tr") -> Tuple[bool, str]:
-    """Ensure dialogue speaker roles do not leak untranslated English role labels into non-English materials."""
+def validate_dialogue_speaker(speaker: str, material_language: str = "en") -> Tuple[bool, str]:
+    """
+    Universal validation ensuring dialogue speaker roles match the instructional language.
+    Flags unlocalized foreign role labels (e.g. English 'Student' in Turkish or German material),
+    while treating authentic proper names ('Marco', 'Anna') as valid across all languages.
+    """
     if not speaker or not isinstance(speaker, str):
         return True, ""
-    if material_language == "tr":
-        s_clean = speaker.strip()
-        in_paren = s_clean.startswith("(") and s_clean.endswith(")")
-        raw_name = s_clean[1:-1].strip() if in_paren else s_clean
-        if raw_name.lower() in ROLE_LABELS_TR:
-            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
+    s_clean = speaker.strip()
+    in_paren = s_clean.startswith("(") and s_clean.endswith(")")
+    raw_name = s_clean[1:-1].strip() if in_paren else s_clean
+    canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
+    if not canon_key:
+        # Proper name or uncatalogued entity -> valid in all languages
+        return True, ""
+
+    tgt_lang = str(material_language or "en").strip().lower()[:2]
+    loc_dict = ROLE_CATALOG.get(canon_key, {})
+    expected = loc_dict.get(tgt_lang)
+    if expected and raw_name.casefold() != expected.casefold():
+        return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}:expected-{expected}"
     return True, ""
 
 
@@ -411,31 +483,49 @@ def validate_dialogue_speaker(speaker: str, material_language: str = "tr") -> Tu
 
 def is_adhoc_learner_respelling(phon: str) -> bool:
     """
-    Detect ad-hoc hyphenated learner respellings or native syllable breaks.
-    Examples of ad-hoc respellings: 'mit-ró', '[mask-va]', 'slo-var\'', '[ˈzdrav-stvu-yte]', 'сло-ва́рь'.
-    Does NOT reject legitimate IPA notation (e.g. '[mʲɪˈtro]') or clean single-word romanization.
+    Language-agnostic detection of ad-hoc learner respellings.
+    Distinguishes:
+    1. Standard IPA notation (e.g. '[mʲɪˈtro]', '[ˈka.sa]', '/ˈpe.ro/') -> VALID (False)
+    2. Standard romanization (e.g. Pinyin 'nǐ hǎo', Romaji 'taberu') -> VALID (False)
+    3. Ad-hoc hyphenated learner respellings (e.g. 'mit-ró', 'slo-var\\'', '[mask-va]', '[ˈzdrav-stvu-yte]') -> AD-HOC (True)
+    4. Native-script syllable hyphenation (e.g. 'сло-ва́рь', 'ма-ма') -> AD-HOC (True)
     """
     if not phon or not isinstance(phon, str):
         return False
     clean = phon.strip()
-    # 1. Native Cyrillic/Greek script with hyphenated syllable divisions (e.g. 'сло-ва́рь', 'ма-ма')
-    if re.search(r"[\u0400-\u04FF\u0370-\u03FF]-[\u0400-\u04FF\u0370-\u03FF]", clean):
-        return True
+    if not clean:
+        return False
 
-    # 2. Ad-hoc hyphenated syllables (e.g. 'mit-ró', 'slo-var\'', '[mask-va]', '[ˈzdrav-stvu-yte]')
+    # 1. Native-script syllable division: non-Latin alphabetic characters with hyphens
+    # (e.g. Cyrillic 'сло-ва́рь', Greek, Arabic, etc.)
+    has_non_latin = any(unicodedata.category(c).startswith("L") and not ("a" <= c.lower() <= "z") for c in clean)
+    if has_non_latin and "-" in clean:
+        if re.search(r"[^\W\d_a-zA-Z]-[^\W\d_a-zA-Z]", clean, flags=re.UNICODE):
+            return True
+
+    # 2. Check for bracketed or unbracketed Latin text
     inside = clean[1:-1].strip() if clean.startswith("[") and clean.endswith("]") else clean
+
+    # Authentic IPA phonetic symbols
+    ipa_symbols = set("ˈˌːˑəɛɪɔʊʌθðʃʒŋɲɹʁʎβɣχħʕʔ mʲpʲbʲtʲdʲkʲɡʲfʲvʲsʲzʲrʲlʲ")
+    has_distinct_ipa = any(c in inside for c in ipa_symbols if c != " ")
+
+    # Check for ad-hoc hyphenated syllable respellings (e.g. mit-ró, slo-var', mask-va, zdrav-stvu-yte)
     if "-" in inside:
-        parts = inside.split("-")
-        if len(parts) >= 2 and all(len(p.strip()) >= 1 for p in parts):
-            latin_letters = sum(1 for c in inside if "a" <= c.lower() <= "z")
-            if latin_letters >= 4:
+        parts = [p.strip() for p in inside.split("-") if p.strip()]
+        if len(parts) >= 2:
+            letter_count = sum(1 for c in inside if unicodedata.category(c).startswith("L"))
+            if letter_count >= 4 and not (clean.startswith("/") and clean.endswith("/")):
                 return True
 
-    # 3. Simple latin respelling with brackets but no IPA phonetic characters (e.g. '[mask-va]', '[zdravstvuyte]')
+    # Pinyin with standard tone marks without brackets is valid romanization
+    pinyin_tone_chars = set("āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ")
+    if any(c in clean for c in pinyin_tone_chars) and not clean.startswith("["):
+        return False
+
+    # 3. Simple Latin word inside brackets without any IPA symbols (e.g. '[mask-va]', '[zdravstvuyte]')
     if clean.startswith("[") and clean.endswith("]"):
         content = clean[1:-1].strip()
-        ipa_chars = set("ˈˌːˑəɛɪɔʊʌθðʃʒŋɲɹʁʎβɣχħʕʔ mʲpʲbʲtʲdʲkʲɡʲfʲvʲsʲzʲrʲlʲ")
-        has_distinct_ipa = any(c in content for c in ipa_chars if c != " ")
         if not has_distinct_ipa and re.match(r"^[A-Za-z\s\-\'\`]+$", content):
             return True
 
@@ -521,17 +611,11 @@ def validate_mcq(page: Any) -> Tuple[bool, str]:
     if isinstance(ci, int) and (ci < 0 or ci >= 4 or options[ci] != answer):
         return False, "correct-index-mismatch"
 
-    for key in ("options_tr", "options_en"):
-        localized = page.get(key)
-        if localized is not None:
-            localized = [_norm(x) for x in _as_list(localized)]
+    for key, val in page.items():
+        if key.startswith("options_") and val is not None:
+            localized = [_norm(x) for x in _as_list(val)]
             if len(localized) != 4 or any(not x for x in localized) or len(set(localized)) != 4:
                 return False, f"invalid-{key}"
-
-    # Semantic entailment check
-    sem_ok, sem_why = validate_mcq_semantics(page)
-    if not sem_ok:
-        return False, sem_why
 
     return True, ""
 

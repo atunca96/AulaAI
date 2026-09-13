@@ -2428,7 +2428,7 @@ def _sanitize_deep_bilingual(obj):
         return [_sanitize_deep_bilingual(x) for x in obj]
     return obj
 
-def _normalize_lesson_pages(data, topic, language, level):
+def _normalize_lesson_pages(data, topic, language, level, material_language="tr"):
     """Ensures lesson dictionary conforms strictly to {"pages": [...]} format, normalizing flexible AI output."""
     if isinstance(data, dict) and isinstance(data.get("pages"), list) and len(data["pages"]) > 0:
         for p in data["pages"]:
@@ -2625,7 +2625,7 @@ def _normalize_lesson_pages(data, topic, language, level):
                             d["line_tr"] = d.get("translation_tr")
                         if "speaker" in d and isinstance(d["speaker"], str):
                             from services.material_quality_guard import sanitize_dialogue_speaker
-                            d["speaker"] = sanitize_dialogue_speaker(d["speaker"], "tr")
+                            d["speaker"] = sanitize_dialogue_speaker(d["speaker"], material_language)
 
             # Ensure MCQ preserves bilingual prompt and explanation
             if p.get("type") == "mcq" or p.get("prompt"):
@@ -3094,7 +3094,7 @@ Return ONLY valid JSON matching this schema:
       ],
       "dialogue": [
         {{
-          "speaker": "Speaker name or role in instructional language (e.g. Öğrenci, Garson for Turkish)",
+          "speaker": "Speaker name or role in instructional language ({material_language})",
           "text": "Utterance in {language}",
           "line_en": "English translation",
           "line_tr": "Turkish translation"
@@ -3154,7 +3154,7 @@ Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
             json_mode=True,
             allow_fallback=False
         )
-        norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
+        norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level, material_language=material_language)
         if norm_dict and isinstance(norm_dict, dict) and len(norm_dict.get("pages", [])) >= 3:
             lesson_dict = norm_dict
             with open("pipeline.log", "a", encoding="utf-8") as f:
