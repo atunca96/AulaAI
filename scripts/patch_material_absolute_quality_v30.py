@@ -1,51 +1,46 @@
 from pathlib import Path
-import re
 
 p = Path(__file__).resolve().parents[1] / "services" / "ai_engine.py"
 s = p.read_text(encoding="utf-8")
 changes = []
 
-# 1) Keep the proven Gemini 3.7 lesson generator and its full 8192-token ceiling.
-# No generation-model or visible-content budget change is made here.
+# Final cost patch: deliberately surgical. Never regex across ai_engine.py and
+# never replace/move function blocks. The previous broad REASONING DIRECTIVE
+# regex could consume code between distant prompt fragments during Docker build.
 
-# 2) Remove duplicated planning prose from the per-topic user prompt. The same
-# quality/grounding requirements already live in the system prompt via v24/v24b.
-pat = re.compile(
-    r'REASONING DIRECTIVE:\n.*?Then generate the complete, exhaustive JSON lesson structure\.\n\n',
-    re.S,
-)
-s2, n = pat.subn(
-    'QUALITY DIRECTIVE:\nSilently plan a coherent teach-before-test progression and enforce every system quality rule before returning JSON.\n\n',
-    s,
-    count=1,
-)
-if n:
-    s = s2
-    changes.append("compact-user-prompt")
+# Keep Gemini 3.7 lesson generation and its existing visible-content budget.
 
-# 3) For a single-language classroom, do not spend premium output tokens writing
-# a second full textbook in the inactive localization track. Keep mirror fields
-# present and valid for downstream compatibility, but concise. The active track
-# remains complete; material_language=all remains fully bilingual.
-marker = "</bilingual_pedagogical_tracks>"
-policy = '''\nCOST-EFFICIENT LOCALIZATION POLICY:\n- material_language=\"tr\": Turkish pedagogical fields are the complete learner-facing lesson. Keep English mirror fields valid and non-empty, but use only direct titles/translations and at most one short sentence for English explanation/analysis/context/note/pitfall fields. Never shorten Turkish content, target-language examples, rules, dialogues, vocabulary coverage, or assessment quality.\n- material_language=\"en\": apply the same compact-mirror rule to Turkish fields while keeping English complete.\n- material_language=\"all\": keep both localization tracks complete.\n'''
-if "COST-EFFICIENT LOCALIZATION POLICY" not in s and marker in s:
-    s = s.replace(marker, policy + marker, 1)
-    changes.append("compact-inactive-mirror")
-
-# 4) Preserve the single publication audit, but run this secondary patch-only
-# pass on Flash-Lite instead of paying Gemini 3.7 prices for each topic review.
-# Main lesson generation is untouched.
+# Make only the existing publication-audit call cheaper. Restrict the edit to
+# the audit function slice so no other model call or function can be affected.
 a = s.find("def _material_publication_audit(")
 b = s.find("\ndef generate_full_lesson(", a)
 if a >= 0 and b > a:
     seg = s[a:b]
     old = seg
-    seg = seg.replace("model=MODEL_STRUCTURAL,", 'model="google/gemini-2.5-flash-lite",', 1)
-    seg = seg.replace("max_tokens=1800,", "max_tokens=1000,", 1)
+    if "model=MODEL_STRUCTURAL," in seg:
+        seg = seg.replace(
+            "model=MODEL_STRUCTURAL,",
+            'model="google/gemini-2.5-flash-lite",',
+            1,
+        )
+    if "max_tokens=1800," in seg:
+        seg = seg.replace("max_tokens=1800,", "max_tokens=1000,", 1)
     if seg != old:
         s = s[:a] + seg + s[b:]
         changes.append("cheap-publication-audit")
 
+# Startup-import guard: do not write a mutated file if any public function that
+# server.py depends on disappeared. This turns future patch mistakes into a build
+# failure before deployment instead of a 502/runtime ImportError.
+required_public_functions = (
+    "ai_generate_report_insights",
+    "ai_generate_activity_batch",
+    "ai_explain_word",
+    "ai_explain_activity",
+)
+missing = [name for name in required_public_functions if f"def {name}(" not in s]
+if missing:
+    raise RuntimeError("v30 safety guard: missing ai_engine exports: " + ", ".join(missing))
+
 p.write_text(s, encoding="utf-8")
-print("Applied final Gemini 3.7 cost pass: " + (", ".join(changes) if changes else "already applied/no compatible anchors"))
+print("Applied safe final cost pass: " + (", ".join(changes) if changes else "already applied/no compatible audit anchor"))
