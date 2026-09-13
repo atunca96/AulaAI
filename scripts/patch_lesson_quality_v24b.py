@@ -22,6 +22,12 @@ s = s.replace(
 )
 
 s = s.replace(
+    '8. CEFR AND LANGUAGE LOAD\n',
+    '8. CEFR AND LANGUAGE LOAD\n- If an advanced side-topic accidentally appears in lesson prose, do not legitimize it through assessment; at A1 never test specialist pitch-accent/prosody theory, dialect detail, rare exceptions or advanced register distinctions unless explicitly required by the curriculum.\n',
+    1,
+)
+
+s = s.replace(
     '- Prefer omission or simplification over any uncertain linguistic claim.\n</final_material_preflight_v24>',
     '- Prefer omission or simplification over any uncertain linguistic claim.\n- Final quality floor: silently rate Accuracy, Naturalness, CEFR Fit, Pedagogy, Grounding, Localization Fidelity, Entity Consistency and Classroom Usability; revise or omit any failing content until every category is at least 9.5/10.\n</final_material_preflight_v24>',
     1,
