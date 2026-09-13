@@ -31,6 +31,7 @@ COPY . .
 RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_pdf_zero_ai_export.py \
     && python scripts/patch_pdf_picker_ui.py \
+    && python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_pdf_academic_renderer.py \
     && python scripts/patch_pdf_academic_renderer_v4.py \
     && python scripts/patch_pdf_academic_renderer_v5.py \
