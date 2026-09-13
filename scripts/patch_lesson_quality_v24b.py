@@ -38,8 +38,14 @@ p.write_text(s, encoding='utf-8')
 print('Applied v24b: tighter A1 scope, identity lock, culture safety and quality floor')
 
 root = Path(__file__).resolve().parents[1]
-patch_path = root / 'scripts' / 'patch_lesson_quality_v24c.py'
-if patch_path.exists():
-    runpy.run_path(str(patch_path), run_name='__main__')
-else:
-    print('v24b chain warning: patch_lesson_quality_v24c.py not found')
+for patch_name in (
+    'patch_lesson_quality_v24c.py',
+    'patch_material_publication_audit_v27.py',
+    'patch_material_publication_audit_v27b.py',
+    'patch_material_publication_audit_v27c.py',
+):
+    patch_path = root / 'scripts' / patch_name
+    if patch_path.exists():
+        runpy.run_path(str(patch_path), run_name='__main__')
+    else:
+        print(f'v24b chain warning: {patch_name} not found')
