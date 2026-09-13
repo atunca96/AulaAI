@@ -1,4 +1,17 @@
 from copy import deepcopy
+import unicodedata
+
+
+# Formatting controls that are meaningful in real writing systems and bidi text.
+_SAFE_FORMAT_CONTROLS = {
+    '\u061c',  # Arabic Letter Mark
+    '\u200c',  # ZWNJ
+    '\u200d',  # ZWJ
+    '\u200e',  # LRM
+    '\u200f',  # RLM
+    '\u202a', '\u202b', '\u202c', '\u202d', '\u202e',
+    '\u2066', '\u2067', '\u2068', '\u2069',
+}
 
 
 def _as_list(value):
@@ -13,6 +26,59 @@ def _as_list(value):
 
 def _norm(value):
     return str(value or '').strip()
+
+
+def _is_unicode_noncharacter(ch):
+    cp = ord(ch)
+    return 0xFDD0 <= cp <= 0xFDEF or (cp & 0xFFFF) in (0xFFFE, 0xFFFF)
+
+
+def _sanitize_text(value):
+    """Conservative, language-agnostic Unicode cleanup.
+
+    Keeps real script controls/combining marks intact, normalizes canonically to
+    NFC, and removes only impossible/non-text corruption. A corruption marker
+    between two visible non-space characters becomes a hyphen so tokens such as
+    phonetic learner forms do not silently collapse together.
+    """
+    text = unicodedata.normalize('NFC', str(value))
+    chars = list(text)
+    out = []
+    repaired = 0
+    for i, ch in enumerate(chars):
+        category = unicodedata.category(ch)
+        invalid = (
+            ch == '\ufffd'
+            or _is_unicode_noncharacter(ch)
+            or category == 'Cs'
+            or (category == 'Cc' and ch not in ('\n', '\r', '\t'))
+            or (category == 'Cf' and ch not in _SAFE_FORMAT_CONTROLS)
+        )
+        if not invalid:
+            out.append(ch)
+            continue
+        repaired += 1
+        prev = out[-1] if out else ''
+        nxt = chars[i + 1] if i + 1 < len(chars) else ''
+        if prev and nxt and not prev.isspace() and not nxt.isspace():
+            # Avoid gluing two visible token pieces after corruption removal.
+            if prev not in '-–—/|' and nxt not in '-–—/|':
+                out.append('-')
+    return ''.join(out), repaired
+
+
+def _sanitize_tree(value, stats):
+    if isinstance(value, str):
+        clean, repaired = _sanitize_text(value)
+        stats['unicode_repairs'] += repaired
+        return clean
+    if isinstance(value, list):
+        return [_sanitize_tree(v, stats) for v in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_tree(v, stats) for v in value)
+    if isinstance(value, dict):
+        return {k: _sanitize_tree(v, stats) for k, v in value.items()}
+    return value
 
 
 def validate_mcq(page):
@@ -44,16 +110,20 @@ def validate_mcq(page):
 
 
 def enforce_material_integrity(data):
-    """
-    Language-agnostic fail-closed release guard.
-    Invalid MCQs are removed rather than published with a contradictory key.
-    Correct content is preserved byte-for-byte.
+    """Language-agnostic deterministic release guard.
+
+    No model/API call is made here. Unicode corruption is repaired conservatively
+    across the entire lesson, and structurally invalid MCQs fail closed instead
+    of being published with contradictory keys.
     """
     if not isinstance(data, dict):
         return data
-    out = deepcopy(data)
+    stats = {'unicode_repairs': 0}
+    out = _sanitize_tree(deepcopy(data), stats)
     pages = out.get('pages')
     if not isinstance(pages, list):
+        if stats['unicode_repairs']:
+            out['_integrity_unicode_repairs'] = stats['unicode_repairs']
         return out
     clean = []
     removed = []
@@ -67,4 +137,6 @@ def enforce_material_integrity(data):
     out['pages'] = clean
     if removed:
         out['_integrity_removed_mcq'] = [{'index': i, 'reason': r} for i, r in removed]
+    if stats['unicode_repairs']:
+        out['_integrity_unicode_repairs'] = stats['unicode_repairs']
     return out
