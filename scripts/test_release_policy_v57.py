@@ -40,14 +40,14 @@ def run():
     }
     assert _clean_tree(bad_gender, language="Russian")["pages"] == []
 
-    # Explicitly stated gender keeps a legitimate grammar question.
+    # A stem that explicitly states both gender and marital status is safe.
     safe_gender = {
         "pages": [{
             "type": "mcq",
-            "prompt_tr": "Özne açıkça kadın olarak verilmiştir. Doğru biçimi seçin.",
+            "prompt_tr": "Bu kadın evlidir. Rusçada uygun biçimi seçin.",
             "options": ["за́мужем", "жена́т", "холо́ст", "брат"],
             "answer": "за́мужем",
-            "explanation_tr": "Özne dişil olduğu için bu biçim kullanılır.",
+            "explanation_tr": "Özne açıkça kadın ve evli olarak verilmiştir.",
         }]
     }
     assert len(_clean_tree(safe_gender, language="Russian")["pages"]) == 1
