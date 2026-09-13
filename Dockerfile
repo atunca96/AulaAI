@@ -39,6 +39,8 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_material_absolute_quality_v30.py \
     && python scripts/patch_material_language_necessity_v32.py \
     && python scripts/patch_material_quality_v33.py \
+    && python scripts/patch_native_script_v35.py \
+    && python scripts/patch_material_generation_residual_v36.py \
     && python scripts/patch_material_cost_guard_v34.py \
     && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/legacy/pdf_pipeline.py
 
