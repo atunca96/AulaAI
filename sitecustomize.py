@@ -13,12 +13,24 @@ _TR_KEYS = {
     "stem_tr", "line_tr", "speaker_tr", "meaning_tr", "definition_tr", "breakdown_tr",
 }
 
+_TARGET_KEYS = {"term", "word", "phrase", "example", "sentence", "target", "text"}
+
 _CYR_TO_LATIN = {
     "а":"a","А":"A","б":"b","Б":"B","в":"v","В":"V","г":"g","Г":"G",
     "д":"d","Д":"D","е":"e","Е":"E","з":"z","З":"Z","и":"i","И":"I",
     "к":"k","К":"K","л":"l","Л":"L","м":"m","М":"M","н":"n","Н":"N",
     "о":"o","О":"O","п":"p","П":"P","р":"r","Р":"R","с":"s","С":"S",
     "т":"t","Т":"T","у":"u","У":"U","ф":"f","Ф":"F",
+}
+
+# Only visually/orthographically safe Latin characters are converted back to
+# Cyrillic, and only inside a token that already contains Cyrillic. Pure Latin
+# quotations such as "dictionary" are deliberately untouched.
+_LAT_TO_CYR = {
+    "a":"а","A":"А","b":"б","B":"В","c":"с","C":"С","e":"е","E":"Е",
+    "h":"н","H":"Н","k":"к","K":"К","m":"м","M":"М","o":"о","O":"О",
+    "p":"р","P":"Р","t":"т","T":"Т","x":"х","X":"Х","y":"у","Y":"У",
+    "u":"у","U":"У",
 }
 
 
@@ -81,11 +93,49 @@ def _repair_mixed_token_text(value):
     return re.sub(r"[^\W\d_]+", repl, text, flags=re.UNICODE)
 
 
+def _repair_russian_mixed_token_text(value):
+    text = str(value or "")
+    def repl(match):
+        token = match.group(0)
+        has_latin = any(ch.isalpha() and "LATIN" in unicodedata.name(ch, "") for ch in token)
+        has_cyr = any(ch.isalpha() and "CYRILLIC" in unicodedata.name(ch, "") for ch in token)
+        if not (has_latin and has_cyr):
+            return token
+        out = []
+        for ch in token:
+            if ch.isalpha() and "LATIN" in unicodedata.name(ch, ""):
+                mapped = _LAT_TO_CYR.get(ch)
+                if mapped is None:
+                    return token
+                out.append(mapped)
+            else:
+                out.append(ch)
+        repaired = "".join(out)
+        if all((not ch.isalpha()) or "CYRILLIC" in unicodedata.name(ch, "") for ch in repaired):
+            return repaired
+        return token
+    return re.sub(r"[^\W\d_]+", repl, text, flags=re.UNICODE)
+
+
 def _clean_tr_text(value):
     text = _repair_mixed_token_text(value)
-    text = re.sub(r"\bzero[- ]copula\b", "sıfır bağlayıcı", text, flags=re.IGNORECASE)
-    text = re.sub(r"\bnominatif\b", "Yalın Hâl", text, flags=re.IGNORECASE)
-    text = re.sub(r"\bgenitif\b", "İlgi/Tamlayan Hâli", text, flags=re.IGNORECASE)
+    replacements = (
+        (r"\bzero[- ]copula\b", "sıfır bağlayıcı"),
+        (r"\bnominatif\b|\bnominative\b", "Yalın Hâl"),
+        (r"\bgenitif\b|\bgenitive\b", "İlgi/Tamlayan Hâli"),
+        (r"\bakuzatif\b|\baccusative\b", "Belirtme Hâli"),
+        (r"\bdatif\b|\bdative\b", "Yönelme Hâli"),
+        (r"\blocative\b|\blokatif\b", "Bulunma Hâli"),
+        (r"\binstrumental\b", "Araç Hâli"),
+        (r"\bprepositional\b|\bprepozitif\b", "Edat Hâli"),
+        (r"\bsingular\b", "tekil"),
+        (r"\bplural\b", "çoğul"),
+        (r"\bmasculine\b", "eril"),
+        (r"\bfeminine\b", "dişil"),
+        (r"\bneuter\b", "nötr"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     return text
 
 
@@ -159,9 +209,6 @@ def _unsafe_mcq(page, language=""):
     if trait and absolute:
         return True
 
-    # A standard seven-letter spelling-rule violation is a fabricated Russian
-    # distractor, not a pedagogically valid alternative. Crop the item rather
-    # than silently correcting an answer choice.
     if _is_russian(language) and any(re.search(r"[гкхжчшщ]ы", str(x).casefold()) for x in _options(page)):
         return True
     return False
@@ -197,11 +244,21 @@ def _clean_tree(node, language="", parent_key=""):
     out = {}
     for key, value in node.items():
         if key in {"options", "options_tr", "distractors"} and isinstance(value, list):
-            out[key] = [_clean_option(x) if isinstance(x, str) else _clean_tree(x, language, key) for x in value]
+            values = []
+            for x in value:
+                if isinstance(x, str):
+                    text = _repair_russian_mixed_token_text(x) if _is_russian(language) else x
+                    values.append(_clean_option(text))
+                else:
+                    values.append(_clean_tree(x, language, key))
+            out[key] = values
         elif key == "answer" and isinstance(value, str):
-            out[key] = _clean_option(value)
+            text = _repair_russian_mixed_token_text(value) if _is_russian(language) else value
+            out[key] = _clean_option(text)
         elif key in _TR_KEYS and isinstance(value, str):
             out[key] = _clean_tr_text(value)
+        elif key in _TARGET_KEYS and isinstance(value, str) and _is_russian(language):
+            out[key] = _repair_russian_mixed_token_text(value)
         elif key == "target" and parent_key == "comparisons" and isinstance(value, str):
             out[key] = _clean_target(value)
         elif isinstance(value, (dict, list)):
