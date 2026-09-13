@@ -19,14 +19,24 @@ FINAL-RELEASE PRINCIPLES:
 if "FINAL-RELEASE PRINCIPLES:" not in s and needle in s:
     s = s.replace(needle, addition, 1)
 
-# Make the first editor less likely to truncate its repair list.
+# Make the editor less likely to truncate its repair list.
 s = s.replace("max_tokens=1800,", "max_tokens=3000,", 1)
 
-# Run the independent editor twice. The second pass reviews the already-patched
-# lesson and is therefore specifically useful for residual micro-errors.
+# Run the independent editor twice. The second pass sees the already-patched lesson.
 call = "    lesson_dict = _material_publication_audit(lesson_dict, language, level)\n"
 if s.count(call) == 1:
     s = s.replace(call, call + call, 1)
 
+# Fail the image build rather than silently shipping if this final gate did not apply.
+required = {
+    "final principles": "FINAL-RELEASE PRINCIPLES:" in s,
+    "double audit": s.count(call) >= 2,
+    "full payload": "payload = payload[:26000]" not in s,
+    "repair budget": "max_tokens=3000," in s,
+}
+missing = [name for name, ok in required.items() if not ok]
+if missing:
+    raise RuntimeError("v29 final material gate incomplete: " + ", ".join(missing))
+
 p.write_text(s, encoding="utf-8")
-print("Applied v29: strengthened causal/grounding audit + second publication pass")
+print("Applied and verified v29: causal/grounding audit + second publication pass")
