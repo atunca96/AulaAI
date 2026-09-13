@@ -46,17 +46,16 @@ for marker in (
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
     'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
+    'AULAAI_INLINE_PUBLICATION_QA_V46',
 ):
     assert marker in engine, marker
 
-# Performance invariant: exactly one semantic whole-lesson publication pass,
-# no per-page semantic loop, and v37 itself is deterministic-only.
 publication_call = 'lesson_dict = _material_publication_audit(lesson_dict, language, level)'
-assert engine.count(publication_call) == 1, engine.count(publication_call)
+assert engine.count(publication_call) == 0, engine.count(publication_call)
 assert '_material_page_release_audit(' not in engine
 start = engine.index('def _material_release_integrity_v37(')
 end = engine.find('\ndef ', start + 5)
 body = engine[start:end if end > start else len(engine)]
 assert '_call_ai(' not in body
 
-print('v37/v38 universal quality + single-audit performance self-test passed')
+print('v37/v46 universal quality + zero-duplicate-audit self-test passed')
