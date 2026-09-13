@@ -54,6 +54,8 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/patch_release_hardening_v54.py \
     && python scripts/test_release_hardening_v52.py \
     && python scripts/test_release_hardening_v54.py \
+    && python scripts/patch_release_hardening_v55.py \
+    && python scripts/test_release_hardening_v55.py \
     && python scripts/patch_canonical_material_prompt.py \
     && python scripts/test_canonical_material_prompt.py \
     && python scripts/test_material_release_integrity_v37.py \
