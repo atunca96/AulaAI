@@ -5,6 +5,19 @@ engine = root / "services" / "ai_engine.py"
 policy = (root / "config" / "material_quality_v33.txt").read_text(encoding="utf-8").strip()
 s = engine.read_text(encoding="utf-8")
 
+# Prevent the residual classes at generation time without adding another model call.
+generation_tag = "<material_quality_v33_prevention>"
+if generation_tag not in s:
+    anchor = "<output_schema>\n"
+    if anchor not in s:
+        raise RuntimeError("v33 generation insertion point missing")
+    prevention = '''<material_quality_v33_prevention>
+Before JSON output, silently eliminate these residual defects: accidental instructional-language leakage; missing visible symbols after naming a grapheme/mark/sign; mixed or malformed IPA/romanization/transliteration; literal translations that distort pragmatic force; unjustified absolute words such as always/never/must/only; overgeneralization from irregular or lexicalized forms; mismatched vocabulary-table columns; dialogue turns with incoherent reference, role, politeness or demonstratives. Re-check every bilingual pair for exact meaning plus native naturalness. Re-check every rule against every example. If a precise linguistic claim is uncertain, simplify it rather than inventing detail.
+</material_quality_v33_prevention>
+
+'''
+    s = s.replace(anchor, prevention + anchor, 1)
+
 page_marker = "For an MCQ that cannot be repaired using PRIOR taught content without introducing new knowledge"
 page_tag = "AULAAI_MATERIAL_QUALITY_V33_PAGE"
 if page_tag not in s:
@@ -24,10 +37,10 @@ if publication_tag not in s:
 
 s = s.replace("model=MODEL_STRUCTURAL, max_tokens=1700, temperature=0.0", "model=MODEL_STRUCTURAL, max_tokens=2200, temperature=0.0", 1)
 
-required = (page_tag, publication_tag, "max_tokens=2200")
+required = (generation_tag, page_tag, publication_tag, "max_tokens=2200")
 missing = [x for x in required if x not in s]
 if missing:
     raise RuntimeError("v33 verification failed: " + ", ".join(missing))
 
 engine.write_text(s, encoding="utf-8")
-print("Applied v33 material quality contract to page and publication audits")
+print("Applied v33 quality prevention + page/publication audits")
