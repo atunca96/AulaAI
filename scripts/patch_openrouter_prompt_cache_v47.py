@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 p = Path(__file__).resolve().parents[1] / 'services' / 'ai_engine.py'
 s = p.read_text(encoding='utf-8')
@@ -57,3 +58,5 @@ if marker not in s:
 
 p.write_text(s, encoding='utf-8')
 print('Applied v47: sticky OpenRouter lesson session + cached-token telemetry')
+
+runpy.run_path(str(Path(__file__).resolve().parent / 'patch_material_hard_gate_v48.py'), run_name='__main__')
