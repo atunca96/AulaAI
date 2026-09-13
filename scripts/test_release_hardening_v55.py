@@ -51,7 +51,9 @@ def run():
     assert "Zero-Copula" not in cleaned
     assert "nominatif" not in cleaned
     assert "Genitif" not in cleaned
-    assert "sifir baglayici" in cleaned.casefold().replace("ı", "i")
+    assert "sıfır bağlayıcı" in cleaned.casefold()
+    assert "Yalın Hâl" in cleaned
+    assert "İlgi/Tamlayan Hâli" in cleaned
 
     print("[V55] surgical inference/IPA/metalanguage regression tests PASSED")
 
