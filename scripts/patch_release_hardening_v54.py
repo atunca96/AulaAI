@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 guard_path = ROOT / "services" / "material_quality_guard.py"
 renderer_path = ROOT / "services" / "pdf_renderer_v12.py"
+engine_path = ROOT / "services" / "ai_engine.py"
 TAG = "# AULAAI_RELEASE_HARDENING_V54"
 
 guard = guard_path.read_text(encoding="utf-8")
@@ -150,6 +151,17 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
 '''
     guard_path.write_text(guard, encoding="utf-8")
 
+# Generation-time semantic contract for alphabet/grapheme inventories. This is
+# language-agnostic: no alphabet or language is hardcoded.
+engine = engine_path.read_text(encoding="utf-8")
+if "AULAAI_GRAPHEME_PHONETICS_V54" not in engine:
+    anchor = "- When pronunciation is pedagogically required or a pronunciation column exists, `phonetic` must be populated and authoritative. Never duplicate or contradict it inside meaning/translation/gloss."
+    addition = anchor + "\n- AULAAI_GRAPHEME_PHONETICS_V54: For alphabet/script/grapheme inventory rows, `phonetic` means BASIC SOUND VALUE(S) IN STANDARD IPA, not the spoken name of the letter and not a transliteration. If a grapheme has context-dependent core realizations, include the defensible main IPA values separated by ` / ` and explain the conditioning briefly in the meaning/explanation field; never pretend a context-sensitive grapheme has one invariant sound. Non-sounding signs/markers must not receive invented IPA."
+    if anchor not in engine:
+        raise RuntimeError("v54 pronunciation contract anchor missing")
+    engine = engine.replace(anchor, addition, 1)
+    engine_path.write_text(engine, encoding="utf-8")
+
 renderer = renderer_path.read_text(encoding="utf-8")
 if TAG not in renderer:
     renderer += r'''
@@ -164,7 +176,51 @@ def _localized_title(title, is_tr, content=None, title_maps=None, explicit_title
         return _v52_meta(value, "tr" if is_tr else "en")
     except Exception:
         return value
+
+
+def _v54_is_grapheme_inventory(items):
+    """Detect alphabet/script inventory tables structurally, without language names."""
+    if not isinstance(items, list) or len(items) < 5:
+        return False
+    compact = 0
+    paired = 0
+    usable = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        term = str(item.get("term") or item.get("word") or "").strip()
+        if not term:
+            continue
+        usable += 1
+        tokens = [t for t in term.split() if t]
+        chars = "".join(tokens)
+        if 1 <= len(chars) <= 4:
+            compact += 1
+        if len(tokens) == 2 and len(tokens[0]) == 1 and len(tokens[1]) == 1 and tokens[0].casefold() == tokens[1].casefold():
+            paired += 1
+    if usable < 5:
+        return False
+    return (compact / usable) >= 0.75 and ((paired / usable) >= 0.30 or usable >= 15)
 '''
+
+    old_headers = """                        headers = (
+                            'Terim / Kelime' if is_tr else 'Term / Word',
+                            'Telaffuz' if is_tr else 'Phonetic',
+                            'Anlam' if is_tr else 'Translation',
+                            'Hedef Dilde Örnek' if is_tr else 'Target-Language Example',
+                            'Türkçe Çeviri' if is_tr else 'English Translation',
+                        )"""
+    new_headers = """                        is_grapheme_inventory = _v54_is_grapheme_inventory(items)
+                        headers = (
+                            ('Harf / İşaret' if is_tr else 'Letter / Sign') if is_grapheme_inventory else ('Terim / Kelime' if is_tr else 'Term / Word'),
+                            ('Temel Ses (IPA)' if is_tr else 'Basic Sound (IPA)') if is_grapheme_inventory else ('Telaffuz' if is_tr else 'Phonetic'),
+                            'Anlam' if is_tr else 'Translation',
+                            'Hedef Dilde Örnek' if is_tr else 'Target-Language Example',
+                            'Türkçe Çeviri' if is_tr else 'English Translation',
+                        )"""
+    if old_headers not in renderer:
+        raise RuntimeError("v54 vocabulary header anchor missing")
+    renderer = renderer.replace(old_headers, new_headers, 1)
     renderer_path.write_text(renderer, encoding="utf-8")
 
-print("Applied v54 structural entailment and phonetic consistency hardening")
+print("Applied v54 structural entailment, phonetic consistency, and grapheme-IPA hardening")
