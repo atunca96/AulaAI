@@ -1,4 +1,10 @@
 from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from services.material_quality_guard import enforce_material_integrity, validate_mcq
 
 
@@ -11,16 +17,12 @@ def mcq(prompt, options, answer, explanation='ok', **extra):
 valid = mcq('Choose the correct form.', ['alpha', 'beta', 'gamma', 'delta'], 'beta')
 assert validate_mcq(valid) == (True, '')
 
-# Reproduces the real failure class: explanation/intention names an answer that is absent,
-# while a different answer is keyed. Structural gate must not publish it.
 broken_missing_intended = mcq(
     'Complete the sentence with the quantity taught in the lesson.',
     ['one', 'three', 'four', 'five'],
     'five',
     explanation='The correct form is two.'
 )
-# The semantic audit repairs this class first; deterministic guard guarantees that any
-# answer remaining after audit is one of the published options.
 assert validate_mcq(broken_missing_intended) == (True, '')
 
 bad_key = mcq('Choose.', ['a', 'b', 'c', 'd'], 'e')
@@ -33,7 +35,6 @@ assert out['pages'][0]['answer'] == 'beta'
 assert out['pages'][1]['type'] == 'overview'
 assert len(out.get('_integrity_removed_mcq', [])) == 3
 
-# Guard must be language-agnostic: scripts and alphabets are opaque strings here.
 for opts, ans in [
     (['дом', 'дома', 'дому', 'домом'], 'дому'),
     (['كتاب', 'كتب', 'بالكتاب', 'للكتاب'], 'كتاب'),
