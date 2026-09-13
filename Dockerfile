@@ -28,9 +28,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Single PDF path:
-# frontend -> /export-pdf -> pdf_export_bridge -> pdf_academic_renderer
 RUN python scripts/patch_pdf_cache_bust_v39.py \
+    && python scripts/patch_pdf_build_prereqs_v43.py \
     && python scripts/patch_bilingual_finalizer_stall.py \
     && python scripts/patch_material_mcq_bilingual.py \
     && python scripts/patch_material_mcq_existing_shuffle.py \
