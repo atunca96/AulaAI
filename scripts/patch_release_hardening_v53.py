@@ -7,7 +7,7 @@ s = engine.read_text(encoding="utf-8")
 # stays essentially flat and runtime model-call/retry topology is unchanged.
 s = s.replace(
     '"phonetic": "[IPA / phonetic guide]"',
-    '"phonetic": "[bracketed standard IPA only; never learner respelling]"',
+    '"phonetic": "[standard IPA only; never learner respelling]"',
     1,
 )
 s = s.replace(
@@ -17,7 +17,7 @@ s = s.replace(
 )
 s = s.replace(
     '"text": "Utterance in {language}"',
-    '"text": "Utterance only in {language}; no English/Turkish lexical gloss inside this shared target-language field"',
+    '"text": "Utterance only in {language}; no instructional-language gloss words"',
     1,
 )
 s = s.replace(
@@ -46,8 +46,6 @@ if anchor in g:
 
 old_return = '    return "".join(parts)\n\n\ndef sanitize_dialogue_speaker'
 new_return = '''    text = "".join(parts)
-    # Remove residual English `Case` after a label that is already Turkish.
-    # This fixes hybrids such as "Edat Durumu Case" without touching quoted terms.
     text = re.sub(r"\\b(Yalın Hâl|İlgi/Tamlayan Hâli|Belirtme Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\\s+[Cc]ase\\b", r"\\1", text)
     return text
 
