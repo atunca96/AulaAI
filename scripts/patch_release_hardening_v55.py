@@ -29,8 +29,6 @@ def _v54_unsafe_mcq(page, material_language):
     p = _v54_fold(prompt)
     opts = _v54_fold(_v55_option_text(page))
 
-    # High-confidence workplace -> profession inference. The question itself asks
-    # for a profession while only supplying a workplace/school/factory/hospital fact.
     workplace_fact = any(x in p for x in (
         "calisiyor", "calisir", "work at", "works at", "works in", "working at", "working in",
         "arbeitet", "travaille", "trabaja", "lavora", "trabalha", "работает", "работа в",
@@ -42,8 +40,6 @@ def _v54_unsafe_mcq(page, material_language):
     if workplace_fact and profession_question:
         return True
 
-    # High-confidence trait -> absolute-frequency inference. A personality trait such
-    # as being punctual does not entail NEVER/ALWAYS behavior. Crop instead of inventing facts.
     trait_fact = any(x in p for x in (
         "dakik", "punctual", "punktlich", "ponctuel", "puntual", "pontual", "пунктуал",
     ))
@@ -53,7 +49,6 @@ def _v54_unsafe_mcq(page, material_language):
     ))
     if trait_fact and absolute_frequency_option:
         return True
-
     return False
 
 
@@ -61,7 +56,6 @@ def sanitize_instructional_metalanguage(value, material_language="tr"):
     text = _v55_previous_meta(value, material_language)
     if str(material_language or "").strip().casefold() not in {"tr", "turkish", "türkçe", "turkce"}:
         return text
-    # Publication-only terminology cleanup; no semantic rewriting.
     text = re.sub(r"\bzero[- ]copula\b", "sıfır bağlayıcı", text, flags=re.IGNORECASE)
     text = re.sub(r"\bnominatif\b", "Yalın Hâl", text, flags=re.IGNORECASE)
     text = re.sub(r"\bgenitif\b", "İlgi/Tamlayan Hâli", text, flags=re.IGNORECASE)
@@ -83,9 +77,9 @@ def _v54_display_phonetic(value):
     if not text:
         return ""
 
-    # Repair legacy/composite values like [[ipa1] / [ipa2]] by removing only
-    # the accidental outer pair while preserving each authoritative IPA group.
-    if text.startswith("[[") and text.endswith("]]")):
+    if text.startswith("[[") and text.endswith("]] "):
+        text = text[:-1]
+    if text.startswith("[[") and text.endswith("]]" ):
         inner = text[1:-1].strip()
         groups = re.findall(r"\[[^\]\n]+\]", inner)
         residue = re.sub(r"\[[^\]\n]+\]", "", inner)
