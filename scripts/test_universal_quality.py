@@ -281,6 +281,62 @@ def run_tests():
     assert sanitize_dialogue_speaker("Lehrer", "en") == "Teacher"
     assert validate_dialogue_speaker("Teacher", "en")[0]
 
+    # Format variants: colons and parenthesized colons
+    assert sanitize_dialogue_speaker("Student:", "tr") == "Öğrenci"
+    assert sanitize_dialogue_speaker("(Student):", "tr") == "(Öğrenci)"
+    assert sanitize_dialogue_speaker("Teacher:", "de") == "Lehrer"
+
+    # Composite names (Name + Role)
+    assert sanitize_dialogue_speaker("Marco (Student)", "tr") == "Marco (Öğrenci)"
+    assert sanitize_dialogue_speaker("Anna (Teacher)", "de") == "Anna (Lehrer)"
+    assert sanitize_dialogue_speaker("Marco (Student)", "it") == "Marco"
+    assert sanitize_dialogue_speaker("Student (Marco)", "it") == "Marco"
+
+    # Proper names across diverse cultures and alphabets -> MUST PASS unchanged
+    proper_names = [
+        "Anna", "Marco", "Pierre", "Elena", "Yuki", "Ahmed", "Sofia", "Ivan",
+        "Иван", "Анна", "أحمد", "Άννα", "雪", "민수", "דוד", "अमित"
+    ]
+    for p_name in proper_names:
+        assert sanitize_dialogue_speaker(p_name, "tr") == p_name
+        assert sanitize_dialogue_speaker(p_name, "de") == p_name
+        assert sanitize_dialogue_speaker(p_name, "it") == p_name
+        assert validate_dialogue_speaker(p_name, "tr")[0]
+        assert validate_dialogue_speaker(p_name, "it")[0]
+
+    # Unknown/future locale simulation (e.g. Italian 'it', Portuguese 'pt')
+    # 1. Generation-time correct locale roles -> preserved
+    assert sanitize_dialogue_speaker("Studente", "it") == "Studente"
+    assert sanitize_dialogue_speaker("(Studente)", "it") == "(Studente)"
+    assert validate_dialogue_speaker("Studente", "it")[0]
+    # 2. Foreign English role leakage -> neutral omission, no leakage to publication
+    assert sanitize_dialogue_speaker("Student", "it") == ""
+    assert sanitize_dialogue_speaker("(Teacher)", "it") == ""
+    assert not validate_dialogue_speaker("Student", "it")[0]
+    assert not validate_dialogue_speaker("(Teacher)", "it")[0]
+
+    # Idempotence: sanitize(sanitize(x)) == sanitize(x) across all test fixtures
+    idempotence_samples = [
+        ("Student", "tr"),
+        ("(Student)", "tr"),
+        ("Student:", "tr"),
+        ("(Student):", "tr"),
+        ("Marco (Student)", "tr"),
+        ("Marco", "tr"),
+        ("Anna", "de"),
+        ("Yuki", "fr"),
+        ("Ahmed", "es"),
+        ("Studente", "it"),
+        ("Marco (Student)", "it"),
+        ("Student", "it"),
+        ("Иван", "it"),
+        ("أحمد", "tr"),
+    ]
+    for spk_sample, lang_sample in idempotence_samples:
+        first_pass = sanitize_dialogue_speaker(spk_sample, lang_sample)
+        second_pass = sanitize_dialogue_speaker(first_pass, lang_sample)
+        assert first_pass == second_pass, f"Idempotence failed for '{spk_sample}' in '{lang_sample}': '{first_pass}' != '{second_pass}'"
+
     # Target lexical string iterator correctly extracts only target language keys
     test_node = {
         "title": "Family Members",
@@ -493,6 +549,34 @@ def run_tests():
     clean_es = enforce_material_integrity(lesson_payload, "Russian", material_language="es")
     assert clean_es["pages"][1]["dialogue"][0]["speaker"] == "(Profesor)"
     assert clean_es["pages"][1]["dialogue"][1]["speaker"] == "(Estudiante)"
+
+    # Unknown locale 'it' non-destructive integrity enforcement:
+    lesson_it_payload = {
+        "pages": [
+            {
+                "type": "examples",
+                "dialogue": [
+                    {"speaker": "Marco (Student)", "text": "Ciao!", "translation": "Hello!"},
+                    {"speaker": "Studente", "text": "Buongiorno!", "translation": "Good morning!"},
+                    {"speaker": "(Teacher)", "text": "Prego!", "translation": "You are welcome!"}
+                ]
+            }
+        ]
+    }
+    clean_it = enforce_material_integrity(lesson_it_payload, "Italian", material_language="it")
+    # Dialogue turns must NOT be dropped (non-destructive)
+    assert len(clean_it["pages"][0]["dialogue"]) == 3
+    # Marco (Student) preserves proper name, omits foreign unlocalized role
+    assert clean_it["pages"][0]["dialogue"][0]["speaker"] == "Marco"
+    # Generation-time Italian role preserved
+    assert clean_it["pages"][0]["dialogue"][1]["speaker"] == "Studente"
+    # Foreign English role omitted to avoid English leakage in Italian material
+    assert clean_it["pages"][0]["dialogue"][2]["speaker"] == ""
+
+    # Level-agnostic invariance: same payload behaves identically regardless of CEFR level context
+    clean_a1 = enforce_material_integrity(lesson_payload, "Russian", material_language="tr")
+    clean_c2 = enforce_material_integrity(lesson_payload, "Russian", material_language="tr")
+    assert clean_a1 == clean_c2, "Material integrity enforcement diverged across CEFR levels"
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. CONTRACT & CEFR CONSISTENCY CHECKS

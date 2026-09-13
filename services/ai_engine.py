@@ -3094,7 +3094,7 @@ Return ONLY valid JSON matching this schema:
       ],
       "dialogue": [
         {{
-          "speaker": "Speaker name or role in instructional language ({material_language})",
+          "speaker": "Speaker personal name or pedagogical role in instructional language ({material_language})",
           "text": "Utterance in {language}",
           "line_en": "English translation",
           "line_tr": "Turkish translation"

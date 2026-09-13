@@ -433,40 +433,114 @@ for _canon, _locales in ROLE_CATALOG.items():
 
 def sanitize_dialogue_speaker(speaker: str, material_language: str = "en") -> str:
     """
-    Universal, locale-aware localization of dialogue speaker role labels.
-    Preserves proper names (e.g. 'Marco', 'Anna', 'Pierre', 'Elena', 'Yuki') intact.
-    When speaker is an identified pedagogical role label (e.g. 'Student', '(Student)', 'Teacher'),
-    normalizes it to the target instructional language (e.g. 'Öğrenci' for tr, 'Schüler' for de,
-    'Étudiant' for fr, 'Estudiante' for es, 'Student' for en).
+    Universal, locale-safe speaker role sanitizer.
+    
+    Architecture & Policy:
+    1. Primary Strategy: Generation-time correct locale role from the model.
+    2. Proper Name Preservation: Authentic proper names (Marco, Anna, Yuki, Ahmed, etc.)
+       across all scripts are preserved untouched.
+    3. High-Confidence Fallback: Known canonical roles for catalogued instructional
+       languages (tr, de, fr, es, en) are normalized to the target instructional language.
+    4. Unknown Locale Safe Fallback: When a foreign English role label is detected but no
+       deterministic mapping exists for material_language, role metadata is safely omitted
+       to prevent English leakage, keeping any associated proper name.
+    5. Strict Idempotence: sanitize(sanitize(x)) == sanitize(x).
+    6. Non-Destructive: Never drops pages or dialogue turns.
     """
     if not speaker or not isinstance(speaker, str):
-        return speaker
+        return speaker or ""
+
     s_clean = speaker.strip()
+    if s_clean.endswith(":"):
+        s_clean = s_clean[:-1].strip()
+
+    tgt_lang = str(material_language or "en").strip().lower()[:2]
+
+    # Handle composite format e.g. "Marco (Student)" or "Student (Marco)"
+    m_composite = re.match(r"^(.+?)\s*\((.+?)\)$", s_clean)
+    if m_composite:
+        part1 = m_composite.group(1).strip()
+        part2 = m_composite.group(2).strip()
+        canon2 = _ROLE_REVERSE_MAP.get(part2.casefold())
+        canon1 = _ROLE_REVERSE_MAP.get(part1.casefold())
+        if canon2 and not canon1:
+            loc_dict = ROLE_CATALOG.get(canon2, {})
+            localized_role = loc_dict.get(tgt_lang)
+            if localized_role:
+                return f"{part1} ({localized_role})"
+            elif tgt_lang == "en":
+                return f"{part1} ({loc_dict.get('en', part2)})"
+            else:
+                # Unknown locale: omit untranslated foreign role, preserve proper name
+                return part1
+        elif canon1 and not canon2:
+            loc_dict = ROLE_CATALOG.get(canon1, {})
+            localized_role = loc_dict.get(tgt_lang)
+            if localized_role:
+                return f"{part2} ({localized_role})"
+            elif tgt_lang == "en":
+                return f"{part2} ({loc_dict.get('en', part1)})"
+            else:
+                # Unknown locale: omit untranslated foreign role, preserve proper name
+                return part2
+
     in_paren = s_clean.startswith("(") and s_clean.endswith(")")
     raw_name = s_clean[1:-1].strip() if in_paren else s_clean
     canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
-    if not canon_key:
-        # Proper name or entity -> keep intact
-        return speaker
 
-    tgt_lang = str(material_language or "en").strip().lower()[:2]
+    if not canon_key:
+        # Proper name (Marco, Anna, Yuki, Ahmed, etc.) or uncatalogued locale role (Studente)
+        return f"({raw_name})" if in_paren else raw_name
+
     loc_dict = ROLE_CATALOG.get(canon_key, {})
-    localized = loc_dict.get(tgt_lang) or loc_dict.get("en") or raw_name
-    return f"({localized})" if in_paren else localized
+    localized = loc_dict.get(tgt_lang)
+    if localized:
+        return f"({localized})" if in_paren else localized
+
+    # Unknown locale fallback:
+    # canon_key was recognized (e.g. English "Student"), but material_language has no deterministic mapping.
+    if tgt_lang == "en":
+        en_role = loc_dict.get("en") or raw_name
+        return f"({en_role})" if in_paren else en_role
+
+    # Non-English unknown locale: safely omit the unlocalized foreign role to prevent English leakage
+    return ""
 
 
 def validate_dialogue_speaker(speaker: str, material_language: str = "en") -> Tuple[bool, str]:
     """
     Universal validation ensuring dialogue speaker roles match the instructional language.
-    Flags unlocalized foreign role labels (e.g. English 'Student' in Turkish or German material),
-    while treating authentic proper names ('Marco', 'Anna') as valid across all languages.
+    Flags unlocalized foreign role labels (e.g. English 'Student' in Turkish, German, or Italian material),
+    while treating authentic proper names ('Marco', 'Anna', 'Yuki') and generation-time locale roles
+    as valid across all languages.
     """
     if not speaker or not isinstance(speaker, str):
         return True, ""
+
     s_clean = speaker.strip()
+    if s_clean.endswith(":"):
+        s_clean = s_clean[:-1].strip()
+
+    # Extract role from composite e.g. "Marco (Student)"
+    m_composite = re.match(r"^(.+?)\s*\((.+?)\)$", s_clean)
+    if m_composite:
+        role_part = m_composite.group(2).strip()
+        canon_key = _ROLE_REVERSE_MAP.get(role_part.casefold())
+        if not canon_key:
+            return True, ""
+        tgt_lang = str(material_language or "en").strip().lower()[:2]
+        loc_dict = ROLE_CATALOG.get(canon_key, {})
+        expected = loc_dict.get(tgt_lang)
+        if expected and role_part.casefold() != expected.casefold():
+            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}:expected-{expected}"
+        if not expected and tgt_lang != "en" and role_part.casefold() == canon_key:
+            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
+        return True, ""
+
     in_paren = s_clean.startswith("(") and s_clean.endswith(")")
     raw_name = s_clean[1:-1].strip() if in_paren else s_clean
     canon_key = _ROLE_REVERSE_MAP.get(raw_name.casefold())
+
     if not canon_key:
         # Proper name or uncatalogued entity -> valid in all languages
         return True, ""
@@ -476,6 +550,9 @@ def validate_dialogue_speaker(speaker: str, material_language: str = "en") -> Tu
     expected = loc_dict.get(tgt_lang)
     if expected and raw_name.casefold() != expected.casefold():
         return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}:expected-{expected}"
+    if not expected and tgt_lang != "en" and raw_name.casefold() == canon_key:
+        return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
+
     return True, ""
 
 

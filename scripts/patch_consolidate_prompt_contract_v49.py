@@ -25,7 +25,7 @@ AULAAI_INLINE_PUBLICATION_QA_V46: Act as a master university professor and premi
 
 4. UNIVERSAL INSTRUCTIONAL-LANGUAGE ISOLATION & TWO-TRACK FIDELITY:
 - Propositional Equivalence: Target text and instructional-language translations (English & Turkish) must be mutually entailing and express the exact same proposition, entities, roles, polarity, and communicative force.
-- Dialogue Speaker Role Localization: Dialogue speaker roles must strictly match the active instructional language (e.g. Turkish: 'Öğretmen', 'Öğrenci', 'Doktor'; German: 'Lehrer', 'Schüler', 'Arzt'; French: 'Professeur', 'Étudiant', 'Médecin'; Spanish: 'Profesor', 'Estudiante', 'Médico'; English: 'Teacher', 'Student', 'Doctor'). Never leak untranslated foreign role labels into another instructional language track.
+- Dialogue Speaker Role Localization: All dialogue speaker-role labels must be written in the active instructional language ({material_language}). Personal names must remain unchanged. Never leak role labels from another instructional language.
 - Track 1 (English fields: 'title', 'text', 'explanation', 'example_en'): 100% natural, fluent English for English speakers. Zero Turkish words, Turkish parentheticals, or Turkish phonetic references.
 - Track 2 (Turkish fields: 'title_tr', 'text_tr', 'explanation_tr', 'example_tr'): Natural, idiomatic Turkish for Turkish speakers. Zero English word comparisons. No parenthetical country/origin glosses, no unnatural gender hacks ('kadındır'/'erkektir'), no 'sahiptir/sahibim' for physical possession (use var/yok), no 'çok' with ungradable adjectives, no mechanical ordering tense calques ('rica ediyordum' -> 'rica ediyorum' / 'alabilir miyim?').
 

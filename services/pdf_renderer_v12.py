@@ -730,12 +730,12 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         lines = []
                         for d in dialogue_items:
                             if not isinstance(d, dict): d = {'text': str(d)}
-                            from services.material_quality_guard import sanitize_dialogue_speaker
-                            spk = sanitize_dialogue_speaker(spk, material_language=lang)
+                            spk = d.get('speaker') or d.get('name') or ''
                             said = d.get('text') or d.get('line') or d.get('target') or ''
                             translated = (d.get('line_tr') or d.get('translation_tr')) if is_tr else (d.get('line_en') or d.get('translation_en'))
                             trans_html = f' <span class="translation">({_e(translated)})</span>' if translated else ''
-                            lines.append(f'<div class="line"><span class="speaker">{_e(spk)}:</span> “{_e(said)}”{trans_html}</div>')
+                            spk_html = f'<span class="speaker">{_e(spk)}:</span> ' if spk else ''
+                            lines.append(f'<div class="line">{spk_html}“{_e(said)}”{trans_html}</div>')
                         paginator.place_dialogue(intro, lines)
 
                     elif ptype == 'comparisons':
