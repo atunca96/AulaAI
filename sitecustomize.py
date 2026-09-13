@@ -12,7 +12,6 @@ _TR_KEYS = {
     "context_tr", "note_tr", "pitfall_tr", "translation_tr", "prompt_tr", "question_tr",
     "stem_tr", "line_tr", "speaker_tr", "meaning_tr", "definition_tr", "breakdown_tr",
 }
-
 _TARGET_KEYS = {"term", "word", "phrase", "example", "sentence", "target", "text"}
 
 _CYR_TO_LATIN = {
@@ -22,7 +21,6 @@ _CYR_TO_LATIN = {
     "о":"o","О":"O","п":"p","П":"P","р":"r","Р":"R","с":"s","С":"S",
     "т":"t","Т":"T","у":"u","У":"U","ф":"f","Ф":"F",
 }
-
 _LAT_TO_CYR = {
     "a":"а","A":"А","b":"б","B":"В","c":"с","C":"С","e":"е","E":"Е",
     "h":"н","H":"Н","k":"к","K":"К","m":"м","M":"М","o":"о","O":"О",
@@ -51,8 +49,7 @@ def _clean_option(value):
     if not match:
         return text
     core = text[:match.start()].rstrip()
-    inner = match.group(1)
-    words = {w.casefold() for w in re.findall(r"[A-Za-z]+", inner)}
+    words = {w.casefold() for w in re.findall(r"[A-Za-z]+", match.group(1))}
     ipa_core = bool(re.fullmatch(r"\[[^\]]+\]", core))
     if (words & _MARKERS) and (_has_non_latin(core) or ipa_core):
         return core
@@ -120,8 +117,8 @@ def _clean_tr_text(value):
         (r"\bzero[- ]copula\b", "sıfır bağlayıcı"),
         (r"\bnominatif\b|\bnominative\b", "Yalın Hâl"),
         (r"\bgenitif\b|\bgenitive\b", "İlgi/Tamlayan Hâli"),
-        (r"\bakuzatif\b|\baccusative\b", "Belirtme Hâli"),
-        (r"\bdatif\b|\bdative\b", "Yönelme Hâli"),
+        (r"\bakk?uzatif\b|\bakkusativ\b|\baccusative\b", "Belirtme Hâli"),
+        (r"\bdatif\b|\bdativ\b|\bdative\b", "Yönelme Hâli"),
         (r"\blocative\b|\blokatif\b", "Bulunma Hâli"),
         (r"\binstrumental\b", "Araç Hâli"),
         (r"\bprepositional\b|\bprepozitif\b", "Edat Hâli"),
@@ -164,14 +161,12 @@ def _unsafe_mcq(page, language=""):
     if not isinstance(page, dict) or not _options(page) or not _prompt(page):
         return False
     p = _fold(_prompt(page)); e = _fold(_explanation(page)); opts = _fold(" ".join(_options(page)))
-
     gender_reason = any(x in e for x in (
         "ozne disil","ozne eril","female subject","male subject","female name","male name",
         "name is feminine","name is masculine","kadin ismi","erkek ismi",
     ))
     if gender_reason and not _explicit_gender_cue(p):
         return True
-
     marital = any(x in opts for x in ("замужем","женат","холост","married","single","evli","bekar"))
     marital_cue = any(x in p for x in (
         "evli","bekar","married","single","spouse","wife","husband","esi","karisi","kocasi",
@@ -179,7 +174,6 @@ def _unsafe_mcq(page, language=""):
     ))
     if marital and not marital_cue:
         return True
-
     workplace = any(x in p for x in (
         "calisiyor","calisir","works at","works in","working at","working in","arbeitet","travaille",
         "trabaja","lavora","trabalha","работает","работа в",
@@ -189,7 +183,6 @@ def _unsafe_mcq(page, language=""):
     ))
     if workplace and profession:
         return True
-
     location = any(x in p for x in (
         "dogdu","dogmus","yasiyor","ikamet","born in","lives in","resides in","родил","живет в","живёт в",
     ))
@@ -198,14 +191,12 @@ def _unsafe_mcq(page, language=""):
     ))
     if location and identity:
         return True
-
     trait = any(x in p for x in ("dakik","punctual","punktlich","ponctuel","puntual","пунктуал"))
     absolute = any(x in opts for x in (
         "never","always","niemals","immer","jamais","toujours","nunca","siempre","никогда","всегда",
     ))
     if trait and absolute:
         return True
-
     if _is_russian(language) and any(re.search(r"[гкхжчшщ]ы", str(x).casefold()) for x in _options(page)):
         return True
     return False
@@ -272,22 +263,17 @@ def _install():
     try:
         import services.material_quality_guard as guard
         previous = guard.enforce_material_integrity
-
         def enforce_material_integrity(data, *args, **kwargs):
             language = kwargs.get("language") or kwargs.get("target_language") or (args[0] if args else "")
             return _clean_tree(previous(data, *args, **kwargs), language=language)
-
         guard.enforce_material_integrity = enforce_material_integrity
     except Exception as exc:
         print(f"[V57] guard hook skipped: {exc}")
-
     try:
         import services.pdf_renderer_v12 as renderer
         previous_normalize = renderer._normalize_content
-
         def _normalize_content(raw):
             return _clean_tree(previous_normalize(raw), language="")
-
         renderer._normalize_content = _normalize_content
     except Exception as exc:
         print(f"[V57] renderer hook skipped: {exc}")
