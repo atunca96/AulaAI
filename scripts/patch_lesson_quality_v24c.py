@@ -34,6 +34,11 @@ mcq_addition = r'''
 11. CARRIER-LANGUAGE MINIMIZATION
 - At A1/A2 the wording surrounding the tested feature must be easier than the feature itself. Avoid long source-language explanations, unnecessary subordinate clauses or extra vocabulary that makes a simple language objective cognitively harder.
 - When a short direct target-language context can test the objective, prefer it over a metalinguistic puzzle or translation-heavy stem.
+
+12. NO SHALLOW TESTING WHEN APPLICATION IS AVAILABLE
+- Pure translation/definition recall is a fallback, not the default. Except for first exposure to a new writing system or genuinely necessary recognition tasks, prefer contextual target-language use over asking only "what does X mean?".
+- Vocabulary questions should normally require the learner to understand the word inside a taught, simple context. Grammar questions should test the taught form in a natural sentence or communicative choice rather than merely naming the rule.
+- Never make the answer obvious because three options belong to visibly different semantic or grammatical categories. All options must compete on the exact taught distinction.
 '''
 
 if "10. OBJECTIVE-BALANCED ASSESSMENT" not in s and "</formative_mcq_quality_v24>" in s:
@@ -44,7 +49,9 @@ preflight_addition = r'''
 - For numeral/counting examples, verify the target language's native counter/classifier/number syntax rather than mirroring English/Turkish noun phrases.
 - Scan every string for accidental editor/model debris or unrelated tokens; delete or rewrite any contaminated field.
 - Build an assessment-objective ledger and reject duplicate MCQs that test the same rule with the same cognitive operation.
+- Prefer contextual application over shallow translation recall whenever the lesson already supports a natural target-language context.
 - If a sentence is merely understandable but not what an educated native teacher would naturally publish, rewrite it to the simplest natural form.
+- Publication criterion is ZERO KNOWN DEFECTS, not a numeric self-score: do not return content while you can identify any correctness, naturalness, grounding, localization, duplication, contamination or CEFR defect.
 '''
 
 anchor = "- Final quality floor: silently rate Accuracy, Naturalness, CEFR Fit, Pedagogy, Grounding, Localization Fidelity, Entity Consistency and Classroom Usability; revise or omit any failing content until every category is at least 9.5/10.\n"
@@ -52,4 +59,4 @@ if "Treat every vocabulary example as if it will be quoted by a language teacher
     s = s.replace(anchor, anchor + preflight_addition, 1)
 
 p.write_text(s, encoding="utf-8")
-print("Applied v24c: native example proofing, contamination ban and objective-balanced MCQs")
+print("Applied v24c: publication-grade native examples, clean output and objective-balanced MCQs")
