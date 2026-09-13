@@ -179,6 +179,14 @@ def run_tests():
         norm = safe_unicode_normalize(sample)
         assert len(norm) > 0, "Safe normalize emptied string"
 
+    # C) Safe handling of noncharacters U+FFFE/U+FFFF and preservation of punctuation dashes
+    assert safe_unicode_normalize("valid\uFFFE\uFFFFtext") == "validtext", "Failed to safely strip noncharacters"
+    assert safe_unicode_normalize("11\u201319") == "11\u201319", "En-dash was incorrectly corrupted"
+    assert safe_unicode_normalize("word\u2014word") == "word\u2014word", "Em-dash was incorrectly corrupted"
+    # Verify Cyrillic compound words inside bracketed expressions are protected from hyphen-stripping
+    assert heal_syllable_hyphenated_ipa("[по-русски: pɐˈruskʲɪ]") == "[по-русски: pɐˈruskʲɪ]"
+    assert heal_syllable_hyphenated_ipa("[ˈdo-mə]") == "[ˈdomə]"
+
     # ──────────────────────────────────────────────────────────────────────────
     # 3. PRONUNCIATION-SYSTEM CONSISTENCY TESTS
     # ──────────────────────────────────────────────────────────────────────────
@@ -608,18 +616,50 @@ def run_tests():
     assert heal_syllable_hyphenated_ipa("mit-ró") == "mit-ró"
     assert is_adhoc_learner_respelling("mit-ró") is True
 
-    # C) Rule-Scope Calibration & Internal Contradiction Elimination
+    # C) Rule-Scope Calibration Non-Destructive Integrity
     overgeneralized_tr = "11 ile 19 arasındaki tüm sayılarda birincil vurgu daima 'на' hecesindedir."
     calibrated_tr = calibrate_rule_scope_consistency(overgeneralized_tr, {"оди́ннадцать", "двена́дцать"}, "tr")
-    assert "daima 'на'" not in calibrated_tr
-    assert "genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)" in calibrated_tr
+    assert calibrated_tr == overgeneralized_tr, "calibrate_rule_scope_consistency must preserve rule text non-destructively"
 
     overgeneralized_en = "In numbers 11 to 19, the primary stress is always on the syllable 'na'."
     calibrated_en = calibrate_rule_scope_consistency(overgeneralized_en, {"оди́ннадцать"}, "en")
-    assert "always on the syllable 'na'" not in calibrated_en
-    assert "typically on 'на'" in calibrated_en
+    assert calibrated_en == overgeneralized_en, "calibrate_rule_scope_consistency must preserve rule text non-destructively"
 
-    # D) End-to-end integration test with enforce_material_integrity
+    # D) Safe Structured Phonetic Relocation & Cross-Field Deduplication
+    phon_blank_item = {
+        "term": "и",
+        "phonetic": "",
+        "translation": "Letter I (sound: [i])",
+        "translation_tr": "İ harfi (ses: [i])"
+    }
+    reloc_payload = {"pages": [{"type": "vocabulary", "items": [phon_blank_item]}]}
+    cleaned_reloc = enforce_material_integrity(reloc_payload, "Russian", material_language="tr")
+    it_reloc = cleaned_reloc["pages"][0]["items"][0]
+    assert it_reloc["phonetic"] == "[i]", f"Failed to relocate phonetic: {it_reloc['phonetic']}"
+    assert it_reloc["translation_tr"] == "İ harfi", f"Failed to clean relocated parenthetical: {it_reloc['translation_tr']}"
+
+    # Cross-field phonetic contradiction: phonetic is authoritative [ʐ], meaning must not contradict with [j]
+    phon_contra_item = {
+        "term": "ж",
+        "phonetic": "[ʐ]",
+        "translation": "Letter Zh (sound: [j])",
+        "translation_tr": "J harfi (ses: [j])"
+    }
+    contra_payload = {"pages": [{"type": "vocabulary", "items": [phon_contra_item]}]}
+    cleaned_contra = enforce_material_integrity(contra_payload, "Russian", material_language="tr")
+    it_contra = cleaned_contra["pages"][0]["items"][0]
+    assert it_contra["phonetic"] == "[ʐ]", "Authoritative phonetic altered"
+    assert it_contra["translation_tr"] == "J harfi", f"Contradicting sound not cleaned: {it_contra['translation_tr']}"
+    assert it_contra["translation"] == "Letter Zh", f"Contradicting sound not cleaned: {it_contra['translation']}"
+
+    # E) PDF Renderer _pick Cross-Language Isolation (Zero Foreign-Language Prose Leakage)
+    from services.pdf_renderer_v12 import _pick
+    assert _pick({"text": "Hello", "text_tr": "Merhaba"}, "text", "text_tr", is_tr=True) == "Merhaba"
+    assert _pick({"text": "Hello"}, "text", "text_tr", is_tr=True) == ""
+    assert _pick({"text": "Hello", "text_tr": "Merhaba"}, "text", "text_tr", is_tr=False) == "Hello"
+    assert _pick({"text_tr": "Merhaba"}, "text", "text_tr", is_tr=False) == ""
+
+    # F) End-to-end integration test with enforce_material_integrity
     lesson_test_payload = {
         "pages": [
             {
@@ -654,8 +694,8 @@ def run_tests():
                 "text": "дом [ˈdo-mə] ve дома [dɐ-ˈma]",
                 "rules": [
                     {
-                        "rule": "In numbers 11 to 19, stress is always on the syllable 'na'.",
-                        "rule_tr": "11 ile 19 arasındaki tüm sayılarda birincil vurgu daima 'на' hecesindedir.",
+                        "rule": "In numbers 11 to 19, stress is typically on the syllable 'na'.",
+                        "rule_tr": "11 ile 19 arasındaki sayıların çoğunda vurgu 'на' hecesindedir.",
                         "explanation_tr": "дом [ˈdo-mə] ve дома [dɐ-ˈma]"
                     }
                 ]
@@ -676,9 +716,7 @@ def run_tests():
     # Check prose phonetic healing
     assert p1["text"] == "дом [ˈdomə] ve дома [dɐˈma]"
     assert p1["rules"][0]["explanation_tr"] == "дом [ˈdomə] ve дома [dɐˈma]"
-    # Check rule calibration
-    assert "genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)" in p1["rules"][0]["rule_tr"]
-    assert "typically on 'на'" in p1["rules"][0]["rule"]
+    assert p1["rules"][0]["rule_tr"] == "11 ile 19 arasındaki sayıların çoğunda vurgu 'на' hecesindedir."
 
     # ──────────────────────────────────────────────────────────────────────────
     # 8. CONTRACT & CEFR CONSISTENCY CHECKS

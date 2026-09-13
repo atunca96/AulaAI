@@ -45,7 +45,7 @@ for marker in (
     'RULE-SCOPE CALIBRATION:',
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
-    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
+    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)',
     'AULAAI_INLINE_PUBLICATION_QA_V46',
 ):
     assert marker in engine, marker

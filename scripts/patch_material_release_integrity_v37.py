@@ -22,10 +22,10 @@ if "UNIVERSAL RELEASE INTEGRITY:" not in s:
     s = s.replace(mission, release, 1)
 
 helper = r'''
-def _material_release_integrity_v37(data, language, level):
+def _material_release_integrity_v37(data, language, level, material_language="tr"):
     """Deterministic final fail-closed validation; semantic work is done by the single publication audit."""
     from services.material_quality_guard import enforce_material_integrity
-    return enforce_material_integrity(data) if isinstance(data, dict) else data
+    return enforce_material_integrity(data, language=language, material_language=material_language) if isinstance(data, dict) else data
 '''
 
 if 'def _material_release_integrity_v37(' not in s:
@@ -34,7 +34,7 @@ if 'def _material_release_integrity_v37(' not in s:
         raise RuntimeError('v37 generate_full_lesson anchor missing')
     s = s.replace(anchor, '\n' + helper + anchor, 1)
 
-call = "    lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)\n"
+call = "    lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)\n"
 if call not in s:
     publication = "    lesson_dict = _material_publication_audit(lesson_dict, language, level)\n"
     pos = s.rfind(publication)
@@ -56,7 +56,7 @@ required = [
     'RULE-SCOPE CALIBRATION:',
     'WRITING-SYSTEM INTEGRITY:',
     'PHONETIC/NOTATION TRUTH:',
-    'enforce_material_integrity(data)',
+    'enforce_material_integrity(data, language=language, material_language=material_language)',
     call.strip(),
 ]
 missing = [x for x in required if x not in s]

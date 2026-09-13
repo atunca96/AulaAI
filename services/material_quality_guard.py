@@ -195,25 +195,23 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
 def safe_unicode_normalize(text: str) -> str:
     """
     Safe Unicode NFC normalization preserving all legitimate linguistic marks.
-    Converts soft hyphens (U+00AD), non-breaking hyphens (U+2011), and exotic dashes
-    to standard ASCII '-' (U+002D) to prevent visual drops in PDF/terminal rendering.
-    Strips zero-width non-breaking spaces and invalid controls.
-    Preserves authentic combining marks, diacritics, stress marks, and script joiners.
+    Converts soft hyphens (U+00AD), non-breaking hyphens (U+2011), hyphen character (U+2010),
+    and small/fullwidth hyphens to standard ASCII '-' (U+002D) to prevent visual drops.
+    Preserves legitimate en-dash, em-dash, combining marks, diacritics, and stress marks.
+    Safely strips zero-width non-breaking spaces, word joiners, and noncharacters (U+FFFE, U+FFFF).
     """
     if not text or not isinstance(text, str):
         return text
-    # Normalize hyphens and dashes to standard ASCII hyphen '-'
-    text = re.sub(r"[\u00AD\u2010\u2011\u2012\uFE63\uFF0D]", "-", text)
-    # Replace intra-word en-dash with ASCII hyphen
-    text = re.sub(r"([\w\u0400-\u04FF\u0370-\u03FF])\u2013([\w\u0400-\u04FF\u0370-\u03FF])", r"\1-\2", text)
-    # Strip zero-width space U+200B, byte-order mark / zero-width non-breaking space U+FEFF, and word joiner U+2060
-    text = re.sub(r"[\u200B\uFEFF\u2060]", "", text)
+    # Normalize mechanical hyphen equivalents only (preserving legitimate en-dash / em-dash)
+    text = re.sub(r"[\u00AD\u2010\u2011\uFE63\uFF0D]", "-", text)
+    # Strip zero-width space U+200B, byte-order mark U+FEFF, word joiner U+2060, and noncharacters U+FFFE/U+FFFF
+    text = re.sub(r"[\u200B\uFEFF\u2060\uFFFE\uFFFF]", "", text)
     # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
     # Remove null bytes or forbidden non-printing control characters
     cleaned = "".join(
         c for c in normalized
-        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) != 0xFFFD and ord(c) != 0x00AD)
+        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) not in (0xFFFD, 0x00AD, 0xFFFE, 0xFFFF))
     )
     return cleaned
 
@@ -728,21 +726,22 @@ def heal_syllable_hyphenated_ipa(text: str) -> str:
         return text or ""
 
     ipa_indicators = set("ˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐçʝɣʁħʕʔŋɲɳɴɱɭʎʟɾɺⱱβɸθðɹɻɰʍʲʷˤ")
+    _phon_char = r"[a-zA-Zˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐçʝɣʁħʕʔŋɲɳɴɱɭʎʟɾɺⱱβɸθðɹɻɰʍʲʷˤ]"
 
     def _heal_bracket(m):
         inner = m.group(1)
         # Only heal if bracket contains genuine IPA notation or stress marks
         if not any(c in inner for c in ipa_indicators):
             return m.group(0)
-        # Remove internal hyphens between letters / stress marks
-        healed = re.sub(r"(?<=[^\s\-])-(?=[^\s\-])", "", inner)
+        # Remove internal hyphens between phonetic letters/stress marks only
+        healed = re.sub(rf"(?<={_phon_char})-(?={_phon_char})", "", inner)
         return f"[{healed}]"
 
     def _heal_slash(m):
         inner = m.group(1)
         if not any(c in inner for c in ipa_indicators):
             return m.group(0)
-        healed = re.sub(r"(?<=[^\s\-])-(?=[^\s\-])", "", inner)
+        healed = re.sub(rf"(?<={_phon_char})-(?={_phon_char})", "", inner)
         return f"/{healed}/"
 
     res = re.sub(r"\[([^\]]+)\]", _heal_bracket, text)
@@ -766,88 +765,14 @@ def calibrate_rule_scope_consistency(
     material_language: str = "tr"
 ) -> str:
     """
-    Calibrates overgeneralized universal claims in grammar rules when counterexamples
-    exist in the lesson or known exception paradigms are violated.
-    Deterministic, cost-neutral, and non-destructive.
+    Non-destructive structural validation for grammar rules.
+    Preserves authentic rule prose without inventing linguistic exceptions or performing
+    heuristic semantic rewriting. Semantic rule calibration and scope hedging are
+    governed strictly by the single-pass prompt contract.
     """
     if not rule_text or not isinstance(rule_text, str):
         return rule_text or ""
-
-    lang_code = str(material_language or "tr").lower()[:2]
-    modified = rule_text
-
-    # 1. Russian 11-19 stress overgeneralization:
-    # False claim: all 11-19 numbers have stress on 'на' / 'na'
-    has_num_range = bool(re.search(r"\b11\b.*?\b19\b|on bir.*on dokuz", modified, re.IGNORECASE))
-    has_na_stress = bool(
-        re.search(r"(?:на|na)['\"\s]+.*?(?:vurgu|stress)", modified, re.IGNORECASE) or
-        re.search(r"(?:vurgu|stress).*?(?:на|na)", modified, re.IGNORECASE)
-    )
-    has_absolute = bool(re.search(r"\b(daima|her zaman|tüm|bütün|always|every|all)\b", modified, re.IGNORECASE))
-
-    if (has_num_range or "11" in modified) and has_na_stress and has_absolute:
-        raw_blob = " ".join(lesson_context_terms) if lesson_context_terms else ""
-        norm_blob = "".join(c for c in unicodedata.normalize("NFD", raw_blob) if not unicodedata.combining(c)).lower()
-        has_counter = any(c in norm_blob for c in ("одиннадцать", "четырнадцать", "odinnadtsat", "chetyrnadtsat")) or has_num_range
-        if has_counter:
-            if lang_code == "tr":
-                modified = re.sub(
-                    r"\btüm sayılarda birincil vurgu daima\s+['\"]?(?:на|na)['\"]?\s+hecesindedir\b",
-                    "sayıların çoğunda birincil vurgu genellikle 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\b(?:daima|her zaman)\s+['\"]?(?:на|na)['\"]?\s+hecesindedir\b",
-                    "çoğunda 'на' hecesindedir (оди́ннадцать ve четы́рнадцать hariç)",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\btüm sayılarda birincil vurgu daima\b",
-                    "sayıların çoğunda birincil vurgu genellikle",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\b(?:tüm|bütün)\s+sayılarda\b",
-                    "sayıların çoğunda",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\bdaima\s+['\"]?(?:на|na)['\"]?\b",
-                    "çoğunlukla 'на'",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-            else:
-                modified = re.sub(
-                    r"\ball numbers\b.*?\balways on (?:the syllable )?['\"]?na['\"]?\b",
-                    "most numbers typically on 'на' (except оди́ннадцать and четы́рнадцать)",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\balways on (?:the syllable )?['\"]?na['\"]?\b",
-                    "typically on 'на' (except оди́ннадцать and четы́рнадцать)",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\ball numbers\b.*?\balways\b",
-                    "most numbers typically",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-                modified = re.sub(
-                    r"\balways on\b",
-                    "typically on",
-                    modified,
-                    flags=re.IGNORECASE
-                )
-
-    return modified
+    return rule_text
 
 
 # ── FORMATIVE MCQ STRUCTURAL & SEMANTIC VALIDATION ──────────────────────────
@@ -1032,19 +957,58 @@ def enforce_material_integrity(
                     if isinstance(turn, dict) and "speaker" in turn:
                         turn["speaker"] = sanitize_dialogue_speaker(turn["speaker"], material_language)
 
-        # Heal syllable-hyphenated IPA and localize instructional labels in items
+        # Heal syllable-hyphenated IPA, perform safe relocation & cross-field deduplication, and localize instructional labels in items
         items = page.get("items") or page.get("vocabulary") or page.get("words") or page.get("table")
         if isinstance(items, list):
             for it in items:
                 if isinstance(it, dict):
-                    phon = it.get("phonetic") or it.get("pronunciation")
+                    phon = it.get("phonetic") or it.get("pronunciation") or it.get("ipa") or it.get("transcription")
                     if phon:
                         healed_phon = heal_syllable_hyphenated_ipa(phon)
                         if is_adhoc_learner_respelling(healed_phon):
                             it["phonetic"] = ""
                         else:
                             it["phonetic"] = healed_phon
+                    else:
+                        it["phonetic"] = ""
 
+                    # 1. Structured Phonetic Relocation: If phonetic cell is empty,
+                    # safely relocate explicit trustworthy pronunciation notation from meaning/translation.
+                    # Primary: structured bracketed IPA [x]. Fallback: parenthetical pronunciation markers.
+                    if not it.get("phonetic"):
+                        for trans_k in ("translation", "translation_tr", "meaning", "definition"):
+                            val = it.get(trans_k)
+                            if isinstance(val, str) and val:
+                                # Primary: look for bracketed IPA or slashed phonemic notation
+                                m_ipa = re.search(r"(\[[a-zA-Zʐʝʃʒθðʔʲʷˤˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂçɣʁħʕŋɲɳɴɱɭʎʟɾɺⱱβɸɹɻɰʍ\.\s]+\])", val)
+                                # Fallback: look for explicit labeled pronunciation parentheticals like (ses: [i]) or (ses: i)
+                                m_labeled = re.search(r"\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*([^)]+)\)", val, re.IGNORECASE)
+                                if m_ipa:
+                                    it["phonetic"] = m_ipa.group(1).strip()
+                                    # Clean bracketed IPA and any surrounding labeled parenthetical from the translation field
+                                    cleaned_val = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*\[[^\]]+\]\)", "", val, flags=re.IGNORECASE)
+                                    cleaned_val = cleaned_val.replace(m_ipa.group(1), "").strip()
+                                    cleaned_val = re.sub(r"\s{2,}", " ", cleaned_val).strip()
+                                    it[trans_k] = cleaned_val
+                                    break
+                                elif m_labeled:
+                                    raw_sound = m_labeled.group(1).strip()
+                                    sound_token = raw_sound if (raw_sound.startswith("[") and raw_sound.endswith("]")) else f"[{raw_sound}]"
+                                    it["phonetic"] = sound_token
+                                    cleaned_val = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*[^)]+\)", "", val, flags=re.IGNORECASE).strip()
+                                    it[trans_k] = cleaned_val
+                                    break
+
+                    # 2. Cross-Field Phonetic Consistency & Deduplication:
+                    # When phonetic is populated, ensure meaning/translation does NOT contain a conflicting or redundant pronunciation
+                    if it.get("phonetic"):
+                        for trans_k in ("translation", "translation_tr", "meaning", "definition"):
+                            val = it.get(trans_k)
+                            if isinstance(val, str) and val:
+                                if re.search(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):", val, re.IGNORECASE):
+                                    it[trans_k] = re.sub(r"\s*\((?:ses|sound|okunuşu?|telaffuz|pronunciation):\s*[^)]+\)", "", val, flags=re.IGNORECASE).strip()
+
+                    # 3. Localize instructional labels in translation fields
                     trans = it.get("translation")
                     trans_tr = it.get("translation_tr")
                     if material_language == "tr":

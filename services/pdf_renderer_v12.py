@@ -67,15 +67,8 @@ def _pick(obj, en_key, tr_key, is_tr):
     if not isinstance(obj, dict):
         return ''
     if is_tr:
-        val = obj.get(tr_key)
-        if val:
-            return val
-        en_val = obj.get(en_key)
-        if en_val:
-            from services.material_quality_guard import sanitize_instructional_label
-            return sanitize_instructional_label(en_val, 'tr')
-        return ''
-    return obj.get(en_key) or obj.get(tr_key) or ''
+        return obj.get(tr_key) or ''
+    return obj.get(en_key) or ''
 
 
 def _kind(kind, is_tr):
@@ -138,17 +131,28 @@ def _column_exists(db, table: str, column: str) -> bool:
 
 
 def _normalize_content(raw):
+    def _clean_node(node):
+        if isinstance(node, str):
+            if '\u00ad' in node or '\u2011' in node or '\u2010' in node:
+                return re.sub(r'[\u00ad\u2010\u2011]', '-', node)
+            return node
+        if isinstance(node, dict):
+            return {k: _clean_node(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [_clean_node(x) for x in node]
+        return node
+
     if isinstance(raw, dict):
-        return raw
+        return _clean_node(raw)
     if isinstance(raw, list):
-        return {'pages': raw}
+        return {'pages': _clean_node(raw)}
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
-                return parsed
+                return _clean_node(parsed)
             if isinstance(parsed, list):
-                return {'pages': parsed}
+                return {'pages': _clean_node(parsed)}
         except Exception:
             return {}
     return {}

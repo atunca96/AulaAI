@@ -25,7 +25,7 @@ call = '    lesson_dict = _material_publication_audit(lesson_dict, language, lev
 removed = s.count(call)
 s = s.replace(call, '')
 
-release = '    lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)\n'
+release = '    lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)\n'
 if release not in s:
     raise RuntimeError('v46 deterministic release guard missing')
 if tag not in s:
