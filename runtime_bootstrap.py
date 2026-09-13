@@ -9,11 +9,12 @@ source = server.read_text(encoding="utf-8")
 required = (
     "AulaAI Eğitim Sistemi — Bağımsız Ders Materyali",
     "def _pdf_language_name(",
-    "AulaAI PDF Engine v40",
+    "AulaAI PDF Engine v42",
+    "_pdf_active_labels",
 )
 missing = [x for x in required if x not in source]
 if missing:
-    raise RuntimeError("runtime PDF v40 verification failed: " + ", ".join(missing))
+    raise RuntimeError("runtime PDF v42 verification failed: " + ", ".join(missing))
 
-print("[BOOT] PDF v40 exporter verified")
+print("[BOOT] active PDF exporter v42 verified")
 runpy.run_path(str(server), run_name="__main__")
