@@ -56,6 +56,7 @@ RUN python scripts/patch_pdf_title_localization.py \
     && python scripts/patch_lesson_quality_v24.py \
     && python scripts/patch_lesson_quality_v24b.py \
     && python scripts/patch_material_final_gate_v29.py \
+    && python scripts/patch_material_absolute_quality_v30.py \
     && python scripts/patch_pdf_target_language_header_v25.py \
     && python scripts/patch_pdf_polish_v26.py \
     && python -m py_compile server.py worker.py services/ai_engine.py services/bilingual_finisher.py services/pdf_academic_renderer.py services/legacy/pdf_pipeline.py
