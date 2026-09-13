@@ -50,6 +50,7 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/test_release_hardening_v50.py \
     && python scripts/patch_release_hardening_v52.py \
     && python scripts/patch_release_hardening_v53.py \
+    && python scripts/patch_v54_build_compat.py \
     && python scripts/patch_release_hardening_v54.py \
     && python scripts/test_release_hardening_v52.py \
     && python scripts/test_release_hardening_v54.py \
