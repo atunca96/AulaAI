@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 engine = Path("services/ai_engine.py")
 s = engine.read_text(encoding="utf-8")
@@ -27,8 +28,6 @@ s = s.replace(
 )
 engine.write_text(s, encoding="utf-8")
 
-# Extend the existing Turkish fixed-metalanguage backstop. This is deliberately
-# small and lexical: it does not translate free prose and protects quoted terms.
 guard = Path("services/material_quality_guard.py")
 g = guard.read_text(encoding="utf-8")
 anchor = '    (r"\\bneuter\\b", "nötr"),\n)'
@@ -55,8 +54,6 @@ if old_return in g:
     g = g.replace(old_return, new_return, 1)
 guard.write_text(g, encoding="utf-8")
 
-# Route the remaining learner-facing renderer fields through the same tiny
-# metalinguistic sanitizer. Target-language examples themselves are untouched.
 renderer = Path("services/pdf_renderer_v12.py")
 r = renderer.read_text(encoding="utf-8")
 if "# AULAAI_RELEASE_HARDENING_V53" not in r:
@@ -102,4 +99,7 @@ def _v53_instructional(value, is_tr):
 '''
     renderer.write_text(r, encoding="utf-8")
 
-print("Applied v53 precision hardening")
+# Apply V54 from the same already-wired build stage; this changes no runtime call topology.
+runpy.run_path(str(Path("scripts") / "patch_release_hardening_v54.py"), run_name="__main__")
+
+print("Applied v53 precision hardening + v54 structural hardening")
