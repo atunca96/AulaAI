@@ -7,6 +7,7 @@ RUN apt-get update -qq && apt-get install -y -qq \
     tesseract-ocr-ita tesseract-ocr-por tesseract-ocr-rus tesseract-ocr-chi-sim \
     tesseract-ocr-jpn tesseract-ocr-ara tesseract-ocr-tur tesseract-ocr-nld \
     tesseract-ocr-swe tesseract-ocr-kor tesseract-ocr-ell poppler-utils \
+    fontconfig fonts-noto-core fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
