@@ -3,6 +3,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 engine = root / "services" / "ai_engine.py"
 policy = (root / "config" / "material_quality_v33.txt").read_text(encoding="utf-8").strip()
+policy = "Prefer preserving acceptable wording; change content only when correctness, meaning, consistency, or assessment validity is materially affected. " + policy
 s = engine.read_text(encoding="utf-8")
 
 # Prevent the residual classes at generation time without adding another model call.
