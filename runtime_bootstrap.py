@@ -2,17 +2,18 @@ import runpy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+runpy.run_path(str(ROOT / "scripts" / "patch_pdf_final_v40.py"), run_name="__main__")
+
 server = ROOT / "server.py"
 source = server.read_text(encoding="utf-8")
-
 required = (
-    "AulaAI Eğitim Sistemi · Bağımsız Ders Materyali",
-    "_pdf_final_tr_labels",
-    "AulaAI PDF Engine v37-final",
+    "AulaAI Eğitim Sistemi — Bağımsız Ders Materyali",
+    "def _pdf_language_name(",
+    "AulaAI PDF Engine v40",
 )
 missing = [x for x in required if x not in source]
 if missing:
-    raise RuntimeError("runtime PDF verification failed: " + ", ".join(missing))
+    raise RuntimeError("runtime PDF v40 verification failed: " + ", ".join(missing))
 
-print("[BOOT] Final PDF exporter verified")
+print("[BOOT] PDF v40 exporter verified")
 runpy.run_path(str(server), run_name="__main__")
