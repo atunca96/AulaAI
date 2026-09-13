@@ -153,12 +153,23 @@ def is_metadata_or_proper_token(token: str) -> bool:
 
 # ── UNICODE & GLYPHIC INTEGRITY ─────────────────────────────────────────────
 
+# Non-standard / exotic word hyphens and dashes to normalize to standard ASCII hyphen-minus U+002D
+_EXOTIC_HYPHENS_MAP = str.maketrans({
+    "\u2010": "-",  # HYPHEN
+    "\u2011": "-",  # NON-BREAKING HYPHEN
+    "\u2012": "-",  # FIGURE DASH
+    "\uFE63": "-",  # SMALL HYPHEN-MINUS
+    "\uFF0D": "-",  # FULLWIDTH HYPHEN-MINUS
+})
+
+
 def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     """
     Language-agnostic validation of Unicode string integrity.
-    Detects invalid noncharacters, replacement characters, surrogates, and broken controls
+    Detects invalid noncharacters, replacement characters, surrogates, broken controls,
+    soft hyphens (U+00AD), private use characters, and broken format controls
     while preserving all valid combining marks, diacritics, tone marks, stress marks,
-    Arabic tashkeel, Indic viramas, and zero-width joiners/non-joiners.
+    Arabic tashkeel, Hebrew niqqud, Indic viramas, and zero-width joiners/non-joiners.
     """
     if not text or not isinstance(text, str):
         return True, ""
@@ -167,17 +178,27 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     if "\uFFFD" in text:
         return False, "replacement-character-detected"
 
-    # Check for noncharacters (U+FDD0..U+FDEF, U+nFFFE, U+nFFFF)
+    # Reject Soft Hyphen (U+00AD) which causes invisible dropped hyphens in PDFs and layout
+    if "\u00AD" in text:
+        return False, "malformed-unicode:soft-hyphen"
+
     for ch in text:
         cp = ord(ch)
+        # Check for noncharacters (U+FDD0..U+FDEF, U+nFFFE, U+nFFFF)
         if 0xFDD0 <= cp <= 0xFDEF or (cp & 0xFFFE) == 0xFFFE:
             return False, f"unicode-noncharacter:{hex(cp)}"
         # Check for lone surrogate code points (U+D800..U+DFFF)
         if 0xD800 <= cp <= 0xDFFF:
             return False, f"unicode-surrogate:{hex(cp)}"
+        # Check for Private Use Area (Co) (U+E000..U+F8FF, U+F0000..U+FFFFD, U+100000..U+10FFFD)
+        if (0xE000 <= cp <= 0xF8FF) or (0xF0000 <= cp <= 0xFFFFD) or (0x100000 <= cp <= 0x10FFFD):
+            return False, f"unicode-private-use:{hex(cp)}"
         # Check for invalid C0/C1 control characters (excluding \t, \n, \r)
         if (cp < 0x20 and cp not in (0x09, 0x0A, 0x0D)) or (0x7F <= cp <= 0x9F):
             return False, f"malformed-control-character:{hex(cp)}"
+        # Check for stray bidi overrides / embeddings
+        if (0x202A <= cp <= 0x202E) or (0x2066 <= cp <= 0x2069):
+            return False, f"malformed-bidi-override:{hex(cp)}"
 
     # Check for orphaned combining marks at string start
     if text and unicodedata.category(text[0]) in ("Mn", "Mc", "Me"):
@@ -187,15 +208,28 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
 
 
 def safe_unicode_normalize(text: str) -> str:
-    """Safe Unicode NFC normalization preserving all legitimate linguistic marks."""
+    """
+    Safe Unicode NFC normalization preserving all legitimate linguistic marks,
+    while normalizing exotic hyphens to standard hyphen-minus and stripping
+    discretionary soft hyphens and unprintable artifacts.
+    """
     if not text or not isinstance(text, str):
         return text
+    # Normalize exotic word hyphens to standard ASCII '-'
+    text = text.translate(_EXOTIC_HYPHENS_MAP)
     # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
-    # Remove null bytes or forbidden non-printing control characters
+    # Remove soft-hyphens (U+00AD), BOM (U+FEFF), null bytes, or forbidden control characters
     cleaned = "".join(
         c for c in normalized
-        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) != 0xFFFD)
+        if c not in ("\u00AD", "\uFEFF") and (
+            ord(c) in (0x09, 0x0A, 0x0D) or (
+                ord(c) >= 0x20
+                and not (0x7F <= ord(c) <= 0x9F)
+                and ord(c) != 0xFFFD
+                and not (0xE000 <= ord(c) <= 0xF8FF)
+            )
+        )
     )
     return cleaned
 
@@ -307,6 +341,32 @@ def _iter_phonetic_strings(node: Any, key: str = "") -> Any:
             yield from _iter_phonetic_strings(item, key)
 
 
+def is_adhoc_learner_respelling(val: str) -> bool:
+    """
+    Detect ad-hoc syllable-hyphenated learner respellings or native script syllable hyphens
+    inside phonetic fields (e.g. 'mit-ró', '[mask-va]', 'сло-ва́рь', 'slo-var\'', '[ˈzdrav-stvu-yte]').
+    """
+    if not val or not isinstance(val, str):
+        return False
+    s = val.strip()
+    inner = s
+    if (inner.startswith("[") and inner.endswith("]")) or (inner.startswith("/") and inner.endswith("/")):
+        inner = inner[1:-1].strip()
+
+    # 1. Native Cyrillic syllable hyphens in phonetic field (e.g. сло-ва́рь)
+    if re.search(r"[\u0400-\u04FF\u0300-\u036F]{2,}-[\u0400-\u04FF\u0300-\u036F]{2,}", inner):
+        return True
+
+    # 2. Syllable-hyphenated learner respelling (e.g. mit-ró, mask-va, slo-var', zdrav-stvu-yte)
+    if re.search(r"\b[A-Za-z\u00C0-\u024F]{2,}-[A-Za-z\u00C0-\u024F]{2,}\b", inner):
+        # Check if this contains characteristic IPA phonetic symbols (excluding standard ASCII letters)
+        ipa_specific_chars = set("ʃʒθðŋæʌəɪʊʲːʔɑɒɛɜɨʉɤɯβçʝɣχʁħʕɦʘǀǃǂǁɓɗʄɠʛɥʜʢʡɕʑɺɭʎʟ")
+        if not any(ch in inner for ch in ipa_specific_chars):
+            return True
+
+    return False
+
+
 def _phonetic_gate(data: Any) -> Tuple[bool, str]:
     """
     Universal pronunciation-system consistency gate.
@@ -314,13 +374,18 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
     while rejecting ad-hoc hyphenated learner respelling mixed inside formal phonetic fields.
     """
     values = list(_iter_phonetic_strings(data))
+    has_ipa = False
     for text in values:
         u_ok, u_why = validate_unicode_integrity(text)
         if not u_ok:
             return False, u_why
+        if ("[" in text and "]" in text) or re.search(r"/(?:[^/\n]{1,120})/", text):
+            has_ipa = True
 
+    for text in values:
+        if is_adhoc_learner_respelling(text):
+            return False, f"ad-hoc-learner-respelling:{text}"
         # Reject ad-hoc learner respelling mixed inside or around IPA (e.g. [kæt] kat-uh-lee-nuh)
-        has_ipa = ("[" in text and "]" in text) or re.search(r"/(?:[^/\n]{1,120})/", text)
         if has_ipa:
             outside = re.sub(r"\[[^\]]*\]", "", text)
             outside = re.sub(r"/[^/\n]+/", "", outside)
@@ -330,13 +395,109 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
     return True, ""
 
 
-# ── FORMATIVE MCQ STRUCTURAL VALIDATION ─────────────────────────────────────
+# ── DIALOGUE SPEAKER ROLE LOCALIZATION & LEAKAGE PREVENTION ──────────────────
+
+ROLE_LABELS_TR: Dict[str, str] = {
+    "professor": "Profesör",
+    "student": "Öğrenci",
+    "teacher": "Öğretmen",
+    "passerby": "Yoldan Geçen",
+    "clerk": "Görevli",
+    "waiter": "Garson",
+    "waitress": "Garson",
+    "customer": "Müşteri",
+    "doctor": "Doktor",
+    "patient": "Hasta",
+    "friend": "Arkadaş",
+    "narrator": "Anlatıcı",
+    "speaker": "Konuşmacı",
+    "passenger": "Yolcu",
+    "driver": "Sürücü",
+    "cashier": "Kasiyer",
+    "guide": "Rehber",
+    "receptionist": "Resepsiyonist",
+}
+
+
+def sanitize_dialogue_speaker(speaker: str, material_language: str = "tr") -> str:
+    """Localize dialogue speaker role labels to instructional language if material_language is Turkish."""
+    if not speaker or not isinstance(speaker, str):
+        return speaker
+    s_clean = speaker.strip()
+    if material_language == "tr":
+        in_paren = s_clean.startswith("(") and s_clean.endswith(")")
+        raw_name = s_clean[1:-1].strip() if in_paren else s_clean
+        localized = ROLE_LABELS_TR.get(raw_name.lower())
+        if localized:
+            return f"({localized})" if in_paren else localized
+    return speaker
+
+
+def validate_dialogue_speaker(speaker: str, material_language: str = "tr") -> Tuple[bool, str]:
+    """Ensure dialogue speaker roles do not leak untranslated English role labels into non-English materials."""
+    if not speaker or not isinstance(speaker, str):
+        return True, ""
+    if material_language == "tr":
+        s_clean = speaker.strip()
+        in_paren = s_clean.startswith("(") and s_clean.endswith(")")
+        raw_name = s_clean[1:-1].strip() if in_paren else s_clean
+        if raw_name.lower() in ROLE_LABELS_TR:
+            return False, f"instructional-language-leakage:untranslated-speaker-role:{speaker}"
+    return True, ""
+
+
+# ── FORMATIVE MCQ STRUCTURAL & SEMANTIC VALIDATION ──────────────────────────
+
+def validate_mcq_semantics(page: dict) -> Tuple[bool, str]:
+    """
+    Semantic validation for formative assessment items.
+    Prevents unjustified deductive leaps from world knowledge / stereotypes:
+    1. Birthplace / country of birth does NOT entail nationality or citizenship.
+    2. Workplace does NOT entail specific profession without stated job duties.
+    """
+    if not isinstance(page, dict):
+        return True, ""
+
+    prompt = _norm(page.get("prompt") or page.get("question") or page.get("text")).lower()
+    answer = _norm(page.get("answer")).lower()
+
+    # 1. Birthplace / origin assumption to nationality
+    birthplace_indicators = ("родилась в", "родился в", "born in", "doğdu", "né en", "geboren in")
+    nationality_indicators = (
+        "турчанка", "турок", "turkish", "türk",
+        "испанец", "испанка", "spanish", "ispanyol",
+        "русский", "русская", "russian", "rus",
+        "немец", "немка", "german", "alman",
+        "француз", "француженка", "french", "fransız"
+    )
+    if any(b in prompt for b in birthplace_indicators):
+        if not any(c in prompt for c in ("граждан", "citizenship", "citizen", "vatandaş", "nationality", "milliyet")):
+            if any(n in answer for n in nationality_indicators):
+                return False, "semantic-non-entailment:birthplace-does-not-entail-nationality"
+
+    # 2. Workplace assumption to occupation
+    workplace_indicators = (
+        "работаю в школе", "работает в школе", "works in a school", "okulda çalışıyor", "okulda çalışırım",
+        "работаю в больнице", "работает в больнице", "works in a hospital", "hastanede çalışıyor",
+        "работаю в аэропорту", "works in an airport"
+    )
+    job_duties = (
+        "препода", "учу", "учит", "teach", "ders ver", "öğret", "леч", "heal", "treat", "hastaları",
+        "лечит", "управляет самолетом", "flies airplanes"
+    )
+    if any(w in prompt for w in workplace_indicators):
+        if not any(d in prompt for d in job_duties):
+            if answer in ("teacher", "учитель", "учительница", "öğretmen", "doctor", "врач", "doktor", "pilot", "пилот"):
+                return False, "semantic-non-entailment:workplace-does-not-entail-profession"
+
+    return True, ""
+
 
 def validate_mcq(page: Any) -> Tuple[bool, str]:
     """
     Universal, language-agnostic formative MCQ validation.
     Enforces exactly 4 distinct options, exactly 1 matching answer, correct index alignment,
-    and localized options count/uniqueness parity.
+    localized options count/uniqueness parity, and semantic entailment grounding.
     """
     if not isinstance(page, dict):
         return False, "mcq-not-dict"
@@ -368,6 +529,11 @@ def validate_mcq(page: Any) -> Tuple[bool, str]:
             localized = [_norm(x) for x in _as_list(localized)]
             if len(localized) != 4 or any(not x for x in localized) or len(set(localized)) != 4:
                 return False, f"invalid-{key}"
+
+    # Semantic entailment check
+    sem_ok, sem_why = validate_mcq_semantics(page)
+    if not sem_ok:
+        return False, sem_why
 
     return True, ""
 
@@ -425,11 +591,16 @@ def _recursive_clean_unicode(node: Any) -> Any:
     return node
 
 
-def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any:
+def enforce_material_integrity(
+    data: Any,
+    language: Optional[str] = None,
+    material_language: str = "tr"
+) -> Any:
     """
     Language-agnostic structural cleanup and Unicode normalization after generation.
-    Prunes structurally broken MCQs, applies safe Unicode NFC normalization,
-    and guarantees zero defects on published materials with zero extra model cost.
+    Normalizes exotic hyphens, strips soft-hyphens and unprintable artifacts,
+    localizes dialogue speaker roles, prunes structurally or semantically invalid MCQs,
+    and guarantees zero publication defects with zero extra model cost.
     """
     if not isinstance(data, dict):
         return data
@@ -442,7 +613,29 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any
     clean = []
     removed = []
     for index, page in enumerate(pages):
-        if isinstance(page, dict) and str(page.get("type") or "").strip().lower() == "mcq":
+        if not isinstance(page, dict):
+            continue
+        ptype = str(page.get("type") or "").strip().lower()
+
+        # Localize dialogue speaker roles and ensure no English leakage into Turkish material
+        if ptype in ("dialogue", "examples"):
+            dialogue = page.get("dialogue")
+            if isinstance(dialogue, list):
+                for turn in dialogue:
+                    if isinstance(turn, dict) and "speaker" in turn:
+                        turn["speaker"] = sanitize_dialogue_speaker(turn["speaker"], material_language)
+
+        # Clean ad-hoc learner respellings or native syllable breaks from vocabulary phonetics
+        if ptype in ("vocabulary", "overview", "grammar"):
+            items = page.get("items") or page.get("vocabulary") or page.get("words") or []
+            if isinstance(items, list):
+                for it in items:
+                    if isinstance(it, dict):
+                        phon = it.get("phonetic") or it.get("pronunciation")
+                        if phon and is_adhoc_learner_respelling(phon):
+                            it["phonetic"] = ""
+
+        if ptype == "mcq":
             ok, reason = validate_mcq(page)
             if not ok:
                 removed.append((index, reason))
