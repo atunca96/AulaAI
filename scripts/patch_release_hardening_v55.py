@@ -35,6 +35,8 @@ def _v54_unsafe_mcq(page, material_language):
     p = _v55_fold(prompt)
     opts = _v55_fold(_v55_option_text(page))
 
+    # High-confidence workplace -> profession inference. Do not fabricate a cue;
+    # remove the item and let the rest of the assessment stand.
     workplace_fact = any(x in p for x in (
         "calisiyor", "calisir", "work at", "works at", "works in", "working at", "working in",
         "arbeitet", "travaille", "trabaja", "lavora", "trabalha", "работает", "работа в",
@@ -46,6 +48,8 @@ def _v54_unsafe_mcq(page, material_language):
     if workplace_fact and profession_question:
         return True
 
+    # High-confidence trait -> absolute-frequency inference. A trait such as
+    # punctuality does not entail NEVER/ALWAYS behavior.
     trait_fact = any(x in p for x in (
         "dakik", "punctual", "punktlich", "ponctuel", "puntual", "pontual", "пунктуал",
     ))
@@ -56,6 +60,13 @@ def _v54_unsafe_mcq(page, material_language):
     if trait_fact and absolute_frequency_option:
         return True
     return False
+
+
+def _v54_repair_mcq_entailment(page, material_language):
+    # v54 used to prepend invented gender cues to otherwise valid questions.
+    # Never change the semantic premise of an assessment deterministically.
+    # Unsafe items are pruned by _v54_unsafe_mcq; safe items remain untouched.
+    return None
 
 
 def sanitize_instructional_metalanguage(value, material_language="tr"):
@@ -77,18 +88,24 @@ if TAG not in renderer:
 _v55_previous_pdf_unsafe_mcq = _v54_pdf_unsafe_mcq
 
 
-def _v54_display_phonetic(value):
-    """Normalize display without double-wrapping already bracketed composite IPA."""
+def _v55_display_phonetic_cell(value):
+    """Idempotent publication formatter for simple and composite IPA fields."""
     text = str(value or "").strip()
     if not text:
         return ""
 
-    if text.startswith("[[") and text.endswith("]]" ):
+    # Repeatedly remove only a redundant OUTER bracket pair when the inside is
+    # already a slash-separated sequence of complete [IPA] groups.
+    for _ in range(3):
+        if not (text.startswith("[[") and text.endswith("]]")):
+            break
         inner = text[1:-1].strip()
         groups = re.findall(r"\[[^\]\n]+\]", inner)
         residue = re.sub(r"\[[^\]\n]+\]", "", inner)
         if len(groups) >= 2 and not residue.replace("/", "").replace(" ", ""):
-            return " / ".join(groups)
+            text = " / ".join(groups)
+        else:
+            break
 
     groups = re.findall(r"\[[^\]\n]+\]", text)
     residue = re.sub(r"\[[^\]\n]+\]", "", text)
@@ -97,8 +114,16 @@ def _v54_display_phonetic(value):
 
     parts = [p.strip() for p in text.split("/") if p.strip()]
     if len(parts) > 1:
-        return " / ".join(p if (p.startswith("[") and p.endswith("]")) else f"[{p}]" for p in parts)
+        return " / ".join(
+            p if (p.startswith("[") and p.endswith("]")) else f"[{p}]"
+            for p in parts
+        )
     return text if (text.startswith("[") and text.endswith("]")) else f"[{text}]"
+
+
+def _v54_display_phonetic(value):
+    # Keep v54's public helper name for compatibility, but make it idempotent.
+    return _v55_display_phonetic_cell(value)
 
 
 def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
@@ -135,6 +160,26 @@ def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
     ))
     return trait_fact and absolute_frequency_option
 '''
+
+    # Normalize at the actual table-cell render boundary as well. This makes the
+    # fix independent of earlier v54 source substitutions and of how the model
+    # serialized a composite phonetic field.
+    phon_cell = 'f\'<td><span class="phon">{_e(phon)}</span></td>\''
+    phon_cell_new = 'f\'<td><span class="phon">{_e(_v55_display_phonetic_cell(phon))}</span></td>\''
+    if phon_cell in renderer:
+        renderer = renderer.replace(phon_cell, phon_cell_new, 1)
+    elif '_v55_display_phonetic_cell(phon)' not in renderer:
+        raise RuntimeError("v55 phonetic render-cell anchor missing")
+
+    # Rule fallbacks (notably breakdown) can bypass _pick/_v52_meta. Sanitize the
+    # final learner-facing Turkish strings immediately before HTML rendering.
+    rule_anchor = "            bits = ['<div class=\"rule\">']"
+    rule_cleanup = """            if is_tr:\n                r_title = _v52_meta(r_title, \"tr\")\n                r_expl = _v52_meta(r_expl, \"tr\")\n                r_example_trans = _v52_meta(r_example_trans, \"tr\")\n                r_analysis = _v52_meta(r_analysis, \"tr\")\n            bits = ['<div class=\"rule\">']"""
+    if rule_anchor in renderer:
+        renderer = renderer.replace(rule_anchor, rule_cleanup, 1)
+    elif 'r_analysis = _v52_meta(r_analysis, "tr")' not in renderer:
+        raise RuntimeError("v55 rule render-boundary anchor missing")
+
     renderer_path.write_text(renderer, encoding="utf-8")
 
-print("Applied v55 surgical hardening: unsafe inference pruning, composite IPA display, Turkish metalanguage cleanup")
+print("Applied v55 surgical hardening: prune unsafe inference, no fabricated cues, render-boundary IPA/meta cleanup")
