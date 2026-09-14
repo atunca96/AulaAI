@@ -157,8 +157,9 @@ def _v57_tr_meta(value):
     text = _v57r_re.sub(r"(?i)\bİlgi\s*/\s*Tamlayan\s*(?:H[âa]li)?\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", text)
     text = _v57r_re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*\(\s*\1\s*\)", r"\1", text)
     text = _v57r_re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*/\s*\1\b", r"\1", text)
-    text = _v57r_re.sub(r'["\'„“]?-д-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
-    text = _v57r_re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
+    if _v57r_re.search(r'(?i)\b(?:ехать|еха[-–—]|ehat|ekhat)\b', text):
+        text = _v57r_re.sub(r'["\'„“]?-д-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
+        text = _v57r_re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
     return text
 
 

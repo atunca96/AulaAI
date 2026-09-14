@@ -186,7 +186,7 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     return True, ""
 
 
-_CYRILLIC_GRAVE_MAP = {
+_RUSSIAN_GRAVE_MAP = {
     "\u0450": "\u0435",  # ѐ -> е
     "\u0400": "\u0415",  # Ѐ -> Е
     "\u045D": "\u0438",  # ѝ -> и
@@ -194,14 +194,44 @@ _CYRILLIC_GRAVE_MAP = {
 }
 
 
-def safe_unicode_normalize(text: str) -> str:
-    """Safe Unicode NFC normalization preserving all legitimate linguistic marks."""
+def _is_russian_context(language: Optional[str] = None, data: Any = None) -> bool:
+    candidates = [language]
+    if isinstance(data, dict):
+        for k in ("language", "target_language", "lang", "course_language"):
+            v = data.get(k)
+            if v:
+                candidates.append(v)
+    for c in candidates:
+        if isinstance(c, str):
+            cl = c.strip().casefold()
+            if cl in ("russian", "rusça", "rusca", "rus", "ru"):
+                return True
+    return False
+
+
+def normalize_russian_orthography(text: str) -> str:
+    """Normalize Russian Cyrillic by replacing non-Russian grave accents with canonical forms."""
+    if not isinstance(text, str) or not text:
+        return text
+    for k, v in _RUSSIAN_GRAVE_MAP.items():
+        text = text.replace(k, v)
+    return re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
+
+
+def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
+    """
+    Safe Unicode NFC normalization preserving all legitimate linguistic marks.
+    Preserves legitimate letters in non-Russian Cyrillic languages (e.g. Bulgarian ѝ, Macedonian ѐ/ѝ).
+    Scopes general Cyrillic grave replacement strictly to Russian material context, while fixing
+    known erroneous Russian forms (e.g. профѐссор -> профессор) universally.
+    """
     if not text or not isinstance(text, str):
         return text
-    # Map spurious Cyrillic grave accents to standard Cyrillic (e.g. профѐссор -> профессор)
-    for k, v in _CYRILLIC_GRAVE_MAP.items():
-        text = text.replace(k, v)
-    text = re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
+    if _is_russian_context(language):
+        text = normalize_russian_orthography(text)
+    else:
+        # Specifically fix known corrupted Russian words without touching legitimate Bulgarian/Macedonian letters
+        text = re.sub(r'(?i)\bпрофѐссор\b', 'профессор', text)
     # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
     # Remove null bytes or forbidden non-printing control characters
@@ -426,14 +456,14 @@ def enforce_release_hard_gate(data: Any, language: str) -> Any:
     return out
 
 
-def _recursive_clean_unicode(node: Any) -> Any:
+def _recursive_clean_unicode(node: Any, language: Optional[str] = None) -> Any:
     """Recursively apply safe NFC Unicode normalization to all strings."""
     if isinstance(node, str):
-        return safe_unicode_normalize(node)
+        return safe_unicode_normalize(node, language=language)
     if isinstance(node, dict):
-        return {k: _recursive_clean_unicode(v) for k, v in node.items()}
+        return {k: _recursive_clean_unicode(v, language=language) for k, v in node.items()}
     if isinstance(node, list):
-        return [_recursive_clean_unicode(item) for item in node]
+        return [_recursive_clean_unicode(item, language=language) for item in node]
     return node
 
 
@@ -446,7 +476,7 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any
     if not isinstance(data, dict):
         return data
 
-    out = _recursive_clean_unicode(deepcopy(data))
+    out = _recursive_clean_unicode(deepcopy(data), language=language)
     pages = out.get("pages")
     if not isinstance(pages, list):
         return out

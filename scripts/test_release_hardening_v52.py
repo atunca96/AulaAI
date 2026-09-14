@@ -23,7 +23,8 @@ def run():
     assert sanitize_instructional_metalanguage("Genitiv", "tr") == "İlgi/Tamlayan Hâli"
     assert sanitize_instructional_metalanguage("Belirtme Hâli (Belirtme Hâli)", "tr") == "Belirtme Hâli"
     assert sanitize_instructional_metalanguage("İlgi/İlgi/Tamlayan Hâli", "tr") == "İlgi/Tamlayan Hâli"
-    assert sanitize_instructional_metalanguage("-д- gövdesi alır", "tr") == "gövde 'ед-' biçimine dönüşür"
+    assert sanitize_instructional_metalanguage("ехать fiili -д- gövdesi alır", "tr") == "ехать fiili gövde 'ед-' biçimine dönüşür"
+    assert sanitize_instructional_metalanguage("Bu fiil -д- gövdesi alır", "tr") == "Bu fiil -д- gövdesi alır"
 
     engine = (ROOT / "services" / "ai_engine.py").read_text(encoding="utf-8")
     assert "AULAAI_RELEASE_HARDENING_V52" in engine

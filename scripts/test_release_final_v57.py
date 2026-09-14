@@ -55,7 +55,8 @@ def run():
     assert renderer._v57_tr_meta("Belirtme Hâli (Belirtme Hâli)") == "Belirtme Hâli"
     assert renderer._v57_tr_meta("İlgi/İlgi/Tamlayan Hâli") == "İlgi/Tamlayan Hâli"
     assert renderer._v57_tr_meta("Accusative (Belirtme Hâli)") == "Belirtme Hâli"
-    assert renderer._v57_tr_meta("-д- gövdesi alır") == "gövde 'ед-' biçimine dönüşür"
+    assert renderer._v57_tr_meta("ехать fiili çekimde -д- gövdesi alır") == "ехать fiili çekimde gövde 'ед-' biçimine dönüşür"
+    assert renderer._v57_tr_meta("Bu fiil -д- gövdesi alır") == "Bu fiil -д- gövdesi alır"
 
     assert renderer._v57_display_phonetic("ja") == "[ja]"
     assert renderer._v57_display_phonetic("[b] / [bʲ]") == "[b] / [bʲ]"

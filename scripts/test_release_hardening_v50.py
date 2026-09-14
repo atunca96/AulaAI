@@ -23,6 +23,11 @@ def run():
     assert safe_unicode_normalize("A\u2014B") == "A\u2014B"
     assert "\u200d" in safe_unicode_normalize("क्\u200dष")
     assert safe_unicode_normalize("профѐссор") == "профессор"
+    assert safe_unicode_normalize("дай ѝ книгата") == "дай ѝ книгата"
+    assert safe_unicode_normalize("дай ѝ книгата", language="Bulgarian") == "дай ѝ книгата"
+    assert safe_unicode_normalize("сѐ уште") == "сѐ уште"
+    assert safe_unicode_normalize("сѐ уште", language="Macedonian") == "сѐ уште"
+    assert safe_unicode_normalize("увѝдеть", language="Russian") == "увидеть"
     assert safe_unicode_normalize("très élève voilà où") == "très élève voilà où"
     assert _e("по\ufffeрусски") == "по-русски"
 

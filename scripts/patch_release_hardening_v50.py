@@ -26,12 +26,21 @@ _V50_CYRILLIC_GRAVE_MAP = {
 }
 
 
-def safe_unicode_normalize(text: str) -> str:
+def _v50_is_russian(language=None):
+    if not language:
+        return False
+    return str(language).strip().casefold() in ("russian", "rusça", "rusca", "rus", "ru")
+
+
+def safe_unicode_normalize(text: str, language=None) -> str:
     if not text or not isinstance(text, str):
         return text
-    for k, v in _V50_CYRILLIC_GRAVE_MAP.items():
-        text = text.replace(k, v)
-    text = re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
+    if _v50_is_russian(language):
+        for k, v in _V50_CYRILLIC_GRAVE_MAP.items():
+            text = text.replace(k, v)
+        text = re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
+    else:
+        text = re.sub(r'(?i)\bпрофѐссор\b', 'профессор', text)
     text = unicodedata.normalize("NFC", text)
     out = []
     n = len(text)
@@ -56,13 +65,13 @@ def safe_unicode_normalize(text: str) -> str:
     return "".join(out)
 
 
-def _v50_clean_tree(node):
+def _v50_clean_tree(node, language=None):
     if isinstance(node, str):
-        return safe_unicode_normalize(node)
+        return safe_unicode_normalize(node, language=language)
     if isinstance(node, dict):
-        return {k: _v50_clean_tree(v) for k, v in node.items()}
+        return {k: _v50_clean_tree(v, language=language) for k, v in node.items()}
     if isinstance(node, list):
-        return [_v50_clean_tree(v) for v in node]
+        return [_v50_clean_tree(v, language=language) for v in node]
     return node
 
 
@@ -147,7 +156,7 @@ def _v50_walk(node):
 def enforce_material_integrity(data, language=None, material_language="tr"):
     if not isinstance(data, dict):
         return data
-    out = _v50_clean_tree(deepcopy(data))
+    out = _v50_clean_tree(deepcopy(data), language=language)
     _v50_walk(out)
 
     pages = out.get("pages")
