@@ -379,6 +379,50 @@ def detect_grammar_shorthand_leakage(text: str, instructional_language: str = "t
     return leaks
 
 
+_TR_MORPHOLOGICAL_CASE_PATTERNS = (
+    r"Belirtme H[âa]l[iı]?",
+    r"Yal[ıi]n H[âa]l[iı]?",
+    r"İlgi\s*/\s*Tamlayan H[âa]l[iı]?",
+    r"Y[öo]nelme H[âa]l[iı]?",
+    r"Ara[çc] H[âa]l[iı]?",
+    r"Bulunma H[âa]l[iı]?",
+    r"Ayr[ıi]lma H[âa]l[iı]?",
+    r"Edat Durum[uü]?",
+)
+
+
+def deduplicate_morphological_parentheticals(text: str) -> str:
+    """
+    Morphology-aware terminology deduplication.
+    Eliminates redundant parenthetical repetitions of terms or their morphological variants
+    (e.g., 'Belirtme Hâlinde (Belirtme Hâli)', 'Belirtme Hâli\'nde (Belirtme Hâli)', 'X biçimi (X)')
+    while strictly preserving informative parentheticals
+    (e.g., 'Belirtme Hâli (doğrudan nesne)', 'Yalın Hâl (özne görevi)', 'Genitive (possession)').
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    parts = re.split(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')', text)
+    for i in range(0, len(parts), 2):
+        chunk = parts[i]
+        for case_pat in _TR_MORPHOLOGICAL_CASE_PATTERNS:
+            pat_case = rf"(?i)\b({case_pat}(?:['’]?[a-zçğıöşü]{{1,8}})?)\s*\(\s*{case_pat}(?:['’]?[a-zçğıöşü]{{1,8}})?\s*\)"
+            chunk = re.sub(pat_case, r"\1", chunk)
+
+        pat_form = r"(?i)\b([A-Za-zÇĞİÖŞÜçğıöşü]+(?:\s+[A-Za-zÇĞİÖŞÜçğıöşü]+)?)\s+(bi[çc]im[iı](?:nde)?|h[âa]l[iı](?:nde)?|durum[uü](?:nda)?)\s*\(\s*\1\s*\)"
+        chunk = re.sub(pat_form, r"\1 \2", chunk)
+
+        pat_form_en = r"(?i)\b([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(form|case)\s*\(\s*\1\s*\)"
+        chunk = re.sub(pat_form_en, r"\1 \2", chunk)
+
+        pat_exact = r"(?i)\b([A-Za-zÇĞİÖŞÜçğıöşü]{3,30})\s*\(\s*\1\s*\)"
+        chunk = re.sub(pat_exact, r"\1", chunk)
+
+        parts[i] = chunk
+
+    return "".join(parts)
+
+
 def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr") -> str:
     """
     Language-agnostic normalization of instructional metalanguage and grammatical shorthand.
@@ -405,6 +449,7 @@ def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr
         res = re.sub(r"\b(Edat Durumu|Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli)\s+[Cc]ase\b", r"\1", res)
         res = re.sub(r"(?i)\bİlgi\s*/\s*İlgi\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", res)
         res = re.sub(r"(?i)\bİlgi\s*/\s*Tamlayan\s*(?:H[âa]li)?\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", res)
+        res = deduplicate_morphological_parentheticals(res)
         res = re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*\(\s*\1\s*\)", r"\1", res)
         res = re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*/\s*\1\b", r"\1", res)
         if re.search(r'(?i)\b(?:ехать|еха[-–—]|ehat|ekhat)\b', res):
@@ -412,7 +457,7 @@ def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr
             res = re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", res, flags=re.IGNORECASE)
         return res
 
-    return text
+    return deduplicate_morphological_parentheticals(text)
 
 
 # ── FIELD-AWARE TARGET STRING EXTRACTION ─────────────────────────────────────

@@ -252,6 +252,22 @@ def run_tests():
     assert detect_grammar_shorthand_leakage(clean_en, "en") == []
     assert sanitize_instructional_metalanguage(clean_en, "en") == clean_en
 
+    # Morphology-aware terminology deduplication: redundant parentheticals cleaned, informative kept
+    assert sanitize_instructional_metalanguage("Belirtme Hâlinde (Belirtme Hâli)", "tr") == "Belirtme Hâlinde"
+    assert sanitize_instructional_metalanguage("Belirtme Hâli'nde (Belirtme Hâli)", "tr") == "Belirtme Hâli'nde"
+    assert sanitize_instructional_metalanguage("çoğul biçimi (çoğul)", "tr") == "çoğul biçimi"
+    assert sanitize_instructional_metalanguage("Belirtme Hâli (doğrudan nesne)", "tr") == "Belirtme Hâli (doğrudan nesne)"
+    assert sanitize_instructional_metalanguage("Yalın Hâl (özne görevi)", "tr") == "Yalın Hâl (özne görevi)"
+
+    # Section label localization in instructional renderer
+    from services.pdf_renderer_v12 import _kind, _localized_title
+    assert _kind("theory", is_tr=True) == "Konu Anlatımı"
+    assert _kind("theory", is_tr=False) == "Theory"
+    assert _kind("practice", is_tr=True) == "Alıştırmalar"
+    assert _localized_title("Theory", True, None, ({}, {}, {})) == "Konu Anlatımı"
+    assert _localized_title("Theory", False, None, ({}, {}, {})) == "Theory"
+    assert _localized_title("Theory: Fonetik", True, None, ({}, {}, {})) == "Konu Anlatımı: Fonetik"
+
     # ──────────────────────────────────────────────────────────────────────────
     # 5. FORMATIVE MCQ VALIDITY & DISTRACTOR PLAUSIBILITY TESTS
     # ──────────────────────────────────────────────────────────────────────────

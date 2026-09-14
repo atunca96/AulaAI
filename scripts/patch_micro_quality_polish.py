@@ -26,7 +26,11 @@ except NameError:
 
 def sanitize_instructional_metalanguage(value, material_language="tr"):
     text = _v58_previous_meta(value, material_language)
-    return sanitize_instructional_shorthand(text, instructional_language=material_language)
+    text = sanitize_instructional_shorthand(text, instructional_language=material_language)
+    try:
+        return deduplicate_morphological_parentheticals(text)
+    except NameError:
+        return text
 
 
 try:
@@ -55,14 +59,17 @@ if TAG not in renderer:
     renderer += r'''
 
 # AULAAI_MICRO_QUALITY_POLISH
-from services.material_quality_guard import sanitize_instructional_shorthand as _v58_shorthand
+from services.material_quality_guard import (
+    sanitize_instructional_shorthand as _v58_shorthand,
+    deduplicate_morphological_parentheticals as _v58_dedup,
+)
 
 _v58_previous_pick = _pick
 
 def _pick(obj, en_key, tr_key, is_tr):
     value = _v58_previous_pick(obj, en_key, tr_key, is_tr)
     if is_tr and isinstance(value, str):
-        return _v58_shorthand(value, "tr")
+        return _v58_dedup(_v58_shorthand(value, "tr"))
     return value
 '''
     renderer_path.write_text(renderer, encoding="utf-8")

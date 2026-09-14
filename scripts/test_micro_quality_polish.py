@@ -20,11 +20,13 @@ from services.material_quality_guard import (
     detect_grammar_shorthand_leakage,
     sanitize_instructional_shorthand,
     sanitize_instructional_metalanguage,
+    deduplicate_morphological_parentheticals,
     validate_distractor_quality,
     validate_mcq,
     enforce_material_integrity,
     _script_gate,
 )
+from services.pdf_renderer_v12 import _kind, _localized_title, TYPE_LABELS
 
 
 def test_grammar_shorthand_leakage_and_normalization():
@@ -216,10 +218,73 @@ def test_language_agnostic_behavior_across_all_languages():
         assert len(cleaned["pages"]) == 1
 
 
+def test_section_label_and_title_localization():
+    print("  -> Testing section label and title localization...")
+
+    # 1. Page kind labels localized in Turkish
+    assert _kind("theory", is_tr=True) == "Konu Anlatımı"
+    assert _kind("theory", is_tr=False) == "Theory"
+    assert _kind("practice", is_tr=True) == "Alıştırmalar"
+    assert _kind("practice", is_tr=False) == "Practice"
+    assert _kind("review", is_tr=True) == "Genel Tekrar"
+    assert _kind("review", is_tr=False) == "Review"
+    assert _kind("assessment", is_tr=True) == "Değerlendirme"
+    assert _kind("assessment", is_tr=False) == "Assessment"
+    assert _kind("overview", is_tr=True) == "Genel Bakış"
+    assert _kind("overview", is_tr=False) == "Overview"
+    assert _kind("vocabulary", is_tr=True) == "Kelime Bilgisi"
+    assert _kind("grammar", is_tr=True) == "Dilbilgisi"
+
+    # 2. Localized title resolution for standalone section names
+    empty_maps = ({}, {}, {})
+    assert _localized_title("Theory", is_tr=True, content=None, title_maps=empty_maps) == "Konu Anlatımı"
+    assert _localized_title("Theory", is_tr=False, content=None, title_maps=empty_maps) == "Theory"
+    assert _localized_title("Practice", is_tr=True, content=None, title_maps=empty_maps) == "Alıştırmalar"
+    assert _localized_title("Review", is_tr=True, content=None, title_maps=empty_maps) == "Genel Tekrar"
+    assert _localized_title("Assessment", is_tr=True, content=None, title_maps=empty_maps) == "Değerlendirme"
+
+    # 3. Prefixed section titles: 'Theory: ...' -> 'Konu Anlatımı: ...'
+    assert _localized_title("Theory: Fonetik Analiz", is_tr=True, content=None, title_maps=empty_maps) == "Konu Anlatımı: Fonetik Analiz"
+    assert _localized_title("Theory: Fonetik Analiz", is_tr=False, content=None, title_maps=empty_maps) == "Theory: Fonetik Analiz"
+
+    # 4. Target language content must remain untouched
+    target_sentence = "The theory behind this concept is simple."
+    assert sanitize_instructional_metalanguage(target_sentence, "en") == target_sentence
+
+
+def test_morphology_aware_terminology_deduplication():
+    print("  -> Testing morphology-aware terminology deduplication...")
+
+    # 1. Redundant parentheticals with morphological endings simplified
+    assert sanitize_instructional_metalanguage("Belirtme Hâlinde (Belirtme Hâli)", "tr") == "Belirtme Hâlinde"
+    assert sanitize_instructional_metalanguage("Belirtme Hâli (Belirtme Hâli)", "tr") == "Belirtme Hâli"
+    assert sanitize_instructional_metalanguage("Belirtme Hâli'nde (Belirtme Hâli)", "tr") == "Belirtme Hâli'nde"
+    assert sanitize_instructional_metalanguage("İlgi/Tamlayan Hâlinde (İlgi/Tamlayan Hâli)", "tr") == "İlgi/Tamlayan Hâlinde"
+    assert sanitize_instructional_metalanguage("Yönelme Hâlinde (Yönelme Hâli)", "tr") == "Yönelme Hâlinde"
+    assert sanitize_instructional_metalanguage("Edat Durumunda (Edat Durumu)", "tr") == "Edat Durumunda"
+
+    # 2. 'X biçimi (X)' / 'X biçiminde (X)'
+    assert sanitize_instructional_metalanguage("çoğul biçimi (çoğul)", "tr") == "çoğul biçimi"
+    assert sanitize_instructional_metalanguage("çoğul biçiminde (çoğul)", "tr") == "çoğul biçiminde"
+    assert sanitize_instructional_metalanguage("geçmiş zaman biçimi (geçmiş zaman)", "tr") == "geçmiş zaman biçimi"
+
+    # 3. Informative parentheticals MUST be strictly preserved
+    assert sanitize_instructional_metalanguage("Belirtme Hâli (doğrudan nesne)", "tr") == "Belirtme Hâli (doğrudan nesne)"
+    assert sanitize_instructional_metalanguage("Yalın Hâl (özne görevi)", "tr") == "Yalın Hâl (özne görevi)"
+    assert sanitize_instructional_metalanguage("Genitive (possession)", "en") == "Genitive (possession)"
+    assert sanitize_instructional_metalanguage("Accusative (direct object)", "en") == "Accusative (direct object)"
+
+    # 4. Quoted target examples preserved
+    quoted = "Bu cümle 'Belirtme Hâlinde (Belirtme Hâli)' kuralını açıklar."
+    assert sanitize_instructional_metalanguage(quoted, "tr") == quoted
+
+
 def run_all():
     print("[TEST-SUITE] Starting Language-Agnostic Micro-Quality Polish Tests...")
     test_grammar_shorthand_leakage_and_normalization()
     test_unrelated_target_language_content_preserved()
+    test_section_label_and_title_localization()
+    test_morphology_aware_terminology_deduplication()
     test_mcq_plausible_options_accepted()
     test_malformed_and_nonexistent_distractors_rejected()
     test_language_agnostic_behavior_across_all_languages()

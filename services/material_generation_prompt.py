@@ -87,16 +87,20 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
 - A personal name alone never establishes grammatical gender of the referent. If a gender-sensitive form is being tested, state the relevant grammatical/semantic fact explicitly or choose a different target.
 - Birthplace/residence never establishes nationality or language ability. Workplace never establishes profession unless the stem explicitly states the profession-defining action/fact being tested.
 - Re-solve each MCQ from stem and options. `answer`, `correct_index` (when present), and explanation must converge on the same option.
-- Distractor plausibility & pedagogical discrimination:
-  * All 4 options must be plausible candidates that could fit into the stem's context. Distractors must belong to the exact same morphological, syntactic, or semantic category as the keyed answer (e.g., competing case inflections, person forms of the same paradigm, or lexical alternatives of the same word class).
-  * Distractors must be pedagogically discriminative: they must represent realistic learner errors or competing linguistic rules, so that only a student who genuinely understands the target grammatical rule can identify the correct choice.
-  * Never use absurd, artificial, or fabricated forms: No nonsensical pseudo-words, malformed inventions, mechanically glued endings, or bizarre concoctions that a learner can eliminate through mere surface inspection without linguistic reasoning.
-  * Every distractor must be a legitimate, authentic, correctly formed word or phrase in {language}, unless the stem explicitly and specifically asks the learner to identify an orthographic or grammatical error.
+- Distractor plausibility & authentic morphological paradigms:
+  * All 4 options must be authentic, legitimate, naturally occurring words or expressions in {language}.
+  * Distractors must belong to the exact same morphological, syntactic, and semantic paradigm as the keyed answer (e.g., real alternative case inflections of the same noun, actual person/tense conjugations of the verb, or legitimate lexical competitors of the same category).
+  * NEVER invent pseudo-words or non-existent inflections by mechanically gluing arbitrary endings onto a stem (e.g., in Russian, never invent nonexistent forms like 'площаде' or 'площадя' for 'площадь'; in German never invent non-words; in Spanish never invent false conjugations).
+  * Distractors must be valid forms that a learner actually encounters in real {language} content, representing authentic learner misconceptions (e.g., applying a real form from another declension, gender, or tense, or an incorrect case governed by a competing preposition), never fabricated forms invented solely to be wrong.
+  * Outside explicit error-detection questions (where the stem specifically asks the learner to spot a misspelled or incorrect word), no option may be a nonexistent form.
+  * If an explanation describes any option as "uydurma", "geçersiz", "invented", or "non-word", the item is invalid and must be repaired into genuine competing forms.
   * Equal surface plausibility: Keep option lengths, formatting, and complexity balanced so the correct answer does not stand out by superficial traits.
 </mcq_quality>
 
 <instructional_cleanliness>
 Every learner-facing heading, label, speaker role, table heading, explanation, instruction, gloss and metadata description must use the selected instructional language.
+- User-facing instructional labels and section titles must always render in the selected instructional language.
+  * Never emit raw English section names (such as 'Theory', 'Vocabulary', 'Grammar', 'Speaking', 'Reading', 'Listening', 'Practice', 'Review', 'Examples', 'Dialogue', 'Assessment', 'Overview') in title_tr or user-facing metadata. In Turkish tracks, use the appropriate Turkish section title ('Konu Anlatımı', 'Kelime Bilgisi', 'Dilbilgisi', 'Konuşma', 'Okuma', 'Dinleme', 'Alıştırmalar', 'Genel Tekrar', 'Örnekler', 'Diyalog', 'Değerlendirme', 'Genel Bakış').
 - Speaker labels contain only the proper name or correctly localized role.
 - Target-language quotations/examples, proper nouns, IPA and deliberate multilingual comparisons are exempt and must be preserved accurately in {language}.
 - Avoid unexplained foreign metalanguage. Prefer natural localized terminology appropriate to CEFR {level}.
@@ -104,6 +108,7 @@ Every learner-facing heading, label, speaker role, table heading, explanation, i
   * Never leak English or third-language grammatical abbreviations/shorthand into non-English instructional tracks. For example, in Turkish fields (`_tr`), never use English shorthand like `masc.`, `fem.`, `neut.`, `pl.`, `sg.`, `nom.`, `gen.`, `acc.`, `dat.`, `prep.`, `inst.`. Use canonical Turkish terms or standard Turkish abbreviations (`eril` / `e.`, `dişil` / `d.`, `nötr` / `n.`, `çoğul` / `çoğ.`, `tekil` / `tek.`, `Yalın Hâl`, `Belirtme Hâli`, `İlgi/Tamlayan Hâli`, etc.).
   * Symmetrically in English fields: use natural English grammatical terms and standard English abbreviations (`masc.`, `fem.`, `neut.`, `pl.`, `sg.`, etc.).
   * In any other instructional language: use that language's standard grammatical terminology and canonical abbreviations.
+- Terminology deduplication: Avoid redundant parenthetical repetitions of terms or their inflected variants (e.g. avoid 'Belirtme Hâlinde (Belirtme Hâli)', 'Belirtme Hâli (Belirtme Hâli)', or 'X biçimi (X)'). Only use parentheticals when they convey genuine new explanatory information (e.g. 'Belirtme Hâli (doğrudan nesne)').
 </instructional_cleanliness>
 
 <output_schema>

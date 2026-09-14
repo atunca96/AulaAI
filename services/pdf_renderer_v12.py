@@ -47,6 +47,8 @@ TYPE_LABELS = {
     'vocabulary': ('Vocabulary', 'Kelime Bilgisi'),
     'grammar': ('Grammar', 'Dilbilgisi'),
     'phonetics': ('Phonetics', 'Fonetik'),
+    'pronunciation': ('Pronunciation', 'Telaffuz'),
+    'theory': ('Theory', 'Konu Anlatımı'),
     'functional_language': ('Functional Language', 'İşlevsel Dil'),
     'functional': ('Functional', 'İşlevsel Dil'),
     'cultural_context': ('Cultural Context', 'Kültürel Bağlam'),
@@ -56,6 +58,13 @@ TYPE_LABELS = {
     'writing': ('Writing', 'Yazma'),
     'listening': ('Listening', 'Dinleme'),
     'speaking': ('Speaking', 'Konuşma'),
+    'practice': ('Practice', 'Alıştırmalar'),
+    'review': ('Review', 'Genel Tekrar'),
+    'assessment': ('Assessment', 'Değerlendirme'),
+    'overview': ('Overview', 'Genel Bakış'),
+    'exercise': ('Exercise', 'Alıştırma'),
+    'exercises': ('Exercises', 'Alıştırmalar'),
+    'mcq': ('Assessment', 'Değerlendirme'),
 }
 
 
@@ -95,7 +104,7 @@ def _localized_title(title: str, is_tr: bool, content: Optional[dict], title_map
     title = str(title or '').strip()
     if not is_tr:
         return title
-    if explicit_tr and str(explicit_tr).strip() and str(explicit_tr).strip() != title:
+    if explicit_tr and str(explicit_tr).strip() and str(explicit_tr).strip().casefold() != title.casefold():
         return str(explicit_tr).strip()
     if isinstance(content, dict):
         metadata = content.get('metadata') if isinstance(content.get('metadata'), dict) else {}
@@ -105,7 +114,7 @@ def _localized_title(title: str, is_tr: bool, content: Optional[dict], title_map
             metadata.get('topic_title_tr'), metadata.get('chapter_title_tr'),
             metadata.get('localized_title_tr'), metadata.get('title_tr'),
         ):
-            if value and str(value).strip() and str(value).strip() != title:
+            if value and str(value).strip() and str(value).strip().casefold() != title.casefold():
                 return str(value).strip()
     exact, ci_cache, ci_canonical = title_maps
     if title in exact and str(exact[title]).strip():
@@ -115,6 +124,16 @@ def _localized_title(title: str, is_tr: bool, content: Optional[dict], title_map
         return ci_cache[folded]
     if folded in ci_canonical:
         return ci_canonical[folded]
+    if folded in TYPE_LABELS:
+        return TYPE_LABELS[folded][1]
+    for k, (en_label, tr_label) in TYPE_LABELS.items():
+        pattern = rf'^{re.escape(en_label)}\s*([:–—-])\s*(.*)$'
+        m = re.match(pattern, title, flags=re.IGNORECASE)
+        if m:
+            sep = m.group(1)
+            rest = m.group(2).strip()
+            rest_tr = ci_cache.get(rest.casefold()) or ci_canonical.get(rest.casefold()) or rest
+            return f"{tr_label}{sep} {rest_tr}".strip()
     return title
 
 
