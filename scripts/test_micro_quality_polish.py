@@ -375,8 +375,10 @@ def test_mixed_script_morphology_harmonization():
     assert safe_unicode_normalize("-иte") == "-ите"
     assert safe_unicode_normalize("-ИТE") == "-ИТЕ"
     assert safe_unicode_normalize("говориte") == "говорите"
+    assert safe_unicode_normalize("говориm", "Russian") == "говорим"
     assert safe_unicode_normalize("рaбота") == "работа"
     assert safe_unicode_normalize("Вы говориte по-русски?") == "Вы говорите по-русски?"
+    assert safe_unicode_normalize("Мы говориm по-русски.", "Russian") == "Мы говорим по-русски."
     assert safe_unicode_normalize("Окончания: -иte ve -ат/-ят") == "Окончания: -ите ve -ат/-ят"
 
     # Latin tokens with Cyrillic homoglyphs
@@ -385,6 +387,10 @@ def test_mixed_script_morphology_harmonization():
 
     # Greek tokens with Latin homoglyphs
     assert safe_unicode_normalize("νεpό") == "νερό"
+
+    # All-or-nothing safety: tokens with unmappable characters MUST NOT be partially corrupted
+    assert safe_unicode_normalize("говориxyz", "Russian") == "говориxyz"
+    assert safe_unicode_normalize("club", "Russian") == "club"
 
     # Bilingual compound words & legitimate Latin loan words PRESERVED
     assert safe_unicode_normalize("online-курс") == "online-курс"
@@ -433,6 +439,8 @@ def test_mcq_distractor_authenticity_and_admitted_non_words():
         ["der", "die", "das", "Doğru cevap yok"],
         ["der", "die", "das", "uydurma"],
         ["der", "die", "das", "yanlış"],
+        ["der", "die", "das", "cümleye göre değişir"],
+        ["der", "die", "das", "ek almaz"],
         ["el", "la", "los", "ninguna de las anteriores"],
         ["le", "la", "les", "toutes des réponses"],
     ]
@@ -440,12 +448,31 @@ def test_mcq_distractor_authenticity_and_admitted_non_words():
         ok, why = validate_distractor_quality(bad_opts, prompt="Select article")
         assert not ok and "placeholder" in why, f"Failed to reject lazy distractor {bad_opts}: {why}"
 
-    # 3. Meta-annotated options (e.g. '(uydurma)', '(yanlış)') REJECTED
+    # 3. Duplicate and near-duplicate options REJECTED
+    ok_dup, why_dup = validate_distractor_quality(["der", "die", "das", "der"], prompt="Select article")
+    assert not ok_dup and "duplicate-options" in why_dup
+
+    # 4. Unpronounceable non-word consonant clusters REJECTED
+    ok_mash, why_mash = validate_distractor_quality(["книга", "книги", "книге", "пртк"], prompt="Select form")
+    assert not ok_mash and "unpronounceable-cluster" in why_mash
+
+    # 5. Script mismatch (foreign leakage in target options) REJECTED
+    ok_script, why_script = validate_distractor_quality(["книга", "книги", "книге", "kitap"], prompt="Select form")
+    assert not ok_script and "script-mismatch" in why_script
+
+    # 6. Structural outlier (sentence mixed into word options) REJECTED
+    ok_outlier, why_outlier = validate_distractor_quality(
+        ["der", "die", "das", "Bu cümledeki isim eril olduğu için artikel kullanılmaz"],
+        prompt="Select article"
+    )
+    assert not ok_outlier and "structural-outlier" in why_outlier
+
+    # 7. Meta-annotated options (e.g. '(uydurma)', '(yanlış)') REJECTED
     annotated = ["der", "die", "das", "den (uydurma)"]
     ok, why = validate_distractor_quality(annotated, prompt="Select article")
     assert not ok and "meta-annotation" in why
 
-    # 4. Formative MCQ validation rejecting admitted non-words
+    # 8. Formative MCQ validation rejecting admitted non-words
     bad_page = {
         "type": "mcq",
         "prompt": "Hangi form doğrudur?",
@@ -513,6 +540,8 @@ def test_pronunciation_ipa_field_alignment():
     assert aligned_punct["phonetic"] == "[kot]"
 
     # 6. Integrated pass in enforce_material_integrity
+    # Grammatically correct: 1st person plural "Мы говорим по-русски." ("Biz Rusça konuşuyoruz.")
+    # Latin 'm' in "Мы говориm" harmonized to Cyrillic 'м', swapped into example, zero grammar corruption!
     full_lesson = {
         "pages": [
             {
@@ -523,7 +552,7 @@ def test_pronunciation_ipa_field_alignment():
                         "phonetic": "",
                         "translation_tr": "konuşmak",
                         "example": "Biz Rusça konuşuyoruz.",
-                        "example_tr": "Мы говориte по-русски."
+                        "example_tr": "Мы говориm по-русски."
                     }
                 ]
             }
@@ -533,9 +562,50 @@ def test_pronunciation_ipa_field_alignment():
     cleaned_item = cleaned_lesson["pages"][0]["items"][0]
     assert cleaned_item["term"] == "говорить"
     assert cleaned_item["phonetic"] == "[ɡəvɐˈrʲitʲ]"
-    # Note: example and example_tr swapped back, and '-иte' harmonized to '-ите'!
-    assert cleaned_item["example"] == "Мы говорите по-русски."
+    assert cleaned_item["example"] == "Мы говорим по-русски."
     assert cleaned_item["example_tr"] == "Biz Rusça konuşuyoruz."
+
+    # 2nd person plural concord: "Вы говорите по-русски." ("Siz Rusça konuşuyorsunuz.")
+    lesson_v2 = {
+        "pages": [
+            {
+                "type": "vocabulary",
+                "items": [
+                    {
+                        "term": "говорить",
+                        "translation_tr": "konuşmak",
+                        "example": "Siz Rusça konuşuyorsunuz.",
+                        "example_tr": "Вы говориte по-русски."
+                    }
+                ]
+            }
+        ]
+    }
+    cleaned_v2 = enforce_material_integrity(lesson_v2, language="Russian", material_language="tr")
+    item_v2 = cleaned_v2["pages"][0]["items"][0]
+    assert item_v2["example"] == "Вы говорите по-русски."
+    assert item_v2["example_tr"] == "Siz Rusça konuşuyorsunuz."
+
+    # 7. Same-script language pairs (e.g. German + Turkish) NEVER falsely swapped
+    german_lesson = {
+        "pages": [
+            {
+                "type": "vocabulary",
+                "items": [
+                    {
+                        "term": "schön",
+                        "translation_tr": "güzel",
+                        "example": "Das ist ein schönes Haus.",
+                        "example_tr": "Bu çok güzel bir evdir."
+                    }
+                ]
+            }
+        ]
+    }
+    cleaned_de = enforce_material_integrity(german_lesson, language="German", material_language="tr")
+    de_item = cleaned_de["pages"][0]["items"][0]
+    assert de_item["example"] == "Das ist ein schönes Haus."
+    assert de_item["example_tr"] == "Bu çok güzel bir evdir."
 
 
 def run_all():

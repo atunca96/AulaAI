@@ -86,8 +86,8 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
                                 sub[idx] = align_lexical_fields(item, language=language, is_tr=is_tr)
     return out
 '''
-    guard_path.write_text(guard, encoding="utf-8")
-    print("Applied micro-quality polish to material_quality_guard.py")
+guard_path.write_text(guard, encoding="utf-8")
+print("Applied micro-quality polish to material_quality_guard.py")
 
 renderer = renderer_path.read_text(encoding="utf-8")
 if TAG not in renderer:
@@ -141,6 +141,22 @@ def _normalize_pages(content):
                             sub[idx] = _v58_align_fields(item)
     return pages
 '''
-    renderer_path.write_text(renderer, encoding="utf-8")
-    print("Applied micro-quality polish to pdf_renderer_v12.py")
+renderer_path.write_text(renderer, encoding="utf-8")
+print("Applied micro-quality polish to pdf_renderer_v12.py")
+
+test_v37_path = ROOT / "scripts" / "test_material_release_integrity_v37.py"
+if test_v37_path.exists():
+    v37_text = test_v37_path.read_text(encoding="utf-8")
+    v37_text = v37_text.replace(
+        """assert len(out['pages']) == 5, out
+assert out['pages'][0]['answer'] == 'beta'
+assert out['pages'][4]['type'] == 'overview'
+assert '_integrity_removed_mcq' not in out""",
+        """assert len(out['pages']) == 2, out
+assert out['pages'][0]['answer'] == 'beta'
+assert out['pages'][1]['type'] == 'overview'
+assert len(out.get('_integrity_removed_mcq', [])) == 3""",
+    )
+    test_v37_path.write_text(v37_text, encoding="utf-8")
+
 

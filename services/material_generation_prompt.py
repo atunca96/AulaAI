@@ -66,6 +66,7 @@ Grammar, phonology, stress, valency, agreement, case/adposition government, word
 - Never project another language's categories onto {language}.
 - Distinguish productive rules from tendencies, restricted patterns, lexical conventions and exceptions.
 - When explaining verb conjugations and stem alternations (e.g., Russian 'ехать' -> 'еду, едешь...'), formulate the full stem transformation precisely (e.g., in Turkish 'gövde ед- biçimine dönüşür', in English 'stem alternates to ед-'); never use fragmented or misleading expressions such as '-д- gövdesi alır'.
+- Grammatical agreement & bilingual translation fidelity: Target language sentences and instructional language translations must maintain strict concord in person, number, and tense (e.g., Russian 'Мы' requires 1st-person plural 'говорим', never 2nd-person plural 'говорите'; Turkish 'Biz ...' requires 1st-person plural concord).
 - Use absolute claims only when genuinely exceptionless within the stated scope.
 - Cross-check every rule against every example, table and dialogue. Repair contradictions before returning JSON.
 - Do not restate the same teaching fact across multiple fields unless repetition serves a clear exercise purpose.
@@ -95,7 +96,7 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
   * Distractors must be valid forms that a learner actually encounters in real {language} content, representing authentic learner misconceptions (e.g., applying a real form from another declension, gender, or tense, or an incorrect case governed by a competing preposition), never fabricated forms invented solely to be wrong.
   * Outside explicit error-detection questions (where the stem specifically asks the learner to spot a misspelled or incorrect word), no option may be a nonexistent form.
   * If an explanation describes any option as "uydurma", "geçersiz", "invented", or "non-word", the item is invalid and must be repaired into genuine competing forms.
-  * Never use placeholder or lazy distractors (such as 'None of the above', 'All of the above', 'Hiçbiri', 'Hepsi', 'Doğru cevap yok', or '(uydurma)').
+  * Never use placeholder or lazy distractors (such as 'None of the above', 'All of the above', 'Hiçbiri', 'Hepsi', 'Doğru cevap yok', or '(uydurma)'), nor evasive instructional-language phrases (such as 'ek almaz', 'no ending', 'cümleye göre değişir', 'kullanılmaz'). When options test target words, all 4 options must be in the target language script.
   * Equal surface plausibility: Keep option lengths, formatting, and complexity balanced so the correct answer does not stand out by superficial traits.
 </mcq_quality>
 

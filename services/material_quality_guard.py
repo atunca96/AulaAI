@@ -289,7 +289,7 @@ def _resolve_noncharacter_separator(text: str, i: int) -> str:
 
 _LATIN_TO_CYRILLIC_HOMOGLYPHS = {
     'a': 'а', 'A': 'А',
-    'b': 'в', 'B': 'В',
+    'B': 'В',
     'c': 'с', 'C': 'С',
     'e': 'е', 'E': 'Е',
     'i': 'и', 'I': 'И',
@@ -301,12 +301,12 @@ _LATIN_TO_CYRILLIC_HOMOGLYPHS = {
     't': 'т', 'T': 'Т',
     'x': 'х', 'X': 'Х',
     'y': 'у', 'Y': 'У',
-    'h': 'н', 'H': 'Н',
+    'H': 'Н',
 }
 
 _CYRILLIC_TO_LATIN_HOMOGLYPHS = {
     'а': 'a', 'А': 'A',
-    'в': 'b', 'В': 'B',
+    'В': 'B',
     'с': 'c', 'С': 'C',
     'е': 'e', 'E': 'E',
     'і': 'i', 'І': 'I',
@@ -318,13 +318,14 @@ _CYRILLIC_TO_LATIN_HOMOGLYPHS = {
     'т': 't', 'Т': 'T',
     'х': 'x', 'Х': 'X',
     'у': 'y', 'У': 'Y',
+    'Н': 'H',
 }
 
 _LATIN_TO_GREEK_HOMOGLYPHS = {
     'a': 'α', 'A': 'Α',
-    'b': 'β', 'B': 'Β',
+    'B': 'Β',
     'e': 'ε', 'E': 'Ε',
-    'h': 'η', 'H': 'Η',
+    'H': 'Η',
     'i': 'ι', 'I': 'Ι',
     'k': 'κ', 'K': 'Κ',
     'm': 'μ', 'M': 'Μ',
@@ -339,9 +340,9 @@ _LATIN_TO_GREEK_HOMOGLYPHS = {
 
 _GREEK_TO_LATIN_HOMOGLYPHS = {
     'α': 'a', 'Α': 'A',
-    'β': 'b', 'Β': 'B',
+    'Β': 'B',
     'ε': 'e', 'Ε': 'E',
-    'η': 'h', 'Η': 'H',
+    'Η': 'H',
     'ι': 'i', 'Ι': 'I',
     'κ': 'k', 'Κ': 'K',
     'μ': 'm', 'M': 'M',
@@ -363,7 +364,7 @@ _TOKEN_PATTERN = re.compile(
 
 
 def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
-    if not seg:
+    if not seg or is_metadata_or_proper_token(seg):
         return seg
     cyr = [c for c in seg if '\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F']
     lat = [c for c in seg if ('a' <= c <= 'z' or 'A' <= c <= 'Z' or '\u00C0' <= c <= '\u024F')]
@@ -391,18 +392,27 @@ def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
             if language and any(k in str(language).lower() for k in ('ukr', 'belar')):
                 mapping['i'] = 'і'
                 mapping['I'] = 'І'
-            return ''.join(mapping.get(c, c) for c in seg)
+            # All-or-nothing: every foreign character must be a valid homoglyph; otherwise preserve untouched
+            if all(c in mapping for c in lat):
+                return ''.join(mapping.get(c, c) for c in seg)
+            return seg
         else:
-            return ''.join(_CYRILLIC_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+            if all(c in _CYRILLIC_TO_LATIN_HOMOGLYPHS for c in cyr):
+                return ''.join(_CYRILLIC_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+            return seg
 
     if grk and lat and not cyr:
         has_grk_u = any(c in _GREEK_UNIQUE_CHARS for c in grk)
         has_lat_u = any(c in _LATIN_UNIQUE_CHARS for c in lat)
         target_is_grk = (has_grk_u and not has_lat_u) or (len(grk) >= len(lat))
         if target_is_grk:
-            return ''.join(_LATIN_TO_GREEK_HOMOGLYPHS.get(c, c) for c in seg)
+            if all(c in _LATIN_TO_GREEK_HOMOGLYPHS for c in lat):
+                return ''.join(_LATIN_TO_GREEK_HOMOGLYPHS.get(c, c) for c in seg)
+            return seg
         else:
-            return ''.join(_GREEK_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+            if all(c in _GREEK_TO_LATIN_HOMOGLYPHS for c in grk):
+                return ''.join(_GREEK_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+            return seg
 
     return seg
 
@@ -855,21 +865,30 @@ _PLACEHOLDER_DISTRACTOR_PATTERNS = (
     re.compile(r"^(?:keine|alle)\s+der\s+genannten$", re.IGNORECASE),
     re.compile(r"^(?:aucun[e]?|toutes)\s+des\s+r[ée]ponses$", re.IGNORECASE),
     re.compile(r"^(?:ни\s+один\s+из\s+вышеперечисленных|все\s+вышеперечисленные)$", re.IGNORECASE),
+    re.compile(r"^(?:herhangi\s+bir\s+ek\s+almaz|hi[çc]bir\s+ek\s+almaz|ek\s+almaz|kullan[ıi]lmaz|fark\s+etmez|c[üu]mleye\s+g[öo]re(?:\s+de[ğg]i[şs]ir)?)$", re.IGNORECASE),
+    re.compile(r"^(?:no\s+article|no\s+ending|no\s+change|not\s+applicable|depends\s+on(?:\s+the)?\s+context|none\s+required)$", re.IGNORECASE),
+    re.compile(r"^(?:sin\s+art[íi]culo|no\s+lleva\s+nada|seg[úu]n\s+el\s+contexto)$", re.IGNORECASE),
 )
 
 _ADMITTED_NON_WORD_PATTERNS = (
-    re.compile(r"\bböyle\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|biçim|çekim|kural|ek)[a-zçğıöşü]*\s+(?:yoktur|yok|bulunmaz|mevcut\s+değildir)\b", re.IGNORECASE),
-    re.compile(r"\bvar\s+olmayan\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|çekim|ek|biçim)[a-zçğıöşü]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:bu\s+dilde|türkçede|rusçada|ispanyolcada|almancada|fransızcada|ingilizcede)\s+mevcut\s+değil(?:dir)?\b", re.IGNORECASE),
-    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek|çekim|kural)[a-zçğıöşü]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up|fabricated|fictitious)\s+(?:form|word|affix|option|stem|ending|conjugation|declension)[a-z]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word|not\s+a\s+valid\s+form|does\s+not\s+exist(?:\s+in)?|no\s+such\s+(?:word|form))\b", re.IGNORECASE),
+    re.compile(r"\bböyle\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|biçim|çekim|kural|ek|kullan[ıi]m)[a-zçğıöşü]*\s+(?:yoktur|yok|bulunmaz|mevcut\s+değildir)\b", re.IGNORECASE),
+    re.compile(r"\bvar\s+olmayan\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|çekim|ek|biçim|kullan[ıi]m)[a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:bu\s+dilde|türkçede|rusçada|ispanyolcada|almancada|fransızcada|ingilizcede)\s+(?:mevcut\s+değil|kullan[ıi]lmaz|bulunmaz|yer\s+almaz)(?:dir)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:s[öo]zl[üu]kte\s+(?:yer\s+almaz|bulunmaz|yoktur)|dilde\s+(?:yer\s+almaz|bulunmaz|yoktur))\b", re.IGNORECASE),
+    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz|yapay)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek|çekim|kural)[a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:hatal[ıi]|yanl[ıi][şs])\s+t[üu]retilmi[şs][a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\bger[çc]ek\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|bi[çc]im|çekim)\s+de[ğg]ildir\b", re.IGNORECASE),
+    re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up|fabricated|fictitious|artificial)\s+(?:form|word|affix|option|stem|ending|conjugation|declension|usage)[a-z]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word|not\s+a\s+valid\s+form|does\s+not\s+exist(?:\s+in)?|no\s+such\s+(?:word|form|usage)|not\s+an\s+authentic\s+form|grammatically\s+impossible)\b", re.IGNORECASE),
+    re.compile(r"\b(?:not\s+found\s+in\s+(?:the\s+)?dictionary|does\s+not\s+occur\s+in)\b", re.IGNORECASE),
 )
 
 _ERROR_HUNT_STEM_PATTERNS = (
     re.compile(r"\b(?:hangisi\s+hatal[ıi]|yanl[ıi][şs]\s+yaz[ıi]lm[ıi][şs][a-zçğıöşü]*|ge[çc]ersiz\s+olan|uydurma\s+olan|hatal[ıi]\s+olan)\b", re.IGNORECASE),
     re.compile(r"\b(?:which\s+(?:is\s+)?(?:incorrect|misspelled|invalid|false|wrong|an\s+error))\b", re.IGNORECASE),
 )
+
+_ALPHABETIC_VOWELS = set("aeiouyAEIOUYàáâãäåæèéêëìíîïòóôõöøùúûüýÿаеёиоуыэюяАЕЁИОУЫЭЮЯієїαεηιουωΑΕΗΙΟΥΩάέήίόύώ")
 
 
 def validate_distractor_quality(
@@ -880,11 +899,17 @@ def validate_distractor_quality(
     """
     Universal, language-agnostic validation of formative assessment distractor quality.
     Rejects placeholder options, character-mashing/repetition artifacts, pure punctuation noise,
-    and explanations explicitly admitting invented/non-existent pseudo-word distractors
+    unauthentic non-words with illegal consonant clusters, script mismatches, structural outliers,
+    and explanations explicitly describing invented/non-existent pseudo-word distractors
     unless the question specifically tests error-detection.
     """
     if not isinstance(options, list) or len(options) != 4:
         return False, "distractor-count-invalid"
+
+    # Duplicate / near-duplicate option check
+    canon_opts = [re.sub(r"[\s\.,;:!?]+$", "", opt.strip().casefold()) for opt in options if isinstance(opt, str)]
+    if len(set(canon_opts)) < len(options):
+        return False, "malformed-distractor:duplicate-options"
 
     for idx, opt in enumerate(options):
         text = str(opt or "").strip()
@@ -900,15 +925,36 @@ def validate_distractor_quality(
         if re.match(r"^[\W_]+$", text):
             return False, f"malformed-distractor:punctuation-only:{idx}"
 
-        # 3. Reject character repetition / keyboard-mashing artifacts (4+ identical chars)
-        if re.search(r"([A-Za-zА-Яа-яЁё\u0370-\u03FF\u0600-\u06FF])\1{3,}", text):
+        # 3. Reject character repetition / keyboard-mashing artifacts (3+ identical chars)
+        if re.search(r"([A-Za-zА-Яа-яЁё\u0370-\u03FF\u0600-\u06FF])\1{2,}", text):
             return False, f"malformed-distractor:char-repetition:{idx}"
 
         # 4. Reject bracketed meta-annotations (e.g. '(uydurma)', '(yanlış)', '(false)')
         if re.search(r"\((?:uydurma|yanlış|hatalı|geçersiz|false|wrong|fake|invented)\)", text, re.IGNORECASE):
             return False, f"malformed-distractor:meta-annotation:{idx}"
 
-    # 5. Check if explanation admits non-word / malformed distractor outside error-hunt items
+        # 5. Reject unpronounceable non-word consonant clusters in alphabetic scripts (words >= 3 letters without vowels)
+        tokens = re.findall(r"[A-Za-zА-Яа-яЁё\u0370-\u03FF]+", text)
+        for tok in tokens:
+            if len(tok) >= 3 and not any(ch in _ALPHABETIC_VOWELS for ch in tok) and not tok.isupper():
+                return False, f"malformed-distractor:unpronounceable-cluster:{idx}"
+
+    # 6. Script mismatch check: When 3 options use a non-Latin script, reject an option with zero non-Latin chars
+    non_latin_counts = [len(re.findall(r"[\u0400-\u04FF\u0370-\u03FF\u0600-\u06FF\u0590-\u05FF\u0900-\u097F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]", opt)) for opt in options]
+    if sum(1 for c in non_latin_counts if c > 0) == 3 and sum(1 for c in non_latin_counts if c == 0) == 1:
+        zero_idx = non_latin_counts.index(0)
+        if not is_metadata_or_proper_token(options[zero_idx]):
+            return False, f"malformed-distractor:script-mismatch:{zero_idx}"
+
+    # 7. Structural outlier check: 3 short options vs 1 explanatory sentence
+    word_counts = [len(opt.split()) for opt in options]
+    char_lens = [len(opt) for opt in options]
+    short_opts = sum(1 for wc, cl in zip(word_counts, char_lens) if wc <= 2 and cl <= 15)
+    long_opts = [i for i, (wc, cl) in enumerate(zip(word_counts, char_lens)) if wc >= 5 or cl >= 35]
+    if short_opts == 3 and len(long_opts) == 1:
+        return False, f"malformed-distractor:structural-outlier:{long_opts[0]}"
+
+    # 8. Check if explanation admits non-word / malformed distractor outside error-hunt items
     if explanation:
         is_error_hunt = bool(prompt and any(pat.search(prompt) for pat in _ERROR_HUNT_STEM_PATTERNS))
         if not is_error_hunt:
@@ -957,8 +1003,8 @@ def align_lexical_fields(
     Language-agnostic alignment, extraction, and integrity repair of lexical item fields.
     1. Extracts bracketed IPA from `term` into `phonetic` and cleans `term`.
     2. Recovers misplaced translation text accidentally placed into `phonetic`.
-    3. Realigns swapped `example` vs `example_tr`/`example_en` by linguistic script/markers.
-    4. Realigns swapped `term` vs `translation_tr`/`translation` by target script.
+    3. Realigns swapped `example` vs `example_tr`/`example_en` strictly when scripts are disjoint.
+    4. Realigns swapped `term` vs `translation_tr`/`translation` strictly when scripts are disjoint.
     5. Normalizes IPA brackets to standard [...] format.
     6. Harmonizes mixed-script morphology across all text attributes.
     """
@@ -1005,7 +1051,10 @@ def align_lexical_fields(
             item["phonetic"] = ""
             phon = ""
 
-    # 3. Swap checks for non-Latin target scripts (Russian, Greek, Arabic, etc.)
+    # 3. Swap checks strictly when target language uses a distinct non-Latin script
+    # (Russian, Greek, Arabic, Hebrew, Hindi, Japanese, Chinese, Korean, etc.)
+    # We NEVER heuristically swap same-script language pairs (e.g. Latin-target with
+    # Latin-instructional) because character heuristics cannot reliably prove semantic role.
     if language and _has_target_script_chars("тест", language):
         # Check term vs translation_tr
         tr_val = str(item.get("translation_tr") or item.get("translation") or "").strip()
@@ -1035,19 +1084,7 @@ def align_lexical_fields(
             if not ex_has_target and ex_en_has_target:
                 item["example"], item["example_en"] = ex_en, ex
 
-    # 4. Swap checks for Latin target scripts with Turkish instructional track
-    elif is_tr and language and not _has_target_script_chars("тест", language):
-        ex = str(item.get("example") or "").strip()
-        ex_tr = str(item.get("example_tr") or "").strip()
-        if ex and ex_tr:
-            ex_has_tr = bool(_TR_SPECIFIC_CHAR_PATTERN.search(ex))
-            ex_tr_has_tr = bool(_TR_SPECIFIC_CHAR_PATTERN.search(ex_tr))
-            ex_has_target_marks = bool(re.search(r"[¿¡ñßàèéêëòóôöùúûü]", ex, re.IGNORECASE))
-            ex_tr_has_target_marks = bool(re.search(r"[¿¡ñßàèéêëòóôöùúûü]", ex_tr, re.IGNORECASE))
-            if ex_has_tr and not ex_tr_has_tr and ex_tr_has_target_marks:
-                item["example"], item["example_tr"] = ex_tr, ex
-
-    # 5. Normalize IPA brackets format
+    # 4. Normalize IPA brackets format
     if phon:
         p_clean = phon.strip(" ,;.")
         if not p_clean.startswith("["):
@@ -1193,4 +1230,74 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None, materi
     if removed:
         out["_integrity_removed_mcq"] = [{"index": i, "reason": r} for i, r in removed]
 
+    return out
+
+
+# AULAAI_MICRO_QUALITY_POLISH
+try:
+    _v58_previous_safe_unicode = safe_unicode_normalize
+except NameError:
+    _v58_previous_safe_unicode = lambda t, l=None: str(t or "")
+
+
+def safe_unicode_normalize(text: str, language=None) -> str:
+    res = _v58_previous_safe_unicode(text, language=language)
+    return harmonize_mixed_scripts(res, language=language)
+
+
+try:
+    _v58_previous_meta = sanitize_instructional_metalanguage
+except NameError:
+    _v58_previous_meta = lambda v, m="tr": str(v or "")
+
+
+def sanitize_instructional_metalanguage(value, material_language="tr"):
+    text = _v58_previous_meta(value, material_language)
+    text = sanitize_instructional_shorthand(text, instructional_language=material_language)
+    try:
+        return deduplicate_morphological_parentheticals(text)
+    except NameError:
+        return text
+
+
+try:
+    _v58_previous_validate_mcq = validate_mcq
+except NameError:
+    _v58_previous_validate_mcq = None
+
+
+def validate_mcq(page):
+    if _v58_previous_validate_mcq:
+        ok, why = _v58_previous_validate_mcq(page)
+        if not ok:
+            return ok, why
+    if not isinstance(page, dict):
+        return False, "mcq-not-dict"
+    opts = _as_list(page.get("options") or page.get("choices"))
+    prompt = _norm(page.get("prompt") or page.get("question") or page.get("text"))
+    expl = _norm(page.get("explanation") or page.get("explanation_tr") or page.get("explanation_en") or "")
+    return validate_distractor_quality(opts, prompt=prompt, explanation=expl)
+
+
+try:
+    _v58_previous_integrity = enforce_material_integrity
+except NameError:
+    _v58_previous_integrity = lambda d, l=None, m="tr": d
+
+
+def enforce_material_integrity(data, language=None, material_language="tr"):
+    out = _v58_previous_integrity(data, language=language, material_language=material_language)
+    if not isinstance(out, dict):
+        return out
+    pages = out.get("pages")
+    if isinstance(pages, list):
+        is_tr = bool(str(material_language or "").strip().casefold() in ("tr", "turkish", "türkçe"))
+        for page in pages:
+            if isinstance(page, dict):
+                for container in ("items", "vocabulary", "words", "examples", "rules", "comparisons"):
+                    sub = page.get(container)
+                    if isinstance(sub, list):
+                        for idx, item in enumerate(sub):
+                            if isinstance(item, dict):
+                                sub[idx] = align_lexical_fields(item, language=language, is_tr=is_tr)
     return out
