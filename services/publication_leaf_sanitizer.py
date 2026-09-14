@@ -28,12 +28,17 @@ def _strip_stress(text: str) -> str:
 
 
 def _normalize_ru_exact_text(text: str) -> str:
-    """Repair only production-observed exact Russian Unicode stress defects."""
+    """Repair only production-observed exact Russian Unicode/text defects."""
     if not isinstance(text, str) or not text:
         return text
-    # Production-observed misplaced acute in пес́ня. Exact lexical repair only;
-    # do not attempt a general stress-placement algorithm.
-    return text.replace("пес́ня", "пе́сня").replace("Пес́ня", "Пе́сня")
+    text = text.replace("пес́ня", "пе́сня").replace("Пес́ня", "Пе́сня")
+    # Production-observed instructional gloss leaked inside a Russian dialogue.
+    # Replace only the exact known mixed-language clause; do not translate free text.
+    text = text.replace(
+        "«Задание» — это task или exercise.",
+        "«Задание» — это упражнение или учебная задача.",
+    )
+    return text
 
 
 def _localize_known_structural_label(text: str, material_language: str) -> str:
@@ -43,6 +48,7 @@ def _localize_known_structural_label(text: str, material_language: str) -> str:
     replacements = {
         "Hard vowel indicators:": "Sert ünlü göstergeleri:",
         "Soft vowel indicators:": "Yumuşak ünlü göstergeleri:",
+        "Present Tense: First Conjugation Verbs (-at/-yat)": "Şimdiki/Geniş Zaman: Birinci Grup Fiiller (-ать/-ять)",
     }
     stripped = text.strip()
     for source, target in replacements.items():
@@ -51,10 +57,29 @@ def _localize_known_structural_label(text: str, material_language: str) -> str:
     return text
 
 
+def _normalize_turkish_artificial_phrasing(text: str, material_language: str, language: str) -> str:
+    """Remove only production-observed unnatural Turkish authority framing.
+
+    This is deliberately narrow. General stylistic quality belongs in the generation
+    contract; publication cleanup only rewrites phrases whose intended meaning is
+    unchanged and unambiguous.
+    """
+    if not _is_turkish_instruction(material_language) or not isinstance(text, str):
+        return text
+    if _is_russian(language):
+        replacements = {
+            "Ana dili Rusça olan konuşucuların temel diyaloglarda ": "Temel diyaloglarda ",
+            "Ana dili Rusça olan konuşucuların günlük ": "Günlük Rusçada ",
+            "Anadili Rusça olanların günlük ": "Günlük Rusçada ",
+            "Anadili Rusça olan konuşucuların günlük ": "Günlük Rusçada ",
+        }
+        for source, target in replacements.items():
+            text = text.replace(source, target)
+    return text
+
+
 def _looks_like_non_sounding_sign(term: str) -> bool:
     compact = _strip_stress(term)
-    # Keep scope deliberately narrow: Russian hard/soft signs as standalone
-    # grapheme entries, optionally accompanied by their Russian label.
     return compact in {"ъ", "ь", "ъ ъ", "ь ь"} or compact.startswith("ъ (") or compact.startswith("ь (")
 
 
@@ -68,8 +93,6 @@ def _sanitize_phonetic(value: str, term: str, language: str) -> str:
     if _looks_like_non_sounding_sign(term) and text in {"[-]", "-", "[—]", "—"}:
         return ""
 
-    # Nested/multiply-opened bracket payloads are structurally malformed IPA
-    # fields. Do not guess a replacement; blank the leaf instead.
     if text.startswith("[[") or text.endswith("]]" ) or text.count("[") != text.count("]"):
         return ""
 
@@ -81,7 +104,8 @@ def sanitize_publication_leaves(node, language: str = "", material_language: str
     if isinstance(node, list):
         return [sanitize_publication_leaves(v, language, material_language) for v in node]
     if isinstance(node, str):
-        return _normalize_ru_exact_text(node) if _is_russian(language) else node
+        text = _normalize_ru_exact_text(node) if _is_russian(language) else node
+        return _normalize_turkish_artificial_phrasing(text, material_language, language)
     if not isinstance(node, dict):
         return node
 
@@ -92,10 +116,11 @@ def sanitize_publication_leaves(node, language: str = "", material_language: str
             if isinstance(out.get(key), str):
                 out[key] = _normalize_ru_exact_text(out[key])
 
-    if isinstance(out.get("term"), str):
-        out["term"] = _localize_known_structural_label(out["term"], material_language)
-    if isinstance(out.get("word"), str):
-        out["word"] = _localize_known_structural_label(out["word"], material_language)
+    # Known headings/labels can occur in title/text-like fields, not just term/word.
+    for key in ("term", "word", "title", "title_tr", "text_tr", "heading", "label"):
+        if isinstance(out.get(key), str):
+            out[key] = _localize_known_structural_label(out[key], material_language)
+            out[key] = _normalize_turkish_artificial_phrasing(out[key], material_language, language)
 
     phonetic = out.get("phonetic")
     if isinstance(phonetic, str):
