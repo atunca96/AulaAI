@@ -60,6 +60,7 @@ if TAG not in renderer:
 
 # AULAAI_MICRO_QUALITY_POLISH
 from services.material_quality_guard import (
+    safe_unicode_normalize as _v58_safe_unicode,
     sanitize_instructional_shorthand as _v58_shorthand,
     deduplicate_morphological_parentheticals as _v58_dedup,
 )
@@ -71,6 +72,24 @@ def _pick(obj, en_key, tr_key, is_tr):
     if is_tr and isinstance(value, str):
         return _v58_dedup(_v58_shorthand(value, "tr"))
     return value
+
+_v58_previous_e = _e
+
+def _e(value):
+    raw = _v58_safe_unicode(str(value or ""))
+    return _v58_previous_e(raw)
+
+_v58_previous_story = AcademicPaginator._story
+
+def _v58_story(self, fragment: str, *args, **kwargs):
+    if fragment and self.is_tr:
+        fragment = _v58_shorthand(fragment, "tr")
+    if fragment:
+        fragment = _v58_safe_unicode(fragment)
+    return _v58_previous_story(self, fragment, *args, **kwargs)
+
+AcademicPaginator._story = _v58_story
 '''
     renderer_path.write_text(renderer, encoding="utf-8")
     print("Applied micro-quality polish to pdf_renderer_v12.py")
+

@@ -12,9 +12,13 @@ Verifies:
 from pathlib import Path
 import sys
 
+import runpy
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+runpy.run_path(str(ROOT / "scripts" / "patch_micro_quality_polish.py"), run_name="__main__")
 
 from services.material_quality_guard import (
     detect_grammar_shorthand_leakage,
@@ -24,9 +28,10 @@ from services.material_quality_guard import (
     validate_distractor_quality,
     validate_mcq,
     enforce_material_integrity,
+    safe_unicode_normalize,
     _script_gate,
 )
-from services.pdf_renderer_v12 import _kind, _localized_title, TYPE_LABELS
+from services.pdf_renderer_v12 import _kind, _localized_title, TYPE_LABELS, _e
 
 
 def test_grammar_shorthand_leakage_and_normalization():
@@ -279,9 +284,93 @@ def test_morphology_aware_terminology_deduplication():
     assert sanitize_instructional_metalanguage(quoted, "tr") == quoted
 
 
+def test_rendered_example_shorthand_normalization():
+    print("  -> Testing shorthand normalization in rendered examples & fields...")
+
+    # Real user PDF case: До́брое у́тро (neut.) / До́брый день (masc.)
+    sample = "До́брое у́тро (neut.) / До́брый день (masc.)"
+
+    # Turkish instructional mode: must convert (neut.) -> (nötr), (masc.) -> (eril)
+    rendered_tr = sanitize_instructional_shorthand(sample, "tr")
+    assert "(nötr)" in rendered_tr, f"Expected (nötr), got: {rendered_tr}"
+    assert "(eril)" in rendered_tr, f"Expected (eril), got: {rendered_tr}"
+    assert "neut." not in rendered_tr and "masc." not in rendered_tr
+
+    # English instructional mode: must preserve native English shorthand
+    rendered_en = sanitize_instructional_shorthand(sample, "en")
+    assert rendered_en == sample, f"Expected preserved EN shorthand, got: {rendered_en}"
+
+    # Shorthand abbreviations with m., f., n.
+    sample_mfn = "он (m.), она (f.), оно (n.)"
+    rendered_mfn = sanitize_instructional_shorthand(sample_mfn, "tr")
+    assert "(eril)" in rendered_mfn and "(dişil)" in rendered_mfn and "(nötr)" in rendered_mfn
+
+    # Quoted example must NOT be modified
+    quoted = "Belirtme: 'До́брое у́тро (neut.)' kalıbı"
+    rendered_quoted = sanitize_instructional_shorthand(quoted, "tr")
+    assert "'До́брое у́тро (neut.)'" in rendered_quoted
+
+    # Material integrity recursive pass
+    payload = {
+        "pages": [
+            {
+                "type": "grammar",
+                "rules": [{"example": sample, "target": "Привет (neut.)"}],
+                "comparisons": [{"target": sample, "note": "Günün vakti (masc.)"}]
+            }
+        ]
+    }
+    cleaned_payload = enforce_material_integrity(payload, "Russian", material_language="tr")
+    rule = cleaned_payload["pages"][0]["rules"][0]
+    cmp = cleaned_payload["pages"][0]["comparisons"][0]
+    assert "(nötr)" in rule["example"] and "(eril)" in rule["example"]
+    assert "(nötr)" in rule["target"]
+    assert "(nötr)" in cmp["target"]
+    assert "(eril)" in cmp["note"]
+
+
+def test_semantic_unicode_noncharacter_resolution():
+    print("  -> Testing semantic Unicode noncharacter resolution & text-layer safety...")
+
+    # Real user PDF cases:
+    # 1. Russian prefix compounds: говори́т по\ufffeру́сски -> говори́т по-ру́сски
+    assert safe_unicode_normalize("говори́т по\ufffeру́сски") == "говори́т по-ру́сски"
+    assert safe_unicode_normalize("говоря́т по\ufffeру́сски") == "говоря́т по-ру́сски"
+    assert safe_unicode_normalize("по\ufffeанглийски") == "по-английски"
+
+    # 2. Suffix + conjunction cross-word boundary: -и\ufffeve -ат/-ят -> -и ve -ат/-ят
+    assert safe_unicode_normalize("-и\ufffeve -ат/-ят") == "-и ve -ат/-ят"
+
+    # 3. Turkish nominal compounds: sertlik\ufffeyumuşaklık -> sertlik-yumuşaklık
+    assert safe_unicode_normalize("sertlik\ufffeyumuşaklık") == "sertlik-yumuşaklık"
+
+    # 4. Adjacent duplicate noncharacters deduplicated cleanly
+    assert safe_unicode_normalize("по\ufffe\ufffeру́сски") == "по-ру́сски"
+
+    # 5. Plane-ends, surrogates, and reserved noncharacters stripped
+    assert safe_unicode_normalize("A\U0001fffeB") == "A B"
+    assert safe_unicode_normalize("X\U0002ffffY") == "X Y"
+    assert safe_unicode_normalize("тест\ufdd0слово") == "тест слово"
+    assert "\ufffe" not in safe_unicode_normalize("любой\ufffeтекст")
+    assert "\uffff" not in safe_unicode_normalize("любой\uffffтекст")
+
+    # 6. PDF renderer _e guarantees zero noncharacters in HTML/story layer
+    raw_html = _e("по\ufffeру́сски & -и\ufffeve")
+    assert "\ufffe" not in raw_html
+    assert "по-ру́сски &amp; -и ve" == raw_html
+
+    # 7. Linguistic combining marks & accents unharmed
+    assert safe_unicode_normalize("дай ѝ книгата") == "дай ѝ книгата"
+    assert safe_unicode_normalize("сѐ уште") == "сѐ уште"
+    assert safe_unicode_normalize("très élève voilà où") == "très élève voilà où"
+    assert safe_unicode_normalize("профѐссор") == "профессор"
+
+
 def run_all():
     print("[TEST-SUITE] Starting Language-Agnostic Micro-Quality Polish Tests...")
     test_grammar_shorthand_leakage_and_normalization()
+    test_rendered_example_shorthand_normalization()
+    test_semantic_unicode_noncharacter_resolution()
     test_unrelated_target_language_content_preserved()
     test_section_label_and_title_localization()
     test_morphology_aware_terminology_deduplication()

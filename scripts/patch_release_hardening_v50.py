@@ -32,6 +32,72 @@ def _v50_is_russian(language=None):
     return str(language).strip().casefold() in ("russian", "rusça", "rusca", "rus", "ru")
 
 
+def _v50_is_nonchar_or_forbidden(cp: int) -> bool:
+    return (
+        0xFDD0 <= cp <= 0xFDEF
+        or (cp & 0xFFFE) == 0xFFFE
+        or 0xD800 <= cp <= 0xDFFF
+        or (cp < 0x20 and cp not in (0x09, 0x0A, 0x0D))
+        or (0x7F <= cp <= 0x9F)
+        or cp == 0xFFFD
+    )
+
+
+def _v50_is_cyrillic(char: str) -> bool:
+    return '\u0400' <= char <= '\u04FF' or '\u0500' <= char <= '\u052F'
+
+
+def _v50_is_latin(char: str) -> bool:
+    return ('a' <= char <= 'z') or ('A' <= char <= 'Z') or ('\u00C0' <= char <= '\u024F')
+
+
+def _v50_resolve_separator(text: str, i: int) -> str:
+    n = len(text)
+    p = i - 1
+    while p >= 0 and (_v50_is_nonchar_or_forbidden(ord(text[p])) or text[p] in _V50_DROP):
+        p -= 1
+    nxt_idx = i + 1
+    while nxt_idx < n and (_v50_is_nonchar_or_forbidden(ord(text[nxt_idx])) or text[nxt_idx] in _V50_DROP):
+        nxt_idx += 1
+
+    prev_ch = text[p] if p >= 0 else ''
+    next_ch = text[nxt_idx] if nxt_idx < n else ''
+
+    if not prev_ch or not next_ch or prev_ch.isspace() or next_ch.isspace():
+        return ''
+
+    p_start = p
+    while p_start >= 0 and (text[p_start].isalnum() or text[p_start] in '-_\u0300\u0301\u0302\u0303\u0304\u0308\u030a\u030c'):
+        p_start -= 1
+    prev_word = text[p_start + 1 : p + 1]
+
+    n_end = nxt_idx
+    while n_end < n and (text[n_end].isalnum() or text[n_end] in '-_\u0300\u0301\u0302\u0303\u0304\u0308\u030a\u030c'):
+        n_end += 1
+    nxt_word = text[nxt_idx : n_end]
+
+    prev_clean = re.sub(r'[\u0300-\u036f]', '', prev_word).lower()
+    nxt_clean = re.sub(r'[\u0300-\u036f]', '', nxt_word).lower()
+
+    if prev_clean in ('по', 'кое', 'из') and _v50_is_cyrillic(next_ch):
+        return '-'
+    if nxt_clean in ('то', 'либо', 'нибудь', 'таки') and _v50_is_cyrillic(prev_ch):
+        return '-'
+    if prev_word.startswith('-') and next_ch.isalnum():
+        return ' '
+    if (_v50_is_cyrillic(prev_ch) and _v50_is_latin(next_ch)) or (_v50_is_latin(prev_ch) and _v50_is_cyrillic(next_ch)):
+        return ' '
+    if nxt_clean in ('ve', 'ile', 'veya', 'and', 'or', 'und', 'y', 'и', 'или', 'а', 'но', 'de', 'da'):
+        return ' '
+    if prev_clean in ('ve', 'ile', 'veya', 'and', 'or', 'und', 'y', 'и', 'или', 'а', 'но', 'de', 'da'):
+        return ' '
+    if prev_clean.endswith(('lik', 'lık', 'luk', 'lük')) and nxt_clean.endswith(('lik', 'lık', 'luk', 'lük')):
+        return '-'
+    if prev_ch.isalnum() and next_ch.isalnum():
+        return ' '
+    return ''
+
+
 def safe_unicode_normalize(text: str, language=None) -> str:
     if not text or not isinstance(text, str):
         return text
@@ -43,35 +109,45 @@ def safe_unicode_normalize(text: str, language=None) -> str:
         text = re.sub(r'(?i)\bпрофѐссор\b', 'профессор', text)
     text = unicodedata.normalize("NFC", text)
     out = []
-    n = len(text)
+    prev_was_sep = False
     for i, ch in enumerate(text):
         cp = ord(ch)
         if ch in _V50_HYPHEN_EQUIV:
             out.append("-")
+            prev_was_sep = True
             continue
         if ch in _V50_DROP or ch == "\ufffd":
             continue
         if ch in _V50_NONCHARS or 0xFDD0 <= cp <= 0xFDEF or (cp & 0xFFFE) == 0xFFFE:
-            prev = text[i - 1] if i else ""
-            nxt = text[i + 1] if i + 1 < n else ""
-            if prev and nxt and prev.isalnum() and nxt.isalnum():
-                out.append("-")
+            if not prev_was_sep:
+                sep = _v50_resolve_separator(text, i)
+                if sep:
+                    out.append(sep)
+                    prev_was_sep = True
             continue
         if 0xD800 <= cp <= 0xDFFF:
             continue
         if (cp < 0x20 and cp not in (0x09, 0x0A, 0x0D)) or (0x7F <= cp <= 0x9F):
             continue
+        prev_was_sep = False
         out.append(ch)
     return "".join(out)
 
 
-def _v50_clean_tree(node, language=None):
+def _v50_clean_tree(node, language=None, material_language="tr"):
     if isinstance(node, str):
-        return safe_unicode_normalize(node, language=language)
+        cleaned = safe_unicode_normalize(node, language=language)
+        if material_language and str(material_language).strip().casefold() not in ("en", "english", "ingilizce"):
+            try:
+                from services.material_quality_guard import sanitize_instructional_shorthand
+                cleaned = sanitize_instructional_shorthand(cleaned, instructional_language=str(material_language).strip().casefold())
+            except Exception:
+                pass
+        return cleaned
     if isinstance(node, dict):
-        return {k: _v50_clean_tree(v, language=language) for k, v in node.items()}
+        return {k: _v50_clean_tree(v, language=language, material_language=material_language) for k, v in node.items()}
     if isinstance(node, list):
-        return [_v50_clean_tree(v, language=language) for v in node]
+        return [_v50_clean_tree(v, language=language, material_language=material_language) for v in node]
     return node
 
 
@@ -156,7 +232,7 @@ def _v50_walk(node):
 def enforce_material_integrity(data, language=None, material_language="tr"):
     if not isinstance(data, dict):
         return data
-    out = _v50_clean_tree(deepcopy(data), language=language)
+    out = _v50_clean_tree(deepcopy(data), language=language, material_language=material_language)
     _v50_walk(out)
 
     pages = out.get("pages")

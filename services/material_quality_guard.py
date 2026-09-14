@@ -218,28 +218,102 @@ def normalize_russian_orthography(text: str) -> str:
     return re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
 
 
+def _is_noncharacter_or_forbidden(cp: int) -> bool:
+    return (
+        0xFDD0 <= cp <= 0xFDEF
+        or (cp & 0xFFFE) == 0xFFFE
+        or 0xD800 <= cp <= 0xDFFF
+        or (cp < 0x20 and cp not in (0x09, 0x0A, 0x0D))
+        or (0x7F <= cp <= 0x9F)
+        or cp == 0xFFFD
+    )
+
+
+def _is_cyrillic(char: str) -> bool:
+    return '\u0400' <= char <= '\u04FF' or '\u0500' <= char <= '\u052F'
+
+
+def _is_latin(char: str) -> bool:
+    return ('a' <= char <= 'z') or ('A' <= char <= 'Z') or ('\u00C0' <= char <= '\u024F')
+
+
+def _resolve_noncharacter_separator(text: str, i: int) -> str:
+    n = len(text)
+    p = i - 1
+    while p >= 0 and _is_noncharacter_or_forbidden(ord(text[p])):
+        p -= 1
+    nxt_idx = i + 1
+    while nxt_idx < n and _is_noncharacter_or_forbidden(ord(text[nxt_idx])):
+        nxt_idx += 1
+
+    prev_ch = text[p] if p >= 0 else ''
+    next_ch = text[nxt_idx] if nxt_idx < n else ''
+
+    if not prev_ch or not next_ch or prev_ch.isspace() or next_ch.isspace():
+        return ''
+
+    p_start = p
+    while p_start >= 0 and (text[p_start].isalnum() or text[p_start] in '-_\u0300\u0301\u0302\u0303\u0304\u0308\u030a\u030c'):
+        p_start -= 1
+    prev_word = text[p_start + 1 : p + 1]
+
+    n_end = nxt_idx
+    while n_end < n and (text[n_end].isalnum() or text[n_end] in '-_\u0300\u0301\u0302\u0303\u0304\u0308\u030a\u030c'):
+        n_end += 1
+    nxt_word = text[nxt_idx : n_end]
+
+    prev_word_clean = re.sub(r'[\u0300-\u036f]', '', prev_word).lower()
+    nxt_word_clean = re.sub(r'[\u0300-\u036f]', '', nxt_word).lower()
+
+    if prev_word_clean in ('по', 'кое', 'из') and _is_cyrillic(next_ch):
+        return '-'
+    if nxt_word_clean in ('то', 'либо', 'нибудь', 'таки') and _is_cyrillic(prev_ch):
+        return '-'
+    if prev_word.startswith('-') and next_ch.isalnum():
+        return ' '
+    if (_is_cyrillic(prev_ch) and _is_latin(next_ch)) or (_is_latin(prev_ch) and _is_cyrillic(next_ch)):
+        return ' '
+    if nxt_word_clean in ('ve', 'ile', 'veya', 'and', 'or', 'und', 'y', 'и', 'или', 'а', 'но', 'de', 'da'):
+        return ' '
+    if prev_word_clean in ('ve', 'ile', 'veya', 'and', 'or', 'und', 'y', 'и', 'или', 'а', 'но', 'de', 'da'):
+        return ' '
+    if prev_word_clean.endswith(('lik', 'lık', 'luk', 'lük')) and nxt_word_clean.endswith(('lik', 'lık', 'luk', 'lük')):
+        return '-'
+    if prev_ch.isalnum() and next_ch.isalnum():
+        return ' '
+    return ''
+
+
 def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
     """
     Safe Unicode NFC normalization preserving all legitimate linguistic marks.
     Preserves legitimate letters in non-Russian Cyrillic languages (e.g. Bulgarian ѝ, Macedonian ѐ/ѝ).
     Scopes general Cyrillic grave replacement strictly to Russian material context, while fixing
     known erroneous Russian forms (e.g. профѐссор -> профессор) universally.
+    Resolves Unicode noncharacters (U+FFFE, U+FFFF, plane ends, U+FDD0..U+FDEF) semantically
+    (restoring hyphens or spaces where corrupted) while eliminating invalid control characters.
     """
     if not text or not isinstance(text, str):
         return text
     if _is_russian_context(language):
         text = normalize_russian_orthography(text)
     else:
-        # Specifically fix known corrupted Russian words without touching legitimate Bulgarian/Macedonian letters
         text = re.sub(r'(?i)\bпрофѐссор\b', 'профессор', text)
-    # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
-    # Remove null bytes or forbidden non-printing control characters
-    cleaned = "".join(
-        c for c in normalized
-        if ord(c) in (0x09, 0x0A, 0x0D) or (ord(c) >= 0x20 and not (0x7F <= ord(c) <= 0x9F) and ord(c) != 0xFFFD)
-    )
-    return cleaned
+    out = []
+    prev_was_sep = False
+    for i, ch in enumerate(normalized):
+        cp = ord(ch)
+        if _is_noncharacter_or_forbidden(cp):
+            if not prev_was_sep:
+                sep = _resolve_noncharacter_separator(normalized, i)
+                if sep:
+                    out.append(sep)
+                    prev_was_sep = True
+        else:
+            prev_was_sep = False
+            out.append(ch)
+    return "".join(out)
 
 
 # ── INSTRUCTIONAL SHORTHAND & METAMATERIAL PURITY ────────────────────────────
@@ -250,6 +324,9 @@ _INSTRUCTIONAL_SHORTHAND_MAPS: Dict[str, List[Tuple[str, str]]] = {
         (r"\(\s*masc(?:\.|uline)?\s*\)", "(eril)"),
         (r"\(\s*fem(?:\.|inine)?\s*\)", "(dişil)"),
         (r"\(\s*neut(?:\.|er)?\s*\)", "(nötr)"),
+        (r"\(\s*m\.\s*\)", "(eril)"),
+        (r"\(\s*f\.\s*\)", "(dişil)"),
+        (r"\(\s*n\.\s*\)", "(nötr)"),
         (r"\(\s*pl(?:\.|ural)?\s*\)", "(çoğul)"),
         (r"\(\s*(?:sg|sing)(?:\.|ular)?\s*\)", "(tekil)"),
         (r"\(\s*nom(?:\.|inative)?\s*\)", "(Yalın Hâl)"),
@@ -458,6 +535,18 @@ def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr
         return res
 
     return deduplicate_morphological_parentheticals(text)
+
+
+def sanitize_dialogue_speaker(value: Any) -> str:
+    """Keep the canonical speaker label; remove trailing annotation metadata."""
+    text = safe_unicode_normalize(str(value or "")).strip()
+    if not text:
+        return text
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\s*\([^()\n]{1,80}\)\s*$", "", text).strip()
+    return text
 
 
 # ── FIELD-AWARE TARGET STRING EXTRACTION ─────────────────────────────────────
@@ -752,14 +841,17 @@ def enforce_release_hard_gate(data: Any, language: str) -> Any:
     return out
 
 
-def _recursive_clean_unicode(node: Any, language: Optional[str] = None) -> Any:
-    """Recursively apply safe NFC Unicode normalization to all strings."""
+def _recursive_clean_unicode(node: Any, language: Optional[str] = None, material_language: Optional[str] = "tr") -> Any:
+    """Recursively apply safe NFC Unicode normalization and instructional shorthand sanitization to all strings."""
     if isinstance(node, str):
-        return safe_unicode_normalize(node, language=language)
+        cleaned = safe_unicode_normalize(node, language=language)
+        if material_language and str(material_language).strip().casefold() not in ("en", "english", "ingilizce"):
+            cleaned = sanitize_instructional_shorthand(cleaned, instructional_language=str(material_language).strip().casefold())
+        return cleaned
     if isinstance(node, dict):
-        return {k: _recursive_clean_unicode(v, language=language) for k, v in node.items()}
+        return {k: _recursive_clean_unicode(v, language=language, material_language=material_language) for k, v in node.items()}
     if isinstance(node, list):
-        return [_recursive_clean_unicode(item, language=language) for item in node]
+        return [_recursive_clean_unicode(item, language=language, material_language=material_language) for item in node]
     return node
 
 
@@ -772,7 +864,7 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None, materi
     if not isinstance(data, dict):
         return data
 
-    out = _recursive_clean_unicode(deepcopy(data), language=language)
+    out = _recursive_clean_unicode(deepcopy(data), language=language, material_language=material_language)
     pages = out.get("pages")
     if not isinstance(pages, list):
         return out
