@@ -117,8 +117,59 @@ def test_synthesize_substantive_lesson():
     mcq_page = next((p for p in synth["pages"] if p.get("type") == "mcq"), None)
     assert mcq_page is not None
     assert len(mcq_page["options"]) == 4
+    assert len(mcq_page.get("options_tr", [])) == 4
     assert len(mcq_page["distractors"]) == 3
     assert mcq_page["answer"] in mcq_page["options"]
+
+
+def test_mcq_options_localization():
+    import unittest.mock as mock
+    import services.ai_engine as ai_engine
+
+    # Case 1: English metalanguage options must be localized into options_tr
+    lesson_with_metalang = {
+        "pages": [
+            {
+                "type": "mcq",
+                "prompt": "How is the vowel pronounced?",
+                "explanation": "It is reduced in unstressed positions.",
+                "options": [
+                    "As a palatalized vowel in stressed position",
+                    "As a reduced schwa sound"
+                ]
+            }
+        ]
+    }
+
+    mock_translations = {
+        "0": "Ünlü nasıl telaffuz edilir?",
+        "1": "Vurgusuz konumlarda indirgenir.",
+        "2": "Vurgulu konumda yumuşak ünlü olarak",
+        "3": "İndirgenmiş schwa sesi olarak"
+    }
+
+    with mock.patch.object(ai_engine, "_call_ai", return_value=mock_translations):
+        res = ai_engine.translate_lesson_to_turkish(lesson_with_metalang, language="Russian")
+        p = res["pages"][0]
+        assert "options_tr" in p, "options_tr should be generated for metalanguage options"
+        assert len(p["options_tr"]) == 2
+        assert "schwa" in p["options_tr"][1] or "İndirgenmiş" in p["options_tr"][1]
+
+    # Case 2: Target-language single tokens must NOT be translated
+    lesson_with_target_tokens = {
+        "pages": [
+            {
+                "type": "mcq",
+                "prompt": "Doğru zamiri seçiniz.",
+                "prompt_tr": "Doğru zamiri seçiniz.",
+                "explanation_tr": "Doğru açıklama.",
+                "options": ["он", "она", "оно", "они"]
+            }
+        ]
+    }
+    res2 = ai_engine.translate_lesson_to_turkish(lesson_with_target_tokens, language="Russian")
+    p2 = res2["pages"][0]
+    assert p2.get("options_tr") is None, "Target tokens should not have options_tr created"
 
 
 def test_ensure_minimum_lesson_structure():
@@ -169,6 +220,8 @@ def run():
     print("  -> test_polymorphic_container_normalization PASSED")
     test_synthesize_substantive_lesson()
     print("  -> test_synthesize_substantive_lesson PASSED")
+    test_mcq_options_localization()
+    print("  -> test_mcq_options_localization PASSED")
     test_ensure_minimum_lesson_structure()
     print("  -> test_ensure_minimum_lesson_structure PASSED")
     test_renderer_normalize_pages()

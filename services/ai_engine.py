@@ -2824,6 +2824,30 @@ def translate_lesson_to_turkish(lesson_dict, language="Spanish"):
             ref_map.append((f"pages.{p_idx}.prompt_tr", page["prompt"]))
         if page.get("explanation"):
             ref_map.append((f"pages.{p_idx}.explanation_tr", page["explanation"]))
+
+        # MCQ options (when options are instructional explanations in English)
+        raw_opts = page.get("options") or page.get("choices")
+        if isinstance(raw_opts, list) and len(raw_opts) >= 2:
+            existing_tr = page.get("options_tr")
+            if not existing_tr or not isinstance(existing_tr, list) or len(existing_tr) != len(raw_opts):
+                english_indicators = {
+                    "as", "a", "an", "the", "in", "on", "of", "to", "for", "with", "is", "are",
+                    "by", "that", "this", "it", "not", "when", "indicates", "denotes", "functions",
+                    "used", "pronounced", "vowel", "consonant", "noun", "verb", "sound", "stress",
+                    "letter", "syllable", "always", "never", "only", "shows", "expresses"
+                }
+                is_metalang = any(
+                    isinstance(opt, str) and (
+                        len(opt.split()) >= 3 or
+                        any(w.lower().strip(".,!?:;\"'()") in english_indicators for w in opt.split())
+                    )
+                    for opt in raw_opts
+                )
+                if is_metalang:
+                    page["options_tr"] = [str(o) for o in raw_opts]
+                    for o_idx, opt in enumerate(raw_opts):
+                        if isinstance(opt, str) and opt.strip():
+                            ref_map.append((f"pages.{p_idx}.options_tr.{o_idx}", opt))
         
         # Items / Vocabulary
         for i_idx, item in enumerate(page.get("items", [])):
@@ -3164,6 +3188,12 @@ def synthesize_substantive_lesson(topic: str, topic_type: str, language: str, le
             "It is an obsolete form never used in contemporary speech.",
             "It functions exclusively as a mathematical or technical term.",
             "It has no established grammatical rules or conventions."
+        ],
+        "options_tr": [
+            f"CEFR {level} seviyesinde günlük iletişimde sıkça kullanılan temel bir yapıdır.",
+            "Günlük dilde artık hiç kullanılmayan eski bir kalıptır.",
+            "Yalnızca teknik ve matematiksel metinlerde görülür.",
+            "Herhangi bir dilbilgisi kuralı veya kullanım standardı yoktur."
         ],
         "answer": f"It serves as an essential communicative building block at CEFR {level}.",
         "distractors": [
