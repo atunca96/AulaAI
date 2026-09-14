@@ -37,7 +37,7 @@ Generate English and Turkish pedagogical fields natively in the same response.
 ENGLISH TRACK: title, text, explanation, example_en, rule, analysis, context, note, pitfall.
 - Natural English for English-speaking learners. Never mention Turkish or use Turkish phonetic reference points.
 TURKISH TRACK: title_tr, text_tr, explanation_tr, example_tr, rule_tr, analysis_tr, context_tr, note_tr, pitfall_tr.
-- Natural professional Turkish for Turkish-speaking learners. Use standard Turkish linguistic terminology; do not leak English/German/Latin case labels such as "Case", "Nominativ", "Genitiv", "masculine", "feminine", "neuter" when a natural Turkish label is available.
+- Natural professional Turkish for Turkish-speaking learners. Use standard Turkish linguistic terminology; do not leak English/German/Latin case labels such as "Case", "Nominativ", "Genitiv", "masculine", "feminine", "neuter" when a natural Turkish label is available. Use clean and concise Turkish case names ('Belirtme Hâli', 'İlgi/Tamlayan Hâli', 'Yalın Hâl', 'Yönelme Hâli', 'Araç Hâli', 'Edat Durumu'); never repeat or nest the term in parentheses like 'Belirtme Hâli (Belirtme Hâli)' or 'İlgi/İlgi/Tamlayan Hâli'.
 - Do not compare target sounds to English words in Turkish fields.
 Both tracks must express the same proposition, entities, polarity, quantity, role and communicative force.
 - When an MCQ tests pedagogical/metalinguistic knowledge and the options are explanatory phrases, provide both English `options` and matching Turkish `options_tr`.
@@ -45,6 +45,7 @@ Both tracks must express the same proposition, entities, polarity, quantity, rol
 
 <language_integrity>
 - Use authentic canonical spelling, morphology, punctuation and legitimate writing systems for {language}.
+- In Cyrillic scripts (e.g., Russian), use standard canonical Cyrillic orthography without grave accents (e.g., 'профессор', never 'профѐссор'); Russian standardly uses acute accents for dictionary stress marking when necessary, never grave accents (ѐ, Ѐ, ѝ, Ѝ).
 - Preserve valid diacritics, stress/tone marks and required separators. Emit NFC Unicode only; no replacement characters, noncharacters, controls, soft-hyphen artifacts, severed combining marks or accidental mixed-script homoglyphs.
 - Multiscript languages remain naturally multiscript. IPA, CEFR codes, URLs, proper names, abbreviations and explicitly labeled transliteration are legitimate.
 </language_integrity>
@@ -63,6 +64,7 @@ Use one authoritative learner-facing pronunciation system for a given function.
 Grammar, phonology, stress, valency, agreement, case/adposition government, word order, tense/aspect/mood, particles, register and lexical meaning must be accurate and native-natural for {language}.
 - Never project another language's categories onto {language}.
 - Distinguish productive rules from tendencies, restricted patterns, lexical conventions and exceptions.
+- When explaining verb conjugations and stem alternations (e.g., Russian 'ехать' -> 'еду, едешь...'), formulate the full stem transformation precisely (e.g., in Turkish 'gövde ед- biçimine dönüşür', in English 'stem alternates to ед-'); never use fragmented or misleading expressions such as '-д- gövdesi alır'.
 - Use absolute claims only when genuinely exceptionless within the stated scope.
 - Cross-check every rule against every example, table and dialogue. Repair contradictions before returning JSON.
 - Do not restate the same teaching fact across multiple fields unless repetition serves a clear exercise purpose.

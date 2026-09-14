@@ -22,6 +22,8 @@ def run():
     assert safe_unicode_normalize("11\u201319") == "11\u201319"
     assert safe_unicode_normalize("A\u2014B") == "A\u2014B"
     assert "\u200d" in safe_unicode_normalize("क्\u200dष")
+    assert safe_unicode_normalize("профѐссор") == "профессор"
+    assert safe_unicode_normalize("très élève voilà où") == "très élève voilà où"
     assert _e("по\ufffeрусски") == "по-русски"
 
     payload = {"pages": [{"type": "vocabulary", "items": [{

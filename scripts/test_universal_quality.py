@@ -152,6 +152,8 @@ def run_tests():
         assert ok_u, f"Valid Unicode sample rejected: {sample} -> {why_u}"
         norm = safe_unicode_normalize(sample)
         assert len(norm) > 0, "Safe normalize emptied string"
+    assert safe_unicode_normalize("профѐссор") == "профессор"
+    assert safe_unicode_normalize("très élève voilà où") == "très élève voilà où"
 
     # ──────────────────────────────────────────────────────────────────────────
     # 3. PRONUNCIATION-SYSTEM CONSISTENCY TESTS

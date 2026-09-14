@@ -18,11 +18,20 @@ _V50_HYPHEN_EQUIV = {"\u00ad", "\u2010", "\u2011", "\ufe63", "\uff0d"}
 _V50_DROP = {"\u200b", "\ufeff", "\u2060"}
 _V50_NONCHARS = {"\ufffe", "\uffff"}
 _V50_IPA_SIGNAL = set("ˈˌːˑəɐɛɪʊʌɨøœɶʏɯɤɑɒɕʑʂʐʒʃθðʔʲʷˤɣʁħʕŋɲɳɴɱɭʎʟɾɺⱱβɸɹɻɰʍçɡ")
+_V50_CYRILLIC_GRAVE_MAP = {
+    "\u0450": "\u0435",  # ѐ -> е
+    "\u0400": "\u0415",  # Ѐ -> Е
+    "\u045D": "\u0438",  # ѝ -> и
+    "\u040D": "\u0418",  # Ѝ -> И
+}
 
 
 def safe_unicode_normalize(text: str) -> str:
     if not text or not isinstance(text, str):
         return text
+    for k, v in _V50_CYRILLIC_GRAVE_MAP.items():
+        text = text.replace(k, v)
+    text = re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
     text = unicodedata.normalize("NFC", text)
     out = []
     n = len(text)

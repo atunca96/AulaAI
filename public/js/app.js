@@ -13547,9 +13547,13 @@ async function downloadCourseMaterialPDF() {
     const courseName = (currentCourse && currentCourse.name) || 'Course_Materials';
     const safeFilename = courseName.replace(/[^a-zA-Z0-9_\-\u00C0-\u024F\u0100-\u024F]/g, '_').replace(/_+/g, '_');
 
-    const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/export-pdf?lang=${pdfLang}`, {
+    const response = await fetch(`/api/courses/${encodeURIComponent(courseId)}/export-pdf?lang=${pdfLang}&_pdfv=${Date.now()}`, {
       method: 'GET',
-      headers: { 'X-Session-Token': localStorage.getItem('aula_session') || '' }
+      cache: 'no-store',
+      headers: {
+        'X-Session-Token': localStorage.getItem('aula_session') || '',
+        'Cache-Control': 'no-cache'
+      }
     });
 
     if (!response.ok) {
@@ -13561,7 +13565,7 @@ async function downloadCourseMaterialPDF() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${safeFilename}_AulaAI_${pdfLang.toUpperCase()}.pdf`;
+    a.download = `${safeFilename}_AulaAI_${pdfLang.toUpperCase()}_${Date.now()}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -21,6 +21,9 @@ def run():
     assert _pick({"text_tr": "Prepositional hali"}, "text", "text_tr", True) == "Edat Durumu hali"
     assert sanitize_instructional_metalanguage("Nominativ", "tr") == "Yalın Hâl"
     assert sanitize_instructional_metalanguage("Genitiv", "tr") == "İlgi/Tamlayan Hâli"
+    assert sanitize_instructional_metalanguage("Belirtme Hâli (Belirtme Hâli)", "tr") == "Belirtme Hâli"
+    assert sanitize_instructional_metalanguage("İlgi/İlgi/Tamlayan Hâli", "tr") == "İlgi/Tamlayan Hâli"
+    assert sanitize_instructional_metalanguage("-д- gövdesi alır", "tr") == "gövde 'ед-' biçimine dönüşür"
 
     engine = (ROOT / "services" / "ai_engine.py").read_text(encoding="utf-8")
     assert "AULAAI_RELEASE_HARDENING_V52" in engine

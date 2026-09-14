@@ -186,10 +186,22 @@ def validate_unicode_integrity(text: str) -> Tuple[bool, str]:
     return True, ""
 
 
+_CYRILLIC_GRAVE_MAP = {
+    "\u0450": "\u0435",  # ѐ -> е
+    "\u0400": "\u0415",  # Ѐ -> Е
+    "\u045D": "\u0438",  # ѝ -> и
+    "\u040D": "\u0418",  # Ѝ -> И
+}
+
+
 def safe_unicode_normalize(text: str) -> str:
     """Safe Unicode NFC normalization preserving all legitimate linguistic marks."""
     if not text or not isinstance(text, str):
         return text
+    # Map spurious Cyrillic grave accents to standard Cyrillic (e.g. профѐссор -> профессор)
+    for k, v in _CYRILLIC_GRAVE_MAP.items():
+        text = text.replace(k, v)
+    text = re.sub(r'([\u0400-\u04FF])\u0300', r'\1', text)
     # NFC composes precomposed characters while preserving distinct combining marks
     normalized = unicodedata.normalize("NFC", text)
     # Remove null bytes or forbidden non-printing control characters
@@ -454,4 +466,3 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any
         out["_integrity_removed_mcq"] = [{"index": i, "reason": r} for i, r in removed]
 
     return out
-
