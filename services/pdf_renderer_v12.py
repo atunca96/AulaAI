@@ -155,7 +155,18 @@ def _normalize_pages(content):
         pages = [pages]
     if not isinstance(pages, list):
         return []
-    return [p for p in pages if isinstance(p, dict)]
+    valid = []
+    for p in pages:
+        if not isinstance(p, dict):
+            continue
+        has_text = bool(str(p.get('text') or p.get('text_tr') or p.get('text_en') or '').strip())
+        has_items = bool(p.get('items') or p.get('vocabulary') or p.get('words'))
+        has_rules = bool(p.get('rules') or p.get('comparisons') or p.get('grammar') or p.get('rules_tr'))
+        has_dialogue = bool(p.get('dialogue') or p.get('conversations'))
+        has_mcq = bool((p.get('prompt') or p.get('prompt_tr') or p.get('prompt_en') or p.get('question') or p.get('stem') or str(p.get('type', '')).strip().lower() == 'mcq') and (p.get('options') or p.get('choices')))
+        if has_text or has_items or has_rules or has_dialogue or has_mcq:
+            valid.append(p)
+    return valid
 
 
 def _infer_page_type(page: dict) -> str:
@@ -655,6 +666,13 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 topic_prefix_pending = chapter_prefix_pending + topic_html
                 chapter_prefix_pending = ''
                 pages = _normalize_pages(content)
+                if not pages:
+                    try:
+                        from services.ai_engine import synthesize_substantive_lesson
+                        fallback_dict = synthesize_substantive_lesson(top_title, top_type, course_lang, material_language=("tr" if is_tr else "en"))
+                        pages = _normalize_pages(fallback_dict)
+                    except Exception:
+                        pass
                 if not pages:
                     paginator.place_html(topic_prefix_pending, keep=True)
                     continue

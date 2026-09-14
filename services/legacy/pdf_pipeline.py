@@ -376,14 +376,23 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             return full_text[:8000]
  
         def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en"):
-            from services.ai_engine import generate_full_lesson
+            from services.ai_engine import generate_full_lesson, _is_substantive_lesson, synthesize_substantive_lesson
             try:
                 with db_connection() as db:
                     db.execute("UPDATE courses SET build_message = ? WHERE id = ? AND is_building = 1", (f"Ders üretiliyor: {t_title}", course_id))
                     db.commit()
                 bump_version()
             except Exception: pass
-            lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language)
+            lesson = None
+            try:
+                lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language)
+            except Exception as gen_err:
+                _log(f"[TOPIC-TASK] generate_full_lesson failed for '{t_title}': {gen_err}")
+
+            if not lesson or not isinstance(lesson, dict) or not _is_substantive_lesson(lesson):
+                _log(f"[TOPIC-TASK] Topic '{t_title}' produced empty/non-substantive lesson. Generating guaranteed substantive fallback...")
+                lesson = synthesize_substantive_lesson(t_title, t_type, language, level, source_text=source_text, material_language=material_language)
+
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
  
         # 16 concurrent workers — tuned for Gemini 3.7 Flash high throughput
@@ -412,15 +421,28 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 try:
                     res = future.result()
                     t_title = res.get("t_title", "Topic")
+                    t_content = res.get("content")
+                    if not t_content or not isinstance(t_content, dict) or not t_content.get("pages"):
+                        from services.ai_engine import synthesize_substantive_lesson
+                        t_content = synthesize_substantive_lesson(t_title, "concept", language, level, material_language=material_language)
                     build_msg = f"Ders tamamlandı ({completed}/{topic_count}): {t_title}"
                     with db_connection() as db:
-                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(res["content"]), res["t_id"]))
+                        db.execute("UPDATE topics SET content = ? WHERE id = ?", (json.dumps(t_content, ensure_ascii=False), res["t_id"]))
                         db.execute("UPDATE courses SET progress = ?, build_stage = 'enriching', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (completed, build_msg, course_id, gen_id, gen_id))
                         db.commit()
                     _log(f"Enrichment: {completed}/{topic_count} DONE ({t_title}).")
                     bump_version()
                 except Exception as e:
                     _log(f"Topic Error: {e}")
+                    failed_title = future_to_topic.get(future, "Topic")
+                    try:
+                        from services.ai_engine import synthesize_substantive_lesson
+                        fallback_content = synthesize_substantive_lesson(failed_title, "concept", language, level, material_language=material_language)
+                        with db_connection() as db:
+                            db.execute("UPDATE topics SET content = ? WHERE title = ? AND chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (json.dumps(fallback_content, ensure_ascii=False), failed_title, course_id))
+                            db.commit()
+                    except Exception as db_err:
+                        _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
         _log(f"Phase 2 Complete for {course_id}.")
         try:

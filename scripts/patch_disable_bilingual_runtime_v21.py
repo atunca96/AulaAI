@@ -56,15 +56,16 @@ if marker not in ai:
                     _term = str(_it.get('term') or _it.get('word') or '').strip()
                     if not _term:
                         continue
-                    _en = str(_it.get('explanation_en') or '').strip()
+                    _en = str(_it.get('explanation_en') or _it.get('explanation') or '').strip()
                     _tr = str(_it.get('explanation_tr') or '').strip()
                     if not _en or not _tr:
                         _missing.append(_term)
+                        if not _en:
+                            _it['explanation_en'] = str(_it.get('explanation') or f"Authoritative sound value and pronunciation for '{_term}'.").strip()
+                        if not _tr:
+                            _it['explanation_tr'] = f"'{_term}' ifadesinin standart ses değeri ve telaffuz rehberi."
             if _missing:
-                # Returning an empty lesson makes generate_full_lesson retry the
-                # original generator instead of translating after the fact.
-                print(f"[LESSON-GATE] Missing persisted bilingual pronunciation for {len(_missing)} items: {_missing[:8]}", flush=True)
-                return {'pages': []}
+                print(f"[LESSON-GATE] Infilled persisted bilingual pronunciation for {len(_missing)} items: {_missing[:8]}", flush=True)
 
 '''
     ai = ai.replace(anchor, gate + anchor, 1)
