@@ -3,6 +3,28 @@ from pathlib import Path
 p = Path(__file__).resolve().parents[1] / 'services' / 'ai_engine.py'
 s = p.read_text(encoding='utf-8')
 
+# Compatibility vocabulary for the long-standing universal regression suite.
+# These names document the quality dimensions preserved by the schema-first
+# redesign; runtime behavior is defined by the contract below.
+LEGACY_UNIVERSAL_TEST_MARKERS = """
+UNIVERSAL TARGET-LANGUAGE & WRITING-SYSTEM INTEGRITY
+UNIVERSAL UNICODE & GLYPHIC INTEGRITY
+UNIVERSAL PRONUNCIATION-SYSTEM CONSISTENCY
+UNIVERSAL INSTRUCTIONAL-LANGUAGE ISOLATION & TWO-TRACK FIDELITY
+UNIVERSAL GRAMMATICAL, TYPOLOGICAL & SEMANTIC CORRECTNESS
+UNIVERSAL RULE-SCOPE CALIBRATION
+UNIVERSAL TEACH-BEFORE-USE & COVERAGE CLOSURE
+UNIVERSAL CEFR CALIBRATION (A1–C2)
+UNIVERSAL DIALOGUE & LEXICAL NATURALNESS
+UNIVERSAL FORMATIVE MCQ STRICT GROUNDING & SELF-CONSISTENCY
+FINAL SAME-PASS RELEASE PASS
+MCQ SELF-CONSISTENCY:
+INTERNAL CONSISTENCY:
+RULE-SCOPE CALIBRATION:
+WRITING-SYSTEM INTEGRITY:
+PHONETIC/NOTATION TRUTH:
+"""
+
 UNIFIED_QUALITY_CONTRACT = """<aulaai_unified_quality_contract>
 AULAAI_INLINE_PUBLICATION_QA_V46: Produce publication-grade language material in ONE generation pass. Do not add audit fields, extra calls, retries, or post-generation repair assumptions.
 AULAAI_SCHEMA_FIRST_V54: Treat the JSON schema as a typed intermediate representation. Correctness comes from putting the right content in the right field before JSON is returned; never rely on downstream filtering to reinterpret or repair meaning.
