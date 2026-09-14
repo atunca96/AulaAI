@@ -38,7 +38,13 @@ Use standard IPA only for learner-facing pronunciation. Each IPA value must desc
 Every target-language utterance must be native-natural and grammatically correct for that language's own typology. Never force English/Indo-European categories onto unrelated languages. Every stated inventory count, list membership, paradigm, exception, and rule scope must agree internally. Absolute words such as always/never/only/every are allowed only when genuinely true within the stated scope.
 
 7. CEFR AND TEACH-BEFORE-TEST
-Keep content strictly at CEFR {level}. A1 uses high-frequency survival language, short transparent examples, and minimal metalanguage; higher levels scale naturally. Every tested structure or active lexical item must have been taught earlier or clearly introduced as a fixed chunk.
+Keep content strictly at CEFR {level} and test only material already taught or clearly introduced as a fixed chunk.
+- A1: high-frequency survival language, short transparent examples, basic forms, minimal metalanguage.
+- A2: routine daily interaction, broader everyday functions, controlled grammatical expansion.
+- B1: connected everyday discourse, productive grammar, varied tense/aspect, personal viewpoints.
+- B2: nuanced argumentation, broader collocation, idiomatic usage, contrast and stance.
+- C1: advanced academic/professional register, complex discourse, pragmatic nuance, lexical precision.
+- C2: near-native control, subtle sociolinguistic/stylistic distinctions, rare but authentic constructions.
 
 8. FINAL SCHEMA VALIDATION BEFORE RETURN
 Silently validate the completed JSON by FIELD ROLE, not by surface heuristics:
