@@ -1,0 +1,223 @@
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/patch_release_final_v57.py repo/AulaAI-main/scripts/patch_release_final_v57.py
+--- pristine/AulaAI-main/scripts/patch_release_final_v57.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/patch_release_final_v57.py	2026-09-14 23:38:20.751404943 +0000
+@@ -64,7 +64,7 @@
+         "сестра", "брат", "бабушка", "дедушка", "wife", "husband", "mother", "father", "sister", "brother",
+     ))
+     explanation_uses_gender = bool(_v57_re.search(gender_words, e))
+-    explanation_uses_name = bool(_v57_re.search(r"\b(isim|adi|adinin|name)\b", e))
++    explanation_uses_name = bool(_v57_re.search(r"\b(isim|ismi|adi|adinin|name)\b", e))
+     if explanation_uses_name and explanation_uses_gender and not explicit_gender:
+         return True
+ 
+@@ -242,7 +242,7 @@
+ 
+     # Enforce one visual pronunciation convention on the actual vocabulary-table
+     # render path even if an earlier patch missed its exact source anchor.
+-    renderer, phon_count = _v57r_re.subn(
++    renderer, phon_count = __import__('re').subn(
+         r"(?m)^(\s*)phon\s*=\s*item\.get\('phonetic'\)\s*or\s*item\.get\('pronunciation'\)\s*or\s*''\s*$",
+         r"\1phon = _v57_display_phonetic(item.get('phonetic') or item.get('pronunciation') or '')",
+         renderer,
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/patch_release_hardening_v50.py repo/AulaAI-main/scripts/patch_release_hardening_v50.py
+--- pristine/AulaAI-main/scripts/patch_release_hardening_v50.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/patch_release_hardening_v50.py	2026-09-14 23:37:59.685769011 +0000
+@@ -361,42 +361,10 @@
+ 
+ engine_path.write_text(engine, encoding="utf-8")
+ 
+-tests = test_path.read_text(encoding="utf-8")
+-old = """    assert len(clean_lesson[\"pages\"]) == 3, f\"Expected 3 valid pages after cleanup, got {len(clean_lesson['pages'])}\"
+-    assert clean_lesson[\"pages\"][0][\"type\"] == \"overview\"
+-    assert clean_lesson[\"pages\"][1][\"type\"] == \"mcq\"
+-    assert clean_lesson[\"pages\"][2][\"type\"] == \"grammar\"
+-    assert len(clean_lesson.get(\"_integrity_removed_mcq\", [])) == 2"""
+-new = """    assert len(clean_lesson[\"pages\"]) == 5, f\"Non-destructive guard removed pages: {len(clean_lesson['pages'])}\"
+-    assert clean_lesson[\"pages\"][0][\"type\"] == \"overview\"
+-    assert clean_lesson[\"pages\"][1][\"type\"] == \"mcq\"
+-    assert clean_lesson[\"pages\"][4][\"type\"] == \"grammar\"
+-    assert \"_integrity_removed_mcq\" not in clean_lesson"""
+-if old in tests:
+-    tests = tests.replace(old, new, 1)
+-elif "Expected 3 valid pages after cleanup" in tests:
+-    raise RuntimeError("v50 test expectation anchor changed unexpectedly")
+-test_path.write_text(tests, encoding="utf-8")
+-
+-release_tests = release_test_path.read_text(encoding="utf-8")
+-release_tests = release_tests.replace(
+-    """assert len(out['pages']) == 2, out
+-assert out['pages'][0]['answer'] == 'beta'
+-assert out['pages'][1]['type'] == 'overview'
+-assert len(out.get('_integrity_removed_mcq', [])) == 3""",
+-    """assert len(out['pages']) == 5, out
+-assert out['pages'][0]['answer'] == 'beta'
+-assert out['pages'][4]['type'] == 'overview'
+-assert '_integrity_removed_mcq' not in out""",
+-)
+-release_tests = release_tests.replace(
+-    "'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',",
+-    "'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)',",
+-)
+-release_tests = release_tests.replace(
+-    "'AULAAI_INLINE_PUBLICATION_QA_V46',",
+-    "'AULAAI_INLINE_PUBLICATION_QA_V50',",
+-)
+-release_test_path.write_text(release_tests, encoding="utf-8")
++# NOTE: this patch no longer rewrites regression tests.
++# A build step that edits the assertions it is about to be judged by cannot fail,
++# so the tests it "fixed" proved nothing. The post-v50 expectations now live in the
++# test files themselves (scripts/test_universal_quality.py and
++# scripts/test_material_release_integrity_v37.py) and are asserted at rest.
+ 
+ print("Applied v50: $0.47-baseline hardening, non-destructive and zero-extra-call")
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/patch_release_hardening_v54.py repo/AulaAI-main/scripts/patch_release_hardening_v54.py
+--- pristine/AulaAI-main/scripts/patch_release_hardening_v54.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/patch_release_hardening_v54.py	2026-09-14 23:41:46.497666138 +0000
+@@ -34,19 +34,69 @@
+             _v54_collect_authoritative_phonetics(value, out)
+ 
+ 
++def _v54_compact(text):
++    """Script-agnostic identity key: fold, then drop punctuation/space/format chars."""
++    folded = _v54_fold(text)
++    return "".join(
++        ch for ch in folded
++        if not unicodedata.category(ch).startswith(("P", "Z", "C"))
++    )
++
++
+ def _v54_sync_one_string(text, phonetics):
++    """Align a bracketed transcription in prose with the authoritative `phonetic`
++    of the headword it actually annotates.
++
++    The original implementation replaced the transcription with the IPA of the
++    FIRST headword found anywhere in the sentence, in dictionary order. A sentence
++    that mentions two headwords therefore had a good chance of being rebound to the
++    wrong one, which is what produced answer-key defects of the shape
++    "<phrase A> [<IPA of phrase B>]".
++
++    The rule now is: sync only when the sentence unambiguously identifies which
++    headword the transcription belongs to.
++      * exactly one known headword in the sentence -> that one is the referent;
++      * several headwords -> only a headword immediately preceding the bracket
++        qualifies (longest wins);
++      * no adjacent headword, or a tie between different transcriptions -> leave
++        the text exactly as authored.
++    """
+     if not isinstance(text, str) or "[" not in text or "]" not in text:
+         return text
+     groups = list(re.finditer(r"\[[^\]\n]{1,100}\]", text))
+     if len(groups) != 1:
+         return text
+-    folded = _v54_fold(text)
+-    for term, authoritative in phonetics.items():
+-        if term and term in folded:
+-            current = groups[0].group(0)
+-            if _v54_fold(current) != _v54_fold(authoritative):
+-                return text[:groups[0].start()] + authoritative + text[groups[0].end():]
+-    return text
++    group = groups[0]
++
++    sentence_key = _v54_compact(text)
++    present = [
++        (term, phon) for term, phon in phonetics.items()
++        if term and _v54_compact(term) and _v54_compact(term) in sentence_key
++    ]
++    if not present:
++        return text
++
++    if len(present) == 1:
++        authoritative = present[0][1]
++    else:
++        lead_key = _v54_compact(text[: group.start()])
++        adjacent = [
++            (term, phon) for term, phon in present
++            if lead_key.endswith(_v54_compact(term))
++        ]
++        if not adjacent:
++            # Several candidate headwords and none of them annotates this bracket:
++            # guessing here is exactly the defect this function used to cause.
++            return text
++        longest = max(len(_v54_compact(term)) for term, _ in adjacent)
++        best = [phon for term, phon in adjacent if len(_v54_compact(term)) == longest]
++        if len({_v54_fold(p) for p in best}) != 1:
++            return text
++        authoritative = best[0]
++
++    if _v54_fold(group.group(0)) == _v54_fold(authoritative):
++        return text
++    return text[: group.start()] + authoritative + text[group.end():]
+ 
+ 
+ def _v54_sync_prose_phonetics(node, phonetics, parent_key=""):
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/patch_v57_build_compat.py repo/AulaAI-main/scripts/patch_v57_build_compat.py
+--- pristine/AulaAI-main/scripts/patch_v57_build_compat.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/patch_v57_build_compat.py	2026-09-14 23:38:20.751496997 +0000
+@@ -1,11 +1,16 @@
+ from pathlib import Path
+ 
++# The two fixes this step used to inject (a module-scope `re` reference and the
++# Turkish "ismi" variant in the name/gender matcher) now live directly in
++# patch_release_final_v57.py. A build step that rewrites another build step made the
++# effective runtime stack depend on execution order in a way nobody could read off
++# the source, so it is now only a verification.
+ path = Path(__file__).resolve().parent / "patch_release_final_v57.py"
+ text = path.read_text(encoding="utf-8")
+-text = text.replace("_v57r_re.subn(", "__import__('re').subn(")
+-text = text.replace(
+-    "isim|adi|adinin|name",
+-    "isim|ismi|adi|adinin|name",
+-)
+-path.write_text(text, encoding="utf-8")
+-print("Applied v57 build compatibility + Turkish name-gender matcher fix")
++missing = [
++    marker for marker in ("isim|ismi|adi|adinin|name", "__import__('re').subn(")
++    if marker not in text
++]
++if missing:
++    raise RuntimeError("v57 source no longer contains baked-in compatibility fixes: " + ", ".join(missing))
++print("Verified v57 compatibility fixes are baked into the source (no patch-of-a-patch)")
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/run_build_pipeline.py repo/AulaAI-main/scripts/run_build_pipeline.py
+--- pristine/AulaAI-main/scripts/run_build_pipeline.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/run_build_pipeline.py	2026-09-14 23:39:56.707579709 +0000
+@@ -85,10 +85,13 @@
+     "scripts/test_material_release_integrity_v37.py",
+     "scripts/test_substantive_lesson_integrity.py",
+     "scripts/test_universal_quality.py",
++    "scripts/test_publication_invariants.py",
+ ]
+ 
+ COMPILE_TARGETS = [
+     "server.py",
++    "services/publication_invariants.py",
++    "services/content_engine.py",
+     "worker.py",
+     "runtime_bootstrap.py",
+     "services/ai_engine.py",
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/scripts/test_material_release_integrity_v37.py repo/AulaAI-main/scripts/test_material_release_integrity_v37.py
+--- pristine/AulaAI-main/scripts/test_material_release_integrity_v37.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/scripts/test_material_release_integrity_v37.py	2026-09-14 23:38:08.260769632 +0000
+@@ -22,10 +22,10 @@
+ localized_bad = mcq('Choose.', ['a', 'b', 'c', 'd'], 'b', options_tr=['a', 'b'])
+ lesson = {'pages': [valid, bad_key, dupe, localized_bad, {'type': 'overview', 'text': 'Keep me'}]}
+ out = enforce_material_integrity(lesson)
+-assert len(out['pages']) == 2, out
++assert len(out['pages']) == 5, out
+ assert out['pages'][0]['answer'] == 'beta'
+-assert out['pages'][1]['type'] == 'overview'
+-assert len(out.get('_integrity_removed_mcq', [])) == 3
++assert out['pages'][4]['type'] == 'overview'
++assert '_integrity_removed_mcq' not in out
+ 
+ for opts, ans in [
+     (['дом', 'дома', 'дому', 'домом'], 'дому'),
+@@ -43,7 +43,7 @@
+ # Runtime release architecture must remain deterministic and canonical-prompt wired.
+ for marker in (
+     'def _material_release_integrity_v37(',
+-    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
++    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)',
+     '# AULAAI_CANONICAL_MATERIAL_PROMPT',
+     'from services.material_generation_prompt import build_material_prompts',
+     'system_prompt, user_prompt = build_material_prompts(',
+Only in repo/AulaAI-main/scripts: test_publication_invariants.py
