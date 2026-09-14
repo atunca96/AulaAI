@@ -284,6 +284,157 @@ def _resolve_noncharacter_separator(text: str, i: int) -> str:
     return ''
 
 
+
+# ── UNIVERSAL MIXED-SCRIPT MORPHOLOGY HARMONIZATION ─────────────────────────
+
+_LATIN_TO_CYRILLIC_HOMOGLYPHS = {
+    'a': 'а', 'A': 'А',
+    'b': 'в', 'B': 'В',
+    'c': 'с', 'C': 'С',
+    'e': 'е', 'E': 'Е',
+    'i': 'и', 'I': 'И',
+    'k': 'к', 'K': 'К',
+    'm': 'м', 'M': 'М',
+    'o': 'о', 'O': 'О',
+    'p': 'р', 'P': 'Р',
+    's': 'с', 'S': 'С',
+    't': 'т', 'T': 'Т',
+    'x': 'х', 'X': 'Х',
+    'y': 'у', 'Y': 'У',
+    'h': 'н', 'H': 'Н',
+}
+
+_CYRILLIC_TO_LATIN_HOMOGLYPHS = {
+    'а': 'a', 'А': 'A',
+    'в': 'b', 'В': 'B',
+    'с': 'c', 'С': 'C',
+    'е': 'e', 'E': 'E',
+    'і': 'i', 'І': 'I',
+    'ј': 'j', 'Ј': 'J',
+    'к': 'k', 'К': 'K',
+    'м': 'm', 'M': 'M',
+    'о': 'o', 'О': 'O',
+    'р': 'p', 'Р': 'P',
+    'т': 't', 'Т': 'T',
+    'х': 'x', 'Х': 'X',
+    'у': 'y', 'У': 'Y',
+}
+
+_LATIN_TO_GREEK_HOMOGLYPHS = {
+    'a': 'α', 'A': 'Α',
+    'b': 'β', 'B': 'Β',
+    'e': 'ε', 'E': 'Ε',
+    'h': 'η', 'H': 'Η',
+    'i': 'ι', 'I': 'Ι',
+    'k': 'κ', 'K': 'Κ',
+    'm': 'μ', 'M': 'Μ',
+    'n': 'ν', 'N': 'Ν',
+    'o': 'ο', 'O': 'Ο',
+    'p': 'ρ', 'P': 'Ρ',
+    't': 'τ', 'T': 'Τ',
+    'u': 'υ', 'U': 'Υ',
+    'x': 'χ', 'X': 'Χ',
+    'y': 'υ', 'Y': 'Υ',
+}
+
+_GREEK_TO_LATIN_HOMOGLYPHS = {
+    'α': 'a', 'Α': 'A',
+    'β': 'b', 'Β': 'B',
+    'ε': 'e', 'Ε': 'E',
+    'η': 'h', 'Η': 'H',
+    'ι': 'i', 'Ι': 'I',
+    'κ': 'k', 'Κ': 'K',
+    'μ': 'm', 'M': 'M',
+    'ν': 'n', 'Ν': 'N',
+    'ο': 'o', 'Ο': 'O',
+    'ρ': 'p', 'Ρ': 'P',
+    'τ': 't', 'Τ': 'T',
+    'υ': 'u', 'Υ': 'Y',
+    'χ': 'x', 'Χ': 'X',
+}
+
+_CYRILLIC_UNIQUE_CHARS = set("бвгджзийлпфцчшщъыьэюяБВГДЖЗИЙЛПФЦЧШЩЪЫЬЭЮЯ")
+_GREEK_UNIQUE_CHARS = set("γδζθλξπσςφψωΓΔΖΘΛΞΠΣΦΨΩάέήίόύώΆΈΉΊΌΎΏ")
+_LATIN_UNIQUE_CHARS = set("dfglqrvwzDFGLQRVWZáéíóúñçöüäÁÉÍÓÚÑÇÖÜÄ")
+
+_TOKEN_PATTERN = re.compile(
+    r'(-?[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0370-\u03FF\u0300-\u036F]+(?:-[a-zA-Z\u00C0-\u024F\u0400-\u04FF\u0370-\u03FF\u0300-\u036F]+)*-?)'
+)
+
+
+def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
+    if not seg:
+        return seg
+    cyr = [c for c in seg if '\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F']
+    lat = [c for c in seg if ('a' <= c <= 'z' or 'A' <= c <= 'Z' or '\u00C0' <= c <= '\u024F')]
+    grk = [c for c in seg if '\u0370' <= c <= '\u03FF']
+
+    if cyr and lat and not grk:
+        has_cyr_u = any(c in _CYRILLIC_UNIQUE_CHARS for c in cyr)
+        has_lat_u = any(c in _LATIN_UNIQUE_CHARS for c in lat)
+
+        if has_cyr_u and not has_lat_u:
+            target_is_cyr = True
+        elif has_lat_u and not has_cyr_u:
+            target_is_cyr = False
+        elif language and any(k in str(language).lower() for k in ('rus', 'bulg', 'ukr', 'serb', 'maced')):
+            target_is_cyr = True
+        elif language and any(k in str(language).lower() for k in ('span', 'germ', 'fren', 'ital', 'turk', 'engl', 'port')):
+            target_is_cyr = False
+        elif len(cyr) >= len(lat):
+            target_is_cyr = True
+        else:
+            target_is_cyr = False
+
+        if target_is_cyr:
+            mapping = dict(_LATIN_TO_CYRILLIC_HOMOGLYPHS)
+            if language and any(k in str(language).lower() for k in ('ukr', 'belar')):
+                mapping['i'] = 'і'
+                mapping['I'] = 'І'
+            return ''.join(mapping.get(c, c) for c in seg)
+        else:
+            return ''.join(_CYRILLIC_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+
+    if grk and lat and not cyr:
+        has_grk_u = any(c in _GREEK_UNIQUE_CHARS for c in grk)
+        has_lat_u = any(c in _LATIN_UNIQUE_CHARS for c in lat)
+        target_is_grk = (has_grk_u and not has_lat_u) or (len(grk) >= len(lat))
+        if target_is_grk:
+            return ''.join(_LATIN_TO_GREEK_HOMOGLYPHS.get(c, c) for c in seg)
+        else:
+            return ''.join(_GREEK_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+
+    return seg
+
+
+def harmonize_mixed_scripts(text: str, language: Optional[str] = None) -> str:
+    """
+    Language-agnostic, level-agnostic harmonization of accidental intra-token mixed scripts.
+    Restores unified script integrity to words and affixes (e.g. -иte -> -ите, говориte -> говорите,
+    рaбота -> работа, comеr -> comer, νεpό -> νερό) while safely preserving legitimate
+    bilingual compound words (e.g. online-курс) and multi-token phrases.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    parts = re.split(r'(`[^`\n]*`|https?://[^\s<>"]+|www\.[^\s<>"]+)', text)
+    for i in range(0, len(parts), 2):
+        chunk = parts[i]
+
+        def _replace_token(m: re.Match) -> str:
+            token = m.group(0)
+            prefix = "-" if token.startswith("-") else ""
+            suffix = "-" if token.endswith("-") and len(token) > 1 else ""
+            core = token[len(prefix):len(token) - len(suffix) if suffix else len(token)]
+            subsegments = core.split("-")
+            harmonized_subs = [_harmonize_segment(s, language=language) for s in subsegments]
+            return prefix + "-".join(harmonized_subs) + suffix
+
+        parts[i] = _TOKEN_PATTERN.sub(_replace_token, chunk)
+
+    return "".join(parts)
+
+
 def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
     """
     Safe Unicode NFC normalization preserving all legitimate linguistic marks.
@@ -292,6 +443,7 @@ def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
     known erroneous Russian forms (e.g. профѐссор -> профессор) universally.
     Resolves Unicode noncharacters (U+FFFE, U+FFFF, plane ends, U+FDD0..U+FDEF) semantically
     (restoring hyphens or spaces where corrupted) while eliminating invalid control characters.
+    Harmonizes accidental intra-token mixed scripts (-иte -> -ите, говориte -> говорите, comеr -> comer).
     """
     if not text or not isinstance(text, str):
         return text
@@ -313,7 +465,8 @@ def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
         else:
             prev_was_sep = False
             out.append(ch)
-    return "".join(out)
+    res = "".join(out)
+    return harmonize_mixed_scripts(res, language=language)
 
 
 # ── INSTRUCTIONAL SHORTHAND & METAMATERIAL PURITY ────────────────────────────
@@ -693,17 +846,28 @@ _PLACEHOLDER_DISTRACTOR_PATTERNS = (
     re.compile(r"^null$", re.IGNORECASE),
     re.compile(r"^n/a$", re.IGNORECASE),
     re.compile(r"^none\s+of\s+the\s+above$", re.IGNORECASE),
+    re.compile(r"^all\s+of\s+the\s+above$", re.IGNORECASE),
     re.compile(r"^\[object\s+object\]$", re.IGNORECASE),
+    re.compile(r"^(?:hiçbiri|hepsi|hiçbiri\s+değil|hepsi\s+doğru|doğru\s+cevap\s+yok)$", re.IGNORECASE),
+    re.compile(r"^yukarıdakilerin\s+(?:hiçbiri|hepsi)$", re.IGNORECASE),
+    re.compile(r"^(?:yanlış|uydurma|hatalı|geçersiz)$", re.IGNORECASE),
+    re.compile(r"^(?:ningun[ao]s?|tod[ao]s?|ninguna\s+de\s+las\s+anteriores)$", re.IGNORECASE),
+    re.compile(r"^(?:keine|alle)\s+der\s+genannten$", re.IGNORECASE),
+    re.compile(r"^(?:aucun[e]?|toutes)\s+des\s+r[ée]ponses$", re.IGNORECASE),
+    re.compile(r"^(?:ни\s+один\s+из\s+вышеперечисленных|все\s+вышеперечисленные)$", re.IGNORECASE),
 )
 
 _ADMITTED_NON_WORD_PATTERNS = (
-    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek)\b", re.IGNORECASE),
-    re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up)\s+(?:form|word|affix)\b", re.IGNORECASE),
-    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word)\b", re.IGNORECASE),
+    re.compile(r"\bböyle\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|biçim|çekim|kural|ek)[a-zçğıöşü]*\s+(?:yoktur|yok|bulunmaz|mevcut\s+değildir)\b", re.IGNORECASE),
+    re.compile(r"\bvar\s+olmayan\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|çekim|ek|biçim)[a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:bu\s+dilde|türkçede|rusçada|ispanyolcada|almancada|fransızcada|ingilizcede)\s+mevcut\s+değil(?:dir)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek|çekim|kural)[a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up|fabricated|fictitious)\s+(?:form|word|affix|option|stem|ending|conjugation|declension)[a-z]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word|not\s+a\s+valid\s+form|does\s+not\s+exist(?:\s+in)?|no\s+such\s+(?:word|form))\b", re.IGNORECASE),
 )
 
 _ERROR_HUNT_STEM_PATTERNS = (
-    re.compile(r"\b(?:hangisi\s+hatal[ıi]|yanl[ıi][şs]\s+yaz[ıi]lm[ıi][şs]|ge[çc]ersiz\s+olan|uydurma\s+olan)\b", re.IGNORECASE),
+    re.compile(r"\b(?:hangisi\s+hatal[ıi]|yanl[ıi][şs]\s+yaz[ıi]lm[ıi][şs][a-zçğıöşü]*|ge[çc]ersiz\s+olan|uydurma\s+olan|hatal[ıi]\s+olan)\b", re.IGNORECASE),
     re.compile(r"\b(?:which\s+(?:is\s+)?(?:incorrect|misspelled|invalid|false|wrong|an\s+error))\b", re.IGNORECASE),
 )
 
@@ -740,7 +904,11 @@ def validate_distractor_quality(
         if re.search(r"([A-Za-zА-Яа-яЁё\u0370-\u03FF\u0600-\u06FF])\1{3,}", text):
             return False, f"malformed-distractor:char-repetition:{idx}"
 
-    # 4. Check if explanation admits non-word / malformed distractor outside error-hunt items
+        # 4. Reject bracketed meta-annotations (e.g. '(uydurma)', '(yanlış)', '(false)')
+        if re.search(r"\((?:uydurma|yanlış|hatalı|geçersiz|false|wrong|fake|invented)\)", text, re.IGNORECASE):
+            return False, f"malformed-distractor:meta-annotation:{idx}"
+
+    # 5. Check if explanation admits non-word / malformed distractor outside error-hunt items
     if explanation:
         is_error_hunt = bool(prompt and any(pat.search(prompt) for pat in _ERROR_HUNT_STEM_PATTERNS))
         if not is_error_hunt:
@@ -749,6 +917,144 @@ def validate_distractor_quality(
                     return False, "malformed-distractor:admitted-non-word"
 
     return True, ""
+
+
+# ── PRONUNCIATION / IPA / FIELD ALIGNMENT ────────────────────────────────────
+
+def _has_target_script_chars(text: str, language: Optional[str]) -> bool:
+    if not text or not language:
+        return False
+    lang_clean = str(language).strip().casefold()
+    if any(k in lang_clean for k in ('rus', 'bulg', 'ukr', 'maced', 'serb', 'belar')):
+        return any('\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F' for c in text)
+    if any(k in lang_clean for k in ('greek', 'yunanca', 'ελλην')):
+        return any('\u0370' <= c <= '\u03FF' for c in text)
+    if any(k in lang_clean for k in ('arab', 'arap', 'farsi', 'persian', 'urdu')):
+        return any('\u0600' <= c <= '\u06FF' for c in text)
+    if any(k in lang_clean for k in ('hebrew', 'ibranice', 'עברית')):
+        return any('\u0590' <= c <= '\u05FF' for c in text)
+    if any(k in lang_clean for k in ('hindi', 'hint', 'sanskrit')):
+        return any('\u0900' <= c <= '\u097F' for c in text)
+    if any(k in lang_clean for k in ('japan', 'japon')):
+        return any('\u3040' <= c <= '\u30FF' or '\u4E00' <= c <= '\u9FFF' for c in text)
+    if any(k in lang_clean for k in ('chin', 'çin', 'mandarin', 'han')):
+        return any('\u4E00' <= c <= '\u9FFF' for c in text)
+    if any(k in lang_clean for k in ('korean', 'kore')):
+        return any('\uAC00' <= c <= '\uD7AF' or '\u4E00' <= c <= '\u9FFF' for c in text)
+    return False
+
+
+_PHONETIC_IPA_CHAR_PATTERN = re.compile(r'[\[\]/ˈˌːʲəʃʒθðŋɪʊæʌɔɛɣʁɾɲʎβχʔɐɨʉɯʏɤɜɑɒ]')
+_TR_SPECIFIC_CHAR_PATTERN = re.compile(r'[çğıöşüÇĞİÖŞÜ]')
+
+
+def align_lexical_fields(
+    item: Dict[str, Any],
+    language: Optional[str] = None,
+    is_tr: bool = True
+) -> Dict[str, Any]:
+    """
+    Language-agnostic alignment, extraction, and integrity repair of lexical item fields.
+    1. Extracts bracketed IPA from `term` into `phonetic` and cleans `term`.
+    2. Recovers misplaced translation text accidentally placed into `phonetic`.
+    3. Realigns swapped `example` vs `example_tr`/`example_en` by linguistic script/markers.
+    4. Realigns swapped `term` vs `translation_tr`/`translation` by target script.
+    5. Normalizes IPA brackets to standard [...] format.
+    6. Harmonizes mixed-script morphology across all text attributes.
+    """
+    if not isinstance(item, dict):
+        return item
+
+    # Harmonize mixed scripts on all string attributes
+    for k, v in list(item.items()):
+        if isinstance(v, str):
+            item[k] = harmonize_mixed_scripts(safe_unicode_normalize(v, language=language), language=language)
+
+    term = str(item.get("term") or item.get("word") or item.get("target") or "").strip()
+    phon = str(item.get("phonetic") or item.get("pronunciation") or "").strip()
+
+    # 1. Extract bracketed IPA embedded inside `term`
+    m_ipa = re.search(r'\s*(\[[^\]\n]{1,80}\]|/[^/\n]{1,80}/|\([^)\n]*[ˈˌː][^)\n]*\))\s*$', term)
+    if m_ipa:
+        extracted = m_ipa.group(1).strip("() ")
+        term = term[:m_ipa.start()].strip()
+        if "term" in item:
+            item["term"] = term
+        elif "word" in item:
+            item["word"] = term
+        elif "target" in item:
+            item["target"] = term
+        if not phon:
+            phon = extracted
+            item["phonetic"] = phon
+
+    # 2. Check if `phonetic` is actually misplaced translation text
+    tr_candidate = str(item.get("translation_tr") or item.get("translation") or item.get("meaning") or "").strip()
+    if phon and not _PHONETIC_IPA_CHAR_PATTERN.search(phon):
+        # Plain text without IPA characters
+        is_translation_leak = (
+            phon.casefold() == tr_candidate.casefold()
+            or bool(_TR_SPECIFIC_CHAR_PATTERN.search(phon))
+            or (len(phon.split()) > 1 and not re.search(r"[-·.]", phon))
+        )
+        if is_translation_leak:
+            if is_tr and not item.get("translation_tr"):
+                item["translation_tr"] = phon
+            elif not item.get("translation"):
+                item["translation"] = phon
+            item["phonetic"] = ""
+            phon = ""
+
+    # 3. Swap checks for non-Latin target scripts (Russian, Greek, Arabic, etc.)
+    if language and _has_target_script_chars("тест", language):
+        # Check term vs translation_tr
+        tr_val = str(item.get("translation_tr") or item.get("translation") or "").strip()
+        if term and tr_val:
+            term_has_target = _has_target_script_chars(term, language)
+            tr_has_target = _has_target_script_chars(tr_val, language)
+            if not term_has_target and tr_has_target:
+                target_key = "term" if "term" in item else ("word" if "word" in item else "target")
+                tr_key = "translation_tr" if "translation_tr" in item else "translation"
+                item[target_key], item[tr_key] = tr_val, term
+                term, tr_val = tr_val, term
+
+        # Check example vs example_tr
+        ex = str(item.get("example") or "").strip()
+        ex_tr = str(item.get("example_tr") or "").strip()
+        if ex and ex_tr:
+            ex_has_target = _has_target_script_chars(ex, language)
+            ex_tr_has_target = _has_target_script_chars(ex_tr, language)
+            if not ex_has_target and ex_tr_has_target:
+                item["example"], item["example_tr"] = ex_tr, ex
+
+        # Check example vs example_en
+        ex_en = str(item.get("example_en") or "").strip()
+        if ex and ex_en:
+            ex_has_target = _has_target_script_chars(ex, language)
+            ex_en_has_target = _has_target_script_chars(ex_en, language)
+            if not ex_has_target and ex_en_has_target:
+                item["example"], item["example_en"] = ex_en, ex
+
+    # 4. Swap checks for Latin target scripts with Turkish instructional track
+    elif is_tr and language and not _has_target_script_chars("тест", language):
+        ex = str(item.get("example") or "").strip()
+        ex_tr = str(item.get("example_tr") or "").strip()
+        if ex and ex_tr:
+            ex_has_tr = bool(_TR_SPECIFIC_CHAR_PATTERN.search(ex))
+            ex_tr_has_tr = bool(_TR_SPECIFIC_CHAR_PATTERN.search(ex_tr))
+            ex_has_target_marks = bool(re.search(r"[¿¡ñßàèéêëòóôöùúûü]", ex, re.IGNORECASE))
+            ex_tr_has_target_marks = bool(re.search(r"[¿¡ñßàèéêëòóôöùúûü]", ex_tr, re.IGNORECASE))
+            if ex_has_tr and not ex_tr_has_tr and ex_tr_has_target_marks:
+                item["example"], item["example_tr"] = ex_tr, ex
+
+    # 5. Normalize IPA brackets format
+    if phon:
+        p_clean = phon.strip(" ,;.")
+        if not p_clean.startswith("["):
+            p_clean = "[" + p_clean.strip("[]/") + "]"
+        item["phonetic"] = p_clean
+
+    return item
 
 
 def validate_mcq(page: Any) -> Tuple[bool, str]:
@@ -842,14 +1148,18 @@ def enforce_release_hard_gate(data: Any, language: str) -> Any:
 
 
 def _recursive_clean_unicode(node: Any, language: Optional[str] = None, material_language: Optional[str] = "tr") -> Any:
-    """Recursively apply safe NFC Unicode normalization and instructional shorthand sanitization to all strings."""
+    """Recursively apply safe NFC Unicode normalization, instructional shorthand sanitization, and lexical field alignment."""
     if isinstance(node, str):
         cleaned = safe_unicode_normalize(node, language=language)
         if material_language and str(material_language).strip().casefold() not in ("en", "english", "ingilizce"):
             cleaned = sanitize_instructional_shorthand(cleaned, instructional_language=str(material_language).strip().casefold())
         return cleaned
     if isinstance(node, dict):
-        return {k: _recursive_clean_unicode(v, language=language, material_language=material_language) for k, v in node.items()}
+        is_tr = bool(material_language and str(material_language).strip().casefold() in ("tr", "turkish", "türkçe"))
+        d = {k: _recursive_clean_unicode(v, language=language, material_language=material_language) for k, v in node.items()}
+        if any(k in d for k in ("term", "word", "target", "phonetic", "pronunciation", "example")):
+            d = align_lexical_fields(d, language=language, is_tr=is_tr)
+        return d
     if isinstance(node, list):
         return [_recursive_clean_unicode(item, language=language, material_language=material_language) for item in node]
     return node

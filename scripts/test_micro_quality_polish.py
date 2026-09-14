@@ -30,6 +30,8 @@ from services.material_quality_guard import (
     enforce_material_integrity,
     safe_unicode_normalize,
     _script_gate,
+    align_lexical_fields,
+    harmonize_mixed_scripts,
 )
 from services.pdf_renderer_v12 import _kind, _localized_title, TYPE_LABELS, _e
 
@@ -366,11 +368,184 @@ def test_semantic_unicode_noncharacter_resolution():
     assert safe_unicode_normalize("профѐссор") == "профессор"
 
 
+def test_mixed_script_morphology_harmonization():
+    print("  -> Testing language-agnostic mixed-script morphology harmonization...")
+
+    # Cyrillic tokens with Latin homoglyphs
+    assert safe_unicode_normalize("-иte") == "-ите"
+    assert safe_unicode_normalize("-ИТE") == "-ИТЕ"
+    assert safe_unicode_normalize("говориte") == "говорите"
+    assert safe_unicode_normalize("рaбота") == "работа"
+    assert safe_unicode_normalize("Вы говориte по-русски?") == "Вы говорите по-русски?"
+    assert safe_unicode_normalize("Окончания: -иte ve -ат/-ят") == "Окончания: -ите ve -ат/-ят"
+
+    # Latin tokens with Cyrillic homoglyphs
+    assert safe_unicode_normalize("comеr") == "comer"
+    assert safe_unicode_normalize("El verbo comеr es regular.") == "El verbo comer es regular."
+
+    # Greek tokens with Latin homoglyphs
+    assert safe_unicode_normalize("νεpό") == "νερό"
+
+    # Bilingual compound words & legitimate Latin loan words PRESERVED
+    assert safe_unicode_normalize("online-курс") == "online-курс"
+    assert safe_unicode_normalize("Wi-Fi-сеть") == "Wi-Fi-сеть"
+    assert safe_unicode_normalize("c-a-t") == "c-a-t"
+    assert safe_unicode_normalize("по-русски") == "по-русски"
+    assert safe_unicode_normalize("CEFR B1") == "CEFR B1"
+
+    # HTML / story layer via _e preserves and harmonizes
+    rendered = _e("-иte & comеr")
+    assert "-ите &amp; comer" == rendered
+
+
+def test_mcq_distractor_authenticity_and_admitted_non_words():
+    print("  -> Testing MCQ distractor authenticity & non-word rejection...")
+
+    # 1. Explanations admitting non-words or nonexistent forms (Turkish & English)
+    opts = ["площадь", "площади", "площадью", "площаде"]
+    expl_tr_admitted = "D seçeneğinde verilen 'площаде' böyle bir kelime yoktur; 3. çekim dişilleri -е eki almaz."
+    ok, why = validate_distractor_quality(opts, prompt="Doğru formu seçiniz.", explanation=expl_tr_admitted)
+    assert not ok and "admitted-non-word" in why
+
+    expl_tr_varolmayan = "'площаде' var olmayan bir formdur."
+    ok, why = validate_distractor_quality(opts, prompt="Doğru formu seçiniz.", explanation=expl_tr_varolmayan)
+    assert not ok and "admitted-non-word" in why
+
+    expl_tr_mevcut = "Böyle bir çekim Rusçada mevcut değildir."
+    ok, why = validate_distractor_quality(opts, prompt="Doğru formu seçiniz.", explanation=expl_tr_mevcut)
+    assert not ok and "admitted-non-word" in why
+
+    expl_en_admitted = "Option D 'площаде' is an invented non-word that does not exist in Russian."
+    ok, why = validate_distractor_quality(opts, prompt="Choose the correct form.", explanation=expl_en_admitted)
+    assert not ok and "admitted-non-word" in why
+
+    # Legitimate error-hunt items ALLOWED to identify errors
+    error_hunt_prompt = "Aşağıdaki seçeneklerden hangisi yanlış yazılmıştır?"
+    ok, why = validate_distractor_quality(opts, prompt=error_hunt_prompt, explanation=expl_tr_admitted)
+    assert ok, f"Expected error hunt question to pass, got: {why}"
+
+    # 2. Lazy / placeholder distractors REJECTED across languages
+    lazy_samples = [
+        ["der", "die", "das", "None of the above"],
+        ["der", "die", "das", "All of the above"],
+        ["der", "die", "das", "Hiçbiri"],
+        ["der", "die", "das", "Yukarıdakilerin hepsi"],
+        ["der", "die", "das", "Doğru cevap yok"],
+        ["der", "die", "das", "uydurma"],
+        ["der", "die", "das", "yanlış"],
+        ["el", "la", "los", "ninguna de las anteriores"],
+        ["le", "la", "les", "toutes des réponses"],
+    ]
+    for bad_opts in lazy_samples:
+        ok, why = validate_distractor_quality(bad_opts, prompt="Select article")
+        assert not ok and "placeholder" in why, f"Failed to reject lazy distractor {bad_opts}: {why}"
+
+    # 3. Meta-annotated options (e.g. '(uydurma)', '(yanlış)') REJECTED
+    annotated = ["der", "die", "das", "den (uydurma)"]
+    ok, why = validate_distractor_quality(annotated, prompt="Select article")
+    assert not ok and "meta-annotation" in why
+
+    # 4. Formative MCQ validation rejecting admitted non-words
+    bad_page = {
+        "type": "mcq",
+        "prompt": "Hangi form doğrudur?",
+        "options": ["площадь", "площади", "площадью", "площаде"],
+        "answer": "площадь",
+        "explanation": expl_tr_admitted,
+    }
+    good_page = {
+        "type": "mcq",
+        "prompt": "Hangi form doğrudur?",
+        "options": ["площадь", "площади", "площадью", "площадям"],
+        "answer": "площадь",
+        "explanation": "A seçeneği Yalın Hâl tekil formudur.",
+    }
+    ok_bad, why_bad = validate_mcq(bad_page)
+    assert not ok_bad and "admitted-non-word" in why_bad
+    ok_good, why_good = validate_mcq(good_page)
+    assert ok_good, f"Expected valid MCQ to pass, got: {why_good}"
+
+
+def test_pronunciation_ipa_field_alignment():
+    print("  -> Testing pronunciation / IPA / field alignment & integrity...")
+
+    # 1. Extract bracketed IPA embedded in term
+    item_ipa = {"term": "здравствуйте [ˈzdrastvujtʲe]", "phonetic": "", "translation_tr": "merhaba"}
+    aligned = align_lexical_fields(item_ipa, language="Russian", is_tr=True)
+    assert aligned["term"] == "здравствуйте"
+    assert aligned["phonetic"] == "[ˈzdrastvujtʲe]"
+    assert aligned["translation_tr"] == "merhaba"
+
+    # Slash IPA in term
+    item_slash = {"term": "вода (/vɐˈda/)", "phonetic": "", "translation_tr": "su"}
+    aligned_slash = align_lexical_fields(item_slash, language="Russian", is_tr=True)
+    assert aligned_slash["term"] == "вода"
+    assert aligned_slash["phonetic"] == "[vɐˈda]"
+
+    # 2. Misplaced translation in phonetic recovered and cleaned
+    item_phon_leak = {"term": "спасибо", "phonetic": "teşekkürler", "translation_tr": ""}
+    aligned_leak = align_lexical_fields(item_phon_leak, language="Russian", is_tr=True)
+    assert aligned_leak["phonetic"] == ""
+    assert aligned_leak["translation_tr"] == "teşekkürler"
+
+    # 3. Realigning swapped example and example_tr (Cyrillic target, Turkish instructional)
+    item_swapped_ex = {
+        "term": "книга",
+        "example": "Bu bir kitaptır.",
+        "example_tr": "Это книга."
+    }
+    aligned_ex = align_lexical_fields(item_swapped_ex, language="Russian", is_tr=True)
+    assert aligned_ex["example"] == "Это книга."
+    assert aligned_ex["example_tr"] == "Bu bir kitaptır."
+
+    # 4. Realigning swapped term and translation_tr
+    item_swapped_term = {
+        "term": "günaydın",
+        "translation_tr": "доброе утро"
+    }
+    aligned_term = align_lexical_fields(item_swapped_term, language="Russian", is_tr=True)
+    assert aligned_term["term"] == "доброе утро"
+    assert aligned_term["translation_tr"] == "günaydın"
+
+    # 5. Normalizing IPA bracket formatting & stripping trailing punctuation
+    item_punct = {"term": "кот", "phonetic": "kot,"}
+    aligned_punct = align_lexical_fields(item_punct, language="Russian", is_tr=True)
+    assert aligned_punct["phonetic"] == "[kot]"
+
+    # 6. Integrated pass in enforce_material_integrity
+    full_lesson = {
+        "pages": [
+            {
+                "type": "vocabulary",
+                "items": [
+                    {
+                        "term": "говорить [ɡəvɐˈrʲitʲ]",
+                        "phonetic": "",
+                        "translation_tr": "konuşmak",
+                        "example": "Biz Rusça konuşuyoruz.",
+                        "example_tr": "Мы говориte по-русски."
+                    }
+                ]
+            }
+        ]
+    }
+    cleaned_lesson = enforce_material_integrity(full_lesson, language="Russian", material_language="tr")
+    cleaned_item = cleaned_lesson["pages"][0]["items"][0]
+    assert cleaned_item["term"] == "говорить"
+    assert cleaned_item["phonetic"] == "[ɡəvɐˈrʲitʲ]"
+    # Note: example and example_tr swapped back, and '-иte' harmonized to '-ите'!
+    assert cleaned_item["example"] == "Мы говорите по-русски."
+    assert cleaned_item["example_tr"] == "Biz Rusça konuşuyoruz."
+
+
 def run_all():
     print("[TEST-SUITE] Starting Language-Agnostic Micro-Quality Polish Tests...")
     test_grammar_shorthand_leakage_and_normalization()
     test_rendered_example_shorthand_normalization()
     test_semantic_unicode_noncharacter_resolution()
+    test_mixed_script_morphology_harmonization()
+    test_mcq_distractor_authenticity_and_admitted_non_words()
+    test_pronunciation_ipa_field_alignment()
     test_unrelated_target_language_content_preserved()
     test_section_label_and_title_localization()
     test_morphology_aware_terminology_deduplication()

@@ -19,6 +19,17 @@ if TAG not in guard:
 
 # AULAAI_MICRO_QUALITY_POLISH
 try:
+    _v58_previous_safe_unicode = safe_unicode_normalize
+except NameError:
+    _v58_previous_safe_unicode = lambda t, l=None: str(t or "")
+
+
+def safe_unicode_normalize(text: str, language=None) -> str:
+    res = _v58_previous_safe_unicode(text, language=language)
+    return harmonize_mixed_scripts(res, language=language)
+
+
+try:
     _v58_previous_meta = sanitize_instructional_metalanguage
 except NameError:
     _v58_previous_meta = lambda v, m="tr": str(v or "")
@@ -50,6 +61,30 @@ def validate_mcq(page):
     prompt = _norm(page.get("prompt") or page.get("question") or page.get("text"))
     expl = _norm(page.get("explanation") or page.get("explanation_tr") or page.get("explanation_en") or "")
     return validate_distractor_quality(opts, prompt=prompt, explanation=expl)
+
+
+try:
+    _v58_previous_integrity = enforce_material_integrity
+except NameError:
+    _v58_previous_integrity = lambda d, l=None, m="tr": d
+
+
+def enforce_material_integrity(data, language=None, material_language="tr"):
+    out = _v58_previous_integrity(data, language=language, material_language=material_language)
+    if not isinstance(out, dict):
+        return out
+    pages = out.get("pages")
+    if isinstance(pages, list):
+        is_tr = bool(str(material_language or "").strip().casefold() in ("tr", "turkish", "türkçe"))
+        for page in pages:
+            if isinstance(page, dict):
+                for container in ("items", "vocabulary", "words", "examples", "rules", "comparisons"):
+                    sub = page.get(container)
+                    if isinstance(sub, list):
+                        for idx, item in enumerate(sub):
+                            if isinstance(item, dict):
+                                sub[idx] = align_lexical_fields(item, language=language, is_tr=is_tr)
+    return out
 '''
     guard_path.write_text(guard, encoding="utf-8")
     print("Applied micro-quality polish to material_quality_guard.py")
@@ -63,6 +98,8 @@ from services.material_quality_guard import (
     safe_unicode_normalize as _v58_safe_unicode,
     sanitize_instructional_shorthand as _v58_shorthand,
     deduplicate_morphological_parentheticals as _v58_dedup,
+    align_lexical_fields as _v58_align_fields,
+    harmonize_mixed_scripts as _v58_harmonize,
 )
 
 _v58_previous_pick = _pick
@@ -89,6 +126,20 @@ def _v58_story(self, fragment: str, *args, **kwargs):
     return _v58_previous_story(self, fragment, *args, **kwargs)
 
 AcademicPaginator._story = _v58_story
+
+_v58_previous_normalize_pages = _normalize_pages
+
+def _normalize_pages(content):
+    pages = _v58_previous_normalize_pages(content)
+    for p in pages:
+        if isinstance(p, dict):
+            for k in ('items', 'vocabulary', 'words', 'rules', 'comparisons'):
+                sub = p.get(k)
+                if isinstance(sub, list):
+                    for idx, item in enumerate(sub):
+                        if isinstance(item, dict):
+                            sub[idx] = _v58_align_fields(item)
+    return pages
 '''
     renderer_path.write_text(renderer, encoding="utf-8")
     print("Applied micro-quality polish to pdf_renderer_v12.py")

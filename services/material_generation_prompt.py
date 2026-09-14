@@ -46,12 +46,13 @@ Both tracks must express the same proposition, entities, polarity, quantity, rol
 <language_integrity>
 - Use authentic canonical spelling, morphology, punctuation and legitimate writing systems for {language}.
 - In Cyrillic scripts (e.g., Russian), use standard canonical Cyrillic orthography without grave accents (e.g., 'профессор', never 'профѐссор'); Russian standardly uses acute accents for dictionary stress marking when necessary, never grave accents (ѐ, Ѐ, ѝ, Ѝ).
-- Preserve valid diacritics, stress/tone marks and required separators. Emit NFC Unicode only; no replacement characters, noncharacters, controls, soft-hyphen artifacts, severed combining marks or accidental mixed-script homoglyphs.
+- Preserve valid diacritics, stress/tone marks and required separators. Emit NFC Unicode only; no replacement characters, noncharacters, controls, soft-hyphen artifacts, severed combining marks or accidental mixed-script homoglyphs. Intra-token script purity: Every word, stem, and affix must have a unified script; never mix Latin and Cyrillic/Greek characters inside the same token (e.g., in Russian write '-ите', never '-иte'; in Spanish write 'comer', never 'comеr').
 - Multiscript languages remain naturally multiscript. IPA, CEFR codes, URLs, proper names, abbreviations and explicitly labeled transliteration are legitimate.
 </language_integrity>
 
 <pronunciation>
 Use one authoritative learner-facing pronunciation system for a given function.
+- Field alignment: `term` must contain ONLY the clean target headword, grapheme, or phrase — NEVER append IPA brackets, pronunciation guides, or translations into `term` (e.g., write 'здравствуйте', never 'здравствуйте [ˈzdrastvujtʲe]'). `phonetic` must contain ONLY valid standard IPA in brackets (e.g., '[ˈzdrastvujtʲe]') — NEVER place translations, definitions, or instructional language text in `phonetic`.
 - `phonetic` is authoritative whenever pronunciation is pedagogically required or a pronunciation column is present.
 - Use standard IPA only in `phonetic`; never learner respellings, capitalization-for-stress, pseudo-phonetic Latin approximations, or a second competing pronunciation representation in prose.
 - Do not duplicate or contradict `phonetic` inside translation/meaning/gloss fields.
@@ -94,6 +95,7 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
   * Distractors must be valid forms that a learner actually encounters in real {language} content, representing authentic learner misconceptions (e.g., applying a real form from another declension, gender, or tense, or an incorrect case governed by a competing preposition), never fabricated forms invented solely to be wrong.
   * Outside explicit error-detection questions (where the stem specifically asks the learner to spot a misspelled or incorrect word), no option may be a nonexistent form.
   * If an explanation describes any option as "uydurma", "geçersiz", "invented", or "non-word", the item is invalid and must be repaired into genuine competing forms.
+  * Never use placeholder or lazy distractors (such as 'None of the above', 'All of the above', 'Hiçbiri', 'Hepsi', 'Doğru cevap yok', or '(uydurma)').
   * Equal surface plausibility: Keep option lengths, formatting, and complexity balanced so the correct answer does not stand out by superficial traits.
 </mcq_quality>
 
