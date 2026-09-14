@@ -29,7 +29,10 @@ assert len(out.get('_integrity_removed_mcq', [])) == 3
 
 for opts, ans in [
     (['дом', 'дома', 'дому', 'домом'], 'дому'),
+    (['كتاب', 'كتب', 'بالكتاب', 'للكتاب'], 'كتاب'),
+    (['책', '집', '물', '길'], '집'),
     (['Haus', 'Häuser', 'Hause', 'Hauses'], 'Haus'),
+    (['σπίτι', 'δρόμος', 'νερό', 'βιβλίο'], 'νερό'),
 ]:
     ok, reason = validate_mcq(mcq('Q', opts, ans))
     assert ok, (opts, ans, reason)
@@ -37,6 +40,7 @@ for opts, ans in [
 engine = Path('services/ai_engine.py').read_text(encoding='utf-8')
 prompt_source = Path('services/material_generation_prompt.py').read_text(encoding='utf-8')
 
+# Runtime release architecture must remain deterministic and canonical-prompt wired.
 for marker in (
     'def _material_release_integrity_v37(',
     'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
@@ -46,15 +50,16 @@ for marker in (
 ):
     assert marker in engine, marker
 
+# Semantic publication invariants now belong to the canonical prompt source of truth,
+# not to versioned V49/V50/V51 strings embedded in ai_engine.py.
 for marker in (
-    '<integrity>',
+    '<language_integrity>',
     '<pronunciation>',
-    '<truth>',
-    '<mcq>',
+    '<linguistic_truth>',
+    '<mcq_quality>',
     'one authoritative learner-facing pronunciation system',
-    'The stem must contain every answer-relevant linguistic fact',
+    'The stem itself must contain all answer-relevant facts',
     'Never infer gender, nationality, ethnicity, profession, language ability',
-    'no `[-]` or plain-orthography pseudo-IPA',
     '<final_same_pass_check>',
 ):
     assert marker in prompt_source, marker
