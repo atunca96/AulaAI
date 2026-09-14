@@ -48,6 +48,7 @@ Both tracks must express the same proposition, entities, polarity, quantity, rol
 
 <pronunciation>
 Pronunciation data is publication-critical. Never guess IPA from spelling, transliteration, orthographic decomposition or analogy.
+- Maintain one authoritative learner-facing pronunciation system for a given function.
 - `phonetic` is authoritative whenever pronunciation is pedagogically required or a pronunciation column is present.
 - Use standard IPA only in `phonetic`; never learner respellings, capitalization-for-stress, pseudo-phonetic Latin approximations, or a second competing pronunciation representation in prose.
 - Prefer broad, standard citation-form IPA suitable for learners over unnecessarily narrow or speculative phonetic detail.
@@ -87,7 +88,7 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
 - Birthplace/residence never establishes nationality or language ability. Workplace never establishes profession unless the stem explicitly states the profession-defining action/fact being tested.
 - Re-solve each MCQ from stem and options. `answer`, `correct_index` (when present), and explanation must converge on the same option.
 - Distractors must be real, correctly formed and natural — never malformed inventions created only to be wrong.
-- If the stem asks for a meaning or translation in one instructional language, every semantic answer option and the corresponding answer-key wording must use that same instructional language. Never ask for a Turkish meaning with English options, or vice versa, unless cross-language contrast is itself the skill being tested.
+- If `prompt_en` or `prompt_tr` asks for a meaning/translation in that instructional language, all semantic answer options and the keyed answer must be in that same instructional language unless the options are intentionally testing target-language forms. Never mix an instructional-language translation question with unlabeled answer choices from another instructional language.
 </mcq_quality>
 
 <instructional_cleanliness>
@@ -167,7 +168,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; factual phonology and standard IPA; lexical pronunciation transcriptions against their exact words; one pronunciation system; localized instructional language; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
+Verify: canonical spelling/Unicode; every lexical transcription against its exact written form and standard spoken pronunciation; factual phonology and standard IPA; no inserted segments or unjustified length/gemination; one pronunciation system; localized instructional language and same-language semantic MCQ options; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
 Return valid JSON only.
 </final_same_pass_check>"""
 
