@@ -1,16 +1,18 @@
 from pathlib import Path
 import copy
-import runpy
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Docker already runs this V55 test immediately after the V55 patch. Reuse that
-# stable hook to apply the final zero-LLM cleanup without changing the proven
-# build/generation call path.
-runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56.py"), run_name="__main__")
+# NOTE: this file must only exercise V55 behavior. It previously also ran
+# scripts/patch_release_cleanup_v56.py as a side effect (see incident notes in
+# scripts/patch_release_cleanup_v56.py) which meant V56 was silently re-applied
+# on every build even when it was not listed in the Dockerfile and even after
+# it was reverted. A test script must never mutate source files as a side
+# effect of being imported/run. V56 is now wired explicitly and only in the
+# Dockerfile, as its own visible step, if/when it is intentionally enabled.
 
 from services.material_quality_guard import enforce_material_integrity, sanitize_instructional_metalanguage
 from services.pdf_renderer_v12 import _v54_display_phonetic, _v54_pdf_unsafe_mcq
@@ -66,4 +68,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-    runpy.run_path(str(ROOT / "scripts" / "test_release_cleanup_v56.py"), run_name="__main__")
