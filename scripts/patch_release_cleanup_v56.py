@@ -124,13 +124,31 @@ def _v56_impossible_russian_option(value):
     return compact in {"городи", "ребеноки", "ребёноки"}
 
 
+def _v56_is_russian(language):
+    return "russian" in str(language or "").casefold() or "rusça" in str(language or "").casefold() or "рус" in str(language or "").casefold()
+
+
 def _v56_clean_node(node, language="", parent_key=""):
-    is_russian = "russian" in str(language or "").casefold() or "rusça" in str(language or "").casefold() or "рус" in str(language or "").casefold()
+    """Recursively apply safe, in-place textual repairs.
+
+    Returns (cleaned, unsafe). 'unsafe' is only ever allowed to reach the
+    caller (and therefore cause deletion) when the dict being processed IS
+    itself an assessment/mcq item - in this codebase one page == one MCQ, so
+    dropping such a dict drops exactly that one question and nothing else.
+    An unrepairable orthographic defect found anywhere inside a
+    vocabulary/grammar/dialogue/examples/overview page must never delete
+    that page: this function still repairs what it safely can, but a defect
+    it cannot repair is left as-is rather than used to justify deleting the
+    surrounding substantive content. This is what actually prevents a single
+    bad token from emptying a lesson/topic.
+    """
+    is_russian = _v56_is_russian(language)
     if isinstance(node, str):
         if parent_key in _V56_TR_KEYS or str(parent_key).endswith("_tr"):
             return _v56_turkish_text(node), False
         if is_russian and parent_key in _V56_TARGET_KEYS:
-            return _v56_russian_text(node)
+            cleaned, unsafe = _v56_russian_text(node)
+            return cleaned, unsafe
         return node, False
     if isinstance(node, list):
         out = []
@@ -143,8 +161,13 @@ def _v56_clean_node(node, language="", parent_key=""):
     if not isinstance(node, dict):
         return node, False
 
-    # High-confidence fabricated distractor => drop whole item later.
-    if is_russian and str(node.get("type") or "").strip().casefold() == "mcq":
+    # A dict is only ever treated as a droppable assessment unit when its own
+    # declared type is "mcq". This intentionally does NOT include dicts that
+    # merely contain an mcq-like child somewhere below them.
+    node_is_mcq_item = is_russian and str(node.get("type") or "").strip().casefold() == "mcq"
+
+    # High-confidence fabricated distractor => drop this (single) MCQ item later.
+    if node_is_mcq_item:
         opts = node.get("options") or node.get("choices") or []
         if isinstance(opts, list) and any(_v56_impossible_russian_option(x) for x in opts if isinstance(x, str)):
             return None, True
@@ -154,7 +177,12 @@ def _v56_clean_node(node, language="", parent_key=""):
     for key, value in node.items():
         cleaned, bad = _v56_clean_node(value, language, str(key))
         out[key] = cleaned
-        unsafe = unsafe or bad
+        # Do NOT let a child's unsafe flag escape this dict unless this dict
+        # is itself the mcq item being evaluated. This is the boundary that
+        # stops "one bad token in one field" from turning into "delete this
+        # whole vocabulary/grammar/dialogue page".
+        if node_is_mcq_item:
+            unsafe = unsafe or bad
     return out, unsafe
 
 
@@ -170,7 +198,16 @@ def _v56_release_cleanup(data, language=""):
     kept = []
     removed = []
     for idx, page in enumerate(pages):
+        page_type = str(page.get("type") or "").strip().casefold() if isinstance(page, dict) else ""
         cleaned, unsafe = _v56_clean_node(page, language)
+        # Defense in depth, independent of the mcq-only gate inside
+        # _v56_clean_node: this cleanup layer is only ever allowed to remove
+        # a page whose OWN declared type is "mcq". Substantive content pages
+        # (vocabulary/grammar/dialogue/examples/overview/...) are never
+        # dropped here, no matter what unsafe signal was computed for them.
+        if page_type != "mcq":
+            kept.append(cleaned if cleaned is not None else page)
+            continue
         if cleaned is None or unsafe:
             removed.append({"index": idx, "reason": "v56-publication-safety"})
             continue
@@ -194,20 +231,25 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
 
 renderer = renderer_path.read_text(encoding="utf-8")
 if TAG not in renderer:
+    renderer = renderer.replace(
+        "                content = _normalize_content(top_content)\n",
+        "                content = _normalize_content(top_content, course_lang)\n",
+        1,
+    )
     renderer += r'''
 
 # AULAAI_RELEASE_CLEANUP_V56
 from services.material_quality_guard import _v56_release_cleanup as _v56_publication_cleanup
 _v56_previous_normalize_content = _normalize_content
 
-def _normalize_content(raw):
+def _normalize_content(raw, language=None):
     normalized = _v56_previous_normalize_content(raw)
-    # Renderer has no reliable language argument here. Apply only language-neutral
-    # Turkish label cleanup and exact safe lexical corrections via a shallow helper.
-    if isinstance(normalized, dict):
-        # Russian is the only target needing the exact typo/mixed-script corrections
-        # below; detection happens from the content itself without changing generation.
-        return _v56_publication_cleanup(normalized, "Russian")
+    # 'language' is the actual per-course/topic target language (e.g. course_lang
+    # from render_course_pdf). Russian-specific corrections must only fire when
+    # the content is confirmed Russian - never hardcoded, since this renderer
+    # path handles all 14 supported languages.
+    if isinstance(normalized, dict) and language:
+        return _v56_publication_cleanup(normalized, language)
     return normalized
 '''
     renderer_path.write_text(renderer, encoding="utf-8")
