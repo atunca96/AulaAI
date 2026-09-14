@@ -1,0 +1,104 @@
++                "module": item.get("module"),
+                 "material_section": str(item.get("material_section", "")).strip()[:100],
+                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
+             }
+@@ -1817,6 +1829,7 @@
+   "data": [
+     {{
+       "type": "mcq",
++      "module": "Integer MODULE number this question is drawn from, when the source is a multi-module review syllabus; omit otherwise",
+       "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
+       "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
+       "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
+@@ -2619,6 +2632,7 @@
+                                 "translation_tr": str(c.get("translation_tr") or "").strip(),
+                                 "note": str(c.get("note") or c.get("explanation") or "").strip(),
+                                 "note_tr": str(c.get("note_tr") or "").strip(),
++                                "scope": str(c.get("scope") or "").strip().lower(),
+                                 "source_evidence": ev,
+                                 "source_taught": str(c.get("source_taught") or tgt).strip(),
+                                 "provenance": prov
+@@ -2649,6 +2663,7 @@
+                                 "example_tr": str(r.get("example_tr") or "").strip(),
+                                 "analysis": str(r.get("analysis") or "").strip(),
+                                 "analysis_tr": str(r.get("analysis_tr") or "").strip(),
++                                "scope": str(r.get("scope") or "").strip().lower(),
+                                 "source_evidence": ev,
+                                 "source_taught": str(r.get("source_taught") or r_name).strip(),
+                                 "provenance": prov
+@@ -3013,201 +3028,214 @@
+     return has_core
+ 
+ def _ensure_minimum_lesson_structure(lesson_dict: dict, topic: str, language: str, level: str = 'A1', material_language: str = "tr") -> dict:
+-    """Ensures a substantive lesson has at least 3 pages by appending complementary pages if needed."""
++    """Keep every substantive page a real generation produced; never pad a real
++    lesson with synthesized filler.
++
++    Padding a partially successful lesson with generic scaffolding used to publish
++    structurally valid but pedagogically empty pages (topic titles used as
++    vocabulary rows, "Basic form", CEFR-meta MCQs). A short real lesson plus an
++    explicit review notice is honest; a padded one is not.
++    """
+     if not isinstance(lesson_dict, dict) or not isinstance(lesson_dict.get("pages"), list):
+         return synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
+ 
+     pages = [p for p in lesson_dict["pages"] if isinstance(p, dict) and _is_substantive_page(p)]
++    lesson_dict["pages"] = pages
+     if len(pages) >= 3:
+-        lesson_dict["pages"] = pages
+         return lesson_dict
+ 
+-    # Check missing components
+-    has_overview = any(p.get("type") == "overview" or len(str(p.get("text", ""))) >= 20 for p in pages)
+-    has_mcq = any(p.get("type") == "mcq" or p.get("prompt") for p in pages)
+-
+-    synth = synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
+-    synth_pages = synth.get("pages", [])
+-
+-    if not has_overview:
+-        overview_page = next((p for p in synth_pages if p.get("type") == "overview"), None)
+-        if overview_page:
+-            pages.insert(0, overview_page)
+-
+-    if not has_mcq:
+-        mcq_page = next((p for p in synth_pages if p.get("type") == "mcq"), None)
+-        if mcq_page:
+-            pages.append(mcq_page)
+-
+-    # If still < 3, add whatever is available from synthesized lesson
+-    for sp in synth_pages:
+-        if len(pages) >= 3:
+-            break
+-        if not any(p.get("type") == sp.get("type") for p in pages):
+-            pages.append(sp)
++    if pages:
++        lesson_dict["_review_required"] = True
++        lesson_dict["_review_reason"] = "incomplete-generation"
++        if not any(p.get("type") == "notice" for p in pages):
++            pages.append(_review_notice_page(topic, language, level, material_language, reason="incomplete"))
++        return lesson_dict
+ 
+-    lesson_dict["pages"] = pages
+-    return lesson_dict
++    return synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
+ 
+-def synthesize_substantive_lesson(topic: str, topic_type: str, language: str, level: str = 'A1', source_text: str = None, material_language: str = "tr") -> dict:
+-    """
+-    Deterministic, guaranteed substantive fallback lesson generator ($0 LLM cost).
+-    Produces 4 rich pedagogical pages (Overview, Vocabulary/Forms, Grammar/Mechanics, Formative Assessment)
+-    with 100% full bilingual localization adhering to CEFR standards.
+-    """
+-    t_clean = topic.strip() or "Core Concepts"
+-    is_tr = (material_language in ["tr", "all"])
+ 
+-    src_excerpt = ""
+-    if source_text and isinstance(source_text, str) and len(source_text.strip()) > 30:
+-        lines = [line.strip() for line in source_text.splitlines() if line.strip() and not line.strip().startswith("#")]
+-        if lines:
+-            src_excerpt = "\n".join(f"• {line}" for line in lines[:4])
++def _review_notice_page(topic: str, language: str, level: str, material_language: str = "tr", reason: str = "unavailable") -> dict:
++    """An honest, clearly-labelled teacher-facing notice.
+ 
+-    overview_text_en = (
+-        f"• Comprehensive pedagogical guide to '{t_clean}' in {language} for adult CEFR {level} learners.\n"
+-        f"• Focuses on high-frequency communicative usage, accurate pronunciation, and core structural mechanics.\n"
