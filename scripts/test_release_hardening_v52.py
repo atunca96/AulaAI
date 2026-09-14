@@ -1,9 +1,14 @@
 from pathlib import Path
+import runpy
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# V53 is intentionally applied inside the already-wired V52 verification stage.
+# This keeps Docker/runtime call topology unchanged.
+runpy.run_path(str(ROOT / "scripts" / "patch_release_hardening_v53.py"), run_name="__main__")
 
 from services.material_quality_guard import sanitize_instructional_metalanguage
 from services.pdf_renderer_v12 import _pick, _v52_dialogue_speaker
