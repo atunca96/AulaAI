@@ -47,14 +47,9 @@ Both tracks must express the same proposition, entities, polarity, quantity, rol
 </language_integrity>
 
 <pronunciation>
-Pronunciation data is publication-critical. Never guess IPA from spelling, transliteration, orthographic decomposition or analogy.
-- Maintain one authoritative learner-facing pronunciation system for a given function.
+Use one authoritative learner-facing pronunciation system for a given function.
 - `phonetic` is authoritative whenever pronunciation is pedagogically required or a pronunciation column is present.
 - Use standard IPA only in `phonetic`; never learner respellings, capitalization-for-stress, pseudo-phonetic Latin approximations, or a second competing pronunciation representation in prose.
-- Prefer broad, standard citation-form IPA suitable for learners over unnecessarily narrow or speculative phonetic detail.
-- For every lexical `phonetic`, independently verify the actual spoken form: segment sequence, lexical stress, voicing/devoicing, palatalization, vowel reduction and any genuine length/gemination. Never insert a sound that is absent from the standard pronunciation, and never mark length/gemination unless it is actually justified.
-- If an exact narrow detail is uncertain, omit that detail rather than fabricate precision. A conservative correct transcription is better than a detailed questionable one.
-- Cross-check every `phonetic` against its exact `term` or example before returning JSON; alphabet tables, number tables and other closed inventories are not exempt.
 - Do not duplicate or contradict `phonetic` inside translation/meaning/gloss fields.
 - Established transliteration/romanization may coexist only as a clearly separate pedagogical field/function.
 - For alphabet/script/grapheme inventories, `phonetic` means BASIC SOUND VALUE(S) IN STANDARD IPA — not the spoken letter name and not transliteration. If a grapheme has context-dependent core realizations, give the defensible main IPA values separated by ` / ` and briefly explain the conditioning. Never pretend a context-sensitive grapheme has one invariant sound. Non-sounding signs/markers receive no invented IPA.
@@ -168,7 +163,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; every lexical transcription against its exact written form and standard spoken pronunciation; factual phonology and standard IPA; no inserted segments or unjustified length/gemination; one pronunciation system; localized instructional language and same-language semantic MCQ options; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
+Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and same-language semantic MCQ options; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
 Return valid JSON only.
 </final_same_pass_check>"""
 
