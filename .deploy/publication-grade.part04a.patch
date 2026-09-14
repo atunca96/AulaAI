@@ -1,0 +1,102 @@
++    structurally substantive but pedagogically empty, and it published as though it
++    were real teaching material.
++
++    The fallback now does exactly two things: it surfaces whatever genuine source
++    material was supplied, and it states clearly that the rest requires review. It
++    never invents target-language content.
++    """
++    t_clean = str(topic or "").strip() or "Core Concepts"
+ 
+-    rule_term = items[0]["term"] if items else t_clean
+-    p3 = {
+-        "type": "grammar",
+-        "title": f"3. Structural Architecture & Rules: {t_clean}",
+-        "title_tr": f"3. Yapısal Kurallar: {t_clean}",
+-        "text": f"• Structural mechanics and sentence patterns for '{t_clean}'.\n• Always observe standard agreement, word order, and context-appropriate register in {language}.",
+-        "text_tr": f"• '{t_clean}' için yapısal kurallar ve cümle dizilimleri.\n• {language} dilinde standart uyum, sözcük sırası ve bağlama uygun hitap biçimlerine dikkat edilmelidir.",
+-        "rules": [
+-            {
+-                "rule": f"Canonical usage and concord for {t_clean}",
+-                "rule_tr": f"{t_clean} için standart kullanım ve sözcük uyumu",
+-                "explanation": f"In {language}, '{rule_term}' functions according to standard CEFR {level} syntax and morphology.",
+-                "explanation_tr": f"{language} dilinde '{rule_term}', CEFR {level} standart sözdizimi ve biçimbilimine göre kullanılır.",
+-                "example": items[0]["example"] if items else f"{t_clean}.",
+-                "example_en": items[0]["example_en"] if items else f"Standard usage of {t_clean}.",
+-                "example_tr": items[0]["example_tr"] if items else f"{t_clean} için standart kullanım.",
+-                "analysis": f"Core structural pattern in {language} for adult learners.",
+-                "analysis_tr": f"Yetişkin öğrenciler için {language} dilindeki temel yapısal kalıp.",
+-                "source_evidence": f"Core curriculum standard for {t_clean}",
+-                "source_taught": f"Structural usage of {t_clean}",
+-                "provenance": "source_inherent"
+-            }
+-        ],
+-        "comparisons": []
+-    }
++    pages = [_review_notice_page(t_clean, language, level, material_language, reason="generation-failed")]
+ 
+-    p4 = {
+-        "type": "mcq",
+-        "title": f"5. Formative Quick-Check: {t_clean}",
+-        "title_tr": f"5. Hızlı Değerlendirme: {t_clean}",
+-        "prompt": f"Which statement best describes the primary function of '{t_clean}' in {language}?",
+-        "prompt_en": f"Which statement best describes '{t_clean}' in {language}?",
+-        "prompt_tr": f"'{t_clean}' konusunun {language} dilindeki temel işlevi hangisidir?",
+-        "options": [
+-            f"It serves as an essential communicative building block at CEFR {level}.",
+-            "It is an obsolete form never used in contemporary speech.",
+-            "It functions exclusively as a mathematical or technical term.",
+-            "It has no established grammatical rules or conventions."
+-        ],
+-        "options_tr": [
+-            f"CEFR {level} seviyesinde günlük iletişimde sıkça kullanılan temel bir yapıdır.",
+-            "Günlük dilde artık hiç kullanılmayan eski bir kalıptır.",
+-            "Yalnızca teknik ve matematiksel metinlerde görülür.",
+-            "Herhangi bir dilbilgisi kuralı veya kullanım standardı yoktur."
+-        ],
+-        "answer": f"It serves as an essential communicative building block at CEFR {level}.",
+-        "distractors": [
+-            "It is an obsolete form never used in contemporary speech.",
+-            "It functions exclusively as a mathematical or technical term.",
+-            "It has no established grammatical rules or conventions."
+-        ],
+-        "explanation": f"'{t_clean}' is a core CEFR {level} pedagogical structure in {language} language learning.",
+-        "explanation_tr": f"'{t_clean}', {language} dil eğitiminde CEFR {level} düzeyinde temel ve yaygın bir iletişim yapısıdır."
+-    }
++    # Real source text supplied by the teacher is genuine content: preserve it
++    # verbatim, clearly labelled as an unprocessed extract.
++    if source_text and isinstance(source_text, str) and len(source_text.strip()) > 30:
++        lines = [ln.strip() for ln in source_text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
++        if lines:
++            excerpt = "\n".join(f"\u2022 {ln}" for ln in lines[:8])
++            pages.append({
++                "type": "overview",
++                "title": f"Source extract: {t_clean}",
++                "title_tr": f"Kaynak alıntısı: {t_clean}",
++                "text": "Unprocessed extract from the supplied source material:\n" + excerpt,
++                "text_tr": "Yüklenen kaynak materyalden işlenmemiş alıntı:\n" + excerpt,
++                "_review_required": True,
++            })
+ 
+-    lesson_dict = {"pages": [p1, p2, p3, p4]}
++    lesson_dict = {
++        "pages": pages,
++        "_review_required": True,
++        "_review_reason": "generation-failed",
++        "_synthetic_placeholder": True,
++    }
+     return _sanitize_deep_bilingual(lesson_dict)
+ 
++
++def _claim_verifier_enabled() -> bool:
++    """Bounded claim verification is on by default and can be disabled per deployment."""
++    return str(os.getenv("AULAAI_CLAIM_VERIFIER", "1")).strip().lower() not in ("0", "false", "off", "no")
++
++
++def _verify_absolute_claims(data, claims, language, level, material_language="tr"):
++    """One bounded model call that checks ONLY absolute/universal claims.
++
++    Deterministic code can detect that a claim is stated as exceptionless; it cannot
++    establish whether the claim is true for an arbitrary language. This is the one
++    place where that gap is closed, and it is deliberately narrow:
++
++      * it runs only when the deterministic detector found an absolute claim that
