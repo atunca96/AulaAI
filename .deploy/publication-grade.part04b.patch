@@ -1,0 +1,116 @@
++        the generator did not declare exceptionless, so ordinary lessons pay nothing;
++      * the payload carries only the flagged claim strings plus same-page evidence,
++        never the whole lesson;
++      * the model may only rescope or correct a flagged claim - it cannot add pages,
++        vocabulary, rules or examples;
++      * a failed or malformed response leaves the lesson exactly as generated.
++    """
++    if not claims:
++        return data
++    payload = json.dumps(
++        [{"id": i, "claim": c["text"], "absolute_wording": c["quantifiers"], "same_page_evidence": c["examples"]}
++         for i, c in enumerate(claims)],
++        ensure_ascii=False, separators=(",", ":"),
++    )
++    system = (
++        f"You verify the scope of grammar/pronunciation claims in {language} teaching material at CEFR {level}.\n"
++        "Each item states something in absolute terms (always/never/without exception or the equivalent in the "
++        "instructional language).\n"
++        "For each item decide ONE of:\n"
++        '  keep    - the claim is genuinely exceptionless as stated, in the stated scope\n'
++        '  rescope - the claim is a tendency or has real exceptions: rewrite it in the SAME instructional '
++        "language with accurate scope, keeping every correct fact and every example reference intact\n"
++        '  correct - the claim contradicts the supplied same-page evidence or is factually wrong: rewrite it '
++        "minimally so it is true\n"
++        "Rules: never add new rules, vocabulary, examples or facts; never change the instructional language; "
++        "never lengthen a claim by more than about 30 percent; when unsure, prefer rescope over keep.\n"
++        'Return ONLY: {"verdicts":[{"id":0,"action":"keep|rescope|correct","value":"replacement text or null"}]}'
++    )
++    try:
++        review = _call_ai(
++            [{"role": "system", "content": system},
++             {"role": "user", "content": payload}],
++            model=MODEL_STRUCTURAL,
++            max_tokens=1000,
++            temperature=0.0,
++            json_mode=True,
++            allow_fallback=False,
++        )
++    except Exception as exc:
++        print(f"[CLAIM-SCOPE] verification skipped after error: {exc}")
++        return data
++    if not isinstance(review, dict):
++        return data
++
++    applied = 0
++    for verdict in (review.get("verdicts") or [])[:24]:
++        if not isinstance(verdict, dict):
++            continue
++        action = str(verdict.get("action") or "").strip().lower()
++        if action not in ("rescope", "correct"):
++            continue
++        try:
++            claim = claims[int(verdict.get("id"))]
++        except Exception:
++            continue
++        value = verdict.get("value")
++        if not isinstance(value, str) or not value.strip():
++            continue
++        original = claim.get("text") or ""
++        # Reject a "repair" that discards the claim or balloons it: those are rewrites,
++        # not scope corrections.
++        if len(value) < max(12, int(len(original) * 0.5)) or len(value) > int(len(original) * 1.6) + 60:
++            continue
++        from services.publication_invariants import set_by_path
++        if set_by_path(data, claim.get("path", ""), value):
++            applied += 1
++    if applied:
++        print(f"[CLAIM-SCOPE] rescoped {applied} absolute claim(s) out of {len(claims)} flagged")
++    return data
++
++
++def _material_publication_release(lesson_dict, topic, language, level, material_language="tr"):
++    """Canonical deterministic publication boundary for generated material."""
++    try:
++        from services.publication_invariants import (
++            apply_publication_invariants,
++            collect_unscoped_absolute_claims,
++        )
++    except Exception as exc:
++        print(f"[PUBLICATION] invariants unavailable: {exc}")
++        return lesson_dict
++    if not isinstance(lesson_dict, dict):
++        return lesson_dict
++    data = apply_publication_invariants(
++        lesson_dict, language=language, material_language=material_language, topic=topic, copy=False
++    )
++    if _claim_verifier_enabled() and is_ai_available():
++        claims = collect_unscoped_absolute_claims(data, material_language=material_language)
++        if claims:
++            data = _verify_absolute_claims(data, claims, language, level, material_language)
++            # Re-run deterministic invariants so any rescoped prose is re-checked.
++            data = apply_publication_invariants(
++                data, language=language, material_language=material_language, topic=topic, copy=False
++            )
++    return data
++
++
+ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr"):
+     """
+     Generates a maximum-detail, textbook-quality lesson using Gemini 2.5 Flash.
+@@ -3481,6 +3509,8 @@
+             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-SYNTHESIZE] '{topic}' failed model generation; creating guaranteed substantive fallback.\n")
+         lesson_dict = synthesize_substantive_lesson(topic, topic_type, language, level, source_text=source_text, material_language=material_language)
+ 
++    lesson_dict = _material_publication_release(lesson_dict, topic, language, level, material_language=material_language)
++
+     # Step 2: Check if native Turkish fields are already present (simultaneous bilingual generation)
+     has_turkish = False
+     pages = lesson_dict.get("pages", [])
+diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/services/content_engine.py repo/AulaAI-main/services/content_engine.py
+--- pristine/AulaAI-main/services/content_engine.py	2026-09-14 21:40:40.000000000 +0000
++++ repo/AulaAI-main/services/content_engine.py	2026-09-14 23:37:08.757159643 +0000
+@@ -201,6 +201,133 @@
+     return activities
+ 
+ 
