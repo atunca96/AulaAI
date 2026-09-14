@@ -1,4 +1,5 @@
 from pathlib import Path
+import importlib
 import runpy
 import sys
 
@@ -8,7 +9,12 @@ if str(ROOT) not in sys.path:
 
 runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56_compat.py"), run_name="__main__")
 
-from services.material_quality_guard import _v56_russian_text, _v56_turkish_text
+import services.material_quality_guard as guard
+# The V55 test imports this module before V56 compat rewrites its source on disk.
+# Reload it so the regression test exercises the actual patched runtime code.
+guard = importlib.reload(guard)
+_v56_russian_text = guard._v56_russian_text
+_v56_turkish_text = guard._v56_turkish_text
 
 
 def run():
