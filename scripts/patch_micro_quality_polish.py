@@ -6,6 +6,7 @@ quality enforcement are active in services/material_quality_guard.py and
 services/pdf_renderer_v12.py across all supported languages.
 """
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +15,10 @@ renderer_path = ROOT / "services" / "pdf_renderer_v12.py"
 TAG = "# AULAAI_MICRO_QUALITY_POLISH"
 
 guard = guard_path.read_text(encoding="utf-8")
-if TAG not in guard:
-    guard += r'''
+if TAG in guard:
+    guard = re.sub(r"\n*# AULAAI_MICRO_QUALITY_POLISH.*?(?=\n# AULAAI_|\Z)", "", guard, flags=re.DOTALL)
+
+guard = guard.rstrip() + r'''
 
 # AULAAI_MICRO_QUALITY_POLISH
 try:
@@ -88,10 +91,11 @@ def enforce_material_integrity(data, language=None, material_language="tr"):
 '''
 guard_path.write_text(guard, encoding="utf-8")
 print("Applied micro-quality polish to material_quality_guard.py")
-
 renderer = renderer_path.read_text(encoding="utf-8")
-if TAG not in renderer:
-    renderer += r'''
+if TAG in renderer:
+    renderer = re.sub(r"\n*# AULAAI_MICRO_QUALITY_POLISH.*?(?=\n# AULAAI_|\Z)", "", renderer, flags=re.DOTALL)
+
+renderer = renderer.rstrip() + r'''
 
 # AULAAI_MICRO_QUALITY_POLISH
 from services.material_quality_guard import (
@@ -143,20 +147,5 @@ def _normalize_pages(content):
 '''
 renderer_path.write_text(renderer, encoding="utf-8")
 print("Applied micro-quality polish to pdf_renderer_v12.py")
-
-test_v37_path = ROOT / "scripts" / "test_material_release_integrity_v37.py"
-if test_v37_path.exists():
-    v37_text = test_v37_path.read_text(encoding="utf-8")
-    v37_text = v37_text.replace(
-        """assert len(out['pages']) == 5, out
-assert out['pages'][0]['answer'] == 'beta'
-assert out['pages'][4]['type'] == 'overview'
-assert '_integrity_removed_mcq' not in out""",
-        """assert len(out['pages']) == 2, out
-assert out['pages'][0]['answer'] == 'beta'
-assert out['pages'][1]['type'] == 'overview'
-assert len(out.get('_integrity_removed_mcq', [])) == 3""",
-    )
-    test_v37_path.write_text(v37_text, encoding="utf-8")
 
 
