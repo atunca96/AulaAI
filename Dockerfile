@@ -52,6 +52,8 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/test_release_hardening_v52.py \
     && python scripts/test_material_release_integrity_v37.py \
     && python scripts/test_universal_quality.py \
-    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/material_quality_guard.py services/legacy/pdf_pipeline.py
+    && python scripts/reset_material_generation_raw.py \
+    && python scripts/test_raw_material_generation.py \
+    && python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/material_generation_prompt.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/material_quality_guard.py services/legacy/pdf_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]
