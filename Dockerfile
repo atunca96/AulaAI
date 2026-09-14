@@ -64,6 +64,7 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/test_release_quality_v56.py \
     && python scripts/patch_canonical_material_prompt.py \
     && python scripts/test_canonical_material_prompt.py \
+    && python scripts/patch_v57_build_compat.py \
     && python scripts/patch_release_final_v57.py \
     && python scripts/test_release_final_v57.py \
     && python scripts/test_material_release_integrity_v37.py \
