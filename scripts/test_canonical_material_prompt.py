@@ -37,7 +37,7 @@ def run():
     assert "Pronunciation data is publication-critical" in system_prompt
     assert "Never guess IPA from spelling" in system_prompt
     assert "Never insert a sound that is absent from the standard pronunciation" in system_prompt
-    assert "lexical pronunciation transcriptions against their exact words" in system_prompt
+    assert "Cross-check every `phonetic` against its exact `term` or example" in system_prompt
     assert "personal name alone never establishes grammatical gender" in system_prompt
     assert "Never ask for a Turkish meaning with English options" in system_prompt
     assert "unnecessary metalanguage" in user_prompt
