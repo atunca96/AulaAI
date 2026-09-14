@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 # stable hook to apply the final zero-LLM cleanup without changing the proven
 # build/generation call path.
 runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56.py"), run_name="__main__")
+runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56_final.py"), run_name="__main__")
 
 from services.material_quality_guard import enforce_material_integrity, sanitize_instructional_metalanguage
 from services.pdf_renderer_v12 import _v54_display_phonetic, _v54_pdf_unsafe_mcq
