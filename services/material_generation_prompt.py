@@ -46,6 +46,7 @@ Both tracks must express the same proposition, entities, polarity, quantity, rol
 <language_integrity>
 - Use authentic canonical spelling, morphology, punctuation and legitimate writing systems for {language}.
 - In Cyrillic scripts (e.g., Russian), use standard canonical Cyrillic orthography without grave accents (e.g., 'профессор', never 'профѐссор'); Russian standardly uses acute accents for dictionary stress marking when necessary, never grave accents (ѐ, Ѐ, ѝ, Ѝ).
+- Script stress & combining marks: When marking stress in non-Latin scripts (Cyrillic, Greek), author the canonical target vowel character followed by combining acute accent (U+0301). NEVER substitute precomposed Latin accented letters (such as 'ó', 'á', 'é', 'í', 'ú', 'ý') into Cyrillic or Greek words (e.g., write Cyrillic 'во́ду' with 'о\u0301', never Latin 'вóду').
 - Preserve valid diacritics, stress/tone marks and required separators. Emit NFC Unicode only; no replacement characters, noncharacters, controls, soft-hyphen artifacts, severed combining marks or accidental mixed-script homoglyphs. Intra-token script purity: Every word, stem, and affix must have a unified script; never mix Latin and Cyrillic/Greek characters inside the same token (e.g., in Russian write '-ите', never '-иte'; in Spanish write 'comer', never 'comеr').
 - Multiscript languages remain naturally multiscript. IPA, CEFR codes, URLs, proper names, abbreviations and explicitly labeled transliteration are legitimate.
 </language_integrity>
@@ -90,18 +91,20 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
 - Birthplace/residence never establishes nationality or language ability. Workplace never establishes profession unless the stem explicitly states the profession-defining action/fact being tested.
 - Re-solve each MCQ from stem and options. `answer`, `correct_index` (when present), and explanation must converge on the same option.
 - Distractor plausibility & authentic morphological paradigms:
-  * All 4 options must be authentic, legitimate, naturally occurring words or expressions in {language}.
-  * Distractors must belong to the exact same morphological, syntactic, and semantic paradigm as the keyed answer (e.g., real alternative case inflections of the same noun, actual person/tense conjugations of the verb, or legitimate lexical competitors of the same category).
-  * NEVER invent pseudo-words or non-existent inflections by mechanically gluing arbitrary endings onto a stem (e.g., in Russian, never invent nonexistent forms like 'площаде' or 'площадя' for 'площадь'; in German never invent non-words; in Spanish never invent false conjugations).
-  * Distractors must be valid forms that a learner actually encounters in real {language} content, representing authentic learner misconceptions (e.g., applying a real form from another declension, gender, or tense, or an incorrect case governed by a competing preposition), never fabricated forms invented solely to be wrong.
-  * Outside explicit error-detection questions (where the stem specifically asks the learner to spot a misspelled or incorrect word), no option may be a nonexistent form.
-  * If an explanation describes any option as "uydurma", "geçersiz", "invented", or "non-word", the item is invalid and must be repaired into genuine competing forms.
+  * Independent Linguistic Reality Invariant: Every distractor must be an authentic, legitimate, naturally occurring word or phrase that genuinely exists in {language} and can be found in a standard dictionary or corpus. A distractor is wrong STRICTLY AND ONLY because it does not fit the grammatical, syntactic, or semantic context of the stem (e.g., wrong person, wrong tense, wrong case, competing real preposition) — NEVER because the form itself is an ungrammatical chimera or an invented pseudo-word.
+  * Paradigm Matrix Rule: When testing inflections (case government, verb conjugations, pronoun forms), choose all 4 options from actual competing cells of the real paradigm matrix:
+    - For preposition/case government (e.g., Russian 'в ресторане'): options must be real grammatical forms (e.g., 'в ресторане' [prep.], 'в ресторан' [acc.], 'из ресторана' [gen.], 'на ресторане' [prep.]). NEVER create ungrammatical preposition + impossible-case collisions (e.g., 'в ресторана').
+    - For pronouns with prepositions (e.g., 'У него'): options must be genuine pronouns in real cases (e.g., 'У него', 'У неё', 'У них', 'У нас'). NEVER invent suffix-hybridized non-words (e.g., 'У негой').
+    - For noun declensions: options must be real case forms of the noun (e.g., 'доме', 'дома', 'дому', 'домом'). NEVER invent false suffixes (e.g., 'доми', 'площаде', 'площадя').
+  * Outside explicit error-detection questions (where the stem specifically asks the learner to spot a misspelled or incorrect word), no option may be an invented or nonexistent form.
+  * If an explanation describes any option as "uydurma", "geçersiz", "invented", "non-word", or "böyle bir form yoktur", the item is invalid and must be repaired into genuine competing forms.
   * Never use placeholder or lazy distractors (such as 'None of the above', 'All of the above', 'Hiçbiri', 'Hepsi', 'Doğru cevap yok', or '(uydurma)'), nor evasive instructional-language phrases (such as 'ek almaz', 'no ending', 'cümleye göre değişir', 'kullanılmaz'). When options test target words, all 4 options must be in the target language script.
   * Equal surface plausibility: Keep option lengths, formatting, and complexity balanced so the correct answer does not stand out by superficial traits.
 </mcq_quality>
 
 <instructional_cleanliness>
 Every learner-facing heading, label, speaker role, table heading, explanation, instruction, gloss and metadata description must use the selected instructional language.
+- Typographical clean authoring: Do not stutter or duplicate initial capital letters (e.g. write 'İyi geceler', never 'İiyi geceler'; write 'Günaydın', never 'Ggünaydın'). Maintain clean punctuation spacing (e.g. write 'kelime (açıklama)', never 'kelime(açıklama)'; no space before commas and periods).
 - User-facing instructional labels and section titles must always render in the selected instructional language.
   * Never emit raw English section names (such as 'Theory', 'Vocabulary', 'Grammar', 'Speaking', 'Reading', 'Listening', 'Practice', 'Review', 'Examples', 'Dialogue', 'Assessment', 'Overview') in title_tr or user-facing metadata. In Turkish tracks, use the appropriate Turkish section title ('Konu Anlatımı', 'Kelime Bilgisi', 'Dilbilgisi', 'Konuşma', 'Okuma', 'Dinleme', 'Alıştırmalar', 'Genel Tekrar', 'Örnekler', 'Diyalog', 'Değerlendirme', 'Genel Bakış').
 - Speaker labels contain only the proper name or correctly localized role.

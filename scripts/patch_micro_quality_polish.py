@@ -42,6 +42,10 @@ def sanitize_instructional_metalanguage(value, material_language="tr"):
     text = _v58_previous_meta(value, material_language)
     text = sanitize_instructional_shorthand(text, instructional_language=material_language)
     try:
+        text = polish_instructional_text(text, material_language=material_language)
+    except NameError:
+        pass
+    try:
         return deduplicate_morphological_parentheticals(text)
     except NameError:
         return text
@@ -104,6 +108,7 @@ from services.material_quality_guard import (
     deduplicate_morphological_parentheticals as _v58_dedup,
     align_lexical_fields as _v58_align_fields,
     harmonize_mixed_scripts as _v58_harmonize,
+    polish_instructional_text as _v58_polish,
 )
 
 _v58_previous_pick = _pick
@@ -111,7 +116,7 @@ _v58_previous_pick = _pick
 def _pick(obj, en_key, tr_key, is_tr):
     value = _v58_previous_pick(obj, en_key, tr_key, is_tr)
     if is_tr and isinstance(value, str):
-        return _v58_dedup(_v58_shorthand(value, "tr"))
+        return _v58_polish(_v58_dedup(_v58_shorthand(value, "tr")), "tr")
     return value
 
 _v58_previous_e = _e
@@ -124,7 +129,7 @@ _v58_previous_story = AcademicPaginator._story
 
 def _v58_story(self, fragment: str, *args, **kwargs):
     if fragment and self.is_tr:
-        fragment = _v58_shorthand(fragment, "tr")
+        fragment = _v58_polish(_v58_shorthand(fragment, "tr"), "tr")
     if fragment:
         fragment = _v58_safe_unicode(fragment)
     return _v58_previous_story(self, fragment, *args, **kwargs)

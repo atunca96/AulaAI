@@ -32,6 +32,7 @@ from services.material_quality_guard import (
     _script_gate,
     align_lexical_fields,
     harmonize_mixed_scripts,
+    polish_instructional_text,
 )
 from services.pdf_renderer_v12 import _kind, _localized_title, TYPE_LABELS, _e
 
@@ -608,12 +609,130 @@ def test_pronunciation_ipa_field_alignment():
     assert de_item["example_tr"] == "Bu çok güzel bir evdir."
 
 
+def test_unicode_nfd_stress_harmonization():
+    print("  -> Testing Unicode NFD stress harmonization & diacritic preservation...")
+
+    # 1. Russian Cyrillic word with Latin precomposed 'ó' (U+00F3) decomposed & mapped
+    # "вóду" has Latin ó; in Cyrillic context it must become Cyrillic о + combining acute stress (U+0301)
+    res_voda = safe_unicode_normalize("вóду")
+    assert res_voda == "во́ду", f"Expected во́ду, got: {res_voda}"
+    # Verify exact codepoints: \u0432 (Cyrillic в), \u043e (Cyrillic о), \u0301 (combining acute), \u0434, \u0443
+    cps = [ord(c) for c in res_voda]
+    assert cps == [0x0432, 0x043e, 0x0301, 0x0434, 0x0443], f"Unexpected codepoints: {[hex(c) for c in cps]}"
+
+    # Multiple Latin precomposed accented vowels in Russian context
+    res_moloko = safe_unicode_normalize("мóлоко")
+    assert res_moloko == "мо́локо"
+    assert [ord(c) for c in res_moloko] == [0x043c, 0x043e, 0x0301, 0x043b, 0x043e, 0x043a, 0x043e]
+
+    # 2. Greek context with Latin accented vowel
+    # νεó has Latin ó; decomposed to 'o' + acute, 'o' mapped to Greek 'ο' + acute
+    res_nero = safe_unicode_normalize("νεó")
+    assert all(ord(c) >= 0x0370 and ord(c) <= 0x03FF for c in res_nero), f"Expected Greek codepoints, got: {[hex(ord(c)) for c in res_nero]}"
+
+    # 3. Pure Latin languages with native diacritics MUST NOT BE TOUCHED
+    assert safe_unicode_normalize("habló", "Spanish") == "habló"
+    assert safe_unicode_normalize("schön", "German") == "schön"
+    assert safe_unicode_normalize("café", "French") == "café"
+    assert safe_unicode_normalize("maçã", "Portuguese") == "maçã"
+    assert safe_unicode_normalize("göz", "Turkish") == "göz"
+
+    # 4. Bracketed IPA MUST NOT BE ALTERED
+    assert safe_unicode_normalize("[vɐˈda]") == "[vɐˈda]"
+    assert safe_unicode_normalize("[ˈzdrastvujtʲe]") == "[ˈzdrastvujtʲe]"
+
+    # 5. Multilingual compounds preserved
+    assert safe_unicode_normalize("online-курс") == "online-курс"
+    assert safe_unicode_normalize("Wi-Fi-сеть") == "Wi-Fi-сеть"
+
+
+def test_instructional_typographical_polish():
+    print("  -> Testing instructional typographical polish...")
+
+    # 1. Capitalization stutter (Turkish and Latin)
+    assert polish_instructional_text("İiyi geceler") == "İyi geceler"
+    assert polish_instructional_text("Ggünaydın") == "Günaydın"
+    assert polish_instructional_text("Nnasılsınız") == "Nasılsınız"
+    assert polish_instructional_text("Wwhat is this", material_language="en") == "What is this"
+
+    # Protected proper names & Roman numerals
+    assert polish_instructional_text("Aaron ve Aardvark") == "Aaron ve Aardvark"
+    assert polish_instructional_text("II. Dünya Savaşı") == "II. Dünya Savaşı"
+    assert polish_instructional_text("SSCB tarihi") == "SSCB tarihi"
+
+    # 2. Parenthetical spacing
+    assert polish_instructional_text("zamirleri(çoğul)") == "zamirleri (çoğul)"
+    assert polish_instructional_text("( eril )") == "(eril)"
+    assert polish_instructional_text("(dişil )") == "(dişil)"
+    assert polish_instructional_text("( nötr)") == "(nötr)"
+
+    # 3. Punctuation spacing
+    assert polish_instructional_text("geceler .") == "geceler."
+    assert polish_instructional_text("merhaba !") == "merhaba!"
+    assert polish_instructional_text("nasılsınız ?") == "nasılsınız?"
+    assert polish_instructional_text("ev,okul") == "ev, okul"
+    assert polish_instructional_text("elma;armut") == "elma; armut"
+
+    # Numeric decimal protection (e.g. 3.14, 0,5)
+    assert polish_instructional_text("3.14 ve 0,5") == "3.14 ve 0,5"
+
+    # 4. Duplicate conjunctions
+    assert polish_instructional_text("kitap ve ve defter") == "kitap ve defter"
+    assert polish_instructional_text("kitap veya veya defter") == "kitap veya defter"
+    assert polish_instructional_text("this and and that", material_language="en") == "this and that"
+
+    # 5. Collapsing doubled punctuation
+    assert polish_instructional_text("Tamam..") == "Tamam."
+    assert polish_instructional_text("ev,, okul") == "ev, okul"
+
+    # 6. Quoted target expressions preserved exactly
+    quoted = "Öğrenci 'İiyi' yerine 'İyi' demelidir."
+    assert polish_instructional_text(quoted) == quoted
+
+    # 7. Integrated into sanitize_instructional_metalanguage
+    res = sanitize_instructional_metalanguage("İiyi günler dileriz ( eril ) ve ve hoşça kalın .", "tr")
+    assert res == "İyi günler dileriz (eril) ve hoşça kalın."
+
+
+def test_expanded_admitted_non_word_distractor_rejection():
+    print("  -> Testing expanded admitted non-word distractor rejection...")
+
+    opts = ["студент", "студента", "студенту", "доми"]
+
+    # Turkish explanation variants
+    tr_phrases = [
+        "Seçenek D 'доми' uydurma bir ek almıştır; eril isimler çoğulda -и/-ы alır ama burada uydurmadır.",
+        "Rusçada böyle bir form yoktur.",
+        "Bu kelime dilde mevcut değildir.",
+        "'доми' sözlükte yer almaz.",
+        "Böyle bir biçim kullanılmaz.",
+        "D seçeneğindeki kelime uydurmadır.",
+    ]
+    for expl in tr_phrases:
+        ok, why = validate_distractor_quality(opts, prompt="Doğru formu seçin:", explanation=expl)
+        assert not ok and "admitted-non-word" in why, f"Expected admitted-non-word rejection for '{expl}', got: {ok}, {why}"
+
+    # English explanation variants
+    en_phrases = [
+        "Option D is an invented form and does not exist in the language.",
+        "'доми' is a fabricated form not found in any dictionary.",
+        "There is no such word in Russian.",
+        "This is an invalid ending that does not occur in the language.",
+    ]
+    for expl in en_phrases:
+        ok, why = validate_distractor_quality(opts, prompt="Select the correct form:", explanation=expl)
+        assert not ok and "admitted-non-word" in why, f"Expected admitted-non-word rejection for '{expl}', got: {ok}, {why}"
+
+
 def run_all():
     print("[TEST-SUITE] Starting Language-Agnostic Micro-Quality Polish Tests...")
     test_grammar_shorthand_leakage_and_normalization()
     test_rendered_example_shorthand_normalization()
     test_semantic_unicode_noncharacter_resolution()
     test_mixed_script_morphology_harmonization()
+    test_unicode_nfd_stress_harmonization()
+    test_instructional_typographical_polish()
+    test_expanded_admitted_non_word_distractor_rejection()
     test_mcq_distractor_authenticity_and_admitted_non_words()
     test_pronunciation_ipa_field_alignment()
     test_unrelated_target_language_content_preserved()

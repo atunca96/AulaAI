@@ -366,9 +366,10 @@ _TOKEN_PATTERN = re.compile(
 def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
     if not seg or is_metadata_or_proper_token(seg):
         return seg
-    cyr = [c for c in seg if '\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F']
-    lat = [c for c in seg if ('a' <= c <= 'z' or 'A' <= c <= 'Z' or '\u00C0' <= c <= '\u024F')]
-    grk = [c for c in seg if '\u0370' <= c <= '\u03FF']
+    nfd = unicodedata.normalize('NFD', seg)
+    cyr = [c for c in nfd if '\u0400' <= c <= '\u04FF' or '\u0500' <= c <= '\u052F']
+    lat = [c for c in nfd if ('a' <= c <= 'z' or 'A' <= c <= 'Z')]
+    grk = [c for c in nfd if '\u0370' <= c <= '\u03FF']
 
     if cyr and lat and not grk:
         has_cyr_u = any(c in _CYRILLIC_UNIQUE_CHARS for c in cyr)
@@ -394,11 +395,13 @@ def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
                 mapping['I'] = 'І'
             # All-or-nothing: every foreign character must be a valid homoglyph; otherwise preserve untouched
             if all(c in mapping for c in lat):
-                return ''.join(mapping.get(c, c) for c in seg)
+                res = ''.join(mapping.get(c, c) for c in nfd)
+                return unicodedata.normalize('NFC', res)
             return seg
         else:
             if all(c in _CYRILLIC_TO_LATIN_HOMOGLYPHS for c in cyr):
-                return ''.join(_CYRILLIC_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+                res = ''.join(_CYRILLIC_TO_LATIN_HOMOGLYPHS.get(c, c) for c in nfd)
+                return unicodedata.normalize('NFC', res)
             return seg
 
     if grk and lat and not cyr:
@@ -407,11 +410,13 @@ def _harmonize_segment(seg: str, language: Optional[str] = None) -> str:
         target_is_grk = (has_grk_u and not has_lat_u) or (len(grk) >= len(lat))
         if target_is_grk:
             if all(c in _LATIN_TO_GREEK_HOMOGLYPHS for c in lat):
-                return ''.join(_LATIN_TO_GREEK_HOMOGLYPHS.get(c, c) for c in seg)
+                res = ''.join(_LATIN_TO_GREEK_HOMOGLYPHS.get(c, c) for c in nfd)
+                return unicodedata.normalize('NFC', res)
             return seg
         else:
             if all(c in _GREEK_TO_LATIN_HOMOGLYPHS for c in grk):
-                return ''.join(_GREEK_TO_LATIN_HOMOGLYPHS.get(c, c) for c in seg)
+                res = ''.join(_GREEK_TO_LATIN_HOMOGLYPHS.get(c, c) for c in nfd)
+                return unicodedata.normalize('NFC', res)
             return seg
 
     return seg
@@ -421,13 +426,13 @@ def harmonize_mixed_scripts(text: str, language: Optional[str] = None) -> str:
     """
     Language-agnostic, level-agnostic harmonization of accidental intra-token mixed scripts.
     Restores unified script integrity to words and affixes (e.g. -иte -> -ите, говориte -> говорите,
-    рaбота -> работа, comеr -> comer, νεpό -> νερό) while safely preserving legitimate
-    bilingual compound words (e.g. online-курс) and multi-token phrases.
+    вóду -> во́ду, рaбота -> работа, comеr -> comer, νεpό -> νερό) while safely preserving legitimate
+    bilingual compound words (e.g. online-курс), bracketed IPA ([ˈzdrastvujtʲe]), and multi-token phrases.
     """
     if not isinstance(text, str) or not text:
         return text
 
-    parts = re.split(r'(`[^`\n]*`|https?://[^\s<>"]+|www\.[^\s<>"]+)', text)
+    parts = re.split(r'(`[^`\n]*`|\[[^\]\n]+\]|https?://[^\s<>"]+|www\.[^\s<>"]+)', text)
     for i in range(0, len(parts), 2):
         chunk = parts[i]
 
@@ -663,6 +668,66 @@ def deduplicate_morphological_parentheticals(text: str) -> str:
     return "".join(parts)
 
 
+def polish_instructional_text(text: str, material_language: str = "tr") -> str:
+    """
+    High-confidence, deterministic typographical polish for unquoted instructional text.
+    Corrects duplicated initial capital letters (e.g. 'İiyi' -> 'İyi', 'Ggünaydın' -> 'Günaydın',
+    'Wwhat' -> 'What'), parenthetical spacing, doubled punctuation, and duplicate conjunctions
+    while strictly preserving all target language examples, quotes, and proper nouns.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    # Split by quoted spans to protect target language examples and quoted text
+    parts = re.split(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')', text)
+    is_tr = bool(str(material_language or "").strip().casefold() in {"tr", "turkish", "türkçe", "turkce"})
+
+    for i in range(0, len(parts), 2):
+        chunk = parts[i]
+        if not chunk:
+            continue
+
+        # 1. Duplicated initial character / capitalization stutter (e.g. İiyi -> İyi, Ggünaydın -> Günaydın)
+        if is_tr:
+            chunk = re.sub(r'\b([B-ZÇĞİÖŞÜ])(?i:\1)(?=[a-zçğıöşü])', r'\1', chunk)
+            chunk = re.sub(r'\bIı(?=[a-zçğıöşü])', 'I', chunk)
+        else:
+            chunk = re.sub(r'\b([B-Z])(?i:\1)(?=[a-z])', r'\1', chunk)
+            chunk = re.sub(r'\b([Б-ЯЁ])(?i:\1)(?=[а-яё])', r'\1', chunk)
+
+        # 2. Parenthetical spacing:
+        # Missing space before opening parenthesis: e.g. "zamirleri(çoğul)" -> "zamirleri (çoğul)"
+        chunk = re.sub(r'([A-Za-z0-9ÇĞİÖŞÜçğıöşüА-Яа-яЁё])\((?!\))', r'\1 (', chunk)
+        # Spaces inside parentheses: e.g. "( eril )" -> "(eril)"
+        chunk = re.sub(r'\(\s+', '(', chunk)
+        chunk = re.sub(r'\s+\)', ')', chunk)
+        # Missing space after closing parenthesis when followed by a letter
+        chunk = re.sub(r'\)([A-Za-zÇĞİÖŞÜçğıöşüА-Яа-яЁё])', r') \1', chunk)
+
+        # 3. Punctuation spacing:
+        # Space before punctuation: e.g. "geceler ." -> "geceler.", "zamirleri ," -> "zamirleri,"
+        chunk = re.sub(r'\s+([,.:;?!])', r'\1', chunk)
+        # Missing space after comma/semicolon/colon when followed by a letter
+        chunk = re.sub(r'([,;:])([A-Za-zÇĞİÖŞÜçğıöşüА-Яа-яЁё])', r'\1 \2', chunk)
+
+        # 4. Collapsing doubled punctuation and whitespace:
+        chunk = re.sub(r'[ \t]{2,}', ' ', chunk)
+        chunk = re.sub(r',{2,}', ',', chunk)
+        chunk = re.sub(r'(?<!\.)\.\.(?!\.)', '.', chunk)
+        chunk = re.sub(r'\?\?+', '?', chunk)
+        chunk = re.sub(r'!!+', '!', chunk)
+
+        # 5. Reduplicated non-reduplicable conjunctions / articles:
+        if is_tr:
+            chunk = re.sub(r'\b(ve|ile|ama|fakat|veya|çünkü|ise)\s+\1\b', r'\1', chunk, flags=re.IGNORECASE)
+        else:
+            chunk = re.sub(r'\b(and|or|but|because|with|the)\s+\1\b', r'\1', chunk, flags=re.IGNORECASE)
+
+        parts[i] = chunk
+
+    return "".join(parts)
+
+
 def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr") -> str:
     """
     Language-agnostic normalization of instructional metalanguage and grammatical shorthand.
@@ -675,6 +740,7 @@ def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr
 
     # First normalize grammatical shorthand (e.g. (masc.) -> (eril), masc. -> eril)
     text = sanitize_instructional_shorthand(text, instructional_language=material_language)
+    text = polish_instructional_text(text, material_language=material_language)
 
     lang_clean = str(material_language or "").strip().casefold()
     if lang_clean in {"tr", "turkish", "türkçe", "turkce"}:
@@ -695,9 +761,11 @@ def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr
         if re.search(r'(?i)\b(?:ехать|еха[-–—]|ehat|ekhat)\b', res):
             res = re.sub(r'["\'„“]?-д-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", res, flags=re.IGNORECASE)
             res = re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", res, flags=re.IGNORECASE)
+        res = polish_instructional_text(res, material_language=material_language)
         return res
 
-    return deduplicate_morphological_parentheticals(text)
+    res = deduplicate_morphological_parentheticals(text)
+    return polish_instructional_text(res, material_language=material_language)
 
 
 def sanitize_dialogue_speaker(value: Any) -> str:
@@ -871,16 +939,19 @@ _PLACEHOLDER_DISTRACTOR_PATTERNS = (
 )
 
 _ADMITTED_NON_WORD_PATTERNS = (
-    re.compile(r"\bböyle\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|biçim|çekim|kural|ek|kullan[ıi]m)[a-zçğıöşü]*\s+(?:yoktur|yok|bulunmaz|mevcut\s+değildir)\b", re.IGNORECASE),
+    re.compile(r"\bböyle\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|biçim|çekim|kural|ek|kullan[ıi]m|yap[ıi])[a-zçğıöşü]*\s+(?:yoktur|yok|bulunmaz|mevcut\s+değildir|kullan[ıi]lmaz)\b", re.IGNORECASE),
+    re.compile(r"\b(?:diye|ad[ıi]nda)\s+(?:bir\s+)?(?:kelime|s[öo]zc[üu]k|form|biçim|ek|çekim|kullan[ıi]m|yap[ıi])\s+(?:yoktur|yok|bulunmaz|mevcut\s+de[ğg]il(?:dir)?|kullan[ıi]lmaz)\b", re.IGNORECASE),
     re.compile(r"\bvar\s+olmayan\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|çekim|ek|biçim|kullan[ıi]m)[a-zçğıöşü]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:bu\s+dilde|türkçede|rusçada|ispanyolcada|almancada|fransızcada|ingilizcede)\s+(?:mevcut\s+değil|kullan[ıi]lmaz|bulunmaz|yer\s+almaz)(?:dir)?\b", re.IGNORECASE),
+    re.compile(r"\b(?:bu\s+dilde|türkçede|rusçada|ispanyolcada|almancada|fransızcada|ingilizcede|dilde|s[öo]zl[üu]kte)\s+(?:b[öo]yle\s+bir\s+)?(?:mevcut\s+değil|kullan[ıi]lmaz|bulunmaz|yer\s+almaz|yoktur)(?:dir)?\b", re.IGNORECASE),
     re.compile(r"\b(?:s[öo]zl[üu]kte\s+(?:yer\s+almaz|bulunmaz|yoktur)|dilde\s+(?:yer\s+almaz|bulunmaz|yoktur))\b", re.IGNORECASE),
-    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz|yapay)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek|çekim|kural)[a-zçğıöşü]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:hatal[ıi]|yanl[ıi][şs])\s+t[üu]retilmi[şs][a-zçğıöşü]*\b", re.IGNORECASE),
+    re.compile(r"\b(?:uydurma|uydurulmu[şs]|hatal[ıi]|ge[çc]ersiz|yapay)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek|çekim|kural|biçim|kullan[ıi]m)\b", re.IGNORECASE),
+    re.compile(r"\b(?:form[uü]|kelime(?:si)?|s[öo]zc[üu][kğ](?:ü)?|ek(?:i)?|bi[çc]im(?:i)?|çekim(?:i)?)\s+(?:uydurma(?:d[ıi]r)?|ge[çc]ersiz(?:dir)?|yapay(?:d[ıi]r)?|mevcut\s+de[ğg]il(?:dir)?|kullan[ıi]lmaz|bulunmaz)\b", re.IGNORECASE),
+    re.compile(r"\b(?:hatal[ıi]|yanl[ıi][şs]|uydurma)\s+(?:bir\s+)?(?:ek\s+al(?:m[ıi][şs]|m[ıi]şt[ıi]r)|t[üu]retilmi[şs][a-zçğıöşü]*|eklenmi[şs]tir)\b", re.IGNORECASE),
     re.compile(r"\bger[çc]ek\s+bir\s+(?:kelime|s[öo]zc[üu]k|form|bi[çc]im|çekim)\s+de[ğg]ildir\b", re.IGNORECASE),
     re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up|fabricated|fictitious|artificial)\s+(?:form|word|affix|option|stem|ending|conjugation|declension|usage)[a-z]*\b", re.IGNORECASE),
-    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word|not\s+a\s+valid\s+form|does\s+not\s+exist(?:\s+in)?|no\s+such\s+(?:word|form|usage)|not\s+an\s+authentic\s+form|grammatically\s+impossible)\b", re.IGNORECASE),
-    re.compile(r"\b(?:not\s+found\s+in\s+(?:the\s+)?dictionary|does\s+not\s+occur\s+in)\b", re.IGNORECASE),
+    re.compile(r"\b(?:is\s+an?\s+)?(?:invented|fabricated|made-up|fictitious|artificial|non-existent|nonexistent|invalid)\s+(?:form|word|ending|affix|spelling|conjugation|declension)\b", re.IGNORECASE),
+    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word|not\s+a\s+valid\s+form|does\s+not\s+exist(?:\s+in)?|no\s+such\s+(?:word|form|usage|ending|affix|noun|verb)|not\s+an\s+authentic\s+form|grammatically\s+impossible)\b", re.IGNORECASE),
+    re.compile(r"\b(?:not\s+found\s+in\s+(?:the\s+|any\s+)?dictionary|does\s+not\s+occur\s+in(?:\s+the)?\s+language)\b", re.IGNORECASE),
 )
 
 _ERROR_HUNT_STEM_PATTERNS = (
@@ -1231,5 +1302,3 @@ def enforce_material_integrity(data: Any, language: Optional[str] = None, materi
         out["_integrity_removed_mcq"] = [{"index": i, "reason": r} for i, r in removed]
 
     return out
-
-
