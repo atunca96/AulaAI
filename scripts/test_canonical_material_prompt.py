@@ -34,7 +34,12 @@ def run():
     )
     assert "A1/A2: concrete, high-frequency" in system_prompt
     assert "BASIC SOUND VALUE(S) IN STANDARD IPA" in system_prompt
+    assert "Pronunciation data is publication-critical" in system_prompt
+    assert "Never guess IPA from spelling" in system_prompt
+    assert "Never insert a sound that is absent from the standard pronunciation" in system_prompt
+    assert "lexical pronunciation transcriptions against their exact words" in system_prompt
     assert "personal name alone never establishes grammatical gender" in system_prompt
+    assert "Never ask for a Turkish meaning with English options" in system_prompt
     assert "unnecessary metalanguage" in user_prompt
     assert "publication-ready CEFR A1 Example Language lesson" in user_prompt
 
