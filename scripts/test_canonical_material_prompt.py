@@ -23,10 +23,7 @@ system_prompt, user_prompt = build_material_prompts(
 for marker in (
     "A1/A2: concrete, high-frequency",
     "BASIC SOUND VALUE(S) IN STANDARD IPA",
-    "Pronunciation data is publication-critical",
-    "Never guess IPA from spelling",
-    "Never insert a sound that is absent from the standard pronunciation",
-    "Cross-check every `phonetic` against its exact `term` or example",
+    "Use one authoritative learner-facing pronunciation system for a given function",
     "personal name alone never establishes grammatical gender",
     "all semantic answer options and the keyed answer must be in that same instructional language",
 ):
