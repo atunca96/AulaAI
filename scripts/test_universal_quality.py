@@ -198,7 +198,9 @@ def run_tests():
     # ──────────────────────────────────────────────────────────────────────────
     # 4. INSTRUCTIONAL-LANGUAGE ISOLATION TESTS
     # ──────────────────────────────────────────────────────────────────────────
-    print("  -> Testing Instructional-Language Isolation...")
+    # 4. INSTRUCTIONAL-LANGUAGE ISOLATION & SHORTHAND INTEGRITY
+    # ──────────────────────────────────────────────────────────────────────────
+    print("  -> Testing Instructional-Language Isolation & Shorthand Integrity...")
 
     # Target lexical string iterator correctly extracts only target language keys
     test_node = {
@@ -216,7 +218,13 @@ def run_tests():
         "options": ["der", "die", "das", "den"],
         "answer": "der"
     }
-    from services.material_quality_guard import _iter_target_lexical_strings
+    from services.material_quality_guard import (
+        _iter_target_lexical_strings,
+        detect_grammar_shorthand_leakage,
+        sanitize_instructional_metalanguage,
+        sanitize_instructional_shorthand,
+        validate_distractor_quality,
+    )
     lexical_extracted = list(_iter_target_lexical_strings(test_node))
     assert "der Vater" in lexical_extracted
     assert "der" in lexical_extracted
@@ -226,10 +234,28 @@ def run_tests():
     assert "German masculine noun" not in lexical_extracted
     assert "Almanca eril isim" not in lexical_extracted
 
+    # Grammar shorthand leakage in Turkish instructional text must be caught and cleaned
+    leaky_tr = "İnceleme: он (masc.) ve она (fem.) zamirleri (pl.) ile çoğullanır."
+    leaks = detect_grammar_shorthand_leakage(leaky_tr, "tr")
+    assert len(leaks) >= 3, f"Expected leaks detected, got {leaks}"
+    cleaned_tr = sanitize_instructional_metalanguage(leaky_tr, "tr")
+    assert "(eril)" in cleaned_tr and "(dişil)" in cleaned_tr and "(çoğul)" in cleaned_tr
+    assert "masc" not in cleaned_tr and "fem" not in cleaned_tr
+
+    # Quoted references and unrelated target language must be strictly preserved
+    quoted_tr = 'Dilbilgisinde "masc." ve "fem." uluslararası sembollerdir.'
+    assert detect_grammar_shorthand_leakage(quoted_tr, "tr") == []
+    assert '"masc."' in sanitize_instructional_metalanguage(quoted_tr, "tr")
+
+    # Native English shorthand is NOT flagged as leakage
+    clean_en = "he (masc.) and she (fem.) take singular forms."
+    assert detect_grammar_shorthand_leakage(clean_en, "en") == []
+    assert sanitize_instructional_metalanguage(clean_en, "en") == clean_en
+
     # ──────────────────────────────────────────────────────────────────────────
-    # 5. FORMATIVE MCQ VALIDITY TESTS
+    # 5. FORMATIVE MCQ VALIDITY & DISTRACTOR PLAUSIBILITY TESTS
     # ──────────────────────────────────────────────────────────────────────────
-    print("  -> Testing Formative MCQ Validity...")
+    print("  -> Testing Formative MCQ Validity & Distractor Plausibility...")
 
     # Missing prompt -> FAIL
     bad_mcq1 = {"type": "mcq", "options": ["a", "b", "c", "d"], "answer": "a"}
@@ -255,6 +281,32 @@ def run_tests():
     bad_mcq5 = {"type": "mcq", "prompt": "Q", "options": ["a", "b", "c", "d"], "answer": "b", "correct_index": 0}
     ok, why = validate_mcq(bad_mcq5)
     assert not ok and why == "correct-index-mismatch", "Did not catch correct index mismatch"
+
+    # Placeholder distractor -> FAIL
+    bad_placeholder = {"type": "mcq", "prompt": "Q", "options": ["der", "die", "das", "Distractor 4"], "answer": "der"}
+    ok, why = validate_mcq(bad_placeholder)
+    assert not ok and "malformed-distractor:placeholder" in why, "Did not catch placeholder distractor"
+
+    # Pure punctuation noise -> FAIL
+    bad_punct = {"type": "mcq", "prompt": "Q", "options": ["der", "die", "das", "--"], "answer": "der"}
+    ok, why = validate_mcq(bad_punct)
+    assert not ok and "malformed-distractor:punctuation-only" in why, "Did not catch punctuation distractor"
+
+    # Character repetition artifact -> FAIL
+    bad_mash = {"type": "mcq", "prompt": "Q", "options": ["книга", "книги", "книге", "книгааааа"], "answer": "книга"}
+    ok, why = validate_mcq(bad_mash)
+    assert not ok and "malformed-distractor:char-repetition" in why, "Did not catch char repetition artifact"
+
+    # Explanation admitting invented non-word outside error hunt -> FAIL
+    bad_admitted = {
+        "type": "mcq",
+        "prompt": "Almancada eril artikel hangisidir?",
+        "options": ["der", "die", "das", "den"],
+        "answer": "der",
+        "explanation": "den burada uydurma form olarak eklenmiştir."
+    }
+    ok, why = validate_mcq(bad_admitted)
+    assert not ok and "malformed-distractor:admitted-non-word" in why, "Did not catch admitted non-word distractor"
 
     # Valid MCQ -> PASS
     good_mcq = {

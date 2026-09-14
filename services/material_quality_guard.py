@@ -242,6 +242,179 @@ def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
     return cleaned
 
 
+# ── INSTRUCTIONAL SHORTHAND & METAMATERIAL PURITY ────────────────────────────
+
+_INSTRUCTIONAL_SHORTHAND_MAPS: Dict[str, List[Tuple[str, str]]] = {
+    "tr": [
+        # Parenthesized forms: (masc.), (masculine), etc.
+        (r"\(\s*masc(?:\.|uline)?\s*\)", "(eril)"),
+        (r"\(\s*fem(?:\.|inine)?\s*\)", "(dişil)"),
+        (r"\(\s*neut(?:\.|er)?\s*\)", "(nötr)"),
+        (r"\(\s*pl(?:\.|ural)?\s*\)", "(çoğul)"),
+        (r"\(\s*(?:sg|sing)(?:\.|ular)?\s*\)", "(tekil)"),
+        (r"\(\s*nom(?:\.|inative)?\s*\)", "(Yalın Hâl)"),
+        (r"\(\s*gen(?:\.|itive)?\s*\)", "(İlgi/Tamlayan Hâli)"),
+        (r"\(\s*acc(?:\.|usative)?\s*\)", "(Belirtme Hâli)"),
+        (r"\(\s*dat(?:\.|ive)?\s*\)", "(Yönelme Hâli)"),
+        (r"\(\s*prep(?:\.|ositional)?\s*\)", "(Edat Durumu)"),
+        (r"\(\s*inst(?:\.|r|rumental)?\s*\)", "(Araç Hâli)"),
+        # Standalone abbreviations with explicit period: masc., fem., neut., pl., sg., etc.
+        (r"\bmasc\.", "eril"),
+        (r"\bfem\.", "dişil"),
+        (r"\bneut\.", "nötr"),
+        (r"\bpl\.", "çoğul"),
+        (r"\b(?:sg|sing)\.", "tekil"),
+        (r"\bnom\.", "Yalın Hâl"),
+        (r"\bgen\.", "İlgi/Tamlayan Hâli"),
+        (r"\bacc\.", "Belirtme Hâli"),
+        (r"\bdat\.", "Yönelme Hâli"),
+        (r"\bprep\.", "Edat Durumu"),
+        (r"\b(?:inst|instr)\.", "Araç Hâli"),
+    ],
+    "es": [
+        (r"\(\s*neut(?:\.|er)?\s*\)", "(neutro)"),
+        (r"\bneut\.", "neutro"),
+    ],
+    "de": [
+        (r"\(\s*neut(?:\.|er)?\s*\)", "(neutral)"),
+        (r"\bneut\.", "neutral"),
+    ],
+    "fr": [
+        (r"\(\s*neut(?:\.|er)?\s*\)", "(neutre)"),
+        (r"\bneut\.", "neutre"),
+    ],
+}
+
+_SHORTHAND_LEAKAGE_DETECTORS: Dict[str, List[re.Pattern]] = {
+    "tr": [
+        re.compile(r"\(\s*(?:masc|fem|neut|pl|sg|sing|nom|gen|acc|dat|prep|inst)\.?\s*\)", re.IGNORECASE),
+        re.compile(r"\b(?:masc|fem|neut|pl|sg|sing|nom|gen|acc|dat|prep|inst)\.", re.IGNORECASE),
+    ],
+}
+
+_BASE_CANONICAL_TR_META = (
+    (r"\bprepositional\s+case\b", "Edat Durumu"),
+    (r"\bprepositional\b", "Edat Durumu"),
+    (r"\bgenitive\b", "İlgi/Tamlayan Hâli"),
+    (r"\bnominative\b", "Yalın Hâl"),
+    (r"\bnominativ\b", "Yalın Hâl"),
+    (r"\bgenitiv\b", "İlgi/Tamlayan Hâli"),
+    (r"\baccusative\b", "Belirtme Hâli"),
+    (r"\bakkusativ\b", "Belirtme Hâli"),
+    (r"\bdative\b", "Yönelme Hâli"),
+    (r"\bdativ\b", "Yönelme Hâli"),
+    (r"\binstrumental\b", "Araç Hâli"),
+    (r"\bmasculine\b", "eril"),
+    (r"\bfeminine\b", "dişil"),
+    (r"\bneuter\b", "nötr"),
+    (r"\bzero[- ]copula\b", "sıfır bağlayıcı"),
+)
+
+
+def sanitize_instructional_shorthand(text: str, instructional_language: str = "tr") -> str:
+    """
+    Safely normalize leaked foreign grammatical shorthand in instructional text
+    while strictly protecting all quoted target-language vocabulary, code blocks,
+    and citations.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    lang_key = str(instructional_language or "tr").strip().casefold()
+    if lang_key in ("turkish", "türkçe", "turkce"):
+        lang_key = "tr"
+    elif lang_key in ("english", "ingilizce"):
+        lang_key = "en"
+    elif lang_key in ("spanish", "ispanyolca", "español"):
+        lang_key = "es"
+    elif lang_key in ("german", "almanca", "deutsch"):
+        lang_key = "de"
+    elif lang_key in ("french", "fransızca", "français"):
+        lang_key = "fr"
+
+    rules = _INSTRUCTIONAL_SHORTHAND_MAPS.get(lang_key)
+    if not rules:
+        return text
+
+    # Split on quotes (`...`, "...", “...”, «...», '...') to preserve quoted target items
+    parts = re.split(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')', text)
+    for i in range(0, len(parts), 2):
+        chunk = parts[i]
+        for pattern, replacement in rules:
+            chunk = re.sub(pattern, replacement, chunk, flags=re.IGNORECASE)
+        parts[i] = chunk
+    return "".join(parts)
+
+
+def detect_grammar_shorthand_leakage(text: str, instructional_language: str = "tr") -> List[str]:
+    """
+    Detect foreign grammatical shorthand leaked into instructional language text.
+    Ignores quoted target tokens and code spans. Returns a list of leaked tokens.
+    """
+    if not isinstance(text, str) or not text:
+        return []
+    lang_key = str(instructional_language or "tr").strip().casefold()
+    if lang_key in ("turkish", "türkçe", "turkce"):
+        lang_key = "tr"
+    elif lang_key in ("english", "ingilizce"):
+        return []  # English shorthand is native in English
+    elif lang_key in ("spanish", "ispanyolca", "español"):
+        lang_key = "es"
+    elif lang_key in ("german", "almanca", "deutsch"):
+        lang_key = "de"
+    elif lang_key in ("french", "fransızca", "français"):
+        lang_key = "fr"
+
+    detectors = _SHORTHAND_LEAKAGE_DETECTORS.get(lang_key)
+    if not detectors:
+        return []
+
+    # Only inspect outside quoted regions
+    parts = re.split(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')', text)
+    leaks = []
+    for i in range(0, len(parts), 2):
+        chunk = parts[i]
+        for d in detectors:
+            for m in d.finditer(chunk):
+                leaks.append(m.group(0))
+    return leaks
+
+
+def sanitize_instructional_metalanguage(value: Any, material_language: str = "tr") -> str:
+    """
+    Language-agnostic normalization of instructional metalanguage and grammatical shorthand.
+    Safely normalizes case names, gender terms, and shorthand abbreviations in the instructional
+    language while preserving all quoted target-language words, examples, and symbols.
+    """
+    text = safe_unicode_normalize(str(value or ""))
+    if not text:
+        return text
+
+    # First normalize grammatical shorthand (e.g. (masc.) -> (eril), masc. -> eril)
+    text = sanitize_instructional_shorthand(text, instructional_language=material_language)
+
+    lang_clean = str(material_language or "").strip().casefold()
+    if lang_clean in {"tr", "turkish", "türkçe", "turkce"}:
+        parts = re.split(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')', text)
+        for i in range(0, len(parts), 2):
+            for pattern, replacement in _BASE_CANONICAL_TR_META:
+                parts[i] = re.sub(pattern, replacement, parts[i], flags=re.IGNORECASE)
+        res = "".join(parts)
+        res = re.sub(r"\bzero[- ]copula\b", "sıfır bağlayıcı", res, flags=re.IGNORECASE)
+        res = re.sub(r"\bnominatif\b", "Yalın Hâl", res, flags=re.IGNORECASE)
+        res = re.sub(r"\bgenitif\b", "İlgi/Tamlayan Hâli", res, flags=re.IGNORECASE)
+        res = re.sub(r"\b(Edat Durumu|Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli)\s+[Cc]ase\b", r"\1", res)
+        res = re.sub(r"(?i)\bİlgi\s*/\s*İlgi\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", res)
+        res = re.sub(r"(?i)\bİlgi\s*/\s*Tamlayan\s*(?:H[âa]li)?\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", res)
+        res = re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*\(\s*\1\s*\)", r"\1", res)
+        res = re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*/\s*\1\b", r"\1", res)
+        if re.search(r'(?i)\b(?:ехать|еха[-–—]|ehat|ekhat)\b', res):
+            res = re.sub(r'["\'„“]?-д-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", res, flags=re.IGNORECASE)
+            res = re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", res, flags=re.IGNORECASE)
+        return res
+
+    return text
+
+
 # ── FIELD-AWARE TARGET STRING EXTRACTION ─────────────────────────────────────
 
 _EXCLUDE_SUFFIXES = ("_en", "_tr", "_fr", "_de", "_es", "_it", "_ru")
@@ -372,13 +545,83 @@ def _phonetic_gate(data: Any) -> Tuple[bool, str]:
     return True, ""
 
 
-# ── FORMATIVE MCQ STRUCTURAL VALIDATION ─────────────────────────────────────
+# ── FORMATIVE MCQ STRUCTURAL & DISTRACTOR QUALITY VALIDATION ────────────────
+
+_PLACEHOLDER_DISTRACTOR_PATTERNS = (
+    re.compile(r"^option\s*\d+$", re.IGNORECASE),
+    re.compile(r"^choice\s*[a-d0-9]+$", re.IGNORECASE),
+    re.compile(r"^distractor\s*\d+$", re.IGNORECASE),
+    re.compile(r"^seçenek\s*\d+$", re.IGNORECASE),
+    re.compile(r"^yanıt\s*\d+$", re.IGNORECASE),
+    re.compile(r"^şık\s*[a-d]$", re.IGNORECASE),
+    re.compile(r"^placeholder", re.IGNORECASE),
+    re.compile(r"^undefined$", re.IGNORECASE),
+    re.compile(r"^null$", re.IGNORECASE),
+    re.compile(r"^n/a$", re.IGNORECASE),
+    re.compile(r"^none\s+of\s+the\s+above$", re.IGNORECASE),
+    re.compile(r"^\[object\s+object\]$", re.IGNORECASE),
+)
+
+_ADMITTED_NON_WORD_PATTERNS = (
+    re.compile(r"\b(?:uydurma|hatal[ıi]|ge[çc]ersiz)\s+(?:bir\s+)?(?:form|kelime|s[öo]zc[üu]k|ek)\b", re.IGNORECASE),
+    re.compile(r"\b(?:invalid|nonexistent|non-word|invented|fake|made-up)\s+(?:form|word|affix)\b", re.IGNORECASE),
+    re.compile(r"\b(?:misspelling|not\s+a\s+real\s+word)\b", re.IGNORECASE),
+)
+
+_ERROR_HUNT_STEM_PATTERNS = (
+    re.compile(r"\b(?:hangisi\s+hatal[ıi]|yanl[ıi][şs]\s+yaz[ıi]lm[ıi][şs]|ge[çc]ersiz\s+olan|uydurma\s+olan)\b", re.IGNORECASE),
+    re.compile(r"\b(?:which\s+(?:is\s+)?(?:incorrect|misspelled|invalid|false|wrong|an\s+error))\b", re.IGNORECASE),
+)
+
+
+def validate_distractor_quality(
+    options: List[str],
+    prompt: str = "",
+    explanation: str = ""
+) -> Tuple[bool, str]:
+    """
+    Universal, language-agnostic validation of formative assessment distractor quality.
+    Rejects placeholder options, character-mashing/repetition artifacts, pure punctuation noise,
+    and explanations explicitly admitting invented/non-existent pseudo-word distractors
+    unless the question specifically tests error-detection.
+    """
+    if not isinstance(options, list) or len(options) != 4:
+        return False, "distractor-count-invalid"
+
+    for idx, opt in enumerate(options):
+        text = str(opt or "").strip()
+        if not text:
+            return False, f"empty-option:{idx}"
+
+        # 1. Reject placeholder / template options
+        for pat in _PLACEHOLDER_DISTRACTOR_PATTERNS:
+            if pat.match(text):
+                return False, f"malformed-distractor:placeholder:{idx}"
+
+        # 2. Reject pure punctuation / symbolic noise
+        if re.match(r"^[\W_]+$", text):
+            return False, f"malformed-distractor:punctuation-only:{idx}"
+
+        # 3. Reject character repetition / keyboard-mashing artifacts (4+ identical chars)
+        if re.search(r"([A-Za-zА-Яа-яЁё\u0370-\u03FF\u0600-\u06FF])\1{3,}", text):
+            return False, f"malformed-distractor:char-repetition:{idx}"
+
+    # 4. Check if explanation admits non-word / malformed distractor outside error-hunt items
+    if explanation:
+        is_error_hunt = bool(prompt and any(pat.search(prompt) for pat in _ERROR_HUNT_STEM_PATTERNS))
+        if not is_error_hunt:
+            for pat in _ADMITTED_NON_WORD_PATTERNS:
+                if pat.search(explanation):
+                    return False, "malformed-distractor:admitted-non-word"
+
+    return True, ""
+
 
 def validate_mcq(page: Any) -> Tuple[bool, str]:
     """
     Universal, language-agnostic formative MCQ validation.
     Enforces exactly 4 distinct options, exactly 1 matching answer, correct index alignment,
-    and localized options count/uniqueness parity.
+    plausible authentic distractors, and localized options count/uniqueness parity.
     """
     if not isinstance(page, dict):
         return False, "mcq-not-dict"
@@ -404,12 +647,20 @@ def validate_mcq(page: Any) -> Tuple[bool, str]:
     if isinstance(ci, int) and (ci < 0 or ci >= 4 or options[ci] != answer):
         return False, "correct-index-mismatch"
 
+    expl = _norm(page.get("explanation") or page.get("explanation_tr") or page.get("explanation_en") or "")
+    dist_ok, dist_why = validate_distractor_quality(options, prompt=prompt, explanation=expl)
+    if not dist_ok:
+        return False, dist_why
+
     for key in ("options_tr", "options_en"):
         localized = page.get(key)
         if localized is not None:
-            localized = [_norm(x) for x in _as_list(localized)]
-            if len(localized) != 4 or any(not x for x in localized) or len(set(localized)) != 4:
+            loc_list = [_norm(x) for x in _as_list(localized)]
+            if len(loc_list) != 4 or any(not x for x in loc_list) or len(set(loc_list)) != 4:
                 return False, f"invalid-{key}"
+            loc_ok, loc_why = validate_distractor_quality(loc_list, prompt=prompt, explanation=expl)
+            if not loc_ok:
+                return False, f"{key}:{loc_why}"
 
     return True, ""
 
@@ -467,7 +718,7 @@ def _recursive_clean_unicode(node: Any, language: Optional[str] = None) -> Any:
     return node
 
 
-def enforce_material_integrity(data: Any, language: Optional[str] = None) -> Any:
+def enforce_material_integrity(data: Any, language: Optional[str] = None, material_language: str = "tr") -> Any:
     """
     Language-agnostic structural cleanup and Unicode normalization after generation.
     Prunes structurally broken MCQs, applies safe Unicode NFC normalization,

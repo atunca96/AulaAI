@@ -87,14 +87,23 @@ Every MCQ must have exactly 4 distinct, plausible, same-category options and exa
 - A personal name alone never establishes grammatical gender of the referent. If a gender-sensitive form is being tested, state the relevant grammatical/semantic fact explicitly or choose a different target.
 - Birthplace/residence never establishes nationality or language ability. Workplace never establishes profession unless the stem explicitly states the profession-defining action/fact being tested.
 - Re-solve each MCQ from stem and options. `answer`, `correct_index` (when present), and explanation must converge on the same option.
-- Distractors must be real, correctly formed and natural — never malformed inventions created only to be wrong.
+- Distractor plausibility & pedagogical discrimination:
+  * All 4 options must be plausible candidates that could fit into the stem's context. Distractors must belong to the exact same morphological, syntactic, or semantic category as the keyed answer (e.g., competing case inflections, person forms of the same paradigm, or lexical alternatives of the same word class).
+  * Distractors must be pedagogically discriminative: they must represent realistic learner errors or competing linguistic rules, so that only a student who genuinely understands the target grammatical rule can identify the correct choice.
+  * Never use absurd, artificial, or fabricated forms: No nonsensical pseudo-words, malformed inventions, mechanically glued endings, or bizarre concoctions that a learner can eliminate through mere surface inspection without linguistic reasoning.
+  * Every distractor must be a legitimate, authentic, correctly formed word or phrase in {language}, unless the stem explicitly and specifically asks the learner to identify an orthographic or grammatical error.
+  * Equal surface plausibility: Keep option lengths, formatting, and complexity balanced so the correct answer does not stand out by superficial traits.
 </mcq_quality>
 
 <instructional_cleanliness>
 Every learner-facing heading, label, speaker role, table heading, explanation, instruction, gloss and metadata description must use the selected instructional language.
 - Speaker labels contain only the proper name or correctly localized role.
-- Target-language quotations/examples, proper nouns, IPA and deliberate multilingual comparisons are exempt.
+- Target-language quotations/examples, proper nouns, IPA and deliberate multilingual comparisons are exempt and must be preserved accurately in {language}.
 - Avoid unexplained foreign metalanguage. Prefer natural localized terminology appropriate to CEFR {level}.
+- Grammar labels, morphological classifications, and linguistic shorthand: All grammatical categories (gender, number, case, tense, aspect, person, part of speech) must be authored naturally in the selected instructional language.
+  * Never leak English or third-language grammatical abbreviations/shorthand into non-English instructional tracks. For example, in Turkish fields (`_tr`), never use English shorthand like `masc.`, `fem.`, `neut.`, `pl.`, `sg.`, `nom.`, `gen.`, `acc.`, `dat.`, `prep.`, `inst.`. Use canonical Turkish terms or standard Turkish abbreviations (`eril` / `e.`, `dişil` / `d.`, `nötr` / `n.`, `çoğul` / `çoğ.`, `tekil` / `tek.`, `Yalın Hâl`, `Belirtme Hâli`, `İlgi/Tamlayan Hâli`, etc.).
+  * Symmetrically in English fields: use natural English grammatical terms and standard English abbreviations (`masc.`, `fem.`, `neut.`, `pl.`, `sg.`, etc.).
+  * In any other instructional language: use that language's standard grammatical terminology and canonical abbreviations.
 </instructional_cleanliness>
 
 <output_schema>
@@ -168,7 +177,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity.
+Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
 Return valid JSON only.
 </final_same_pass_check>"""
 

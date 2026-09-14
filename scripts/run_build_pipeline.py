@@ -78,6 +78,8 @@ PIPELINE_STEPS = [
     "scripts/patch_v57_build_compat.py",
     "scripts/patch_release_final_v57.py",
     "scripts/test_release_final_v57.py",
+    "scripts/patch_micro_quality_polish.py",
+    "scripts/test_micro_quality_polish.py",
 
     # ── Phase 3: Comprehensive Final Quality & Integrity Verifications ───────
     "scripts/test_material_release_integrity_v37.py",
