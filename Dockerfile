@@ -68,6 +68,8 @@ RUN python scripts/patch_pdf_cache_bust_v39.py \
     && python scripts/test_release_leaf_hygiene_v58.py \
     && python scripts/patch_mcq_lexical_anchor_v59.py \
     && python scripts/test_mcq_lexical_anchor_v59.py \
+    && python scripts/patch_prompt_naturalness_v60.py \
+    && python scripts/test_prompt_naturalness_v60.py \
     && python scripts/patch_canonical_material_prompt.py \
     && python scripts/test_canonical_material_prompt.py \
     && python scripts/test_material_release_integrity_v37.py \
