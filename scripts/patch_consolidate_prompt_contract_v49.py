@@ -4,65 +4,54 @@ p = Path(__file__).resolve().parents[1] / 'services' / 'ai_engine.py'
 s = p.read_text(encoding='utf-8')
 
 UNIFIED_QUALITY_CONTRACT = """<aulaai_unified_quality_contract>
-AULAAI_INLINE_PUBLICATION_QA_V46: Act as a master university professor and premier publication editor across all supported languages and CEFR levels (A1–C2). Before returning final JSON, silently inspect and repair your draft against this single universal quality contract. Do not add audit fields, explanations of the audit, or reduce lesson depth.
+AULAAI_INLINE_PUBLICATION_QA_V46: Produce publication-grade language material in ONE generation pass. Do not add audit fields, extra calls, retries, or post-generation repair assumptions.
+AULAAI_SCHEMA_FIRST_V54: Treat the JSON schema as a typed intermediate representation. Correctness comes from putting the right content in the right field before JSON is returned; never rely on downstream filtering to reinterpret or repair meaning.
 
-1. UNIVERSAL TARGET-LANGUAGE & WRITING-SYSTEM INTEGRITY:
-- WRITING-SYSTEM INTEGRITY: Every target-language sentence, token, table cell, dialogue turn, and assessment item must strictly adhere to the legitimate writing system and orthographic standards of {language} (Latin, Cyrillic, Greek, Arabic, Hebrew, Devanagari, Japanese mixed scripts, Chinese Han, Korean Hangul/Hanja, etc.).
-- Intra-Token Integrity: A single target-language token must NEVER suffer foreign-script contamination or homoglyph corruption (e.g. accidental Latin letters inside a Cyrillic or Greek word, or vice-versa).
-- Multiscript Languages: In languages naturally utilizing multiple scripts (e.g., Japanese Kanji + Hiragana + Katakana, Korean Hangul + Hanja), respect authentic co-occurrence norms.
-- Field-Aware Semantic Role: Metadata tokens (CEFR level codes such as A1-C2, IPA brackets, URLs, proper nouns, brand names, technical abbreviations, and explicit transliteration/romanization fields) are legitimate and must never be misclassified as script defects.
+1. FIELD OWNERSHIP IS ABSOLUTE
+- TARGET fields contain only authentic {language}: target terms, target examples, target dialogue utterances, target-form MCQ options, and quoted target-language forms.
+- TURKISH instructional fields (*_tr and Turkish-facing meaning/explanation fields) contain natural Turkish only, except exact target-language forms being taught. Do not insert English glosses, English answer options, or English grammatical labels into Turkish prose.
+- ENGLISH instructional fields (*_en / English-facing fields) contain natural English only, except exact target-language forms being taught.
+- PHONETIC belongs only to its sibling target term/expression and is standard IPA in brackets. Never attach target IPA to a translation, gloss, speaker label, or unrelated example. Never provide a second ad-hoc learner respelling for the same item.
 
-2. UNIVERSAL UNICODE & GLYPHIC INTEGRITY:
-- Valid NFC Unicode only. Zero tolerance for replacement characters (U+FFFD), noncharacters, lone surrogates, broken control characters, or severed combining sequences.
-- Orthographic Preservation: Never strip or damage legitimate combining marks, diacritics, stress marks, tone marks, vowel marks, Arabic tashkeel/harakat, Indic viramas/matras, or zero-width joiners/non-joiners essential to the language.
+2. ASSESSMENT TYPE DETERMINES OPTION LANGUAGE
+Before writing each MCQ, decide its answer domain and keep all four options in exactly that domain:
+- target-form / grammar / spelling / pronunciation choice -> all options are target-language forms or IPA as appropriate;
+- Turkish meaning / comprehension choice in Turkish material -> all options are Turkish;
+- English meaning / comprehension choice in English material -> all options are English.
+Never mix domains inside one option set. The stem, keyed answer, correct_index, and explanation must all resolve to the same unique option. The stem itself must contain every fact needed; never infer gender, nationality, ethnicity, profession, language ability, or identity from a name, birthplace, residence, workplace, stereotype, or world knowledge.
 
-3. UNIVERSAL PRONUNCIATION-SYSTEM CONSISTENCY:
-- PHONETIC/NOTATION TRUTH: Use exactly one consistent learner-facing pronunciation representation per document (e.g. standard IPA [...] or phonemic /.../). Never mix IPA with ad-hoc hyphenated learner respellings for the same function.
-- Transliteration / Romanization: Clean romanization (e.g. Pinyin, Hepburn romaji) is welcomed when explicitly labeled or serving as secondary pedagogical support.
-- Phonological Conditioning: Preserve genuine phonetic realities: stress, pitch/tone, vowel length, consonant quality, sandhi, assimilation, and reduction. Never overstate beginner shortcuts as exceptionless phonetic truth.
+3. DIALOGUE IS STRUCTURAL, NOT FREE-FORM
+Every dialogue turn has two different semantic slots: SPEAKER and UTTERANCE.
+- speaker = only a proper name or short target-language role label; never a sentence, never punctuation-heavy prose.
+- speaker_tr / speaker_en = localized role label or the same proper name.
+- text = only the utterance in {language}.
+- line_tr / line_en = faithful instructional-language rendering of that utterance.
+Never swap speaker and text. Never emit an empty utterance paired with a sentence-sized speaker. Maintain coherent turn-taking and register.
 
-4. UNIVERSAL INSTRUCTIONAL-LANGUAGE ISOLATION & TWO-TRACK FIDELITY:
-- Propositional Equivalence: Target text and instructional-language translations (English & Turkish) must be mutually entailing and express the exact same proposition, entities, roles, polarity, and communicative force.
-- Track 1 (English fields: 'title', 'text', 'explanation', 'example_en'): 100% natural, fluent English for English speakers. Zero Turkish words, Turkish parentheticals, or Turkish phonetic references.
-- Track 2 (Turkish fields: 'title_tr', 'text_tr', 'explanation_tr', 'example_tr'): Natural, idiomatic Turkish for Turkish speakers. Zero English word comparisons. No parenthetical country/origin glosses, no unnatural gender hacks ('kadındır'/'erkektir'), no 'sahiptir/sahibim' for physical possession (use var/yok), no 'çok' with ungradable adjectives, no mechanical ordering tense calques ('rica ediyordum' -> 'rica ediyorum' / 'alabilir miyim?').
+4. WRITING-SYSTEM OBJECTS ARE DATA
+When teaching an alphabet, kana, character, diacritic, tone mark, vowel mark, length mark, combining mark, punctuation sign, or other orthographic symbol, emit the literal Unicode symbol itself in the relevant target field. Do not describe a visible mark and then leave empty parentheses or empty quotes. Preserve legitimate combining marks, stress marks, dakuten/handakuten, chōonpu, Arabic marks, Indic marks, ZWJ/ZWNJ, and naturally mixed scripts. Valid NFC Unicode only; no replacement characters, noncharacters, lone surrogates, or cross-script homoglyph corruption inside a token.
 
-5. UNIVERSAL GRAMMATICAL, TYPOLOGICAL & SEMANTIC CORRECTNESS:
-- INTERNAL CONSISTENCY: Every target-language utterance must be grammatically flawless and native-natural, respecting the specific language's typology: word order (SVO, SOV, VSO, topic-comment, pro-drop), valency, case/adposition government, agreement, tense/aspect/mood, articles/determiners, classifiers/counters, clitics/particles, honorifics, and register.
-- Language-Family Neutrality: Never impose Indo-European or English grammatical categories (such as suffix-centric morphology, rigid copulas, or tense systems) onto languages where they do not naturally apply.
+5. PRONUNCIATION HAS ONE SOURCE OF TRUTH
+Use standard IPA only for learner-facing pronunciation. Each IPA value must describe the exact sibling target item. If the same item recurs, keep its pronunciation compatible with the same phonological analysis and context. Explicit transliteration/romanization may coexist only when clearly a separate pedagogical field/function, never as a second pronunciation system. Preserve real stress, tone, vowel length, palatalization, reduction, assimilation, and other conditioning; do not turn tendencies into exceptionless claims.
 
-6. UNIVERSAL RULE-SCOPE CALIBRATION:
-- RULE-SCOPE CALIBRATION: Accurately distinguish productive rules from regular tendencies, restricted patterns, lexical conventions, and exceptions.
-- Absolute claims (always, never, only, every, must, without exception) are permitted ONLY when the phenomenon is genuinely exceptionless within the stated scope; otherwise qualify precisely (typically, commonly, in standard usage).
+6. TYPOLOGICAL AND FACTUAL TRUTH
+Every target-language utterance must be native-natural and grammatically correct for that language's own typology. Never force English/Indo-European categories onto unrelated languages. Every stated inventory count, list membership, paradigm, exception, and rule scope must agree internally. Absolute words such as always/never/only/every are allowed only when genuinely true within the stated scope.
 
-7. UNIVERSAL TEACH-BEFORE-USE & COVERAGE CLOSURE:
-- Explicit Grounding: Every grammatical structure, inflected form, and active vocabulary item tested in an assessment or highlighted in an example must be explicitly taught earlier in the lesson or clearly designated as a fixed lexical chunk.
-- Coverage Closure: If a paradigm or rule is introduced, cover the forms required by its own examples without bloating the lesson with unneeded theoretical mechanics.
+7. CEFR AND TEACH-BEFORE-TEST
+Keep content strictly at CEFR {level}. A1 uses high-frequency survival language, short transparent examples, and minimal metalanguage; higher levels scale naturally. Every tested structure or active lexical item must have been taught earlier or clearly introduced as a fixed chunk.
 
-8. UNIVERSAL CEFR CALIBRATION (A1–C2):
-- Strictly adhere to CEFR {level}:
-  * A1: Survival language, highest-frequency vocabulary, short transparent examples, basic morphology/syntax, minimum metalanguage.
-  * A2: Routine daily interactions, broader everyday functions, controlled grammatical expansion.
-  * B1: Connected discourse, productive everyday grammar, varied tense/aspect, personal viewpoints.
-  * B2: Nuanced argumentation, diverse collocations, natural idiomatic usage, contrast and stance.
-  * C1: Advanced professional/academic register, complex discourse markers, pragmatic nuance, lexical precision.
-  * C2: Near-native control, subtle sociolinguistic and stylistic registers, rare but authentic constructions, pragmatic finesse.
-- Never make A1 depth depend on specialist jargon; never artificially simplify C1/C2 materials.
-
-9. UNIVERSAL DIALOGUE & LEXICAL NATURALNESS:
-- Dialogues must portray realistic human interactions with coherent speaker roles, status relationships, social deixis, turn-taking, and natural conversational flow.
-- Reject literal calques, false cognates, machine-translation residue, and invented morphology.
-
-10. UNIVERSAL FORMATIVE MCQ STRICT GROUNDING & SELF-CONSISTENCY:
-- MCQ SELF-CONSISTENCY: Every MCQ must have exactly 4 distinct, plausible options and exactly 1 defensible keyed answer matching one of the options.
-- Stem Sufficiency: The question stem must provide all evidence necessary to solve the item. The difficulty must stem solely from {language} competence, never from kinship-chain deductions, arithmetic, riddles, trivia, stereotypes, or unstated background knowledge.
-- Same-Category Distractors: Distractors must belong to the same grammatical/semantic category and represent realistic learner confusions from the taught material.
-- Independent Key Recomputation: Silently re-solve each question from the stem and options without trusting draft keys; verify that 'answer', 'correct_index', and 'explanation' strictly converge on the same option.
-
-11. FINAL SAME-PASS RELEASE PASS:
-- Silently verify: (1) native script & single pronunciation system intact, (2) zero intra-token mixed-script defects, (3) every tested item explicitly taught earlier, (4) 4 distinct MCQ options with independently verified answer key & explanation, (5) bilingual two-track isolation and translation fidelity. Repair any defect inline. Respond with valid JSON only.
+8. FINAL SCHEMA VALIDATION BEFORE RETURN
+Silently validate the completed JSON by FIELD ROLE, not by surface heuristics:
+- no Turkish/English instructional prose inside target utterance fields;
+- no English instructional prose inside Turkish-facing fields;
+- no sentence-sized speaker values or empty dialogue utterances;
+- no missing literal writing-system symbol when the prose claims to teach one;
+- no IPA attached to the wrong lexical item and no conflicting second pronunciation representation;
+- every MCQ has four distinct same-domain options, one defensible answer, and no hidden-world inference;
+- every count/list/rule is internally consistent.
+Repair the JSON in the same pass, then return valid JSON only.
 </aulaai_unified_quality_contract>
 """
-
 
 start_marker = "<lesson_quality_v24>"
 end_marker = "<output_schema>"
@@ -72,16 +61,17 @@ if start_marker not in s or end_marker not in s:
 
 start_idx = s.find(start_marker)
 end_idx = s.find(end_marker)
-
 if start_idx >= end_idx:
     raise RuntimeError("v49 slice indices invalid")
 
 s = s[:start_idx] + UNIFIED_QUALITY_CONTRACT + s[end_idx:]
 
 if "AULAAI_INLINE_PUBLICATION_QA_V46" not in s:
-    raise RuntimeError("v49 safety check failed: AULAAI_INLINE_PUBLICATION_QA_V46 missing")
+    raise RuntimeError("v49 safety check failed: publication QA marker missing")
+if "AULAAI_SCHEMA_FIRST_V54" not in s:
+    raise RuntimeError("v49 safety check failed: schema-first marker missing")
 if "<output_schema>" not in s:
-    raise RuntimeError("v49 safety check failed: <output_schema> missing")
+    raise RuntimeError("v49 safety check failed: output schema missing")
 
 p.write_text(s, encoding='utf-8')
-print("Applied v49: surgical prompt consolidation — reduced system prompt by ~23.5k chars (~5.9k tokens) while preserving 100% quality contract")
+print("Applied v49 schema-first generation contract: typed field ownership, zero downstream-filter assumptions")
