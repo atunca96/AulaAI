@@ -110,13 +110,15 @@ def run():
     assert len(mcq["options"]) == before_counts["mcq_options"], mcq
     assert mcq["answer"] == "пе́сня", mcq
 
-    # Non-Russian content must not receive Russian-specific phonetic/stress cleanup.
+    # Fake silence placeholders are publication-invalid regardless of target language.
+    # This fixture intentionally uses a Russian sign under a German language context to
+    # prove the universal placeholder rule does not depend on Russian language scoping.
     german = guard.enforce_material_integrity(
         {"pages": [{"type": "vocabulary", "items": [{"term": "Ь (мягкий знак)", "phonetic": "[-]"}]}]},
         language="German",
         material_language="tr",
     )
-    assert german["pages"][0]["items"][0]["phonetic"] == "[-]", german
+    assert german["pages"][0]["items"][0]["phonetic"] == "", german
 
     import services.pdf_renderer_v12 as renderer
     renderer = importlib.reload(renderer)
