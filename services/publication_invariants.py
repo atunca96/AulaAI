@@ -36,6 +36,7 @@ Design rules enforced here:
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from copy import deepcopy
@@ -420,29 +421,58 @@ _ABSOLUTE_CLAIM_PATTERNS: Dict[str, Tuple[Tuple[str, str], ...]] = {
     ),
 }
 
-# Exclusivity / restriction wording. "X is used ONLY for Y" forecloses every
-# other context, so it is a scope claim exactly as categorical as "always" - and
-# it was invisible to the claim layer, which is how restrictive register claims
-# kept publishing unreviewed.
+# ── Scope wording that is DETECTED but never rewritten ──────────────────────
 #
-# These are DETECTION-ONLY and deliberately absent from the table above:
-# deterministic code cannot tell restricted *usage* ("used only in formal
-# speech") from a plain count ("there are only two forms"), and rewriting the
-# second would corrupt a correct sentence. Detection routes the claim to the
-# bounded reviewer, which can tell the difference; nothing here ever rewrites.
-_EXCLUSIVITY_PATTERNS: Dict[str, Tuple[str, ...]] = {
-    "tr": (r"\bsadece\b", r"\byalnızca\b", r"\byalnizca\b", r"\bsırf\b", r"\bsirf\b",
-           r"\byalnız\b", r"\bdışında\s+kullanılmaz\b"),
-    "en": (r"\bonly\s+for\b", r"\bonly\s+in\b", r"\bonly\s+when\b", r"\bonly\s+with\b",
-           r"\bonly\s+used\b", r"\bused\s+only\b", r"\bexclusively\b", r"\bsolely\b",
-           r"\breserved\s+for\b"),
-    "es": (r"\bsólo\s+se\b", r"\bsolo\s+se\b", r"\búnicamente\b", r"\bexclusivamente\b"),
-    "de": (r"\bnur\s+für\b", r"\bnur\s+bei\b", r"\bnur\s+in\b", r"\bausschließlich\b"),
-    "fr": (r"\buniquement\b", r"\bexclusivement\b", r"\bseulement\s+pour\b"),
-    "it": (r"\bsoltanto\b", r"\besclusivamente\b", r"\bsolo\s+per\b"),
-    "pt": (r"\bapenas\s+para\b", r"\bapenas\s+em\b", r"\bexclusivamente\b"),
-    "ru": (r"\bтолько\s+для\b", r"\bтолько\s+в\b", r"\bисключительно\b"),
+# The table above pairs each pattern with a hedge, because a quantifier or a
+# deontic can be softened mechanically without changing what the sentence is
+# about. The families below cannot: "only two forms" is a count, "completely
+# correct" is an intensifier on a fact, and rewriting either would corrupt a
+# true sentence. They are still categorical scope claims when they appear in a
+# rule, so they are detected and routed to the bounded reviewer, which can tell
+# the readings apart, and never touched by deterministic code.
+#
+# Adding a new family means adding it here, once, with its patterns per
+# instructional language - not another table and another call site.
+_SCOPE_WORDING_FAMILIES: Dict[str, Dict[str, Tuple[str, ...]]] = {
+    # X is used ONLY for Y - forecloses every other context.
+    "exclusivity": {
+        "tr": (r"\bsadece\b", r"\byalnızca\b", r"\byalnizca\b", r"\bsırf\b", r"\bsirf\b",
+               r"\byalnız\b", r"\bdışında\s+kullanılmaz\b"),
+        "en": (r"\bonly\s+for\b", r"\bonly\s+in\b", r"\bonly\s+when\b", r"\bonly\s+with\b",
+               r"\bonly\s+used\b", r"\bused\s+only\b", r"\bexclusively\b", r"\bsolely\b",
+               r"\breserved\s+for\b"),
+        "es": (r"\bsólo\s+se\b", r"\bsolo\s+se\b", r"\búnicamente\b", r"\bexclusivamente\b"),
+        "de": (r"\bnur\s+für\b", r"\bnur\s+bei\b", r"\bnur\s+in\b", r"\bausschließlich\b"),
+        "fr": (r"\buniquement\b", r"\bexclusivement\b", r"\bseulement\s+pour\b"),
+        "it": (r"\bsoltanto\b", r"\besclusivamente\b", r"\bsolo\s+per\b"),
+        "pt": (r"\bapenas\s+para\b", r"\bapenas\s+em\b", r"\bexclusivamente\b"),
+        "ru": (r"\bтолько\s+для\b", r"\bтолько\s+в\b", r"\bисключительно\b"),
+    },
+    # X is COMPLETELY Y / fits ALL Y - asserts an endpoint of a scale, or
+    # universal applicability, which register and usage claims rarely earn.
+    "totality": {
+        "tr": (r"\btamamen\b", r"\btümüyle\b", r"\btumuyle\b", r"\bbütünüyle\b",
+               r"\btüm\s+\w+\s+durum", r"\bbütün\s+\w*\s*durum", r"\bher\s+\w+\s+ortam",
+               r"\bher\s+durumda\b", r"\bhiç\s+\w*\s*değil"),
+        "en": (r"\bcompletely\b", r"\bentirely\b", r"\btotally\b", r"\babsolutely\b",
+               r"\ball\s+\w+\s+situations?\b", r"\bevery\s+\w+\s+(?:context|setting|situation)\b",
+               r"\bin\s+any\s+(?:context|setting|situation)\b", r"\bfits\s+all\b"),
+        "es": (r"\bcompletamente\b", r"\btotalmente\b", r"\ben\s+todas\s+las\s+situaciones\b"),
+        "de": (r"\bvöllig\b", r"\bkomplett\b", r"\bin\s+allen\s+Situationen\b"),
+        "fr": (r"\bcomplètement\b", r"\btotalement\b", r"\bdans\s+toutes\s+les\s+situations\b"),
+        "it": (r"\bcompletamente\b", r"\btotalmente\b", r"\bin\s+tutte\s+le\s+situazioni\b"),
+        "pt": (r"\bcompletamente\b", r"\btotalmente\b", r"\bem\s+todas\s+as\s+situações\b"),
+        "ru": (r"\bсовершенно\b", r"\bполностью\b", r"\bво\s+всех\s+ситуациях\b"),
+    },
 }
+
+
+def _detection_only_patterns(code: Optional[str]) -> Tuple[str, ...]:
+    """Every detection-only scope pattern for one instructional language."""
+    out: List[str] = []
+    for family in _SCOPE_WORDING_FAMILIES.values():
+        out.extend(family.get(code or "", ()))
+    return tuple(out)
 
 
 _TENDENCY_SCOPES = {
@@ -460,22 +490,23 @@ def find_absolute_claims(text: Any, instructional_language: Any) -> List[str]:
     """Return categorical-scope wording found outside quoted target material.
 
     Covers quantifiers and deontic obligation (which are also hedged automatically
-    when the generator declared a tendency) plus exclusivity wording, which is
-    detected here but never rewritten deterministically - see _EXCLUSIVITY_PATTERNS.
+    when the generator declared a tendency) plus the detection-only families -
+    exclusivity and totality - which are never rewritten by deterministic code.
+    See _SCOPE_WORDING_FAMILIES.
     """
     code = instructional_code(instructional_language)
     if not isinstance(text, str) or not text.strip():
         return []
     patterns = _ABSOLUTE_CLAIM_PATTERNS.get(code or "")
-    exclusivity = _EXCLUSIVITY_PATTERNS.get(code or "", ())
-    if not patterns and not exclusivity:
+    detection_only = _detection_only_patterns(code)
+    if not patterns and not detection_only:
         return []
     found: List[str] = []
     parts = _PROTECTED_SPAN.split(text)
     for i in range(0, len(parts), 2):
         for pattern, _ in (patterns or ()):
             found.extend(m.group(0) for m in re.finditer(pattern, parts[i], flags=re.IGNORECASE))
-        for pattern in exclusivity:
+        for pattern in detection_only:
             found.extend(m.group(0) for m in re.finditer(pattern, parts[i], flags=re.IGNORECASE))
     return found
 
@@ -1521,8 +1552,72 @@ def apply_publication_invariants(
     out = collapse_adjacent_duplicates(out)
     out = apply_declared_scope(out, material_language=material_language)
     out = flag_generic_filler(out, topic=topic)
+    out = _mark_incomplete_structured_fields(out)
     out = apply_text_layer_integrity(out, language=language)
     return out
+
+
+def _mark_incomplete_structured_fields(data: Any) -> Any:
+    """Surface inventories whose implied columns have gaps. Never fills them."""
+    try:
+        from services.publication_evidence import mark_partial_columns
+        return mark_partial_columns(data)
+    except Exception:
+        return data
+
+
+def load_publishable_content(
+    raw: Any,
+    language: Optional[str] = None,
+    material_language: str = "tr",
+    topic: str = "",
+) -> Dict[str, Any]:
+    """Parse persisted lesson content and put it through the publication boundary.
+
+    Every renderer must obtain its content through this function. Applying the
+    invariants was previously something each rendering path had to remember to do
+    for itself, and a second exporter did not: it parsed the stored JSON straight
+    into its own layout code, so it published whatever happened to be in the
+    database - unsanitized text, structurally invalid assessment items, duplicated
+    blocks - while looking entirely normal. A defect fixed in one renderer simply
+    did not exist in the other.
+
+    Making the parse step the enforcement point removes that whole class of
+    divergence: content cannot enter a renderer without crossing the boundary,
+    because crossing it is how the content is obtained.
+
+    Accepts a JSON string, a dict, or a list of pages. Always returns a dict with
+    a ``pages`` list, so a caller never has to guess at the shape. The invariants
+    are deterministic and idempotent, so content that already passed is unchanged.
+    """
+    data: Any = raw
+    if isinstance(raw, (bytes, bytearray)):
+        try:
+            data = raw.decode("utf-8", "replace")
+        except Exception:
+            data = ""
+    if isinstance(data, str):
+        text = data.strip()
+        if not text:
+            return {"pages": []}
+        try:
+            data = json.loads(text)
+        except Exception:
+            return {"pages": []}
+    if isinstance(data, list):
+        data = {"pages": data}
+    if not isinstance(data, dict):
+        return {"pages": []}
+    if not isinstance(data.get("pages"), list):
+        data["pages"] = []
+    try:
+        return apply_publication_invariants(
+            data, language=language, material_language=material_language,
+            topic=topic, copy=False,
+        )
+    except Exception as exc:  # a boundary failure must not lose the lesson
+        print(f"[PUBLICATION] invariants skipped while loading content: {exc}")
+        return data
 
 
 def apply_text_layer_integrity(data: Any, language: Optional[str] = None) -> Any:

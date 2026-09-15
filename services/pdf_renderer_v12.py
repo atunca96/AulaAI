@@ -154,7 +154,7 @@ def _column_exists(db, table: str, column: str) -> bool:
     return False
 
 
-def _publication_invariants(content):
+def _publication_invariants(content, language=None):
     """Apply the same deterministic publication invariants used at generation time.
 
     Material persisted before those invariants existed (or written by another path)
@@ -163,30 +163,18 @@ def _publication_invariants(content):
     The call is deterministic and idempotent, so material that already passed is
     unchanged.
     """
-    if not isinstance(content, dict):
-        return content
     try:
-        from services.publication_invariants import apply_publication_invariants
-        return apply_publication_invariants(content, copy=False)
+        from services.publication_invariants import load_publishable_content
+        return load_publishable_content(content, language=language)
     except Exception:
-        return content
+        return content if isinstance(content, dict) else {}
 
 
-def _normalize_content(raw):
-    if isinstance(raw, dict):
-        return _publication_invariants(raw)
-    if isinstance(raw, list):
-        return _publication_invariants({'pages': raw})
-    if isinstance(raw, str):
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                return _publication_invariants(parsed)
-            if isinstance(parsed, list):
-                return _publication_invariants({'pages': parsed})
-        except Exception:
-            return {}
-    return {}
+def _normalize_content(raw, language=None):
+    """Obtain publishable content. Parsing and the publication boundary are one
+    step, shared with every other renderer, so no path can acquire content that
+    has not crossed it."""
+    return _publication_invariants(raw, language=language)
 
 
 def _normalize_pages(content):
@@ -913,8 +901,8 @@ def _v50_renderer_clean(node):
     return node
 
 
-def _normalize_content(raw):
-    return _v50_renderer_clean(_v50_original_normalize_content(raw))
+def _normalize_content(raw, language=None):
+    return _v50_renderer_clean(_v50_original_normalize_content(raw, language=language))
 
 
 def _e(value):
@@ -1135,7 +1123,7 @@ from services.material_quality_guard import _v56_release_cleanup as _v56_publica
 _v56_previous_normalize_content = _normalize_content
 
 def _normalize_content(raw, language=None):
-    normalized = _v56_previous_normalize_content(raw)
+    normalized = _v56_previous_normalize_content(raw, language=language)
     # 'language' is the actual per-course/topic target language (e.g. course_lang
     # from render_course_pdf). Russian-specific corrections must only fire when
     # the content is confirmed Russian - never hardcoded, since this renderer

@@ -60,6 +60,8 @@ FLAG_TRANSLATION_POLARITY = "instructional-tracks-disagree-on-polarity"
 FLAG_TRANSLATION_NUMERAL = "instructional-tracks-disagree-on-a-numeral"
 FLAG_RATIONALE_CLAIM = "answer-key-rationale-makes-a-publishable-claim"
 FLAG_THIN_GENERALIZATION = "rule-generalizes-from-a-single-cited-instance"
+FLAG_SCRIPT_ANOMALY = "target-language-text-contains-a-foreign-script-token"
+FLAG_PARTIAL_COLUMN = "structured-field-populated-for-some-siblings-but-not-others"
 
 
 # ── Shared text helpers ─────────────────────────────────────────────────────
@@ -443,6 +445,198 @@ def collect_thin_generalizations(data: Any, material_language: str = "tr", limit
     return risks
 
 
+# ── 2c. Whole-token script corruption ───────────────────────────────────────
+#
+# Existing Unicode work repairs scripts MIXED INSIDE one token ("-иte"). A
+# different corruption survives that: a token that is internally consistent but
+# written wholly in the wrong script for the language around it - an accidental
+# transliteration, a romanized word dropped into native-script text, an encoding
+# round-trip. It is invisible to intra-token harmonization because nothing about
+# the token itself is malformed.
+#
+# This is detectable from script statistics alone. It needs no vocabulary, no
+# spelling knowledge and no model: if the surrounding target-language text is
+# overwhelmingly one script and a whole alphabetic word sits in another, that is
+# a credible corruption, and only a reviewer can say what the word should be.
+
+_TARGET_TEXT_KEYS = ("term", "word", "target", "example", "expression", "phrase")
+_TOKEN_SPLIT = re.compile(r"[^\ẁ-ͯ]+", re.UNICODE)
+
+
+def _script_of(ch: str) -> Optional[str]:
+    try:
+        from services.material_quality_guard import _char_script
+        return _char_script(ch)
+    except Exception:
+        return None
+
+
+def _script_profile(text: str) -> Tuple[Optional[str], Dict[str, int]]:
+    """Dominant alphabetic script of a string and the per-script letter counts."""
+    counts: Dict[str, int] = {}
+    for ch in text:
+        if not ch.isalpha():
+            continue
+        script = _script_of(ch)
+        if script:
+            counts[script] = counts.get(script, 0) + 1
+    if not counts:
+        return None, counts
+    dominant = max(counts.items(), key=lambda kv: kv[1])[0]
+    return dominant, counts
+
+
+def collect_script_anomalies(data: Any, limit: int = 6) -> List[Dict[str, Any]]:
+    """Target-language text containing a whole token in a foreign script.
+
+    Deliberately conservative. A field is examined only when its own letters are
+    at least 70% one script, so genuinely multiscript material is never judged
+    against a majority it does not have. A token is reported only when it is
+    wholly alphabetic, at least three letters long, entirely in a different
+    script, and not a transcription, an acronym or a term the lesson itself
+    teaches - each of which is a legitimate reason for a foreign-script word to
+    appear in native-script text.
+
+    Only target-language fields are examined. Instructional fields carry Turkish
+    or English by design and would be flagged on every lesson.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return []
+    known_terms = {
+        _fold_for_identity(term) for term, _ in _collect_lesson_expressions(data).values()
+    }
+    risks: List[Dict[str, Any]] = []
+
+    def inspect(value: Any, path: str) -> None:
+        if not isinstance(value, str) or len(value.strip()) < 3:
+            return
+        # A transcription legitimately uses Latin/IPA letters inside any language.
+        text = _IPA_BRACKET.sub(" ", value)
+        dominant, counts = _script_profile(text)
+        if not dominant:
+            return
+        total = sum(counts.values())
+        if total < 6 or counts[dominant] / total < 0.7:
+            return
+        for token in _TOKEN_SPLIT.split(text):
+            letters = [c for c in token if c.isalpha()]
+            if len(letters) < 3 or not all(c.isalpha() or c.isdigit() for c in token):
+                continue
+            if any(c.isdigit() for c in token):
+                continue
+            if token.isupper():  # acronyms are not corruption
+                continue
+            token_script, token_counts = _script_profile(token)
+            if not token_script or token_script == dominant:
+                continue
+            if len(token_counts) != 1:
+                continue  # intra-token mixing is the Unicode layer's job
+            if _fold_for_identity(token) in known_terms:
+                continue  # the lesson teaches this form deliberately
+            risks.append({
+                "path": path,
+                "text": value[:600],
+                "field_value": value[:600],
+                "repair": "rescope",
+                "quantifiers": [FLAG_SCRIPT_ANOMALY],
+                "examples": [
+                    f"'{token}' is written in {token_script} while the surrounding "
+                    f"text is {dominant}",
+                    "if this is an accidental transliteration or encoding damage, "
+                    "restore the intended target-language form",
+                ],
+                "domain": "structural",
+            })
+            return
+
+    for p_index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+        for container in ("items", "vocabulary", "words", "examples", "dialogue", "lines"):
+            for e_index, entry in enumerate(page.get(container) or []):
+                if not isinstance(entry, dict):
+                    continue
+                for key in list(entry):
+                    base = re.sub(r"_(en|tr)$", "", str(key).casefold())
+                    if base in _TARGET_TEXT_KEYS and not str(key).casefold().endswith(("_en", "_tr")):
+                        inspect(entry.get(key), f"pages.{p_index}.{container}.{e_index}.{key}")
+                    elif str(key).casefold() == "text" and container in ("dialogue", "lines"):
+                        inspect(entry.get(key), f"pages.{p_index}.{container}.{e_index}.{key}")
+                if len(risks) >= limit:
+                    return risks[:limit]
+    return risks[:limit]
+
+
+# ── 2d. Structured completeness ─────────────────────────────────────────────
+
+def collect_partial_columns(data: Any, min_siblings: int = 4, threshold: float = 0.5) -> List[Dict[str, Any]]:
+    """Fields that a structured block presents as a column but fills only partly.
+
+    A table promises its columns. When most rows of an inventory carry a field
+    and some do not, the gaps read as missing data rather than as a deliberate
+    absence - an alphabet whose pronunciation column is populated for a third of
+    its letters looks incomplete, not optional.
+
+    Deterministic code must not fill the gaps: inventing the missing values is
+    exactly the authoring the renderer and publication layers are forbidden to
+    do. So this reports the inconsistency for review rather than repairing it,
+    and reports it only when the field is clearly intended as a column - present
+    on at least half the siblings, in a block of at least four.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return []
+    findings: List[Dict[str, Any]] = []
+    for p_index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+        for container in ("items", "vocabulary", "words"):
+            entries = [e for e in (page.get(container) or []) if isinstance(e, dict)]
+            if len(entries) < min_siblings:
+                continue
+            keys = {k for e in entries for k in e}
+            for key in sorted(keys):
+                if str(key).startswith("_"):
+                    continue
+                filled = sum(1 for e in entries
+                             if isinstance(e.get(key), str) and e.get(key).strip())
+                if filled == len(entries) or filled == 0:
+                    continue
+                ratio = filled / len(entries)
+                if ratio < threshold:
+                    continue
+                findings.append({
+                    "page": p_index,
+                    "container": container,
+                    "field": key,
+                    "filled": filled,
+                    "total": len(entries),
+                })
+    return findings
+
+
+def mark_partial_columns(data: Any, min_siblings: int = 4, threshold: float = 0.5) -> Any:
+    """Mark blocks whose implied columns have gaps, without authoring anything.
+
+    Uses the existing ``_review_required`` convention so partial inventories are
+    surfaced the same way filler pages are, rather than publishing silently as
+    though complete.
+    """
+    findings = collect_partial_columns(data, min_siblings=min_siblings, threshold=threshold)
+    if not findings:
+        return data
+    pages = data.get("pages")
+    for finding in findings:
+        page = pages[finding["page"]]
+        if isinstance(page, dict):
+            page["_review_required"] = True
+            gaps = page.setdefault("_incomplete_fields", [])
+            entry = f"{finding['container']}.{finding['field']}: {finding['filled']}/{finding['total']}"
+            if entry not in gaps:
+                gaps.append(entry)
+    data["_review_required"] = True
+    return data
+
+
 # ── 3. Translation correspondence ───────────────────────────────────────────
 #
 # Only the two instructional tracks are compared against each other. Both are
@@ -612,6 +806,7 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
         collect_prose_phonetic_conflicts,
         collect_coverage_gaps,
         collect_thin_generalizations,
+        collect_script_anomalies,
         collect_translation_mismatches,
         collect_rationale_claims,
     )
@@ -619,7 +814,8 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
     by_path: Dict[str, Dict[str, Any]] = {}
     for collector in collectors:
         try:
-            if collector is collect_phonetic_integrity_risks or collector is collect_translation_mismatches:
+            if collector in (collect_phonetic_integrity_risks, collect_translation_mismatches,
+                             collect_script_anomalies):
                 found = collector(data)
             else:
                 found = collector(data, material_language=material_language)

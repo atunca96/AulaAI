@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 from services.publication_evidence import (  # noqa: E402
     FLAG_COVERAGE_GAP,
     FLAG_THIN_GENERALIZATION,
+    FLAG_SCRIPT_ANOMALY,
     FLAG_IPA_BORROWED,
     FLAG_PHRASE_IPA_PARTIAL,
     FLAG_PROSE_IPA_CONFLICT,
@@ -35,8 +36,11 @@ from services.publication_evidence import (  # noqa: E402
     collect_phonetic_integrity_risks,
     collect_prose_phonetic_conflicts,
     collect_rationale_claims,
+    collect_partial_columns,
+    collect_script_anomalies,
     collect_thin_generalizations,
     collect_translation_mismatches,
+    mark_partial_columns,
 )
 from services.publication_invariants import (  # noqa: E402
     MAX_REVIEWABLE_CLAIMS,
@@ -421,6 +425,97 @@ def test_text_integrity_is_part_of_the_boundary():
     check("TEXT valid scripts and IPA preserved", kept == preserve, kept)
 
 
+# ── Whole-token script corruption ───────────────────────────────────────────
+
+def test_script_anomaly_detected():
+    """A token wholly in the wrong script is corruption the Unicode layer misses.
+
+    Intra-token mixing is already repaired elsewhere; a token that is internally
+    consistent but written in a foreign script is not malformed in itself, so it
+    needs a different signal.
+    """
+    lesson = {"pages": [{"type": "examples", "items": [
+        {"term": "утром", "example": "Ytrom Виктор идёт в парк каждый день."},
+        {"term": "вечером", "example": "Вечером Виктор читает книгу дома."}]}]}
+    risks = collect_script_anomalies(lesson)
+    check("SCRIPT foreign-script token detected", FLAG_SCRIPT_ANOMALY in flags(risks), flags(risks))
+    if risks:
+        check("SCRIPT evidence names both scripts",
+              "LATIN" in risks[0]["examples"][0] and "CYRILLIC" in risks[0]["examples"][0],
+              risks[0]["examples"])
+        check("SCRIPT points at the offending field",
+              risks[0]["path"].endswith("items.0.example"), risks[0]["path"])
+
+
+def test_script_anomaly_precision():
+    """Legitimate reasons for a foreign-script word must not be flagged."""
+    cases = {
+        "transcription in field": {"pages": [{"items": [
+            {"term": "утром", "example": "Слово [ˈutrəm] звучит так каждый день."}]}]},
+        "acronym": {"pages": [{"items": [
+            {"term": "метро", "example": "Виктор работает в USA каждый день сейчас."}]}]},
+        "term the lesson teaches": {"pages": [{"items": [
+            {"term": "Wi-Fi"},
+            {"term": "метро", "example": "Здесь есть Wi-Fi в кафе каждый день."}]}]},
+        "single-script target language": {"pages": [{"items": [
+            {"term": "hola", "example": "Hola amigo como estas hoy."}]}]},
+        "too short to judge": {"pages": [{"items": [
+            {"term": "да", "example": "Да нет."}]}]},
+    }
+    for name, lesson in cases.items():
+        check(f"SCRIPT no false positive: {name}",
+              collect_script_anomalies(lesson) == [], collect_script_anomalies(lesson))
+
+
+def test_script_anomaly_ignores_instructional_fields():
+    """Instructional tracks carry Turkish or English by design."""
+    lesson = {"pages": [{"items": [
+        {"term": "утром", "translation_tr": "sabahleyin", "example_tr": "Sabahleyin parka gider."}]}]}
+    check("SCRIPT instructional fields never flagged",
+          collect_script_anomalies(lesson) == [], collect_script_anomalies(lesson))
+
+
+# ── Structured completeness ─────────────────────────────────────────────────
+
+def test_partial_column_marked_not_filled():
+    """A half-filled implied column is surfaced, never invented."""
+    lesson = {"pages": [{"type": "vocabulary", "items": [
+        {"term": "A", "phonetic": "[a]"}, {"term": "B", "phonetic": "[b]"},
+        {"term": "C", "phonetic": "[ts]"}, {"term": "D", "phonetic": ""},
+        {"term": "E"}, {"term": "F"}]}]}
+    findings = collect_partial_columns(lesson)
+    check("COMPLETE partial column detected",
+          any(f["field"] == "phonetic" for f in findings), findings)
+    marked = mark_partial_columns(lesson)
+    page = marked["pages"][0]
+    check("COMPLETE page marked for review", page.get("_review_required") is True, page.keys())
+    check("COMPLETE gap is described, not filled",
+          any("phonetic" in g for g in page.get("_incomplete_fields", []))
+          and page["items"][4].get("phonetic") in (None, ""),
+          page.get("_incomplete_fields"))
+
+
+def test_partial_column_precision():
+    full = {"pages": [{"items": [{"term": c, "phonetic": "[x]"} for c in "ABCDEF"]}]}
+    check("COMPLETE fully populated not flagged", collect_partial_columns(full) == [], "false positive")
+    absent = {"pages": [{"items": [{"term": c} for c in "ABCDEF"]}]}
+    check("COMPLETE absent field not flagged", collect_partial_columns(absent) == [], "false positive")
+    rare = {"pages": [{"items": [{"term": "A", "note": "x"}] + [{"term": c} for c in "BCDEFGH"]}]}
+    check("COMPLETE rare optional field not treated as a column",
+          collect_partial_columns(rare) == [], collect_partial_columns(rare))
+    small = {"pages": [{"items": [{"term": "A", "phonetic": "[a]"}, {"term": "B"}]}]}
+    check("COMPLETE small block not treated as a table", collect_partial_columns(small) == [])
+
+
+def test_partial_column_marking_is_idempotent():
+    import copy
+    lesson = {"pages": [{"type": "vocabulary", "items": [
+        {"term": c, "phonetic": "[x]"} for c in "ABC"] + [{"term": c} for c in "DEF"]}]}
+    once = mark_partial_columns(copy.deepcopy(lesson))
+    twice = mark_partial_columns(copy.deepcopy(once))
+    check("COMPLETE marking is idempotent", once == twice, "second pass differed")
+
+
 def main():
     print("[TEST] publication evidence: IPA integrity, coverage gaps, translations, answer keys")
     for fn in (
@@ -448,6 +543,12 @@ def main():
         test_thin_generalization_detected,
         test_thin_generalization_precision,
         test_text_integrity_is_part_of_the_boundary,
+        test_script_anomaly_detected,
+        test_script_anomaly_precision,
+        test_script_anomaly_ignores_instructional_fields,
+        test_partial_column_marked_not_filled,
+        test_partial_column_precision,
+        test_partial_column_marking_is_idempotent,
     ):
         fn()
     if FAILURES:

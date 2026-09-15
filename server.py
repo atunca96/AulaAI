@@ -1113,8 +1113,19 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(pdf_bytes)
             return
         except Exception as academic_pdf_err:
-            print(f"[ACADEMIC PDF FALLBACK] {academic_pdf_err}")
+            # This fallback is not a normal outcome. It silently swapped in a second
+            # renderer with different behaviour, so a defect fixed in the primary
+            # path could keep shipping unnoticed. Log it loudly enough to be found.
+            print(f"[ACADEMIC PDF FALLBACK] primary renderer failed, exporting via "
+                  f"legacy path: {type(academic_pdf_err).__name__}: {academic_pdf_err}")
             traceback.print_exc()
+            try:
+                from datetime import datetime as _dt
+                with open("pipeline.log", "a", encoding="utf-8") as _f:
+                    _f.write(f"[{_dt.now().strftime('%H:%M:%S')}] [PDF-FALLBACK] course={course_id} "
+                             f"lang={lang} error={type(academic_pdf_err).__name__}: {academic_pdf_err}\n")
+            except Exception:
+                pass
 
         # --- Human-readable topic type labels ---
         TYPE_LABELS = {
@@ -1297,12 +1308,25 @@ table.vt td { padding: 4px 6px; }
                     ).fetchall()
 
                     for top_id, top_type, top_title, top_content_str in topics:
-                        content_obj = {}
-                        if top_content_str:
-                            try:
-                                content_obj = _json.loads(top_content_str)
-                            except Exception:
-                                pass
+                        # This exporter runs only when the primary renderer raised,
+                        # but it publishes a PDF that looks exactly as authoritative.
+                        # It must therefore cross the same publication boundary: it
+                        # previously parsed stored JSON straight into its own layout
+                        # code, so every invariant fixed in the primary renderer was
+                        # simply absent here.
+                        try:
+                            from services.publication_invariants import load_publishable_content
+                            content_obj = load_publishable_content(
+                                top_content_str, language=course_lang,
+                                material_language=lang, topic=top_title or "",
+                            )
+                        except Exception:
+                            content_obj = {}
+                            if top_content_str:
+                                try:
+                                    content_obj = _json.loads(top_content_str)
+                                except Exception:
+                                    pass
 
                         display_top_title = pdf_title_map.get(top_title, top_title) if is_tr else top_title
                         topic_fallback = "Konu" if is_tr else "Topic"

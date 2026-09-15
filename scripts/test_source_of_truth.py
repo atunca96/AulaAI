@@ -279,11 +279,36 @@ def test_publication_release_order():
     check("ORDER sanitation reaches nested fields, not just top-level prose",
           "￾" not in blob and "" not in blob and "\x01" not in blob, blob[:160])
 
-    # The renderer re-applies the publication invariants, so persisted material that
-    # never passed through generation still gets a clean text layer.
-    renderer = (ROOT / "services" / "pdf_renderer_v12.py").read_text(encoding="utf-8")
-    check("ORDER renderer re-applies publication invariants",
-          "apply_publication_invariants" in renderer, "renderer bypasses the boundary")
+    # EVERY renderer must obtain content through the shared loader, which is where
+    # the publication boundary is applied. A second exporter that parsed stored
+    # JSON directly published whatever was in the database, so a defect fixed in
+    # one renderer simply did not exist in the other.
+    from services.publication_invariants import load_publishable_content
+    import json as _json
+    raw = _json.dumps({"pages": [
+        {"type": "vocabulary", "items": [{"term": "a￾b", "translation_tr": "cd"}]},
+        {"type": "mcq", "prompt": "Bad", "options": ["x", "x"], "answer": "zz"},
+    ]}, ensure_ascii=False)
+    loaded = load_publishable_content(raw, language="Testish", material_language="tr")
+    check("ORDER shared loader sanitizes persisted content",
+          "￾" not in repr(loaded) and "" not in repr(loaded), repr(loaded)[:140])
+    check("ORDER shared loader enforces structural invariants",
+          [p.get("type") for p in loaded["pages"]] == ["vocabulary"], loaded["pages"])
+    check("ORDER shared loader tolerates junk input",
+          load_publishable_content("not json") == {"pages": []}
+          and load_publishable_content(None) == {"pages": []})
+
+    for name, path in (("primary renderer", ROOT / "services" / "pdf_renderer_v12.py"),
+                       ("fallback exporter", ROOT / "server.py")):
+        src = path.read_text(encoding="utf-8")
+        check(f"ORDER {name} loads content through the boundary",
+              "load_publishable_content" in src, f"{name} bypasses the boundary")
+
+    # The fallback must not be able to parse stored content on its own.
+    server_src = (ROOT / "server.py").read_text(encoding="utf-8")
+    direct_parses = re.findall(r"_json\.loads\(top_content_str\)", server_src)
+    check("ORDER fallback has no unguarded content parse",
+          len(direct_parses) <= 1, f"{len(direct_parses)} direct parses of stored content")
 
 
 def main():

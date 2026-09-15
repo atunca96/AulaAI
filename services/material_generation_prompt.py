@@ -98,6 +98,20 @@ Rules:
 - Prefer fewer, correct, well-scoped claims over many impressive-sounding ones. If you cannot state a regularity accurately at this level, teach the forms and omit the generalization.
 </claim_scope>
 
+<structured_completeness>
+A field that appears across the rows of an inventory reads as a column, and a column promises a value for every row.
+- If you populate a field for some members of a set, populate it for all of them. A table with scattered gaps reads as missing data, not as a deliberate omission.
+- If you cannot supply a value for every member honestly, omit the field from that block entirely and explain the property in prose instead. A column that is present but half-empty is worse than no column.
+- This applies to any closed inventory you present as a set: an alphabet, a paradigm, a number range, a set of forms.
+</structured_completeness>
+
+<abstraction_consistency>
+Teaching the same phenomenon twice at different levels of precision is legitimate scaffolding, but only when the learner is told that is what is happening.
+- If you give a simplified account first and a more precise one later, say explicitly that the first was a simplification and that the second refines it. Never present two different accounts of the same phenomenon as though both were the plain truth.
+- Do not silently change the level of detail of an explanation between sections.
+- If the more precise account is beyond the selected CEFR level, give only the simplification and do not introduce the refinement at all.
+</abstraction_consistency>
+
 <evidence_agreement>
 Every rule you write is read against the tables, examples and transcriptions you emit beside it. They must agree.
 - Before stating a generalization, read your own rows for this topic. If any row contradicts the wording, the wording is wrong — narrow it or name the exception explicitly. Never publish a generalization that your own displayed evidence refutes.
