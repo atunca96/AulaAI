@@ -1,0 +1,351 @@
+--- a/services/publication_invariants.py
++++ b/services/publication_invariants.py
+@@ -514,6 +514,253 @@
+     return out
+ 
+ 
++# ── 4b. Generalizations that exceed their own local evidence ───────────────
++#
++# The claim-scope mechanism above (section 4) catches hard absolute wording
++# ("always", "never", "without exception"). It does NOT catch a claim that is
++# already hedged ("almost all X do Y") but names a specific member as the
++# counter-case while the SAME lesson's own evidence (vocabulary items with
++# authoritative IPA transcriptions, possibly on a different page) shows an
++# ADDITIONAL member behaving the same divergent way that the claim never
++# names. That is a distinct failure mode: the wording is not overclaimed in
++# absolute terms, but the claimed EXCEPTION SET is narrower than the material's
++# own displayed evidence.
++#
++# This is checked, not guessed: the only property tested is the position of
++# the IPA primary-stress mark relative to the end of the transcription
++# (counted in IPA vowel symbols after the mark), for words on the SAME lesson
++# that share a long trailing substring with the named exception term. That is
++# literal use of data the generator already marked as authoritative, not a
++# phonological model built from regexes. When the required data is missing —
++# no shared-suffix family, or any family member lacks a stress mark — nothing
++# is claimed, by design; a "can't compute" case is never treated as a hit.
++#
++# Detection is fully deterministic. Correction is not attempted here: knowing
++# the true, complete exception set (which may include members not present on
++# this page at all) requires linguistic knowledge no regex has, so a detected
++# contradiction is queued for the SAME bounded verifier already used for
++# unscoped absolute claims (services/ai_engine.py::_verify_absolute_claims) —
++# not a new model call.
++
++_IPA_VOWELS = set("aeiouyɪʏʊɘɵɤɯɨʉɐəɛœɜɞʌɔæɶɑɒ")
++
++_NEAR_UNIVERSAL_HEDGE_PATTERNS: Dict[str, Tuple[str, ...]] = {
++    "tr": (r"\bneredeyse\s+t[üu]m\b", r"\bhemen\s+hemen\s+t[üu]m\b", r"\b[çc]o[ğg]unlu[ğg]u\b",
++           r"\b[çc]o[ğg]unlukla\b", r"\bgenellikle\b"),
++    "en": (r"\balmost\s+all\b", r"\bnearly\s+all\b", r"\bthe\s+majority\s+of\b",
++           r"\bmost\s+(?:of\s+the\s+)?\w+\b", r"\bgenerally\b"),
++    "es": (r"\bcasi\s+todos\b", r"\bla\s+mayor[ií]a\b", r"\bgeneralmente\b"),
++    "de": (r"\bfast\s+alle\b", r"\bdie\s+meisten\b", r"\bin\s+der\s+regel\b"),
++    "fr": (r"\bpresque\s+tous\b", r"\bla\s+plupart\b", r"\bg[ée]n[ée]ralement\b"),
++    "it": (r"\bquasi\s+tutti\b", r"\bla\s+maggior\s+parte\b", r"\bgeneralmente\b"),
++    "pt": (r"\bquase\s+todos\b", r"\ba\s+maioria\b", r"\bgeralmente\b"),
++    "ru": (r"\bпочти\s+вс[её]\b", r"\bбольшинств\w*\b", r"\bобычно\b"),
++}
++
++_EXCEPTION_MARKER_PATTERNS: Dict[str, Tuple[str, ...]] = {
++    "tr": (r"\bistisna\w*\b", r"\bhari[çc]\b", r"\bd[ıi][şs][ıi]nda\b"),
++    "en": (r"\bexcept\w*\b", r"\bwith\s+the\s+exception\b"),
++    "es": (r"\bexcepto\b", r"\bsalvo\b", r"\bexcepci[oó]n\w*\b"),
++    "de": (r"\baußer\b", r"\bausnahme\w*\b"),
++    "fr": (r"\bsauf\b", r"\bexception\w*\b"),
++    "it": (r"\beccetto\b", r"\beccezion\w*\b"),
++    "pt": (r"\bexceto\b", r"\bexce[cç][aã]o\w*\b"),
++    "ru": (r"\bисключен\w*\b", r"\bкроме\b"),
++}
++
++
++def _has_generalization_marker(text: str, code: Optional[str]) -> bool:
++    """True when the text hedges toward near-universality or names an exception,
++    in either case implying a claim about which members of a set are typical
++    and which are not."""
++    if not code or not isinstance(text, str) or not text.strip():
++        return False
++    patterns = _NEAR_UNIVERSAL_HEDGE_PATTERNS.get(code, ()) + _EXCEPTION_MARKER_PATTERNS.get(code, ())
++    return any(re.search(p, text, flags=re.IGNORECASE) for p in patterns)
++
++
++def _collect_lesson_terms(data: Dict[str, Any]) -> Dict[str, Tuple[str, str]]:
++    """Map a folded term to (original term, authoritative phonetic) across the
++    WHOLE lesson, not just one page — the contradicting evidence is typically on
++    a separate vocabulary page from the grammar rule that generalizes over it."""
++    out: Dict[str, Tuple[str, str]] = {}
++
++    def walk(node: Any) -> None:
++        if isinstance(node, dict):
++            term = node.get("term") or node.get("word") or node.get("target")
++            phon = node.get("phonetic")
++            if term and isinstance(phon, str) and phon.strip():
++                key = _fold_for_identity(term)
++                if key and key not in out:
++                    out[key] = (str(term), phon)
++            for value in node.values():
++                walk(value)
++        elif isinstance(node, list):
++            for value in node:
++                walk(value)
++
++    walk(data.get("pages"))
++    return out
++
++
++def _shared_suffix_len(a: str, b: str) -> int:
++    fa, fb = _fold_for_identity(a), _fold_for_identity(b)
++    n = 0
++    for ca, cb in zip(reversed(fa), reversed(fb)):
++        if ca != cb:
++            break
++        n += 1
++    return n
++
++
++def _stress_syllables_from_end(phonetic: Any) -> Optional[int]:
++    """Count IPA vowel symbols after the primary-stress mark, to the end of the
++    transcription. A generic, script-independent proxy for stress placement that
++    needs no knowledge of any specific language's syllable structure. Returns
++    None when the transcription carries no primary-stress mark at all — that is
++    a "cannot compute" result, not a zero."""
++    text = str(phonetic or "")
++    if "ˈ" not in text:
++        return None
++    tail = text[text.index("ˈ") + 1:]
++    return sum(1 for ch in tail if ch in _IPA_VOWELS)
++
++
++def _named_terms_in_text(text: str, lesson_terms: Dict[str, Tuple[str, str]]) -> List[str]:
++    """Lesson-known target-language terms that appear (quoted or bare) inside the
++    given prose. Catches both `'termin'` and a bare embedded term, since generated
++    Turkish/English prose does not consistently quote inline target words."""
++    folded_text = _fold_for_identity(text)
++    found = []
++    for term, _ in lesson_terms.values():
++        fterm = _fold_for_identity(term)
++        if len(fterm) >= 3 and fterm in folded_text:
++            found.append(term)
++    return found
++
++
++def _find_generalization_contradiction(
++    anchor_terms: List[str], lesson_terms: Dict[str, Tuple[str, str]]
++) -> Optional[Dict[str, Any]]:
++    """Return contradiction evidence when the lesson's own data shows a member,
++    other than the ones named in `anchor_terms`, patterning with the named
++    exception(s) rather than with the majority — i.e. an undisclosed additional
++    exception. Returns None whenever the required data is incomplete: a small
++    family, a missing stress mark anywhere in the family, or no genuine
++    divergence between the anchor(s) and the majority is treated as "cannot
++    confirm", never as a positive result.
++    """
++    anchor_keys = {_fold_for_identity(t) for t in anchor_terms if t}
++    anchor_entries = [(k, lesson_terms[k]) for k in anchor_keys if k in lesson_terms]
++    if not anchor_entries:
++        return None
++
++    # Family = lesson terms sharing a long trailing substring with an anchor term,
++    # i.e. plausibly the same morphological/lexical class the claim is about.
++    family: List[Tuple[str, str, str]] = []
++    for key, (term, phon) in lesson_terms.items():
++        fterm_len = len(_fold_for_identity(term))
++        if fterm_len < 4:
++            continue
++        overlap = max(_shared_suffix_len(term, a_term) for _, (a_term, _) in anchor_entries)
++        threshold = max(3, min(fterm_len, min(len(_fold_for_identity(a_term)) for _, (a_term, _) in anchor_entries)) // 2)
++        if overlap >= threshold:
++            family.append((key, term, phon))
++    if len(family) < 3:
++        return None
++
++    values: Dict[str, int] = {}
++    for key, _term, phon in family:
++        v = _stress_syllables_from_end(phon)
++        if v is None:
++            # Any family member without computable data means the family-wide
++            # comparison is unreliable: do not guess.
++            return None
++        values[key] = v
++
++    anchor_values = {k: values[k] for k in anchor_keys if k in values}
++    if not anchor_values:
++        return None
++    non_anchor = {k: v for k, v in values.items() if k not in anchor_keys}
++    if len(non_anchor) < 2:
++        return None
++
++    counts: Dict[int, int] = {}
++    for v in non_anchor.values():
++        counts[v] = counts.get(v, 0) + 1
++    majority_value = max(counts.items(), key=lambda kv: kv[1])[0]
++
++    # The claim only makes sense as an "exception" framing if the anchor(s)
++    # genuinely diverge from the majority pattern.
++    if all(v == majority_value for v in anchor_values.values()):
++        return None
++
++    lookup = {key: term for key, term, _ in family}
++    phon_lookup = {key: phon for key, _, phon in family}
++    outliers = [k for k, v in non_anchor.items() if v != majority_value]
++    if not outliers:
++        return None
++
++    evidence = [f"{lookup[k]} {phon_lookup[k]} (named exception)" for k in anchor_keys if k in anchor_values]
++    evidence += [f"{lookup[k]} {phon_lookup[k]} (patterns like the named exception, not named)" for k in outliers]
++    evidence += [
++        f"{lookup[k]} {phon_lookup[k]} (patterns with the majority)"
++        for k, v in non_anchor.items() if v == majority_value
++    ][:3]
++    return {"evidence": evidence}
++
++
++def collect_generalization_contradictions(
++    data: Any, material_language: str = "tr", limit: int = 8
++) -> List[Dict[str, Any]]:
++    """Find near-universal or exception-framed claims whose named exception set
++    is narrower than what the lesson's own evidence shows.
++
++    This is the general form of "local evidence contradicts the generated
++    generalization": nothing here is specific to stress, to Russian, or to
++    numbers — it operates on whatever shared-suffix family and phonetic data the
++    lesson happens to contain, in any instructional or target language.
++    """
++    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
++        return []
++    lesson_terms = _collect_lesson_terms(data)
++    if len(lesson_terms) < 3:
++        return []
++
++    claims: List[Dict[str, Any]] = []
++    for p_index, page in enumerate(data["pages"]):
++        if not isinstance(page, dict):
++            continue
++        containers: List[Tuple[str, int, Dict[str, Any]]] = []
++        for container in ("rules", "comparisons"):
++            for e_index, entry in enumerate(page.get(container) or []):
++                if isinstance(entry, dict):
++                    containers.append((container, e_index, entry))
++        for container, index, entry in containers:
++            for key in _claim_bearing_fields(entry):
++                text = entry.get(key)
++                if not isinstance(text, str) or not text.strip():
++                    continue
++                code = _track_language(key, material_language)
++                if not _has_generalization_marker(text, code):
++                    continue
++                anchor_terms = _named_terms_in_text(text, lesson_terms)
++                if not anchor_terms:
++                    continue
++                result = _find_generalization_contradiction(anchor_terms, lesson_terms)
++                if not result:
++                    continue
++                claims.append({
++                    "path": f"pages.{p_index}.{container}.{index}.{key}",
++                    "text": text[:600],
++                    "quantifiers": ["generalization-narrower-than-evidence"],
++                    "examples": result["evidence"],
++                })
++                if len(claims) >= limit:
++                    return claims
++    return claims
++
++
+ # ── Orchestrator ────────────────────────────────────────────────────────────
+ 
+ def apply_publication_invariants(
+--- a/services/ai_engine.py
++++ b/services/ai_engine.py
+@@ -3209,39 +3209,49 @@
+ 
+ 
+ def _verify_absolute_claims(data, claims, language, level, material_language="tr"):
+-    """One bounded model call that checks ONLY absolute/universal claims.
+-
+-    Deterministic code can detect that a claim is stated as exceptionless; it cannot
+-    establish whether the claim is true for an arbitrary language. This is the one
++    """One bounded model call that checks ONLY claims a deterministic pass flagged
++    as scope-risky: hard absolute wording, or a near-universal/exception-framed
++    claim whose named exception set the lesson's own evidence shows is incomplete.
++
++    Deterministic code can detect the SHAPE of these claims and, for the second
++    kind, can even detect a genuine contradiction against the lesson's own IPA
++    data; it cannot compose the linguistically correct restatement, and it
++    cannot know exceptions the lesson never displays at all. This is the one
+     place where that gap is closed, and it is deliberately narrow:
+ 
+-      * it runs only when the deterministic detector found an absolute claim that
+-        the generator did not declare exceptionless, so ordinary lessons pay nothing;
+-      * the payload carries only the flagged claim strings plus same-page evidence,
+-        never the whole lesson;
+-      * the model may only rescope or correct a flagged claim - it cannot add pages,
+-        vocabulary, rules or examples;
++      * it runs only when a deterministic detector found a claim it could not
++        itself certify, so an ordinary, internally-consistent lesson pays nothing;
++      * the payload carries only the flagged claim strings plus same-lesson
++        evidence (target terms with their authoritative phonetics), never the
++        whole lesson;
++      * the model may only rescope or correct a flagged claim - it cannot add
++        pages, vocabulary, rules or examples;
+       * a failed or malformed response leaves the lesson exactly as generated.
+     """
+     if not claims:
+         return data
+     payload = json.dumps(
+-        [{"id": i, "claim": c["text"], "absolute_wording": c["quantifiers"], "same_page_evidence": c["examples"]}
++        [{"id": i, "claim": c["text"], "flag": c["quantifiers"], "same_lesson_evidence": c["examples"]}
+          for i, c in enumerate(claims)],
+         ensure_ascii=False, separators=(",", ":"),
+     )
+     system = (
+         f"You verify the scope of grammar/pronunciation claims in {language} teaching material at CEFR {level}.\n"
+-        "Each item states something in absolute terms (always/never/without exception or the equivalent in the "
+-        "instructional language).\n"
++        "Each item is a generalization: either stated in absolute terms (always/never/without exception, or the "
++        "equivalent in the instructional language), or hedged toward near-universality (almost all/most/generally) "
++        "while naming one or more members as the exception.\n"
+         "For each item decide ONE of:\n"
+-        '  keep    - the claim is genuinely exceptionless as stated, in the stated scope\n'
+-        '  rescope - the claim is a tendency or has real exceptions: rewrite it in the SAME instructional '
+-        "language with accurate scope, keeping every correct fact and every example reference intact\n"
+-        '  correct - the claim contradicts the supplied same-page evidence or is factually wrong: rewrite it '
+-        "minimally so it is true\n"
+-        "Rules: never add new rules, vocabulary, examples or facts; never change the instructional language; "
+-        "never lengthen a claim by more than about 30 percent; when unsure, prefer rescope over keep.\n"
++        '  keep    - the claim is genuinely accurate as stated, in the stated scope\n'
++        '  rescope - the claim is a tendency or has real exceptions the wording does not allow for: rewrite it in '
++        "the SAME instructional language with accurate scope, keeping every correct fact and every example "
++        "reference intact\n"
++        '  correct - the claim contradicts the supplied same-lesson evidence: rewrite it minimally so it is true. '
++        "If the evidence shows a member behaving like the named exception(s) that the claim does not name, prefer "
++        "naming that member alongside the existing exception(s) over silently dropping the discrepancy, when doing "
++        "so fits naturally; otherwise soften the claim's exception framing so it no longer implies completeness.\n"
++        "Rules: never add new rules, vocabulary, examples or facts beyond what the evidence already names; never "
++        "change the instructional language; never lengthen a claim by more than about 30 percent; when unsure, "
++        "prefer rescope over keep.\n"
+         'Return ONLY: {"verdicts":[{"id":0,"action":"keep|rescope|correct","value":"replacement text or null"}]}'
+     )
+     try:
+@@ -3293,6 +3303,7 @@
+         from services.publication_invariants import (
+             apply_publication_invariants,
+             collect_unscoped_absolute_claims,
++            collect_generalization_contradictions,
+         )
+     except Exception as exc:
+         print(f"[PUBLICATION] invariants unavailable: {exc}")
+@@ -3304,6 +3315,14 @@
+     )
+     if _claim_verifier_enabled() and is_ai_available():
+         claims = collect_unscoped_absolute_claims(data, material_language=material_language)
++        # Second, distinct failure mode: not overclaimed in absolute terms, but the
++        # named exception set is narrower than the lesson's own evidence. Same
++        # bounded call, not a second one - see _verify_absolute_claims.
++        seen_paths = {c["path"] for c in claims}
++        for claim in collect_generalization_contradictions(data, material_language=material_language):
++            if claim["path"] not in seen_paths:
++                claims.append(claim)
++                seen_paths.add(claim["path"])
+         if claims:
+             data = _verify_absolute_claims(data, claims, language, level, material_language)
+             # Re-run deterministic invariants so any rescoped prose is re-checked.
