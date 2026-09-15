@@ -146,7 +146,7 @@ check(
 
 # The boundary, not the renderer, is what enforces this.
 japanese_mcq = {"pages": [{
-    "type": "mcq", "prompt": "Which te-form is correct?",
+    "type": "mcq", "prompt": "Which te-form is correct?", "prompt_tr": "Hangi te-biçimi doğru?",
     "options": ["みて", "きいて", "よんで", "かいて"],
     "options_tr": ["bakıp", "dinleyip", "okuyup", "yazıp"],
     "answer": "みて", "explanation_tr": "て-biçimi kuralı",

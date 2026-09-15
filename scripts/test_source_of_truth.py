@@ -104,8 +104,8 @@ def test_mcq_validator_is_live():
         return None
 
     lesson = {"pages": [
-        {"type": "mcq", "prompt": "Q?", "options": ["a", "b", "c", "d"], "answer": "a"},
-        {"type": "mcq", "prompt": "Bad?", "options": ["x", "x"], "answer": "zzz"},
+        {"type": "mcq", "prompt": "Q?", "prompt_tr": "Soru?", "options": ["a", "b", "c", "d"], "answer": "a"},
+        {"type": "mcq", "prompt": "Bad?", "prompt_tr": "Bozuk?", "options": ["x", "x"], "answer": "zzz"},
         {"type": "overview", "text": "substantive content"},
     ]}
     sys.settrace(tracer)

@@ -1896,7 +1896,11 @@ def enforce_option_parallelism(data: Any, material_language: str = "tr") -> Any:
     for page in pages:
         if isinstance(page, dict):
             _enforce_item_option_parallelism(page, target_surfaces)
-            enforce_instructional_track(page, material_language)
+            if not enforce_instructional_track(page, material_language):
+                # The generator has already had its retries by the time content
+                # reaches a renderer. Publishing the question in a language this
+                # reader does not read is the one outcome not on offer.
+                continue
         kept.append(page)
     data["pages"] = kept
     return data
@@ -1934,9 +1938,13 @@ def localized_stem_is_publishable(authored: Any, localized: Any, rationales: Any
     used, which catches the same loss between languages that share no script and
     where a rationale is fully translated.
     """
-    authored_tokens = _stem_tokens(authored)
-    if not authored_tokens or not str(localized or "").strip():
+    if not str(localized or "").strip():
         return False
+    authored_tokens = _stem_tokens(authored)
+    if not authored_tokens:
+        # Nothing to compare against is not evidence of loss. A stem too short to
+        # yield a word - a bare "Q?" - has nothing a translation could drop.
+        return True
     localized_tokens = _stem_tokens(localized)
 
     cited = set()
@@ -2005,7 +2013,63 @@ def enforce_instructional_track(item: Dict[str, Any], material_language: str = "
                  if isinstance(item.get(k), str) and str(item.get(k)).strip()]
     if not off_track:
         return True  # nothing claimed to be a stem; ordinary validation decides
+    return is_self_contained_cloze(item)
+
+
+# A run of gap characters is how every language in this system writes "the answer
+# goes here". Two or more, so an ordinary hyphen in prose is never mistaken for one.
+_GAP_RUN = re.compile(r"[_＿﹍﹏‗]{2,}")
+
+
+def is_self_contained_cloze(item: Dict[str, Any]) -> bool:
+    """Whether the item states its task through structure rather than through prose.
+
+    This is the distinction the schema already draws and the publication path was
+    not reading. `prompt` is designated target-language content; `prompt_tr` and
+    `prompt_en` are the instructional tracks. An item whose target-language stem
+    is a sentence with a gap in it, offered against options that fill that gap,
+    has told the learner what to do WITHOUT any instructional prose: the gap is
+    the instruction, in whatever language the sentence is written.
+
+    So it is exempt from needing a localized instruction, and it is exempt on a
+    structural ground - a gap run, and options to fill it - rather than on a guess
+    about what language the string is in. That matters because the languages this
+    has to separate share an alphabet: nothing about the characters in
+    "Wir _____ gestern zum Supermarkt gegangen" distinguishes it from English, and
+    no such inspection is attempted.
+
+    An item that asks about the language in prose has no gap, carries its task in
+    that prose, and is therefore subject to the track contract.
+    """
+    options = item.get("options")
+    if not isinstance(options, list):
+        options = item.get("choices")
+    if not isinstance(options, list) or len(options) < 2:
+        return False
+    for key in ("prompt", "question", "stem"):
+        value = item.get(key)
+        if isinstance(value, str) and _GAP_RUN.search(value):
+            return True
     return False
+
+
+def assessment_track_violations(data: Any, material_language: str = "tr") -> List[str]:
+    """Assessment items that cannot state their task in the language being published.
+
+    Reported rather than repaired: deterministic code cannot write the missing
+    instruction, and the generator still has attempts in which to write it itself.
+    """
+    out: List[str] = []
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return out
+    for index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+        if str(page.get("type") or "").strip().casefold() != "mcq":
+            continue
+        if not enforce_instructional_track(dict(page), material_language):
+            out.append("pages.%d" % index)
+    return out
 
 
 def _enforce_item_option_parallelism(item: Dict[str, Any], target_surfaces: Any = None) -> Dict[str, Any]:

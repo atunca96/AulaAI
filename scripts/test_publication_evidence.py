@@ -535,7 +535,8 @@ def test_scope_extension_in_rationale():
     lesson = {"pages": [
         {"type": "grammar", "rules": [{
             "rule_tr": "1 sayısı için birinci biçim; 2, 3, 4 için ikinci biçim; 5-20 için üçüncü biçim."}]},
-        {"type": "mcq", "prompt": "3 için hangi biçim?", "options": ["a", "b", "c", "d"],
+        {"type": "mcq", "prompt": "3 için hangi biçim?", "prompt_tr": "3 için hangi biçim?",
+         "options": ["a", "b", "c", "d"],
          "answer": "b",
          "explanation_tr": "2, 3, 4 ve 2, 3, 4 ile biten bileşik sayılar ikinci biçimi alır."},
     ]}
@@ -556,17 +557,17 @@ def test_scope_extension_precision():
     cases = {
         "the lesson's own rule opens the class": {"pages": [
             {"type": "grammar", "rules": [{"rule_tr": "2, 3, 4 ile biten bileşik sayılar B alır."}]},
-            {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+            {"type": "mcq", "prompt": "3?", "prompt_tr": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
              "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
         "rationale restates faithfully": {"pages": [
             {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
-            {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+            {"type": "mcq", "prompt": "3?", "prompt_tr": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
              "explanation_tr": "3 sayısı 2, 3, 4 grubundadır, bu yüzden B kullanılır."}]},
         "narrative that is not rule-shaped": {"pages": [
             {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B."}]},
             {"type": "overview", "text_tr": "Bu derste selamlaşma, vedalaşma vb. konuları göreceğiz."}]},
         "no rules to compare against": {"pages": [
-            {"type": "mcq", "prompt": "x", "options": ["a", "b", "c", "d"], "answer": "a",
+            {"type": "mcq", "prompt": "x", "prompt_tr": "x", "options": ["a", "b", "c", "d"], "answer": "a",
              "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
     }
     for name, lesson in cases.items():
@@ -580,7 +581,8 @@ def test_correct_rationale_is_untouched():
     import copy
     lesson = {"pages": [
         {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
-        {"type": "mcq", "prompt": "3 için hangi biçim?", "options": ["a", "b", "c", "d"],
+        {"type": "mcq", "prompt": "3 için hangi biçim?", "prompt_tr": "3 için hangi biçim?",
+         "options": ["a", "b", "c", "d"],
          "answer": "b", "explanation_tr": "3 sayısı 2, 3, 4 grubundadır, bu yüzden B kullanılır."},
     ]}
     before = copy.deepcopy(lesson)
@@ -599,7 +601,7 @@ def test_correct_rationale_is_untouched():
 def test_rationales_are_claim_surfaces():
     lesson = {"pages": [
         {"type": "grammar", "rules": [{"rule_tr": "Bir kural."}]},
-        {"type": "mcq", "prompt": "Q", "options": ["a", "b", "c", "d"], "answer": "a",
+        {"type": "mcq", "prompt": "Q", "prompt_tr": "Q", "options": ["a", "b", "c", "d"], "answer": "a",
          "explanation_tr": "Bir gerekçe."},
         {"type": "quiz", "questions": [{"prompt": "Q2", "explanation": "Another rationale."}]},
     ]}
@@ -652,7 +654,7 @@ def _bounded_lesson(rationale):
             {"rule_tr": "2, 3 veya 4 ile biten sayılarda ikinci biçim kullanılır; 12, 13 ve 14 hariçtir."}]},
         {"type": "grammar", "rules": [
             {"rule_tr": "Hatırlatma: 12, 13 ve 14 sayıları 2, 3, 4 kuralının dışındadır."}]},
-        {"type": "mcq", "prompt": "54 için hangi biçim?", "options": ["a", "b", "c", "d"],
+        {"type": "mcq", "prompt": "54 için hangi biçim?", "prompt_tr": "54 için hangi biçim?", "options": ["a", "b", "c", "d"],
          "answer": "b", "explanation_tr": rationale},
     ]}
 
@@ -692,13 +694,13 @@ def test_bound_dropped_false_positive_discipline():
             _bounded_lesson("İkinci biçim doğrudur, tabloda gösterilmiştir."),
         "taught rule carries no exception, so none was dropped": {"pages": [
             {"type": "grammar", "rules": [{"rule_tr": "1 ile biten sayılarda A; 2, 3, 4 ile bitenlerde B."}]},
-            {"type": "mcq", "prompt": "q", "options": ["a", "b", "c", "d"], "answer": "a",
+            {"type": "mcq", "prompt": "q", "prompt_tr": "q", "options": ["a", "b", "c", "d"], "answer": "a",
              "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
         "exception exists but on an unrelated rule": {"pages": [
             {"type": "grammar", "rules": [
                 {"rule_tr": "Ünsüzlerde şu ek gelir; ancak yumuşak ünsüzler hariçtir."},
                 {"rule_tr": "1 ile biten sayılarda A kullanılır."}]},
-            {"type": "mcq", "prompt": "q", "options": ["a", "b", "c", "d"], "answer": "a",
+            {"type": "mcq", "prompt": "q", "prompt_tr": "q", "options": ["a", "b", "c", "d"], "answer": "a",
              "explanation_tr": "1 ile biten sayılar A alır."}]},
     }
     for name, lesson in cases.items():
@@ -710,7 +712,7 @@ def test_both_widening_shapes_coexist():
     """Opening an unopened class and dropping a stated bound are both caught."""
     opening = {"pages": [
         {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
-        {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+        {"type": "mcq", "prompt": "3?", "prompt_tr": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
          "explanation_tr": "2, 3, 4 ve 2, 3, 4 ile biten bileşik sayılar B alır."}]}
     check("BOTH class-opening shape still detected",
           FLAG_SCOPE_EXTENSION in flags(collect_scope_extensions(opening, material_language="tr")),

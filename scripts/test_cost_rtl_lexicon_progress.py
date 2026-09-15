@@ -552,6 +552,65 @@ check(en_track.get("prompt_en") == "What is the correct pronunciation of '옷' i
 check(not enforce_instructional_track(
     _ko(prompt="What is the correct pronunciation of '옷' in isolation?"), "tr"),
     "an item with no Turkish instruction anywhere reports the contract unmet")
+
+# FAIL CLOSED. An item that can only state its task in the wrong language is not
+# published to a reader of this track, whatever else it contains.
+from services.publication_invariants import (  # noqa: E402
+    assessment_track_violations, is_self_contained_cloze,
+)
+
+for label, stem in (
+    ("pronunciation question", "What is the correct pronunciation of the word '옷' in isolation?"),
+    ("naturalness question", "How is the phrase '한국어' pronounced naturally in spoken Korean?"),
+):
+    leaked = apply_publication_invariants({"pages": [_ko(prompt=stem)]},
+                                          language="Korean", material_language="tr")
+    check(leaked["pages"] == [],
+          f"{label}: English instructional prose cannot publish on the Turkish track")
+
+check(len(apply_publication_invariants(
+    {"pages": [_ko(prompt="What is the correct pronunciation of '옷'?")]},
+    language="Korean", material_language="en")["pages"]) == 1,
+    "the same item publishes unchanged on the English track")
+
+# Target-language-only stems are preserved STRUCTURALLY - a gap plus options to
+# fill it - so no judgement about what language a string is in is ever made. Both
+# of these share their alphabet with English, which is why script cannot decide it.
+for label, language, stem, options in (
+    ("German", "German", "Wir _____ gestern zum Supermarkt gegangen.",
+     ["seid", "hat", "haben", "sind"]),
+    ("Spanish", "Spanish", "Ayer nosotros _____ al supermercado.",
+     ["fuimos", "fue", "fui", "iban"]),
+):
+    item = _ko(prompt=stem, options=options, answer=options[-1])
+    check(is_self_contained_cloze(item), f"{label}: a gap and options state the task structurally")
+    kept_cloze = apply_publication_invariants({"pages": [item]},
+                                              language=language, material_language="tr")
+    check(len(kept_cloze["pages"]) == 1,
+          f"{label}: a target-language cloze is published without a localized instruction")
+    check(kept_cloze["pages"][0]["options"] == options,
+          f"{label}: its options are untouched")
+
+check(not is_self_contained_cloze(_ko(prompt="Wir _____ gegangen.", options=["a"])),
+      "a gap with nothing to fill it from is not a self-contained item")
+check(not is_self_contained_cloze(_ko(prompt="What is the pronunciation?")),
+      "prose with no gap carries its task in the prose and owes a localization")
+
+check(assessment_track_violations({"pages": [_ko(prompt="What is X?")]}, "tr") == ["pages.0"],
+      "the violation is reported by path so the generator can be told what to fix")
+check(assessment_track_violations({"pages": [_ko(prompt_tr="Türkçe soru")]}, "tr") == [],
+      "an item carrying its track instruction reports nothing")
+check(assessment_track_violations(
+    {"pages": [{"type": "vocabulary", "text": "English overview."}]}, "tr") == [],
+    "only assessment items are subject to the contract")
+
+# The retry is spent from the budget that already exists; the ceiling is untouched.
+engine_source = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                  "services", "ai_engine.py"), encoding="utf-8").read()
+check("assessment_track_violations" in engine_source,
+      "the release gate consults the contract, so a violation costs an attempt")
+check(engine_source.count("for attempt_idx in range(1, 4)") == 1,
+      "the retry ceiling is unchanged at three attempts")
 check(enforce_instructional_track(_ko(prompt_tr="Türkçe soru"), "tr"),
       "an item carrying its track instruction satisfies the contract")
 check(enforce_instructional_track(_ko(), "tr"),

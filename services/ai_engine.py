@@ -3767,7 +3767,20 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             cache_system=True,
         )
         norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
-        if norm_dict and isinstance(norm_dict, dict) and _is_substantive_lesson(norm_dict):
+        # An assessment item that cannot state its task in the language being
+        # published is a generation defect the generator can still fix, and at this
+        # point it has attempts left in which to fix it. Treated as a failed
+        # attempt so those attempts are spent, rather than as a publishable lesson
+        # whose questions a reader of this track cannot read. No extra call and no
+        # extra attempt: this only decides how the attempts already budgeted are used.
+        _track_gaps = []
+        if norm_dict and isinstance(norm_dict, dict):
+            try:
+                from services.publication_invariants import assessment_track_violations
+                _track_gaps = assessment_track_violations(norm_dict, material_language)
+            except Exception:
+                _track_gaps = []
+        if norm_dict and isinstance(norm_dict, dict) and _is_substantive_lesson(norm_dict) and not _track_gaps:
             lesson_dict = _ensure_minimum_lesson_structure(norm_dict, topic, language, level, material_language=material_language)
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RESULT] '{topic}' → {len(lesson_dict['pages'])} pages on attempt {attempt_idx}\n")
@@ -3788,6 +3801,15 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             # answer needed instead of nudging temperature, which cannot help.
             truncated = bool(call_stats.get("truncated"))
             retry_note = _lesson_retry_note(norm_dict, truncated)
+            if _track_gaps and not truncated:
+                retry_note = (
+                    "Your previous answer was discarded: %d multiple-choice item(s) gave their "
+                    "question only in a language this course does not use for instructions. "
+                    "Every assessment item needs its question written in the instructional "
+                    "language of this course, in the `prompt_tr` and `prompt_en` fields. Keep "
+                    "the answer options exactly as they are - they belong in the target "
+                    "language." % len(_track_gaps)
+                )
             if truncated and budget < LESSON_OUTPUT_TOKENS_MAX:
                 budget = min(budget * 2, LESSON_OUTPUT_TOKENS_MAX)
                 reason = f"output truncated at the ceiling; raising max_tokens to {budget}"
