@@ -1,0 +1,64 @@
+"""Canonical deterministic publication invariants for AulaAI material.
+
+This module is the single boundary for *deterministic* publication invariants that
+are not Unicode/script repair (which lives in material_quality_guard) and not
+rendering (which lives in pdf_renderer_v12).
+
+Responsibilities, and only these:
+  1. Structural assessment validity  -> prune only pages whose OWN type is "mcq".
+  2. Accidental local duplication    -> collapse immediately-repeated content.
+  3. Pedagogically empty filler      -> detect and flag; never publish silently.
+  4. Claim-scope discipline          -> detect absolute/universal claims, and hedge
+                                        ONLY claims the generator itself declared
+                                        to be tendencies.
+
+Design rules enforced here:
+  * Nothing in this module invents linguistic content.
+  * Nothing here removes a substantive content page.
+  * Every language-specific table is explicitly keyed by instructional language.
+    An unknown instructional language yields a no-op, never a guess.
+  * No assumptions about word boundaries, casing, scripts or whitespace beyond
+    what Unicode itself guarantees (works for CJK, RTL and combining-mark scripts).
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from copy import deepcopy
+from typing import Any, Dict, List, Optional, Tuple
+
+# ── Instructional-language resolution ───────────────────────────────────────
+
+_LANGUAGE_ALIASES: Dict[str, str] = {
+    "tr": "tr", "turkish": "tr", "türkçe": "tr", "turkce": "tr",
+    "en": "en", "english": "en", "ingilizce": "en",
+    "es": "es", "spanish": "es", "español": "es", "espanol": "es", "ispanyolca": "es",
+    "de": "de", "german": "de", "deutsch": "de", "almanca": "de",
+    "fr": "fr", "french": "fr", "français": "fr", "francais": "fr", "fransızca": "fr",
+    "it": "it", "italian": "it", "italiano": "it", "italyanca": "it",
+    "pt": "pt", "portuguese": "pt", "português": "pt", "portekizce": "pt",
+    "ru": "ru", "russian": "ru", "rusça": "ru", "rusca": "ru",
+}
+
+
+def instructional_code(value: Any) -> Optional[str]:
+    """Resolve an instructional-language label to a supported code, else None."""
+    key = str(value or "").strip().casefold()
+    return _LANGUAGE_ALIASES.get(key)
+
+
+# ── 1. Structural assessment validity ───────────────────────────────────────
+
+def _page_type(page: Any) -> str:
+    if not isinstance(page, dict):
+        return ""
+    return str(page.get("type") or "").strip().casefold()
+
+
+def prune_invalid_mcq_pages(data: Any) -> Any:
+    """Remove ONLY pages whose own declared type is 'mcq' and which fail structural
+    MCQ validation (option count, duplicate options, key alignment, placeholder or
+    structurally malformed distractors).
+
+    A page of any other type is never removed, regardless of

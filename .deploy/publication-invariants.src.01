@@ -1,0 +1,86 @@
+ what it contains.
+    """
+    if not isinstance(data, dict):
+        return data
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        return data
+
+    try:
+        from services.material_quality_guard import validate_mcq
+    except Exception:  # pragma: no cover - guard import must not break publication
+        return data
+
+    kept: List[Any] = []
+    removed: List[Dict[str, Any]] = []
+    for index, page in enumerate(pages):
+        if _page_type(page) == "mcq":
+            try:
+                ok, reason = validate_mcq(page)
+            except Exception:
+                ok, reason = True, ""
+            if not ok:
+                removed.append({"index": index, "reason": f"structural-mcq:{reason}"})
+                continue
+        kept.append(page)
+
+    data["pages"] = kept
+    if removed:
+        prior = data.get("_integrity_removed_mcq")
+        data["_integrity_removed_mcq"] = (prior if isinstance(prior, list) else []) + removed
+    return data
+
+
+# ── 2. Accidental local duplication ─────────────────────────────────────────
+
+# Sentence/bullet boundary. Delimiters are captured so that the original spacing —
+# including scripts that use no space after a terminator (CJK) — is preserved
+# exactly when segments are dropped.
+_SEGMENT_SPLIT = re.compile(r"([.!?。！？۔।]+\s*|\n+)")
+
+
+def _fold_for_identity(value: Any) -> str:
+    """Script-agnostic identity key: NFKC, casefolded, punctuation/space stripped."""
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    return "".join(
+        ch for ch in text
+        if not unicodedata.category(ch).startswith(("P", "Z", "C"))
+    )
+
+
+def _collapse_repeated_segments(text: Any) -> Any:
+    """Drop a sentence/bullet that exactly repeats the segment immediately before it."""
+    if not isinstance(text, str) or len(text) < 12:
+        return text
+    parts = _SEGMENT_SPLIT.split(text)
+    if len(parts) < 3:
+        return text
+    out: List[str] = []
+    previous_key = None
+    changed = False
+    for index in range(0, len(parts), 2):
+        segment = parts[index]
+        delimiter = parts[index + 1] if index + 1 < len(parts) else ""
+        key = _fold_for_identity(segment)
+        if key and key == previous_key:
+            changed = True
+            continue
+        out.append(segment + delimiter)
+        if key:
+            previous_key = key
+    if not changed:
+        return text
+    return "".join(out).strip()
+
+
+def _entry_identity(entry: Any, keys: Tuple[str, ...]) -> str:
+    if isinstance(entry, dict):
+        return "\u241f".join(_fold_for_identity(entry.get(k)) for k in keys)
+    return _fold_for_identity(entry)
+
+
+def _collapse_adjacent_entries(entries: Any, keys: Tuple[str, ...]) -> Any:
+    """Remove a list entry identical to the entry immediately preceding it."""
+    if not isinstance(entries, list) or len(entries) < 2:
+        return entries
+    out = []

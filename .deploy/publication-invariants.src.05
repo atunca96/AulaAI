@@ -1,0 +1,76 @@
+ia dos casos"),
+    ),
+    "ru": (
+        (r"\bвсегда\b", "обычно"),
+        (r"\bникогда\b", "обычно не"),
+        (r"\bбез\s+исключений\b", "в большинстве случаев"),
+    ),
+}
+
+_TENDENCY_SCOPES = {
+    "tendency", "tendencies", "typical", "usual", "general", "preference",
+    "eğilim", "egilim", "genel", "yaygın", "yaygin",
+    "tendencia", "tendenz", "tendance", "tendenza", "тенденция",
+}
+_ABSOLUTE_SCOPES = {"absolute", "exceptionless", "kesin", "mutlak", "invariable"}
+
+# Quoted target-language material and code spans are never touched.
+_PROTECTED_SPAN = re.compile(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"|\'[^\'\n]{1,80}\')')
+
+
+def find_absolute_claims(text: Any, instructional_language: Any) -> List[str]:
+    """Return absolute-quantifier matches found outside quoted target material."""
+    code = instructional_code(instructional_language)
+    patterns = _ABSOLUTE_CLAIM_PATTERNS.get(code or "")
+    if not patterns or not isinstance(text, str) or not text.strip():
+        return []
+    found: List[str] = []
+    parts = _PROTECTED_SPAN.split(text)
+    for i in range(0, len(parts), 2):
+        for pattern, _ in patterns:
+            found.extend(m.group(0) for m in re.finditer(pattern, parts[i], flags=re.IGNORECASE))
+    return found
+
+
+def hedge_absolute_claims(text: Any, instructional_language: Any) -> Any:
+    """Downgrade absolute quantifiers to scoped wording in instructional prose."""
+    code = instructional_code(instructional_language)
+    patterns = _ABSOLUTE_CLAIM_PATTERNS.get(code or "")
+    if not patterns or not isinstance(text, str) or not text.strip():
+        return text
+    parts = _PROTECTED_SPAN.split(text)
+    for i in range(0, len(parts), 2):
+        for pattern, replacement in patterns:
+            parts[i] = re.sub(pattern, replacement, parts[i], flags=re.IGNORECASE)
+    return "".join(parts)
+
+
+_TRACK_SUFFIX = re.compile(r"_(en|tr|es|de|fr|it|pt|ru)$")
+
+
+def _track_language(key: str, material_language: Any) -> Optional[str]:
+    """Instructional language that a given field is written in, or None if unknown."""
+    match = _TRACK_SUFFIX.search(str(key).casefold())
+    if match:
+        return match.group(1)
+    # Untagged instructional prose in this codebase is the English track.
+    return "en"
+
+
+_CLAIM_FIELDS = ("rule", "explanation", "analysis", "note", "text", "pitfall")
+
+
+def _claim_bearing_fields(entry: Dict[str, Any]) -> List[str]:
+    out = []
+    for key in entry:
+        base = _TRACK_SUFFIX.sub("", str(key).casefold())
+        if base in _CLAIM_FIELDS and isinstance(entry.get(key), str):
+            out.append(key)
+    return out
+
+
+def apply_declared_scope(data: Any, material_language: str = "tr") -> Any:
+    """Hedge absolute wording in rules the generator itself declared to be tendencies.
+
+    Rules declared (or left) absolute are NOT rewritten here: deterministic code
+    cannot establish linguistic truth, so it only enforces intern

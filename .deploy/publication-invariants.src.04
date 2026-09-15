@@ -1,0 +1,75 @@
+ons if _CEFR_TOKEN.search(o)) <= 1 and len(answer.split()) >= 6:
+                return True
+    return False
+
+
+def flag_generic_filler(data: Any, topic: str = "") -> Any:
+    """Mark filler pages for review instead of silently publishing them as teaching."""
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return data
+    flagged = []
+    for index, page in enumerate(data["pages"]):
+        if is_generic_filler_page(page, topic):
+            if isinstance(page, dict):
+                page["_review_required"] = True
+            flagged.append(index)
+    if flagged:
+        data["_review_required"] = True
+        data["_filler_pages"] = flagged
+    return data
+
+
+# ── 4. Claim-scope discipline ───────────────────────────────────────────────
+#
+# Absolute quantifiers are detected per instructional language. Detection alone
+# never rewrites anything: text is hedged only when the generator itself declared
+# the claim to be a tendency (``scope``), i.e. when the generator's own prose
+# contradicts the generator's own scope declaration.
+
+_ABSOLUTE_CLAIM_PATTERNS: Dict[str, Tuple[Tuple[str, str], ...]] = {
+    "tr": (
+        (r"\bher\s+zaman\b", "genellikle"),
+        (r"\bdaima\b", "çoğunlukla"),
+        (r"\bmutlaka\b", "genellikle"),
+        (r"\bhiçbir\s+zaman\b", "çoğunlukla"),
+        (r"\basla\b", "genellikle"),
+        (r"\bistisnasız\b", "çoğu durumda"),
+        (r"\btüm\s+durumlarda\b", "çoğu durumda"),
+        (r"\bdüzenli\s+olarak\b", "çoğunlukla"),
+        (r"\bkuralsız\s+değildir\b", "genellikle düzenlidir"),
+    ),
+    "en": (
+        (r"\balways\b", "usually"),
+        (r"\bnever\b", "usually does not"),
+        (r"\bin\s+all\s+cases\b", "in most cases"),
+        (r"\bwithout\s+exception\b", "in most cases"),
+        (r"\bevery\s+time\b", "usually"),
+        (r"\binvariably\b", "typically"),
+    ),
+    "es": (
+        (r"\bsiempre\b", "normalmente"),
+        (r"\bnunca\b", "normalmente no"),
+        (r"\bsin\s+excepción\b", "en la mayoría de los casos"),
+        (r"\ben\s+todos\s+los\s+casos\b", "en la mayoría de los casos"),
+    ),
+    "de": (
+        (r"\bimmer\b", "meistens"),
+        (r"\bniemals\b", "normalerweise nicht"),
+        (r"\bausnahmslos\b", "in den meisten Fällen"),
+        (r"\bin\s+allen\s+Fällen\b", "in den meisten Fällen"),
+    ),
+    "fr": (
+        (r"\btoujours\b", "généralement"),
+        (r"\bjamais\b", "généralement pas"),
+        (r"\bsans\s+exception\b", "dans la plupart des cas"),
+        (r"\bdans\s+tous\s+les\s+cas\b", "dans la plupart des cas"),
+    ),
+    "it": (
+        (r"\bsempre\b", "di solito"),
+        (r"\bmai\b", "di solito non"),
+        (r"\bsenza\s+eccezioni\b", "nella maggior parte dei casi"),
+    ),
+    "pt": (
+        (r"\bsempre\b", "normalmente"),
+        (r"\bnunca\b", "normalmente não"),
+        (r"\bsem\s+exceção\b", "na maior

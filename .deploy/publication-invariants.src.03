@@ -1,0 +1,69 @@
+      if isinstance(v, str) and _is_prose_key(k) and v.strip()
+        }
+
+    return data
+
+
+# ── 3. Pedagogically empty filler ───────────────────────────────────────────
+
+def _self_referential(value: Any, term: Any) -> bool:
+    """True when a field merely restates the term it is supposed to explain."""
+    v, t = _fold_for_identity(value), _fold_for_identity(term)
+    return bool(v) and bool(t) and (v == t or v == t + t)
+
+
+_CEFR_TOKEN = re.compile(r"\b[ABC][12]\b")
+
+
+def is_generic_filler_item(item: Any, topic: str = "") -> bool:
+    """Structural (not keyword-based) detection of pedagogically empty lexical rows."""
+    if not isinstance(item, dict):
+        return False
+    term = item.get("term") or item.get("word") or ""
+    if not str(term).strip():
+        return True
+    signals = 0
+    phonetic = str(item.get("phonetic") or "").strip()
+    # Fake IPA that is just the term echoed back inside brackets.
+    if phonetic and _self_referential(phonetic.strip("[]/"), term):
+        signals += 1
+    if phonetic in ("[...]", "[…]", "[]"):
+        signals += 1
+    # Example that is only the headword (or the topic title) with punctuation.
+    example = item.get("example") or ""
+    if _self_referential(example, term) or (topic and _self_referential(example, topic)):
+        signals += 1
+    # Meaning that only restates the topic title rather than the item.
+    for key in ("translation", "translation_tr", "meaning"):
+        value = item.get(key)
+        if topic and value and _fold_for_identity(topic) and _fold_for_identity(topic) in _fold_for_identity(value) and len(_fold_for_identity(value)) <= len(_fold_for_identity(topic)) + 12:
+            signals += 1
+            break
+    # A vocabulary row whose headword IS the lesson topic is a topic label, not a word.
+    if topic and _self_referential(term, topic):
+        signals += 1
+    return signals >= 2
+
+
+def is_generic_filler_page(page: Any, topic: str = "") -> bool:
+    """A structurally valid page carrying no teachable content."""
+    if not isinstance(page, dict):
+        return False
+    if page.get("_synthetic_placeholder"):
+        return True
+    ptype = _page_type(page)
+
+    if ptype in ("vocabulary", ""):
+        items = page.get("items") or page.get("vocabulary") or page.get("words")
+        if isinstance(items, list) and items:
+            filler = sum(1 for it in items if is_generic_filler_item(it, topic))
+            if filler >= max(1, int(len(items) * 0.6)):
+                return True
+
+    if ptype == "mcq":
+        # An MCQ whose keyed answer is a meta-statement about the CEFR level itself
+        # tests nothing about the language.
+        answer = str(page.get("answer") or "")
+        if _CEFR_TOKEN.search(answer) and topic and _fold_for_identity(topic) not in _fold_for_identity(answer):
+            options = [str(o) for o in (page.get("options") or [])]
+            if sum(1 for o in opti

@@ -1,0 +1,63 @@
+tic") or "").strip()
+            example = str(entry.get("example") or "").strip()
+            snippet = " ".join(x for x in (term, phon, example) if x)
+            if snippet:
+                out.append(snippet[:120])
+            if len(out) >= limit:
+                return out
+    return out
+
+
+# ── Orchestrator ────────────────────────────────────────────────────────────
+
+def apply_publication_invariants(
+    data: Any,
+    language: Optional[str] = None,
+    material_language: str = "tr",
+    topic: str = "",
+    copy: bool = True,
+) -> Any:
+    """Apply every deterministic publication invariant. Idempotent and content-safe."""
+    if not isinstance(data, dict):
+        return data
+    out = deepcopy(data) if copy else data
+    out = prune_invalid_mcq_pages(out)
+    out = collapse_adjacent_duplicates(out)
+    out = apply_declared_scope(out, material_language=material_language)
+    out = flag_generic_filler(out, topic=topic)
+    return out
+
+
+# ── Path addressing (used by the bounded claim verifier) ────────────────────
+
+def set_by_path(data: Any, path: str, value: Any) -> bool:
+    """Set an existing dotted path such as ``pages.0.rules.1.explanation_tr``.
+
+    Only assigns to a field that already exists, so a verifier can repair wording
+    but can never introduce new structure, pages or fields.
+    """
+    if not isinstance(path, str) or not path.strip():
+        return False
+    node: Any = data
+    parts = [p for p in path.split(".") if p != ""]
+    if not parts:
+        return False
+    for part in parts[:-1]:
+        if isinstance(node, list):
+            if not part.isdigit() or int(part) >= len(node):
+                return False
+            node = node[int(part)]
+        elif isinstance(node, dict):
+            if part not in node:
+                return False
+            node = node[part]
+        else:
+            return False
+    last = parts[-1]
+    if isinstance(node, dict) and last in node:
+        node[last] = value
+        return True
+    if isinstance(node, list) and last.isdigit() and int(last) < len(node):
+        node[int(last)] = value
+        return True
+    return False
