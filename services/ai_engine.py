@@ -3266,6 +3266,19 @@ def _is_substantive_page(page: dict) -> bool:
         return True
     return False
 
+# How many pages of real content a lesson must carry to be publishable.
+#
+# ONE number, read by both the gate that decides whether to retry a generation and
+# the assembler that decides whether the result is complete. They used to disagree
+# - the gate accepted two pages, the assembler required three - so a lesson that
+# produced exactly two landed in the gap between them: accepted without retrying,
+# then immediately marked review-required and published with a review notice
+# stapled to the real content it had produced. That is the worst of both outcomes,
+# and it spent none of the three attempts the topic was entitled to. A lesson the
+# assembler will not accept is now one the gate retries.
+MIN_SUBSTANTIVE_PAGES = 3
+
+
 def _is_substantive_lesson(data: dict) -> bool:
     """Checks if a lesson structure has real educational substance across multiple pages."""
     if not isinstance(data, dict):
@@ -3274,7 +3287,7 @@ def _is_substantive_lesson(data: dict) -> bool:
     if not isinstance(pages, list) or len(pages) == 0:
         return False
     substantive_pages = [p for p in pages if _is_substantive_page(p)]
-    if len(substantive_pages) < 2:
+    if len(substantive_pages) < MIN_SUBSTANTIVE_PAGES:
         return False
     # Must contain at least one page with items, rules, or text
     has_core = any(
@@ -3335,7 +3348,7 @@ def _ensure_minimum_lesson_structure(lesson_dict: dict, topic: str, language: st
 
     pages = [p for p in lesson_dict["pages"] if isinstance(p, dict) and _is_substantive_page(p)]
     lesson_dict["pages"] = pages
-    if len(pages) >= 3:
+    if len(pages) >= MIN_SUBSTANTIVE_PAGES:
         return lesson_dict
 
     if pages:

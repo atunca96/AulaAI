@@ -452,6 +452,19 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                 first_future = _submit(queued[0])
                 rest = queued[1:]
                 _log(f"Phase 2: priming shared prompt prefix with '{queued[0][1]}' before fan-out.")
+                # Publish the priming wait as the real stage it is. Generating this
+                # first lesson takes as long as any other, and until now the build
+                # sat at the curriculum-ready figure for its whole duration with no
+                # message, so a minute or more of genuine work looked like a frozen
+                # bar. The topic count is announced here too, so the interval reports
+                # what it is working towards instead of an unexplained pause.
+                with db_connection() as db:
+                    db.execute(
+                        "UPDATE courses SET total_steps = ?, progress = 0, build_stage = 'priming', build_message = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')",
+                        (topic_count, f"İlk ders üretiliyor ({topic_count} ders hazırlanacak)...", course_id, gen_id, gen_id),
+                    )
+                    db.commit()
+                bump_version()
                 # Wait, but never let a slow or hung first topic hold the build:
                 # the timeout is a ceiling, not a requirement, and the remaining
                 # topics are dispatched either way.

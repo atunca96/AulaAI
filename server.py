@@ -1738,12 +1738,20 @@ table.vt td { padding: 4px 6px; }
                     # is not visible as a movement in either direction.
                     percentage = 10
                     if not message: message = "Curriculum ready. Preparing lesson generation..."
+                elif stage == "priming":
+                    # The first lesson is being generated before the rest fan out.
+                    # Real work, of the same duration as any other lesson, and it
+                    # sits strictly between "curriculum ready" and "no topic
+                    # finished yet" so the ladder stays ordered without the floor
+                    # having to rescue it.
+                    percentage = 12
+                    if not message: message = "Generating the first lesson..."
                 elif stage == "enriching":
                     if total > 0:
                         topic_ratio = min(1.0, max(0.0, progress / total))
-                        percentage = 10 + int(topic_ratio * 82)
+                        percentage = 14 + int(topic_ratio * 78)
                     else:
-                        percentage = 10
+                        percentage = 14
                     if not message:
                         message = f"Generating lesson materials ({progress}/{total})..." if total > 0 else "Generating lesson materials..."
                 elif stage == "finalizing":

@@ -305,8 +305,10 @@ def reported(stage, progress, total, is_building=True):
         value = 6
     elif stage in ("structuring", "prepared"):
         value = 10
+    elif stage == "priming":
+        value = 12
     elif stage == "enriching":
-        value = 10 + int(min(1.0, max(0.0, progress / total)) * 82) if total > 0 else 10
+        value = 14 + int(min(1.0, max(0.0, progress / total)) * 78) if total > 0 else 14
     elif stage == "finalizing":
         value = 94
     else:
@@ -318,7 +320,7 @@ def reported(stage, progress, total, is_building=True):
 SEQUENCE = [
     ("analyzing", 0, 0),
     ("prepared", 0, 0),      # phase one finished; no topic generated yet
-    ("prepared", 0, 30),     # the topic count becomes known
+    ("priming", 0, 30),      # first lesson generated before the fan-out
     ("enriching", 0, 30),    # phase two starts counting topics
 ] + [("enriching", n, 30) for n in (1, 7, 15, 23, 30)]
 
@@ -331,16 +333,18 @@ for stage, progress, total in SEQUENCE:
 check(reported("completed", 30, 30, is_building=False) == 100,
       "completion is only reported when the build is finished")
 
-check(reported("prepared", 0, 30) == reported("enriching", 0, 30),
-      "handing off from curriculum to enrichment is not visible as a movement")
+check(reported("prepared", 0, 30) < reported("priming", 0, 30) < reported("enriching", 0, 30),
+      "the priming wait is its own forward step, not a pause at the previous figure")
+check(reported("priming", 0, 30) > reported("prepared", 0, 30),
+      "real work during the pre-fanout wait is visible as progress")
 
 # The defect itself: phase one used to write 20 into the topic COUNTER while
 # claiming the enrichment stage, so the bar computed 20-of-30 and then fell back
 # to zero-of-30. Asserted here so reverting the fix fails the suite.
 check(reported("enriching", 20, 30) > reported("enriching", 0, 30),
       "writing a percentage into the topic counter is what produced the reset")
-check(reported("enriching", 20, 30) == 64,
-      "and the value it produced was the two-thirds jump users reported")
+check(reported("enriching", 20, 30) > 50,
+      "and the value it produced was the large jump users reported")
 
 # The high-water floor makes monotonicity structural rather than incidental.
 def with_floor(values):
@@ -424,6 +428,92 @@ source = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
                            "services", "publication_evidence.py"), encoding="utf-8").read()
 check("(0x0370, 0x03FF)" not in source,
       "the whole Greek block is no longer admitted into notation fields")
+
+
+# ── A published MCQ must be answerable from what the learner can see ─────────
+
+from services.publication_invariants import (  # noqa: E402
+    apply_assessment_invariants, apply_publication_invariants, localized_stem_is_publishable,
+)
+
+LOSSY = {
+    "type": "mcq",
+    "prompt": "Wir _____ gestern zum Supermarkt gegangen.",
+    "prompt_tr": "Dün süpermarkete _____.",
+    "options": ["seid", "hat", "haben", "sind"], "answer": "sind",
+    "explanation_tr": "gehen bir hareket fiilidir; özne wir olduğu için yardımcı fiil sind olur.",
+}
+published = apply_publication_invariants({"pages": [dict(LOSSY)]}, language="German")["pages"][0]
+check("prompt_tr" not in published,
+      "a localized stem that drops what the answer key reasons from is not published")
+check(published["prompt"] == LOSSY["prompt"], "the authored stem survives to answer from")
+check(published["options"] == LOSSY["options"], "target-language options are untouched")
+check("explanation_tr" in published, "the localized rationale is not collateral damage")
+
+faithful = dict(LOSSY, prompt_tr="Wir _____ dün süpermarkete gegangen.")
+kept = apply_publication_invariants({"pages": [faithful]}, language="German")["pages"][0]
+check(kept.get("prompt_tr") == faithful["prompt_tr"],
+      "a localization that keeps the answer-critical words is published")
+
+META = {"type": "mcq", "prompt": "What does the accusative mark?",
+        "prompt_tr": "Belirtme hâli neyi gösterir?",
+        "options": ["Direct object", "Subject", "Possession", "Location"],
+        "answer": "Direct object",
+        "explanation_tr": "Belirtme hâli doğrudan nesneyi gösterir."}
+meta_out = apply_publication_invariants({"pages": [META]}, language="German")["pages"][0]
+check(meta_out.get("prompt_tr") == META["prompt_tr"],
+      "a metalinguistic item, which cites nothing from its own stem, still localizes")
+
+CROSS = {"type": "mcq", "prompt": "「見る」の て形は _____ です。",
+         "prompt_tr": "Doğru biçim hangisidir?",
+         "options": ["みて", "きいて", "よんで", "かいて"], "answer": "みて",
+         "explanation_tr": "て biçimi"}
+cross_out = apply_publication_invariants({"pages": [CROSS]}, language="Japanese")["pages"][0]
+check("prompt_tr" not in cross_out,
+      "a stem that loses the writing system the question is about is not published")
+check(cross_out["options"] == CROSS["options"],
+      "the earlier option-preservation fix still holds alongside the stem rule")
+
+check("prompt_tr" not in apply_assessment_invariants([dict(LOSSY)], language="German")[0],
+      "standalone quizzes cross the same boundary")
+
+check(not localized_stem_is_publishable("Wir gehen", "", ["gehen"]),
+      "an empty localization never replaces a stem")
+check(localized_stem_is_publishable("Wir gehen heute", "Wir gehen bugün", ["gehen", "wir"]),
+      "a localization keeping every cited token is publishable")
+check(not localized_stem_is_publishable("Wir gehen heute", "Bugün gidiyoruz", ["gehen"]),
+      "dropping a cited token is refused whatever else the translation keeps")
+
+
+# ── Fallback: the retry gate and the completeness rule are one number ────────
+
+from services.ai_engine import (  # noqa: E402
+    MIN_SUBSTANTIVE_PAGES, _ensure_minimum_lesson_structure, _is_substantive_lesson,
+)
+
+
+def _page(n):
+    return {"type": "overview", "text": f"Real teaching content for page {n}, well over the length gate."}
+
+
+check(MIN_SUBSTANTIVE_PAGES == 3, "the publishable page count is stated once")
+for count in range(0, MIN_SUBSTANTIVE_PAGES):
+    check(not _is_substantive_lesson({"pages": [_page(i) for i in range(count)]}),
+          f"a {count}-page lesson is retried rather than published with a review notice")
+check(_is_substantive_lesson({"pages": [_page(i) for i in range(MIN_SUBSTANTIVE_PAGES)]}),
+      "a lesson meeting the count publishes without review")
+
+# The defect: a lesson the assembler will not accept used to pass the gate, so it
+# was never retried and was published with a notice attached to real content.
+gap = {"pages": [_page(1), _page(2)]}
+check(not _is_substantive_lesson(gap),
+      "no lesson can pass the gate and then be marked review-required by the assembler")
+assembled = _ensure_minimum_lesson_structure(dict(gap), "T", "German", "A1")
+check(assembled.get("_review_required"),
+      "if such a lesson does reach the assembler after exhausting retries, it is still honest")
+check(not _ensure_minimum_lesson_structure(
+    {"pages": [_page(i) for i in range(MIN_SUBSTANTIVE_PAGES)]}, "T", "German", "A1"
+).get("_review_required"), "a complete lesson is never marked review-required")
 
 
 print(f"cost, RTL text-layer, class-lexicon and progress tests passed ({checks} checks)")

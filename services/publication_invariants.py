@@ -1898,6 +1898,58 @@ def enforce_option_parallelism(data: Any) -> Any:
     return data
 
 
+_STEM_TOKEN = re.compile(r"[^\W\d_]{2,}", re.UNICODE)
+
+_STEM_FIELDS = (("prompt", "prompt_tr", "prompt_en"), ("question", "question_tr", "question_en"),
+                ("stem", "stem_tr", "stem_en"))
+
+
+def _stem_tokens(value: Any) -> set:
+    return {t.casefold() for t in _STEM_TOKEN.findall(unicodedata.normalize("NFC", str(value or "")))}
+
+
+def localized_stem_is_publishable(authored: Any, localized: Any, rationales: Any) -> bool:
+    """Whether a localized stem may REPLACE the stem a learner answers from.
+
+    Renderers prefer the localized stem whenever one exists, exactly as they once
+    preferred localized options. For a question about the target language that is
+    the same trap one field over: an item whose authored stem read
+    "Wir ____ gestern zum Supermarkt gegangen" was published as a translation that
+    kept the adverbial and dropped the subject and the participle, leaving four
+    auxiliary verbs to choose between and nothing on the page to choose by. The
+    answer key still explained its reasoning from the two words the learner could
+    no longer see.
+
+    The test is presence, not meaning, and needs no knowledge of either language:
+    a token the answer key CITES, which the authored stem CONTAINS and the
+    localized stem does NOT, is answer-critical information the localization
+    dropped. The rationale is the item's own statement of what the answer depends
+    on, so it is the evidence, and nothing here has to judge what any word means.
+
+    Also refused when the localized stem loses a writing system the authored stem
+    used, which catches the same loss between languages that share no script and
+    where a rationale is fully translated.
+    """
+    authored_tokens = _stem_tokens(authored)
+    if not authored_tokens or not str(localized or "").strip():
+        return False
+    localized_tokens = _stem_tokens(localized)
+
+    cited = set()
+    for rationale in rationales or []:
+        cited |= _stem_tokens(rationale)
+    if (authored_tokens & cited) - localized_tokens:
+        return False
+
+    authored_families: set = set()
+    for token in (str(authored or ""),):
+        authored_families |= _script_families(token)
+    localized_families = _script_families(str(localized or ""))
+    if authored_families - localized_families:
+        return False
+    return True
+
+
 def _enforce_item_option_parallelism(item: Dict[str, Any], target_surfaces: Any = None) -> Dict[str, Any]:
     raw_options = item.get("options")
     if not isinstance(raw_options, list):
@@ -1910,6 +1962,20 @@ def _enforce_item_option_parallelism(item: Dict[str, Any], target_surfaces: Any 
             continue
         if not localized_options_are_publishable(raw_options, localized, target_surfaces):
             item.pop(key, None)
+
+    # The stem is held to the same rule as the options: a localization may
+    # accompany the question a learner answers from, never silently replace it
+    # with less than it needs.
+    rationales = [item.get(k) for k in item
+                  if _TRACK_SUFFIX.sub("", str(k).casefold()) in RATIONALE_FIELDS
+                  and isinstance(item.get(k), str)]
+    for authored_key, *localized_keys in _STEM_FIELDS:
+        authored = item.get(authored_key)
+        if not isinstance(authored, str) or not authored.strip():
+            continue
+        for key in localized_keys:
+            if key in item and not localized_stem_is_publishable(authored, item.get(key), rationales):
+                item.pop(key, None)
     return item
 
 
