@@ -395,8 +395,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
             return {"content": lesson, "t_id": t_id, "t_title": t_title}
  
-        # 16 concurrent workers — tuned for Gemini 3.7 Flash high throughput
-        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "16"))
+        # 20 concurrent workers — modestly reduce 30-topic tail latency without changing work volume
+        max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "20"))
         topic_count = 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_topic = {}
@@ -445,14 +445,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                         _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
         _log(f"Phase 2 Complete for {course_id}.")
-        try:
-            with db_connection() as db:
-                db.execute("UPDATE courses SET build_stage = 'finalizing', build_message = 'Finalizing bilingual translations...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
-                db.commit()
-            from services.bilingual_finisher import finalize_course_bilingual_data
-            finalize_course_bilingual_data(course_id)
-        except Exception as b_err:
-            _log(f"Warning: finalize_course_bilingual_data failed: {b_err}")
+        _log("Bilingual post-processor disabled: using persisted bilingual lesson fields from the AI engine.")
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = ?, total_steps = ?, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, topic_count, course_id, gen_id, gen_id))
             db.commit()

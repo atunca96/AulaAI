@@ -1254,6 +1254,23 @@ _DOMAIN_GUIDANCE = (
     "A flag of `nearby-alternative-contradicts-claim` means the lesson itself shows another "
     "acceptable option in the same context; treat the claim as overscoped unless the evidence "
     "plainly does not apply.\n"
+    "Evidence-relationship flags report a conflict inside the lesson's own material. Resolve the "
+    "conflict; do not merely soften wording:\n"
+    "  phrase-ipa-covers-only-part-of-term / ipa-identical-to-a-different-shorter-term - the "
+    "transcription does not describe the whole headword. Supply the transcription for the ENTIRE "
+    "term. If you are not confident of the full transcription, return the field with no "
+    "transcription rather than an invented one; never pad it to look complete.\n"
+    "  prose-transcription-conflicts-with-authoritative-ipa - the prose shows a transcription that "
+    "disagrees with the one the lesson publishes for that term. Make the prose agree with the "
+    "published transcription, or state the point without a transcription.\n"
+    "  parallel-rule-states-narrower-coverage-than-a-sibling-rule - a sibling rule covers cases "
+    "this one omits. Add the missing case to this rule when it genuinely applies, or narrow this "
+    "rule's stated scope so it no longer implies it covers them.\n"
+    "  instructional-tracks-disagree-on-polarity / -on-a-numeral - the English and Turkish "
+    "renderings state different things. Correct the field so both tracks express the same "
+    "proposition; change only the field you are given.\n"
+    "  answer-key-rationale-makes-a-publishable-claim - this is answer-key prose, held to the same "
+    "standard as lesson prose. Apply the domain rules above to it.\n"
 )
 
 
@@ -1298,15 +1315,30 @@ def build_claim_review_request(claims: List[Dict[str, Any]], language: Any, leve
     return system, payload
 
 
+# Hard ceiling on what one review may carry. The bounded call has a fixed token
+# budget, so an unusually defective lesson must not be allowed to grow the request
+# until the response truncates. Detectors run in descending order of mechanical
+# certainty, so the claims that survive the cap are the best-evidenced ones.
+MAX_REVIEWABLE_CLAIMS = 16
+
+
 def collect_reviewable_claims(data: Any, material_language: str = "tr") -> List[Dict[str, Any]]:
     """Every claim the deterministic layer wants the bounded verifier to look at.
 
-    One list, one downstream model call. Ordering is stable and de-duplicated by
-    path so a claim caught by two detectors is reviewed once.
+    One list, one downstream model call, hard-capped at MAX_REVIEWABLE_CLAIMS.
+    Ordering is stable and de-duplicated by path so a claim caught by several
+    detectors is reviewed once, carrying every reason and all of its evidence.
     """
     claims = collect_unscoped_absolute_claims(data, material_language=material_language)
     by_path = {c["path"]: c for c in claims}
-    for collect in (collect_generalization_contradictions, collect_scope_contradictions):
+
+    def _evidence_risks(payload: Any, material_language: str = "tr") -> List[Dict[str, Any]]:
+        # Imported lazily so publication_invariants stays importable on its own and
+        # an evidence-layer problem can never break claim-scope review.
+        from services.publication_evidence import collect_evidence_risks
+        return collect_evidence_risks(payload, material_language=material_language)
+
+    for collect in (collect_generalization_contradictions, collect_scope_contradictions, _evidence_risks):
         try:
             extra = collect(data, material_language=material_language)
         except Exception:
@@ -1333,7 +1365,74 @@ def collect_reviewable_claims(data: Any, material_language: str = "tr") -> List[
             existing["examples"] = evidence[:8]
             if existing.get("domain") in (None, "unknown"):
                 existing["domain"] = claim.get("domain") or existing.get("domain")
-    return claims
+    return claims[:MAX_REVIEWABLE_CLAIMS]
+
+
+# ── Assessment publication boundary ─────────────────────────────────────────
+
+def apply_assessment_invariants(questions: Any, language: Any = None, material_language: str = "tr") -> Any:
+    """Deterministic publication discipline for independently generated assessments.
+
+    Assessments never passed through any publication boundary: `generate_full_lesson`
+    had one, and the quiz path simply did not, which is why answer-key rationales
+    could publish categorical social claims that lesson prose could no longer. The
+    rationale is instructional text a learner reads and believes, so it is held to
+    the same standard here.
+
+    Strictly deterministic and strictly bounded - NO model call is made on this
+    path. A standalone quiz has no lesson-wide evidence to reason against and no
+    existing bounded review to join, so adding a semantic call here would be a new
+    per-quiz cost. Instead this applies exactly the transformations that are safe
+    without semantic judgement:
+
+      * character-level sanitation, so the answer key cannot ship a corrupted
+        text layer;
+      * hedging of absolute wording in rationales the generator itself marked as a
+        tendency - the same self-consistency rule lesson prose obeys;
+      * structural validity, dropping only items that fail MCQ validation.
+
+    Rationales embedded in lesson pages are a different case: those DO reach the
+    bounded reviewer, through collect_rationale_claims, at no extra call.
+    """
+    if not isinstance(questions, list):
+        return questions
+    try:
+        from services.material_quality_guard import safe_unicode_normalize, validate_mcq
+    except Exception:
+        safe_unicode_normalize = None  # type: ignore[assignment]
+        validate_mcq = None  # type: ignore[assignment]
+
+    out: List[Any] = []
+    for question in questions:
+        if not isinstance(question, dict):
+            out.append(question)
+            continue
+        item = dict(question)
+
+        scope = str(item.get("scope") or "").strip().casefold()
+        for key in list(item):
+            value = item.get(key)
+            if not isinstance(value, str) or not value.strip():
+                continue
+            if safe_unicode_normalize is not None:
+                value = safe_unicode_normalize(value, language)
+            base = _TRACK_SUFFIX.sub("", str(key).casefold())
+            if base in _RATIONALE_FIELDS and scope in _TENDENCY_SCOPES:
+                value = hedge_absolute_claims(value, _track_language(key, material_language))
+            item[key] = value
+
+        if validate_mcq is not None and (item.get("options") or item.get("choices")):
+            try:
+                ok, _reason = validate_mcq(item)
+            except Exception:
+                ok = True
+            if not ok:
+                continue
+        out.append(item)
+    return out
+
+
+_RATIONALE_FIELDS = ("explanation", "rationale", "why", "feedback", "answer_explanation")
 
 
 # ── Orchestrator ────────────────────────────────────────────────────────────

@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56.py"), run_name="__main__")
-runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56_compat.py"), run_name="__main__")
-runpy.run_path(str(ROOT / "scripts" / "patch_release_cleanup_v56_quality.py"), run_name="__main__")
+# Source is frozen: the former patch-application step is a no-op here.
+# Source is frozen: the former patch-application step is a no-op here.
+# Source is frozen: the former patch-application step is a no-op here.
 
 import services.material_quality_guard as guard
 guard = importlib.reload(guard)

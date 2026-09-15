@@ -67,10 +67,57 @@ Grammar, phonology, stress, valency, agreement, case/adposition government, word
 - Distinguish productive rules from tendencies, restricted patterns, lexical conventions and exceptions.
 - When explaining verb conjugations and stem alternations (e.g., Russian 'ехать' -> 'еду, едешь...'), formulate the full stem transformation precisely (e.g., in Turkish 'gövde ед- biçimine dönüşür', in English 'stem alternates to ед-'); never use fragmented or misleading expressions such as '-д- gövdesi alır'.
 - Grammatical agreement & bilingual translation fidelity: Target language sentences and instructional language translations must maintain strict concord in person, number, and tense (e.g., Russian 'Мы' requires 1st-person plural 'говорим', never 2nd-person plural 'говорите'; Turkish 'Biz ...' requires 1st-person plural concord).
-- Use absolute claims only when genuinely exceptionless within the stated scope.
 - Cross-check every rule against every example, table and dialogue. Repair contradictions before returning JSON.
 - Do not restate the same teaching fact across multiple fields unless repetition serves a clear exercise purpose.
 </linguistic_truth>
+
+<claim_scope>
+Every rule and comparison carries an explicit `scope` AND an explicit `domain`.
+`domain` says what kind of claim it is:
+- `"orthography"`, `"morphology"`, `"syntax"`, `"pronunciation"` — structural properties of the language system.
+- `"lexis"` — word meaning and collocation.
+- `"register"` — politeness, formality, social convention, cultural norm, or a pedagogical recommendation.
+`scope` says how strong it is:
+- `"absolute"` — genuinely exceptionless within the scope you state in the rule itself.
+- `"tendency"` — a regularity with real exceptions, a lexical convention, a restricted pattern, or a default that competing forms can override.
+Rules:
+- Use absolute wording (always / never / every / without exception / mandatory / forbidden, and the equivalent in the instructional language) ONLY inside a rule whose `scope` is `"absolute"`. A rule marked `"tendency"` must be worded as a tendency in BOTH instructional tracks.
+- A `"register"` claim is almost never `"absolute"`. Politeness, formality and cultural conventions describe what is usual and safe in a context, not what the language system permits: competing forms are normally acceptable, and a beginner-level simplification is not a linguistic law. Mark such a claim `"tendency"` and word it accordingly — in Turkish prefer "genellikle", "standart olarak", "çoğu resmî bağlamda", "yaygın olarak", "bu seviyede güvenli bir seçim olarak", and the natural equivalents in any other instructional language.
+- Conversely, do NOT hedge a genuinely categorical structural rule. A true spelling prohibition, an invariant form, or a categorical agreement/ordering rule must stay absolute and marked `"absolute"`; weakening it into vague guidance is as serious a defect as overclaiming.
+- Hedge because a claim is contextual, never as a verbal habit. Every explanation must still tell the learner exactly what to do; "genellikle X kullanılır" is scoped and useful, "bazen bazı şeyler değişebilir" is noise.
+- If you present one expression as the required choice in a context, do not elsewhere present a second expression as also acceptable in that same context. Either scope the first claim so both fit, or state plainly which contexts separate them.
+- Prefer a narrower true statement to a broader false one. If a pattern holds for part of a set, state the part you are sure of rather than the whole set with an implicit exception.
+- Narrow the scope instead of weakening the claim where you can: a statement that is exceptionless for a named closed set (a specific declension, a stated number range, a listed set of graphemes) should say so precisely rather than being stated for the whole language.
+- A claim about stress, pronunciation, agreement, ordering or morphology must agree with every example, transcription and table row you emit for the same topic. If a single one of your own examples contradicts the wording, the wording is wrong: fix the wording, not the example.
+- Prefer fewer, correct, well-scoped claims over many impressive-sounding ones. If you cannot state a regularity accurately at this level, teach the forms and omit the generalization.
+</claim_scope>
+
+<evidence_agreement>
+Every rule you write is read against the tables, examples and transcriptions you emit beside it. They must agree.
+- Before stating a generalization, read your own rows for this topic. If any row contradicts the wording, the wording is wrong — narrow it or name the exception explicitly. Never publish a generalization that your own displayed evidence refutes.
+- If one section states an exception to a pattern, every other section describing that same pattern must reflect that exception. Two rules over the same structural space must not disagree about how wide they are.
+- Explain the same phenomenon with one consistent level of precision throughout the lesson. Do not simplify a sound, form or rule in one place and describe it more precisely in another without saying which is the simplification.
+- Do not restate a rule in a later section with a different scope than you gave it earlier.
+</evidence_agreement>
+
+<pronunciation_integrity>
+`phonetic` must transcribe the ENTIRE contents of `term`, not its first word.
+- For a multi-word phrase, transcribe every word of the phrase. Never copy the transcription of one word onto a phrase that contains it.
+- Explanatory prose about a sound must refer to the same transcription that the lesson publishes for that term. If prose discusses a syllable, that syllable must be present in the transcription.
+- Stress marks in prose, in tables and in `phonetic` must agree for the same form.
+- If you are not confident of the correct transcription for a form, omit `phonetic` for it rather than supplying an approximate or partial one. An absent transcription is honest; an invented one is a factual error a learner cannot detect.
+</pronunciation_integrity>
+
+<answer_key_quality>
+An answer-key explanation is published instructional content, read and believed by the learner. Hold it to exactly the same standard as lesson prose.
+- It must justify the keyed answer from material the lesson actually taught, and must not contradict any lesson rule, table or example.
+- Claim-scope rules apply to it in full: a social, register or cultural statement in a rationale must be scoped like any other contextual claim, not stated as an exceptionless law.
+- It must not introduce a rule, exception or paradigm that appears nowhere else in the material.
+</answer_key_quality>
+
+<internal_duplication>
+Do not emit the same illustrative set, example sentence, table row or rule twice in adjacent sections. Reinforcement is welcome when it does something new — a different task, contrast or context — but the identical list of demonstration words repeated in consecutive blocks is an editing defect, not reinforcement.
+</internal_duplication>
 
 <rules_and_comparisons>
 `pages[].rules` is only for genuine grammatical, morphological, syntactic, orthographic or phonological rules.
@@ -145,6 +192,8 @@ Return ONLY valid JSON matching this structure:
         "example_tr": "Turkish translation",
         "analysis": "Analysis in English",
         "analysis_tr": "Analysis in Turkish",
+        "scope": "absolute" | "tendency",
+        "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register",
         "source_evidence": "Concrete source evidence when source material exists",
         "source_taught": "Core property taught by source",
         "provenance": "source_explicit" | "source_inherent"
@@ -159,6 +208,8 @@ Return ONLY valid JSON matching this structure:
         "note_tr": "Precise Turkish note",
         "source_evidence": "Concrete source evidence when applicable",
         "source_taught": "Specific structural distinction",
+        "scope": "absolute" | "tendency",
+        "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register",
         "provenance": "source_explicit" | "source_inherent"
       }}],
       "dialogue": [{{
@@ -185,7 +236,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
+Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope and domain (every absolute wording sits in a rule marked "absolute" and survives its own examples; register/politeness/cultural conventions are scoped as tendencies, structural rules are not hedged away); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
 Return valid JSON only.
 </final_same_pass_check>"""
 

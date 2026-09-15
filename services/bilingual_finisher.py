@@ -228,28 +228,36 @@ SPANISH_ALPHABET_DATA = {
 SPANISH_ALPHABET_SPELLINGS = {k: v["spelling"] for k, v in SPANISH_ALPHABET_DATA.items()}
 
 def extract_letter_key(term):
+    """Return a Spanish alphabet key only for an explicit alphabet label.
+
+    Accepted examples: ``A``, ``A, a``, ``Ñ, ñ``, ``CH, ch``, ``LL, ll``,
+    ``RR, rr``.  Ordinary lexical material such as ``tú`` or
+    ``¿A qué te dedicas?`` must never be classified as an alphabet row.
+
+    A lowercase one-character token is intentionally *not* treated as a letter
+    label because it may be a real lexical item (for example Spanish ``a``).
+    """
     if not term or not isinstance(term, str):
         return None
     s = term.strip()
-    if len(s) == 1:
-        u = s.upper()
-        return u if u in SPANISH_ALPHABET_DATA else None
-    letters = re.sub(r'[^A-Za-zÑñÁÉÍÓÚÜáéíóúü]', '', s)
-    if not letters:
+    if not s:
         return None
-    u = letters.upper()
-    if u in ["CH", "CHCH"]:
-        return "CH"
-    if u in ["LL", "LLLL"]:
-        return "LL"
-    if u in ["RR", "RRRR"]:
-        return "RR"
-    if len(set(u)) == 1 and len(u) <= 4:
-        return u[0] if u[0] in SPANISH_ALPHABET_DATA else None
-    first_part = re.split(r'[\s,/-]+', s)[0].upper()
-    clean_p = re.sub(r'[^A-Za-zÑñ]', '', first_part)
-    if clean_p in SPANISH_ALPHABET_DATA:
-        return clean_p
+
+    valid = set(SPANISH_ALPHABET_DATA.keys())
+
+    # Single explicit uppercase label: A, Ñ, CH, LL, RR, ...
+    if re.fullmatch(r'[A-ZÑ]{1,2}', s):
+        candidate = s.upper()
+        return candidate if candidate in valid else None
+
+    # Explicit case-pair / repeated label: A, a | L/l | LL, ll | RR / rr.
+    # Require a separator so ordinary words can never collapse into letters.
+    m = re.fullmatch(r'([A-Za-zÑñ]{1,2})\s*[,/]\s*([A-Za-zÑñ]{1,2})', s)
+    if m:
+        left, right = m.group(1).upper(), m.group(2).upper()
+        if left == right and left in valid:
+            return left
+
     return None
 
 def _load_cache():
@@ -276,7 +284,7 @@ def _save_cache(cache):
 def _call_openrouter(prompt):
     from services.ai_engine import _call_ai
     model = os.getenv("MODEL_TRANSLATOR", os.getenv("MODEL_STRUCTURAL", "openai/gpt-oss-120b"))
-    res = _call_ai([{"role": "user", "content": prompt}], model=model, max_tokens=2500, temperature=0.1, json_mode=True)
+    res = _call_ai([{"role": "user", "content": prompt}], model=model, max_tokens=1200, temperature=0.1, json_mode=True)
     return res if isinstance(res, dict) and "error_details" not in res else {}
 
 def batch_translate_strings(strings, target_lang="tr"):
@@ -370,7 +378,7 @@ Input:
         print(f"[BILINGUAL] Batch {chunk_idx+1}/{total_chunks} complete ({len(chunk_res)} translated)", flush=True)
         return chunk_res
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=min(2, max(1, total_chunks))) as executor:
         futures = [executor.submit(translate_chunk, i, c) for i, c in enumerate(chunks)]
         for f in as_completed(futures):
             try:
@@ -614,6 +622,7 @@ def finalize_course_bilingual_data(course_id: str):
 
     # 1. Collect all titles and content strings
     to_translate_to_tr = []
+    to_translate_to_en = []
     
     from services.curriculum_translator import is_clean_turkish
     
@@ -657,24 +666,78 @@ def finalize_course_bilingual_data(course_id: str):
                     letter_key = extract_letter_key(raw_term)
                     if letter_key and letter_key in SPANISH_ALPHABET_DATA:
                         continue
-                    v = it.get("translation") or it.get("meaning") or it.get("english") or ""
+                    v = (it.get("translation") or it.get("translation_en") or it.get("meaning_en") or
+                         it.get("meaning") or it.get("english") or it.get("gloss_en") or
+                         it.get("definition_en") or it.get("gloss") or "")
+                    explicit_tr = (it.get("translation_tr") or it.get("meaning_tr") or it.get("turkish") or
+                                   it.get("gloss_tr") or it.get("definition_tr") or "")
+                    if explicit_tr and not it.get("translation_tr"):
+                        it["translation_tr"] = str(explicit_tr).strip()
+                        it["turkish"] = str(explicit_tr).strip()
                     if v and isinstance(v, str) and len(v.strip()) > 1 and (not it.get("translation_tr") or it.get("translation_tr") == v):
                         to_translate_to_tr.append(v.strip())
                     expl = it.get("explanation") or it.get("explanation_en") or ""
                     if expl and isinstance(expl, str) and len(expl.strip()) > 2 and (not it.get("explanation_tr") or it.get("explanation_tr") == expl):
                         to_translate_to_tr.append(expl.strip())
-            # MCQ
+            # MCQ — collect missing UI-language stems in both directions.
             if p.get("prompt") and (not p.get("prompt_tr") or p.get("prompt_tr") == p.get("prompt")):
                 to_translate_to_tr.append(p["prompt"].strip())
+            if p.get("prompt") and (not p.get("prompt_en") or p.get("prompt_en") == p.get("prompt")):
+                to_translate_to_en.append(p["prompt"].strip())
             if p.get("explanation") and (not p.get("explanation_tr") or p.get("explanation_tr") == p.get("explanation")):
                 to_translate_to_tr.append(p["explanation"].strip())
 
         topic_data_list.append((t["id"], t["title"], content))
 
+    UI_LOCALIZABLE_KEYS_V12 = {
+        'title', 'text', 'explanation', 'intro', 'description', 'instructions',
+        'rule', 'analysis', 'note', 'context', 'breakdown', 'label', 'hint'
+    }
+
+    def _collect_nested_ui_v12(node):
+        if isinstance(node, list):
+            for child in node:
+                _collect_nested_ui_v12(child)
+            return
+        if not isinstance(node, dict):
+            return
+        for key, value in list(node.items()):
+            if key in UI_LOCALIZABLE_KEYS_V12 and isinstance(value, str) and value.strip():
+                tr_key = key + '_tr'
+                existing = node.get(tr_key)
+                if not existing or str(existing).strip() == value.strip():
+                    to_translate_to_tr.append(value.strip())
+            if isinstance(value, (dict, list)):
+                _collect_nested_ui_v12(value)
+
+    for _tid, _ttitle, _content in topic_data_list:
+        _collect_nested_ui_v12(_content)
+
+    # ALPHABET_PRONUNCIATION_FINALIZER_V19
+    def _collect_pronunciation_explanations_v19(node):
+        if isinstance(node, list):
+            for child in node:
+                _collect_pronunciation_explanations_v19(child)
+            return
+        if not isinstance(node, dict):
+            return
+        en = str(node.get('explanation_en') or node.get('explanation') or '').strip()
+        tr = str(node.get('explanation_tr') or '').strip()
+        if en and not tr:
+            to_translate_to_tr.append(en)
+        for value in node.values():
+            if isinstance(value, (dict, list)):
+                _collect_pronunciation_explanations_v19(value)
+
+    for _tid, _ttitle, _content in topic_data_list:
+        _collect_pronunciation_explanations_v19(_content)
+
     # 2. Batch translate everything missing
     unique_needed = list(set(to_translate_to_tr))
     print(f"[BILINGUAL] Translating {len(unique_needed)} unique strings for course {course_id}...")
     trans_map = batch_translate_strings(unique_needed, target_lang="tr")
+    unique_needed_en = list(set(to_translate_to_en))
+    trans_map_en = batch_translate_strings(unique_needed_en, target_lang="en") if unique_needed_en else {}
 
     # Also record in title_pairs
     cache = _load_cache()
@@ -766,7 +829,14 @@ def finalize_course_bilingual_data(course_id: str):
                             it["explanation"] = adata["expl_en"]
                             continue
 
-                        v = it.get("translation") or it.get("meaning") or it.get("english") or ""
+                        v = (it.get("translation") or it.get("translation_en") or it.get("meaning_en") or
+                             it.get("meaning") or it.get("english") or it.get("gloss_en") or
+                             it.get("definition_en") or it.get("gloss") or "")
+                        explicit_tr = (it.get("translation_tr") or it.get("meaning_tr") or it.get("turkish") or
+                                       it.get("gloss_tr") or it.get("definition_tr") or "")
+                        if explicit_tr:
+                            it["translation_tr"] = str(explicit_tr).strip()
+                            it["turkish"] = str(explicit_tr).strip()
                         if v and isinstance(v, str):
                             v_clean = v.strip()
                             if not it.get("translation_tr") or it.get("translation_tr") == v_clean:
@@ -804,12 +874,65 @@ def finalize_course_bilingual_data(course_id: str):
                                 it["explanation_en"] = c_en
                                 it["explanation_tr"] = c_tr
                 # MCQ
-                if p.get("prompt") and not p.get("prompt_en"):
-                    p["prompt_en"] = to_english_study_prompt(p.get("prompt"), p.get("prompt_tr"))
+                if p.get("prompt") and (not p.get("prompt_en") or p.get("prompt_en") == p.get("prompt")):
+                    p["prompt_en"] = trans_map_en.get(
+                        p["prompt"].strip(),
+                        to_english_study_prompt(p.get("prompt"), p.get("prompt_tr")),
+                    )
                 if p.get("prompt") and (not p.get("prompt_tr") or p.get("prompt_tr") == p.get("prompt")):
                     p["prompt_tr"] = trans_map.get(p["prompt"].strip(), p["prompt"])
                 if p.get("explanation") and (not p.get("explanation_tr") or p.get("explanation_tr") == p.get("explanation")):
                     p["explanation_tr"] = trans_map.get(p["explanation"].strip(), p["explanation"])
+
+            def _apply_nested_ui_v12(node):
+                if isinstance(node, list):
+                    for child in node:
+                        _apply_nested_ui_v12(child)
+                    return
+                if not isinstance(node, dict):
+                    return
+                for key, value in list(node.items()):
+                    if key in UI_LOCALIZABLE_KEYS_V12 and isinstance(value, str) and value.strip():
+                        tr_key = key + '_tr'
+                        existing = node.get(tr_key)
+                        if not existing or str(existing).strip() == value.strip():
+                            translated = trans_map.get(value.strip())
+                            if translated and translated.strip() and translated.strip() != value.strip():
+                                node[tr_key] = translated.strip()
+                    if isinstance(value, (dict, list)):
+                        _apply_nested_ui_v12(value)
+            _apply_nested_ui_v12(content)
+
+            # Keep answer / correct_index synchronized for persisted material.
+            for _page in content.get('pages', []) if isinstance(content.get('pages', []), list) else []:
+                if not isinstance(_page, dict):
+                    continue
+                _opts = _page.get('options') if isinstance(_page.get('options'), list) else []
+                _opts = [str(x).strip() for x in _opts]
+                _ans = str(_page.get('answer') or '').strip()
+                if _ans in _opts:
+                    _page['correct_index'] = _opts.index(_ans)
+                    _page['distractors'] = [x for x in _opts if x != _ans]
+
+            def _apply_pronunciation_explanations_v19(node):
+                if isinstance(node, list):
+                    for child in node:
+                        _apply_pronunciation_explanations_v19(child)
+                    return
+                if not isinstance(node, dict):
+                    return
+                en = str(node.get('explanation_en') or node.get('explanation') or '').strip()
+                tr = str(node.get('explanation_tr') or '').strip()
+                if en and not node.get('explanation_en'):
+                    node['explanation_en'] = en
+                if en and not tr:
+                    translated = trans_map.get(en)
+                    if translated and str(translated).strip() and str(translated).strip() != en:
+                        node['explanation_tr'] = str(translated).strip()
+                for value in node.values():
+                    if isinstance(value, (dict, list)):
+                        _apply_pronunciation_explanations_v19(value)
+            _apply_pronunciation_explanations_v19(content)
 
             # Save enriched bilingual content
             db.execute("UPDATE topics SET title_tr = ?, content = ? WHERE id = ?", 

@@ -364,46 +364,58 @@ def run_tests():
         ]
     }
     clean_lesson = enforce_material_integrity(lesson_payload, "German")
-    assert len(clean_lesson["pages"]) == 3, f"Expected 3 valid pages after cleanup, got {len(clean_lesson['pages'])}"
+    assert len(clean_lesson["pages"]) == 5, f"Non-destructive guard removed pages: {len(clean_lesson['pages'])}"
     assert clean_lesson["pages"][0]["type"] == "overview"
     assert clean_lesson["pages"][1]["type"] == "mcq"
-    assert clean_lesson["pages"][2]["type"] == "grammar"
-    assert len(clean_lesson.get("_integrity_removed_mcq", [])) == 2
+    assert clean_lesson["pages"][4]["type"] == "grammar"
+    assert "_integrity_removed_mcq" not in clean_lesson
 
     # ──────────────────────────────────────────────────────────────────────────
     # 7. CONTRACT & CEFR CONSISTENCY CHECKS
     # ──────────────────────────────────────────────────────────────────────────
     print("  -> Testing Quality Contract Consistency...")
 
-    patch_v49_file = ROOT / "scripts" / "patch_consolidate_prompt_contract_v49.py"
-    contract_text = patch_v49_file.read_text(encoding="utf-8")
+    # This block used to assert quality-contract markers inside
+    # a build script whose text
+    # production never reads. It therefore proved nothing about the prompt the
+    # model actually receives. It now asserts the live generation contract, which
+    # is what build_material_prompts() sends.
+    from services.material_generation_prompt import build_material_prompts
 
-    # Contract must contain all critical universal quality directives
+    system_prompt, user_prompt = build_material_prompts(
+        language="Testish", level="A1", topic="Greetings", topic_type="vocabulary",
+        official_institution="Council of Europe", source_text=None,
+    )
+    contract_text = system_prompt + "\n" + user_prompt
+
     required_contract_markers = [
-        "UNIVERSAL TARGET-LANGUAGE & WRITING-SYSTEM INTEGRITY",
-        "UNIVERSAL UNICODE & GLYPHIC INTEGRITY",
-        "UNIVERSAL PRONUNCIATION-SYSTEM CONSISTENCY",
-        "UNIVERSAL INSTRUCTIONAL-LANGUAGE ISOLATION & TWO-TRACK FIDELITY",
-        "UNIVERSAL GRAMMATICAL, TYPOLOGICAL & SEMANTIC CORRECTNESS",
-        "UNIVERSAL RULE-SCOPE CALIBRATION",
-        "UNIVERSAL TEACH-BEFORE-USE & COVERAGE CLOSURE",
-        "UNIVERSAL CEFR CALIBRATION (A1–C2)",
-        "UNIVERSAL DIALOGUE & LEXICAL NATURALNESS",
-        "UNIVERSAL FORMATIVE MCQ STRICT GROUNDING & SELF-CONSISTENCY",
-        "FINAL SAME-PASS RELEASE PASS",
-        "MCQ SELF-CONSISTENCY:",
-        "INTERNAL CONSISTENCY:",
-        "RULE-SCOPE CALIBRATION:",
-        "WRITING-SYSTEM INTEGRITY:",
-        "PHONETIC/NOTATION TRUTH:",
-        "AULAAI_INLINE_PUBLICATION_QA_V46",
+        "<language_integrity>",
+        "<pronunciation>",
+        "<linguistic_truth>",
+        "<claim_scope>",
+        "<internal_duplication>",
+        "<rules_and_comparisons>",
+        "<mcq_quality>",
+        "<instructional_cleanliness>",
+        "<output_schema>",
+        "<final_same_pass_check>",
+        "standard IPA",
+        "exactly 4 distinct, plausible, same-category options",
     ]
     for m in required_contract_markers:
         assert m in contract_text, f"Missing required quality contract marker: {m}"
 
-    # CEFR levels A1-C2 must each have explicit distinct pedagogical scope guidance
-    for lvl in ("A1:", "A2:", "B1:", "B2:", "C1:", "C2:"):
-        assert lvl in contract_text, f"Missing explicit guidance for CEFR level {lvl}"
+    # The contract must stay proportionate: it is sent on every generation.
+    assert len(system_prompt) < 40000, len(system_prompt)
+
+    # CEFR calibration must be explicit and level-aware, not A1-shaped for everyone.
+    for lvl in ("A1/A2", "B1/B2", "C1/C2"):
+        assert lvl in contract_text, f"Missing explicit guidance for CEFR band {lvl}"
+    advanced, _ = build_material_prompts(
+        language="Testish", level="C1", topic="Discourse", topic_type="grammar",
+        official_institution="Council of Europe", source_text=None,
+    )
+    assert "CEFR C1" in advanced, "level must be threaded into the contract"
 
     print("[TEST-SUITE] All Universal Regression Tests PASSED successfully!")
 

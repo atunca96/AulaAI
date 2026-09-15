@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import fitz
 
 from database import db_connection
+from services.material_quality_guard import sanitize_dialogue_speaker
 
 
 CSS = r'''
@@ -41,6 +42,7 @@ table.vocab tr { page-break-inside: avoid; break-inside: avoid; }
 .mcq-opt { margin: 1.7px 0; color: #374151; }
 .compare { border-top: 0.45px solid #d1d5db; padding-top: 4px; margin-top: 3px; }
 .answer { margin: 0 0 4px 0; }
+.p, .rule, .dialogue, .line, .translation, .term, .phon, .meaning, .example, .example-tr, .mcq-q, .mcq-opt, table.vocab td { unicode-bidi: plaintext; }
 '''
 
 TYPE_LABELS = {
@@ -69,7 +71,10 @@ TYPE_LABELS = {
 
 
 def _e(value):
-    return html.escape(str(value or ''))
+    raw = str(value or '')
+    raw = raw.replace('゛', '†').replace('゜', '‡')
+    raw = re.sub(r'(?<![\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f])ー(?![\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f])', '¤', raw)
+    return html.escape(raw)
 
 
 def _pick(obj, en_key, tr_key, is_tr):
@@ -149,18 +154,36 @@ def _column_exists(db, table: str, column: str) -> bool:
     return False
 
 
+def _publication_invariants(content):
+    """Apply the same deterministic publication invariants used at generation time.
+
+    Material persisted before those invariants existed (or written by another path)
+    must not publish with duplicate MCQ options, placeholder distractors or
+    accidentally duplicated blocks just because it skipped the generation boundary.
+    The call is deterministic and idempotent, so material that already passed is
+    unchanged.
+    """
+    if not isinstance(content, dict):
+        return content
+    try:
+        from services.publication_invariants import apply_publication_invariants
+        return apply_publication_invariants(content, copy=False)
+    except Exception:
+        return content
+
+
 def _normalize_content(raw):
     if isinstance(raw, dict):
-        return raw
+        return _publication_invariants(raw)
     if isinstance(raw, list):
-        return {'pages': raw}
+        return _publication_invariants({'pages': raw})
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
-                return parsed
+                return _publication_invariants(parsed)
             if isinstance(parsed, list):
-                return {'pages': parsed}
+                return _publication_invariants({'pages': parsed})
         except Exception:
             return {}
     return {}
@@ -549,13 +572,29 @@ class AcademicPaginator:
         self._end_page()
         self.writer.close()
         doc = fitz.open(self.temp_path)
+        _fontfile = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
+        if os.path.exists(_fontfile):
+            for _page in doc:
+                _placements = []
+                for _placeholder, _symbol in (('†', '゛'), ('‡', '゜'), ('¤', 'ー')):
+                    for _rect in _page.search_for(_placeholder):
+                        _placements.append((_rect, _symbol))
+                        _page.add_redact_annot(_rect, fill=None)
+                if _placements:
+                    _page.apply_redactions()
+                    for _rect, _symbol in _placements:
+                        _fontsize = max(6.0, _rect.height * 0.80)
+                        _baseline = _rect.y1 - (_rect.height * 0.15)
+                        _page.insert_text((_rect.x0, _baseline), _symbol, fontname='AulaNotoCJK', fontfile=_fontfile, fontsize=_fontsize)
         total = len(doc)
         page_word = 'Sayfa' if self.is_tr else 'Page'
         for idx, page in enumerate(doc):
             if idx > 0:
-                page.insert_text(fitz.Point(38, 27), f'AulaAI · {self.course_name}', fontsize=7, color=(0.42,0.42,0.42))
-            page.insert_text(fitz.Point(38, 823), 'AulaAI Educational System · Self-Contained Course Material', fontsize=6.7, color=(0.42,0.42,0.42))
-            page.insert_text(fitz.Point(493, 823), f'{page_word} {idx+1} / {total}', fontsize=6.7, color=(0.42,0.42,0.42))
+                header = f'AulaAI · {self.course_name}'
+                page.insert_htmlbox(fitz.Rect(38, 18, 420, 34), f"<span style='font-family:sans-serif;font-size:7pt;color:#6b7280'>{_e(header)}</span>")
+            footer_text = 'AulaAI Eğitim Sistemi · Bağımsız Ders Materyali' if self.is_tr else 'AulaAI Educational System · Self-Contained Course Material'
+            page.insert_htmlbox(fitz.Rect(38, 814, 430, 832), f"<span style='font-family:sans-serif;font-size:6.7pt;color:#6b7280'>{_e(footer_text)}</span>")
+            page.insert_htmlbox(fitz.Rect(465, 814, 558, 832), f"<div style='font-family:sans-serif;font-size:6.7pt;color:#6b7280;text-align:right'>{_e(f'{page_word} {idx+1} / {total}')}</div>")
         out = doc.tobytes()
         doc.close()
         try:
@@ -576,11 +615,16 @@ def _render_rule_blocks(page: dict, is_tr: bool):
         rules = [rules] if rules else []
     for rule in rules:
         if isinstance(rule, dict):
-            r_title = _pick(rule, 'rule', 'rule_tr', is_tr) or rule.get('name') or ''
-            r_expl = _pick(rule, 'explanation', 'explanation_tr', is_tr) or rule.get('desc') or ''
+            r_title = _v53_instructional(_pick(rule, 'rule', 'rule_tr', is_tr) or rule.get('name') or '', is_tr)
+            r_expl = _v53_instructional(_pick(rule, 'explanation', 'explanation_tr', is_tr) or rule.get('desc') or '', is_tr)
             r_example = rule.get('example') or rule.get('target') or ''
-            r_example_trans = (rule.get('example_tr') or rule.get('translation_tr') or rule.get('turkish') or '') if is_tr else (rule.get('example_en') or rule.get('translation') or '')
-            r_analysis = _pick(rule, 'analysis', 'analysis_tr', is_tr) or rule.get('breakdown') or ''
+            r_example_trans = _v53_instructional((rule.get('example_tr') or rule.get('translation_tr') or rule.get('turkish') or '') if is_tr else (rule.get('example_en') or rule.get('translation') or ''), is_tr)
+            r_analysis = _v53_instructional(_pick(rule, 'analysis', 'analysis_tr', is_tr) or rule.get('breakdown') or '', is_tr)
+            if is_tr:
+                r_title = _v52_meta(r_title, "tr")
+                r_expl = _v52_meta(r_expl, "tr")
+                r_example_trans = _v52_meta(r_example_trans, "tr")
+                r_analysis = _v52_meta(r_analysis, "tr")
             bits = ['<div class="rule">']
             if r_title: bits.append(f'<p class="p"><strong>{_e(r_title)}</strong></p>')
             if r_expl: bits.append(f'<p class="p">{_e(r_expl)}</p>')
@@ -591,7 +635,7 @@ def _render_rule_blocks(page: dict, is_tr: bool):
             bits.append('</div>')
             blocks.append(''.join(bits))
         elif rule:
-            blocks.append(f'<div class="rule"><p class="p">{_e(rule)}</p></div>')
+            blocks.append(f'<div class="rule"><p class="p">{_e(_v53_instructional(rule, is_tr))}</p></div>')
     return blocks
 
 
@@ -603,7 +647,7 @@ def _comparison_blocks(page: dict, is_tr: bool):
     for cmp in items:
         if not isinstance(cmp, dict): cmp = {'target': str(cmp)}
         ctx = _pick(cmp, 'context', 'context_tr', is_tr)
-        target = cmp.get('target') or ''
+        target = _v54_instructional(cmp.get('target') or '', is_tr)
         trans = _pick(cmp, 'translation', 'translation_tr', is_tr)
         note = _pick(cmp, 'note', 'note_tr', is_tr) or cmp.get('note') or ''
         if ctx or target or trans or note:
@@ -614,6 +658,13 @@ def _comparison_blocks(page: dict, is_tr: bool):
                 + '</div>'
             )
     return blocks
+
+
+def _pdf_language_name(value: str, is_tr: bool) -> str:
+    raw = str(value or '').strip()
+    if not is_tr:
+        return raw
+    return {'english':'İngilizce','german':'Almanca','spanish':'İspanyolca','french':'Fransızca','italian':'İtalyanca','portuguese':'Portekizce','russian':'Rusça','chinese':'Çince','japanese':'Japonca','arabic':'Arapça','turkish':'Türkçe','dutch':'Hollandaca','swedish':'İsveççe','korean':'Korece','greek':'Yunanca'}.get(raw.casefold(), raw)
 
 
 def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
@@ -637,12 +688,16 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
         chapters = db.execute(f'SELECT {ch_select} FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC', (course_id,)).fetchall()
 
         paginator = AcademicPaginator(course_name, is_tr)
-        sem = f' ({_e(semester)})' if semester else ''
+        _semester = str(semester or '').strip()
+        _level = str(course_level or '').strip()
+        if _semester.casefold() in {_level.casefold(), (_level + ' level').casefold()}:
+            _semester = ''
+        sem = f' ({_e(_semester)})' if _semester else ''
         meta = 'Kapsamlı Ders Notları ve Alıştırmalar' if is_tr else 'Comprehensive Lesson Notes and Exercises'
         level_word = 'Seviye' if is_tr else 'Level'
         cover = (
             f'<div class="cover"><div class="cover-title">{_e(course_name)}</div>'
-            f'<div class="cover-sub">{_e(course_lang)} · {level_word} {_e(course_level)}{sem}</div>'
+            f'<div class="cover-sub">{_e(_pdf_language_name(course_lang, is_tr))} · {level_word} {_e(course_level)}{sem}</div>'
             f'<div class="cover-meta">AulaAI — {meta}</div></div>'
         )
         paginator.place_html(cover, gap=8, keep=True)
@@ -666,7 +721,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 else:
                     top_id, top_type, top_title, top_content = row[0], row[1], row[2], row[3]
                     top_title_tr = ''
-                content = _normalize_content(top_content)
+                content = _normalize_content(top_content, course_lang)
                 parsed_topics.append((top_id, top_type, top_title, top_title_tr, content))
 
             try:
@@ -686,14 +741,21 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 chapter_prefix_pending = ''
                 pages = _normalize_pages(content)
                 if not pages:
-                    try:
-                        from services.ai_engine import synthesize_substantive_lesson
-                        fallback_dict = synthesize_substantive_lesson(top_title, top_type, course_lang, material_language=("tr" if is_tr else "en"))
-                        pages = _normalize_pages(fallback_dict)
-                    except Exception:
-                        pass
-                if not pages:
-                    paginator.place_html(topic_prefix_pending, keep=True)
+                    # The renderer renders; it does not author. A topic with no
+                    # persisted material gets an explicit, honest notice rather than
+                    # generated scaffolding that a teacher cannot distinguish from
+                    # real content.
+                    notice = (
+                        'Bu konu için yayımlanabilir materyal bulunamadı. Sınıfta kullanmadan önce '
+                        'konuyu yeniden üretin veya elle hazırlayın.'
+                        if is_tr else
+                        'No publishable material is stored for this topic. Regenerate it, or author it '
+                        'manually before classroom use.'
+                    )
+                    paginator.place_html(
+                        topic_prefix_pending + f'<div class="rule"><p class="p">{_e(notice)}</p></div>',
+                        keep=True,
+                    )
                     continue
 
                 last_mcq_section = None
@@ -731,18 +793,19 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                             items = [items] if items not in (None, '') else []
                         if not items:
                             paginator.place_html(prefix, keep=True); continue
+                        is_grapheme_inventory = _v54_is_grapheme_inventory(items)
                         headers = (
-                            'Terim / Kelime' if is_tr else 'Term / Word',
-                            'Telaffuz' if is_tr else 'Phonetic',
+                            ('Harf / İşaret' if is_tr else 'Letter / Sign') if is_grapheme_inventory else (('Harf / İşaret' if is_tr else 'Letter / Sign') if _v57_is_grapheme_inventory(items) else ('Terim / Kelime' if is_tr else 'Term / Word')),
+                            ('Temel Ses (IPA)' if is_tr else 'Basic Sound (IPA)') if is_grapheme_inventory else (('Temel Ses (IPA)' if is_tr else 'Basic Sound (IPA)') if _v57_is_grapheme_inventory(items) else ('Telaffuz' if is_tr else 'Phonetic')),
                             'Anlam' if is_tr else 'Translation',
-                            'Hedef Dilde Örnek' if is_tr else 'Target-Language Example',
+                            (f'{_pdf_language_name(course_lang, True)} Örnek' if is_tr else f'{course_lang} Example'),
                             'Türkçe Çeviri' if is_tr else 'English Translation',
                         )
                         rows = []
                         for item in items:
                             if not isinstance(item, dict): item = {'term': str(item)}
                             term = item.get('term') or item.get('word') or item.get('phrase') or item.get('sentence') or item.get('target') or ''
-                            phon = item.get('phonetic') or item.get('pronunciation') or ''
+                            phon = _v54_display_phonetic(item.get('phonetic') or item.get('pronunciation') or '')
                             meaning = _vocab_meaning(item, is_tr, term, course_lang, vocab_memory)
                             ex_target = item.get('example') or item.get('example_target') or item.get('target_example') or ''
                             ex_translation = item.get('example_tr') if is_tr else item.get('example_en')
@@ -750,7 +813,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                             rows.append(
                                 '<tr>'
                                 f'<td><span class="term">{_e(term)}</span></td>'
-                                f'<td><span class="phon">{_e(phon)}</span></td>'
+                                f'<td><span class="phon">{_e(_v55_display_phonetic_cell(phon))}</span></td>'
                                 f'<td><span class="meaning">{_e(meaning)}</span></td>'
                                 f'<td><span class="example">{_e(ex_target)}</span></td>'
                                 f'<td><span class="example-tr">{_e(ex_translation)}</span></td>'
@@ -767,9 +830,10 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         lines = []
                         for d in dialogue_items:
                             if not isinstance(d, dict): d = {'text': str(d)}
-                            spk = d.get('speaker') or d.get('name') or '?'
+                            spk = _v52_dialogue_speaker(d, is_tr)
                             said = d.get('text') or d.get('line') or d.get('target') or ''
                             translated = (d.get('line_tr') or d.get('translation_tr')) if is_tr else (d.get('line_en') or d.get('translation_en'))
+                            translated = _v53_instructional(translated, is_tr) if translated else translated
                             trans_html = f' <span class="translation">({_e(translated)})</span>' if translated else ''
                             lines.append(f'<div class="line"><span class="speaker">{_e(spk)}:</span> “{_e(said)}”{trans_html}</div>')
                         paginator.place_dialogue(intro, lines)
@@ -788,17 +852,23 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         prompt = _mcq_prompt(page, is_tr)
                         if not prompt:
                             continue
+                        if _v54_pdf_unsafe_mcq(page, prompt, is_tr):
+                            last_mcq_section = None
+                            continue
                         question_counter += 1
                         raw_options = page.get('options') or page.get('choices') or []
                         if isinstance(raw_options, dict): raw_options = list(raw_options.values())
                         elif not isinstance(raw_options, list): raw_options = [raw_options] if raw_options else []
                         localized = page.get('options_tr') if is_tr else page.get('options_en')
                         options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options
+                        options = [_v56q_display_option(opt, course_lang) for opt in options]
                         opts_html = ''.join(f'<div class="mcq-opt">{chr(65+i)}) {_e(opt)}</div>' for i, opt in enumerate(options))
                         frag = prefix + f'<div class="mcq"><div class="mcq-q">{question_counter}. {_e(prompt)}</div>{opts_html}</div>'
                         paginator.place_html(frag, gap=5, keep=True)
 
                         answer = page.get('answer') or ''
+                        if not answer and isinstance(page.get('correct_index'), int) and 0 <= page.get('correct_index') < len(raw_options):
+                            answer = raw_options[page.get('correct_index')]
                         explanation = _pick(page, 'explanation', 'explanation_tr', is_tr) or ''
                         letter = ''
                         display_answer = str(answer or '')
@@ -825,3 +895,448 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 paginator.place_html(frag, gap=2.5, keep=True)
 
         return paginator.finish(), course_name
+
+
+# AULAAI_RELEASE_HARDENING_V50
+from services.material_quality_guard import safe_unicode_normalize as _v50_unicode_normalize
+
+_v50_original_normalize_content = _normalize_content
+
+
+def _v50_renderer_clean(node):
+    if isinstance(node, str):
+        return _v50_unicode_normalize(node)
+    if isinstance(node, dict):
+        return {k: _v50_renderer_clean(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_v50_renderer_clean(v) for v in node]
+    return node
+
+
+def _normalize_content(raw):
+    return _v50_renderer_clean(_v50_original_normalize_content(raw))
+
+
+def _e(value):
+    return html.escape(_v50_unicode_normalize(str(value or "")))
+
+
+_v50_freeform_keys = {
+    "title", "text", "explanation", "analysis", "note", "context",
+    "rule", "translation", "meaning", "prompt", "question", "stem",
+}
+
+
+def _pick(obj, en_key, tr_key, is_tr):
+    if not isinstance(obj, dict):
+        return ""
+    primary_key, fallback_key = (tr_key, en_key) if is_tr else (en_key, tr_key)
+    primary = obj.get(primary_key)
+    if primary is not None and str(primary).strip():
+        return primary
+    base = str(en_key or "").casefold().removesuffix("_en")
+    if base in _v50_freeform_keys:
+        return ""
+    fallback = obj.get(fallback_key)
+    return fallback if fallback is not None else ""
+
+# AULAAI_RELEASE_HARDENING_V51
+
+
+# AULAAI_RELEASE_HARDENING_V52
+from services.material_quality_guard import sanitize_instructional_metalanguage as _v52_meta
+_v52_pick = _pick
+_v52_mcq_prompt = _mcq_prompt
+_v52_vocab_meaning = _vocab_meaning
+
+
+def _pick(obj, en_key, tr_key, is_tr):
+    value = _v52_pick(obj, en_key, tr_key, is_tr)
+    return _v52_meta(value, "tr" if is_tr else "en")
+
+
+def _mcq_prompt(page, is_tr):
+    value = _v52_mcq_prompt(page, is_tr)
+    return _v52_meta(value, "tr" if is_tr else "en")
+
+
+def _vocab_meaning(item, is_tr, term, course_lang, memory):
+    value = _v52_vocab_meaning(item, is_tr, term, course_lang, memory)
+    return _v52_meta(value, "tr" if is_tr else "en")
+
+
+def _v52_dialogue_speaker(turn, is_tr):
+    if not isinstance(turn, dict):
+        return "?"
+    keys = ("speaker_tr", "name_tr", "speaker", "name") if is_tr else ("speaker_en", "name_en", "speaker", "name")
+    value = next((turn.get(k) for k in keys if turn.get(k)), "?")
+    return sanitize_dialogue_speaker(value)
+
+
+# AULAAI_RELEASE_HARDENING_V53
+def _v53_instructional(value, is_tr):
+    try:
+        return _v52_meta(value, "tr" if is_tr else "en")
+    except Exception:
+        return value
+
+
+# AULAAI_RELEASE_HARDENING_V54
+_v54_previous_localized_title = _localized_title
+
+
+def _localized_title(title, is_tr, content=None, title_maps=None, explicit_title_tr=None):
+    value = _v54_previous_localized_title(title, is_tr, content, title_maps, explicit_title_tr)
+    try:
+        return _v52_meta(value, "tr" if is_tr else "en")
+    except Exception:
+        return value
+
+
+def _v54_is_grapheme_inventory(items):
+    """Detect alphabet/script inventory tables structurally, without language names."""
+    if not isinstance(items, list) or len(items) < 5:
+        return False
+    compact = 0
+    paired = 0
+    usable = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        term = str(item.get("term") or item.get("word") or "").strip()
+        if not term:
+            continue
+        usable += 1
+        tokens = [t for t in term.split() if t]
+        chars = "".join(tokens)
+        if 1 <= len(chars) <= 4:
+            compact += 1
+        if len(tokens) == 2 and len(tokens[0]) == 1 and len(tokens[1]) == 1 and tokens[0].casefold() == tokens[1].casefold():
+            paired += 1
+    if usable < 5:
+        return False
+    return (compact / usable) >= 0.75 and ((paired / usable) >= 0.30 or usable >= 15)
+
+
+def _v54_display_phonetic(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    parts = [p.strip() for p in text.split("/")]
+    if len(parts) > 1:
+        return " / ".join(p if (p.startswith("[") and p.endswith("]")) else f"[{p}]" for p in parts if p)
+    return text if (text.startswith("[") and text.endswith("]")) else f"[{text}]"
+
+
+def _v54_instructional(value, is_tr):
+    try:
+        return _v52_meta(value, "tr" if is_tr else "en")
+    except Exception:
+        return value
+
+
+def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
+    if not isinstance(page, dict):
+        return False
+    explanation = page.get("explanation_tr") if is_tr else page.get("explanation_en")
+    explanation = explanation or page.get("explanation") or ""
+    def fold(text):
+        import unicodedata
+        t = unicodedata.normalize("NFD", str(text or "")).casefold()
+        return "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+    p, e = fold(prompt), fold(explanation)
+    explicit_gender = bool(re.search(r"\b(kadin|erkek|disil|eril|female|male|woman|man)\b", p))
+    if bool(re.search(r"\b(isim|adi|adinin|name)\b", e)) and bool(re.search(r"\b(kadin|erkek|disil|eril|female|male|woman|man)\b", e)) and not explicit_gender:
+        return True
+    bio = any(x in p for x in ("dogdu", "dogmus", "yasiyor", "yasadi", "calisiyor", "born", "lives", "works", "resides", "родил", "жив", "работ", "nacio", "vive", "trabaja", "geboren", "lebt", "arbeitet", "habite", "travaille"))
+    identity = bool(re.search(r"\b(milliyet|uyruk|nationality|national|dil|konus|language|speak|speaks|spoken|meslek|profession|occupation|job)\b", e))
+    return bio and identity
+
+
+# AULAAI_RELEASE_HARDENING_V55
+_v55_previous_pdf_unsafe_mcq = _v54_pdf_unsafe_mcq
+
+
+def _v55_display_phonetic_cell(value):
+    """Idempotent publication formatter for simple and composite IPA fields."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+
+    # Repeatedly remove only a redundant OUTER bracket pair when the inside is
+    # already a slash-separated sequence of complete [IPA] groups.
+    for _ in range(3):
+        if not (text.startswith("[[") and text.endswith("]]")):
+            break
+        inner = text[1:-1].strip()
+        groups = re.findall(r"\[[^\]\n]+\]", inner)
+        residue = re.sub(r"\[[^\]\n]+\]", "", inner)
+        if len(groups) >= 2 and not residue.replace("/", "").replace(" ", ""):
+            text = " / ".join(groups)
+        else:
+            break
+
+    groups = re.findall(r"\[[^\]\n]+\]", text)
+    residue = re.sub(r"\[[^\]\n]+\]", "", text)
+    if len(groups) >= 2 and not residue.replace("/", "").replace(" ", ""):
+        return " / ".join(groups)
+
+    parts = [p.strip() for p in text.split("/") if p.strip()]
+    if len(parts) > 1:
+        return " / ".join(
+            p if (p.startswith("[") and p.endswith("]")) else f"[{p}]"
+            for p in parts
+        )
+    return text if (text.startswith("[") and text.endswith("]")) else f"[{text}]"
+
+
+def _v54_display_phonetic(value):
+    # Keep v54's public helper name for compatibility, but make it idempotent.
+    return _v55_display_phonetic_cell(value)
+
+
+def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
+    if _v55_previous_pdf_unsafe_mcq(page, prompt, is_tr):
+        return True
+    if not isinstance(page, dict):
+        return False
+
+    def fold(text):
+        import unicodedata
+        t = unicodedata.normalize("NFD", str(text or "")).casefold()
+        t = "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+        return t.replace("ı", "i")
+
+    p = fold(prompt)
+    opts = fold(" ".join(str(v or "") for v in (page.get("options") or page.get("choices") or [])))
+    workplace_fact = any(x in p for x in (
+        "calisiyor", "calisir", "work at", "works at", "works in", "working at", "working in",
+        "arbeitet", "travaille", "trabaja", "lavora", "trabalha", "работает", "работа в",
+    ))
+    profession_question = any(x in p for x in (
+        "meslegi", "meslek nedir", "profession", "occupation", "job is", "what does", "beruf",
+        "profession est", "profesion", "profissão", "професс", "кем он", "кем она",
+    ))
+    if workplace_fact and profession_question:
+        return True
+
+    trait_fact = any(x in p for x in (
+        "dakik", "punctual", "punktlich", "ponctuel", "puntual", "pontual", "пунктуал",
+    ))
+    absolute_frequency_option = any(x in opts for x in (
+        "nikogda", "vsegda", "never", "always", "niemals", "immer", "jamais", "toujours",
+        "nunca", "siempre", "mai", "sempre", "никогда", "всегда",
+    ))
+    return trait_fact and absolute_frequency_option
+
+
+# AULAAI_RELEASE_CLEANUP_V56
+from services.material_quality_guard import _v56_release_cleanup as _v56_publication_cleanup
+_v56_previous_normalize_content = _normalize_content
+
+def _normalize_content(raw, language=None):
+    normalized = _v56_previous_normalize_content(raw)
+    # 'language' is the actual per-course/topic target language (e.g. course_lang
+    # from render_course_pdf). Russian-specific corrections must only fire when
+    # the content is confirmed Russian - never hardcoded, since this renderer
+    # path handles all 14 supported languages.
+    if isinstance(normalized, dict) and language:
+        return _v56_publication_cleanup(normalized, language)
+    return normalized
+
+
+# AULAAI_RELEASE_CLEANUP_V56_QUALITY
+_V56Q_RENDER_IPA_SINGLE = {
+    "б":"b", "в":"v", "г":"ɡ", "д":"d", "ж":"ʐ", "з":"z", "к":"k",
+    "л":"ɫ", "м":"m", "н":"n", "п":"p", "р":"r", "с":"s", "т":"t",
+    "ф":"f", "х":"x", "ц":"t͡s", "ч":"t͡ɕ", "ш":"ʂ", "щ":"ɕː", "й":"j",
+}
+
+def _v56q_render_is_russian(language):
+    value = str(language or "").casefold()
+    return "russian" in value or "rusça" in value or "рус" in value
+
+
+def _v56q_display_option(value, language=""):
+    text = str(value or "").strip()
+    if not _v56q_render_is_russian(language):
+        return text
+
+    m = re.fullmatch(r"(\[[^\]\n]+\])\s*\(([^()]*)\)", text)
+    if m:
+        gloss = m.group(2).casefold()
+        if any(phrase in gloss for phrase in (
+            "similar to", "short i-like", "clear long", "close front",
+            "rounded back", "clear rounded", "full stressed", "sound due to",
+            "unstressed 'a'", "unstressed a",
+        )):
+            text = m.group(1)
+
+    m = re.fullmatch(r"\[([А-Яа-яЁё])([ʲː]?)\]", text)
+    if m:
+        letter = m.group(1).casefold()
+        base = _V56Q_RENDER_IPA_SINGLE.get(letter)
+        if base:
+            mark = m.group(2)
+            if mark == "ʲ" and letter == "л":
+                return "[lʲ]"
+            return f"[{base}{mark}]"
+    return text
+
+
+# AULAAI_RELEASE_FINAL_V57
+import re as _v57r_re
+import unicodedata as _v57r_ud
+
+
+def _v57_tr_meta(value):
+    if not isinstance(value, str) or not value:
+        return value
+    text = value
+    replacements = (
+        (r"\bPrepositional\s+Case\b", "Edat Durumu"),
+        (r"\bNominative\b", "Yalın Hâl"),
+        (r"\bAccusative\b", "Belirtme Hâli"),
+        (r"\bGenitive\b", "İlgi/Tamlayan Hâli"),
+        (r"\bDative\b", "Yönelme Hâli"),
+        (r"\bInstrumental\b", "Araç Hâli"),
+        (r"\bMasculine\b", "eril"),
+        (r"\bFeminine\b", "dişil"),
+        (r"\bNeuter\b", "nötr"),
+    )
+    for pattern, replacement in replacements:
+        text = _v57r_re.sub(pattern, replacement, text, flags=_v57r_re.IGNORECASE)
+    text = _v57r_re.sub(r"\b(Edat Durumu|Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli)\s+[Cc]ase\b", r"\1", text)
+    text = _v57r_re.sub(r"(?i)\bİlgi\s*/\s*İlgi\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", text)
+    text = _v57r_re.sub(r"(?i)\bİlgi\s*/\s*Tamlayan\s*(?:H[âa]li)?\s*/\s*Tamlayan\s+H[âa]li\b", "İlgi/Tamlayan Hâli", text)
+    text = _v57r_re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*\(\s*\1\s*\)", r"\1", text)
+    text = _v57r_re.sub(r"(?i)\b(Yalın Hâl|Belirtme Hâli|İlgi/Tamlayan Hâli|Yönelme Hâli|Araç Hâli|Edat Durumu)\s*/\s*\1\b", r"\1", text)
+    if _v57r_re.search(r'(?i)\b(?:ехать|еха[-–—]|ehat|ekhat)\b', text):
+        text = _v57r_re.sub(r'["\'„“]?-д-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
+        text = _v57r_re.sub(r'["\'„“]?-d-["\'„“]?\s+gövdesi(?:ni)?\s+alır', "gövde 'ед-' biçimine dönüşür", text, flags=_v57r_re.IGNORECASE)
+    return text
+
+
+_v57_previous_pick = _pick
+
+def _pick(obj, en_key, tr_key, is_tr):
+    value = _v57_previous_pick(obj, en_key, tr_key, is_tr)
+    return _v57_tr_meta(value) if is_tr else value
+
+
+_v57_previous_comparison_blocks = _comparison_blocks
+
+def _comparison_blocks(page, is_tr):
+    if not is_tr or not isinstance(page, dict):
+        return _v57_previous_comparison_blocks(page, is_tr)
+    clone = dict(page)
+    comparisons = page.get("comparisons") or []
+    if isinstance(comparisons, dict):
+        comparisons = [comparisons]
+    if isinstance(comparisons, list):
+        cleaned = []
+        for item in comparisons:
+            if isinstance(item, dict):
+                c = dict(item)
+                for key, value in list(c.items()):
+                    if isinstance(value, str):
+                        c[key] = _v57_tr_meta(value)
+                cleaned.append(c)
+            else:
+                cleaned.append(_v57_tr_meta(item) if isinstance(item, str) else item)
+        clone["comparisons"] = cleaned
+    return _v57_previous_comparison_blocks(clone, is_tr)
+
+
+def _v57_display_phonetic(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    parts = [part.strip() for part in _v57r_re.split(r"\s*/\s*", text) if part.strip()]
+    rendered = []
+    for part in parts:
+        rendered.append(part if part.startswith("[") and part.endswith("]") else f"[{part}]")
+    return " / ".join(rendered)
+
+
+def _v57_is_grapheme_inventory(items):
+    if not isinstance(items, list) or len(items) < 5:
+        return False
+    compact = paired = usable = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        term = str(item.get("term") or item.get("word") or "").strip()
+        if not term:
+            continue
+        usable += 1
+        tokens = [token for token in term.split() if token]
+        chars = "".join(tokens)
+        if 1 <= len(chars) <= 4:
+            compact += 1
+        if len(tokens) == 2 and len(tokens[0]) == len(tokens[1]) == 1 and tokens[0].casefold() == tokens[1].casefold():
+            paired += 1
+    return usable >= 5 and (compact / usable) >= 0.75 and ((paired / usable) >= 0.30 or usable >= 15)
+
+
+def _v57_renderer_unsafe_mcq(page):
+    try:
+        from services.material_quality_guard import _v57_unsafe_mcq
+        return bool(_v57_unsafe_mcq(page))
+    except Exception:
+        return False
+
+
+_v57_previous_normalize_pages = _normalize_pages
+
+def _normalize_pages(content):
+    pages = _v57_previous_normalize_pages(content)
+    return [page for page in pages if not _v57_renderer_unsafe_mcq(page)]
+
+# AULAAI_MICRO_QUALITY_POLISH
+from services.material_quality_guard import (
+    safe_unicode_normalize as _v58_safe_unicode,
+    sanitize_instructional_shorthand as _v58_shorthand,
+    deduplicate_morphological_parentheticals as _v58_dedup,
+    align_lexical_fields as _v58_align_fields,
+    harmonize_mixed_scripts as _v58_harmonize,
+)
+
+_v58_previous_pick = _pick
+
+def _pick(obj, en_key, tr_key, is_tr):
+    value = _v58_previous_pick(obj, en_key, tr_key, is_tr)
+    if is_tr and isinstance(value, str):
+        return _v58_dedup(_v58_shorthand(value, "tr"))
+    return value
+
+_v58_previous_e = _e
+
+def _e(value):
+    raw = _v58_safe_unicode(str(value or ""))
+    return _v58_previous_e(raw)
+
+_v58_previous_story = AcademicPaginator._story
+
+def _v58_story(self, fragment: str, *args, **kwargs):
+    if fragment and self.is_tr:
+        fragment = _v58_shorthand(fragment, "tr")
+    if fragment:
+        fragment = _v58_safe_unicode(fragment)
+    return _v58_previous_story(self, fragment, *args, **kwargs)
+
+AcademicPaginator._story = _v58_story
+
+_v58_previous_normalize_pages = _normalize_pages
+
+def _normalize_pages(content):
+    pages = _v58_previous_normalize_pages(content)
+    for p in pages:
+        if isinstance(p, dict):
+            for k in ('items', 'vocabulary', 'words', 'rules', 'comparisons'):
+                sub = p.get(k)
+                if isinstance(sub, list):
+                    for idx, item in enumerate(sub):
+                        if isinstance(item, dict):
+                            sub[idx] = _v58_align_fields(item)
+    return pages

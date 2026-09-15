@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-runpy.run_path(str(ROOT / "scripts" / "patch_micro_quality_polish.py"), run_name="__main__")
+# Source is frozen: the former patch-application step is a no-op here.
 
 from services.material_quality_guard import (
     detect_grammar_shorthand_leakage,

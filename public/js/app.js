@@ -3897,6 +3897,50 @@ function sanitizeEnglishExplanation(text, term = '') {
   return s;
 }
 
+function aulaCanonicalAlphabetToken(raw) {
+  const s = safeStr(raw).trim();
+  if (!s) return '';
+  const parts = s.split(/[,\s/|]+/u).filter(Boolean);
+  let token = parts[0] || s;
+  if (token === 'ß') return 'ß';
+  if (token.length <= 3) token = token.toUpperCase();
+  return token;
+}
+
+function aulaAlphabetLanguageKey(lang) {
+  const l = safeStr(lang).toLowerCase().trim();
+  const aliases = [
+    ['spanish', ['spanish', 'español', 'espanol', 'ispanyol', 'ispanyolca']],
+    ['german', ['german', 'deutsch', 'almanca', 'alman']],
+    ['french', ['french', 'français', 'francais', 'fransızca', 'fransizca']],
+    ['italian', ['italian', 'italiano', 'italyanca']],
+    ['portuguese', ['portuguese', 'português', 'portugues', 'portekizce']],
+    ['russian', ['russian', 'русский', 'rusça', 'rusca']],
+    ['chinese', ['chinese', '中文', 'çince', 'cince']],
+    ['japanese', ['japanese', '日本語', 'japonca']],
+    ['arabic', ['arabic', 'العربية', 'arapça', 'arapca']],
+    ['dutch', ['dutch', 'nederlands', 'felemenkçe', 'felemenkce', 'hollandaca']],
+    ['swedish', ['swedish', 'svenska', 'isveççe', 'isvecce']],
+    ['korean', ['korean', '한국어', 'korece']],
+    ['greek', ['greek', 'ελληνικά', 'yunanca']],
+    ['turkish', ['turkish', 'türkçe', 'turkce']]
+  ];
+  for (const [key, names] of aliases) {
+    if (names.some(name => l.includes(name))) return key;
+  }
+  if (typeof ALPHABET_PHONETICS_MAP !== 'undefined' && ALPHABET_PHONETICS_MAP[l]) return l;
+  return '';
+}
+
+function aulaStrictLetterPhonetics(lang, raw) {
+  const token = aulaCanonicalAlphabetToken(raw);
+  const langKey = aulaAlphabetLanguageKey(lang);
+  if (!token || !langKey || typeof ALPHABET_PHONETICS_MAP === 'undefined') return {};
+  const bank = ALPHABET_PHONETICS_MAP[langKey];
+  if (!bank || typeof bank !== 'object') return {};
+  return bank[token] || bank[token.toUpperCase()] || {};
+}
+
 function getClientLetterPhonetics(lang, letter) {
   if (!letter) return null;
   const lKey = (lang || '').toLowerCase().trim();
@@ -5548,6 +5592,102 @@ function resolveDualLanguage(enVal, trVal, targetLang = currentLang, defaultVal 
     }
     return sanitizeEnglishExplanation(defaultVal);
   }
+}
+
+function _aulaLooksEnglishInstruction(value) {
+  if (!value || typeof value !== 'string') return false;
+  const s = value.trim();
+  if (!s || /[çğıöşüÇĞİÖŞÜ]/.test(s)) return false;
+  const words = s.toLowerCase().match(/[a-z]+/g) || [];
+  if (words.length < 3) return false;
+  const markers = new Set(['the','a','an','is','are','to','of','and','or','like','with','before','after','pronounced','sound','letter','word','used','means','identical','voiced','voiceless','vowel','consonant','stop','fricative','choose','select','complete','stressed','english']);
+  return words.filter(w => markers.has(w)).length >= 2;
+}
+
+function _aulaTurkishNow(value) {
+  if (!value || typeof value !== 'string') return value || '';
+  const raw = value.trim();
+  if (!raw) return '';
+  if (!_aulaLooksEnglishInstruction(raw)) return raw;
+  // translateEducationalText may schedule a lazy translation. Never expose the
+  // English source while that async result is pending.
+  const translated = (typeof translateEducationalText === 'function') ? translateEducationalText(raw, 'tr') : '';
+  if (translated && translated.trim() && translated.trim() !== raw && !_aulaLooksEnglishInstruction(translated)) {
+    return translated.trim();
+  }
+  return '';
+}
+
+const AULA_GERMAN_ALPHABET_TR = {
+  'A': "Türkçedeki 'a' sesine yakın, açık bir ünlüdür; Almancada kısa veya uzun söylenebilir.",
+  'Ä': "Türkçedeki 'e' sesine yakın bir ünlüdür; kısa veya uzun söylenebilir.",
+  'B': "Kelime veya hece başında 'b' gibi okunur; kelime sonunda çoğunlukla 'p' gibi duyulur.",
+  'C': "Genellikle yabancı kökenli kelimelerde görülür; kelimeye göre 'k', 's' veya 'ts' benzeri okunabilir.",
+  'D': "Genellikle Türkçedeki 'd' gibi okunur; kelime sonunda çoğunlukla 't' gibi duyulur.",
+  'E': "Türkçedeki 'e' sesine yakın bir ünlüdür; kısa ve uzun biçimleri vardır.",
+  'F': "Türkçedeki 'f' sesi gibi okunur.",
+  'G': "Genellikle Türkçedeki 'g' gibi okunur; kelime sonunda sertleşerek 'k' benzeri duyulabilir.",
+  'H': "Kelime başında 'h' gibi okunur; bazı konumlarda önceki ünlünün uzun okunmasına yardım eder ve kendisi duyulmaz.",
+  'I': "Türkçedeki 'i' sesine yakın bir ünlüdür; kısa veya uzun söylenebilir.",
+  'J': "Türkçedeki 'y' sesi gibi okunur; örneğin 'ja' yaklaşık 'ya' diye söylenir.",
+  'K': "Türkçedeki 'k' sesi gibi okunur.",
+  'L': "Türkçedeki ince 'l' sesine yakın okunur.",
+  'M': "Türkçedeki 'm' sesi gibi okunur.",
+  'N': "Türkçedeki 'n' sesi gibi okunur.",
+  'O': "Türkçedeki 'o' sesine yakın bir ünlüdür; kısa veya uzun söylenebilir.",
+  'Ö': "Türkçedeki 'ö' sesine çok yakın okunur.",
+  'P': "Türkçedeki 'p' sesi gibi okunur.",
+  'Q': "Neredeyse her zaman 'u' ile birlikte kullanılır ve 'kv' benzeri okunur.",
+  'R': "Bölgeye göre farklı söylenebilir; standart Almancada çoğu zaman boğazdan gelen bir 'r' duyulur.",
+  'S': "Kelime başında ünlüden önce çoğu zaman 'z' gibi, diğer birçok konumda ise 's' gibi okunur.",
+  'ß': "Keskin bir 's' sesi verir; yaklaşık olarak 'ss' gibi okunur.",
+  'T': "Türkçedeki 't' sesi gibi okunur.",
+  'U': "Türkçedeki 'u' sesine yakın bir ünlüdür; kısa veya uzun söylenebilir.",
+  'Ü': "Türkçedeki 'ü' sesine çok yakın okunur.",
+  'V': "Almanca kökenli birçok kelimede 'f' gibi; bazı yabancı kelimelerde ise 'v' gibi okunur.",
+  'W': "Türkçedeki 'v' sesine yakın okunur.",
+  'X': "Genellikle 'ks' olarak okunur.",
+  'Y': "Çoğunlukla yabancı kökenli kelimelerde görülür; kelimeye göre 'ü', 'i' veya 'y' benzeri okunabilir.",
+  'Z': "'ts' birleşik sesi gibi okunur; örneğin 'Zeit' kelimesi 'ts' sesiyle başlar."
+};
+
+function _aulaImmediateTurkishExplanation(it, term, fallback, courseLang) {
+  const rawTerm = safeStr(term).trim();
+  const langKey = safeStr(courseLang || (currentCourse && currentCourse.language) || '').toLowerCase();
+  const base = (typeof extractBaseLetter === 'function') ? extractBaseLetter(rawTerm) : rawTerm.toUpperCase();
+  const isAlphabet = (typeof isLetterLike === 'function') ? isLetterLike(rawTerm) : /^[A-Za-zÄÖÜäöüßÑñ]{1,2}$/.test(rawTerm);
+
+  // Alphabet pedagogy must be deterministic and synchronous. Never depend on
+  // lazy translation state, so language toggles cannot change the explanation.
+  if (isAlphabet) {
+    if (/german|deutsch|almanca/.test(langKey)) {
+      const deKey = rawTerm.length <= 2 ? rawTerm.toUpperCase().replace('SS', 'ß') : base;
+      if (AULA_GERMAN_ALPHABET_TR[deKey]) return AULA_GERMAN_ALPHABET_TR[deKey];
+      if (AULA_GERMAN_ALPHABET_TR[base]) return AULA_GERMAN_ALPHABET_TR[base];
+    }
+
+    const phon = (typeof getClientLetterPhonetics === 'function') ? (getClientLetterPhonetics(courseLang, base) || {}) : {};
+    if (phon.explanation_tr && safeStr(phon.explanation_tr).trim()) return safeStr(phon.explanation_tr).trim();
+
+    const explicitTr = it && safeStr(it.explanation_tr || it.turkish_explanation || it.desc_tr).trim();
+    if (explicitTr) return explicitTr;
+
+    const guide = safeStr(phon.phonetic_tr || '').trim();
+    if (guide) return `${rawTerm || base} harfi ${guide} şeklinde okunur.`;
+    return `${rawTerm || base} .`;
+  }
+
+  const explicitTr = it && safeStr(it.explanation_tr || it.turkish_explanation || it.desc_tr).trim();
+  if (explicitTr) return explicitTr;
+  return (typeof _aulaTurkishNow === 'function') ? _aulaTurkishNow(safeStr(fallback)) : safeStr(fallback);
+}
+
+function aulaExactAlphabetExplanation(it, rawTerm, courseLang, uiLang) {
+  const item = (it && typeof it === 'object') ? it : {};
+  if (uiLang === 'tr') {
+    return safeStr(item.explanation_tr || item.turkish_explanation || item.desc_tr).trim();
+  }
+  return safeStr(item.explanation_en || item.english_explanation || item.desc_en || item.explanation).trim();
 }
 
 function resolveItemExplanation(it, term, translation, lang = currentLang) {
@@ -10832,23 +10972,16 @@ async function viewAssignment(assignmentId, title) {
   modal.classList.remove('hidden');
   document.getElementById('student-detail-body').innerHTML = `<div style="text-align:center;padding:48px 20px;color:var(--text-muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;"><div class="spinner-small"></div><span style="font-size:14px;">${t('loading') || (currentLang === 'tr' ? 'Yükleniyor...' : 'Loading...')}</span></div>`;
 
-  const [assignData, respData] = await Promise.all([
+  const [assignmentData, respData] = await Promise.all([
     api('/assignment/take?assignment_id=' + assignmentId),
     api('/assignment/responses?assignment_id=' + assignmentId)
   ]);
+
+  const studentResults = (respData && respData.student_results) || [];
+  const classAvg = (respData && respData.average_score) ? Math.round(respData.average_score * 100) : 0;
   const isTr = currentLang === 'tr';
   const displayTitle = translateQuizTitle(title, currentLang);
-  const results = (respData && respData.student_results) || [];
-  const qs = (assignData && assignData.questions) || [];
-
-  // Class average and status split
-  const completedList = results.filter(sr => sr.status === 'completed' || (!sr.has_unsubmitted && !sr.answers.some(a => a.student_answer === '[STARTED]')));
-  const inProgressList = results.filter(sr => sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
-  const classAvg = (respData && typeof respData.average_score === 'number') ? Math.round(respData.average_score * 100) : (
-    completedList.length
-      ? Math.round(completedList.reduce((s, r) => s + (r.average_score || 0), 0) / completedList.length * 100)
-      : 0
-  );
+  const qs = (assignmentData && assignmentData.questions) || [];
 
   const L = {
     noResponses: t('assign.no_responses') || (isTr ? 'Henüz yanıt gönderilmedi.' : 'No responses submitted yet.'),
@@ -10856,22 +10989,24 @@ async function viewAssignment(assignmentId, title) {
     classAvg: t('assign.class_avg') || (isTr ? 'Sınıf Ortalaması' : 'Class Average'),
     correct: t('assign.correct') || (isTr ? 'Doğru' : 'Correct'),
     studentAnswer: t('assign.student_answer') || (isTr ? 'Öğrenci Yanıtı' : 'Student Answer'),
-    correctAnswer: t('assign.correct_answer') || (isTr ? 'Doğru Cevap' : 'Correct Answer'),
-    expand: t('assign.view_details') || (isTr ? 'Detayları Gör' : 'View Details'),
+    correctAns: t('assign.correct_answer') || (isTr ? 'Doğru Cevap' : 'Correct Answer'),
     questionsTab: isTr ? 'Sorular' : 'Questions',
     responsesTab: isTr ? 'Yanıtlar' : 'Responses'
   };
 
+  const completedList = studentResults.filter(sr => sr.status === 'completed' || (!sr.has_unsubmitted && !sr.answers.some(a => a.student_answer === '[STARTED]')));
+  const inProgressList = studentResults.filter(sr => sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
+
   document.getElementById('student-detail-body').innerHTML = `
     <h2 style="margin-bottom:4px">${displayTitle}</h2>
-    <div style="color:var(--text-muted);font-size:14px;margin-bottom:20px">
+    <div style="color:var(--text-muted); margin-bottom:20px; font-size:14px">
       <span>${L.classAvg}</span>: <strong style="color:var(--accent)">${classAvg}%</strong> · 
       ${completedList.length} <span>${L.submitted}</span>${inProgressList.length > 0 ? ` · <span style="color:#f59e0b;font-weight:600">${inProgressList.length} ${isTr ? 'devam ediyor' : 'in progress'}</span>` : ''}
     </div>
-
+    
     <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border)">
       <button class="nav-tab active" onclick="switchQuizViewTab(this,'av-questions')" style="flex:1;padding:10px"><span>${L.questionsTab}</span> (${qs.length})</button>
-      <button class="nav-tab" onclick="switchQuizViewTab(this,'av-responses')" style="flex:1;padding:10px"><span>${L.responsesTab}</span> (${results.length})</button>
+      <button class="nav-tab" onclick="switchQuizViewTab(this,'av-responses')" style="flex:1;padding:10px"><span>${L.responsesTab}</span> (${studentResults.length})</button>
     </div>
 
     <div id="av-questions">
@@ -10881,11 +11016,11 @@ async function viewAssignment(assignmentId, title) {
             <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase">
               ${isTr ? 'Soru' : 'Question'} ${i + 1} • ${translateOption(q.type === 'mcq' ? (isTr ? 'Çoktan Seçmeli' : 'Multiple Choice') : (isTr ? 'Boşluk Doldurma' : 'Fill in the Blank'))}
             </div>
-            <div style="font-size:15px;margin-bottom:12px">${translatePrompt(q.prompt)}</div>
+            <div style="font-size:15px;margin-bottom:12px">${fixDiacritics(safeStr(q.prompt))}</div>
             ${q.type === 'mcq' ? `
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 ${(q.distractors || []).concat([q.answer]).map(o => `
-                  <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
+                    <div style="padding:8px 12px;background:var(--bg-input);border-radius:4px;font-size:13px;border:1px solid ${o === q.answer ? 'var(--success)' : 'var(--border)'};color:${o === q.answer ? 'var(--success)' : 'inherit'};font-weight:${o === q.answer ? '600' : 'normal'}">
                     ${o === q.answer ? SVG_CHECK + ' ' : ''}${fixDiacritics(safeStr(o))}
                   </div>
                 `).join('')}
@@ -10901,80 +11036,56 @@ async function viewAssignment(assignmentId, title) {
     </div>
 
     <div id="av-responses" style="display:none">
-      ${results.length > 0 ? `
-      <!-- Summary bar -->
-      <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${L.submitted}</div>
-          <div style="font-size:26px;font-weight:700">${completedList.length}</div>
-        </div>
-        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('CLASS MASTERY') || (isTr ? 'Sınıf Başarısı' : 'Class Mastery')}</div>
-          <div style="font-size:26px;font-weight:700;color:${masteryColor(classAvg / 100)}">${classAvg}%</div>
-        </div>
-        <div style="flex:1;min-width:100px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center">
-          <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;margin-bottom:4px">${t('assign.top_score') || (isTr ? 'En Yüksek Skor' : 'Top Score')}</div>
-          <div style="font-size:26px;font-weight:700;color:var(--success)">${completedList.length > 0 ? Math.round(completedList[0].average_score * 100) + '%' : '—'}</div>
-        </div>
-      </div>
-
-      <!-- Score bar chart -->
-      <div style="margin-bottom:24px">
-        ${results.map((sr, i) => {
-          const isInProgress = (sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
-          const pct = Math.round(sr.average_score * 100);
-          const answeredCount = sr.answered_count || sr.answers.filter(a => a.student_answer !== '[STARTED]').length;
-          const correctCount = sr.answers.filter(a => a.is_correct && a.student_answer !== '[STARTED]').length;
-          const totalQ = sr.total_questions || qs.length || sr.answers.length;
-          return `
-          <div style="margin-bottom:6px">
-            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
-              <span style="font-weight:500">
-                ${i < 3 && !isInProgress ? `<span class="rank-badge rank-${i+1}">#${i+1}</span> ` : ''}
-                ${esc(sr.student_name)}
-                ${isInProgress ? `<span style="font-size:12px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:600">${isTr ? 'Ödev Devam Ediyor' : 'In Progress'}</span>` : ''}
-              </span>
-              ${isInProgress ? `
-                <span style="color:#f59e0b;font-weight:600">—
-                  <span style="color:var(--text-muted);font-weight:400">(${answeredCount}/${totalQ} ${isTr ? 'yanıtlandı' : 'answered'})</span>
-                </span>
-              ` : `
-                <span style="color:${masteryColor(sr.average_score)};font-weight:700">${pct}%
-                  <span style="color:var(--text-muted);font-weight:400">(${correctCount}/${totalQ} <span>${L.correct.toLowerCase()}</span>)</span>
-                </span>
-              `}
-            </div>
-            <div style="background:var(--border);border-radius:4px;height:8px;cursor:pointer" onclick="this.parentElement.nextElementSibling.style.display=this.parentElement.nextElementSibling.style.display==='none'?'block':'none'">
-              <div style="background:${isInProgress ? '#f59e0b' : masteryColor(sr.average_score)};height:8px;border-radius:4px;width:${isInProgress ? Math.round((answeredCount/totalQ)*100) : pct}%;transition:width 0.6s ease"></div>
-            </div>
-          </div>
-          <!-- Expandable detail -->
-          <div style="display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-            <div style="padding:12px 14px;background:var(--bg-secondary);font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.5px">
-              ${esc(sr.student_name)} — <span>${t('assign.detailed_answers') || (isTr ? 'Ayrıntılı Cevaplar' : 'Detailed Answers')}</span>
-            </div>
-            ${sr.answers.map((a, qi) => {
-              const isStarted = (a.student_answer === '[STARTED]');
-              const isRight = a.is_correct && !isStarted;
-              return `
-              <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;background:var(--bg-card)">
-                <span style="min-width:22px;font-size:15px;font-weight:700;color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')};margin-top:1px">${isStarted ? '⏳' : (isRight ? SVG_CHECK : SVG_CROSS)}</span>
-                <div style="flex:1;font-size:13px">
-                  <div style="margin-bottom:5px;font-weight:500;line-height:1.4">${translatePrompt(a.prompt)}</div>
-                  <div style="display:flex;gap:16px;flex-wrap:wrap">
-                    ${isStarted
-                      ? `<span style="color:var(--text-muted);font-style:italic;">${isTr ? 'Henüz yanıtlanmadı (Ödev devam ediyor)' : 'Not answered yet (In progress)'}</span>`
-                      : `<span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
-                         ${!isRight ? `<span><span>${L.correctAnswer}: <strong style="color:var(--success)">${esc(a.correct_answer)}</strong></span>` : ''}`
+      ${studentResults.length === 0
+      ? `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`
+      : studentResults.map(sr => {
+        const isInProgress = (sr.status === 'in_progress' || sr.has_unsubmitted || sr.answers.some(a => a.student_answer === '[STARTED]'));
+        const avgPct = Math.round(sr.average_score * 100);
+        const answeredCount = sr.answered_count || sr.answers.filter(a => a.student_answer !== '[STARTED]').length;
+        const correctCount = sr.answers.filter(a => a.is_correct && a.student_answer !== '[STARTED]').length;
+        return `
+              <div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; overflow:hidden">
+                <div style="padding:14px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+                  <div>
+                    <strong style="font-size:15px">${sr.student_name}</strong>
+                    ${isInProgress
+                      ? `<span style="font-size:12px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.4); padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:600">${isTr ? 'Ödev Devam Ediyor' : 'In Progress'}</span>
+                         <span style="font-size:13px; color:var(--text-muted); margin-left:8px">(${answeredCount}/${sr.total_questions} ${isTr ? 'yanıtlandı' : 'answered'})</span>`
+                      : `<span style="font-size:13px; color:var(--text-muted); margin-left:8px">${correctCount}/${sr.total_questions} <span>${L.correct}</span></span>`
                     }
                   </div>
+                  <div style="display:flex; align-items:center; gap:10px">
+                    ${isInProgress
+                      ? `<span style="font-weight:600; font-size:14px; color:#f59e0b;">—</span>`
+                      : `<span style="font-weight:700; font-size:16px; color:${masteryColor(sr.average_score)}">${avgPct}%</span>`
+                    }
+                    <span style="color:var(--text-muted); font-size:18px">▾</span>
+                  </div>
                 </div>
-                <span style="font-size:12px;color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')};font-weight:600;white-space:nowrap">${isStarted ? '—' : Math.round(a.score * 100) + '%'}</span>
-              </div>
-            `;}).join('')}
-          </div>`;
-        }).join('')}
-      </div>` : `<p style="color:var(--text-muted);padding:20px;text-align:center">${L.noResponses}</p>`}
+                <div style="display:none; padding:12px 16px; background:var(--bg-card)">
+                  ${sr.answers.map((a, i) => {
+                    const isStarted = (a.student_answer === '[STARTED]');
+                    const isRight = a.is_correct && !isStarted;
+                    return `
+                      <div style="padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; display:flex; gap:10px; align-items:flex-start">
+                        <span style="min-width:20px; font-weight:700; color:${isStarted ? 'var(--text-muted)' : (isRight ? 'var(--success)' : 'var(--danger)')}">
+                          ${isStarted ? '⏳' : (isRight ? SVG_CHECK : SVG_CROSS)}
+                        </span>
+                        <div style="flex:1">
+                          <div style="margin-bottom:4px; font-weight:500">${fixDiacritics(safeStr(a.prompt))}</div>
+                          <div style="display:flex; gap:16px; flex-wrap:wrap">
+                            ${isStarted
+                              ? `<span style="color:var(--text-muted);font-style:italic;">${isTr ? 'Henüz yanıtlanmadı (Ödev devam ediyor)' : 'Not answered yet (In progress)'}</span>`
+                              : `<span><span>${L.studentAnswer}</span>: <strong style="color:${isRight ? 'var(--success)' : 'var(--danger)'}">${esc(a.student_answer)}</strong></span>
+                                 ${!isRight ? `<span><span>${L.correctAns}</span>: <strong style="color:var(--success)">${a.correct_answer}</strong></span>` : ''}`
+                            }
+                          </div>
+                        </div>
+                      </div>`;
+                  }).join('')}
+                </div>
+              </div>`;
+      }).join('')}
     </div>
   `;
   applyTranslations(document.getElementById('student-detail-body'));
@@ -11614,6 +11725,32 @@ function resolveStudyPrompt(p, topic) {
   return getEnglishStudyPrompt(p.prompt || p.question || '', p.prompt_tr);
 }
 
+function resolveStudyOptionLabel(p, canonicalOption) {
+  const canonical = Array.isArray(p.options) ? p.options : [];
+  const idx = canonical.indexOf(canonicalOption);
+  if (idx < 0) return canonicalOption;
+  const localized = currentLang === 'tr' ? p.options_tr : p.options_en;
+  if (Array.isArray(localized) && localized.length === canonical.length && localized[idx]) {
+    return localized[idx];
+  }
+  return canonicalOption;
+}
+
+function stableStudyOptionOrder(options, seed) {
+  // Stable value-based ordering makes legacy material questions stop presenting the
+  // canonical correct answer as option A, without changing the value used for grading.
+  const hash = (text) => {
+    let h = 2166136261 >>> 0;
+    const s = String(text || '');
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h >>> 0;
+  };
+  return [...options].sort((a, b) => hash(`${seed}|${a}`) - hash(`${seed}|${b}`));
+}
+
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   const isStudent = currentUser && currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
@@ -11730,7 +11867,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             let linesArr = [];
             if (text && typeof text === "string") {
               const translatedText = (currentLang === 'tr')
-                ? ((p.text_tr || p.explanation_tr) ? text : translateEducationalText(text))
+                ? ((p.text_tr || p.explanation_tr) ? text : _aulaTurkishNow(translateEducationalText(text, 'tr') || text))
                 : (p.text || p.explanation || text);
               const fixDiacriticsText = fixDiacritics(translatedText);
               if (fixDiacriticsText.includes('\n')) {
@@ -12143,11 +12280,11 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     } else {
                       const normStr = normalizeConceptStr(sTrimmed);
                       const isCJK = /[\u4e00-\u9fff]/.test(sTrimmed);
-                      const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                      const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : safeStr((topic && (topic.language || topic.target_language || topic.course_language)) || '');
                       const isLetter = !isCJK && (sTrimmed.length === 1 || SPANISH_LETTER_SPELLINGS.has(normStr));
                       if (isLetter) {
                         // Single letter with authentic phonetics guide
-                        const phonData = getClientLetterPhonetics(courseLang, sTrimmed) || {};
+                        const phonData = aulaStrictLetterPhonetics(courseLang, sTrimmed) || {};
                         const letterName = phonData.name || (SPANISH_LETTER_SPELLINGS.has(normStr) ? sTrimmed : '');
                         const phoneticGuide = (currentLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
                         const exampleWord = phonData.example || '';
@@ -12263,7 +12400,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       if (trRawV && trRawV.trim()) {
                         v = trRawV.trim();
                       } else {
-                        v = resolveDualLanguage(enRawV, trRawV, 'tr', enRawV);
+                        v = _aulaTurkishNow(resolveDualLanguage(enRawV, trRawV, 'tr', enRawV) || enRawV);
                         if (v) v = translateOption(v, 'tr');
                         if (v && enRawV && v.toLowerCase() === enRawV.toLowerCase()) {
                           const fallbackTr = translateEducationalText(enRawV, 'tr');
@@ -12285,7 +12422,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     // --- PRAGMATIC GREETINGS, PRONOUNS & AUXILIARIES SELF-HEALING ---
                     const kStr = safeStr(k).trim();
                     const isSingleChar = (kStr.length === 1 && !/[\u4e00-\u9fff]/.test(kStr));
-                    const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : 'Spanish';
+                    const courseLang = (currentCourse && currentCourse.language) ? currentCourse.language : safeStr((topic && (topic.language || topic.target_language || topic.course_language)) || '');
                     const normK = normalizeConceptStr(kStr);
 
                     // Only match pragmatic map for multi-character phrases (never corrupt single letters like 'I')
@@ -12297,8 +12434,8 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     // Letter self-healing for meaning pill badge (never show example sentence in pill)
                     const isLetterCard = isLetterLike(kStr) || Boolean(it.letter || it.character);
                     if (isLetterCard) {
-                      const baseL = extractBaseLetter(kStr);
-                      const phon = getClientLetterPhonetics(courseLang, baseL) || {};
+                      const baseL = aulaCanonicalAlphabetToken(kStr);
+                      const phon = aulaStrictLetterPhonetics(courseLang, baseL) || {};
                       const isVEmptyOrEcho = !v || v.toLowerCase() === kStr.toLowerCase() || (normK && normK === normalizeConceptStr(v));
                       if (isVEmptyOrEcho) {
                         const hasDistinctName = phon.name && phon.name.trim().toUpperCase() !== baseL.toUpperCase();
@@ -12358,7 +12495,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         </div>`;
                     } else if (isLetter && !it.explanation && !it.explanation_en && !it.explanation_tr && !it.example) {
                     // Minimal single letter — render compact card
-                    const phonData = getClientLetterPhonetics(courseLang, kStr) || {};
+                    const phonData = aulaStrictLetterPhonetics(courseLang, kStr) || {};
                     let letterName = it.name || phonData.name || (SPANISH_LETTER_SPELLINGS.has(normK) ? kStr : '') || safeStr(v);
                     if (['she', 'he', 'ben', 'i'].includes(letterName.toLowerCase()) && letterName.length > 1) {
                       letterName = phonData.name || kStr;
@@ -12384,13 +12521,19 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       </div>`;
                   } else {
                     // Regular vocabulary item or enriched pronunciation card with authentic pedagogy tip and example sentence
-                    const briefExpl = resolveItemExplanation(it, kStr, safeStr(v), currentLang);
-                    const bankHit = getClientVocabExample(courseLang, kStr) || {};
+                    const _alphabetToken = isLetter ? aulaCanonicalAlphabetToken(kStr) : '';
+                    const _letterPhon = isLetter ? (aulaStrictLetterPhonetics(courseLang, _alphabetToken) || {}) : {};
+                    const briefExpl = isLetter
+                      ? aulaExactAlphabetExplanation(it, kStr, courseLang, currentLang)
+                      : resolveItemExplanation(it, kStr, safeStr(v), currentLang);
+                    const bankHit = isLetter ? _letterPhon : (getClientVocabExample(courseLang, kStr) || {});
                     const exampleTarget = it.example || bankHit.example || '';
-                    const rawExEn = it.example_en || bankHit.example_en || '';
-                    const rawExTr = it.example_tr || bankHit.example_tr || '';
+                    const rawExEn = it.example_en || bankHit.example_en || (isLetter ? enRawV : '') || '';
+                    const rawExTr = it.example_tr || bankHit.example_tr || (isLetter ? trRawV : '') || '';
                     let exampleTrans = '';
-                    if (currentLang === 'tr') {
+                    if (isLetter) {
+                      exampleTrans = currentLang === 'tr' ? safeStr(rawExTr).trim() : safeStr(rawExEn).trim();
+                    } else if (currentLang === 'tr') {
                       if (rawExTr && rawExTr.trim()) {
                         exampleTrans = rawExTr.trim();
                       } else if (rawExEn && rawExEn.trim()) {
@@ -12431,7 +12574,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         ${briefExpl ? `
                           <div class="vocab-pedagogy-section">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : sanitizeEnglishExplanation(safeStr(briefExpl), kStr))}</div>
+                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : sanitizeEnglishExplanation(safeStr(briefExpl), _alphabetToken || kStr))}</div>
                           </div>` : ''}
                         ${exampleTarget ? `
                           <div class="vocab-example-card">
@@ -12454,10 +12597,12 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                const rawOptions = (Array.isArray(p.options) && p.options.length > 1)
                  ? p.options
                  : (p.distractors || []).concat(p.answer);
-               const allOptions = Array.from(new Set(rawOptions)).filter(Boolean);
+               let allOptions = Array.from(new Set(rawOptions)).filter(Boolean);
                if (!Array.isArray(p.options) || p.options.length <= 1) {
                  allOptions.sort();
                }
+               const optionSeed = `${topic && topic.id ? topic.id : 'topic'}|${p.prompt || p.prompt_en || p.prompt_tr || ''}`;
+               allOptions = stableStudyOptionOrder(allOptions, optionSeed);
                const translatedPrompt = resolveStudyPrompt(p, topic);
                const mcqExpl = (currentLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
                const studyKey = 'study_' + (topic ? topic.id : 'unknown') + '_' + pIdx;
@@ -12490,9 +12635,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                        } else if (isTargetCorrect && !savedAnswer.isCorrect) {
                          btnStyle += " background:rgba(34, 197, 129, 0.15); border-color:#10b981; opacity:1;";
                        }
-                       return `<button class="btn btn-outline" disabled data-opt="${esc(opt)}" style="${btnStyle}">${fixDiacritics(safeStr(opt))}${badgeIcon}</button>`;
+                       return `<button class="btn btn-outline" disabled data-opt="${esc(opt)}" style="${btnStyle}">${fixDiacritics(safeStr(resolveStudyOptionLabel(p, opt)))}${badgeIcon}</button>`;
                      }
-                     return `<button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)}, '${studyKey}')">${fixDiacritics(safeStr(opt))}</button>`;
+                     return `<button class="btn btn-outline" data-opt="${esc(opt)}" style="justify-content:flex-start; text-align:left; padding:14px 18px; font-size:15px; border-radius:8px;" onclick="checkStudyMCQ(this, ${escJS(opt)}, ${escJS(p.answer)}, ${escJS(mcqExpl)}, '${studyKey}')">${fixDiacritics(safeStr(resolveStudyOptionLabel(p, opt)))}</button>`;
                    }).join('')}
                  </div>
                  ${restoredExplBox}
@@ -13591,3 +13736,118 @@ async function downloadCourseMaterialPDF() {
 
 window.downloadCourseMaterialPDF = downloadCourseMaterialPDF;
 
+
+
+// AULA_TR_PEDAGOGY_LAZY_LOCALIZER
+(() => {
+  const cache = new Map();
+  const pending = new Map();
+  const englishSignal = /\b(the|and|is|are|indicates|represents|preceding|consonant|vowel|always|standard|pronounced|softens|hard|soft|sound|word|before|after|used|means)\b/i;
+
+  async function localizeNode(el) {
+    if (!el || el.dataset.aulaTrLocalized === '1') return;
+    if (typeof currentLang !== 'undefined' && currentLang !== 'tr') return;
+    const text = (el.textContent || '').trim();
+    if (!text || text.length < 8 || !englishSignal.test(text)) return;
+    el.dataset.aulaTrLocalized = '1';
+
+    try {
+      if (cache.has(text)) {
+        el.textContent = cache.get(text);
+        return;
+      }
+      let promise = pending.get(text);
+      if (!promise) {
+        promise = fetch('/api/translate/material', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({text, target_lang: 'tr'})
+        }).then(r => r.ok ? r.json() : null)
+          .then(data => (data && data.translated) ? String(data.translated).trim() : '')
+          .finally(() => pending.delete(text));
+        pending.set(text, promise);
+      }
+      const translated = await promise;
+      if (translated && translated !== text) {
+        cache.set(text, translated);
+        el.textContent = translated;
+      }
+    } catch (_) {
+      el.dataset.aulaTrLocalized = '0';
+    }
+  }
+
+  function scan(root = document) {
+    if (typeof currentLang !== 'undefined' && currentLang !== 'tr') return;
+    if (root.matches && root.matches('.vocab-pedagogy-text')) localizeNode(root);
+    if (root.querySelectorAll) root.querySelectorAll('.vocab-pedagogy-text').forEach(localizeNode);
+  }
+
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach(node => {
+        if (node && node.nodeType === 1) scan(node);
+      });
+    }
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      scan(document);
+      observer.observe(document.body, {childList: true, subtree: true});
+    }, {once: true});
+  } else {
+    scan(document);
+    observer.observe(document.body, {childList: true, subtree: true});
+  }
+})();
+
+
+// AULA_COMPACT_PDF_LANGUAGE_PICKER_V3
+(() => {
+  function installPicker() {
+    if (typeof window.showPdfLangPicker !== 'function' && typeof showPdfLangPicker !== 'function') return false;
+
+    const picker = function() {
+      return new Promise(resolve => {
+        const old = document.getElementById('pdf-lang-modal');
+        if (old) old.remove();
+        const tr = (typeof currentLang !== 'undefined' ? currentLang : localStorage.getItem('aula_lang')) === 'tr';
+        const modal = document.createElement('div');
+        modal.id = 'pdf-lang-modal';
+        modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(2,8,23,.72);backdrop-filter:blur(6px);padding:18px;';
+        modal.innerHTML = `
+          <div style="width:min(390px,100%);background:#102541;border:1px solid rgba(148,163,184,.22);border-radius:22px;padding:22px;box-shadow:0 28px 80px rgba(0,0,0,.45);color:#f8fafc;">
+            <div style="font-size:20px;font-weight:800;margin-bottom:6px;">${tr ? 'PDF Dilini Seç' : 'Choose PDF Language'}</div>
+            <div style="font-size:13px;color:#aeb9c8;margin-bottom:18px;">${tr ? 'İndirilecek materyalin dilini seç.' : 'Choose the language for the downloaded material.'}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <button data-pdf-lang="tr" type="button" style="appearance:none;border:1px solid rgba(148,163,184,.25);background:#0b1d33;color:#f8fafc;border-radius:14px;padding:16px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;">
+                <span style="font-size:15px;font-weight:900;letter-spacing:.8px;color:#d7a94b;">TR</span>
+                <span style="font-size:14px;font-weight:750;">Türkçe</span>
+              </button>
+              <button data-pdf-lang="en" type="button" style="appearance:none;border:1px solid rgba(148,163,184,.25);background:#0b1d33;color:#f8fafc;border-radius:14px;padding:16px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;">
+                <span style="font-size:15px;font-weight:900;letter-spacing:.8px;color:#d7a94b;">EN</span>
+                <span style="font-size:14px;font-weight:750;">English</span>
+              </button>
+            </div>
+            <button id="pdf-picker-cancel-v3" type="button" style="appearance:none;border:0;background:transparent;color:#94a3b8;width:100%;margin-top:15px;padding:8px;font-size:13px;cursor:pointer;">${tr ? 'İptal' : 'Cancel'}</button>
+          </div>`;
+        document.body.appendChild(modal);
+        const done = value => { if (modal.isConnected) modal.remove(); resolve(value); };
+        modal.querySelectorAll('[data-pdf-lang]').forEach(b => b.addEventListener('click', () => done(b.dataset.pdfLang)));
+        modal.querySelector('#pdf-picker-cancel-v3').addEventListener('click', () => done(null));
+        modal.addEventListener('click', e => { if (e.target === modal) done(null); });
+      });
+    };
+
+    window.showPdfLangPicker = picker;
+    try { showPdfLangPicker = picker; } catch (_) {}
+    return true;
+  }
+
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    if (installPicker() || tries > 50) clearInterval(timer);
+  }, 100);
+})();

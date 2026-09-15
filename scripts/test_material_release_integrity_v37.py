@@ -22,10 +22,10 @@ dupe = mcq('Choose.', ['a', 'a', 'c', 'd'], 'a')
 localized_bad = mcq('Choose.', ['a', 'b', 'c', 'd'], 'b', options_tr=['a', 'b'])
 lesson = {'pages': [valid, bad_key, dupe, localized_bad, {'type': 'overview', 'text': 'Keep me'}]}
 out = enforce_material_integrity(lesson)
-assert len(out['pages']) == 2, out
+assert len(out['pages']) == 5, out
 assert out['pages'][0]['answer'] == 'beta'
-assert out['pages'][1]['type'] == 'overview'
-assert len(out.get('_integrity_removed_mcq', [])) == 3
+assert out['pages'][4]['type'] == 'overview'
+assert '_integrity_removed_mcq' not in out
 
 for opts, ans in [
     (['дом', 'дома', 'дому', 'домом'], 'дому'),
@@ -43,7 +43,7 @@ prompt_source = Path('services/material_generation_prompt.py').read_text(encodin
 # Runtime release architecture must remain deterministic and canonical-prompt wired.
 for marker in (
     'def _material_release_integrity_v37(',
-    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level)',
+    'lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)',
     '# AULAAI_CANONICAL_MATERIAL_PROMPT',
     'from services.material_generation_prompt import build_material_prompts',
     'system_prompt, user_prompt = build_material_prompts(',

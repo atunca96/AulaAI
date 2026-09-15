@@ -6,13 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# NOTE: this file must only exercise V55 behavior. It previously also ran
-# scripts/patch_release_cleanup_v56.py as a side effect (see incident notes in
-# scripts/patch_release_cleanup_v56.py) which meant V56 was silently re-applied
-# on every build even when it was not listed in the Dockerfile and even after
-# it was reverted. A test script must never mutate source files as a side
-# effect of being imported/run. V56 is now wired explicitly and only in the
-# Dockerfile, as its own visible step, if/when it is intentionally enabled.
+# NOTE: this file must only exercise V55 behavior. It previously also ran a
+# cleanup patch script as a side effect, which silently re-applied that patch
+# on every build. That whole class of hazard is gone: application source is
+# frozen and checked in, and no test or build step rewrites it. A test must
+# never mutate source as a side effect of being run.
 
 from services.material_quality_guard import enforce_material_integrity, sanitize_instructional_metalanguage
 from services.pdf_renderer_v12 import _v54_display_phonetic, _v54_pdf_unsafe_mcq

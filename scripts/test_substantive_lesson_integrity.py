@@ -109,17 +109,34 @@ def test_polymorphic_container_normalization():
     assert len(p2["rules"]) == 1
 
 
-def test_synthesize_substantive_lesson():
+def test_synthesize_fallback_is_honest_not_filler():
+    """The fallback must never publish invented teaching content.
+
+    This test previously asserted the opposite: that the fallback produced a
+    four-page lesson with a complete MCQ. That output was structurally valid and
+    pedagogically empty - topic titles used as vocabulary rows, echoed IPA, and an
+    MCQ keyed to a statement about the CEFR level - and a teacher could not tell it
+    apart from real material. The contract is now: state the gap, invent nothing.
+    """
     synth = synthesize_substantive_lesson("Travel and Transportation", "vocabulary", "Spanish", "A1", material_language="tr")
-    assert _is_substantive_lesson(synth)
-    assert len(synth["pages"]) >= 3
-    # Check MCQ validity
-    mcq_page = next((p for p in synth["pages"] if p.get("type") == "mcq"), None)
-    assert mcq_page is not None
-    assert len(mcq_page["options"]) == 4
-    assert len(mcq_page.get("options_tr", [])) == 4
-    assert len(mcq_page["distractors"]) == 3
-    assert mcq_page["answer"] in mcq_page["options"]
+    assert synth["_review_required"] is True
+    assert synth["_synthetic_placeholder"] is True
+    assert synth["pages"], "a fallback must still produce a visible, renderable page"
+    # Every page must be renderable (non-empty), so no blank lesson can reappear.
+    assert all(_is_substantive_page(p) for p in synth["pages"]), synth["pages"]
+    for page in synth["pages"]:
+        assert not page.get("items"), "no invented vocabulary"
+        assert not page.get("rules"), "no invented grammar rules"
+        assert not page.get("options"), "no invented assessment items"
+        assert not page.get("phonetic"), "no invented pronunciation"
+    # Real supplied source material is preserved rather than discarded.
+    with_source = synthesize_substantive_lesson(
+        "Travel", "vocabulary", "Spanish", "A1",
+        source_text="el tren - the train\nel billete - the ticket\nla estacion - the station\n",
+        material_language="tr",
+    )
+    joined = " ".join(str(p.get("text") or "") for p in with_source["pages"])
+    assert "el tren" in joined, "genuine source content must survive into the fallback"
 
 
 def test_mcq_options_localization():
@@ -189,8 +206,13 @@ def test_ensure_minimum_lesson_structure():
         ]
     }
     expanded = _ensure_minimum_lesson_structure(partial_lesson, "Numbers", "Spanish", "A1")
-    assert len(expanded["pages"]) >= 3
-    assert _is_substantive_lesson(expanded)
+    # Real content is preserved exactly; the shortfall is flagged, not padded with
+    # synthesized pages that look like teaching material.
+    assert expanded["pages"][0]["items"][0]["term"] == "uno"
+    assert expanded["pages"][1]["rules"][0]["rule"] == "Counting"
+    assert expanded["_review_required"] is True
+    assert all(not p.get("options") for p in expanded["pages"]), "no invented MCQ padding"
+    assert _is_substantive_page(expanded["pages"][0])
 
 
 def test_renderer_normalize_pages():
@@ -218,8 +240,8 @@ def run():
     print("  -> test_rules_without_source_evidence_survive PASSED")
     test_polymorphic_container_normalization()
     print("  -> test_polymorphic_container_normalization PASSED")
-    test_synthesize_substantive_lesson()
-    print("  -> test_synthesize_substantive_lesson PASSED")
+    test_synthesize_fallback_is_honest_not_filler()
+    print("  -> test_synthesize_fallback_is_honest_not_filler PASSED")
     test_mcq_options_localization()
     print("  -> test_mcq_options_localization PASSED")
     test_ensure_minimum_lesson_structure()

@@ -418,6 +418,8 @@ def _extract_and_parse_json(content: str) -> Optional[Any]:
 
     return None
 
+_AULAAI_LESSON_CACHE_SESSION_V47 = os.getenv('AULAAI_OPENROUTER_LESSON_SESSION') or ('aulaai-lesson-' + str(os.getpid()) + '-' + uuid.uuid4().hex[:12])
+
 def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
     """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota."""
     if not model or str(model).lower() in ["none", "offline", "skip", "disabled"]:
@@ -451,6 +453,8 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
             "max_tokens": max_tokens,
             "temperature": temperature
         }
+        if target_model == MODEL_LESSON:
+            req_payload["session_id"] = _AULAAI_LESSON_CACHE_SESSION_V47
         if json_mode:
             req_payload["response_format"] = {"type": "json_object"}
 
@@ -471,7 +475,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
         try:
             req = urllib.request.Request(url, data=json.dumps(req_payload).encode("utf-8"), headers=headers)
 
-            max_attempts = 2 if max_tokens <= 2500 else 4
+            max_attempts = 2 if (model == MODEL_LESSON or max_tokens <= 2500) else 4
             for attempt in range(max_attempts):
                 try:
                     # Generous timeout for lesson generation (Gemini can take 60-120s for long outputs)
@@ -500,6 +504,9 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                         usage_dict["completion_tokens"] = usage_dict.get("completion_tokens", 0) + int(c_t)
                                         usage_dict["total_tokens"] = usage_dict.get("total_tokens", 0) + int(p_t + c_t)
                                         usage_dict["model"] = target_model
+                                        _details = u_info.get("prompt_tokens_details") or {}
+                                        _cached = _details.get("cached_tokens") or u_info.get("cached_tokens") or 0
+                                        usage_dict["cached_tokens"] = usage_dict.get("cached_tokens", 0) + int(_cached)
                                         if "cost" in u_info and u_info["cost"] is not None:
                                             usage_dict["cost"] = usage_dict.get("cost", 0.0) + float(u_info["cost"])
                                         else:
@@ -881,7 +888,7 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
             t_grammar = top.get("key_grammar", [])
             t_texts = top.get("key_texts", [])
             
-            lines = [f"[MODULE TOPIC {idx}: '{t_title}' (Focus: {t_type})]"]
+            lines = [f"[MODULE {idx}: '{t_title}' (Focus: {t_type})]"]
             if t_grammar:
                 lines.append("  Explicit Taught Grammar Rules & Contrasts: " + " | ".join(t_grammar[:4]))
             # Note: Dialogues excluded from target selection to avoid incidental chatter poisoning question focus
@@ -891,6 +898,16 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
                 lines.append("  Reading Passage: " + t_texts[0][:250])
             parts.append("\n".join(lines))
         parts.append("================================================================================")
+        module_total = len(topic_content.get("topics", [])[:8])
+        if module_total > 1:
+            parts.append(
+                "UNIT COVERAGE REQUIREMENT:\n"
+                f"- This review covers {module_total} modules. Spread the questions across ALL of them.\n"
+                f"- If you generate at least {module_total} questions, every module must be represented by at least one question.\n"
+                "- Allocate any remaining questions in proportion to how much teachable material each module actually contains.\n"
+                "- Tag every question with its source module using the integer \"module\" field.\n"
+                "- Do not spend two questions on the same learning objective while another module is unrepresented."
+            )
         content_str = "\n\n".join(parts)
     elif isinstance(topic_content, dict) and "pages" in topic_content:
         from services.quiz_source_cache import get_or_assemble_quiz_source
@@ -1425,6 +1442,7 @@ REPETITION & COVERAGE RULES:
       "data": [
         {{
           "type": "mcq",
+          "module": "Integer MODULE number this question is drawn from, when the source is a multi-module review syllabus; omit otherwise",
           "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
           "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
           "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
@@ -1729,6 +1747,7 @@ REPETITION & COVERAGE RULES:
                 "why": why_en,
                 "why_tr": why_tr,
                 "evidence": str(item.get("evidence", "")).strip()[:180],
+                "module": item.get("module"),
                 "material_section": str(item.get("material_section", "")).strip()[:100],
                 "cognitive_task": str(item.get("cognitive_task", "")).strip()[:50]
             }
@@ -1817,6 +1836,7 @@ JSON STRUCTURE:
   "data": [
     {{
       "type": "mcq",
+      "module": "Integer MODULE number this question is drawn from, when the source is a multi-module review syllabus; omit otherwise",
       "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
       "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
       "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
@@ -2124,6 +2144,14 @@ UNIQUE_REQUEST_ID: {seed}_topup_1_{py_random.random()}"""
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s (${main_cost:.6f}) | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s (calls={topup_calls}, ${topup_cost:.6f}) | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s | Cost: ${total_cost:.6f}\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
+        # Assessments now cross a publication boundary too. This is deterministic
+        # only and adds no model call: answer keys used to reach the learner with
+        # no publication discipline of any kind.
+        try:
+            from services.publication_invariants import apply_assessment_invariants
+            final = apply_assessment_invariants(final, language=language, material_language=material_language)
+        except Exception as exc:
+            print(f"[PUBLICATION] assessment invariants skipped: {exc}")
         return final
     except Exception as e:
         import traceback
@@ -2525,27 +2553,55 @@ def _normalize_lesson_pages(data, topic, language, level):
             elif not p.get("type") or p.get("type") in ["custom", "lesson"]:
                 p["type"] = "overview"
 
-            # Synchronize MCQ options and distractors so both are always fully available
+            # Synchronize MCQ options, bilingual display labels, and answer position.
+            # Canonical `options` are used for grading; localized arrays are display-only.
             if p.get("type") == "mcq" or p.get("prompt"):
                 p["type"] = "mcq"
                 ans = str(p.get("answer", "")).strip()
                 opts = p.get("options")
                 distrs = p.get("distractors")
+
                 if opts and isinstance(opts, list) and len(opts) > 1:
                     clean_opts = [str(o).strip() for o in opts if str(o).strip()]
-                    p["options"] = clean_opts
-                    if not distrs or not isinstance(distrs, list) or len(distrs) == 0:
-                        p["distractors"] = [o for o in clean_opts if o != ans]
-                    if not ans and clean_opts:
-                        ans = clean_opts[0]
-                        p["answer"] = ans
                 elif distrs and isinstance(distrs, list) and len(distrs) > 0:
                     clean_distrs = [str(d).strip() for d in distrs if str(d).strip()]
-                    p["distractors"] = clean_distrs
-                    if ans and ans not in clean_distrs:
-                        p["options"] = [ans] + clean_distrs
-                    else:
-                        p["options"] = clean_distrs
+                    clean_opts = ([ans] if ans else []) + clean_distrs
+                else:
+                    clean_opts = []
+
+                # Recover answer from an explicit index if the model supplied one.
+                raw_idx = p.get("correct_index")
+                if not ans and isinstance(raw_idx, int) and 0 <= raw_idx < len(clean_opts):
+                    ans = clean_opts[raw_idx]
+                if not ans and clean_opts:
+                    ans = clean_opts[0]
+                if ans and ans not in clean_opts:
+                    clean_opts = [ans] + clean_opts
+
+                # Keep localized arrays aligned with the pre-shuffle canonical option order.
+                opts_en = p.get("options_en") if isinstance(p.get("options_en"), list) else []
+                opts_tr = p.get("options_tr") if isinstance(p.get("options_tr"), list) else []
+                opts_en = [str(x).strip() for x in opts_en] if len(opts_en) == len(clean_opts) else list(clean_opts)
+                opts_tr = [str(x).strip() for x in opts_tr] if len(opts_tr) == len(clean_opts) else list(clean_opts)
+
+                # Stable deterministic shuffle: avoids the historical all-A pattern while
+                # producing the same persisted order for the same generated question.
+                if len(clean_opts) > 1:
+                    seed = f"{topic}|{p.get('prompt','')}|{ans}"
+                    order = sorted(
+                        range(len(clean_opts)),
+                        key=lambda i: hashlib.sha256(f"{seed}|{i}".encode("utf-8")).hexdigest(),
+                    )
+                    clean_opts = [clean_opts[i] for i in order]
+                    opts_en = [opts_en[i] for i in order]
+                    opts_tr = [opts_tr[i] for i in order]
+
+                p["options"] = clean_opts
+                p["options_en"] = opts_en
+                p["options_tr"] = opts_tr
+                p["answer"] = ans
+                p["correct_index"] = clean_opts.index(ans) if ans in clean_opts else -1
+                p["distractors"] = [o for o in clean_opts if o != ans]
 
             # Preserve authentic descriptive title if present, otherwise assign a clean title
             p_type = p.get("type", "")
@@ -2585,15 +2641,20 @@ def _normalize_lesson_pages(data, topic, language, level):
                 clean_items = []
                 for it in p["items"]:
                     if isinstance(it, dict):
+                        _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""
                         clean_items.append({
                             "term": it.get("term") or it.get("word") or "",
-                            "phonetic": it.get("phonetic") or "",
+                            "phonetic": it.get("phonetic") or it.get("phonetic_en") or "",
+                            "phonetic_en": it.get("phonetic_en") or it.get("phonetic") or "",
+                            "phonetic_tr": it.get("phonetic_tr") or "",
                             "translation": it.get("translation") or it.get("meaning") or it.get("english") or "",
+                            "translation_en": it.get("translation_en") or it.get("translation") or it.get("meaning") or it.get("english") or "",
                             "translation_tr": it.get("translation_tr") or "",
                             "example": it.get("example") or "",
                             "example_en": it.get("example_en") or it.get("translation_example") or "",
                             "example_tr": it.get("example_tr") or "",
-                            "explanation": it.get("explanation") or it.get("tip") or "",
+                            "explanation": _expl_en,
+                            "explanation_en": _expl_en,
                             "explanation_tr": it.get("explanation_tr") or ""
                         })
                 p["items"] = clean_items
@@ -2619,6 +2680,7 @@ def _normalize_lesson_pages(data, topic, language, level):
                                 "translation_tr": str(c.get("translation_tr") or "").strip(),
                                 "note": str(c.get("note") or c.get("explanation") or "").strip(),
                                 "note_tr": str(c.get("note_tr") or "").strip(),
+                                "scope": str(c.get("scope") or "").strip().lower(),
                                 "source_evidence": ev,
                                 "source_taught": str(c.get("source_taught") or tgt).strip(),
                                 "provenance": prov
@@ -2649,6 +2711,7 @@ def _normalize_lesson_pages(data, topic, language, level):
                                 "example_tr": str(r.get("example_tr") or "").strip(),
                                 "analysis": str(r.get("analysis") or "").strip(),
                                 "analysis_tr": str(r.get("analysis_tr") or "").strip(),
+                                "scope": str(r.get("scope") or "").strip().lower(),
                                 "source_evidence": ev,
                                 "source_taught": str(r.get("source_taught") or r_name).strip(),
                                 "provenance": prov
@@ -2672,6 +2735,35 @@ def _normalize_lesson_pages(data, topic, language, level):
                     p["prompt_tr"] = str(p["prompt_tr"]).strip()
                 if "explanation_tr" in p:
                     p["explanation_tr"] = str(p["explanation_tr"]).strip()
+
+        # AULA_BILINGUAL_PRONUNCIATION_GATE_V21
+        _topic_l = str(topic or '').lower()
+        _is_pronunciation_topic = any(k in _topic_l for k in (
+            'alphabet', 'alfabeto', 'alfabe', 'letter', 'letters', 'harf',
+            'pronunciation', 'pronunciación', 'telaffuz', 'phonetic', 'fonetik',
+            'vowel', 'consonant', 'vocal', 'consonante', 'sound', 'sesli', 'sessiz'
+        ))
+        if _is_pronunciation_topic:
+            _missing = []
+            for _pg in data.get('pages', []):
+                if not isinstance(_pg, dict):
+                    continue
+                for _it in _pg.get('items', []) if isinstance(_pg.get('items', []), list) else []:
+                    if not isinstance(_it, dict):
+                        continue
+                    _term = str(_it.get('term') or _it.get('word') or '').strip()
+                    if not _term:
+                        continue
+                    _en = str(_it.get('explanation_en') or _it.get('explanation') or '').strip()
+                    _tr = str(_it.get('explanation_tr') or '').strip()
+                    if not _en or not _tr:
+                        _missing.append(_term)
+                        if not _en:
+                            _it['explanation_en'] = str(_it.get('explanation') or f"Authoritative sound value and pronunciation for '{_term}'.").strip()
+                        if not _tr:
+                            _it['explanation_tr'] = f"'{_term}' ifadesinin standart ses değeri ve telaffuz rehberi."
+            if _missing:
+                print(f"[LESSON-GATE] Infilled persisted bilingual pronunciation for {len(_missing)} items: {_missing[:8]}", flush=True)
 
         return _sanitize_deep_bilingual(data)
 
@@ -2700,15 +2792,20 @@ def _normalize_lesson_pages(data, topic, language, level):
         clean_items = []
         for v in vocab_items:
             if isinstance(v, dict):
+                _expl_en = v.get("explanation_en") or v.get("explanation") or v.get("tip") or ""
                 clean_items.append({
                     "term": v.get("term") or v.get("word") or "",
-                    "phonetic": v.get("phonetic") or "",
+                    "phonetic": v.get("phonetic") or v.get("phonetic_en") or "",
+                    "phonetic_en": v.get("phonetic_en") or v.get("phonetic") or "",
+                    "phonetic_tr": v.get("phonetic_tr") or "",
                     "translation": v.get("translation") or v.get("meaning") or "",
+                    "translation_en": v.get("translation_en") or v.get("translation") or v.get("meaning") or "",
                     "translation_tr": v.get("translation_tr") or "",
                     "example": v.get("example") or "",
                     "example_en": v.get("example_en") or v.get("translation_example") or "",
                     "example_tr": v.get("example_tr") or "",
-                    "explanation": v.get("explanation") or v.get("tip") or "",
+                    "explanation": _expl_en,
+                    "explanation_en": _expl_en,
                     "explanation_tr": v.get("explanation_tr") or ""
                 })
         if clean_items:
@@ -2791,8 +2888,11 @@ def _normalize_lesson_pages(data, topic, language, level):
             "prompt_en": mcq.get("prompt_en") or "",
             "prompt_tr": mcq.get("prompt_tr") or "",
             "options": opts,
+            "options_en": mcq.get("options_en") or opts,
+            "options_tr": mcq.get("options_tr") or opts,
             "distractors": distrs,
             "answer": ans,
+            "correct_index": (opts.index(ans) if ans in opts else -1),
             "explanation": mcq.get("explanation") or "",
             "explanation_tr": mcq.get("explanation_tr") or ""
         })
@@ -3013,200 +3113,513 @@ def _is_substantive_lesson(data: dict) -> bool:
     return has_core
 
 def _ensure_minimum_lesson_structure(lesson_dict: dict, topic: str, language: str, level: str = 'A1', material_language: str = "tr") -> dict:
-    """Ensures a substantive lesson has at least 3 pages by appending complementary pages if needed."""
+    """Keep every substantive page a real generation produced; never pad a real
+    lesson with synthesized filler.
+
+    Padding a partially successful lesson with generic scaffolding used to publish
+    structurally valid but pedagogically empty pages (topic titles used as
+    vocabulary rows, "Basic form", CEFR-meta MCQs). A short real lesson plus an
+    explicit review notice is honest; a padded one is not.
+    """
     if not isinstance(lesson_dict, dict) or not isinstance(lesson_dict.get("pages"), list):
         return synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
 
     pages = [p for p in lesson_dict["pages"] if isinstance(p, dict) and _is_substantive_page(p)]
+    lesson_dict["pages"] = pages
     if len(pages) >= 3:
-        lesson_dict["pages"] = pages
         return lesson_dict
 
-    # Check missing components
-    has_overview = any(p.get("type") == "overview" or len(str(p.get("text", ""))) >= 20 for p in pages)
-    has_mcq = any(p.get("type") == "mcq" or p.get("prompt") for p in pages)
+    if pages:
+        lesson_dict["_review_required"] = True
+        lesson_dict["_review_reason"] = "incomplete-generation"
+        if not any(p.get("type") == "notice" for p in pages):
+            pages.append(_review_notice_page(topic, language, level, material_language, reason="incomplete"))
+        return lesson_dict
 
-    synth = synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
-    synth_pages = synth.get("pages", [])
+    return synthesize_substantive_lesson(topic, "concept", language, level, material_language=material_language)
 
-    if not has_overview:
-        overview_page = next((p for p in synth_pages if p.get("type") == "overview"), None)
-        if overview_page:
-            pages.insert(0, overview_page)
 
-    if not has_mcq:
-        mcq_page = next((p for p in synth_pages if p.get("type") == "mcq"), None)
-        if mcq_page:
-            pages.append(mcq_page)
+def _review_notice_page(topic: str, language: str, level: str, material_language: str = "tr", reason: str = "unavailable") -> dict:
+    """An honest, clearly-labelled teacher-facing notice.
 
-    # If still < 3, add whatever is available from synthesized lesson
-    for sp in synth_pages:
-        if len(pages) >= 3:
-            break
-        if not any(p.get("type") == sp.get("type") for p in pages):
-            pages.append(sp)
+    States plainly that automatic generation did not produce publishable material.
+    Contains NO invented vocabulary, pronunciation, rules or assessment items:
+    fabricated scaffolding is worse than an acknowledged gap, because a teacher
+    cannot tell it apart from real content.
+    """
+    t_clean = str(topic or "").strip() or "this topic"
+    body_en = (
+        f"Automatic generation did not produce publishable {language} material for '{t_clean}' at CEFR {level}.\n"
+        "This page is a placeholder for the teacher: no vocabulary, pronunciation, rules or exercises "
+        "have been invented for it.\n"
+        "Regenerate this topic, or author it manually before classroom use."
+    )
+    body_tr = (
+        f"'{t_clean}' konusu için CEFR {level} düzeyinde yayımlanabilir {language} materyali otomatik olarak üretilemedi.\n"
+        "Bu sayfa öğretmen için bir yer tutucudur: bu konu adına hiçbir kelime, telaffuz, kural veya alıştırma uydurulmamıştır.\n"
+        "Sınıfta kullanmadan önce bu konuyu yeniden üretin veya elle hazırlayın."
+    )
+    return {
+        "type": "notice",
+        "title": f"Review required: {t_clean}",
+        "title_tr": f"İnceleme gerekli: {t_clean}",
+        "text": body_en,
+        "text_tr": body_tr,
+        "_review_required": True,
+        "_review_reason": reason,
+    }
 
-    lesson_dict["pages"] = pages
-    return lesson_dict
 
 def synthesize_substantive_lesson(topic: str, topic_type: str, language: str, level: str = 'A1', source_text: str = None, material_language: str = "tr") -> dict:
-    """
-    Deterministic, guaranteed substantive fallback lesson generator ($0 LLM cost).
-    Produces 4 rich pedagogical pages (Overview, Vocabulary/Forms, Grammar/Mechanics, Formative Assessment)
-    with 100% full bilingual localization adhering to CEFR standards.
-    """
-    t_clean = topic.strip() or "Core Concepts"
-    is_tr = (material_language in ["tr", "all"])
+    """Deterministic $0 fallback, used only when model generation produced nothing usable.
 
-    src_excerpt = ""
+    Historically this emitted four pages of confident-looking scaffolding
+    ("Basic form", topic titles used as vocabulary rows, invented IPA, and an MCQ
+    whose keyed answer described the CEFR level rather than the language). That is
+    structurally substantive but pedagogically empty, and it published as though it
+    were real teaching material.
+
+    The fallback now does exactly two things: it surfaces whatever genuine source
+    material was supplied, and it states clearly that the rest requires review. It
+    never invents target-language content.
+    """
+    t_clean = str(topic or "").strip() or "Core Concepts"
+
+    pages = [_review_notice_page(t_clean, language, level, material_language, reason="generation-failed")]
+
+    # Real source text supplied by the teacher is genuine content: preserve it
+    # verbatim, clearly labelled as an unprocessed extract.
     if source_text and isinstance(source_text, str) and len(source_text.strip()) > 30:
-        lines = [line.strip() for line in source_text.splitlines() if line.strip() and not line.strip().startswith("#")]
+        lines = [ln.strip() for ln in source_text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
         if lines:
-            src_excerpt = "\n".join(f"• {line}" for line in lines[:4])
+            excerpt = "\n".join(f"\u2022 {ln}" for ln in lines[:8])
+            pages.append({
+                "type": "overview",
+                "title": f"Source extract: {t_clean}",
+                "title_tr": f"Kaynak alıntısı: {t_clean}",
+                "text": "Unprocessed extract from the supplied source material:\n" + excerpt,
+                "text_tr": "Yüklenen kaynak materyalden işlenmemiş alıntı:\n" + excerpt,
+                "_review_required": True,
+            })
 
-    overview_text_en = (
-        f"• Comprehensive pedagogical guide to '{t_clean}' in {language} for adult CEFR {level} learners.\n"
-        f"• Focuses on high-frequency communicative usage, accurate pronunciation, and core structural mechanics.\n"
-        f"• Adheres strictly to the Council of Europe CEFR curriculum standards."
-    )
-    if src_excerpt:
-        overview_text_en += f"\n• Key Source Reference:\n{src_excerpt}"
-
-    overview_text_tr = (
-        f"• Yetişkin CEFR {level} seviyesindeki {language} öğrencileri için '{t_clean}' konusunun kapsamlı rehberi.\n"
-        f"• Günlük iletişimde en sık kullanılan kalıplara, doğru telaffuza ve temel yapı kurallarına odaklanır.\n"
-        f"• Avrupa Dilleri Ortak Çerçeve Programı (CEFR) standartlarına tam uyumludur."
-    )
-
-    p1 = {
-        "type": "overview",
-        "title": f"1. Conceptual Foundations: {t_clean}",
-        "title_tr": f"1. Kavramsal Temeller: {t_clean}",
-        "text": overview_text_en,
-        "text_tr": overview_text_tr
+    lesson_dict = {
+        "pages": pages,
+        "_review_required": True,
+        "_review_reason": "generation-failed",
+        "_synthetic_placeholder": True,
     }
-
-    items = []
-    if source_text and isinstance(source_text, str) and len(source_text.strip()) > 40:
-        import re
-        matches = re.findall(r'(?:\*\*|__)?([A-Za-zÀ-ÿ\u0400-\u04FF\u0370-\u03FF\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]{2,25})(?:\*\*|__)?\s*[-:—]\s*([^,\n.]+)', source_text)
-        for m_term, m_trans in matches[:6]:
-            t_s = m_term.strip()
-            tr_s = m_trans.strip()
-            if t_s and tr_s and len(t_s) > 1:
-                items.append({
-                    "term": t_s,
-                    "phonetic": f"[{t_s.lower()}]",
-                    "translation": tr_s,
-                    "translation_tr": tr_s,
-                    "example": f"{t_s}.",
-                    "example_en": f"Example sentence with {t_s}.",
-                    "example_tr": f"{t_s} ile örnek cümle.",
-                    "explanation": f"Core lexical item for {t_clean} in {language}.",
-                    "explanation_tr": f"{t_clean} konusunda temel {language} sözcüğü."
-                })
-
-    if len(items) < 3:
-        items = [
-            {
-                "term": t_clean,
-                "phonetic": f"[{t_clean.lower()}]",
-                "translation": f"Key concept: {t_clean}",
-                "translation_tr": f"Temel kavram: {t_clean}",
-                "example": f"{t_clean}.",
-                "example_en": f"Foundational usage of {t_clean}.",
-                "example_tr": f"{t_clean} temel kullanımı.",
-                "explanation": f"Primary target item for this CEFR {level} lesson.",
-                "explanation_tr": f"Bu CEFR {level} dersinin ana hedef terimi."
-            },
-            {
-                "term": f"Uso de {t_clean}" if "span" in language.lower() else f"{t_clean} structure",
-                "phonetic": "[...]",
-                "translation": f"Application of {t_clean}",
-                "translation_tr": f"{t_clean} uygulaması",
-                "example": f"Ejemplo de {t_clean}." if "span" in language.lower() else f"Example of {t_clean}.",
-                "example_en": f"Standard contextual expression with {t_clean}.",
-                "example_tr": f"{t_clean} ile standart bağlamsal ifade.",
-                "explanation": "High-frequency communicative pattern.",
-                "explanation_tr": "Yüksek sıklıkta kullanılan iletişim kalıbı."
-            },
-            {
-                "term": "Forma básica" if "span" in language.lower() else "Basic form",
-                "phonetic": "[...]",
-                "translation": "Standard form in context",
-                "translation_tr": "Bağlam içindeki standart form",
-                "example": "Forma correcta." if "span" in language.lower() else "Correct form.",
-                "example_en": "Essential grammatical representation.",
-                "example_tr": "Temel dilbilgisel yapı.",
-                "explanation": "Foundational form used by native speakers.",
-                "explanation_tr": "Anadili konuşurlarınca kullanılan temel yapı."
-            }
-        ]
-
-    p2 = {
-        "type": "vocabulary",
-        "title": f"2. Core Vocabulary & Forms: {t_clean}",
-        "title_tr": f"2. Temel Kelimeler ve Yapılar: {t_clean}",
-        "items": items
-    }
-
-    rule_term = items[0]["term"] if items else t_clean
-    p3 = {
-        "type": "grammar",
-        "title": f"3. Structural Architecture & Rules: {t_clean}",
-        "title_tr": f"3. Yapısal Kurallar: {t_clean}",
-        "text": f"• Structural mechanics and sentence patterns for '{t_clean}'.\n• Always observe standard agreement, word order, and context-appropriate register in {language}.",
-        "text_tr": f"• '{t_clean}' için yapısal kurallar ve cümle dizilimleri.\n• {language} dilinde standart uyum, sözcük sırası ve bağlama uygun hitap biçimlerine dikkat edilmelidir.",
-        "rules": [
-            {
-                "rule": f"Canonical usage and concord for {t_clean}",
-                "rule_tr": f"{t_clean} için standart kullanım ve sözcük uyumu",
-                "explanation": f"In {language}, '{rule_term}' functions according to standard CEFR {level} syntax and morphology.",
-                "explanation_tr": f"{language} dilinde '{rule_term}', CEFR {level} standart sözdizimi ve biçimbilimine göre kullanılır.",
-                "example": items[0]["example"] if items else f"{t_clean}.",
-                "example_en": items[0]["example_en"] if items else f"Standard usage of {t_clean}.",
-                "example_tr": items[0]["example_tr"] if items else f"{t_clean} için standart kullanım.",
-                "analysis": f"Core structural pattern in {language} for adult learners.",
-                "analysis_tr": f"Yetişkin öğrenciler için {language} dilindeki temel yapısal kalıp.",
-                "source_evidence": f"Core curriculum standard for {t_clean}",
-                "source_taught": f"Structural usage of {t_clean}",
-                "provenance": "source_inherent"
-            }
-        ],
-        "comparisons": []
-    }
-
-    p4 = {
-        "type": "mcq",
-        "title": f"5. Formative Quick-Check: {t_clean}",
-        "title_tr": f"5. Hızlı Değerlendirme: {t_clean}",
-        "prompt": f"Which statement best describes the primary function of '{t_clean}' in {language}?",
-        "prompt_en": f"Which statement best describes '{t_clean}' in {language}?",
-        "prompt_tr": f"'{t_clean}' konusunun {language} dilindeki temel işlevi hangisidir?",
-        "options": [
-            f"It serves as an essential communicative building block at CEFR {level}.",
-            "It is an obsolete form never used in contemporary speech.",
-            "It functions exclusively as a mathematical or technical term.",
-            "It has no established grammatical rules or conventions."
-        ],
-        "options_tr": [
-            f"CEFR {level} seviyesinde günlük iletişimde sıkça kullanılan temel bir yapıdır.",
-            "Günlük dilde artık hiç kullanılmayan eski bir kalıptır.",
-            "Yalnızca teknik ve matematiksel metinlerde görülür.",
-            "Herhangi bir dilbilgisi kuralı veya kullanım standardı yoktur."
-        ],
-        "answer": f"It serves as an essential communicative building block at CEFR {level}.",
-        "distractors": [
-            "It is an obsolete form never used in contemporary speech.",
-            "It functions exclusively as a mathematical or technical term.",
-            "It has no established grammatical rules or conventions."
-        ],
-        "explanation": f"'{t_clean}' is a core CEFR {level} pedagogical structure in {language} language learning.",
-        "explanation_tr": f"'{t_clean}', {language} dil eğitiminde CEFR {level} düzeyinde temel ve yaygın bir iletişim yapısıdır."
-    }
-
-    lesson_dict = {"pages": [p1, p2, p3, p4]}
     return _sanitize_deep_bilingual(lesson_dict)
+
+
+def _claim_verifier_enabled() -> bool:
+    """Bounded claim verification is on by default and can be disabled per deployment."""
+    return str(os.getenv("AULAAI_CLAIM_VERIFIER", "1")).strip().lower() not in ("0", "false", "off", "no")
+
+
+def _verify_absolute_claims(data, claims, language, level, material_language="tr"):
+    """One bounded model call that checks ONLY claims a deterministic pass flagged
+    as scope-risky: hard absolute or deontic wording, a near-universal/exception-framed
+    claim whose named exception set the lesson's own evidence shows is incomplete,
+    or a categorical claim that nearby lesson content materially weakens.
+
+    Deterministic code can detect the SHAPE of these claims, can detect a genuine
+    contradiction against the lesson's own evidence, and can tell a structural
+    rule from a contextual convention well enough to route them differently. It
+    cannot compose the linguistically correct restatement, and it cannot know
+    whether a given social convention is truly universal in the target culture.
+    This is the one place where that gap is closed, and it is deliberately narrow:
+
+      * it runs only when a deterministic detector found a claim it could not
+        itself certify, so an ordinary, internally-consistent lesson pays nothing;
+      * it is ONE call for every flagged claim in the lesson, never one per claim;
+      * the payload carries only the flagged claim strings, their claim domain and
+        same-lesson evidence, never the whole lesson;
+      * the model may only rescope or correct a flagged claim - it cannot add
+        pages, vocabulary, rules or examples;
+      * a failed or malformed response leaves the lesson exactly as generated.
+
+    The prompt and payload are built in services.publication_invariants, next to
+    the detectors that decide what gets flagged, so the metadata a detector
+    attaches and the instructions the reviewer reads cannot drift apart.
+    """
+    if not claims:
+        return data
+    try:
+        from services.publication_invariants import build_claim_review_request
+    except Exception as exc:
+        print(f"[CLAIM-SCOPE] verification skipped, request builder unavailable: {exc}")
+        return data
+    system, items = build_claim_review_request(claims, language, level)
+    payload = json.dumps(items, ensure_ascii=False, separators=(",", ":"))
+    try:
+        review = _call_ai(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": payload}],
+            model=MODEL_STRUCTURAL,
+            max_tokens=1000,
+            temperature=0.0,
+            json_mode=True,
+            allow_fallback=False,
+        )
+    except Exception as exc:
+        print(f"[CLAIM-SCOPE] verification skipped after error: {exc}")
+        return data
+    if not isinstance(review, dict):
+        return data
+
+    applied = 0
+    for verdict in (review.get("verdicts") or [])[:24]:
+        if not isinstance(verdict, dict):
+            continue
+        action = str(verdict.get("action") or "").strip().lower()
+        if action not in ("rescope", "correct"):
+            continue
+        try:
+            claim = claims[int(verdict.get("id"))]
+        except Exception:
+            continue
+        value = verdict.get("value")
+        if not isinstance(value, str) or not value.strip():
+            continue
+        original = claim.get("text") or ""
+        # Reject a "repair" that discards the claim or balloons it: those are rewrites,
+        # not scope corrections.
+        if len(value) < max(12, int(len(original) * 0.5)) or len(value) > int(len(original) * 1.6) + 60:
+            continue
+        from services.publication_invariants import set_by_path
+        if set_by_path(data, claim.get("path", ""), value):
+            applied += 1
+    if applied:
+        print(f"[CLAIM-SCOPE] rescoped {applied} absolute claim(s) out of {len(claims)} flagged")
+    return data
+
+
+def _material_publication_release(lesson_dict, topic, language, level, material_language="tr"):
+    """Canonical deterministic publication boundary for generated material."""
+    try:
+        from services.publication_invariants import (
+            apply_publication_invariants,
+            collect_reviewable_claims,
+        )
+    except Exception as exc:
+        print(f"[PUBLICATION] invariants unavailable: {exc}")
+        return lesson_dict
+    if not isinstance(lesson_dict, dict):
+        return lesson_dict
+    data = apply_publication_invariants(
+        lesson_dict, language=language, material_language=material_language, topic=topic, copy=False
+    )
+    if _claim_verifier_enabled() and is_ai_available():
+        # Every deterministic scope detector feeds ONE aggregated, de-duplicated
+        # list: absolute/deontic wording that the generator may not certify itself,
+        # a named exception set narrower than the lesson's own evidence, and a
+        # categorical claim that nearby lesson content contradicts. One bounded
+        # call reviews all of them together - never one call per detector.
+        claims = collect_reviewable_claims(data, material_language=material_language)
+        if claims:
+            data = _verify_absolute_claims(data, claims, language, level, material_language)
+            # Re-run deterministic invariants so any rescoped prose is re-checked.
+            data = apply_publication_invariants(
+                data, language=language, material_language=material_language, topic=topic, copy=False
+            )
+    return data
+
+
+
+def _material_clean_scalar(value):
+    """Deterministic last-mile cleanup for generated lesson strings."""
+    if not isinstance(value, str):
+        return value
+    text = value
+    text = text.replace("\ufffe", "").replace("\uffff", "").replace("\u200b", "")
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    text = re.sub(r"(?i)\bO\s+PHYSIK\b", "", text)
+    text = re.sub(r"(?i)\bPHYSIK\b", "", text)
+    text = re.sub(r"(?i)\b(?:DEBUG_ARTIFACT|PLACEHOLDER_TEXT|LOREM_IPSUM)\b", "", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\s+([,.;:!?])", r"\1", text)
+    return text.strip()
+
+
+def _material_deterministic_guard(lesson_dict):
+    """Apply zero-cost structural QA without inventing linguistic content."""
+    if not isinstance(lesson_dict, dict) or not isinstance(lesson_dict.get("pages"), list):
+        return lesson_dict
+
+    def clean_deep(obj):
+        if isinstance(obj, dict):
+            return {k: clean_deep(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [clean_deep(v) for v in obj]
+        if isinstance(obj, str):
+            return _material_clean_scalar(obj)
+        return obj
+
+    data = clean_deep(lesson_dict)
+    clean_pages = []
+    seen_mcq_prompts = set()
+
+    for page in data.get("pages", []):
+        if not isinstance(page, dict):
+            continue
+
+        is_mcq = page.get("type") == "mcq" or bool(page.get("prompt"))
+        if is_mcq:
+            prompt = str(page.get("prompt") or "").strip()
+            answer = str(page.get("answer") or "").strip()
+            options = page.get("options") or []
+            distractors = page.get("distractors") or []
+
+            if not options and answer and isinstance(distractors, list):
+                options = [answer] + list(distractors)
+
+            uniq = []
+            seen = set()
+            for opt in options if isinstance(options, list) else []:
+                txt = str(opt).strip()
+                key = unicodedata.normalize("NFKC", txt).casefold()
+                if txt and key not in seen:
+                    seen.add(key)
+                    uniq.append(txt)
+
+            ans_key = unicodedata.normalize("NFKC", answer).casefold()
+            if answer and ans_key not in seen:
+                uniq.insert(0, answer)
+
+            if not prompt or not answer or len(uniq) != 4:
+                continue
+
+            prompt_key = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", prompt).casefold()).strip()
+            if prompt_key in seen_mcq_prompts:
+                continue
+            seen_mcq_prompts.add(prompt_key)
+
+            page["options"] = uniq
+            page["distractors"] = [o for o in uniq if unicodedata.normalize("NFKC", o).casefold() != ans_key]
+            if len(page["distractors"]) != 3:
+                continue
+
+        clean_pages.append(page)
+
+    data["pages"] = clean_pages
+    return data
+
+
+def _apply_material_patch(root, path, value):
+    """Safely apply a reviewer patch only to an existing lesson field."""
+    if not isinstance(path, str) or not path.startswith("pages."):
+        return False
+    parts = path.split(".")
+    cur = root
+    try:
+        for part in parts[:-1]:
+            if isinstance(cur, list):
+                cur = cur[int(part)]
+            elif isinstance(cur, dict):
+                if part not in cur:
+                    return False
+                cur = cur[part]
+            else:
+                return False
+        last = parts[-1]
+        if isinstance(cur, list):
+            idx = int(last)
+            if idx < 0 or idx >= len(cur):
+                return False
+            cur[idx] = value
+            return True
+        if isinstance(cur, dict) and last in cur:
+            if not isinstance(value, (str, int, float, bool, list, dict)) and value is not None:
+                return False
+            cur[last] = value
+            return True
+    except (ValueError, IndexError, KeyError, TypeError):
+        return False
+    return False
+
+
+def _material_publication_audit(lesson_dict, language, level):
+    """Independent, patch-only publication audit. One compact call; no full regeneration."""
+    data = _material_deterministic_guard(lesson_dict)
+    if not isinstance(data, dict) or not data.get("pages"):
+        return data
+
+    # Keep the audit payload structurally complete. Lesson outputs are already bounded by
+    # the generation token limit; truncating raw JSON can hide tail-page defects and break
+    # reviewer path addressing.
+    def _compact_review_payload(value):
+        if isinstance(value, list):
+            return [_compact_review_payload(v) for v in value]
+        if isinstance(value, dict):
+            return {k: _compact_review_payload(v) for k, v in value.items() if k not in {"correct_index", "distractors", "id", "uuid", "source_hash", "content_hash", "generated_at", "updated_at"} and not str(k).startswith("_")}
+        return value
+    payload = json.dumps(_compact_review_payload(data), ensure_ascii=False, separators=(",", ":"))
+
+    audit_system = f"""You are AulaAI's independent final publication editor for {language} at CEFR {level}.
+You are reviewing an ALREADY GENERATED lesson, not creating a new lesson.
+Return ONLY a JSON object with this exact shape:
+{{"patches":[{{"path":"pages.0.items.1.example","value":"replacement"}}],"remove_pages":[]}}
+
+MISSION: make only high-confidence surgical repairs required for publication quality. Do not rewrite correct content for stylistic preference.
+AULAAI_MATERIAL_QUALITY_V33_WHOLE: Act as a publication editor, not a stylist. Preserve correct content and repair only real defects. Do not flag harmless metalinguistic notation, common abbreviations, contrast markers, product names, proper nouns, or quoted source material merely because they contain a different script. A defect is something that can misteach, contradict, corrupt, confuse, or visibly lower publication quality.
+
+Every target-language sentence, table cell, dialogue turn and assessment item must be grammatical, idiomatic, complete and appropriate to the requested CEFR level. Check predicates/copulas where required, valency, agreement, case/adposition government, articles/determiners, particles/clitics, classifiers/counters, tense/aspect/mood, polarity, word order, reference, register and collocation. A correct conclusion with a false explanation is wrong.
+
+Cross-check every rule against every example, translation, table, dialogue and question. Keep person, number, gender where relevant, quantity, time, place, definiteness, role, referent and communicative force aligned. Reject literal calques, false friends, invented morphology/etymology, malformed Unicode, missing symbols, foreign-language leakage inside instructional fields, mismatched table columns, and true mixed-script corruption inside a single target-language token. Do not treat harmless standalone Latin abbreviations or metalinguistic markers such as vs, IPA, CEFR, A1, B2, URLs, product names, or proper nouns as mixed-script corruption. For non-Latin target languages, only flag script integrity when a single token that is meant to be in the target language is internally contaminated by foreign-script letters, or when a clearly target-language field contains a foreign-language word that is not intentionally quoted or explained.
+
+Instructional-language purity: explanations, glosses, role labels, parentheticals, answer rationales, notes and metadata stay in the selected instructional language, except target-language material intentionally being taught. Do not emit English role labels or glosses inside Turkish materials, or vice versa. If a dialogue role is needed, write it only in the configured instructional language. Never embed a foreign gloss inside a target-language sentence when an instructional-language equivalent is available.
+
+Unicode integrity: output valid normalized Unicode only. Never emit replacement characters, noncharacters, surrogates, broken control characters, or invisible corruption inside words. Preserve legitimate combining marks, diacritics, IPA symbols and language-specific punctuation. If a character is uncertain, regenerate that token correctly rather than inventing punctuation or deleting meaningful letters.
+
+Pronunciation consistency: use one learner-facing pronunciation representation system per document unless another representation is explicitly introduced as a separate named teaching object. Do not mix IPA with ad-hoc learner respelling such as ma-la-KO, mit-RO, ye-vo, etc. If IPA is used, keep all pronunciation fields in IPA; plain orthographic stress marks in target-script examples are allowed and are not a second pronunciation system. Phonemic notation, transliteration and romanization may appear only when explicitly labeled and pedagogically necessary; otherwise omit them. Pronunciation claims must preserve conditioning by stress, position, neighboring sounds and register. Never turn a beginner approximation into exceptionless phonetic truth.
+
+Teach only claims whose scope is accurate. Distinguish productive rules, tendencies, restricted patterns, lexical conventions, irregular forms and exceptions. Never turn a beginner shortcut, pronunciation approximation or cultural tendency into an exceptionless rule. Absolute wording equivalent to always, never, only, every, no exceptions is allowed only when the statement is genuinely exceptionless in the intended scope; otherwise qualify it precisely.
+
+Prefer coherent coverage over breadth. Do not introduce a grammatical mechanism merely as an unexplained example. If a form depends on a case, agreement pattern, aspect, particle or other mechanism not taught enough for the learner to interpret it, either give the minimum complete explanation needed at this level or replace the example with one using already taught knowledge. Do not leave half-taught paradigms: when a lesson explicitly teaches a paradigm, cover the forms needed by its own examples; otherwise label incidental forms as fixed chunks and do not imply the full paradigm was taught. Do not add advanced content only for completeness. For A1-A2, prioritize high-frequency communicative goals, short transparent explanations, manageable progression and clear unit boundaries; optional future-level concepts may be named in one brief preview only when they prevent a likely misconception.
+
+Keep native script authentic and consistent; transliteration may support it but not replace it unless explicitly taught/tested. Keep dialogue roles, politeness and deixis coherent. Preserve natural textbook style instead of overcorrecting valid variation.
+
+Every MCQ must have exactly one defensible answer, four plausible distinct same-category options, a key equal to one option, and an explanation supporting that same answer from taught language knowledge rather than trivia, arithmetic, stereotypes or category guessing. Before finalizing an MCQ, solve it again from the stem without trusting the existing key; then make the key and explanation match that independently derived answer. Do not reject a sound question merely because distractors are simple; reject only if more than one option is genuinely defensible, the keyed answer is wrong, or the explanation contradicts the item.
+
+Before returning final JSON, silently perform one same-call release pass: (1) real target-token script corruption absent, (2) one learner-facing pronunciation system, (3) every example uses taught knowledge or is explicitly treated as a fixed chunk/minimally explained, (4) every MCQ key independently re-solved and consistent. Repair defects inside the same response. Do not add a second model call, retry loop, audit object, score report, or extra output fields. When uncertain, simplify or remove the questionable claim instead of guessing.
+
+UNIVERSAL RELEASE INTEGRITY:
+- MCQ SELF-CONSISTENCY: every MCQ has exactly four distinct non-empty options and exactly one defensible keyed answer. The answer must be one option, and the explanation must defend that same answer rather than naming, implying, calculating, translating, or justifying another one. Repair stem/options/answer/explanation together when needed.
+- INTERNAL CONSISTENCY: compare every rule, summary, example, dialogue, table and assessment claim inside the lesson. No later statement may contradict an earlier taught rule, and no explanation may classify a meaning or construction under the wrong grammatical category merely because a nearby pattern looks similar.
+- RULE-SCOPE CALIBRATION: distinguish productive rules from regular tendencies, restricted patterns, lexical conventions and exceptions. Do not say all/always/never/only/must/impossible/without exception unless the explicitly stated scope is genuinely exceptionless. Cultural tendencies and usage preferences must be scoped as typical/common/standard where appropriate rather than universalized.
+- WRITING-SYSTEM INTEGRITY: non-Latin target-language text uses authentic native script for ordinary examples, dialogues and assessments. Romanization/transliteration may supplement it or be the explicit skill under test, but may not silently replace native script.
+- PHONETIC/NOTATION TRUTH: IPA, phonemic notation, transliteration, romanization and learner respelling remain distinguishable. A pedagogical approximation is never presented as exact phonetic truth.
+- MEANING AND CAUSALITY: preserve person, number, polarity, time, quantity, role, referent and communicative force. Never invent morphology, etymology, derivation or a productive rule from surface resemblance.
+- TABLE/DIALOGUE COHERENCE: vocabulary columns describe the same lexical item and sense; dialogue roles, politeness, demonstratives and references stay coherent.
+- CEFR FIT: keep A1-A2 concrete and transparent, B1-B2 productively contextual, C1-C2 nuanced. Do not rewrite correct material for elegance alone.
+AULAAI_MATERIAL_QUALITY_V33_PUBLICATION: Prefer preserving acceptable wording; change content only when correctness, meaning, consistency, or assessment validity is materially affected. Act as a publication editor, not a stylist. Preserve correct content and repair only real defects. Do not flag harmless metalinguistic notation, common abbreviations, contrast markers, product names, proper nouns, or quoted source material merely because they contain a different script. A defect is something that can misteach, contradict, corrupt, confuse, or visibly lower publication quality.
+
+Every target-language sentence, table cell, dialogue turn and assessment item must be grammatical, idiomatic, complete and appropriate to the requested CEFR level. Check predicates/copulas where required, valency, agreement, case/adposition government, articles/determiners, particles/clitics, classifiers/counters, tense/aspect/mood, polarity, word order, reference, register and collocation. A correct conclusion with a false explanation is wrong.
+
+Cross-check every rule against every example, translation, table, dialogue and question. Keep person, number, gender where relevant, quantity, time, place, definiteness, role, referent and communicative force aligned. Reject literal calques, false friends, invented morphology/etymology, malformed Unicode, missing symbols, foreign-language leakage inside instructional fields, mismatched table columns, and true mixed-script corruption inside a single target-language token. Do not treat harmless standalone Latin abbreviations or metalinguistic markers such as vs, IPA, CEFR, A1, B2, URLs, product names, or proper nouns as mixed-script corruption. For non-Latin target languages, only flag script integrity when a single token that is meant to be in the target language is internally contaminated by foreign-script letters, or when a clearly target-language field contains a foreign-language word that is not intentionally quoted or explained.
+
+Instructional-language purity: explanations, glosses, role labels, parentheticals, answer rationales, notes and metadata stay in the selected instructional language, except target-language material intentionally being taught. Do not emit English role labels or glosses inside Turkish materials, or vice versa. If a dialogue role is needed, write it only in the configured instructional language. Never embed a foreign gloss inside a target-language sentence when an instructional-language equivalent is available.
+
+Unicode integrity: output valid normalized Unicode only. Never emit replacement characters, noncharacters, surrogates, broken control characters, or invisible corruption inside words. Preserve legitimate combining marks, diacritics, IPA symbols and language-specific punctuation. If a character is uncertain, regenerate that token correctly rather than inventing punctuation or deleting meaningful letters.
+
+Pronunciation consistency: use one learner-facing pronunciation representation system per document unless another representation is explicitly introduced as a separate named teaching object. Do not mix IPA with ad-hoc learner respelling such as ma-la-KO, mit-RO, ye-vo, etc. If IPA is used, keep all pronunciation fields in IPA; plain orthographic stress marks in target-script examples are allowed and are not a second pronunciation system. Phonemic notation, transliteration and romanization may appear only when explicitly labeled and pedagogically necessary; otherwise omit them. Pronunciation claims must preserve conditioning by stress, position, neighboring sounds and register. Never turn a beginner approximation into exceptionless phonetic truth.
+
+Teach only claims whose scope is accurate. Distinguish productive rules, tendencies, restricted patterns, lexical conventions, irregular forms and exceptions. Never turn a beginner shortcut, pronunciation approximation or cultural tendency into an exceptionless rule. Absolute wording equivalent to always, never, only, every, no exceptions is allowed only when the statement is genuinely exceptionless in the intended scope; otherwise qualify it precisely.
+
+Prefer coherent coverage over breadth. Do not introduce a grammatical mechanism merely as an unexplained example. If a form depends on a case, agreement pattern, aspect, particle or other mechanism not taught enough for the learner to interpret it, either give the minimum complete explanation needed at this level or replace the example with one using already taught knowledge. Do not leave half-taught paradigms: when a lesson explicitly teaches a paradigm, cover the forms needed by its own examples; otherwise label incidental forms as fixed chunks and do not imply the full paradigm was taught. Do not add advanced content only for completeness. For A1-A2, prioritize high-frequency communicative goals, short transparent explanations, manageable progression and clear unit boundaries; optional future-level concepts may be named in one brief preview only when they prevent a likely misconception.
+
+Keep native script authentic and consistent; transliteration may support it but not replace it unless explicitly taught/tested. Keep dialogue roles, politeness and deixis coherent. Preserve natural textbook style instead of overcorrecting valid variation.
+
+Every MCQ must have exactly one defensible answer, four plausible distinct same-category options, a key equal to one option, and an explanation supporting that same answer from taught language knowledge rather than trivia, arithmetic, stereotypes or category guessing. Before finalizing an MCQ, solve it again from the stem without trusting the existing key; then make the key and explanation match that independently derived answer. Do not reject a sound question merely because distractors are simple; reject only if more than one option is genuinely defensible, the keyed answer is wrong, or the explanation contradicts the item.
+
+Before returning final JSON, silently perform one same-call release pass: (1) real target-token script corruption absent, (2) one learner-facing pronunciation system, (3) every example uses taught knowledge or is explicitly treated as a fixed chunk/minimally explained, (4) every MCQ key independently re-solved and consistent. Repair defects inside the same response. Do not add a second model call, retry loop, audit object, score report, or extra output fields. When uncertain, simplify or remove the questionable claim instead of guessing.
+
+FINAL-RELEASE PRINCIPLES:
+- A correct answer or final form with an incorrect explanation is still a publication defect. Verify the linguistic CAUSE, not only the conclusion.
+- Never explain lexical exceptions, indeclinable words, irregular forms, pronunciation exceptions, or conventional constructions as if they followed an ordinary surface-ending rule.
+- Every MCQ must be answerable primarily from taught target-language knowledge. Reject questions whose answer is really determined by common sense, object-function guessing, family relationships, arithmetic, stereotypes, trivia, or other world knowledge.
+- Mere occurrence in an example does not make a form testable. The required grammar, vocabulary meaning, and carrier language must have been explicitly taught before the question.
+- Prefer contextual application and comprehension over bare dictionary translation when the lesson already supplies a natural taught context.
+- Phonetic/transcription claims must distinguish exact facts from learner approximations; do not overstate simplified pronunciation cues as exact phonetics.
+- If a question tests target-language knowledge, the decisive stem/options must contain target-language evidence; do not use material-language-only options as a substitute.
+- TARGET-LANGUAGE OPTION INVARIANT: if the keyed answer is a target-language word, phrase, sentence, inflected form, or cultural expression being learned as language, ALL answer options must be expressed in the target language (except genuinely language-neutral numerals/symbols). A translated gloss may appear in the stem only as support; it may never replace the target-language answer set.
+- Reject MCQs solvable mainly by common sense, object-function guessing, family relations, arithmetic, stereotypes, or trivia; knowing the taught target language must be necessary.
+- COUNTERFACTUAL LANGUAGE-NECESSITY TEST (SURGICAL): for every MCQ, mentally remove or obfuscate the target-language words/forms from stem and options while preserving the material-language scenario, real-world facts, commonsense cues and number sequence. If the keyed answer can still be identified with high confidence, rewrite the item so a previously taught target-language form, meaning, grammatical contrast or communicative function becomes decisive. Reject object-function inference, room/object commonsense, family-relation deduction, arithmetic/sequence completion, stereotypes, trivia and category guessing when external knowledge supplies the answer. Keep legitimate real-life contexts when taught language remains necessary.
+- Reject shallow dictionary/category recall when a natural taught-language context can test the same objective. Prefer contextual comprehension or use over bare recall.
+- Replace subjective claims that a language/culture is beautiful, logical, melodic, easy, hard, superior, etc. with neutral communicative examples.
+- Verify the rule that CAUSES a form, not only the final answer; exceptions and indeclinables must not be justified by superficial spelling.
+- MORPHOLOGICAL CAUSALITY: never infer a prefix, suffix, root boundary, derivation, etymology, or morpheme function merely from a visible letter sequence. Only give a decomposition when it is certainly valid for that lexical item.
+- PHONETIC EPISTEMIC LABELING: keep exact phonetic transcription separate from learner-friendly respelling. If using a pedagogical approximation, label it explicitly and never present it as exact IPA/phonetic truth.
+
+HARD AUDIT GATES:
+1. TARGET-LANGUAGE ACCURACY: inspect every target-language example, dialogue, rule example, MCQ stem and option. Reject malformed morphology, wrong particles/cases/prepositions, invalid numeral/classifier/counter syntax, unnatural valency, impossible collocations, wrong agreement, bad conjugation, or invented forms. A vocabulary example must itself be a fully natural sentence or phrase in {language}; never copy English-style noun counting or word order into {language}.
+2. NATIVE NATURALNESS: prefer the shortest ordinary native construction appropriate to CEFR {level}. Repair textbook-sounding but non-native combinations only when clearly defective.
+3. CEFR SCOPE: at A1/A2 remove or simplify specialist theory, rare exceptions, historical linguistics, dialectology, advanced prosody/pitch-accent theory, and advanced register analysis unless the topic explicitly requires it.
+4. BILINGUAL ENTAILMENT: target-language text, English, and Turkish must express the same proposition. Preserve person, number, tense, polarity, quantity, place, and referent. Do not add information absent from the target sentence.
+5. ENTITY LOCK: keep each person's/place's identity consistent across script, romanization/localization, dialogue and translation. Normal transliteration differences are allowed (for example Japanese ミラー may correctly correspond to Miller); accidental identity mutation is not.
+6. CONTAMINATION: remove editor/model debris, placeholder tokens, foreign garbage, control-character leakage, or unrelated words embedded in translations.
+7. MCQ VALIDITY: exactly one answer must be defensible from content explicitly taught BEFORE the question. Required vocabulary and grammar must already be taught. No family-tree logic, arithmetic, outside knowledge, hidden future content, or merely-incidental grammar.
+8. MCQ DIVERSITY: within this lesson, do not spend two MCQs on the same learning objective using the same cognitive operation. Keep the stronger item and either surgically retarget the weaker one to another explicitly taught objective or put its page index in remove_pages.
+9. DISTRACTORS: all four options must be plausible, same-category, CEFR-appropriate, and pedagogically useful; no random fillers or malformed nonsense unless the lesson explicitly tests that exact learner error.
+10. PEDAGOGICAL SEQUENCING: explanation precedes assessment; examples do not secretly require untaught structures; headings accurately describe their content.
+11. CONSERVATIVE EDITING: if you cannot prove a change is necessary, do not patch it. Never introduce new facts, rules, vocabulary, or cultural claims.
+
+PATCH RULES:
+- Paths must point to EXISTING fields in the supplied JSON.
+- Use remove_pages only for an irreparable/duplicate/unsupported page; indices are zero-based.
+- Return no commentary, scores, or reasoning."""
+
+    try:
+        review = _call_ai(
+            [{"role": "system", "content": audit_system},
+             {"role": "user", "content": "Audit this lesson and return only necessary patches:\n" + payload}],
+            model=MODEL_STRUCTURAL,
+            max_tokens=3200,
+            temperature=0.05,
+            json_mode=True,
+            allow_fallback=False,
+        )
+    except Exception as exc:
+        print(f"[MATERIAL-QA] audit skipped after error: {exc}")
+        return data
+
+    if not isinstance(review, dict):
+        return data
+
+    patches = review.get("patches") or []
+    if isinstance(patches, list):
+        for patch in patches[:80]:
+            if not isinstance(patch, dict):
+                continue
+            _apply_material_patch(data, patch.get("path", ""), patch.get("value"))
+
+    remove_pages = review.get("remove_pages") or []
+    if isinstance(remove_pages, list):
+        valid = sorted(
+            {i for i in remove_pages if isinstance(i, int) and 0 <= i < len(data.get("pages", []))},
+            reverse=True,
+        )
+        for idx in valid:
+            if len(data.get("pages", [])) <= 3:
+                break
+            data["pages"].pop(idx)
+
+    data = _material_deterministic_guard(data)
+    print(f"[MATERIAL-QA] publication audit applied: {len(patches) if isinstance(patches, list) else 0} patches")
+    return data
+
+
+def _publication_text_sanitation(data, language=None):
+    """Normalize characters in every string, without changing structure or meaning.
+
+    This is the only transformation permitted after the publication boundary. It
+    may not add, remove, reorder or reinterpret content: it exists so that prose
+    the bounded reviewer rewrote still reaches the PDF with a clean text layer.
+    """
+    try:
+        from services.material_quality_guard import safe_unicode_normalize
+    except Exception:
+        return data
+
+    def walk(node):
+        if isinstance(node, dict):
+            return {k: walk(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [walk(v) for v in node]
+        if isinstance(node, str):
+            return safe_unicode_normalize(node, language)
+        return node
+
+    try:
+        return walk(data)
+    except Exception:
+        return data
+
+
+def _material_release_integrity_v37(data, language, level, material_language="tr"):
+    """Deterministic final fail-closed validation; semantic work is done by the single publication audit."""
+    from services.material_quality_guard import enforce_material_integrity
+    return enforce_material_integrity(data, language=language, material_language=material_language) if isinstance(data, dict) else data
 
 def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr"):
     """
@@ -3244,211 +3657,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     source_rule = f"\n\nPRIMARY SOURCE MATERIAL (use this as reference):\n{source_text[:8000]}" if source_text else ""
 
     # Build clean, universal, professor-level prompt with full pedagogical freedom
-    system_prompt = f"""<role>You are a distinguished university professor and master pedagogue specializing in {language} language education, authoring authoritative, textbook-quality lessons strictly adhering to the standards of {official_institution} and the Council of Europe CEFR framework for CEFR Level {level} adult learners. You respond ONLY with valid JSON — no markdown fences, no text outside JSON.</role>
-
-<official_authority_directive>
-AUTHORITATIVE CURRICULUM MANDATE ({official_institution}):
-This lesson must strictly follow the official competency descriptors, lexical inventories, grammar progressions, and communicative milestones established by {official_institution} for CEFR Level {level}.
-- Maintain high academic rigor, first-principles explanations, and exhaustive educational depth.
-- Never write shallow, brief summaries or placeholder content. Treat every topic with the depth of a university textbook chapter.
-</official_authority_directive>
-
-<pedagogical_freedom>
-PEDAGOGICAL INITIATIVE & ARCHITECTURE:
-As a master professor, you have complete pedagogical freedom and academic initiative over how to structure, format, and teach '{topic}'.
-- Decide the optimal combination and number of pages (overview, vocabulary cards, grammar rules, comparisons, authentic dialogues, or formative assessments) that best serve this specific topic.
-- Completeness Mandate: If a topic covers a defined structural inventory (such as the complete alphabet/writing system of {language} or a specific number range like 0 to 30), you MUST provide a complete, unbroken, consecutive inventory without skipping any items.
-- Teach with engaging, adult, real-life relevance.
-</pedagogical_freedom>
-
-<natural_authenticity_mandate>
-AUTHENTICITY, NATURAL PROSE & TEXTBOOK QUALITY (TOP PEDAGOGICAL DIRECTIVE):
-Every sentence, dialogue utterance, explanation, and translation MUST sound completely natural, organic, lively, and idiomatic—just like a modern published language textbook (e.g., Cambridge University Press, Oxford, Assimil, Instituto Cervantes).
-1. STRICT BAN ON MECHANICAL / ROBOTIC SENTENCES:
-   - Forbid stiff, formulaic clichés (e.g. NEVER generate sterile robotic tropes like "The entity possesses an apple", "The boy goes to the store", "He speaks with aptitude").
-   - Every single example sentence must be authentic, situational, and reflect what real native speakers actually say in daily life.
-   - Ground examples in realistic modern scenarios: friendly banter, cafe and restaurant orders, genuine workplace situations, travel dilemmas, spontaneous questions, humor, emotion, and everyday cultural context.
-2. NATURAL BILINGUAL VOICING (NO CALQUES, NO LITERAL MACHINE TRANSLATIONS):
-   - TURKISH FIELDS ('title_tr', 'text_tr', 'explanation_tr', 'example_tr', 'rule_tr', 'analysis_tr', 'context_tr', 'note_tr', 'pitfall_tr'):
-     * Must sound like a warm, articulate, experienced Turkish language teacher speaking directly to adult students.
-     * Translations must use natural Turkish syntax and real Turkish idiom.
-     * NEVER use unnatural word-for-word translation calques (e.g. NEVER write "Ben bir kitaba sahibim" -> write "Bir kitabım var"; NEVER write "O yapar kahve içmeyi" -> write "Kahve içmeyi sever").
-     * Grammatical explanations must be intuitive, vivid, and helpful—never dry, impenetrable linguistics jargon.
-   - ENGLISH FIELDS ('title', 'text', 'explanation', 'example_en', 'rule', 'analysis', 'context', 'note', 'pitfall'):
-     * Must read as 100% natural, fluent, modern idiomatic English.
-3. AUTHENTIC DIALOGUES:
-   - Dialogue lines must feel like two living human beings having a real conversation (with natural greetings, reactions, conversational pauses, and authentic tone), not robotic mannequins reading grammar tables aloud.
-4. PRACTICAL COMMUNICATIVE VALUE:
-   - Prioritize phrases and structures that the student can immediately use when traveling, speaking with friends, or navigating life in a country where {language} is spoken.
-</natural_authenticity_mandate>
-
-<anti_patterns_strictly_forbidden>
-ZERO TOLERANCE — STRICTLY FORBIDDEN OUTPUT PATTERNS (universal across all languages):
-
-RULE A — NO FORCED PHONETIC SENTENCES:
-When teaching pronunciation or orthography, NEVER artificially pack all target sounds or letters into a single contrived sentence. Every sentence must sound like natural, everyday speech.
-
-RULE B — NO PARENTHETICAL METALINGUISTIC GLOSSES IN TRANSLATIONS:
-Instructional-language translations must be clean, direct, and idiomatic translations—never grammar lectures or morphological disclaimers embedded inside parentheses.
-
-RULE C — NO TENSE OR FUNCTIONAL CALQUES FOR COMMUNICATIVE SPEECH ACTS:
-When the target language uses a conventionalized politeness formula or communicative speech act, translate its communicative function using the natural target/instructional idiom—never a literal word-for-word tense calque.
-
-RULE D — NO UNNATURAL SYNTACTIC CALQUES FOR POSSESSION OR EXISTENCE:
-Translate possession, existence, and relational states using the natural syntactic structures of the respective languages (e.g. natural existential/predicative structures), never bureaucratic or literal calques.
-
-RULE E — NO UNNATURAL INTENSIFIERS WITH UNGRADABLE ADJECTIVES:
-Adjectives that express absolute or ungradable states must not be modified with unnatural degree adverbs (e.g. 'very essential', 'very unique', 'çok devasa').
-
-RULE F — ALL EXAMPLE SENTENCES MUST BE IDIOMATIC AND NATURALLY EMBEDDED:
-All examples and dialogue turns in the target language and instructional languages must be fluent, contemporary, and free from translationese, mechanical parallelisms, or artificial textbook tropes.
-</anti_patterns_strictly_forbidden>
-
-<bilingual_pedagogical_tracks>
-STRICT TWO-TRACK SEPARATION & PHONOLOGICAL GROUNDING:
-You are authoring two completely independent, self-contained pedagogical tracks simultaneously in the exact same output:
-
-TRACK 1 — ENGLISH PEDAGOGICAL TRACK ('title', 'text', 'explanation', 'example_en', 'rule', 'analysis', 'context', 'note', 'pitfall'):
-- Target Learner: Native English speaker learning {language}.
-- Reference Frame: Explain grammar and pronunciation exclusively from an English-speaker's linguistic perspective, using natural English phonetic anchors and articulatory descriptions.
-- Natural Voice: Flowing, idiomatic English textbook prose.
-- ABSOLUTE BAN IN ENGLISH TRACK: NEVER mention the Turkish language, Turkish letters, Turkish words, or Turkish phonetics in ANY English field. ZERO references to Turkish. The English track must read as a 100% native English textbook.
-
-TRACK 2 — TURKISH PEDAGOGICAL TRACK ('title_tr', 'text_tr', 'explanation_tr', 'example_tr', 'rule_tr', 'analysis_tr', 'context_tr', 'note_tr', 'pitfall_tr'):
-- Target Learner: Native Turkish speaker learning {language}.
-- Reference Frame: Explain grammar and pronunciation exclusively from a Turkish-speaker's linguistic perspective, using natural Turkish linguistic and phonetic reference points.
-- REGISTER & STYLE: Turkish explanations must be natural, warm, fluent, and professional (avoid stiff machine translation or robot calques).
-- ABSOLUTE BAN IN TURKISH TRACK: NEVER compare target sounds to English reference words (e.g. never write "'Father'daki a", "'Cat'teki a").
-</bilingual_pedagogical_tracks>
-{source_rule}
-
-<strict_rules_and_comparisons_mandate>
-STRICT GROUNDING & SOURCE PROVENANCE FOR RULES (pages[].rules) & COMPARISONS (pages[].comparisons):
-1. STRICT STRUCTURAL BOUNDARY:
-   - 'pages[].rules' is RESERVED EXCLUSIVELY for explicit grammatical rules, verb conjugations/inflections, morphological affixation, syntactic word-order constraints, orthographic accentuation rules, or phonological rules explicitly taught by the source material.
-   - ABSOLUTELY FORBIDDEN IN 'rules':
-     * Pedagogical overview statements or meta-commentary (e.g. 'Language X is phonetic', 'pronunciation follows rules').
-     * Vocabulary lists, noun categories, or thematic word groupings (e.g. 'ticket types', 'family member words').
-     * Conversational formulas or pragmatic advice (e.g. 'be polite').
-   - 'pages[].comparisons' is RESERVED EXCLUSIVELY for explicit grammatical, morphological, syntactic, or aspectual contrasts explicitly taught by the source (e.g. aspectual contrasts, copula distinctions, definite vs. indefinite determiners, grammatical concord).
-   - ABSOLUTELY FORBIDDEN IN 'comparisons':
-     * Lexical near-synonyms or real-world item pairs (e.g. 'window seat vs aisle seat', 'garment size vs shoe size', 'tea vs coffee').
-     * Conversational courtesy formulas (e.g. 'excuse me vs pardon').
-     * These MUST remain exclusively in 'items' or 'text'.
-2. SEPARATING CORE FORM/FUNCTION FROM CONTEXTUAL & PRAGMATIC EFFECTS:
-   - Separate core form/function meaning from register, discourse effect, speaker attitude, pragmatic implication, intensity, continuity, certainty, evaluation, politeness, irony, skepticism, legal effect, or other meanings contributed by the surrounding sentence.
-   - Store those ONLY when the original material explicitly teaches them as part of that target form.
-3. STRICT SOURCE PROVENANCE & IDENTIFIABLE EVIDENCE:
-   - Every single rule in 'pages[].rules' and comparison in 'pages[].comparisons' MUST be directly traced to concrete evidence in the original lesson source material.
-   - Provide 'source_evidence' (verbatim textual quote or concrete structural excerpt from the source) and 'source_taught' (the core structural property explicitly taught).
-   - BAN ON SECONDARY EVIDENCE: Model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must NEVER count as evidence for a rule.
-4. NO RULE CREATION BY MERE OCCURRENCE (OMIT IF INSUFFICIENT EVIDENCE):
-   - Do NOT create a rule merely because a word or form appears in the source.
-   - If the original source does not provide sufficient concrete evidence for a defensible structural rule or contrast, OMIT the rule instead of synthesizing one (return 'rules': [] and/or 'comparisons': []).
-5. AUTHENTIC EXAMPLES & NATURAL COMPARISONS:
-   - Preserve authentic examples and comparisons ('pages[].comparisons') ONLY when they are natural, source-supported, and do not overgeneralize.
-</strict_rules_and_comparisons_mandate>
-
-<output_schema>
-Return ONLY valid JSON matching this schema:
-{{
-  "pages": [
-    {{
-      "type": "overview" | "vocabulary" | "grammar" | "examples" | "mcq",
-      "title": "Page title in English",
-      "title_tr": "Page title in Turkish",
-      "text": "Detailed pedagogical text in English (for overview/grammar)",
-      "text_tr": "Detailed pedagogical text in Turkish (for overview/grammar)",
-      "items": [
-        {{
-          "term": "Word, character, or phrase in {language}",
-          "phonetic": "[IPA / phonetic guide]",
-          "translation": "English meaning or name",
-          "translation_tr": "Turkish meaning or name",
-          "example": "Authentic example in {language}",
-          "example_en": "English translation",
-          "example_tr": "Turkish translation",
-          "explanation": "Pronunciation cue or usage note in English",
-          "explanation_tr": "Pronunciation cue or usage note in Turkish"
-        }}
-      ],
-      "rules": [
-        {{
-          "rule": "Grammar rule in English (only if explicitly taught structural rule; zero meta-overviews or vocab labels)",
-          "rule_tr": "Grammar rule in Turkish",
-          "explanation": "Core structural/semantic breakdown (only directly supported core properties; zero contextual/pragmatic speculations)",
-          "explanation_tr": "Pedagogical breakdown in Turkish",
-          "example": "Example in {language}",
-          "example_en": "English translation",
-          "example_tr": "Turkish translation",
-          "analysis": "Analysis in English",
-          "analysis_tr": "Analysis in Turkish",
-          "source_evidence": "Concrete textual quote or structural excerpt from source material",
-          "source_taught": "Core structural property explicitly taught by the source",
-          "provenance": "source_explicit" | "source_inherent"
-        }}
-      ],
-      "comparisons": [
-        {{
-          "context": "Source-supported grammatical/syntactic contrast context in English",
-          "context_tr": "Karşılaştırma bağlamı Türkçe",
-          "target": "Grammatical contrast pair in {language} (zero lexical/object pairs)",
-          "translation": "English contrast",
-          "translation_tr": "Turkish contrast",
-          "note": "Precise grammatical note (natural, not overgeneralized)",
-          "note_tr": "Turkish note",
-          "source_evidence": "Concrete textual contrast or excerpt from source material",
-          "source_taught": "Specific structural distinction explicitly taught by the source",
-          "provenance": "source_explicit" | "source_inherent"
-        }}
-      ],
-      "dialogue": [
-        {{
-          "speaker": "Speaker",
-          "text": "Utterance in {language}",
-          "line_en": "English translation",
-          "line_tr": "Turkish translation"
-        }}
-      ],
-      "prompt": "Question in {language}",
-      "prompt_en": "Question stem/instruction in English (e.g. 'Complete the sentence:', 'Which sentence is grammatically correct?')",
-      "prompt_tr": "Question in Turkish",
-      "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-      "answer": "Correct answer",
-      "distractors": ["Distractor 1", "Distractor 2", "Distractor 3"],
-      "explanation": "Explanation in English",
-      "explanation_tr": "Explanation in Turkish"
-    }}
-  ]
-}}
-</output_schema>"""
-
-    user_prompt = f"""Generate a complete, exhaustive, textbook-quality {level} {language} lesson on: <topic>{topic} ({topic_type})</topic>
-
-Requirement: Simultaneous bilingual generation (both English and Turkish fields in all pages).
-{f'<source_material>{source_text[:6000]}</source_material>' if source_text else ''}
-
-REASONING DIRECTIVE:
-In your internal reasoning process, plan the pedagogical arc for this {level} {language} lesson:
-1. Target communicative competencies and grammatical structures based on {official_institution} CEFR {level} standards.
-2. Structure the pages with complete academic freedom to best teach this topic.
-3. Authentic & Natural Phrasing:
-   - Target and instructional language: clean, natural, and idiomatic; no parenthetical glosses, no literal translation calques.
-4. Strict Two-Track Isolation:
-   - English fields for English learners (zero Turkish mentions), Turkish fields for Turkish learners (natural Turkish, zero English comparisons).
-5. Completeness: Never skip items in a defined sequence (e.g. alphabets or number ranges).
-6. Strict Grammar Rules & Comparisons Source Boundary (pages[].rules & pages[].comparisons):
-   - A structured rule or comparison may exist only if it can be traced to concrete evidence in the original lesson source itself; model-generated summaries, examples, explanations, translations, inferred notes, previously stored metadata, or other enrichment output must never count as evidence for another rule.
-   - Restrict 'rules' strictly to explicit grammatical, inflectional, morphological, syntactic, orthographic, or phonological rules. Never put meta-commentary, pedagogical overviews, or vocabulary categories in 'rules'.
-   - Restrict 'comparisons' strictly to explicit structural/grammatical contrasts. Never put lexical item pairs (e.g. window seat vs aisle seat) in 'comparisons'.
-   - For each candidate rule/comparison, distinguish what the original source explicitly teaches ('source_taught') from what the enrichment model merely infers; populate 'source_evidence' with direct textual evidence.
-   - Persist only the core linguistic, semantic, pragmatic, discourse, orthographic, pronunciation, or functional property directly supported by source evidence; do not promote contextual effects, optional interpretations, register associations, rhetorical effects, or consequences of the surrounding sentence into inherent properties of the target.
-   - If the original source does not provide sufficient evidence for a defensible structural rule, omit it rather than synthesizing one.
-Then generate the complete, exhaustive JSON lesson structure.
-
-CRITICAL: Do NOT summarize. Do NOT write brief pages. Generate the FULL, DEEP, AUTHENTIC educational content.
-Generate as many pages as this topic requires to be covered at the highest textbook quality.
-Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
+    # AULAAI_CANONICAL_MATERIAL_PROMPT
+    from services.material_generation_prompt import build_material_prompts
+    system_prompt, user_prompt = build_material_prompts(
+        language=language,
+        level=level,
+        topic=topic,
+        topic_type=topic_type,
+        official_institution=official_institution,
+        source_text=source_text,
+    )
 
     lesson_dict = None
     for attempt_idx in range(1, 4):
@@ -3474,12 +3692,19 @@ Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
             page_count = len(norm_dict.get("pages", [])) if isinstance(norm_dict, dict) else 0
             with open("pipeline.log", "a", encoding="utf-8") as f:
                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RETRY] '{topic}' yielded {page_count} pages on attempt {attempt_idx}/3. Retrying same model {MODEL_LESSON}...\n")
-            time.sleep(2.0 * attempt_idx)
+            time.sleep(0.75 * attempt_idx)
 
     if not lesson_dict or not isinstance(lesson_dict, dict) or not _is_substantive_lesson(lesson_dict):
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-SYNTHESIZE] '{topic}' failed model generation; creating guaranteed substantive fallback.\n")
         lesson_dict = synthesize_substantive_lesson(topic, topic_type, language, level, source_text=source_text, material_language=material_language)
+
+    # Structural + Unicode integrity runs BEFORE semantic review, not after it.
+    # Running it afterwards (as this pipeline used to) meant a guard could rewrite
+    # lexical fields and prune pages after the bounded reviewer had already passed
+    # judgement on the text, so what shipped was not what was reviewed.
+    lesson_dict = _material_release_integrity_v37(lesson_dict, language, level, material_language=material_language)
+    lesson_dict = _material_publication_release(lesson_dict, topic, language, level, material_language=material_language)
 
     # Step 2: Check if native Turkish fields are already present (simultaneous bilingual generation)
     has_turkish = False
@@ -3494,12 +3719,17 @@ Respond with ONLY the JSON object. No markdown, no prose outside the JSON."""
                     has_turkish = True
                     break
 
-    # Only run secondary translation fallback if Turkish was not provided natively
+    # Native bilingual lesson fields are authoritative. A second translation
+    # model pass is intentionally disabled: it adds cost/latency and can overwrite
+    # the pedagogy produced by the lesson model.
     if material_language in ["tr", "all"] and not has_turkish:
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-TRANSLATE-FALLBACK] '{topic}' lacks native Turkish, running translator...\n")
-        lesson_dict = translate_lesson_to_turkish(lesson_dict, language=language)
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-BILINGUAL-NATIVE] '{topic}' has incomplete native Turkish fields; no secondary translator will run.\n")
 
+    # Final pass is text sanitation ONLY: it normalizes characters in strings the
+    # reviewer may have rewritten and authors nothing. Anything that can add,
+    # remove or reshape content must run before the publication boundary above.
+    lesson_dict = _publication_text_sanitation(lesson_dict, language)
     return lesson_dict
     
 
@@ -3649,3 +3879,5 @@ def heal_turkish_syntax(text: str) -> str:
         text = text[0].upper() + text[1:]
 
     return text
+
+# AULAAI_RELEASE_HARDENING_V52

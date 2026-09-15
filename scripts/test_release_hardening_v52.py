@@ -26,14 +26,18 @@ def run():
     assert sanitize_instructional_metalanguage("ехать fiili -д- gövdesi alır", "tr") == "ехать fiili gövde 'ед-' biçimine dönüşür"
     assert sanitize_instructional_metalanguage("Bu fiil -д- gövdesi alır", "tr") == "Bu fiil -д- gövdesi alır"
 
+    # The generation schema moved out of ai_engine.py into the canonical prompt
+    # module; these assertions followed the content to where production reads it.
+    prompt_src = (ROOT / "services" / "material_generation_prompt.py").read_text(encoding="utf-8")
+    assert '"speaker_tr": "Turkish role or same proper name"' in prompt_src
+    assert '"speaker_en": "English role or same proper name"' in prompt_src
+    assert '"text": "Utterance only in {language}; no instructional-language gloss words"' in prompt_src
+    assert "never learner respellings" in prompt_src
+    assert "internal counts/list/category consistency" in prompt_src
+    assert "personal name alone" in prompt_src
+
     engine = (ROOT / "services" / "ai_engine.py").read_text(encoding="utf-8")
     assert "AULAAI_RELEASE_HARDENING_V52" in engine
-    assert '"phonetic": "[standard IPA only; never learner respelling]"' in engine
-    assert '"speaker_tr": "Turkish role or same proper name"' in engine
-    assert '"speaker_en": "English role or same proper name"' in engine
-    assert '"text": "Utterance only in {language}; no instructional-language gloss words"' in engine
-    assert "verify every stated count/list/category agrees internally" in engine
-    assert "personal name alone" in engine
 
     print("[V53] precision localization/schema regression tests PASSED")
 

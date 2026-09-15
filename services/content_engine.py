@@ -201,6 +201,133 @@ def _generate_grammar_activity(title, content, difficulty, count, language):
     return activities
 
 
+# ── Unit coverage (multi-unit assessments) ──────────────────────────────────
+
+def resolve_topic_units(topic_ids):
+    """Map each topic to its parent unit (chapter). Returns ``{topic_id: unit_id}``.
+
+    Unit identity comes from the database, never from counting or from a fixed
+    number of units, so this works for any curriculum shape.
+    """
+    from database import db_connection
+    if not topic_ids:
+        return {}
+    placeholders = ",".join("?" for _ in topic_ids)
+    mapping = {}
+    try:
+        with db_connection() as db:
+            rows = db.execute(
+                f"SELECT id, chapter_id FROM topics WHERE id IN ({placeholders})", list(topic_ids)
+            ).fetchall()
+            for row in rows:
+                mapping[row["id"]] = row["chapter_id"]
+    except Exception:
+        return {}
+    return mapping
+
+
+def plan_unit_quota(unit_topic_counts, question_count):
+    """Deterministic per-unit question quota.
+
+    Guarantee: when ``question_count >= number of units``, every unit gets at least
+    one question. Remaining slots are distributed by instructional weight, measured
+    as the number of topics a unit contains (its content breadth), with a stable
+    tie-break so the same curriculum always yields the same plan.
+    """
+    units = list(unit_topic_counts.keys())
+    if not units or question_count <= 0:
+        return {}
+    if question_count < len(units):
+        # Partial coverage is unavoidable: take the broadest units first.
+        ordered = sorted(units, key=lambda u: (-unit_topic_counts.get(u, 0), str(u)))
+        return {u: 1 for u in ordered[:question_count]}
+
+    quota = {u: 1 for u in units}
+    remaining = question_count - len(units)
+    if remaining > 0:
+        weights = {u: max(1, int(unit_topic_counts.get(u, 1))) for u in units}
+        total = sum(weights.values())
+        for unit in sorted(units, key=lambda u: (-weights[u], str(u))):
+            if remaining <= 0:
+                break
+            extra = min(remaining, int(round(remaining * weights[unit] / total)) or 1)
+            quota[unit] += extra
+            remaining -= extra
+        index = 0
+        ordered = sorted(units, key=lambda u: (-weights[u], str(u)))
+        while remaining > 0 and ordered:
+            quota[ordered[index % len(ordered)]] += 1
+            remaining -= 1
+            index += 1
+    return quota
+
+
+def select_with_unit_coverage(candidates, topic_units, question_count, accept=None):
+    """Pick ``question_count`` questions while covering every represented unit first.
+
+    Round 1 takes one acceptable question per unit (in unit order), so no selected
+    unit is silently dropped. Later rounds fill the remaining slots by quota, then
+    by whatever acceptable candidates are left. ``accept(candidate, chosen)`` keeps
+    the caller's duplicate/conflict rules authoritative; this function only controls
+    the ORDER in which candidates are offered, never whether a candidate is valid.
+    """
+    if not candidates or question_count <= 0:
+        return []
+    accept = accept or (lambda cand, chosen: True)
+
+    by_unit = {}
+    unordered = []
+    for cand in candidates:
+        unit = topic_units.get((cand or {}).get("topic_id")) if isinstance(cand, dict) else None
+        if unit is None:
+            unordered.append(cand)
+        else:
+            by_unit.setdefault(unit, []).append(cand)
+
+    units = sorted(by_unit.keys(), key=lambda u: str(u))
+    quota = plan_unit_quota({u: len(by_unit[u]) for u in units}, question_count)
+
+    chosen = []
+    used = set()
+
+    def take_from(pool, limit):
+        taken = 0
+        for cand in pool:
+            if len(chosen) >= question_count or taken >= limit:
+                return taken
+            key = id(cand)
+            if key in used:
+                continue
+            if not accept(cand, chosen):
+                continue
+            chosen.append(cand)
+            used.add(key)
+            taken += 1
+        return taken
+
+    # Round 1: one question per unit - coverage before depth.
+    for unit in units:
+        if len(chosen) >= question_count:
+            break
+        take_from(by_unit[unit], 1)
+
+    # Round 2: fill each unit up to its instructional-weight quota.
+    for unit in units:
+        if len(chosen) >= question_count:
+            break
+        already = sum(1 for c in chosen if topic_units.get((c or {}).get("topic_id")) == unit)
+        target = max(0, quota.get(unit, 1) - already)
+        if target:
+            take_from(by_unit[unit], target)
+
+    # Round 3: any remaining acceptable candidate, regardless of unit.
+    if len(chosen) < question_count:
+        leftovers = [c for unit in units for c in by_unit[unit]] + unordered
+        take_from(leftovers, question_count)
+
+    return chosen[:question_count]
+
+
 def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", existing_questions=None, progress_callback=None, generation_seed=None, focus_directive=None, timing_ctx=None):
     """
     Unified assessment generation engine for both Quizzes and Activities.
@@ -342,7 +469,36 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
 
         # Case B: Multi-topic assessment (e.g. Quiz / Review) -> Balanced cross-topic curriculum
         else:
-            target_ids = py_random.sample(topic_ids, min(6, len(topic_ids))) if len(topic_ids) > 6 else list(topic_ids)
+            # Unit coverage: sample ACROSS units rather than across the flat topic
+            # list. A flat random sample silently starves whole units when one unit
+            # contains more topics than the others, which is what produced quizzes
+            # clustered on two or three units.
+            topic_units_all = resolve_topic_units(topic_ids)
+            units_in_scope = {}
+            for tid in topic_ids:
+                units_in_scope.setdefault(topic_units_all.get(tid, "_unassigned"), []).append(tid)
+            ordered_units = sorted(units_in_scope.keys(), key=lambda u: str(u))
+
+            # Every selected unit must be represented in the syllabus sent to the
+            # model; depth beyond that is filled round-robin so no unit dominates.
+            target_ids = []
+            round_index = 0
+            budget = max(len(ordered_units), min(len(topic_ids), max(8, c_count)))
+            while len(target_ids) < budget:
+                progressed = False
+                for unit in ordered_units:
+                    bucket = units_in_scope[unit]
+                    if round_index < len(bucket):
+                        target_ids.append(bucket[round_index])
+                        progressed = True
+                        if len(target_ids) >= budget:
+                            break
+                if not progressed:
+                    break
+                round_index += 1
+            if not target_ids:
+                target_ids = list(topic_ids)
+
             t_db_start = time.perf_counter()
             placeholders = ",".join("?" for _ in target_ids)
             with db_connection() as db_conn:
@@ -350,10 +506,16 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
             timing_ctx["db_loading"] = time.perf_counter() - t_db_start
 
             t_assembly_start = time.perf_counter()
+            rows_by_id = {r["id"]: r for r in t_rows}
             topics_summary = []
-            for t_row in t_rows:
+            module_topic_ids = []
+            for tid in target_ids:
+                t_row = rows_by_id.get(tid)
+                if not t_row:
+                    continue
                 q_src = get_or_assemble_quiz_source(t_row["id"], t_row["title"], t_row["type"] or "concept", t_row["content"], material_language)
                 topics_summary.append(q_src["multi_topic_summary"])
+                module_topic_ids.append(t_row["id"])
             timing_ctx["structured_lesson_assembly"] = time.perf_counter() - t_assembly_start
 
             t_prov_start = time.perf_counter()
@@ -375,7 +537,20 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
             )
             if new_qs:
                 for q in new_qs:
-                    tid = q.get("topic_id") or py_random.choice(topic_ids)
+                    # Attribute each question to the module it was drawn from so unit
+                    # coverage can be measured and enforced downstream. Random
+                    # attribution made coverage unmeasurable, not merely uneven.
+                    tid = q.get("topic_id")
+                    if not tid:
+                        module_index = q.get("module")
+                        try:
+                            module_index = int(str(module_index).strip())
+                        except Exception:
+                            module_index = None
+                        if module_index and 1 <= module_index <= len(module_topic_ids):
+                            tid = module_topic_ids[module_index - 1]
+                    if not tid:
+                        tid = py_random.choice(module_topic_ids or topic_ids)
                     q_id = str(uuid.uuid4())
                     distractors = q.get("distractors", [])
                     if len(distractors) < 3:
@@ -406,7 +581,8 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                         "why_tr": why_tr,
                         "evidence": q.get("evidence", ""),
                         "material_section": q.get("material_section", ""),
-                        "cognitive_task": q.get("cognitive_task", "")
+                        "cognitive_task": q.get("cognitive_task", ""),
+                        "module": q.get("module")
                     })
 
 

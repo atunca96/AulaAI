@@ -212,6 +212,158 @@ def _uid():
     return str(uuid.uuid4())
 
 
+def _resolve_assessment_topic(db, q, course_id=None, chapter_id=None):
+    """Return a valid topic for grading/mastery without trusting stale draft IDs."""
+    requested = q.get("topic_id") if isinstance(q, dict) else None
+    if requested:
+        row = db.execute("""
+            SELECT t.id FROM topics t
+            JOIN chapters ch ON t.chapter_id = ch.id
+            WHERE t.id = ? AND (? IS NULL OR ch.course_id = ?)
+            LIMIT 1
+        """, (requested, course_id, course_id)).fetchone()
+        if row:
+            return row["id"]
+
+    if chapter_id and chapter_id not in ("all", ""):
+        # The UI normally sends a chapter id, but accept a topic id defensively.
+        row = db.execute("""
+            SELECT t.id FROM topics t
+            JOIN chapters ch ON t.chapter_id = ch.id
+            WHERE ch.id = ? AND (? IS NULL OR ch.course_id = ?)
+            ORDER BY t.sort_order, t.rowid LIMIT 1
+        """, (chapter_id, course_id, course_id)).fetchone()
+        if row:
+            return row["id"]
+        row = db.execute("""
+            SELECT t.id FROM topics t
+            JOIN chapters ch ON t.chapter_id = ch.id
+            WHERE t.id = ? AND (? IS NULL OR ch.course_id = ?)
+            LIMIT 1
+        """, (chapter_id, course_id, course_id)).fetchone()
+        if row:
+            return row["id"]
+
+    if course_id:
+        row = db.execute("""
+            SELECT t.id FROM topics t
+            JOIN chapters ch ON t.chapter_id = ch.id
+            WHERE ch.course_id = ?
+            ORDER BY ch.number, t.sort_order, t.rowid LIMIT 1
+        """, (course_id,)).fetchone()
+        if row:
+            return row["id"]
+    return None
+
+
+def _persist_assessment_question(db, q, course_id=None, chapter_id=None, preferred_id=None):
+    """
+    Persist a publish-time assessment snapshot and return the durable question id.
+    If preferred_id already exists with different content, clone instead of
+    mutating a question that another assessment may already reference.
+    """
+    if not isinstance(q, dict):
+        q = {}
+    prompt = str(q.get("prompt") or "").strip()
+    answer = str(q.get("answer") or "").strip()
+    if not prompt or not answer:
+        raise ValueError("Assessment question is missing prompt or answer")
+
+    qid = str(preferred_id or q.get("id") or _uid())
+    existing = db.execute("SELECT prompt, answer FROM questions WHERE id = ?", (qid,)).fetchone()
+    if existing:
+        same = (str(existing["prompt"] or "").strip() == prompt and
+                str(existing["answer"] or "").strip() == answer)
+        if same:
+            return qid
+        qid = _uid()
+
+    topic_id = _resolve_assessment_topic(db, q, course_id, chapter_id)
+    distractors = q.get("distractors") or []
+    if isinstance(distractors, str):
+        try:
+            parsed = json.loads(distractors)
+            distractors = parsed if isinstance(parsed, list) else [distractors]
+        except Exception:
+            distractors = [d.strip() for d in distractors.split(",") if d.strip()]
+    if not isinstance(distractors, list):
+        distractors = list(distractors) if distractors else []
+    if not distractors and isinstance(q.get("options"), list):
+        distractors = [o for o in q.get("options", []) if str(o).strip() != answer]
+
+    metadata = {
+        "assessment_snapshot": True,
+        "source_question_id": q.get("id"),
+        "translation": q.get("translation"),
+        "translation_en": q.get("translation_en"),
+        "translation_tr": q.get("translation_tr"),
+        "why": q.get("why"),
+        "why_tr": q.get("why_tr"),
+        "evidence": q.get("evidence"),
+        "material_section": q.get("material_section"),
+    }
+    db.execute("""
+        INSERT INTO questions
+            (id, topic_id, type, prompt, answer, distractors, difficulty, metadata, is_active, approved)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+    """, (
+        qid, topic_id, q.get("type", "mcq"), prompt, answer,
+        json.dumps(distractors, ensure_ascii=False), q.get("difficulty") or "custom",
+        json.dumps(metadata, ensure_ascii=False), 1, 1
+    ))
+    return qid
+
+
+def _repair_assessment_questions_from_draft(db, kind, assessment_id, course_id):
+    """
+    Safely repairs already-published broken assessments only when the missing
+    mapping id exactly matches an id still present in the course's draft_result.
+    No fuzzy matching and no invented question association.
+    """
+    if kind == "quiz":
+        map_table, id_col = "quiz_questions", "quiz_id"
+    else:
+        map_table, id_col = "assignment_questions", "assignment_id"
+
+    mapped = db.execute(
+        f"SELECT question_id FROM {map_table} WHERE {id_col} = ? ORDER BY sort_order",
+        (assessment_id,)
+    ).fetchall()
+    if not mapped:
+        return 0
+
+    missing = []
+    for row in mapped:
+        qid = row["question_id"]
+        if not db.execute("SELECT 1 FROM questions WHERE id = ?", (qid,)).fetchone():
+            missing.append(qid)
+    if not missing:
+        return 0
+
+    draft_row = db.execute("SELECT draft_result FROM courses WHERE id = ?", (course_id,)).fetchone()
+    if not draft_row or not draft_row["draft_result"]:
+        return 0
+    try:
+        draft = json.loads(draft_row["draft_result"])
+    except Exception:
+        return 0
+    if not isinstance(draft, list):
+        return 0
+
+    by_id = {str(q.get("id")): q for q in draft if isinstance(q, dict) and q.get("id")}
+    repaired = 0
+    for qid in missing:
+        q = by_id.get(str(qid))
+        if not q:
+            continue
+        _persist_assessment_question(db, q, course_id=course_id, preferred_id=qid)
+        repaired += 1
+    if repaired:
+        db.commit()
+        print(f"[ASSESSMENT-REPAIR] Restored {repaired} missing {kind} question(s) for {assessment_id}")
+    return repaired
+
+
 _activity_tasks = {}
 _activity_tasks_lock = threading.Lock()
 
@@ -926,6 +1078,44 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             lang = "en"
         is_tr = (lang == "tr")
 
+        # AULA_ACADEMIC_PDF_RENDERER_V2
+        # Consolidated production renderer. It is fully local / zero-AI and has
+        # its own legacy-shape + pagination hardening. Keep the proven legacy
+        # exporter below as a final safety fallback.
+        try:
+            from services.pdf_renderer_v12 import render_course_pdf
+            import unicodedata
+            import urllib.parse
+
+            pdf_bytes, academic_course_name = render_course_pdf(course_id, lang)
+
+            # BaseHTTPRequestHandler serializes headers as latin-1. str.isalnum()
+            # accepts Unicode letters, so names such as "İspanyolca", "Çince",
+            # Cyrillic, Chinese, etc. previously survived the sanitizer and could
+            # make Content-Disposition itself crash AFTER a valid PDF had already
+            # been rendered. Keep an ASCII filename fallback and carry the real
+            # UTF-8 name in RFC 5987 filename*= instead.
+            display_filename = f"{academic_course_name}_AulaAI_{lang.upper()}.pdf"
+            ascii_base = unicodedata.normalize("NFKD", str(academic_course_name or "Course_Materials"))
+            ascii_base = ascii_base.encode("ascii", "ignore").decode("ascii")
+            ascii_base = "".join(c if (c.isalnum() or c in "-_") else "_" for c in ascii_base).strip("_") or "Course_Materials"
+            ascii_filename = f"{ascii_base}_AulaAI_{lang.upper()}.pdf"
+            encoded_filename = urllib.parse.quote(display_filename, safe="")
+            disposition = f"attachment; filename={ascii_filename}; filename*=UTF-8''{encoded_filename}"
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", disposition)
+            self.send_header("Content-Length", str(len(pdf_bytes)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(pdf_bytes)
+            return
+        except Exception as academic_pdf_err:
+            print(f"[ACADEMIC PDF FALLBACK] {academic_pdf_err}")
+            traceback.print_exc()
+
         # --- Human-readable topic type labels ---
         TYPE_LABELS = {
             "vocabulary": ("Vocabulary", "Kelime Bilgisi"),
@@ -1019,9 +1209,57 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
 .mcq-opt  { color: #475569; font-size: 8.5pt; margin-bottom: 2px; }
 .mcq-opt.correct { color: #059669; font-weight: bold; }
 .mcq-expl { font-size: 8pt; color: #64748b; margin-top: 5px; border-top: 0.5px solid #bbf7d0; padding-top: 4px; }
+
+/* Print/PDF stability: keep logical blocks together and prevent PyMuPDF Story
+   from producing split rows, orphan headings, overlapping dialogue, or clipped text. */
+* { box-sizing: border-box; }
+body { font-size: 9pt; line-height: 1.4; }
+.cover { page-break-after: avoid; }
+.unit-card { margin-top: 20px; margin-bottom: 10px; page-break-after: avoid; }
+.unit-title { line-height: 1.25; }
+.topic-card { margin-top: 12px; margin-bottom: 16px; }
+.topic-title { line-height: 1.3; page-break-after: avoid; }
+.badge { display: inline-block; vertical-align: middle; white-space: nowrap; margin-left: 6px; padding: 1px 5px; }
+.sec-h { page-break-after: avoid; margin-top: 10px; }
+.text-block, .cmp-box, .mcq-box { page-break-inside: avoid; break-inside: avoid; }
+.diag-line { display: block; page-break-inside: avoid; break-inside: avoid; margin-bottom: 5px; }
+.spkr { display: inline; min-width: 0; margin-right: 4px; }
+.said { display: inline; }
+.said-tr { display: inline; margin-left: 3px; }
+
+table.vt { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 6px 0 10px 0; font-size: 7.8pt; }
+table.vt tr { page-break-inside: avoid; break-inside: avoid; }
+table.vt th, table.vt td { overflow-wrap: anywhere; word-wrap: break-word; line-height: 1.3; }
+table.vt th { padding: 4px 6px; }
+table.vt td { padding: 4px 6px; }
+.term, .phon, .trans, .ex, .ex-tr { overflow-wrap: anywhere; word-wrap: break-word; }
+.mcq-q, .mcq-opt, .mcq-expl { line-height: 1.35; }
+.mcq-opts { margin-left: 10px; }
 """
 
             E = _html.escape
+
+            # PDF export must never invoke an LLM. Reuse translations already stored in DB.
+            pdf_title_map = {}
+            if is_tr:
+                try:
+                    with db_connection() as title_db:
+                        chapter_title_rows = title_db.execute(
+                            """SELECT title, title_tr FROM chapters
+                               WHERE course_id = ? AND title IS NOT NULL AND title != ''""",
+                            (course_id,)
+                        ).fetchall()
+                        topic_title_rows = title_db.execute(
+                            """SELECT t.title, t.title_tr FROM topics t
+                               JOIN chapters ch ON t.chapter_id = ch.id
+                               WHERE ch.course_id = ? AND t.title IS NOT NULL AND t.title != ''""",
+                            (course_id,)
+                        ).fetchall()
+                    for original, translated in list(chapter_title_rows) + list(topic_title_rows):
+                        if original and translated and str(translated).strip():
+                            pdf_title_map[str(original)] = str(translated).strip()
+                except Exception as title_err:
+                    print(f"[PDF EXPORT] Stored title localization fallback: {title_err}")
 
             def tx(page_dict, en_key, tr_key):
                 """Pick the right language text from a dict."""
@@ -1030,6 +1268,8 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 return page_dict.get(en_key) or page_dict.get(tr_key) or ""
 
             parts = [f"<!DOCTYPE html><html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"]
+            answer_key_entries = []
+            question_counter = 0
 
             sem_str = f" ({E(semester)})" if semester else ""
             gen_label = "Kapsamlı Ders Notları ve Alıştırmalar" if is_tr else "Comprehensive Lesson Notes and Exercises"
@@ -1046,8 +1286,9 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 for ch in chapters:
                     ch_id, ch_num, ch_title = ch
                     unit_word = "Ünite" if is_tr else "Unit"
+                    display_ch_title = pdf_title_map.get(ch_title, ch_title) if is_tr else ch_title
                     parts.append(
-                        f'<div class="unit-card"><div class="unit-title">{unit_word} {ch_num}: {E(ch_title or "")}</div></div>'
+                        f'<div class="unit-card"><div class="unit-title">{unit_word} {ch_num}: {E(display_ch_title or "")}</div></div>'
                     )
 
                     topics = db.execute(
@@ -1063,9 +1304,11 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                             except Exception:
                                 pass
 
+                        display_top_title = pdf_title_map.get(top_title, top_title) if is_tr else top_title
+                        topic_fallback = "Konu" if is_tr else "Topic"
                         parts.append(
                             f'<div class="topic-card">'
-                            f'<div class="topic-title">{E(top_title or "Topic")}'
+                            f'<div class="topic-title">{E(display_top_title or topic_fallback)}'
                             f'<span class="badge">{E(type_label(top_type or "lesson"))}</span></div>'
                         )
 
@@ -1093,8 +1336,8 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                                     h_term  = "Terim / Kelime" if is_tr else "Term / Word"
                                     h_trans = "Anlam" if is_tr else "Translation"
                                     h_phon  = "Telaffuz" if is_tr else "Phonetic"
-                                    h_ex    = "Örnek Cümle" if is_tr else "Example"
-                                    h_extr  = "Çevirisi" if is_tr else "Meaning"
+                                    h_ex    = "Hedef Dilde Örnek" if is_tr else "Target-Language Example"
+                                    h_extr  = "Türkçe Çeviri" if is_tr else "English Translation"
                                     parts.append(
                                         f'<table class="vt">'
                                         f'<tr><th style="width:18%;">{h_term}</th>'
@@ -1107,17 +1350,16 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                                         term   = item.get("term") or item.get("word") or ""
                                         phon   = item.get("phonetic") or ""
                                         transl = tx(item, "translation", "translation_tr") or item.get("translation") or ""
-                                        ex     = item.get("example") or item.get("example_en") or ""
-                                        ex_tr  = item.get("example_tr") or item.get("example_en") or ""
+                                        # `example` is the target-language sentence; *_tr / *_en are its translations.
+                                        ex_target = item.get("example") or item.get("example_target") or item.get("target_example") or ""
                                         expl   = tx(item, "explanation", "explanation_tr") or ""
+                                        ex_show = ex_target
                                         if is_tr:
-                                            ex_show = ex_tr
                                             transl_show = item.get("translation_tr") or item.get("translation") or ""
-                                            ex_meaning = item.get("example_en") or ex
-                                        else:
-                                            ex_show = ex
-                                            transl_show = item.get("translation") or item.get("translation_en") or ""
                                             ex_meaning = item.get("example_tr") or ""
+                                        else:
+                                            transl_show = item.get("translation") or item.get("translation_en") or ""
+                                            ex_meaning = item.get("example_en") or ""
                                         parts.append(
                                             f'<tr>'
                                             f'<td><span class="term">{E(str(term))}</span></td>'
@@ -1182,20 +1424,42 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                                 q_title   = tx(page, "title", "title_tr") or ""
                                 if q_title:
                                     parts.append(f'<div class="sec-h">{E(q_title)}</div>')
-                                parts.append(f'<div class="mcq-box"><div class="mcq-q">{E(str(prompt))}</div>')
+                                question_counter += 1
+                                parts.append(f'<div class="mcq-box"><div class="mcq-q">{question_counter}. {E(str(prompt))}</div>')
                                 if options:
                                     parts.append('<div class="mcq-opts">')
-                                    for opt in options:
-                                        is_correct = (str(opt).strip() == str(answer).strip())
-                                        cls = 'mcq-opt correct' if is_correct else 'mcq-opt'
-                                        mark = " &#10003;" if is_correct else ""
-                                        parts.append(f'<div class="{cls}">{E(str(opt))}{mark}</div>')
+                                    for opt_idx, opt in enumerate(options):
+                                        letter = chr(65 + opt_idx)
+                                        parts.append(f'<div class="mcq-opt">{letter}) {E(str(opt))}</div>')
                                     parts.append('</div>')
-                                if expl:
-                                    parts.append(f'<div class="mcq-expl">{E(str(expl))}</div>')
                                 parts.append('</div>')
+                                answer_letter = ""
+                                try:
+                                    answer_letter = chr(65 + [str(o).strip() for o in options].index(str(answer).strip()))
+                                except Exception:
+                                    pass
+                                answer_key_entries.append({
+                                    "number": question_counter,
+                                    "letter": answer_letter,
+                                    "answer": str(answer or ""),
+                                    "explanation": str(expl or "")
+                                })
 
                         parts.append('</div>')  # close topic-card
+
+            if answer_key_entries:
+                key_title = "Cevap Anahtarı" if is_tr else "Answer Key"
+                parts.append('<div style="page-break-before:always;"></div>')
+                parts.append(f'<div class="unit-card"><div class="unit-title">{key_title}</div></div>')
+                for entry in answer_key_entries:
+                    key_text = f"{entry['number']}. "
+                    if entry.get("letter"):
+                        key_text += f"{entry['letter']}) "
+                    key_text += entry.get("answer", "")
+                    parts.append(f'<div class="mcq-box"><div class="mcq-q">{E(key_text)}</div>')
+                    if entry.get("explanation"):
+                        parts.append(f'<div class="mcq-expl">{E(entry["explanation"])}</div>')
+                    parts.append('</div>')
 
             parts.append('</body></html>')
             full_html = "".join(parts)
@@ -1270,6 +1534,8 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                         JOIN chapters ch ON t.chapter_id = ch.id
                         WHERE ch.course_id = ?
                     )
+                  AND id NOT IN (SELECT question_id FROM quiz_questions)
+                  AND id NOT IN (SELECT question_id FROM assignment_questions)
                 """, (course_id,))
                 
                 # 2. Delete topics
@@ -1321,7 +1587,7 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
 
             # IDENTITY PRESERVATION: Do NOT delete chapters or topics, as Phase 2 Enrichment needs them as a skeleton.
             # We only clear the 'content' field and existing questions to ensure a fresh, deep generation.
-            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+            db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?) AND id NOT IN (SELECT question_id FROM quiz_questions) AND id NOT IN (SELECT question_id FROM assignment_questions)", (course_id,))
             db.execute("UPDATE topics SET content = NULL WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
             
             # Generate a new generation_id to ignore updates from zombie workers
@@ -3088,7 +3354,7 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 q_dict = dict(q)
                 if student_id:
                     completed = db.execute(
-                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? LIMIT 1",
+                        "SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'quiz' AND answer != '[STARTED]' LIMIT 1",
                         (student_id, q["id"])
                     ).fetchone()
                     q_dict["is_completed"] = True if completed else False
@@ -3111,6 +3377,19 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 WHERE qq.quiz_id = ?
                 ORDER BY qq.sort_order
             """, (quiz_id,)).fetchall()
+
+            mapped_count = db.execute("SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = ?", (quiz_id,)).fetchone()[0]
+            if len(questions) < mapped_count:
+                _repair_assessment_questions_from_draft(db, "quiz", quiz_id, quiz["course_id"])
+                questions = db.execute("""
+                    SELECT q.* FROM questions q
+                    JOIN quiz_questions qq ON q.id = qq.question_id
+                    WHERE qq.quiz_id = ?
+                    ORDER BY qq.sort_order
+                """, (quiz_id,)).fetchall()
+
+            if not questions:
+                return self._send_error("This quiz has no available questions. Re-publish the quiz.", 409)
 
             if student_id:
                 # Check if already started or completed
@@ -3276,14 +3555,26 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
         from services.content_engine import generate_quiz
         questions = generate_quiz(topic_ids, count=count, is_quiz=True, ui_lang=ui_lang)
 
+        if not questions:
+            return self._send_error("Quiz generation produced no questions", 409)
+
         quiz_id = _uid()
         with db_connection() as db:
             db.execute("INSERT INTO quizzes (id, course_id, title, due_date, is_published, created_at) VALUES (?,?,?,datetime('now','+1 day'),1,datetime('now'))",
                        (quiz_id, course_id, title))
 
             for i, q in enumerate(questions):
+                qid = _persist_assessment_question(db, q, course_id=course_id, chapter_id=chapter_id)
                 db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)",
-                           (quiz_id, q["id"], i))
+                           (quiz_id, qid, i))
+            mapped = db.execute("""
+                SELECT COUNT(*) FROM quiz_questions qq
+                JOIN questions q ON q.id = qq.question_id
+                WHERE qq.quiz_id = ?
+            """, (quiz_id,)).fetchone()[0]
+            if mapped != len(questions):
+                db.rollback()
+                return self._send_error("Quiz could not persist all questions", 500)
             db.commit()
         bump_version()
         self._send_json({"quiz_id": quiz_id, "question_count": len(questions)})
@@ -3504,24 +3795,42 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 t_ai_duration = time.time() - t_ai_start
                 
                 t_filter_start = time.time()
-                # PASS 1: Strict filter (no repeated prompt, no repeated answer from recent rounds, zero test conflict)
-                final_questions = []
-                for q in (questions or []):
+                # PASS 1: Strict filter (no repeated prompt, no repeated answer from recent rounds,
+                # zero test conflict) applied in UNIT-COVERAGE ORDER.
+                # The acceptance rules below are unchanged; only the order in which
+                # candidates are offered changes, so that a quiz spanning several units
+                # cannot be filled entirely from whichever units the model happened to
+                # emit first.
+                def _accept_question(q, chosen):
                     if not isinstance(q, dict) or not q.get("prompt") or not q.get("answer"):
-                        continue
+                        return False
                     p = q.get("prompt", "")
                     a = q.get("answer", "")
-                    # Check against previous 2 completed test batches
                     if any(is_near_identical_question(p, rep) for rep in retained_existing_prompts):
-                        continue
+                        return False
                     if any(normalize_prompt_text(a) == normalize_prompt_text(rep_a) for rep_a in retained_existing_answers):
-                        continue
-                    # Enforce strict test-internal independence (zero duplicate suffixes, idioms, or answer leaks)
-                    if any(is_test_conflict(q, fq) for fq in final_questions):
-                        continue
-                    final_questions.append(q)
-                    if len(final_questions) >= requested_count:
-                        break
+                        return False
+                    if any(is_near_identical_question(p, fq.get("prompt", "")) for fq in chosen):
+                        return False
+                    if any(is_test_conflict(q, fq) for fq in chosen):
+                        return False
+                    return True
+
+                try:
+                    from services.content_engine import resolve_topic_units, select_with_unit_coverage
+                    topic_units = resolve_topic_units(topic_ids) if len(topic_ids) > 1 else {}
+                    final_questions = select_with_unit_coverage(
+                        questions or [], topic_units, requested_count, accept=_accept_question
+                    )
+                except Exception as cov_err:
+                    file_log(f"Unit-coverage selection unavailable, using sequential selection: {cov_err}")
+                    final_questions = []
+                    for q in (questions or []):
+                        if not _accept_question(q, final_questions):
+                            continue
+                        final_questions.append(q)
+                        if len(final_questions) >= requested_count:
+                            break
 
                 # PASS 2 (SAFETY NET): If strict cross-test answer filter left a shortfall (< requested_count),
                 # backfill from candidates whose PROMPTS are completely unique and have zero test conflicts,
@@ -3656,6 +3965,8 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
         title = body.get("title", "Draft")
         due_at = body.get("due_at")
         questions = body.get("questions", [])
+        if not isinstance(questions, list) or not questions:
+            return self._send_error("Cannot publish an assessment without questions", 409)
 
         with db_connection() as db:
             if not course_id:
@@ -3672,31 +3983,33 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 
             seen_ids = set()
             for i, q in enumerate(questions):
-                qid = q.get("id")
-                if not qid or str(qid).startswith("new_") or qid in seen_ids:
-                    qid = _uid()
-                    topic_id = None
-                    if chapter_id and chapter_id != "all":
-                        t = db.execute("SELECT id FROM topics WHERE chapter_id = ? LIMIT 1", (chapter_id,)).fetchone()
-                        if t: topic_id = t["id"]
-                    if not topic_id:
-                        t = db.execute("SELECT id FROM topics LIMIT 1").fetchone()
-                        if t: topic_id = t["id"]
-                        
-                    distractors = q.get("distractors", [])
-                    if isinstance(distractors, str):
-                        distractors = [d.strip() for d in distractors.split(",") if d.strip()]
-                    db.execute("INSERT INTO questions (id, topic_id, type, prompt, answer, distractors, difficulty, metadata, is_active) VALUES (?,?,?,?,?,?,?,?,?)",
-                               (qid, topic_id, q.get("type", "mcq"), q.get("prompt"), q.get("answer"),
-                                json.dumps(distractors), "custom", "{}", 1))
-                
-                if qid not in seen_ids:
-                    seen_ids.add(qid)
-                    if pub_type == "quiz":
-                        db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
-                    else:
-                        db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
-            
+                if not isinstance(q, dict):
+                    continue
+                preferred = q.get("id")
+                if preferred in seen_ids:
+                    preferred = None
+                qid = _persist_assessment_question(
+                    db, q, course_id=course_id, chapter_id=chapter_id, preferred_id=preferred
+                )
+                if qid in seen_ids:
+                    qid = _persist_assessment_question(
+                        db, dict(q, id=None), course_id=course_id, chapter_id=chapter_id, preferred_id=None
+                    )
+                seen_ids.add(qid)
+                if pub_type == "quiz":
+                    db.execute("INSERT OR IGNORE INTO quiz_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
+                else:
+                    db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)", (pub_id, qid, len(seen_ids)-1))
+
+            map_table = "quiz_questions" if pub_type == "quiz" else "assignment_questions"
+            id_col = "quiz_id" if pub_type == "quiz" else "assignment_id"
+            mapped = db.execute(
+                f"SELECT COUNT(*) FROM {map_table} m JOIN questions q ON q.id = m.question_id WHERE m.{id_col} = ?",
+                (pub_id,)
+            ).fetchone()[0]
+            if mapped != len(questions):
+                db.rollback()
+                return self._send_error("Assessment could not persist all questions", 500)
             db.commit()
         bump_version()
         self._send_json({"id": pub_id, "title": title, "question_count": len(questions)})
@@ -3966,11 +4279,25 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
 
         from services.content_engine import generate_quiz
         questions = generate_quiz(topic_ids, count=count, is_quiz=False)
+        if not questions:
+            with db_connection() as db:
+                db.execute("DELETE FROM assignments WHERE id = ?", (assignment_id,))
+                db.commit()
+            return self._send_error("Assignment generation produced no questions", 409)
         
         with db_connection() as db:
             for i, q in enumerate(questions):
+                qid = _persist_assessment_question(db, q, course_id=course_id, chapter_id=chapter_id)
                 db.execute("INSERT OR IGNORE INTO assignment_questions VALUES (?,?,?)",
-                           (assignment_id, q["id"], i))
+                           (assignment_id, qid, i))
+            mapped = db.execute("""
+                SELECT COUNT(*) FROM assignment_questions aq
+                JOIN questions q ON q.id = aq.question_id
+                WHERE aq.assignment_id = ?
+            """, (assignment_id,)).fetchone()[0]
+            if mapped != len(questions):
+                db.rollback()
+                return self._send_error("Assignment could not persist all questions", 500)
             db.commit()
 
         bump_version()
@@ -4085,6 +4412,19 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 WHERE aq.assignment_id = ?
                 ORDER BY aq.sort_order
             """, (assignment_id,)).fetchall()
+
+            mapped_count = db.execute("SELECT COUNT(*) FROM assignment_questions WHERE assignment_id = ?", (assignment_id,)).fetchone()[0]
+            if len(questions) < mapped_count:
+                _repair_assessment_questions_from_draft(db, "assignment", assignment_id, assignment["course_id"])
+                questions = db.execute("""
+                    SELECT q.* FROM questions q
+                    JOIN assignment_questions aq ON q.id = aq.question_id
+                    WHERE aq.assignment_id = ?
+                    ORDER BY aq.sort_order
+                """, (assignment_id,)).fetchall()
+
+            if not questions:
+                return self._send_error("This assignment has no available questions. Re-publish the assignment.", 409)
 
             if student_id:
                 existing = db.execute("SELECT 1 FROM responses WHERE student_id = ? AND context_id = ? AND context_type = 'assignment' LIMIT 1", (student_id, assignment_id)).fetchone()
@@ -4515,7 +4855,7 @@ table.vt tr:nth-child(even) td { background: #f5f3ff; }
                 
                 # Generate a new batch of 15 questions (total cap is 30)
                 count = 15
-                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?)", (course_id,))
+                db.execute("DELETE FROM questions WHERE topic_id IN (SELECT t.id FROM topics t JOIN chapters ch ON t.chapter_id = ch.id WHERE ch.course_id = ?) AND id NOT IN (SELECT question_id FROM quiz_questions) AND id NOT IN (SELECT question_id FROM assignment_questions)", (course_id,))
                 db.execute("DELETE FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?)", (course_id,))
                 db.execute("DELETE FROM chapters WHERE course_id = ?", (course_id,))
                 
@@ -4562,7 +4902,18 @@ def _cleanup_orphaned_building_flags():
     """Reset building and activity flags for tasks that were interrupted by a server restart."""
     print(f"[{datetime.now().strftime('%H:%M:%S')}] [STARTUP] Resetting orphaned building and activity flags...")
     with db_connection() as db:
-        # 1. Reset Classroom Building flags (interrupted builds)
+        # 1. Recover classrooms whose substantive build already finished and only the
+        # bilingual finalizer was still running when the process restarted.
+        db.execute("""
+            UPDATE courses
+            SET is_building = 0, build_stage = 'completed', progress = 100, build_message = 'Classroom is ready!'
+            WHERE is_building = 1
+              AND build_stage = 'finalizing'
+              AND total_steps > 0
+              AND progress >= total_steps
+        """)
+
+        # Reset genuinely interrupted classroom builds.
         db.execute("""
             UPDATE courses SET is_building = 0, build_stage = 'interrupted', build_message = 'Build interrupted by server restart'
             WHERE is_building = 1
