@@ -324,6 +324,17 @@ MODEL_STRUCTURAL = os.getenv("MODEL_STRUCTURAL", "google/gemini-3.7-flash")
 MODEL_NARRATIVE = os.getenv("MODEL_NARRATIVE", "google/gemini-3.7-flash")
 MODEL_FALLBACK = os.getenv("MODEL_FALLBACK", "google/gemini-3.7-flash")
 
+# Output ceiling for one generated lesson, and the ceiling a retry may escalate to
+# when the provider reports the previous attempt was cut off at the limit.
+#
+# The starting value is deliberately unchanged: most lessons finish well inside it
+# and must not be charged for headroom they never use. Escalation is conditional on
+# an observed truncation, so the extra budget is spent only on the lessons that
+# demonstrably could not fit - which today burn three full attempts and then publish
+# a review notice, producing no material at all for the same spend.
+LESSON_OUTPUT_TOKENS = int(os.getenv("AULAAI_LESSON_OUTPUT_TOKENS", "8192"))
+LESSON_OUTPUT_TOKENS_MAX = int(os.getenv("AULAAI_LESSON_OUTPUT_TOKENS_MAX", "24576"))
+
 def _estimate_llm_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Estimates OpenRouter / API inference cost in USD based on model family and token counts."""
     m = str(model_name or "").lower()
@@ -485,11 +496,24 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         res_json = json.loads(res_body)
 
                         if "choices" in res_json and res_json["choices"]:
-                            msg = res_json["choices"][0].get("message", {})
+                            choice = res_json["choices"][0]
+                            msg = choice.get("message", {})
                             raw_content = msg.get("content") or ""
                             if not raw_content and "reasoning" in msg and msg["reasoning"]:
                                 raw_content = msg["reasoning"]
                             content = str(raw_content).strip()
+                            # The provider tells us when it stopped because the ceiling
+                            # was reached rather than because the answer was finished.
+                            # That signal was previously discarded, so a lesson cut off
+                            # mid-structure was indistinguishable from a genuinely short
+                            # one: the JSON salvager recovered the complete pages, the
+                            # rest was silently lost, and the release gate simply saw too
+                            # little content. Surfacing it lets the caller respond to the
+                            # actual problem instead of guessing.
+                            if usage_dict is not None and isinstance(usage_dict, dict):
+                                _reason = str(choice.get("finish_reason") or choice.get("native_finish_reason") or "")
+                                usage_dict["finish_reason"] = _reason
+                                usage_dict["truncated"] = _reason.strip().lower() in ("length", "max_tokens")
                             if content:
                                 with open("pipeline.log", "a", encoding="utf-8") as f:
                                     f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-OK] {len(content)} chars ← {target_model}\n")
@@ -3059,13 +3083,46 @@ def translate_lesson_to_turkish(lesson_dict, language="Spanish"):
 
     return _sanitize_deep_bilingual(lesson_dict)
 
+def _content_length(value) -> int:
+    """Length of a string measured in information, not codepoints.
+
+    The release gates below ask whether a page carries enough teaching content.
+    Counting characters answers that question differently depending on the script:
+    a logographic or syllabic character carries roughly a whole morpheme, so one
+    sentence of Chinese or Japanese is a third the length of the same sentence in
+    an alphabetic script. Measured in raw codepoints, identical content passed the
+    gate in German and Russian and failed it in Chinese and Japanese - a lesson
+    could fall back to a review notice purely because of the writing system.
+
+    Weighting by script density removes that bias without knowing any language:
+    alphabetic text is unchanged (so no existing behaviour moves), and dense
+    scripts are counted at the rate at which they actually carry meaning.
+    """
+    text = str(value or "")
+    if not text:
+        return 0
+    total = 0
+    for ch in text:
+        cp = ord(ch)
+        dense = (
+            0x3040 <= cp <= 0x30FF      # Hiragana, Katakana
+            or 0x3400 <= cp <= 0x4DBF   # CJK Unified Extension A
+            or 0x4E00 <= cp <= 0x9FFF   # CJK Unified Ideographs
+            or 0xF900 <= cp <= 0xFAFF   # CJK Compatibility Ideographs
+            or 0xAC00 <= cp <= 0xD7AF   # Hangul syllables
+            or 0x20000 <= cp <= 0x2FA1F  # CJK Extensions B-F
+        )
+        total += 3 if dense else 1
+    return total
+
+
 def _is_substantive_page(page: dict) -> bool:
     """Checks if a page contains genuine educational content rather than only titles/blank shells."""
     if not isinstance(page, dict):
         return False
     # Overview / Grammar text
     text = str(page.get("text") or page.get("text_tr") or page.get("text_en") or "").strip()
-    if len(text) >= 20:
+    if _content_length(text) >= 20:
         return True
     # Vocabulary items
     items = page.get("items") or page.get("vocabulary") or page.get("words")
@@ -3107,7 +3164,8 @@ def _is_substantive_lesson(data: dict) -> bool:
         return False
     # Must contain at least one page with items, rules, or text
     has_core = any(
-        (p.get("items") or p.get("rules") or p.get("dialogue") or len(str(p.get("text", "")).strip()) >= 30)
+        (p.get("items") or p.get("rules") or p.get("dialogue")
+         or _content_length(str(p.get("text", "")).strip()) >= 30)
         for p in substantive_pages
     )
     return has_core
@@ -3658,18 +3716,21 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     )
 
     lesson_dict = None
+    budget = LESSON_OUTPUT_TOKENS
     for attempt_idx in range(1, 4):
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-START] '{topic}' ({topic_type}) {level} {language} (attempt {attempt_idx}/3) → {MODEL_LESSON}\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-START] '{topic}' ({topic_type}) {level} {language} (attempt {attempt_idx}/3, max_tokens={budget}) → {MODEL_LESSON}\n")
 
         temp = 0.2 if attempt_idx == 1 else (0.25 if attempt_idx == 2 else 0.3)
+        call_stats: Dict[str, Any] = {}
         raw_dict = _call_ai(
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             model=MODEL_LESSON,
-            max_tokens=8192,
+            max_tokens=budget,
             temperature=temp,
             json_mode=True,
-            allow_fallback=False
+            allow_fallback=False,
+            usage_dict=call_stats,
         )
         norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
         if norm_dict and isinstance(norm_dict, dict) and _is_substantive_lesson(norm_dict):
@@ -3679,8 +3740,22 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             break
         else:
             page_count = len(norm_dict.get("pages", [])) if isinstance(norm_dict, dict) else 0
+            # A lesson that was cut off at the ceiling does not fail because the
+            # model is unwilling or the topic is hard - it fails because the answer
+            # did not fit. Retrying at the same ceiling reproduces that outcome
+            # exactly, which is how a whole class of topic (paradigm tables, closed
+            # inventories, anything whose point is a large set) failed identically
+            # on every attempt and fell back. Give the next attempt the room the
+            # answer needed instead of nudging temperature, which cannot help.
+            truncated = bool(call_stats.get("truncated"))
+            if truncated and budget < LESSON_OUTPUT_TOKENS_MAX:
+                budget = min(budget * 2, LESSON_OUTPUT_TOKENS_MAX)
+                reason = f"output truncated at the ceiling; raising max_tokens to {budget}"
+            else:
+                reason = f"yielded {page_count} substantive page(s)"
             with open("pipeline.log", "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RETRY] '{topic}' yielded {page_count} pages on attempt {attempt_idx}/3. Retrying same model {MODEL_LESSON}...\n")
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RETRY] '{topic}' {reason} on attempt {attempt_idx}/3 "
+                        f"(finish_reason={call_stats.get('finish_reason') or 'unknown'}). Retrying {MODEL_LESSON}...\n")
             time.sleep(0.75 * attempt_idx)
 
     if not lesson_dict or not isinstance(lesson_dict, dict) or not _is_substantive_lesson(lesson_dict):

@@ -146,6 +146,8 @@ Every rule you write is read against the tables, examples and transcriptions you
 - Explanatory prose about a sound must refer to the same transcription that the lesson publishes for that term. If prose discusses a syllable, that syllable must be present in the transcription.
 - Stress marks in prose, in tables and in `phonetic` must agree for the same form.
 - If you are not confident of the correct transcription for a form, omit `phonetic` for it rather than supplying an approximate or partial one. An absent transcription is honest; an invented one is a factual error a learner cannot detect.
+- `phonetic` contains phonetic notation and nothing else. Never let a character from another writing system — an ideograph, a letter of the target script, a syllabary sign — appear inside a transcription, however it got there.
+- Do not leave stray notation fragments in prose. Every bracketed symbol must sit inside a sentence that says what it is; a symbol left dangling after the final full stop is residue, not teaching.
 </pronunciation_integrity>
 
 <answer_key_quality>

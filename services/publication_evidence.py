@@ -66,6 +66,37 @@ FLAG_SCRIPT_ANOMALY = "target-language-text-contains-a-foreign-script-token"
 FLAG_PARTIAL_COLUMN = "structured-field-populated-for-some-siblings-but-not-others"
 FLAG_SCOPE_EXTENSION = "restatement-widens-a-rule-the-lesson-taught-narrowly"
 FLAG_BOUND_DROPPED = "restatement-omits-an-exception-the-taught-rule-states"
+FLAG_NOTATION_FOREIGN = "notation-field-contains-characters-outside-its-notation-system"
+FLAG_ORPHAN_FRAGMENT = "explanatory-prose-ends-with-a-dangling-notation-fragment"
+
+
+# A field declared to hold phonetic notation holds IPA, and IPA is a CLOSED
+# repertoire: Latin-derived letters, the IPA and phonetic-extension blocks,
+# spacing modifiers, combining diacritics, the Greek letters IPA borrows, and
+# punctuation. It is the same repertoire whichever language is being transcribed,
+# so membership can be checked without knowing the language at all.
+#
+# This is a different failure from the Unicode work already in place. That work
+# removes codepoints no text may contain (private-use, unassigned, controls).
+# These characters are perfectly valid Unicode and perfectly legitimate elsewhere
+# in the same lesson - a CJK ideograph, a Cyrillic letter, an Arabic letter - and
+# are simply impossible INSIDE a transcription. Only the field's declared type
+# makes them detectable, which is why codepoint sanitation could never catch it.
+_IPA_RANGES: Tuple[Tuple[int, int], ...] = (
+    (0x0020, 0x007E),  # ASCII: letters, brackets, dots, slashes, apostrophes
+    (0x00A0, 0x024F),  # Latin-1 Supplement + Latin Extended-A/B  (æ ç ð ø ŋ …)
+    (0x0250, 0x02AF),  # IPA Extensions
+    (0x02B0, 0x02FF),  # Spacing Modifier Letters (ʰ ʲ ˈ ˌ ː …)
+    (0x0300, 0x036F),  # Combining Diacritical Marks
+    (0x0370, 0x03FF),  # Greek: IPA borrows β θ χ from these codepoints
+    (0x1AB0, 0x1AFF),  # Combining Diacritical Marks Extended
+    (0x1D00, 0x1D7F),  # Phonetic Extensions
+    (0x1DC0, 0x1DFF),  # Combining Diacritical Marks Supplement
+    (0x2000, 0x206F),  # General Punctuation (‿ ‖ ′ …)
+    (0xA700, 0xA71F),  # Modifier Tone Letters
+)
+
+_NOTATION_FIELDS = ("phonetic", "pronunciation", "ipa", "transcription")
 
 
 # Wording that turns a listed set into an open class: "2, 3, 4 and compound
@@ -483,6 +514,122 @@ def collect_thin_generalizations(data: Any, material_language: str = "tr", limit
         })
         if len(risks) >= limit:
             return risks
+    return risks
+
+
+# ── 1b. Notation fields holding characters from another writing system ──────
+
+def _outside_ipa_repertoire(text: str) -> List[str]:
+    """Characters in a transcription that no phonetic notation uses."""
+    out: List[str] = []
+    for ch in text or "":
+        cp = ord(ch)
+        if any(lo <= cp <= hi for lo, hi in _IPA_RANGES):
+            continue
+        if ch in out:
+            continue
+        out.append(ch)
+    return out
+
+
+def collect_notation_violations(data: Any, limit: int = 8) -> List[Dict[str, Any]]:
+    """Transcriptions containing characters from a different writing system.
+
+    Detects semantically impossible content that is nonetheless valid Unicode, so
+    no codepoint-level sanitation can see it: an ideograph, a Cyrillic letter or
+    an Arabic letter sitting inside an IPA string. The judgement needed is only
+    "does this character belong to this notation system", which is a closed-set
+    membership test and identical for every target language.
+
+    The repair is deliberately `omit_ok`. A corrupted transcription cannot be
+    guessed back deterministically, and a transcription that is absent is honest
+    while one that is wrong is a factual error the learner cannot detect.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return []
+    risks: List[Dict[str, Any]] = []
+
+    for p_index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+        for container in ("items", "vocabulary", "words", "examples"):
+            for e_index, entry in enumerate(page.get(container) or []):
+                if not isinstance(entry, dict):
+                    continue
+                for key in list(entry):
+                    base = re.sub(r"_(en|tr)$", "", str(key).casefold())
+                    if base not in _NOTATION_FIELDS:
+                        continue
+                    value = entry.get(key)
+                    if not isinstance(value, str) or not value.strip():
+                        continue
+                    foreign = _outside_ipa_repertoire(value)
+                    if not foreign:
+                        continue
+                    shown = ", ".join(f"{c!r} (U+{ord(c):04X})" for c in foreign[:4])
+                    risks.append({
+                        "path": f"pages.{p_index}.{container}.{e_index}.{key}",
+                        "text": f"{_entry_term(entry)} {value}".strip(),
+                        "field_value": value,
+                        "repair": "omit_ok",
+                        "quantifiers": [FLAG_NOTATION_FOREIGN],
+                        "examples": [
+                            f"this transcription contains {shown}, which belong to no "
+                            f"phonetic notation system",
+                            "supply the correct transcription for the whole headword, or "
+                            "return an empty value rather than a guess",
+                        ],
+                        "domain": "structural",
+                    })
+                    if len(risks) >= limit:
+                        return risks
+    return risks
+
+
+# ── 1c. Dangling notation fragments in explanatory prose ────────────────────
+
+# A bracketed fragment after the final sentence terminator, with nothing after it.
+# The inner text must not be purely numeric: a trailing "[1]" is a citation or a
+# footnote marker, which is deliberate and belongs where it is.
+_TRAILING_FRAGMENT = re.compile(
+    r"[.!?;:。！？]\s*[\[/(]\s*(?![\d.,\s]+[\]/)])([^\[\]/()\s]{1,6})\s*[\]/)]\s*$"
+)
+
+
+def collect_orphan_fragments(data: Any, material_language: str = "tr", limit: int = 6) -> List[Dict[str, Any]]:
+    """Explanations that end in a stray notation fragment.
+
+    A transcription inside a sentence is normal teaching prose - "the letter is
+    pronounced [a]" - and a single symbol there is legitimate, which is why the
+    transcription checks ignore short fragments. A fragment sitting AFTER the
+    final full stop with nothing following it is different: it is grammatically
+    attached to nothing, so it is residue rather than content, whatever it says.
+
+    Position is the whole signal, so no language is parsed and no judgement is
+    made about whether the symbol is correct. The reviewer decides whether to
+    integrate it into the sentence or drop it.
+    """
+    risks: List[Dict[str, Any]] = []
+    for surface in iter_claim_surfaces(data, material_language=material_language):
+        text = surface["text"].strip()
+        if len(text) < 20 or not _TRAILING_FRAGMENT.search(text):
+            continue
+        risks.append({
+            "path": surface["path"],
+            "text": text[:600],
+            "field_value": text[:600],
+            "repair": "rescope",
+            "quantifiers": [FLAG_ORPHAN_FRAGMENT],
+            "examples": [
+                "this explanation ends with a bracketed fragment that follows the final "
+                "sentence and belongs to no clause",
+                "integrate it into the sentence if it was meant to say something, "
+                "otherwise remove it",
+            ],
+            "domain": "structural",
+        })
+        if len(risks) >= limit:
+            break
     return risks
 
 
@@ -975,6 +1122,8 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
     """
     collectors = (
         collect_phonetic_integrity_risks,
+        collect_notation_violations,
+        collect_orphan_fragments,
         collect_prose_phonetic_conflicts,
         collect_coverage_gaps,
         collect_thin_generalizations,
@@ -988,7 +1137,7 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
     for collector in collectors:
         try:
             if collector in (collect_phonetic_integrity_risks, collect_translation_mismatches,
-                             collect_script_anomalies):
+                             collect_script_anomalies, collect_notation_violations):
                 found = collector(data)
             else:
                 found = collector(data, material_language=material_language)

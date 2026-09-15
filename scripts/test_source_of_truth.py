@@ -311,6 +311,133 @@ def test_publication_release_order():
           len(direct_parses) <= 1, f"{len(direct_parses)} direct parses of stored content")
 
 
+# ── Generation reliability: truncation is a size failure, not a quality one ──
+
+def test_truncated_generation_escalates_budget():
+    """A lesson cut off at the ceiling must be retried with room, not reworded.
+
+    Retrying at the same ceiling reproduces a size failure exactly, which is how
+    whole classes of topic (paradigm tables, closed inventories) failed on every
+    attempt and published a review notice instead of material.
+    """
+    import io
+    from contextlib import redirect_stdout
+    with redirect_stdout(io.StringIO()):
+        import services.ai_engine as E
+
+    original_call, original_release = E._call_ai, E._material_publication_release
+    try:
+        budgets = []
+
+        def truncating(messages, **kw):
+            budgets.append(kw.get("max_tokens"))
+            stats = kw.get("usage_dict")
+            if kw.get("max_tokens", 0) < 16000:
+                if stats is not None:
+                    stats["finish_reason"], stats["truncated"] = "length", True
+                return {"pages": [{"type": "overview", "text": "x" * 40}]}
+            if stats is not None:
+                stats["finish_reason"], stats["truncated"] = "stop", False
+            return {"pages": [{"type": "overview", "text": "x" * 60},
+                              {"type": "vocabulary", "items": [{"term": "a"}, {"term": "b"}]},
+                              {"type": "grammar", "rules": [{"rule": "r" * 40}]}]}
+
+        E._call_ai = truncating
+        E.is_ai_available = lambda: True
+        E._material_publication_release = lambda d, *a, **k: d
+        out = E.generate_full_lesson("Paradigm topic", "grammar", "Testish",
+                                     level="A1", material_language="tr")
+        check("RELIABILITY truncation escalates the ceiling",
+              len(budgets) >= 2 and budgets[1] > budgets[0], budgets)
+        check("RELIABILITY first attempt keeps the original budget",
+              budgets[0] == E.LESSON_OUTPUT_TOKENS, budgets)
+        check("RELIABILITY escalation never exceeds the declared maximum",
+              all(b <= E.LESSON_OUTPUT_TOKENS_MAX for b in budgets), budgets)
+        check("RELIABILITY recovered lesson publishes instead of falling back",
+              not any(p.get("type") == "notice" for p in out.get("pages", [])),
+              [p.get("type") for p in out.get("pages", [])])
+
+        # A lesson that fits must cost exactly what it did before.
+        budgets.clear()
+
+        def fits(messages, **kw):
+            budgets.append(kw.get("max_tokens"))
+            stats = kw.get("usage_dict")
+            if stats is not None:
+                stats["finish_reason"], stats["truncated"] = "stop", False
+            return {"pages": [{"type": "overview", "text": "x" * 60},
+                              {"type": "vocabulary", "items": [{"term": "a"}, {"term": "b"}]},
+                              {"type": "grammar", "rules": [{"rule": "r" * 40}]}]}
+
+        E._call_ai = fits
+        E.generate_full_lesson("Compact topic", "vocabulary", "Testish",
+                               level="A1", material_language="tr")
+        check("RELIABILITY a lesson that fits pays no more than before",
+              budgets == [E.LESSON_OUTPUT_TOKENS], budgets)
+
+        # An honestly empty generation must still fall back, never escalate.
+        budgets.clear()
+
+        def empty(messages, **kw):
+            budgets.append(kw.get("max_tokens"))
+            stats = kw.get("usage_dict")
+            if stats is not None:
+                stats["finish_reason"], stats["truncated"] = "stop", False
+            return {"pages": []}
+
+        E._call_ai = empty
+        out2 = E.generate_full_lesson("Impossible", "concept", "Testish",
+                                      level="A1", material_language="tr")
+        check("RELIABILITY no escalation when nothing was truncated",
+              set(budgets) == {E.LESSON_OUTPUT_TOKENS}, budgets)
+        check("RELIABILITY honest fallback preserved",
+              any(p.get("type") == "notice" for p in out2.get("pages", [])),
+              [p.get("type") for p in out2.get("pages", [])])
+    finally:
+        E._call_ai, E._material_publication_release = original_call, original_release
+
+
+# ── The release gate must not depend on the writing system ──────────────────
+
+def test_release_gate_is_script_neutral():
+    """Identical teaching content must pass the gate in every script.
+
+    Measured in raw codepoints it did not: one sentence of Chinese or Japanese is
+    a third the length of the same sentence in an alphabetic script, so a lesson
+    could fall back purely because of its writing system.
+    """
+    import io
+    from contextlib import redirect_stdout
+    with redirect_stdout(io.StringIO()):
+        import services.ai_engine as E
+
+    same_content = {
+        "latin": "The verb changes form according to the subject of the sentence.",
+        "cyrillic": "\u0413\u043b\u0430\u0433\u043e\u043b \u043c\u0435\u043d\u044f\u0435\u0442 \u0444\u043e\u0440\u043c\u0443 \u0432 \u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e\u0441\u0442\u0438 \u043e\u0442 \u043f\u043e\u0434\u043b\u0435\u0436\u0430\u0449\u0435\u0433\u043e.",
+        "japanese": "\u52d5\u8a5e\u306f\u4e3b\u8a9e\u306b\u5fdc\u3058\u3066\u5f62\u304c\u5909\u308f\u308a\u307e\u3059\u3002",
+        "chinese": "\u52a8\u8bcd\u6839\u636e\u53e5\u5b50\u7684\u4e3b\u8bed\u6539\u53d8\u5f62\u5f0f\u3002",
+        "hangul": "\ub3d9\uc0ac\ub294 \ubb38\uc7a5\uc758 \uc8fc\uc5b4\uc5d0 \ub530\ub77c \ud615\ud0dc\uac00 \ubc14\ub01d\ub2c8\ub2e4.",
+        "arabic": "\u064a\u062a\u063a\u064a\u0631 \u0627\u0644\u0641\u0639\u0644 \u062d\u0633\u0628 \u0641\u0627\u0639\u0644 \u0627\u0644\u062c\u0645\u0644\u0629.",
+    }
+    for script, text in same_content.items():
+        check(f"GATE substantive in {script}",
+              E._is_substantive_page({"type": "overview", "text": text}),
+              f"len={len(text)} weighted={E._content_length(text)}")
+
+    # Empty shells stay rejected in every script.
+    for script, text in {"latin": "Unit 1", "cjk": "\u7b2c\u4e00\u8ab2", "empty": ""}.items():
+        check(f"GATE shell still rejected in {script}",
+              not E._is_substantive_page({"type": "overview", "text": text}), text)
+
+    # Alphabetic thresholds must be byte-for-byte what they were.
+    check("GATE alphabetic threshold unchanged (19 chars fails)",
+          not E._is_substantive_page({"type": "overview", "text": "x" * 19}))
+    check("GATE alphabetic threshold unchanged (20 chars passes)",
+          E._is_substantive_page({"type": "overview", "text": "x" * 20}))
+    check("GATE weighting is identity for alphabetic text",
+          E._content_length("abcdefghij") == 10, E._content_length("abcdefghij"))
+
+
 def main():
     print("[TEST] source of truth, live validators, renderer/fallback honesty, CEFR")
     with redirect_stdout(io.StringIO()):
@@ -327,6 +454,8 @@ def main():
         test_cefr_level_is_threaded,
         test_generation_contract_covers_new_invariants,
         test_publication_release_order,
+        test_truncated_generation_escalates_budget,
+        test_release_gate_is_script_neutral,
     ):
         fn()
     if FAILURES:

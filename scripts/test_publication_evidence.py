@@ -27,6 +27,7 @@ from services.publication_evidence import (  # noqa: E402
     FLAG_SCRIPT_ANOMALY,
     FLAG_SCOPE_EXTENSION,
     FLAG_BOUND_DROPPED,
+    FLAG_NOTATION_FOREIGN,
     FLAG_IPA_BORROWED,
     FLAG_PHRASE_IPA_PARTIAL,
     FLAG_PROSE_IPA_CONFLICT,
@@ -38,6 +39,8 @@ from services.publication_evidence import (  # noqa: E402
     collect_phonetic_integrity_risks,
     collect_prose_phonetic_conflicts,
     collect_rationale_claims,
+    collect_notation_violations,
+    collect_orphan_fragments,
     collect_partial_columns,
     collect_scope_extensions,
     collect_script_anomalies,
@@ -735,6 +738,77 @@ def test_bounded_lesson_correct_rationale_survives_boundary():
     check("BOUND boundary idempotent on bounded lessons", after == twice, "second pass differed")
 
 
+# ── Notation fields must hold their own notation, in every language ─────────
+
+def test_notation_repertoire_across_scripts():
+    """Valid Unicode that is impossible inside a transcription.
+
+    Codepoint sanitation cannot see this: the characters are legitimate, and
+    legitimate elsewhere in the same lesson. Only the field's declared type makes
+    them detectable, and the test is closed-set membership - identical for every
+    target language.
+    """
+    corrupt = {
+        "CJK ideograph": "[bein.ti\u8352u.no]",
+        "Cyrillic letter": "[bein.ti\u0432u.no]",
+        "Arabic letter": "[bein.ti\u0634u.no]",
+        "Devanagari": "[bein.ti\u0915u.no]",
+        "Hangul syllable": "[bein.ti\ud55cu.no]",
+    }
+    for name, phon in corrupt.items():
+        lesson = {"pages": [{"items": [{"term": "zolan", "phonetic": phon}]}]}
+        risks = collect_notation_violations(lesson)
+        check(f"NOTATION corruption detected: {name}",
+              FLAG_NOTATION_FOREIGN in flags(risks), flags(risks))
+        if risks:
+            check(f"NOTATION {name} repairable by honest omission",
+                  risks[0]["repair"] == "omit_ok", risks[0]["repair"])
+
+
+def test_notation_accepts_real_ipa_for_any_language():
+    """Legitimate IPA must never be flagged, whatever the target language."""
+    legitimate = {
+        "romance": "[bein.ti\u02c8u.no]",
+        "slavic": "[\u0250\u02c8d\u02b2in\u0259t\u0361s\u0259t\u02b2]",
+        "germanic": "[\u02c8\u0283\u00f8\u02d0nha\u026a\u032ft]",
+        "nasal vowels": "[\u025b\u0303.p\u0254\u0281.\u02c8t\u0251\u0303]",
+        "tone letters": "[ma\u02e5\u02e7 ma\u02e9\u02e5]",
+        "pharyngeals": "[\u0294a\u0295.la\u02d0m]",
+        "greek-derived": "[\u03b2eta \u03b8eta \u03c7i \u0263ama]",
+        "downstep": "[\u0255i\ua71cma]",
+        "slash notation": "/f\u0259\u02c8n\u025bt\u026ak/",
+    }
+    for name, phon in legitimate.items():
+        lesson = {"pages": [{"items": [{"term": "t", "phonetic": phon}]}]}
+        got = collect_notation_violations(lesson)
+        check(f"NOTATION no false positive: {name}", got == [], got)
+
+
+# ── Dangling notation fragments ─────────────────────────────────────────────
+
+def test_orphan_fragment_detection():
+    def fires(text):
+        return bool(collect_orphan_fragments(
+            {"pages": [{"rules": [{"rule_tr": text}]}]}, material_language="tr"))
+
+    for name, text in [
+        ("bracket after full stop", "profesor sozcugunde vurgu son hecededir. [t]"),
+        ("paren after full stop", "Bu kural cok onemlidir ve her zaman gecerlidir. (\u0283)"),
+        ("slashes after full stop", "The stress falls on the final syllable here. /f/"),
+    ]:
+        check(f"ORPHAN detected: {name}", fires(text), text)
+
+    for name, text in [
+        ("citation marker", "Bu kural kaynakta belirtilmistir. [1]"),
+        ("multi-digit citation", "Bu kural kaynakta belirtilmistir. [12]"),
+        ("symbol inside a sentence", "O harfi vurgusuz hecede [a] olarak okunur."),
+        ("transcription in a clause", "Bu sozcuk [pro.fe\u02c8sor] biciminde okunur."),
+        ("ordinary sentence", "Bu ek unsuzden sonra eklenir ve degismez."),
+        ("parenthetical aside", "Vurgu (ikinci hecede) yer alir ve sabittir."),
+    ]:
+        check(f"ORPHAN no false positive: {name}", not fires(text), text)
+
+
 def main():
     print("[TEST] publication evidence: IPA integrity, coverage gaps, translations, answer keys")
     for fn in (
@@ -777,6 +851,9 @@ def main():
         test_bound_dropped_false_positive_discipline,
         test_both_widening_shapes_coexist,
         test_bounded_lesson_correct_rationale_survives_boundary,
+        test_notation_repertoire_across_scripts,
+        test_notation_accepts_real_ipa_for_any_language,
+        test_orphan_fragment_detection,
     ):
         fn()
     if FAILURES:
