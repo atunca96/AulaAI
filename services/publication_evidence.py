@@ -47,7 +47,9 @@ from services.publication_invariants import (
     _track_language,
     classify_claim_domain,
     find_absolute_claims,
+    declared_precision,
     instructional_code,
+    iter_claim_surfaces,
 )
 
 # Risk flags. These are contracts with the bounded reviewer: each names what the
@@ -62,6 +64,27 @@ FLAG_RATIONALE_CLAIM = "answer-key-rationale-makes-a-publishable-claim"
 FLAG_THIN_GENERALIZATION = "rule-generalizes-from-a-single-cited-instance"
 FLAG_SCRIPT_ANOMALY = "target-language-text-contains-a-foreign-script-token"
 FLAG_PARTIAL_COLUMN = "structured-field-populated-for-some-siblings-but-not-others"
+FLAG_SCOPE_EXTENSION = "restatement-widens-a-rule-the-lesson-taught-narrowly"
+
+
+# Wording that turns a listed set into an open class: "2, 3, 4 and compound
+# numbers ENDING IN 2, 3, 4". The list is finite and checkable; the extension is
+# neither, and it is where a correct narrow rule silently becomes a false broad
+# one. Instructional-language cues only - the target language is never parsed.
+_SCOPE_EXTENSION_MARKERS: Dict[str, Tuple[str, ...]] = {
+    "tr": (r"\bile\s+biten", r"\bile\s+bitenler", r"\bbileşik\b", r"\bbilesik\b",
+           r"\bve\s+benzerleri\b", r"\bvb\.", r"\bvesaire\b", r"\bbenzer\s+şekilde\b",
+           r"\bher\s+türlü\b", r"\bgibi\s+tüm\b", r"\bbütün\s+\w+\s+için\s+de\b"),
+    "en": (r"\bending\s+in\b", r"\bending\s+with\b", r"\bcompound\b", r"\band\s+so\s+on\b",
+           r"\betc\.", r"\bsimilarly\b", r"\band\s+the\s+like\b", r"\bany\s+\w+\s+ending\b",
+           r"\ball\s+\w+\s+that\s+end\b", r"\bthe\s+same\s+applies\s+to\b"),
+    "es": (r"\bterminad\w+\s+en\b", r"\bcompuest\w+\b", r"\betc\.", r"\bde\s+igual\s+modo\b"),
+    "de": (r"\bendend\w*\s+auf\b", r"\bzusammengesetzt\w*\b", r"\busw\.", r"\bebenso\b"),
+    "fr": (r"\bse\s+terminant\s+par\b", r"\bcomposé\w*\b", r"\betc\.", r"\bde\s+même\b"),
+    "it": (r"\bche\s+terminano\s+in\b", r"\bcompost\w+\b", r"\becc\.", r"\ballo\s+stesso\s+modo\b"),
+    "pt": (r"\bterminad\w+\s+em\b", r"\bcompost\w+\b", r"\betc\.", r"\bda\s+mesma\s+forma\b"),
+    "ru": (r"\bоканчивающ\w+\s+на\b", r"\bсоставн\w+\b", r"\bи\s+т\.\s*д\.", r"\bаналогично\b"),
+}
 
 
 # ── Shared text helpers ─────────────────────────────────────────────────────
@@ -259,6 +282,13 @@ def collect_prose_phonetic_conflicts(data: Any, material_language: str = "tr", l
                 if isinstance(entry, dict):
                     containers.append((container, e_index, entry))
         for container, index, entry in containers:
+            # A statement the generator labelled as a deliberate simplification is
+            # not contradicting the precise transcription beside it; it is teaching
+            # at a coarser grain on purpose, which is legitimate scaffolding. The
+            # label is advisory: absent or unrecognised, the check behaves exactly
+            # as before rather than assuming intent.
+            if declared_precision(entry) == "approximate":
+                continue
             entry_term_folded = _fold_for_identity(_entry_term(entry))
             for key in _claim_bearing_fields(entry):
                 text = entry.get(key)
@@ -331,27 +361,21 @@ def collect_coverage_gaps(data: Any, material_language: str = "tr", limit: int =
     """
     if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
         return []
+    # Rules only. A rationale answers one question, so it is *expected* to cover
+    # less than the rule it draws on; comparing the two would report every correct
+    # answer key as an incomplete rule. The direction that matters for a
+    # rationale - stating MORE than the lesson taught - is collect_scope_extensions.
     claims: List[Dict[str, Any]] = []
-    for p_index, page in enumerate(data["pages"]):
-        if not isinstance(page, dict):
+    for surface in iter_claim_surfaces(data, material_language=material_language):
+        if surface["kind"] != "rule":
             continue
-        for container in ("rules", "comparisons"):
-            for e_index, entry in enumerate(page.get(container) or []):
-                if not isinstance(entry, dict):
-                    continue
-                for key in _claim_bearing_fields(entry):
-                    text = entry.get(key)
-                    if not isinstance(text, str) or not text.strip():
-                        continue
-                    nums = _numeric_tokens(text)
-                    if len(nums) < 2:
-                        continue
-                    claims.append({
-                        "path": f"pages.{p_index}.{container}.{e_index}.{key}",
-                        "text": text,
-                        "nums": nums,
-                        "code": _track_language(key, material_language),
-                    })
+        nums = _numeric_tokens(surface["text"])
+        if len(nums) < 2:
+            continue
+        claims.append({
+            "path": surface["path"], "text": surface["text"],
+            "nums": nums, "code": surface["code"], "kind": surface["kind"],
+        })
 
     risks: List[Dict[str, Any]] = []
     for i, a in enumerate(claims):
@@ -407,41 +431,105 @@ def collect_thin_generalizations(data: Any, material_language: str = "tr", limit
         return []
 
     risks: List[Dict[str, Any]] = []
-    for p_index, page in enumerate(data["pages"]):
-        if not isinstance(page, dict):
+    for surface in iter_claim_surfaces(data, material_language=material_language):
+        text, code = surface["text"], surface["code"]
+        generalizes = bool(find_absolute_claims(text, code)) or _has_generalization_marker(
+            text, instructional_code(code)
+        )
+        if not generalizes:
             continue
-        for container in ("rules", "comparisons"):
-            for e_index, entry in enumerate(page.get(container) or []):
-                if not isinstance(entry, dict):
-                    continue
-                for key in _claim_bearing_fields(entry):
-                    text = entry.get(key)
-                    if not isinstance(text, str) or not text.strip():
-                        continue
-                    code = _track_language(key, material_language)
-                    generalizes = bool(find_absolute_claims(text, code)) or _has_generalization_marker(
-                        text, instructional_code(code)
-                    )
-                    if not generalizes:
-                        continue
-                    named = _named_terms_in_text(text, expressions)
-                    if len(set(_fold_for_identity(t) for t in named)) != 1:
-                        continue
-                    unnamed = len(expressions) - 1
-                    if unnamed < 2:
-                        continue
-                    risks.append({
-                        "path": f"pages.{p_index}.{container}.{e_index}.{key}",
-                        "text": text[:600],
-                        "quantifiers": [FLAG_THIN_GENERALIZATION],
-                        "examples": [
-                            f"the only instance this rule cites: {named[0]}",
-                            f"the lesson shows {unnamed} other expression(s) the rule does not mention",
-                        ],
-                        "domain": classify_claim_domain(text, code) or "unknown",
-                    })
-                    if len(risks) >= limit:
-                        return risks
+        named = _named_terms_in_text(text, expressions)
+        if len(set(_fold_for_identity(t) for t in named)) != 1:
+            continue
+        unnamed = len(expressions) - 1
+        if unnamed < 2:
+            continue
+        risks.append({
+            "path": surface["path"],
+            "text": text[:600],
+            "quantifiers": [FLAG_THIN_GENERALIZATION],
+            "examples": [
+                f"the only instance this {surface['kind']} cites: {named[0]}",
+                f"the lesson shows {unnamed} other expression(s) it does not mention",
+            ],
+            "domain": classify_claim_domain(text, code) or "unknown",
+        })
+        if len(risks) >= limit:
+            return risks
+    return risks
+
+
+# ── 2b-bis. Restatements that widen a taught rule ───────────────────────────
+
+def _uses_scope_extension(text: str, code: Any) -> List[str]:
+    lang = instructional_code(code)
+    out: List[str] = []
+    for pattern in _SCOPE_EXTENSION_MARKERS.get(lang or "", ()):
+        out.extend(m.group(0) for m in re.finditer(pattern, text or "", flags=re.IGNORECASE))
+    return out
+
+
+def collect_scope_extensions(data: Any, material_language: str = "tr", limit: int = 6) -> List[Dict[str, Any]]:
+    """Prose or a rationale that extends a rule the lesson itself stated narrowly.
+
+    The recurring shape is not a wrong rule; it is a correct rule restated one
+    step too wide. A lesson teaches a finite, checkable set, and a later
+    explanation - most often an answer-key rationale, because that is where a
+    rule gets paraphrased - converts it into an open class ("...and compound
+    forms ending in..."). Every member of the original set is still right, so
+    nothing internally contradicts, and every existing detector stays silent.
+
+    The signal is the extension wording itself, measured against the lesson's own
+    rules: if a restatement opens the class and NO rule in the lesson ever did,
+    the restatement is asserting coverage the material never taught. That is
+    exactly the judgement the deterministic layer can make - it can see that the
+    scope grew, and it cannot know whether the wider claim happens to be true,
+    which is what the bounded reviewer is for.
+
+    Requires the lesson to contain at least one rule (otherwise there is no
+    taught scope to compare against) and the restatement to look rule-shaped -
+    carrying numerals or a generalization marker - so ordinary narrative using
+    "and so on" is never touched.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return []
+
+    surfaces = list(iter_claim_surfaces(data, material_language=material_language))
+    rules = [s for s in surfaces if s["kind"] == "rule"]
+    if not rules:
+        return []
+    # If any rule opens the class itself, the lesson genuinely teaches the wider
+    # scope and a restatement repeating it is faithful, not inflated.
+    if any(_uses_scope_extension(s["text"], s["code"]) for s in rules):
+        return []
+
+    risks: List[Dict[str, Any]] = []
+    for surface in surfaces:
+        if surface["kind"] == "rule":
+            continue
+        extensions = _uses_scope_extension(surface["text"], surface["code"])
+        if not extensions:
+            continue
+        rule_shaped = bool(_numeric_tokens(surface["text"])) or _has_generalization_marker(
+            surface["text"], instructional_code(surface["code"])
+        )
+        if not rule_shaped:
+            continue
+        taught = next((s["text"] for s in rules if _numeric_tokens(s["text"])), rules[0]["text"])
+        risks.append({
+            "path": surface["path"],
+            "text": surface["text"][:600],
+            "field_value": surface["text"][:600],
+            "repair": "rescope",
+            "quantifiers": [FLAG_SCOPE_EXTENSION],
+            "examples": [
+                f"this {surface['kind']} extends the class with: {', '.join(sorted(set(extensions))[:3])}",
+                f"no rule in the lesson states that extension; the rule taught is: {taught[:220]}",
+            ],
+            "domain": classify_claim_domain(surface["text"], surface["code"]) or "structural",
+        })
+        if len(risks) >= limit:
+            break
     return risks
 
 
@@ -806,6 +894,7 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
         collect_prose_phonetic_conflicts,
         collect_coverage_gaps,
         collect_thin_generalizations,
+        collect_scope_extensions,
         collect_script_anomalies,
         collect_translation_mismatches,
         collect_rationale_claims,

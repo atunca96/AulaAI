@@ -25,6 +25,7 @@ from services.publication_evidence import (  # noqa: E402
     FLAG_COVERAGE_GAP,
     FLAG_THIN_GENERALIZATION,
     FLAG_SCRIPT_ANOMALY,
+    FLAG_SCOPE_EXTENSION,
     FLAG_IPA_BORROWED,
     FLAG_PHRASE_IPA_PARTIAL,
     FLAG_PROSE_IPA_CONFLICT,
@@ -37,6 +38,7 @@ from services.publication_evidence import (  # noqa: E402
     collect_prose_phonetic_conflicts,
     collect_rationale_claims,
     collect_partial_columns,
+    collect_scope_extensions,
     collect_script_anomalies,
     collect_thin_generalizations,
     collect_translation_mismatches,
@@ -50,6 +52,7 @@ from services.publication_invariants import (  # noqa: E402
     collect_reviewable_claims,
     find_absolute_claims,
     hedge_absolute_claims,
+    iter_claim_surfaces,
     normalize_claim_record,
 )
 
@@ -516,6 +519,125 @@ def test_partial_column_marking_is_idempotent():
     check("COMPLETE marking is idempotent", once == twice, "second pass differed")
 
 
+# ── Restatement that widens a taught rule ───────────────────────────────────
+
+def test_scope_extension_in_rationale():
+    """A correct rule restated one step too wide, in an answer rationale.
+
+    Every listed member stays correct, so nothing contradicts and every other
+    detector is silent. The signal is that the class was opened where no rule in
+    the lesson ever opened it.
+    """
+    lesson = {"pages": [
+        {"type": "grammar", "rules": [{
+            "rule_tr": "1 sayısı için birinci biçim; 2, 3, 4 için ikinci biçim; 5-20 için üçüncü biçim."}]},
+        {"type": "mcq", "prompt": "3 için hangi biçim?", "options": ["a", "b", "c", "d"],
+         "answer": "b",
+         "explanation_tr": "2, 3, 4 ve 2, 3, 4 ile biten bileşik sayılar ikinci biçimi alır."},
+    ]}
+    risks = collect_scope_extensions(lesson, material_language="tr")
+    check("EXT widened restatement detected", FLAG_SCOPE_EXTENSION in flags(risks), flags(risks))
+    check("EXT points at the rationale, not the rule",
+          risks and risks[0]["path"].endswith("explanation_tr"), [r["path"] for r in risks])
+    if risks:
+        check("EXT evidence quotes the rule actually taught",
+              any("1 sayısı" in e for e in risks[0]["examples"]), risks[0]["examples"])
+    routed = collect_reviewable_claims(lesson, material_language="tr")
+    check("EXT reaches the single bounded review",
+          any(FLAG_SCOPE_EXTENSION in (c.get("quantifiers") or []) for c in routed),
+          [c.get("quantifiers") for c in routed])
+
+
+def test_scope_extension_precision():
+    cases = {
+        "the lesson's own rule opens the class": {"pages": [
+            {"type": "grammar", "rules": [{"rule_tr": "2, 3, 4 ile biten bileşik sayılar B alır."}]},
+            {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+             "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
+        "rationale restates faithfully": {"pages": [
+            {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
+            {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+             "explanation_tr": "3 sayısı 2, 3, 4 grubundadır, bu yüzden B kullanılır."}]},
+        "narrative that is not rule-shaped": {"pages": [
+            {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B."}]},
+            {"type": "overview", "text_tr": "Bu derste selamlaşma, vedalaşma vb. konuları göreceğiz."}]},
+        "no rules to compare against": {"pages": [
+            {"type": "mcq", "prompt": "x", "options": ["a", "b", "c", "d"], "answer": "a",
+             "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
+    }
+    for name, lesson in cases.items():
+        check(f"EXT no false positive: {name}",
+              collect_scope_extensions(lesson, material_language="tr") == [],
+              collect_scope_extensions(lesson, material_language="tr"))
+
+
+def test_correct_rationale_is_untouched():
+    """A correct answer key must survive the boundary byte-for-byte."""
+    import copy
+    lesson = {"pages": [
+        {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
+        {"type": "mcq", "prompt": "3 için hangi biçim?", "options": ["a", "b", "c", "d"],
+         "answer": "b", "explanation_tr": "3 sayısı 2, 3, 4 grubundadır, bu yüzden B kullanılır."},
+    ]}
+    before = copy.deepcopy(lesson)
+    check("EXT correct rationale routes nothing",
+          collect_reviewable_claims(lesson, material_language="tr") == [],
+          collect_reviewable_claims(lesson, material_language="tr"))
+    after = apply_publication_invariants(copy.deepcopy(lesson), language="Testish",
+                                         material_language="tr", topic="t", copy=True)
+    check("EXT correct rationale text unchanged by the boundary",
+          after["pages"][1]["explanation_tr"] == before["pages"][1]["explanation_tr"],
+          after["pages"][1].get("explanation_tr"))
+
+
+# ── Rationales are a first-class claim surface ──────────────────────────────
+
+def test_rationales_are_claim_surfaces():
+    lesson = {"pages": [
+        {"type": "grammar", "rules": [{"rule_tr": "Bir kural."}]},
+        {"type": "mcq", "prompt": "Q", "options": ["a", "b", "c", "d"], "answer": "a",
+         "explanation_tr": "Bir gerekçe."},
+        {"type": "quiz", "questions": [{"prompt": "Q2", "explanation": "Another rationale."}]},
+    ]}
+    surfaces = list(iter_claim_surfaces(lesson, material_language="tr"))
+    kinds = {s["kind"] for s in surfaces}
+    check("SURFACE rules and rationales both enumerated",
+          {"rule", "rationale"} <= kinds, kinds)
+    check("SURFACE nested question rationale found",
+          any(s["path"] == "pages.2.questions.0.explanation" for s in surfaces),
+          [s["path"] for s in surfaces])
+    check("SURFACE every record carries a writable path and language",
+          all(s["path"] and s["text"] and "code" in s for s in surfaces))
+
+
+# ── Declared precision ──────────────────────────────────────────────────────
+
+def test_declared_precision_is_advisory():
+    import copy
+    base = {"pages": [{"type": "grammar",
+                       "items": [{"term": "davkar", "phonetic": "[dɐfˈkar]"}],
+                       "rules": [{"rule_tr": "davkar sözcüğü [dafkar] biçiminde okunur."}]}]}
+    check("PRECISION unlabelled approximation still flagged",
+          FLAG_PROSE_IPA_CONFLICT in flags(collect_prose_phonetic_conflicts(base, material_language="tr")))
+
+    labelled = copy.deepcopy(base)
+    labelled["pages"][0]["rules"][0]["precision"] = "approximate"
+    check("PRECISION declared approximation suppressed",
+          collect_prose_phonetic_conflicts(labelled, material_language="tr") == [],
+          "a labelled simplification should not read as a contradiction")
+
+    exact = copy.deepcopy(base)
+    exact["pages"][0]["rules"][0]["precision"] = "exact"
+    check("PRECISION declared exact still flagged",
+          FLAG_PROSE_IPA_CONFLICT in flags(collect_prose_phonetic_conflicts(exact, material_language="tr")))
+
+    unknown = copy.deepcopy(base)
+    unknown["pages"][0]["rules"][0]["precision"] = "wibble"
+    check("PRECISION unrecognised label fails safe",
+          FLAG_PROSE_IPA_CONFLICT in flags(collect_prose_phonetic_conflicts(unknown, material_language="tr")),
+          "an unknown label must not grant an exemption")
+
+
 def main():
     print("[TEST] publication evidence: IPA integrity, coverage gaps, translations, answer keys")
     for fn in (
@@ -549,6 +671,11 @@ def main():
         test_partial_column_marked_not_filled,
         test_partial_column_precision,
         test_partial_column_marking_is_idempotent,
+        test_scope_extension_in_rationale,
+        test_scope_extension_precision,
+        test_correct_rationale_is_untouched,
+        test_rationales_are_claim_surfaces,
+        test_declared_precision_is_advisory,
     ):
         fn()
     if FAILURES:

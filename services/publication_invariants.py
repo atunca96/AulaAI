@@ -40,7 +40,7 @@ import json
 import re
 import unicodedata
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 # ── Instructional-language resolution ───────────────────────────────────────
 
@@ -548,6 +548,84 @@ def _claim_bearing_fields(entry: Dict[str, Any]) -> List[str]:
     return out
 
 
+# Fields that carry an answer-key rationale. A rationale is instructional prose a
+# learner reads and believes, so it is a claim surface exactly like a rule.
+RATIONALE_FIELDS = ("explanation", "rationale", "why", "feedback", "answer_explanation")
+
+_CLAIM_CONTAINERS = ("rules", "comparisons")
+_RATIONALE_CONTAINERS = ("questions", "mcqs", "assessment", "items")
+
+
+def iter_claim_surfaces(data: Any, material_language: str = "tr") -> Iterator[Dict[str, Any]]:
+    """Yield every field through which the lesson publishes an instructional claim.
+
+    Detectors used to hardcode ``("rules", "comparisons")`` individually. That
+    quietly made a rule the only thing anyone checked, while answer-key
+    rationales - which state rules just as authoritatively, and which a learner
+    is more likely to read closely - were scanned by a single narrow detector.
+    An overbroad restatement in a rationale was therefore invisible to every
+    generalization and coverage check in the system.
+
+    Enumerating the surfaces in one place means a detector opts into all of them
+    by construction, and a future surface is added here once rather than in each
+    detector. Each record carries:
+
+        path      - dotted path for set_by_path
+        text      - the field value
+        code      - instructional language of that field
+        kind      - "rule" | "rationale" | "page"
+        entry     - the owning dict (so a detector can read `scope`, `domain`, …)
+        page      - the owning page
+        page_index
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return
+    for p_index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+
+        for key in _claim_bearing_fields(page):
+            value = page.get(key)
+            if isinstance(value, str) and value.strip():
+                base = _TRACK_SUFFIX.sub("", str(key).casefold())
+                kind = "rationale" if base in RATIONALE_FIELDS else "page"
+                yield {
+                    "path": f"pages.{p_index}.{key}", "text": value,
+                    "code": _track_language(key, material_language), "kind": kind,
+                    "entry": page, "page": page, "page_index": p_index,
+                }
+
+        for container in _CLAIM_CONTAINERS:
+            for e_index, entry in enumerate(page.get(container) or []):
+                if not isinstance(entry, dict):
+                    continue
+                for key in _claim_bearing_fields(entry):
+                    value = entry.get(key)
+                    if isinstance(value, str) and value.strip():
+                        yield {
+                            "path": f"pages.{p_index}.{container}.{e_index}.{key}",
+                            "text": value, "code": _track_language(key, material_language),
+                            "kind": "rule", "entry": entry, "page": page, "page_index": p_index,
+                        }
+
+        for container in _RATIONALE_CONTAINERS:
+            for e_index, entry in enumerate(page.get(container) or []):
+                if not isinstance(entry, dict):
+                    continue
+                for key in entry:
+                    base = _TRACK_SUFFIX.sub("", str(key).casefold())
+                    if base not in RATIONALE_FIELDS:
+                        continue
+                    value = entry.get(key)
+                    if isinstance(value, str) and value.strip():
+                        yield {
+                            "path": f"pages.{p_index}.{container}.{e_index}.{key}",
+                            "text": value, "code": _track_language(key, material_language),
+                            "kind": "rationale", "entry": entry, "page": page,
+                            "page_index": p_index,
+                        }
+
+
 def apply_declared_scope(data: Any, material_language: str = "tr") -> Any:
     """Hedge absolute wording in rules the generator itself declared to be tendencies.
 
@@ -640,6 +718,33 @@ _DECLARED_DOMAINS = {
     "cultural": "social", "social": "social", "pedagogy": "social",
     "pedagogical": "social", "usage": "social",
 }
+
+
+_PRECISION_LEVELS = {
+    "exact": "exact", "precise": "exact", "technical": "exact",
+    "approximate": "approximate", "approximation": "approximate",
+    "simplified": "approximate", "pedagogical": "approximate", "broad": "approximate",
+}
+
+
+def declared_precision(entry: Any) -> Optional[str]:
+    """How precisely a claim intends to describe its subject, when it says so.
+
+    Teaching material legitimately operates at more than one grain: an exact
+    statement, and a deliberate simplification chosen because the precise version
+    would be useless at the learner's level. Those look identical to a checker
+    that compares a claim against the lesson's own finer-grained data, so an
+    honest approximation reads as a contradiction.
+
+    A claim may therefore declare `precision`. It is advisory in exactly the way
+    `domain` is: an absent or unrecognised value means "not stated" and every
+    check behaves as it did before. Nothing here interprets the subject matter -
+    it only records whether the author claimed exactness.
+    """
+    if not isinstance(entry, dict):
+        return None
+    raw = str(entry.get("precision") or "").strip().casefold()
+    return _PRECISION_LEVELS.get(raw)
 
 
 def _declared_domain(entry: Dict[str, Any]) -> Optional[str]:
@@ -1337,6 +1442,11 @@ _DOMAIN_GUIDANCE = (
     "proposition; change only the field you are given.\n"
     "  answer-key-rationale-makes-a-publishable-claim - this is answer-key prose, held to the same "
     "standard as lesson prose. Apply the domain rules above to it.\n"
+    "  restatement-widens-a-rule-the-lesson-taught-narrowly - a rule the lesson stated as a finite, "
+    "listed set has been restated as an open class. Every listed member may still be correct, so do "
+    "not discard the statement: narrow it back to the scope the lesson actually teaches, or, if the "
+    "wider claim is true AND its exceptions are stated, keep it only with those exceptions named. "
+    "Rationales justify one answer and must not teach a broader rule than the material does.\n"
 )
 
 

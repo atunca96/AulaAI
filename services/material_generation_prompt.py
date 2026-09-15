@@ -98,6 +98,23 @@ Rules:
 - Prefer fewer, correct, well-scoped claims over many impressive-sounding ones. If you cannot state a regularity accurately at this level, teach the forms and omit the generalization.
 </claim_scope>
 
+<argument_selection>
+Correct inflection is not the same as correct meaning. A form can be morphologically perfect and still be the wrong way to say what you meant.
+- Verbs, prepositions, adpositions and fixed constructions license particular complements for particular senses. Before writing an example, check that the complement you chose expresses the INTENDED meaning of the sentence, not merely that it is a grammatically possible complement of that head.
+- A head that takes a direct object in one sense often requires a different marking, adposition or construction in another sense. Producing the first when you meant the second yields a sentence that parses, glosses plausibly into the instructional language, and is wrong.
+- If the same head appears elsewhere in this lesson with a different complement pattern, make sure both uses are individually correct and that the difference is the real one the language makes, not an accident.
+- The instructional-language translation must be a translation of what the target sentence actually says. If the translation reads naturally but the target sentence does not license that reading, the target sentence is wrong - fix it rather than the translation.
+- When unsure whether a head licenses a complement in the sense you want, choose a different example you are sure of. An unnatural example teaches the wrong pattern more strongly than no example at all.
+</argument_selection>
+
+<rationale_discipline>
+An answer-key explanation justifies ONE keyed answer. It is not a place to restate the rule more broadly than the lesson taught it.
+- Explain why the keyed option is correct for the case the question actually asks about. Do not generalize from that case to a wider class.
+- Never widen a taught rule while restating it. If the lesson teaches a finite, listed set, the rationale must not convert it into an open class ("...and any form ending in...", "...and compound cases", "...and so on"). Such an extension is a new claim, and a rationale is the wrong place to make one.
+- If the wider statement is genuinely true and worth teaching, it belongs in a rule where it can carry its own exceptions - not in an aside attached to one question.
+- A rationale must not contradict, or quietly exceed, any rule, table or example elsewhere in the material.
+</rationale_discipline>
+
 <structured_completeness>
 A field that appears across the rows of an inventory reads as a column, and a column promises a value for every row.
 - If you populate a field for some members of a set, populate it for all of them. A table with scattered gaps reads as missing data, not as a deliberate omission.
@@ -110,6 +127,7 @@ Teaching the same phenomenon twice at different levels of precision is legitimat
 - If you give a simplified account first and a more precise one later, say explicitly that the first was a simplification and that the second refines it. Never present two different accounts of the same phenomenon as though both were the plain truth.
 - Do not silently change the level of detail of an explanation between sections.
 - If the more precise account is beyond the selected CEFR level, give only the simplification and do not introduce the refinement at all.
+- When you deliberately simplify, mark that claim `"precision": "approximate"`; when a statement is meant to be exact, mark it `"precision": "exact"`. This lets the material distinguish a chosen simplification from a contradiction, instead of the two looking identical.
 </abstraction_consistency>
 
 <evidence_agreement>
@@ -230,6 +248,7 @@ Return ONLY valid JSON matching this structure:
         "source_taught": "Specific structural distinction",
         "scope": "absolute" | "tendency",
         "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register",
+        "precision": "exact" | "approximate",
         "provenance": "source_explicit" | "source_inherent"
       }}],
       "dialogue": [{{
