@@ -111,6 +111,8 @@ Correct inflection is not the same as correct meaning. A form can be morphologic
 An answer-key explanation justifies ONE keyed answer. It is not a place to restate the rule more broadly than the lesson taught it.
 - Explain why the keyed option is correct for the case the question actually asks about. Do not generalize from that case to a wider class.
 - Never widen a taught rule while restating it. If the lesson teaches a finite, listed set, the rationale must not convert it into an open class ("...and any form ending in...", "...and compound cases", "...and so on"). Such an extension is a new claim, and a rationale is the wrong place to make one.
+- A rule's exceptions travel with it. If the lesson states a rule as an open class WITH exclusions ("...except these members"), any restatement of that class must carry the same exclusions. Repeating the class and dropping the exclusion produces a statement that is simply false for the excluded members, even though every other member is still right.
+- The safest rationale speaks only about the case being asked. If you do not want to repeat a rule's exceptions, do not restate the rule at the class level at all — explain why the keyed answer follows for this instance.
 - If the wider statement is genuinely true and worth teaching, it belongs in a rule where it can carry its own exceptions - not in an aside attached to one question.
 - A rationale must not contradict, or quietly exceed, any rule, table or example elsewhere in the material.
 </rationale_discipline>

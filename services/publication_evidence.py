@@ -65,6 +65,7 @@ FLAG_THIN_GENERALIZATION = "rule-generalizes-from-a-single-cited-instance"
 FLAG_SCRIPT_ANOMALY = "target-language-text-contains-a-foreign-script-token"
 FLAG_PARTIAL_COLUMN = "structured-field-populated-for-some-siblings-but-not-others"
 FLAG_SCOPE_EXTENSION = "restatement-widens-a-rule-the-lesson-taught-narrowly"
+FLAG_BOUND_DROPPED = "restatement-omits-an-exception-the-taught-rule-states"
 
 
 # Wording that turns a listed set into an open class: "2, 3, 4 and compound
@@ -84,6 +85,32 @@ _SCOPE_EXTENSION_MARKERS: Dict[str, Tuple[str, ...]] = {
     "it": (r"\bche\s+terminano\s+in\b", r"\bcompost\w+\b", r"\becc\.", r"\ballo\s+stesso\s+modo\b"),
     "pt": (r"\bterminad\w+\s+em\b", r"\bcompost\w+\b", r"\betc\.", r"\bda\s+mesma\s+forma\b"),
     "ru": (r"\bоканчивающ\w+\s+на\b", r"\bсоставн\w+\b", r"\bи\s+т\.\s*д\.", r"\bаналогично\b"),
+}
+
+
+# Wording that BOUNDS a rule: it says the class has members that behave
+# differently. A rule may perfectly well describe an open class and still be
+# exact, provided it carries its exceptions - "numbers ending in 2, 3 or 4,
+# except 12, 13 and 14". Losing that clause while repeating the class is how a
+# correct rule becomes a false one, so the bound has to be visible to the
+# detector, not just the class.
+#
+# Deliberately narrow: only wording that explicitly marks an exclusion. Generic
+# contrastive conjunctions ("but", "however", "ancak") are not listed, because a
+# rule may use them for any contrast and treating them as bounds would both
+# invent bounds that are not there and excuse restatements that state none.
+_EXCEPTION_MARKERS: Dict[str, Tuple[str, ...]] = {
+    "tr": (r"\bistisna", r"\bhariç", r"\bharic\b", r"\bharicinde\b", r"\bdışında\b",
+           r"\bdisinda\b", r"\bdışıdır\b", r"\bdışındadır\b", r"\bdışsal\b"),
+    "en": (r"\bexcept\b", r"\bexcepting\b", r"\bexception", r"\bexcluding\b",
+           r"\bexcluded\b", r"\bapart\s+from\b", r"\bother\s+than\b",
+           r"\bwith\s+the\s+exception\s+of\b", r"\bdoes\s+not\s+apply\s+to\b"),
+    "es": (r"\bexcepto\b", r"\bexcepción", r"\bsalvo\b", r"\ba\s+excepción\s+de\b"),
+    "de": (r"\bausser\b", r"\baußer\b", r"\bAusnahme", r"\bausgenommen\b"),
+    "fr": (r"\bsauf\b", r"\bexception", r"\bà\s+l'exception\s+de\b", r"\bhormis\b"),
+    "it": (r"\btranne\b", r"\beccezione", r"\bsalvo\b", r"\bad\s+eccezione\s+di\b"),
+    "pt": (r"\bexceto\b", r"\bexceção", r"\bsalvo\b", r"\bcom\s+exceção\s+de\b"),
+    "ru": (r"\bкроме\b", r"\bисключени", r"\bза\s+исключением\b"),
 }
 
 
@@ -469,27 +496,62 @@ def _uses_scope_extension(text: str, code: Any) -> List[str]:
     return out
 
 
+def _uses_exception(text: str, code: Any) -> List[str]:
+    lang = instructional_code(code)
+    out: List[str] = []
+    for pattern in _EXCEPTION_MARKERS.get(lang or "", ()):
+        out.extend(m.group(0) for m in re.finditer(pattern, text or "", flags=re.IGNORECASE))
+    return out
+
+
+def _relatedness(restatement: Dict[str, Any], rule: Dict[str, Any]) -> int:
+    """How strongly a restatement and a rule describe the same territory.
+
+    Two grounded signals: they open the class with the same wording, or they
+    quantify over the same numbers. Requiring one of them keeps an exception
+    stated in an unrelated part of the lesson from being treated as a bound on
+    a claim that has nothing to do with it.
+    """
+    if restatement["code"] != rule["code"]:
+        return 0
+    shared_ext = set(m.casefold() for m in _uses_scope_extension(restatement["text"], restatement["code"])) & \
+                 set(m.casefold() for m in _uses_scope_extension(rule["text"], rule["code"]))
+    shared_nums = _numeric_tokens(restatement["text"]) & _numeric_tokens(rule["text"])
+    if not shared_ext and len(shared_nums) < 2:
+        return 0
+    return len(shared_ext) * 2 + len(shared_nums)
+
+
 def collect_scope_extensions(data: Any, material_language: str = "tr", limit: int = 6) -> List[Dict[str, Any]]:
-    """Prose or a rationale that extends a rule the lesson itself stated narrowly.
+    """Restatements that claim more than the rule they are restating.
 
-    The recurring shape is not a wrong rule; it is a correct rule restated one
-    step too wide. A lesson teaches a finite, checkable set, and a later
-    explanation - most often an answer-key rationale, because that is where a
-    rule gets paraphrased - converts it into an open class ("...and compound
-    forms ending in..."). Every member of the original set is still right, so
-    nothing internally contradicts, and every existing detector stays silent.
+    A rationale or a later paragraph paraphrases a rule the lesson already
+    taught. Every member it names may still be correct, so nothing contradicts
+    and no coverage comparison sees anything: the defect is that the restatement
+    is WIDER than its source. That happens in two ways, and both are visible
+    without knowing the subject matter:
 
-    The signal is the extension wording itself, measured against the lesson's own
-    rules: if a restatement opens the class and NO rule in the lesson ever did,
-    the restatement is asserting coverage the material never taught. That is
-    exactly the judgement the deterministic layer can make - it can see that the
-    scope grew, and it cannot know whether the wider claim happens to be true,
-    which is what the bounded reviewer is for.
+      * the restatement opens a class the lesson never opened - the lesson taught
+        a finite listed set, the restatement converts it into "...and any form
+        ending in...";
+      * the restatement repeats an open class the lesson DID teach, but drops the
+        exception the taught rule carries - "numbers ending in 2, 3 or 4, except
+        12, 13 and 14" comes back as "numbers ending in 2, 3 or 4".
 
-    Requires the lesson to contain at least one rule (otherwise there is no
-    taught scope to compare against) and the restatement to look rule-shaped -
-    carrying numerals or a generalization marker - so ordinary narrative using
-    "and so on" is never touched.
+    The second form is the one that matters most in practice, and an earlier
+    version of this detector was blind to it by construction: it bailed out
+    whenever any rule used extension wording, on the theory that the lesson then
+    genuinely taught the wider scope. That reasoning is inverted for a rule which
+    is open BUT BOUNDED. The better the lesson stated "ending in 2, 3 or 4 except
+    12-14", the more certainly the detector disabled itself, and a rationale
+    repeating the class without the bound escaped every check.
+
+    False-positive discipline: a rationale is *supposed* to be shorter than the
+    rule behind it. Omitting irrelevant detail is not widening. So the bound-drop
+    case fires only when the restatement itself makes a CLASS-LEVEL claim - it
+    uses the extension wording - and still names no exception, while a rule
+    covering the same territory names one. A rationale that simply applies the
+    rule to the asked instance states no class and is never touched.
     """
     if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
         return []
@@ -498,10 +560,7 @@ def collect_scope_extensions(data: Any, material_language: str = "tr", limit: in
     rules = [s for s in surfaces if s["kind"] == "rule"]
     if not rules:
         return []
-    # If any rule opens the class itself, the lesson genuinely teaches the wider
-    # scope and a restatement repeating it is faithful, not inflated.
-    if any(_uses_scope_extension(s["text"], s["code"]) for s in rules):
-        return []
+    opened_by_lesson = any(_uses_scope_extension(s["text"], s["code"]) for s in rules)
 
     risks: List[Dict[str, Any]] = []
     for surface in surfaces:
@@ -515,22 +574,47 @@ def collect_scope_extensions(data: Any, material_language: str = "tr", limit: in
         )
         if not rule_shaped:
             continue
-        taught = next((s["text"] for s in rules if _numeric_tokens(s["text"])), rules[0]["text"])
-        risks.append({
-            "path": surface["path"],
-            "text": surface["text"][:600],
-            "field_value": surface["text"][:600],
-            "repair": "rescope",
-            "quantifiers": [FLAG_SCOPE_EXTENSION],
-            "examples": [
-                f"this {surface['kind']} extends the class with: {', '.join(sorted(set(extensions))[:3])}",
-                f"no rule in the lesson states that extension; the rule taught is: {taught[:220]}",
-            ],
-            "domain": classify_claim_domain(surface["text"], surface["code"]) or "structural",
-        })
+
+        if not opened_by_lesson:
+            taught = next((s["text"] for s in rules if _numeric_tokens(s["text"])), rules[0]["text"])
+            risks.append(_scope_risk(
+                surface, FLAG_SCOPE_EXTENSION,
+                [f"this {surface['kind']} extends the class with: {', '.join(sorted(set(extensions))[:3])}",
+                 f"no rule in the lesson states that extension; the rule taught is: {taught[:220]}"],
+            ))
+        elif not _uses_exception(surface["text"], surface["code"]):
+            # The lesson teaches the class. Did it teach it WITH a bound that this
+            # restatement has dropped? Compare only against rules describing the
+            # same territory, strongest match first.
+            bounded = sorted(
+                ((_relatedness(surface, r), r) for r in rules
+                 if _relatedness(surface, r) and _uses_exception(r["text"], r["code"])),
+                key=lambda pair: pair[0], reverse=True,
+            )
+            if not bounded:
+                continue
+            _score, source = bounded[0]
+            stated = sorted(set(_uses_exception(source["text"], source["code"])))
+            risks.append(_scope_risk(
+                surface, FLAG_BOUND_DROPPED,
+                [f"this {surface['kind']} states the class but names no exception",
+                 f"the rule it restates bounds that class ({', '.join(stated[:3])}): {source['text'][:220]}"],
+            ))
         if len(risks) >= limit:
             break
     return risks
+
+
+def _scope_risk(surface: Dict[str, Any], flag: str, evidence: List[str]) -> Dict[str, Any]:
+    return {
+        "path": surface["path"],
+        "text": surface["text"][:600],
+        "field_value": surface["text"][:600],
+        "repair": "rescope",
+        "quantifiers": [flag],
+        "examples": evidence,
+        "domain": classify_claim_domain(surface["text"], surface["code"]) or "structural",
+    }
 
 
 # ── 2c. Whole-token script corruption ───────────────────────────────────────

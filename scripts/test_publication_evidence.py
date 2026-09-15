@@ -26,6 +26,7 @@ from services.publication_evidence import (  # noqa: E402
     FLAG_THIN_GENERALIZATION,
     FLAG_SCRIPT_ANOMALY,
     FLAG_SCOPE_EXTENSION,
+    FLAG_BOUND_DROPPED,
     FLAG_IPA_BORROWED,
     FLAG_PHRASE_IPA_PARTIAL,
     FLAG_PROSE_IPA_CONFLICT,
@@ -638,6 +639,102 @@ def test_declared_precision_is_advisory():
           "an unknown label must not grant an exemption")
 
 
+# ── Restatement that drops a bound the taught rule carries ──────────────────
+
+def _bounded_lesson(rationale):
+    """Lesson whose rules describe an OPEN class but state its exceptions."""
+    return {"pages": [
+        {"type": "grammar", "rules": [
+            {"rule_tr": "1 ile biten sayılarda tekil biçim kullanılır; ancak 11 bu kuralın istisnasıdır."},
+            {"rule_tr": "2, 3 veya 4 ile biten sayılarda ikinci biçim kullanılır; 12, 13 ve 14 hariçtir."}]},
+        {"type": "grammar", "rules": [
+            {"rule_tr": "Hatırlatma: 12, 13 ve 14 sayıları 2, 3, 4 kuralının dışındadır."}]},
+        {"type": "mcq", "prompt": "54 için hangi biçim?", "options": ["a", "b", "c", "d"],
+         "answer": "b", "explanation_tr": rationale},
+    ]}
+
+
+def test_bound_dropped_on_restatement():
+    """The production escape: an open-but-BOUNDED rule restated without its bound.
+
+    An earlier detector was blind to this by construction - it bailed out as soon
+    as any rule used extension wording, so the better the lesson stated its
+    bounded rule, the more certainly the check disabled itself.
+    """
+    lesson = _bounded_lesson("2, 3 veya 4 ile biten bileşik sayılar bu biçimi gerektirir.")
+    risks = collect_scope_extensions(lesson, material_language="tr")
+    check("BOUND dropped exception detected", FLAG_BOUND_DROPPED in flags(risks), flags(risks))
+    check("BOUND risk points at the rationale",
+          risks and risks[0]["path"].endswith("explanation_tr"), [r["path"] for r in risks])
+    if risks:
+        check("BOUND evidence quotes the rule that states the exception",
+              any("hariç" in e for e in risks[0]["examples"]), risks[0]["examples"])
+        check("BOUND evidence names the excluded members",
+              any("12" in e for e in risks[0]["examples"]), risks[0]["examples"])
+    routed = collect_reviewable_claims(lesson, material_language="tr")
+    check("BOUND reaches the single bounded review",
+          any(FLAG_BOUND_DROPPED in (c.get("quantifiers") or []) for c in routed),
+          [c.get("quantifiers") for c in routed])
+
+
+def test_bound_dropped_false_positive_discipline():
+    """A rationale is SUPPOSED to be shorter than its rule. Omitting irrelevant
+    detail is not widening; only a class-level claim without the bound is."""
+    cases = {
+        "applies the rule to the asked instance":
+            _bounded_lesson("54 sayısı 4 ile bitiyor, bu yüzden ikinci biçim kullanılır."),
+        "restates the class WITH the bound":
+            _bounded_lesson("2, 3 veya 4 ile biten sayılar bu biçimi alır; 12, 13, 14 hariç."),
+        "concise, makes no class claim":
+            _bounded_lesson("İkinci biçim doğrudur, tabloda gösterilmiştir."),
+        "taught rule carries no exception, so none was dropped": {"pages": [
+            {"type": "grammar", "rules": [{"rule_tr": "1 ile biten sayılarda A; 2, 3, 4 ile bitenlerde B."}]},
+            {"type": "mcq", "prompt": "q", "options": ["a", "b", "c", "d"], "answer": "a",
+             "explanation_tr": "2, 3, 4 ile biten sayılar B alır."}]},
+        "exception exists but on an unrelated rule": {"pages": [
+            {"type": "grammar", "rules": [
+                {"rule_tr": "Ünsüzlerde şu ek gelir; ancak yumuşak ünsüzler hariçtir."},
+                {"rule_tr": "1 ile biten sayılarda A kullanılır."}]},
+            {"type": "mcq", "prompt": "q", "options": ["a", "b", "c", "d"], "answer": "a",
+             "explanation_tr": "1 ile biten sayılar A alır."}]},
+    }
+    for name, lesson in cases.items():
+        got = collect_scope_extensions(lesson, material_language="tr")
+        check(f"BOUND no false positive: {name}", got == [], got)
+
+
+def test_both_widening_shapes_coexist():
+    """Opening an unopened class and dropping a stated bound are both caught."""
+    opening = {"pages": [
+        {"type": "grammar", "rules": [{"rule_tr": "1 için A; 2, 3, 4 için B; 5-20 için C."}]},
+        {"type": "mcq", "prompt": "3?", "options": ["a", "b", "c", "d"], "answer": "b",
+         "explanation_tr": "2, 3, 4 ve 2, 3, 4 ile biten bileşik sayılar B alır."}]}
+    check("BOTH class-opening shape still detected",
+          FLAG_SCOPE_EXTENSION in flags(collect_scope_extensions(opening, material_language="tr")),
+          flags(collect_scope_extensions(opening, material_language="tr")))
+    dropped = _bounded_lesson("2, 3 veya 4 ile biten bileşik sayılar bu biçimi gerektirir.")
+    check("BOTH bound-dropping shape detected",
+          FLAG_BOUND_DROPPED in flags(collect_scope_extensions(dropped, material_language="tr")))
+
+
+def test_bounded_lesson_correct_rationale_survives_boundary():
+    """A valid concise rationale must be byte-identical after the boundary."""
+    import copy
+    lesson = _bounded_lesson("54 sayısı 4 ile bitiyor, bu yüzden ikinci biçim kullanılır.")
+    before = copy.deepcopy(lesson)
+    check("BOUND valid rationale routes nothing",
+          collect_reviewable_claims(copy.deepcopy(lesson), material_language="tr") == [],
+          collect_reviewable_claims(copy.deepcopy(lesson), material_language="tr"))
+    after = apply_publication_invariants(copy.deepcopy(lesson), language="Testish",
+                                         material_language="tr", topic="t", copy=True)
+    check("BOUND valid rationale unchanged by the boundary",
+          after["pages"][2]["explanation_tr"] == before["pages"][2]["explanation_tr"],
+          after["pages"][2].get("explanation_tr"))
+    twice = apply_publication_invariants(copy.deepcopy(after), language="Testish",
+                                         material_language="tr", topic="t", copy=True)
+    check("BOUND boundary idempotent on bounded lessons", after == twice, "second pass differed")
+
+
 def main():
     print("[TEST] publication evidence: IPA integrity, coverage gaps, translations, answer keys")
     for fn in (
@@ -676,6 +773,10 @@ def main():
         test_correct_rationale_is_untouched,
         test_rationales_are_claim_surfaces,
         test_declared_precision_is_advisory,
+        test_bound_dropped_on_restatement,
+        test_bound_dropped_false_positive_discipline,
+        test_both_widening_shapes_coexist,
+        test_bounded_lesson_correct_rationale_survives_boundary,
     ):
         fn()
     if FAILURES:

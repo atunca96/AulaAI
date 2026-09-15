@@ -1447,6 +1447,11 @@ _DOMAIN_GUIDANCE = (
     "not discard the statement: narrow it back to the scope the lesson actually teaches, or, if the "
     "wider claim is true AND its exceptions are stated, keep it only with those exceptions named. "
     "Rationales justify one answer and must not teach a broader rule than the material does.\n"
+    "  restatement-omits-an-exception-the-taught-rule-states - the lesson's own rule describes this "
+    "class WITH an exception, and this restatement repeats the class without it. As written the "
+    "statement is false for the excluded members. The evidence quotes the bounded rule: either name "
+    "the same exception here, or drop the class-level wording and speak only about the case actually "
+    "being explained. Do not keep a class-level claim that the lesson itself bounds.\n"
 )
 
 
