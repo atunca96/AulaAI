@@ -1873,7 +1873,7 @@ def localized_options_are_publishable(raw_options: Any, localized: Any, target_s
     return True
 
 
-def enforce_option_parallelism(data: Any) -> Any:
+def enforce_option_parallelism(data: Any, material_language: str = "tr") -> Any:
     """Drop localized option lists that cannot stand in for the real options.
 
     Enforced here rather than in a renderer because there is more than one
@@ -1892,9 +1892,13 @@ def enforce_option_parallelism(data: Any) -> Any:
     if not isinstance(pages, list):
         return data
     target_surfaces = collect_target_surfaces(data)
+    kept = []
     for page in pages:
         if isinstance(page, dict):
             _enforce_item_option_parallelism(page, target_surfaces)
+            enforce_instructional_track(page, material_language)
+        kept.append(page)
+    data["pages"] = kept
     return data
 
 
@@ -1948,6 +1952,60 @@ def localized_stem_is_publishable(authored: Any, localized: Any, rationales: Any
     if authored_families - localized_families:
         return False
     return True
+
+
+def enforce_instructional_track(item: Dict[str, Any], material_language: str = "tr") -> bool:
+    """Make the item's learner-facing instruction belong to the published track.
+
+    A stem field carrying no track suffix is, by this codebase's own convention
+    (`_track_language`), the English one. Renderers ask for the track's stem and
+    then fall back through the untagged name, so a Turkish publication whose item
+    had no `prompt_tr` displayed the English `prompt` as though it were Turkish -
+    Korean material asked "What is the correct pronunciation of the word ...?" on
+    the Turkish track. Worse, the fallback list reached the untagged name BEFORE
+    the track-suffixed synonyms, so an item that DID carry a Turkish stem under
+    `question_tr` or `stem_tr` was overridden by English anyway.
+
+    Two repairs, neither of which writes any language the item did not already
+    contain:
+
+      * if the track has a stem under any of its accepted names, it is promoted to
+        the name renderers ask for first, so an authored translation is used
+        instead of being skipped;
+    When the track has no stem under ANY of its names there is nothing to promote.
+    Deterministic code does not translate, and the authored stem is frequently
+    target-language content the contract explicitly permits - a sentence with a
+    blank in it - so withdrawing the question would cost real assessment coverage
+    to fix a case it cannot actually repair. That residue is reported rather than
+    guessed at; `False` says the contract could not be satisfied from what the
+    item contains.
+    """
+    track = str(material_language or "tr").strip().casefold()
+    if track not in ("tr", "en"):
+        track = "tr"
+    preferred = f"prompt_{track}"
+    available = None
+    # `_track_language` treats an untagged field as the English one, so on the
+    # English track the untagged names already satisfy the contract and are
+    # accepted alongside the suffixed ones.
+    names = [f"{b}_{track}" for b in ("prompt", "question", "stem", "text")]
+    if track == "en":
+        names += ["prompt", "question", "stem"]
+    for name in names:
+        value = item.get(name)
+        if isinstance(value, str) and value.strip():
+            available = value
+            break
+    if available is not None:
+        if not str(item.get(preferred) or "").strip():
+            item[preferred] = available
+        return True
+
+    off_track = [k for k in ("prompt", "question", "stem")
+                 if isinstance(item.get(k), str) and str(item.get(k)).strip()]
+    if not off_track:
+        return True  # nothing claimed to be a stem; ordinary validation decides
+    return False
 
 
 def _enforce_item_option_parallelism(item: Dict[str, Any], target_surfaces: Any = None) -> Dict[str, Any]:
@@ -2038,6 +2096,7 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
             if not ok:
                 continue
         _enforce_item_option_parallelism(item)
+        enforce_instructional_track(item, material_language)
         out.append(item)
     return out
 
@@ -2059,7 +2118,7 @@ def apply_publication_invariants(
         return data
     out = deepcopy(data) if copy else data
     out = prune_invalid_mcq_pages(out)
-    out = enforce_option_parallelism(out)
+    out = enforce_option_parallelism(out, material_language=material_language)
     out = unify_phonetic_ownership(out)
     out = collapse_adjacent_duplicates(out)
     out = apply_declared_scope(out, material_language=material_language)

@@ -516,4 +516,62 @@ check(not _ensure_minimum_lesson_structure(
 ).get("_review_required"), "a complete lesson is never marked review-required")
 
 
+# ── The learner-facing instruction belongs to the published track ────────────
+
+from services.publication_invariants import enforce_instructional_track  # noqa: E402
+
+KO = ["옷", "오", "옫", "옽"]
+
+
+def _ko(**kw):
+    return dict({"type": "mcq", "options": KO, "answer": "옷", "explanation_tr": "x"}, **kw)
+
+
+# A Turkish stem authored under a synonym used to lose to the untagged English
+# one, because renderers reach the untagged name first.
+promoted = apply_publication_invariants(
+    {"pages": [_ko(prompt="What is the correct pronunciation?",
+                   question_tr="'옷' kelimesinin doğru telaffuzu hangisidir?")]},
+    language="Korean", material_language="tr")["pages"][0]
+check(promoted.get("prompt_tr") == "'옷' kelimesinin doğru telaffuzu hangisidir?",
+      "an authored track stem is promoted to the name renderers ask for first")
+check(promoted["options"] == KO, "target-language options are untouched by promotion")
+
+check(apply_publication_invariants(
+    {"pages": [_ko(prompt="EN stem", prompt_tr="Doğru telaffuz hangisidir?")]},
+    language="Korean", material_language="tr")["pages"][0]["prompt_tr"]
+    == "Doğru telaffuz hangisidir?",
+    "an existing track stem is never overwritten")
+
+en_track = apply_publication_invariants(
+    {"pages": [_ko(prompt="What is the correct pronunciation of '옷' in isolation?")]},
+    language="Korean", material_language="en")["pages"][0]
+check(en_track.get("prompt_en") == "What is the correct pronunciation of '옷' in isolation?",
+      "an untagged stem IS the English track and satisfies an English publication")
+
+check(not enforce_instructional_track(
+    _ko(prompt="What is the correct pronunciation of '옷' in isolation?"), "tr"),
+    "an item with no Turkish instruction anywhere reports the contract unmet")
+check(enforce_instructional_track(_ko(prompt_tr="Türkçe soru"), "tr"),
+      "an item carrying its track instruction satisfies the contract")
+check(enforce_instructional_track(_ko(), "tr"),
+      "an item claiming no stem at all is left to ordinary MCQ validation")
+
+# The two earlier assessment rules must still hold alongside this one.
+still_lossy = apply_publication_invariants({"pages": [dict(LOSSY)]},
+                                           language="German", material_language="tr")["pages"][0]
+check("prompt_tr" not in still_lossy, "the malformed-stem rule still fires")
+kana = apply_publication_invariants(
+    {"pages": [_ko(prompt_tr="Doğru biçim?", options=["みて", "きいて", "よんで", "かいて"],
+                   answer="みて", options_tr=["bakıp", "dinleyip", "okuyup", "yazıp"])]},
+    language="Japanese", material_language="tr")["pages"][0]
+check("options_tr" not in kana and kana["options"] == ["みて", "きいて", "よんで", "かいて"],
+      "the localized-options rule still fires and target forms survive")
+
+check(len(apply_publication_invariants(
+    {"pages": [{"type": "vocabulary", "text": "English overview."}]},
+    language="Korean", material_language="tr")["pages"]) == 1,
+    "pages that are not assessment items are never touched by the track rule")
+
+
 print(f"cost, RTL text-layer, class-lexicon and progress tests passed ({checks} checks)")
