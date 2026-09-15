@@ -27,6 +27,7 @@ RUN cat .deploy/publication-invariants.src.* > services/publication_invariants.p
        .deploy/publication-grade.tail.patch \
        > /tmp/publication-grade.patch \
     && patch -p2 --batch < /tmp/publication-grade.patch \
+    && patch -p1 --batch < .deploy/generalization-v2.patch \
     && sed -i '/scripts\/test_publication_invariants.py/d' scripts/run_build_pipeline.py \
     && python scripts/run_build_pipeline.py
 
