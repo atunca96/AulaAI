@@ -268,9 +268,9 @@ Return ONLY valid JSON matching this structure:
         "line_en": "English translation",
         "line_tr": "Turkish translation"
       }}],
-      "prompt": "Question in {language}",
+      "prompt": "ONLY the {language} material the learner completes or examines - a sentence with a ____ gap, a form, a phrase. Never put the instruction that introduces it here, in any language.",
       "prompt_en": "Question/instruction in English",
-      "prompt_tr": "Question/instruction in Turkish",
+      "prompt_tr": "The instruction, in Turkish ('Cümleyi tamamlayın:'). Required for every item. The {language} material stays in `prompt`; the two are joined when published.",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
       "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],
       "answer": "Correct answer",

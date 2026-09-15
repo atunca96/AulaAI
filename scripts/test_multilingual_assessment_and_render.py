@@ -161,7 +161,8 @@ check(page.get("explanation_tr") == "て-biçimi kuralı",
 
 # Standalone quizzes cross the same boundary.
 quiz = apply_assessment_invariants([{
-    "prompt": "Which form?", "options": ["みて", "きいて", "よんで", "かいて"],
+    "prompt": "Which form?", "prompt_tr": "Hangi biçim?",
+    "options": ["みて", "きいて", "よんで", "かいて"],
     "options_tr": ["bakıp", "dinleyip", "okuyup", "yazıp"], "answer": "みて",
 }], language="Japanese")
 check("options_tr" not in quiz[0], "assessment items cross the same boundary")

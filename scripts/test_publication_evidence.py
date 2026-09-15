@@ -223,17 +223,22 @@ def test_rationale_social_claim_routed():
 
 
 def test_valid_answer_key_unchanged():
-    key = [{"question": "Which form?", "options": ["a", "b", "c", "d"], "answer": "b",
+    key = [{"question": "Which form?", "question_tr": "Hangi biçim?",
+            "options": ["a", "b", "c", "d"], "answer": "b",
             "explanation": "Option b is the second form, as shown in the table."}]
     out = apply_assessment_invariants(key, language="Testish", material_language="tr")
-    check("11 valid answer key preserved", out == key, out)
+    # Every authored value survives untouched. The boundary may ADD the field a
+    # renderer reads first (promotion), which is why this checks preservation of
+    # what was written rather than identity of the dict.
+    check("11 valid answer key preserved",
+          len(out) == 1 and all(out[0].get(k) == v for k, v in key[0].items()), out)
 
 
 def test_assessment_boundary_drops_invalid_and_sanitizes():
     key = [
-        {"question": "Q", "options": ["a", "b", "c", "d"], "answer": "a", "explanation": "fine"},
-        {"question": "Bad", "options": ["a", "a"], "answer": "zz", "explanation": "broken"},
-        {"question": "Uni", "options": ["a", "b", "c", "d"], "answer": "a",
+        {"question": "Q", "question_tr": "S", "options": ["a", "b", "c", "d"], "answer": "a", "explanation": "fine"},
+        {"question": "Bad", "question_tr": "Bozuk", "options": ["a", "a"], "answer": "zz", "explanation": "broken"},
+        {"question": "Uni", "question_tr": "Uni", "options": ["a", "b", "c", "d"], "answer": "a",
          "explanation": "cleantext"},
     ]
     out = apply_assessment_invariants(key, language="Testish", material_language="tr")

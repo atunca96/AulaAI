@@ -469,20 +469,38 @@ CROSS = {"type": "mcq", "prompt": "「見る」の て形は _____ です。",
          "options": ["みて", "きいて", "よんで", "かいて"], "answer": "みて",
          "explanation_tr": "て biçimi"}
 cross_out = apply_publication_invariants({"pages": [CROSS]}, language="Japanese")["pages"][0]
-check("prompt_tr" not in cross_out,
-      "a stem that loses the writing system the question is about is not published")
+# The property, not the mechanism that used to deliver it. A Turkish INSTRUCTION
+# beside a Japanese sentence is no longer removed for "losing" the script - it is
+# joined to the sentence, so the learner gets both the task and the material. What
+# must never happen is the writing system the question is about going missing from
+# what the learner reads.
+learner_stem = cross_out.get("prompt_tr") or cross_out.get("prompt")
+check("「見る」の て形は _____ です。" in learner_stem,
+      "the sentence the question is about reaches the learner")
+check("Doğru biçim hangisidir?" in learner_stem,
+      "and it arrives with its Turkish instruction rather than instead of it")
 check(cross_out["options"] == CROSS["options"],
       "the earlier option-preservation fix still holds alongside the stem rule")
 
 check("prompt_tr" not in apply_assessment_invariants([dict(LOSSY)], language="German")[0],
       "standalone quizzes cross the same boundary")
 
-check(not localized_stem_is_publishable("Wir gehen", "", ["gehen"]),
+check(not localized_stem_is_publishable("Wir _____ gehen", "", ["gehen"]),
       "an empty localization never replaces a stem")
-check(localized_stem_is_publishable("Wir gehen heute", "Wir gehen bugün", ["gehen", "wir"]),
+check(localized_stem_is_publishable("Wir _____ heute gehen", "Wir _____ bugün gehen", ["gehen", "wir"]),
       "a localization keeping every cited token is publishable")
-check(not localized_stem_is_publishable("Wir gehen heute", "Bugün gidiyoruz", ["gehen"]),
-      "dropping a cited token is refused whatever else the translation keeps")
+check(not localized_stem_is_publishable("Wir _____ heute gehen", "Bugün _____ gidiyoruz", ["gehen"]),
+      "dropping a cited token from the gapped material is refused")
+
+# The deliberate boundary of this rule, asserted so the narrowing is not silently
+# widened later: a stem with no gap is prose, and a translation of prose shares no
+# tokens with it by design. Judging that as dropped information condemned
+# correctly localized items ("Which form?" -> "Hangi biçim?"), so the rule abstains
+# and the cross-script check below is what still covers a gapless stem.
+check(localized_stem_is_publishable("Which form?", "Hangi biçim?", ["the second form"]),
+      "a prose stem and its translation share no tokens, and that is not loss")
+check(not localized_stem_is_publishable("「見る」は?", "Hangi biçim?", []),
+      "a gapless stem that loses its writing system is still refused")
 
 
 # ── Fallback: the retry gate and the completeness rule are one number ────────
@@ -632,5 +650,185 @@ check(len(apply_publication_invariants(
     language="Korean", material_language="tr")["pages"]) == 1,
     "pages that are not assessment items are never touched by the track rule")
 
+
+# ── A gap does not license an instruction in the wrong language ──────────────
+
+from services.publication_invariants import (  # noqa: E402
+    compose_learner_stem, is_self_contained_cloze, prose_segments,
+)
+
+ZH = ["不", "没", "很", "太"]
+
+
+def _zh(**kw):
+    return dict({"type": "mcq", "options": ZH, "answer": "不", "explanation_tr": "x"}, **kw)
+
+
+# Observed in Mandarin production: an English instruction and a Chinese sentence in
+# ONE field, where the gap excused the prose in front of it.
+for stem in (
+    "Choose the correct word to complete the sentence: 大卫是英国人，他会说_____。",
+    "Choose the correct character to complete the sentence: 这是我____汉语书。",
+    "Choose the correct word to complete the question: 王老师在____？",
+    "Complete the negative sentence: 这件衣服____贵。",
+):
+    check(prose_segments(stem), f"instructional prose is seen beside the gap: {stem[:34]!r}")
+    check(not is_self_contained_cloze(_zh(prompt=stem)),
+          "a gap does not make an accompanying instruction disappear")
+    check(apply_publication_invariants({"pages": [_zh(prompt=stem)]},
+                                       language="Chinese", material_language="tr")["pages"] == [],
+          "wrong-track instructional prose is not published because a gap follows it")
+
+# A stem that is NOTHING BUT the gapped sentence still needs no localization, and
+# this must hold for languages whose alphabet is the one English uses.
+for language, stem, options in (
+    ("German", "Wir _____ gestern zum Supermarkt gegangen.", ["seid", "hat", "haben", "sind"]),
+    ("Spanish", "Ayer nosotros _____ al supermercado.", ["fuimos", "fue", "fui", "iban"]),
+    ("Chinese", "这件衣服____贵。", ZH),
+    ("Russian", "Я читаю ____.", ["книга", "книги", "книге", "книгу"]),
+):
+    item = _zh(prompt=stem, options=options, answer=options[0])
+    check(not prose_segments(stem), f"{language}: a bare gapped sentence carries no instruction")
+    check(is_self_contained_cloze(item), f"{language}: it states its task structurally")
+    check(len(apply_publication_invariants({"pages": [item]}, language=language,
+                                           material_language="tr")["pages"]) == 1,
+          f"{language}: and is published without one")
+
+# A correctly separated item must be RENDERABLE, or separating would be punished.
+# Before composition the reader of the Turkish track saw the instruction alone and
+# never the sentence it referred to.
+separated = _zh(prompt="Choose the correct word: 大卫是英国人，他会说_____。",
+                prompt_tr="Cümleyi tamamlayın:")
+composed = apply_publication_invariants({"pages": [separated]}, language="Chinese",
+                                        material_language="tr")["pages"]
+check(len(composed) == 1, "a correctly separated item is publishable")
+stem_out = composed[0]["prompt_tr"]
+check(stem_out.startswith("Cümleyi tamamlayın:"), "the track instruction leads")
+check("大卫是英国人，他会说_____。" in stem_out, "and the material it points at follows it")
+check("Choose the correct word" not in stem_out,
+      "the wrong-track half is dropped by selecting the gapped segment, not by translating")
+
+item = _zh(prompt="这件衣服____贵。", prompt_tr="Cümleyi tamamlayın:")
+check(compose_learner_stem(item, "tr") and "这件衣服____贵。" in item["prompt_tr"],
+      "a pure target stem is joined to its instruction too")
+check(not compose_learner_stem(_zh(prompt="这件衣服____贵。"), "tr"),
+      "with no instruction there is nothing to join")
+
+# The English track is unaffected by all of it.
+check(len(apply_publication_invariants(
+    {"pages": [_zh(prompt="Complete the sentence: 这件衣服____贵。")]},
+    language="Chinese", material_language="en")["pages"]) == 1,
+    "an English instruction publishes normally on the English track")
+
+
+# ── Notation: what the field holds, and what the page reports it holds ───────
+
+from services.publication_evidence import _outside_ipa_repertoire  # noqa: E402
+from services.publication_invariants import enforce_notation_repertoire  # noqa: E402
+
+# Wrong-script characters reach the boundary when the review did not run or
+# declined. They are cleared rather than published: a field whose characters are
+# not part of the notation states nothing.
+corrupt = {"pages": [{"type": "vocabulary", "items": [
+    {"term": "má", "phonetic": "[maଝ]"},
+    {"term": "mǎ", "phonetic": "[maଊ]"},
+    {"term": "十", "phonetic": "[ʂʐ̩ ଝ]"},
+    {"term": "μάθημα", "phonetic": "[ˈμαθιμα]"},
+]}]}
+enforce_notation_repertoire(corrupt)
+check(all(not it["phonetic"] for it in corrupt["pages"][0]["items"]),
+      "no transcription survives the boundary holding characters the notation cannot use")
+
+intact = {"pages": [{"type": "vocabulary", "items": [
+    {"term": "妈", "phonetic": "[ma˥˥]"},
+    {"term": "马", "phonetic": "[ma˨˩˦]"},
+    {"term": "せんせい", "phonetic": "[seɴseː]"},
+    {"term": "θάλασσα", "phonetic": "[ˈθalasa]"},
+    {"term": "γάλα", "phonetic": "[ˈɣala]"},
+    {"term": "كَتَبَ", "phonetic": "[kataba]"},
+    {"term": "학교", "phonetic": "[hak.kʰjo]"},
+    {"term": "стол", "phonetic": "[stol]"},
+    {"term": "é", "phonetic": "[ẽ ä n̥]"},
+    {"term": "tie", "phonetic": "[t͡ʃa d͡ʒo]"},
+]}]}
+before = [it["phonetic"] for it in intact["pages"][0]["items"]]
+enforce_notation_repertoire(intact)
+check([it["phonetic"] for it in intact["pages"][0]["items"]] == before,
+      "legitimate notation - tone letters, Greek-derived IPA, combining marks, tie bars - is untouched")
+
+
+# ── The text layer must report the characters that were drawn ────────────────
+
+if _HAVE_FITZ and _cursive_font():
+    from services.pdf_renderer_v12 import MARK_FONT_FAMILY, _mark_font, _separate_tone_letters
+
+    def render_layer(text):
+        path, _covered = _mark_font()
+        cursive = _cursive_font()
+        css = (
+            "body { font-family: sans-serif; font-size: 10pt; }"
+            "\n@font-face { font-family: %s; src: url(%s); }\n.mark { font-family: %s; }"
+            "\n@font-face { font-family: %s; src: url(%s); }\n.cursive { font-family: %s; }"
+            % (MARK_FONT_FAMILY, os.path.basename(path), MARK_FONT_FAMILY,
+               CURSIVE_FONT_FAMILY, os.path.basename(cursive), CURSIVE_FONT_FAMILY)
+        )
+        archive = fitz.Archive()
+        for directory in {os.path.dirname(path), os.path.dirname(cursive)}:
+            archive.add(directory)
+        story = fitz.Story(html=_doc('<p class="p">%s</p>' % _e(text)), user_css=css, archive=archive)
+        buf = io.BytesIO()
+        writer = fitz.DocumentWriter(buf)
+        more = 1
+        while more:
+            device = writer.begin_page(fitz.paper_rect("a4"))
+            more, _filled = story.place(fitz.Rect(40, 40, 550, 760))
+            story.draw(device)
+            writer.end_page()
+        writer.close()
+        doc = fitz.open("pdf", buf.getvalue())
+        repair_text_layer(doc)
+        reopened = fitz.open("pdf", doc.tobytes())
+        return "".join(page.get_text() for page in reopened)
+
+    # Tone letters combine into one glyph whose reverse mapping is an unrelated
+    # character, so the page reported Oriya and Gujarati letters for Mandarin
+    # contours. Separate runs cannot combine.
+    check(_separate_tone_letters("[ma˧˥]").count("<span>") == 2,
+          "each tone letter is placed in its own run")
+    tones = render_layer("[ma˥˥] [ma˧˥] [ma˨˩˦] [ma˥˩]")
+    for contour in ("[ma˥˥]", "[ma˧˥]", "[ma˨˩˦]", "[ma˥˩]"):
+        check(contour in tones.replace("\n", ""),
+              f"the page reports {contour!r} as the characters it drew")
+    check(not _outside_ipa_repertoire(tones.replace("\n", "").replace(" ", "")),
+          "and reports nothing from a script the notation does not use")
+
+    # Pieces of a CJK character, presented on their own, reached the page as .notdef
+    # with NUL in the text layer.
+    for label, sample, expected in (
+        ("cjk strokes", "strokes: ㇀ ㇁ ㇂", "㇀"),
+        ("kangxi radicals", "radicals: ⼀ ⼁", None),
+        ("cjk radicals supplement", "supplement: ⺀ ⺁", "⺀"),
+        ("hanzi unaffected", "汉字 这件衣服很贵", "汉字"),
+        ("bopomofo unaffected", "ㄅ ㄆ ㄇ", "ㄅ"),
+        ("japanese marks still fixed", "uzatma: 「ー」 (゛) (゜) コーヒー", "ー"),
+    ):
+        layer = render_layer(sample)
+        check(layer.count("\x00") == 0, f"{label}: nothing reaches the page as .notdef")
+        if expected:
+            check(expected in layer.replace("\n", ""), f"{label}: {expected!r} survives")
+
+    for bad in ("�", "￾", "￿"):
+        layer = render_layer("before %s after" % bad)
+        check(bad not in layer, f"U+{ord(bad):04X} never reaches a published text layer")
+
+
+# ── The boundary must be told which track is being published ─────────────────
+
+renderer_source = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                    "services", "pdf_renderer_v12.py"), encoding="utf-8").read()
+check("material_language=material_language" in renderer_source,
+      "the renderer passes a track to the publication boundary rather than letting it assume one")
+check("_track = 'tr' if is_tr else 'en'" in renderer_source,
+      "and the track it passes is the one being exported, not the one it was authored for")
 
 print(f"cost, RTL text-layer, class-lexicon and progress tests passed ({checks} checks)")

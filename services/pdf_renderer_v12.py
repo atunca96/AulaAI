@@ -93,6 +93,14 @@ _SCRIPT_COMMON_MARKS = (
     (0x0964, 0x0965),   # danda and double danda, shared across Indic scripts
     (0xFF01, 0xFF65),   # fullwidth forms
     (0xFF70, 0xFF70),   # halfwidth prolonged sound mark
+    # The pieces a CJK character is built from, which lessons teaching a writing
+    # system present on their own. Standing alone they behave exactly like the
+    # kana marks above - Mandarin material published them as blanks with NUL in
+    # the text layer - while the same shapes inside a hanzi are drawn from the
+    # character's own glyph and were never affected.
+    (0x2E80, 0x2EFF),   # CJK Radicals Supplement
+    (0x2F00, 0x2FDF),   # Kangxi Radicals
+    (0x31C0, 0x31EF),   # CJK Strokes
 )
 
 # A character of one of these scripts standing next to a mark lends it a font, so
@@ -272,6 +280,27 @@ def _wrap_script_marks(escaped):
     return ''.join(out)
 
 
+# Tone letters combine into one contour glyph, and the text layer then reports that
+# glyph as whatever unrelated character happens to share its id in the font's
+# reverse table. Mandarin published [ma˧˥] and extracted [maଝ] - an Oriya letter -
+# with every font tried producing a DIFFERENT wrong answer (Gujarati, Kangxi, a
+# private-use codepoint), which is what identifies it as a mapping defect rather
+# than a font-coverage one. Two letters in separate runs cannot form one glyph, so
+# each keeps its own identity. No font is named here: the separation alone is the
+# repair, and it leaves the characters themselves untouched.
+_TONE_LETTERS = (0x02E5, 0x02E9)
+
+
+def _separate_tone_letters(escaped):
+    out = []
+    for ch in escaped:
+        if _TONE_LETTERS[0] <= ord(ch) <= _TONE_LETTERS[1]:
+            out.append('<span>' + ch + '</span>')
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
 def _e(value):
     """The single escaper for everything this renderer writes into a page.
 
@@ -293,7 +322,7 @@ def _e(value):
     # Marks first, then cursive runs: the mark pass inserts spans around single
     # characters and the cursive pass groups runs, so running it the other way
     # round would let a mark's span cut a cursive word in half.
-    return _wrap_cursive_runs(_wrap_script_marks(escaped))
+    return _separate_tone_letters(_wrap_cursive_runs(_wrap_script_marks(escaped)))
 
 
 def _pick(obj, en_key, tr_key, is_tr):
@@ -373,7 +402,7 @@ def _column_exists(db, table: str, column: str) -> bool:
     return False
 
 
-def _publication_invariants(content, language=None):
+def _publication_invariants(content, language=None, material_language="tr"):
     """Apply the same deterministic publication invariants used at generation time.
 
     Material persisted before those invariants existed (or written by another path)
@@ -384,16 +413,16 @@ def _publication_invariants(content, language=None):
     """
     try:
         from services.publication_invariants import load_publishable_content
-        return load_publishable_content(content, language=language)
+        return load_publishable_content(content, language=language, material_language=material_language)
     except Exception:
         return content if isinstance(content, dict) else {}
 
 
-def _normalize_content(raw, language=None):
+def _normalize_content(raw, language=None, material_language="tr"):
     """Obtain publishable content. Parsing and the publication boundary are one
     step, shared with every other renderer, so no path can acquire content that
     has not crossed it."""
-    return _publication_invariants(raw, language=language)
+    return _publication_invariants(raw, language=language, material_language=material_language)
 
 
 def _normalize_pages(content):
@@ -922,6 +951,12 @@ def _pdf_language_name(value: str, is_tr: bool) -> str:
 
 def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
     is_tr = (lang == 'tr')
+    # The track contract is owed to the reader of THIS export. A course may be
+    # built as Turkish material and exported with ?lang=en, and it is the
+    # language on the page - not the language it was authored for - that the
+    # learner has to be able to read. The boundary was previously given no track
+    # at all here and silently assumed Turkish for every export.
+    _track = 'tr' if is_tr else 'en'
     title_maps = _load_title_maps()
     answers: List[Dict] = []
     question_counter = 0
@@ -955,7 +990,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 (course_id,),
             ).fetchall()
             _class_phonetics = class_phonetic_winners(
-                [_normalize_content(r[0], course_lang) for r in _all_rows]
+                [_normalize_content(r[0], course_lang, material_language=_track) for r in _all_rows]
             )
             if _class_phonetics:
                 print(f'[PDF V12] class-wide pronunciation unified for {len(_class_phonetics)} term(s)')
@@ -996,7 +1031,7 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                 else:
                     top_id, top_type, top_title, top_content = row[0], row[1], row[2], row[3]
                     top_title_tr = ''
-                content = _normalize_content(top_content, course_lang)
+                content = _normalize_content(top_content, course_lang, material_language=_track)
                 if _class_phonetics:
                     try:
                         from services.class_lexicon import apply_phonetic_winners
@@ -1194,8 +1229,8 @@ def _v50_renderer_clean(node):
     return node
 
 
-def _normalize_content(raw, language=None):
-    return _v50_renderer_clean(_v50_original_normalize_content(raw, language=language))
+def _normalize_content(raw, language=None, material_language="tr"):
+    return _v50_renderer_clean(_v50_original_normalize_content(raw, language=language, material_language=material_language))
 
 
 # A second _e lived here, shadowing the real one. Removed: there is one escaper.
@@ -1414,8 +1449,8 @@ def _v54_pdf_unsafe_mcq(page, prompt, is_tr):
 from services.material_quality_guard import _v56_release_cleanup as _v56_publication_cleanup
 _v56_previous_normalize_content = _normalize_content
 
-def _normalize_content(raw, language=None):
-    normalized = _v56_previous_normalize_content(raw, language=language)
+def _normalize_content(raw, language=None, material_language="tr"):
+    normalized = _v56_previous_normalize_content(raw, language=language, material_language=material_language)
     # 'language' is the actual per-course/topic target language (e.g. course_lang
     # from render_course_pdf). Russian-specific corrections must only fire when
     # the content is confirmed Russian - never hardcoded, since this renderer

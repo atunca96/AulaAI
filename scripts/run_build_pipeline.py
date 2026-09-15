@@ -51,6 +51,7 @@ VERIFICATION_STEPS = [
     "scripts/test_source_of_truth.py",
     "scripts/test_multilingual_assessment_and_render.py",
     "scripts/test_cost_rtl_lexicon_progress.py",
+    "scripts/test_language_matrix.py",
 ]
 
 COMPILE_TARGETS = [

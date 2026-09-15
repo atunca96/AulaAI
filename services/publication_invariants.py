@@ -1895,6 +1895,12 @@ def enforce_option_parallelism(data: Any, material_language: str = "tr") -> Any:
     kept = []
     for page in pages:
         if isinstance(page, dict):
+            # Compose BEFORE the integrity rules. Until the two halves are joined,
+            # a track instruction looks to those rules like a replacement stem that
+            # dropped the target language, and they correctly remove it - which
+            # would delete the very field that makes the item publishable.
+            if str(page.get("type") or "").strip().casefold() == "mcq":
+                compose_learner_stem(page, material_language)
             _enforce_item_option_parallelism(page, target_surfaces)
             if not enforce_instructional_track(page, material_language):
                 # The generator has already had its retries by the time content
@@ -1940,18 +1946,28 @@ def localized_stem_is_publishable(authored: Any, localized: Any, rationales: Any
     """
     if not str(localized or "").strip():
         return False
-    authored_tokens = _stem_tokens(authored)
-    if not authored_tokens:
-        # Nothing to compare against is not evidence of loss. A stem too short to
-        # yield a word - a bare "Q?" - has nothing a translation could drop.
-        return True
-    localized_tokens = _stem_tokens(localized)
-
-    cited = set()
-    for rationale in rationales or []:
-        cited |= _stem_tokens(rationale)
-    if (authored_tokens & cited) - localized_tokens:
-        return False
+    # Only the material the answer completes is weighed. A token from the
+    # instructional half of a stem is SUPPOSED to be absent from a translation of
+    # it - "Which form?" rendered as "Hangi biçim?" legitimately keeps no English -
+    # and treating that as dropped information condemned correctly localized items.
+    # The gapped segments are the part a translation may not quietly shed.
+    gapped = " ".join(gapped_segments(authored))
+    authored_tokens = _stem_tokens(gapped) if gapped else _stem_tokens(authored)
+    if not gapped:
+        # No gap anywhere: the stem is prose, and a translation of prose shares no
+        # tokens with it by design. There is nothing here this rule can judge.
+        authored_tokens = set()
+    # Nothing to compare against is not evidence of loss - a stem too short to
+    # yield a word has nothing a translation could drop - but it is also no reason
+    # to skip the writing-system check below, which is what still covers a stem
+    # this comparison has to abstain from.
+    if authored_tokens:
+        localized_tokens = _stem_tokens(localized)
+        cited = set()
+        for rationale in rationales or []:
+            cited |= _stem_tokens(rationale)
+        if (authored_tokens & cited) - localized_tokens:
+            return False
 
     authored_families: set = set()
     for token in (str(authored or ""),):
@@ -2021,25 +2037,55 @@ def enforce_instructional_track(item: Dict[str, Any], material_language: str = "
 _GAP_RUN = re.compile(r"[_＿﹍﹏‗]{2,}")
 
 
+# Where an instruction stops and the material it points at begins. A colon is the
+# mark every language in this system uses for exactly that, and terminal
+# punctuation ends a sentence in each of them. Splitting here is punctuation, not
+# language identification.
+_STEM_SEGMENT = re.compile(r"(?<=[:：.。?？!！\n])\s*")
+
+# Prose long enough to be an instruction rather than a speaker label or a caption.
+# Counted in whitespace-separated words, which is what instructional prose in
+# Turkish and English - the only two instructional languages - is made of.
+_PROSE_WORDS = 3
+
+
+def stem_segments(value: Any) -> List[str]:
+    return [s.strip() for s in _STEM_SEGMENT.split(str(value or "")) if s and s.strip()]
+
+
+def gapped_segments(value: Any) -> List[str]:
+    """The parts of a stem that carry a gap - the material the answer completes."""
+    return [s for s in stem_segments(value) if _GAP_RUN.search(s)]
+
+
+def prose_segments(value: Any) -> List[str]:
+    """The parts of a stem that instruct rather than present material to complete."""
+    return [s for s in stem_segments(value)
+            if not _GAP_RUN.search(s) and len(s.split()) >= _PROSE_WORDS]
+
+
 def is_self_contained_cloze(item: Dict[str, Any]) -> bool:
-    """Whether the item states its task through structure rather than through prose.
+    """Whether the item states its task through structure alone, with no instruction.
 
-    This is the distinction the schema already draws and the publication path was
-    not reading. `prompt` is designated target-language content; `prompt_tr` and
-    `prompt_en` are the instructional tracks. An item whose target-language stem
-    is a sentence with a gap in it, offered against options that fill that gap,
-    has told the learner what to do WITHOUT any instructional prose: the gap is
-    the instruction, in whatever language the sentence is written.
+    `prompt` is designated target-language content; `prompt_tr` and `prompt_en`
+    are the instructional tracks. A stem that is NOTHING BUT a sentence with a gap
+    in it, offered against options that fill that gap, has told the learner what to
+    do without any instructional prose: the gap is the instruction, in whatever
+    language the sentence is written. That item owes no localization.
 
-    So it is exempt from needing a localized instruction, and it is exempt on a
-    structural ground - a gap run, and options to fill it - rather than on a guess
-    about what language the string is in. That matters because the languages this
-    has to separate share an alphabet: nothing about the characters in
-    "Wir _____ gestern zum Supermarkt gegangen" distinguishes it from English, and
-    no such inspection is attempted.
+    The exemption used to be granted to any stem CONTAINING a gap, which is a
+    different and much weaker claim. Mandarin material published
+    "Choose the correct word to complete the sentence: 大卫是英国人，他会说_____。"
+    on the Turkish track: an English instruction and a Chinese sentence in one
+    field, where the gap excused the prose sitting in front of it. A gap makes the
+    material self-explanatory; it does not make an accompanying instruction
+    disappear, and it cannot license that instruction being in the wrong language.
 
-    An item that asks about the language in prose has no gap, carries its task in
-    that prose, and is therefore subject to the track contract.
+    So the exemption now requires a gap AND the absence of any instructional prose
+    beside it. Both halves are structural - a run of gap characters, and segments
+    split on the punctuation that separates an instruction from what it introduces
+    - so nothing here inspects which language a string is written in. That matters
+    because the languages this must separate share an alphabet.
     """
     options = item.get("options")
     if not isinstance(options, list):
@@ -2048,9 +2094,63 @@ def is_self_contained_cloze(item: Dict[str, Any]) -> bool:
         return False
     for key in ("prompt", "question", "stem"):
         value = item.get(key)
-        if isinstance(value, str) and _GAP_RUN.search(value):
+        if isinstance(value, str) and _GAP_RUN.search(value) and not prose_segments(value):
             return True
     return False
+
+
+def compose_learner_stem(item: Dict[str, Any], material_language: str = "tr") -> bool:
+    """Put the track's instruction and the material it points at in ONE field.
+
+    Renderers select a single stem field. An item that correctly separated its
+    instruction from its target-language content therefore published only half of
+    itself: a Turkish reader given `prompt_tr` of "Cümleyi tamamlayın:" saw the
+    instruction and never the sentence it referred to, leaving the item
+    unanswerable. That is why the over-broad exemption existed - the correct shape
+    was not renderable, so items that conflated the two halves were the only ones
+    that worked.
+
+    The two halves are joined here, at the boundary both renderers cross, so the
+    correct shape becomes the publishable one. Only the GAPPED segments of the
+    authored stem are carried over: when the authored field also holds prose in
+    another language, that prose is the half the track instruction replaces, and
+    selecting the segment that carries the gap is structural rather than a
+    judgement about what the prose says. Nothing is translated and nothing is
+    invented - both halves are text the generator wrote.
+
+    Returns True when a composition was made.
+    """
+    track = str(material_language or "tr").strip().casefold()
+    if track not in ("tr", "en"):
+        track = "tr"
+    key = "prompt_%s" % track
+    instruction = item.get(key)
+    if not isinstance(instruction, str) or not instruction.strip():
+        return False
+    # Only an INSTRUCTION is joined to the material. A localized field that carries
+    # a gap of its own is not an instruction introducing the sentence - it is a
+    # translation OF the sentence, and appending the original to it would put two
+    # blanks and one set of options in front of the learner. Those are left to the
+    # stem-integrity rule, which exists to decide whether a translation may stand in
+    # for the stem. Having a gap or not is a property of the text, not of its
+    # language, so this stays a structural decision.
+    if _GAP_RUN.search(instruction):
+        return False
+
+    carried = []
+    for source in ("prompt", "question", "stem"):
+        value = item.get(source)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        for segment in gapped_segments(value):
+            if segment not in instruction and segment not in carried:
+                carried.append(segment)
+        if carried:
+            break
+    if not carried:
+        return False
+    item[key] = instruction.rstrip() + " " + " ".join(carried)
+    return True
 
 
 def assessment_track_violations(data: Any, material_language: str = "tr") -> List[str]:
@@ -2159,8 +2259,10 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
                 ok = True
             if not ok:
                 continue
+        compose_learner_stem(item, material_language)
         _enforce_item_option_parallelism(item)
-        enforce_instructional_track(item, material_language)
+        if not enforce_instructional_track(item, material_language):
+            continue
         out.append(item)
     return out
 
@@ -2246,13 +2348,66 @@ def load_publishable_content(
     if not isinstance(data.get("pages"), list):
         data["pages"] = []
     try:
-        return apply_publication_invariants(
+        data = apply_publication_invariants(
             data, language=language, material_language=material_language,
             topic=topic, copy=False,
         )
     except Exception as exc:  # a boundary failure must not lose the lesson
         print(f"[PUBLICATION] invariants skipped while loading content: {exc}")
         return data
+    enforce_notation_repertoire(data)
+    return data
+
+
+def enforce_notation_repertoire(data: Any) -> int:
+    """Clear typed notation fields that still hold characters the notation cannot use.
+
+    A detector already finds these and routes them to the bounded review, which can
+    replace a corrupt transcription with a correct one - the best available outcome,
+    and worth trying first. But routing is all it does. When the review does not run,
+    or declines, or the lesson was generated before the detector existed, the corrupt
+    value publishes unchanged: Mandarin shipped tone contours written with Oriya and
+    Gujarati letters, which are valid Unicode, invisible to any codepoint sanitiser,
+    and meaningless as phonetic notation.
+
+    So the last boundary before a renderer refuses them outright. Clearing is not
+    inventing: a field whose characters are not part of the notation states nothing,
+    and this system has held throughout that an absent transcription is honest where
+    a confident wrong one is not. Runs here rather than inside the invariants so the
+    review keeps its first attempt at generation time, and both renderers inherit it
+    because both obtain content through this function.
+    """
+    try:
+        from services.publication_evidence import _outside_ipa_repertoire
+    except Exception:
+        return 0
+    cleared = 0
+    for page in (data.get("pages") or []) if isinstance(data, dict) else []:
+        if not isinstance(page, dict):
+            continue
+
+        def sweep(node: Any) -> None:
+            nonlocal cleared
+            if isinstance(node, dict):
+                for key, value in list(node.items()):
+                    base = _TRACK_SUFFIX.sub("", str(key).casefold())
+                    if base in _NOTATION_FIELD_NAMES and isinstance(value, str) and value.strip():
+                        if _outside_ipa_repertoire(value):
+                            node[key] = ""
+                            cleared += 1
+                    else:
+                        sweep(value)
+            elif isinstance(node, list):
+                for value in node:
+                    sweep(value)
+
+        sweep(page)
+    if cleared:
+        print(f"[PUBLICATION] cleared {cleared} unusable transcription(s) at the boundary")
+    return cleared
+
+
+_NOTATION_FIELD_NAMES = ("phonetic", "pronunciation", "ipa", "transcription")
 
 
 def apply_text_layer_integrity(data: Any, language: Optional[str] = None) -> Any:
