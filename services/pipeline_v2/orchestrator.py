@@ -167,8 +167,17 @@ def start_pipeline_v2(pdf_path, course_id, lecturer_id, manual_toc=None, languag
                         (topic_id, chapter_id, t_tag, t_text, level, json.dumps({}), topic_idx, 0, "/books/" + os.path.basename(pdf_path), t_tr)
                     )
             
-            # Finalize Structural Phase: Set progress = 20 (Phase 1 complete)
-            db.execute("UPDATE courses SET progress = 20, build_stage = 'enriching', build_message = 'Curriculum ready. Preparing lesson generation...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
+            # Finalize the structural phase.
+            #
+            # `progress` is a COUNT OF COMPLETED TOPICS, which is how the progress
+            # endpoint reads it whenever the stage is 'enriching'. Writing 20 here
+            # as a stand-in percentage - with no topics generated at all - meant the
+            # bar computed 20-of-N and jumped to about two thirds, then fell back to
+            # the bottom the moment enrichment started counting topics honestly from
+            # zero. That fall is the reset users were seeing. Phase one has completed
+            # no topics, so the only truthful count it can write is none, and it gets
+            # its own stage rather than borrowing the one that means "counting topics".
+            db.execute("UPDATE courses SET progress = 0, build_stage = 'prepared', build_message = 'Curriculum ready. Preparing lesson generation...' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (course_id, gen_id, gen_id))
             db.commit()
             
         logger.info(f"V2 Orchestrator finished for Course {course_id}")

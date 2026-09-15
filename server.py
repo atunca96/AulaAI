@@ -1518,6 +1518,15 @@ table.vt td { padding: 4px 6px; }
                         f"{pg_word} {idx + 1} / {total_pages}",
                         fontsize=7, color=(0.45, 0.45, 0.45)
                     )
+                # The fallback exporter publishes real PDFs to real learners, so it
+                # owes the same text layer as the primary renderer. A repair that
+                # only one of two exporters performs is the same divergence the
+                # publication boundary exists to prevent, one layer lower down.
+                try:
+                    from services.pdf_text_layer import repair_text_layer
+                    repair_text_layer(doc)
+                except Exception:
+                    pass
                 pdf_bytes = doc.tobytes()
                 doc.close()
             finally:
@@ -1619,7 +1628,7 @@ table.vt td { padding: 4px 6px; }
             gen_id = str(uuid.uuid4())
 
             # Reset is_building flag to trigger worker
-            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0, generation_id = ?, build_stage = 'starting', build_message = 'Restarting build process...', build_started_at = ? WHERE id = ?", (gen_id, time.time(), course_id))
+            db.execute("UPDATE courses SET is_building = 1, progress = 0, total_steps = 0, progress_high_water = 0, generation_id = ?, build_stage = 'starting', build_message = 'Restarting build process...', build_started_at = ? WHERE id = ?", (gen_id, time.time(), course_id))
             db.commit()
 
         # KILL OLD WORKER (Server-Side Executioner)
@@ -1677,7 +1686,7 @@ table.vt td { padding: 4px 6px; }
 
         with db_connection() as db:
             row = db.execute("""
-                SELECT is_building, progress, total_steps, build_stage, build_message, build_started_at 
+                SELECT is_building, progress, total_steps, build_stage, build_message, build_started_at
                 FROM courses WHERE id=?
             """, (course_id,)).fetchone()
             if not row: return self._send_error("Course not found")
@@ -1722,6 +1731,13 @@ table.vt td { padding: 4px 6px; }
                 elif stage == "structuring":
                     percentage = 10
                     if not message: message = "Structuring course chapters and topics..."
+                elif stage == "prepared":
+                    # The curriculum exists and no lesson has been generated yet.
+                    # Deliberately the same figure as an enrichment run that has
+                    # completed zero topics, so crossing from one phase to the next
+                    # is not visible as a movement in either direction.
+                    percentage = 10
+                    if not message: message = "Curriculum ready. Preparing lesson generation..."
                 elif stage == "enriching":
                     if total > 0:
                         topic_ratio = min(1.0, max(0.0, progress / total))
@@ -1740,6 +1756,41 @@ table.vt td { padding: 4px 6px; }
 
                 # Ensure it never claims 100% while still building
                 percentage = min(98, max(3, percentage))
+
+                # Monotonic by construction, not by convention.
+                #
+                # The figure above is derived from live pipeline state across
+                # several stages that hand off to one another, and a handoff is
+                # where a derived number can dip - which is precisely how this bar
+                # came to run to two thirds and start again. Fixing the write that
+                # caused that particular dip is necessary but not sufficient: any
+                # future stage added between two others could reintroduce it. So the
+                # highest figure already shown is persisted and used as a floor.
+                #
+                # It is a floor, never a source: progress still comes entirely from
+                # real pipeline state, and this can only prevent that state from
+                # being reported as a regression. The mark is cleared when a build
+                # starts, so a genuine rebuild counts up from the beginning again.
+                # Read and write the floor defensively. The column is created by the
+                # startup migration, but a build that is mid-deploy, or a database
+                # restored from before it, must still be able to report progress -
+                # losing the floor degrades to the derived value, which is correct,
+                # whereas raising here would take the whole progress endpoint down.
+                try:
+                    mark_row = db.execute(
+                        "SELECT progress_high_water FROM courses WHERE id=?", (course_id,)
+                    ).fetchone()
+                    previous = int((mark_row[0] if mark_row else 0) or 0)
+                    if percentage > previous:
+                        db.execute(
+                            "UPDATE courses SET progress_high_water = ? WHERE id = ?",
+                            (percentage, course_id),
+                        )
+                        db.commit()
+                    elif previous > percentage:
+                        percentage = previous
+                except Exception:
+                    pass
 
             return self._send_json({
                 "course_id": course_id,

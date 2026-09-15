@@ -361,6 +361,16 @@ def init_db():
             c.execute("ALTER TABLE courses ADD COLUMN material_language TEXT DEFAULT 'en'")
         except: pass
 
+        # MIGRATION: highest build percentage already shown for the current build.
+        # Progress is derived from several pipeline stages that hand off to each
+        # other, and a handoff is exactly where a derived percentage can dip. This
+        # records the highest figure a user has actually been shown, so the number
+        # can only ever move forward within one build - including across a page
+        # reload, because the guarantee lives in the database rather than in a tab.
+        try:
+            c.execute("ALTER TABLE courses ADD COLUMN progress_high_water INTEGER DEFAULT 0")
+        except: pass
+
         # MIGRATION: Ensure title_tr columns exist for bilingual curriculum
         try:
             c.execute("ALTER TABLE chapters ADD COLUMN title_tr TEXT")

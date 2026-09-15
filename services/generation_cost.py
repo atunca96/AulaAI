@@ -94,6 +94,8 @@ class CostLedger:
         prompt_tokens: int = 0,
         completion_tokens: int = 0,
         cached_tokens: int = 0,
+        cache_write_tokens: int = 0,
+        cache_discount: float = 0.0,
         reasoning_tokens: int = 0,
         cost: float = 0.0,
         outcome: str = OUTCOME_OK,
@@ -118,6 +120,8 @@ class CostLedger:
             "prompt_tokens": max(0, int(prompt_tokens or 0)),
             "completion_tokens": max(0, int(completion_tokens or 0)),
             "cached_tokens": max(0, int(cached_tokens or 0)),
+            "cache_write_tokens": max(0, int(cache_write_tokens or 0)),
+            "cache_discount": max(0.0, float(cache_discount or 0.0)),
             "reasoning_tokens": max(0, int(reasoning_tokens or 0)),
             "cost": max(0.0, float(cost or 0.0)),
             "outcome": str(outcome or OUTCOME_OK),
@@ -147,6 +151,8 @@ class CostLedger:
                 "prompt_tokens": 0,
                 "completion_tokens": 0,
                 "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "cache_discount": 0.0,
                 "reasoning_tokens": 0,
                 "cost": 0.0,
                 "wasted_calls": 0,
@@ -162,6 +168,8 @@ class CostLedger:
                 target["prompt_tokens"] += c["prompt_tokens"]
                 target["completion_tokens"] += c["completion_tokens"]
                 target["cached_tokens"] += c["cached_tokens"]
+                target["cache_write_tokens"] += c["cache_write_tokens"]
+                target["cache_discount"] += c["cache_discount"]
                 target["reasoning_tokens"] += c["reasoning_tokens"]
                 target["cost"] += c["cost"]
                 if c["outcome"] in _WASTED_OUTCOMES:
@@ -206,6 +214,15 @@ class CostLedger:
             f"hit={t['cache_hit_ratio'] * 100:.1f}%) out={t['completion_tokens']} "
             f"reasoning={t['reasoning_tokens']}"
         ]
+        # Stated separately from the hit ratio because they answer different
+        # questions: the ratio says how much of the input was served from cache,
+        # the discount says what the provider actually took off the bill. A build
+        # that writes caches it never reads shows writes with no discount, which
+        # is the signature of a cache whose lifetime is shorter than the build.
+        lines.append(
+            f"[COST-CACHE] written={t['cache_write_tokens']} read={t['cached_tokens']} "
+            f"provider-reported discount=${t['cache_discount']:.4f}"
+        )
         if t["published_lessons"]:
             lines.append(
                 f"[COST-SUMMARY] published lessons={t['published_lessons']}, "
@@ -300,7 +317,30 @@ def extract_usage(response_json: Any) -> Optional[Dict[str, int]]:
         "cached_tokens": _int(
             prompt_details.get("cached_tokens"), usage.get("cached_tokens")
         ),
+        # Written vs read matters: a write is charged at roughly the normal input
+        # price, a read at a quarter of it. Recording only the reads would make a
+        # build that wrote a cache thirty times and read it never look identical
+        # to one that never tried to cache at all.
+        "cache_write_tokens": _int(
+            prompt_details.get("cache_write_tokens"), usage.get("cache_write_tokens")
+        ),
         "reasoning_tokens": _int(
             completion_details.get("reasoning_tokens"), usage.get("reasoning_tokens")
         ),
     }
+
+
+def extract_cache_discount(response_json: Any) -> float:
+    """The provider's own statement of what caching saved on this call.
+
+    Reported by OpenRouter alongside usage. It is the only number in the system
+    that is neither estimated nor derived, so it is what a claim about cache
+    savings should be made from.
+    """
+    if not isinstance(response_json, dict):
+        return 0.0
+    usage = response_json.get("usage")
+    if not isinstance(usage, dict):
+        return 0.0
+    value = usage.get("cache_discount")
+    return float(value) if isinstance(value, (int, float)) else 0.0

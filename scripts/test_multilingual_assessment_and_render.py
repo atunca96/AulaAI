@@ -317,11 +317,11 @@ check(kept["outcome"] == generation_cost.OUTCOME_OK, "a kept call stays marked o
 
 usage = generation_cost.extract_usage({"usage": {
     "prompt_tokens": 100, "completion_tokens": 20,
-    "prompt_tokens_details": {"cached_tokens": 80},
+    "prompt_tokens_details": {"cached_tokens": 80, "cache_write_tokens": 12},
     "completion_tokens_details": {"reasoning_tokens": 5}}})
 check(usage == {"prompt_tokens": 100, "completion_tokens": 20,
-                "cached_tokens": 80, "reasoning_tokens": 5},
-      "cached and reasoning tokens are read from the provider response")
+                "cached_tokens": 80, "cache_write_tokens": 12, "reasoning_tokens": 5},
+      "cached, written and reasoning tokens are read from the provider response")
 check(generation_cost.extract_usage({"choices": []}) is None,
       "a response with no usage block is reported as unknown, not as zero")
 

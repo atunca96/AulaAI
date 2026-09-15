@@ -303,6 +303,13 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         generation_cost.reset(f"course {course_id}")
     except Exception:
         generation_cost = None
+    # The class lexicon is scoped to one build. Carrying it between courses would
+    # let one language's vocabulary establish pronunciations for another's.
+    try:
+        from services import class_lexicon
+        class_lexicon.reset(f"course {course_id}")
+    except Exception:
+        pass
     manual_toc = None
     if manual_toc_path and os.path.exists(manual_toc_path):
         with open(manual_toc_path, "r", encoding="utf-8") as f:
@@ -590,7 +597,7 @@ def process_manual_to_classroom(chapters, language, level, lecturer_id, course_n
         with db_connection() as db:
             course = db.execute("SELECT code FROM courses WHERE id = ?", (course_id,)).fetchone()
             code = course[0] if course else generate_classroom_code()
-            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, material_language = ?, build_stage = 'structuring', build_message = 'Müfredat yapısı oluşturuluyor...', build_started_at = ? WHERE id = ?",
+            db.execute("UPDATE courses SET name = ?, language = ?, level = ?, is_building = 1, semester = ?, textbook = 'AI Generated', generation_id = ?, progress = 0, total_steps = 0, progress_high_water = 0, material_language = ?, build_stage = 'structuring', build_message = 'Müfredat yapısı oluşturuluyor...', build_started_at = ? WHERE id = ?",
                        (course_name, language, level, f"{level} Level", gen_id, material_language, time.time(), course_id))
             db.commit()
     else:

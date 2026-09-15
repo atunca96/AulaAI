@@ -114,6 +114,35 @@ _MARK_FONT_CANDIDATES = (
 
 MARK_FONT_FAMILY = 'aulamark'
 
+# Cursive scripts have the opposite problem to the isolated marks above. Their
+# letters DO carry a strong script, so the layout engine does look for a font -
+# and finds one whose Arabic support is a legacy table of presentation-form
+# glyphs rather than real OpenType shaping. The page then draws from a font that
+# cannot report what its glyphs mean: lam came back through the text layer as
+# U+01C4 LATIN CAPITAL LETTER DZ WITH CARON, and shadda as a Hebrew accent. That
+# is not a missing glyph, so none of the .notdef machinery above notices it.
+#
+# Binding these runs to a font with genuine Arabic layout fixes the meaning at
+# the source. Unlike a mark, a run must be bound WHOLE: every letter of a cursive
+# word has to sit in one text run for the engine to join it, and wrapping letters
+# individually would produce correctly-identified glyphs in disconnected form.
+_CURSIVE_RANGES = (
+    (0x0600, 0x06FF),   # Arabic
+    (0x0750, 0x077F),   # Arabic Supplement
+    (0x08A0, 0x08FF),   # Arabic Extended-A
+    (0xFB50, 0xFDFF),   # Arabic Presentation Forms-A
+    (0xFE70, 0xFEFF),   # Arabic Presentation Forms-B
+)
+
+_CURSIVE_FONT_CANDIDATES = (
+    '/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf',
+    '/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf',
+    '/usr/share/fonts/opentype/noto/NotoSansArabic-Regular.otf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+)
+
+CURSIVE_FONT_FAMILY = 'aulacursive'
+
 
 def _in_ranges(cp, ranges):
     return any(lo <= cp <= hi for lo, hi in ranges)
@@ -164,6 +193,58 @@ def _mark_font():
     return None
 
 
+@lru_cache(maxsize=1)
+def _cursive_font():
+    """A font with real Arabic layout, verified by probing representative letters.
+
+    The probe deliberately asks for BASE letters, not presentation forms: a font
+    that only answers for the presentation forms is exactly the kind this is meant
+    to replace, since shaping from base codepoints is what keeps the text layer
+    meaningful. Returns an absolute path, or None, in which case Arabic is left to
+    render exactly as it does today rather than being pointed at something unproven.
+    """
+    probe_points = (0x0644, 0x0627, 0x0645, 0x0639, 0x064E, 0x0651)  # lam alef meem ain fatha shadda
+    for path in _CURSIVE_FONT_CANDIDATES:
+        try:
+            real = os.path.realpath(path)
+            if not os.path.exists(real):
+                continue
+            probe = fitz.Font(fontfile=real)
+            if all(probe.has_glyph(cp) for cp in probe_points):
+                return real
+        except Exception:
+            continue
+    return None
+
+
+def _wrap_cursive_runs(escaped):
+    """Bind each maximal run of cursive-script characters to a font that shapes it.
+
+    Runs, never characters - see `_CURSIVE_RANGES`. Diacritics and the joiners
+    that sit between letters are carried inside the run so a word is never split
+    across two spans, and anything else in the string is untouched.
+    """
+    if not _cursive_font() or not escaped:
+        return escaped
+    out = []
+    run = []
+
+    def flush():
+        if run:
+            out.append('<span class="cursive">' + ''.join(run) + '</span>')
+            run.clear()
+
+    for ch in escaped:
+        cp = ord(ch)
+        if _in_ranges(cp, _CURSIVE_RANGES) or (run and cp in (0x200C, 0x200D, 0x0640)):
+            run.append(ch)
+        else:
+            flush()
+            out.append(ch)
+    flush()
+    return ''.join(out)
+
+
 def _wrap_script_marks(escaped):
     """Point unsupported marks at a font that has them, leaving everything else alone.
 
@@ -208,7 +289,11 @@ def _e(value):
     to what runs, which was not true of this function for as long as the defect
     survived.
     """
-    return _wrap_script_marks(html.escape(safe_unicode_normalize(str(value or ''))))
+    escaped = html.escape(safe_unicode_normalize(str(value or '')))
+    # Marks first, then cursive runs: the mark pass inserts spans around single
+    # characters and the cursive pass groups runs, so running it the other way
+    # round would let a mark's span cut a cursive word in half.
+    return _wrap_cursive_runs(_wrap_script_marks(escaped))
 
 
 def _pick(obj, en_key, tr_key, is_tr):
@@ -534,7 +619,21 @@ class AcademicPaginator:
         css = CSS
         if allow_row_split:
             css += '\ntable.vocab tr { page-break-inside:auto !important; break-inside:auto !important; }'
-        font = _mark_font()
+        # Declare a face only when this fragment actually uses it. An unused
+        # @font-face is still embedded and subset into the finished document, which
+        # doubled the size of every Japanese PDF the moment an Arabic face was
+        # declared unconditionally. `_e` emits these class names only where the
+        # characters need them, so the markup is an exact test of what is in use.
+        archive_dirs = []
+        cursive = _cursive_font() if 'class="cursive"' in fragment else None
+        if cursive:
+            css += (
+                '\n@font-face { font-family: %s; src: url(%s); }'
+                '\n.cursive { font-family: %s; }'
+                % (CURSIVE_FONT_FAMILY, os.path.basename(cursive), CURSIVE_FONT_FAMILY)
+            )
+            archive_dirs.append(os.path.dirname(cursive))
+        font = _mark_font() if 'class="mark"' in fragment else None
         if font:
             # Declared only for `.mark`, never for `body`: making this the document
             # font also works, but it re-typesets every paragraph and the engine
@@ -547,7 +646,14 @@ class AcademicPaginator:
                 '\n.mark { font-family: %s; }'
                 % (MARK_FONT_FAMILY, os.path.basename(path), MARK_FONT_FAMILY)
             )
-            archive = fitz.Archive(os.path.dirname(path))
+            archive_dirs.append(os.path.dirname(path))
+        if archive_dirs:
+            # One archive per directory the declared faces live in. The two fonts
+            # are rarely in the same place, and an archive that cannot resolve a
+            # face makes the @font-face silently inert rather than failing loudly.
+            archive = fitz.Archive()
+            for directory in dict.fromkeys(archive_dirs):
+                archive.add(directory)
             return fitz.Story(html=_doc(fragment), user_css=css, archive=archive)
         return fitz.Story(html=_doc(fragment), user_css=css)
 
@@ -730,6 +836,18 @@ class AcademicPaginator:
             doc.subset_fonts(fallback=False)
         except Exception as subset_err:
             print(f"[PDF] font subsetting skipped: {subset_err}")
+        # Correct what the page MEANS, after everything that decides how it LOOKS.
+        # Shaping a cursive script leaves the text layer addressed in presentation
+        # forms, so a visually perfect Arabic page extracted, copied and searched as
+        # a different string than the one it displays. Runs last because subsetting
+        # rewrites font objects, and this has to be the final word on their CMaps.
+        try:
+            from services.pdf_text_layer import repair_text_layer
+            repaired = repair_text_layer(doc)
+            if repaired:
+                print(f"[PDF] text layer normalized in {repaired} font CMap(s)")
+        except Exception as layer_err:
+            print(f"[PDF] text-layer normalization skipped: {layer_err}")
         out = doc.tobytes(garbage=4, deflate=True)
         doc.close()
         try:
@@ -822,6 +940,28 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
         ch_select = 'id, number, title' + (', title_tr' if ch_has_tr else '')
         chapters = db.execute(f'SELECT {ch_select} FROM chapters WHERE course_id = ? ORDER BY number ASC, id ASC', (course_id,)).fetchall()
 
+        # Class-wide pronunciation consistency, decided while the whole class is in
+        # hand. Generation sees lessons one at a time and in parallel, so the first
+        # wave of topics is authored before any of them has registered a word - the
+        # disagreements that survive to here are exactly the ones no lesson was in a
+        # position to notice. Rendering is where the class exists as a whole, and it
+        # is the point BOTH renderers must pass through, so it is where the learner
+        # is guaranteed one answer per word.
+        _class_phonetics = {}
+        try:
+            from services.class_lexicon import class_phonetic_winners
+            _all_rows = db.execute(
+                'SELECT t.content FROM topics t JOIN chapters c ON t.chapter_id = c.id WHERE c.course_id = ?',
+                (course_id,),
+            ).fetchall()
+            _class_phonetics = class_phonetic_winners(
+                [_normalize_content(r[0], course_lang) for r in _all_rows]
+            )
+            if _class_phonetics:
+                print(f'[PDF V12] class-wide pronunciation unified for {len(_class_phonetics)} term(s)')
+        except Exception as exc:
+            print(f'[PDF V12] class pronunciation pass skipped: {exc}')
+
         paginator = AcademicPaginator(course_name, is_tr)
         _semester = str(semester or '').strip()
         _level = str(course_level or '').strip()
@@ -857,6 +997,12 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                     top_id, top_type, top_title, top_content = row[0], row[1], row[2], row[3]
                     top_title_tr = ''
                 content = _normalize_content(top_content, course_lang)
+                if _class_phonetics:
+                    try:
+                        from services.class_lexicon import apply_phonetic_winners
+                        apply_phonetic_winners(content, _class_phonetics)
+                    except Exception:
+                        pass
                 parsed_topics.append((top_id, top_type, top_title, top_title_tr, content))
 
             try:

@@ -439,6 +439,7 @@ try:
         record_call as _cost_record,
         mark_outcome as _cost_mark,
         extract_usage as _cost_extract_usage,
+        extract_cache_discount as _cost_extract_discount,
         OUTCOME_OK as _COST_OK,
         OUTCOME_PARSE_FAILED as _COST_PARSE_FAILED,
         OUTCOME_REJECTED as _COST_REJECTED,
@@ -464,12 +465,48 @@ except Exception:  # pragma: no cover - ledger is observational only
     def _cost_extract_usage(_response):
         return None
 
-def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None, cost_stage: str = "other", cost_subject: str = "") -> Optional[Dict]:
+    def _cost_extract_discount(_response):
+        return 0.0
+
+def _cacheable_system_message(message: Dict) -> Dict:
+    """Rewrite a system message so OpenRouter will actually cache it on Gemini.
+
+    `session_id` (sent below) is sticky ROUTING ONLY: it pins repeat calls to the
+    same upstream replica. It does not create a cache. Every provider OpenRouter
+    fronts except Anthropic-style ones treats a plain string `content` as
+    nothing to remember - Gemini in particular caches ONLY when the request
+    itself marks a block as cacheable with an explicit `cache_control` breakpoint
+    inside a content-parts array. A request built as `{"role": "system",
+    "content": "<string>"}`, which is what every call in this file sent, carries
+    no such breakpoint no matter how consistently `session_id` routes it: there
+    was sticky routing to a replica that was never asked to keep anything.
+
+    This turns the system message into the one-part array form OpenRouter's own
+    documentation specifies and marks that part `ephemeral`. It is applied only
+    to calls whose system prompt is genuinely class-invariant (the lesson call,
+    the claim review call) - never blanket, so a call with a small or
+    per-request-varying system prompt is untouched.
+    """
+    content = message.get("content")
+    if not isinstance(content, str) or not content:
+        return message
+    return {
+        "role": message.get("role", "system"),
+        "content": [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}],
+    }
+
+
+def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None, cost_stage: str = "other", cost_subject: str = "", cache_system: bool = False) -> Optional[Dict]:
     """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota.
 
     `cost_stage`/`cost_subject` label the call for the spend ledger. They do not
     change the request in any way; they exist because a charge the pipeline
     cannot attribute is a charge nobody can reduce.
+
+    `cache_system` marks the first (system) message as an OpenRouter cache
+    breakpoint - see `_cacheable_system_message`. Pass it only when the caller
+    knows that system prompt repeats byte-for-byte across many calls in the same
+    build; it is never on by default.
     """
     if not model or str(model).lower() in ["none", "offline", "skip", "disabled"]:
         return None
@@ -496,9 +533,12 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
             "HTTP-Referer": "https://aulaai.com",
             "X-Title": "AulaAI"
         }
+        payload_messages = messages
+        if cache_system and messages and isinstance(messages[0], dict) and messages[0].get("role") == "system":
+            payload_messages = [_cacheable_system_message(messages[0])] + list(messages[1:])
         req_payload = {
             "model": target_model,
-            "messages": messages,
+            "messages": payload_messages,
             "max_tokens": max_tokens,
             "temperature": temperature
         }
@@ -549,6 +589,8 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                 prompt_tokens=_cost_usage["prompt_tokens"],
                                 completion_tokens=_cost_usage["completion_tokens"],
                                 cached_tokens=_cost_usage["cached_tokens"],
+                                cache_write_tokens=_cost_usage["cache_write_tokens"],
+                                cache_discount=_cost_extract_discount(res_json),
                                 reasoning_tokens=_cost_usage["reasoning_tokens"],
                                 cost=float(_u_cost) if _u_cost is not None else _estimate_llm_cost(
                                     target_model,
@@ -3429,6 +3471,10 @@ def _verify_absolute_claims(data, claims, language, level, material_language="tr
             allow_fallback=False,
             cost_stage=_COST_STAGE_CLAIM,
             cost_subject=f"{len(items)} claim(s)",
+            # Templated on language and level only - the flagged claims travel in
+            # the user payload - so this prompt repeats across every lesson in the
+            # class that trips a detector, and clears the caching threshold.
+            cache_system=True,
         )
     except Exception as exc:
         print(f"[CLAIM-SCOPE] verification skipped after error: {exc}")
@@ -3501,12 +3547,35 @@ def _material_publication_release(lesson_dict, topic, language, level, material_
         # categorical claim that nearby lesson content contradicts. One bounded
         # call reviews all of them together - never one call per detector.
         claims = collect_reviewable_claims(data, material_language=material_language)
+        # A word this class has already taught, transcribed differently here, is a
+        # question about the language that only the reviewer can answer - and this
+        # lesson is the last moment anyone can ask it before the disagreement is
+        # persisted. It joins the SAME bounded call, so cross-lesson consistency
+        # costs no extra request. The established transcription travels as a rival
+        # candidate rather than as the answer: it is exactly as likely to be the
+        # wrong one, and anchoring the reviewer on it would spread an early error.
+        try:
+            from services.class_lexicon import collect_class_phonetic_conflicts
+            conflicts = collect_class_phonetic_conflicts(data)
+        except Exception as exc:
+            print(f"[CLASS-LEXICON] conflict detection unavailable: {exc}")
+            conflicts = []
+        if conflicts:
+            print(f"[CLASS-LEXICON] {len(conflicts)} cross-lesson transcription conflict(s) for '{topic}'")
+        claims = (claims or []) + conflicts
         if claims:
             data = _verify_absolute_claims(data, claims, language, level, material_language)
             # Re-run deterministic invariants so any rescoped prose is re-checked.
             data = apply_publication_invariants(
                 data, language=language, material_language=material_language, topic=topic, copy=False
             )
+    # Register only after review, so what this class treats as established is the
+    # reviewed value wherever there was one to review.
+    try:
+        from services.class_lexicon import register_lesson
+        register_lesson(data, source=str(topic))
+    except Exception as exc:
+        print(f"[CLASS-LEXICON] registration skipped: {exc}")
     return data
 
 
@@ -3678,6 +3747,11 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             usage_dict=call_stats,
             cost_stage=_COST_STAGE_LESSON,
             cost_subject=str(topic),
+            # The system prompt is identical for every topic in a class: it
+            # interpolates language, level and institution, all fixed for the
+            # build. It is ~8.1k tokens and is sent 30+ times per class, which
+            # makes it the single largest repeated input the pipeline pays for.
+            cache_system=True,
         )
         norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
         if norm_dict and isinstance(norm_dict, dict) and _is_substantive_lesson(norm_dict):

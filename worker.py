@@ -97,7 +97,7 @@ def main():
                 row = db.execute("SELECT name, textbook FROM courses WHERE id=?", (course_id,)).fetchone()
                 course_name = row["name"] if row else "Unknown Course"
                 pdf_path = row["textbook"] if row else None
-                db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'enriching', build_message = 'Starting lesson rebuild...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
+                db.execute("UPDATE courses SET progress = 0, total_steps = 0, progress_high_water = 0, is_building = 1, build_stage = 'enriching', build_message = 'Starting lesson rebuild...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
                 db.commit()
 
             try:
@@ -142,7 +142,7 @@ def main():
 
         from database import db_connection
         with db_connection() as db:
-            db.execute("UPDATE courses SET progress = 0, total_steps = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Ders programı analiz ediliyor...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
+            db.execute("UPDATE courses SET progress = 0, total_steps = 0, progress_high_water = 0, is_building = 1, build_stage = 'analyzing', build_message = 'Ders programı analiz ediliyor...', build_started_at = ? WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (time.time(), course_id, gen_id, gen_id))
             db.commit()
 
         print(f"[PIPELINE] Worker starting FULL PIPELINE (V2) for Course {course_id} ({course_name})")

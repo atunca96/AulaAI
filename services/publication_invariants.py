@@ -1636,6 +1636,12 @@ def build_claim_review_request(claims: List[Dict[str, Any]], language: Any, leve
         "When `repair` is `omit_ok`, the field is better empty than wrong. If you cannot supply a "
         "confident, complete value, answer `omit` and the field is dropped. Never pad it to look "
         "complete, and never guess a transcription.\n"
+        "An item flagged `cross_lesson_transcription_conflict` gives two transcriptions this course "
+        "has published for ONE word. Neither is privileged - the other lesson is as likely to be the "
+        "wrong one as this lesson is. Decide which is right for the word as written, and answer "
+        "`correct` with that transcription; if the difference is a genuine contextual variant, answer "
+        "`keep`; if you are not certain which is right, answer `omit`. Never split the difference, and "
+        "never choose one merely because it was published first.\n"
         'Return ONLY: {"verdicts":[{"id":0,"action":"keep|rescope|correct|omit","value":"replacement for replace_this, or null"}]}'
     )
     return system, payload
