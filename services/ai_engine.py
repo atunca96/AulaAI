@@ -431,8 +431,46 @@ def _extract_and_parse_json(content: str) -> Optional[Any]:
 
 _AULAAI_LESSON_CACHE_SESSION_V47 = os.getenv('AULAAI_OPENROUTER_LESSON_SESSION') or ('aulaai-lesson-' + str(os.getpid()) + '-' + uuid.uuid4().hex[:12])
 
-def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
-    """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota."""
+# Spend accounting. Imported under short names so the recording lines inside the
+# request loop stay readable, and behind a fallback so a missing ledger can never
+# be the reason a class fails to build - cost telemetry is never load-bearing.
+try:
+    from services.generation_cost import (
+        record_call as _cost_record,
+        mark_outcome as _cost_mark,
+        extract_usage as _cost_extract_usage,
+        OUTCOME_OK as _COST_OK,
+        OUTCOME_PARSE_FAILED as _COST_PARSE_FAILED,
+        OUTCOME_REJECTED as _COST_REJECTED,
+        STAGE_LESSON as _COST_STAGE_LESSON,
+        STAGE_LESSON_PRIME as _COST_STAGE_PRIME,
+        STAGE_CLAIM_REVIEW as _COST_STAGE_CLAIM,
+        STAGE_QUESTIONS as _COST_STAGE_QUESTIONS,
+        STAGE_CURRICULUM as _COST_STAGE_CURRICULUM,
+        STAGE_TRANSLATION as _COST_STAGE_TRANSLATION,
+    )
+except Exception:  # pragma: no cover - ledger is observational only
+    _COST_OK, _COST_PARSE_FAILED, _COST_REJECTED = "ok", "parse_failed", "rejected"
+    _COST_STAGE_LESSON, _COST_STAGE_PRIME = "lesson", "lesson_prime"
+    _COST_STAGE_CLAIM, _COST_STAGE_QUESTIONS = "claim_review", "questions"
+    _COST_STAGE_CURRICULUM, _COST_STAGE_TRANSLATION = "curriculum", "translation"
+
+    def _cost_record(**_kwargs):
+        return None
+
+    def _cost_mark(_entry, _outcome):
+        return None
+
+    def _cost_extract_usage(_response):
+        return None
+
+def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: int = 1000, temperature: float = 0.7, json_mode: bool = True, allow_fallback: bool = True, usage_dict: Optional[Dict[str, Any]] = None, cost_stage: str = "other", cost_subject: str = "") -> Optional[Dict]:
+    """AI caller using OpenRouter exclusively. Gemini models get Google AI Studio BYOK routing for free quota.
+
+    `cost_stage`/`cost_subject` label the call for the spend ledger. They do not
+    change the request in any way; they exist because a charge the pipeline
+    cannot attribute is a charge nobody can reduce.
+    """
     if not model or str(model).lower() in ["none", "offline", "skip", "disabled"]:
         return None
 
@@ -495,6 +533,37 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                         res_body = response.read().decode("utf-8")
                         res_json = json.loads(res_body)
 
+                        # The provider has already charged for this response. Read
+                        # its usage block here, before anything can decide the body
+                        # is unusable, so a call that is paid for and thrown away is
+                        # counted exactly like one that succeeds. Recording only on
+                        # the success path is how retry and truncation waste stayed
+                        # invisible: the more a topic failed, the less the books said.
+                        _cost_usage = _cost_extract_usage(res_json)
+                        _cost_entry = None
+                        if _cost_usage:
+                            _u_cost = res_json.get("usage", {}).get("cost")
+                            _cost_entry = _cost_record(
+                                stage=cost_stage,
+                                model=target_model,
+                                prompt_tokens=_cost_usage["prompt_tokens"],
+                                completion_tokens=_cost_usage["completion_tokens"],
+                                cached_tokens=_cost_usage["cached_tokens"],
+                                reasoning_tokens=_cost_usage["reasoning_tokens"],
+                                cost=float(_u_cost) if _u_cost is not None else _estimate_llm_cost(
+                                    target_model,
+                                    _cost_usage["prompt_tokens"],
+                                    _cost_usage["completion_tokens"],
+                                ),
+                                outcome=_COST_PARSE_FAILED,
+                                attempt=attempt + 1,
+                                subject=cost_subject,
+                            )
+                            if usage_dict is not None and isinstance(usage_dict, dict):
+                                # Handed to the caller so a lesson that parses but
+                                # fails the release gate can reclassify its own spend.
+                                usage_dict["cost_entry"] = _cost_entry
+
                         if "choices" in res_json and res_json["choices"]:
                             choice = res_json["choices"][0]
                             msg = choice.get("message", {})
@@ -535,6 +604,7 @@ def _call_ai(messages: List[Dict], model: str = MODEL_STRUCTURAL, max_tokens: in
                                             usage_dict["cost"] = usage_dict.get("cost", 0.0) + float(u_info["cost"])
                                         else:
                                             usage_dict["cost"] = usage_dict.get("cost", 0.0) + _estimate_llm_cost(target_model, int(p_t), int(c_t))
+                                    _cost_mark(_cost_entry, _COST_OK)
                                     return data
                             # JSON parse failed on this attempt; retry on the same model instead of falling back
                             with open("pipeline.log", "a", encoding="utf-8") as f:
@@ -1518,7 +1588,7 @@ REPETITION & COVERAGE RULES:
             calc_max_tokens = min(5000, max(1500, gen_count * 250))
             t_ai_start = time.perf_counter()
             main_usage: Dict[str, Any] = {}
-            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True, usage_dict=main_usage)
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True, usage_dict=main_usage, cost_stage=_COST_STAGE_QUESTIONS, cost_subject=str(topic_title))
             t_ai_duration = time.perf_counter() - t_ai_start
             m_cost = main_usage.get("cost")
             if m_cost is None:
@@ -1903,7 +1973,9 @@ UNIQUE_REQUEST_ID: {seed}_topup_1_{py_random.random()}"""
                 temperature=target_temp,
                 json_mode=True,
                 allow_fallback=True,
-                usage_dict=topup_usage
+                usage_dict=topup_usage,
+                cost_stage=_COST_STAGE_QUESTIONS,
+                cost_subject=str(topic_title),
             )
             timing_ctx["topup_ai_calls"] = 1
             top_c = topup_usage.get("cost")
@@ -2274,14 +2346,14 @@ Return ONLY valid JSON:
     }}
   ]
 }}"""
-    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_CURRICULUM, max_tokens=4500, temperature=0.3)
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_CURRICULUM, max_tokens=4500, temperature=0.3, cost_stage=_COST_STAGE_CURRICULUM)
     chapters = res.get("chapters", []) if res else []
     
     # Tier 1 Fallback: If primary model gave < 4 chapters, try MODEL_FALLBACK
     if (not chapters or len(chapters) < 4) and MODEL_FALLBACK != MODEL_CURRICULUM:
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] Primary model gave <4 units. Trying fallback {MODEL_FALLBACK}...\n")
-        res_fb = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4500, temperature=0.3)
+        res_fb = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4500, temperature=0.3, cost_stage=_COST_STAGE_CURRICULUM)
         if res_fb and res_fb.get("chapters") and len(res_fb["chapters"]) >= 4:
             chapters = res_fb["chapters"]
 
@@ -3170,6 +3242,43 @@ def _is_substantive_lesson(data: dict) -> bool:
     )
     return has_core
 
+def _lesson_retry_note(norm_dict, truncated: bool) -> str:
+    """Say what the rejected attempt was missing, in the schema's own terms.
+
+    Lives beside `_is_substantive_lesson` so the description and the gate that
+    produced it cannot drift: if the gate changes what it requires, this changes
+    with it. It names only structural facts the gate itself measured - how many
+    pages came back, how many carried content, whether the output was cut off -
+    and never anything about the target language, so it is as true for Japanese
+    as for Spanish and needs no per-language knowledge to write.
+    """
+    if truncated:
+        return (
+            "Your previous answer was cut off before the JSON closed, so none of it could be used. "
+            "The output limit has been raised. Return the same lesson, complete and valid JSON, "
+            "and if the topic is a large closed inventory, keep it complete rather than padding "
+            "any single entry."
+        )
+    if not isinstance(norm_dict, dict):
+        return (
+            "Your previous answer could not be parsed as JSON and was discarded. "
+            "Return one valid JSON object only: no markdown fences, no commentary outside the JSON."
+        )
+    pages = norm_dict.get("pages")
+    if not isinstance(pages, list) or not pages:
+        return (
+            "Your previous answer contained no `pages` array and was discarded. "
+            "Return the full lesson under `pages`, following the output schema exactly."
+        )
+    substantive = sum(1 for p in pages if _is_substantive_page(p))
+    return (
+        f"Your previous answer was discarded: it returned {len(pages)} page(s), of which "
+        f"{substantive} carried actual teaching content. Every page must carry real content in "
+        "its own right - explanatory `text`, or `items` with terms, or `rules`, or `dialogue` - "
+        "not a title with an empty body. Teach the topic fully this time."
+    )
+
+
 def _ensure_minimum_lesson_structure(lesson_dict: dict, topic: str, language: str, level: str = 'A1', material_language: str = "tr") -> dict:
     """Keep every substantive page a real generation produced; never pad a real
     lesson with synthesized filler.
@@ -3318,6 +3427,8 @@ def _verify_absolute_claims(data, claims, language, level, material_language="tr
             temperature=0.0,
             json_mode=True,
             allow_fallback=False,
+            cost_stage=_COST_STAGE_CLAIM,
+            cost_subject=f"{len(items)} claim(s)",
         )
     except Exception as exc:
         print(f"[CLAIM-SCOPE] verification skipped after error: {exc}")
@@ -3479,189 +3590,12 @@ def _material_deterministic_guard(lesson_dict):
     return data
 
 
-def _apply_material_patch(root, path, value):
-    """Safely apply a reviewer patch only to an existing lesson field."""
-    if not isinstance(path, str) or not path.startswith("pages."):
-        return False
-    parts = path.split(".")
-    cur = root
-    try:
-        for part in parts[:-1]:
-            if isinstance(cur, list):
-                cur = cur[int(part)]
-            elif isinstance(cur, dict):
-                if part not in cur:
-                    return False
-                cur = cur[part]
-            else:
-                return False
-        last = parts[-1]
-        if isinstance(cur, list):
-            idx = int(last)
-            if idx < 0 or idx >= len(cur):
-                return False
-            cur[idx] = value
-            return True
-        if isinstance(cur, dict) and last in cur:
-            if not isinstance(value, (str, int, float, bool, list, dict)) and value is not None:
-                return False
-            cur[last] = value
-            return True
-    except (ValueError, IndexError, KeyError, TypeError):
-        return False
-    return False
-
-
-def _material_publication_audit(lesson_dict, language, level):
-    """Independent, patch-only publication audit. One compact call; no full regeneration."""
-    data = _material_deterministic_guard(lesson_dict)
-    if not isinstance(data, dict) or not data.get("pages"):
-        return data
-
-    # Keep the audit payload structurally complete. Lesson outputs are already bounded by
-    # the generation token limit; truncating raw JSON can hide tail-page defects and break
-    # reviewer path addressing.
-    def _compact_review_payload(value):
-        if isinstance(value, list):
-            return [_compact_review_payload(v) for v in value]
-        if isinstance(value, dict):
-            return {k: _compact_review_payload(v) for k, v in value.items() if k not in {"correct_index", "distractors", "id", "uuid", "source_hash", "content_hash", "generated_at", "updated_at"} and not str(k).startswith("_")}
-        return value
-    payload = json.dumps(_compact_review_payload(data), ensure_ascii=False, separators=(",", ":"))
-
-    audit_system = f"""You are AulaAI's independent final publication editor for {language} at CEFR {level}.
-You are reviewing an ALREADY GENERATED lesson, not creating a new lesson.
-Return ONLY a JSON object with this exact shape:
-{{"patches":[{{"path":"pages.0.items.1.example","value":"replacement"}}],"remove_pages":[]}}
-
-MISSION: make only high-confidence surgical repairs required for publication quality. Do not rewrite correct content for stylistic preference.
-AULAAI_MATERIAL_QUALITY_V33_WHOLE: Act as a publication editor, not a stylist. Preserve correct content and repair only real defects. Do not flag harmless metalinguistic notation, common abbreviations, contrast markers, product names, proper nouns, or quoted source material merely because they contain a different script. A defect is something that can misteach, contradict, corrupt, confuse, or visibly lower publication quality.
-
-Every target-language sentence, table cell, dialogue turn and assessment item must be grammatical, idiomatic, complete and appropriate to the requested CEFR level. Check predicates/copulas where required, valency, agreement, case/adposition government, articles/determiners, particles/clitics, classifiers/counters, tense/aspect/mood, polarity, word order, reference, register and collocation. A correct conclusion with a false explanation is wrong.
-
-Cross-check every rule against every example, translation, table, dialogue and question. Keep person, number, gender where relevant, quantity, time, place, definiteness, role, referent and communicative force aligned. Reject literal calques, false friends, invented morphology/etymology, malformed Unicode, missing symbols, foreign-language leakage inside instructional fields, mismatched table columns, and true mixed-script corruption inside a single target-language token. Do not treat harmless standalone Latin abbreviations or metalinguistic markers such as vs, IPA, CEFR, A1, B2, URLs, product names, or proper nouns as mixed-script corruption. For non-Latin target languages, only flag script integrity when a single token that is meant to be in the target language is internally contaminated by foreign-script letters, or when a clearly target-language field contains a foreign-language word that is not intentionally quoted or explained.
-
-Instructional-language purity: explanations, glosses, role labels, parentheticals, answer rationales, notes and metadata stay in the selected instructional language, except target-language material intentionally being taught. Do not emit English role labels or glosses inside Turkish materials, or vice versa. If a dialogue role is needed, write it only in the configured instructional language. Never embed a foreign gloss inside a target-language sentence when an instructional-language equivalent is available.
-
-Unicode integrity: output valid normalized Unicode only. Never emit replacement characters, noncharacters, surrogates, broken control characters, or invisible corruption inside words. Preserve legitimate combining marks, diacritics, IPA symbols and language-specific punctuation. If a character is uncertain, regenerate that token correctly rather than inventing punctuation or deleting meaningful letters.
-
-Pronunciation consistency: use one learner-facing pronunciation representation system per document unless another representation is explicitly introduced as a separate named teaching object. Do not mix IPA with ad-hoc learner respelling such as ma-la-KO, mit-RO, ye-vo, etc. If IPA is used, keep all pronunciation fields in IPA; plain orthographic stress marks in target-script examples are allowed and are not a second pronunciation system. Phonemic notation, transliteration and romanization may appear only when explicitly labeled and pedagogically necessary; otherwise omit them. Pronunciation claims must preserve conditioning by stress, position, neighboring sounds and register. Never turn a beginner approximation into exceptionless phonetic truth.
-
-Teach only claims whose scope is accurate. Distinguish productive rules, tendencies, restricted patterns, lexical conventions, irregular forms and exceptions. Never turn a beginner shortcut, pronunciation approximation or cultural tendency into an exceptionless rule. Absolute wording equivalent to always, never, only, every, no exceptions is allowed only when the statement is genuinely exceptionless in the intended scope; otherwise qualify it precisely.
-
-Prefer coherent coverage over breadth. Do not introduce a grammatical mechanism merely as an unexplained example. If a form depends on a case, agreement pattern, aspect, particle or other mechanism not taught enough for the learner to interpret it, either give the minimum complete explanation needed at this level or replace the example with one using already taught knowledge. Do not leave half-taught paradigms: when a lesson explicitly teaches a paradigm, cover the forms needed by its own examples; otherwise label incidental forms as fixed chunks and do not imply the full paradigm was taught. Do not add advanced content only for completeness. For A1-A2, prioritize high-frequency communicative goals, short transparent explanations, manageable progression and clear unit boundaries; optional future-level concepts may be named in one brief preview only when they prevent a likely misconception.
-
-Keep native script authentic and consistent; transliteration may support it but not replace it unless explicitly taught/tested. Keep dialogue roles, politeness and deixis coherent. Preserve natural textbook style instead of overcorrecting valid variation.
-
-Every MCQ must have exactly one defensible answer, four plausible distinct same-category options, a key equal to one option, and an explanation supporting that same answer from taught language knowledge rather than trivia, arithmetic, stereotypes or category guessing. Before finalizing an MCQ, solve it again from the stem without trusting the existing key; then make the key and explanation match that independently derived answer. Do not reject a sound question merely because distractors are simple; reject only if more than one option is genuinely defensible, the keyed answer is wrong, or the explanation contradicts the item.
-
-Before returning final JSON, silently perform one same-call release pass: (1) real target-token script corruption absent, (2) one learner-facing pronunciation system, (3) every example uses taught knowledge or is explicitly treated as a fixed chunk/minimally explained, (4) every MCQ key independently re-solved and consistent. Repair defects inside the same response. Do not add a second model call, retry loop, audit object, score report, or extra output fields. When uncertain, simplify or remove the questionable claim instead of guessing.
-
-UNIVERSAL RELEASE INTEGRITY:
-- MCQ SELF-CONSISTENCY: every MCQ has exactly four distinct non-empty options and exactly one defensible keyed answer. The answer must be one option, and the explanation must defend that same answer rather than naming, implying, calculating, translating, or justifying another one. Repair stem/options/answer/explanation together when needed.
-- INTERNAL CONSISTENCY: compare every rule, summary, example, dialogue, table and assessment claim inside the lesson. No later statement may contradict an earlier taught rule, and no explanation may classify a meaning or construction under the wrong grammatical category merely because a nearby pattern looks similar.
-- RULE-SCOPE CALIBRATION: distinguish productive rules from regular tendencies, restricted patterns, lexical conventions and exceptions. Do not say all/always/never/only/must/impossible/without exception unless the explicitly stated scope is genuinely exceptionless. Cultural tendencies and usage preferences must be scoped as typical/common/standard where appropriate rather than universalized.
-- WRITING-SYSTEM INTEGRITY: non-Latin target-language text uses authentic native script for ordinary examples, dialogues and assessments. Romanization/transliteration may supplement it or be the explicit skill under test, but may not silently replace native script.
-- PHONETIC/NOTATION TRUTH: IPA, phonemic notation, transliteration, romanization and learner respelling remain distinguishable. A pedagogical approximation is never presented as exact phonetic truth.
-- MEANING AND CAUSALITY: preserve person, number, polarity, time, quantity, role, referent and communicative force. Never invent morphology, etymology, derivation or a productive rule from surface resemblance.
-- TABLE/DIALOGUE COHERENCE: vocabulary columns describe the same lexical item and sense; dialogue roles, politeness, demonstratives and references stay coherent.
-- CEFR FIT: keep A1-A2 concrete and transparent, B1-B2 productively contextual, C1-C2 nuanced. Do not rewrite correct material for elegance alone.
-AULAAI_MATERIAL_QUALITY_V33_PUBLICATION: Prefer preserving acceptable wording; change content only when correctness, meaning, consistency, or assessment validity is materially affected. Act as a publication editor, not a stylist. Preserve correct content and repair only real defects. Do not flag harmless metalinguistic notation, common abbreviations, contrast markers, product names, proper nouns, or quoted source material merely because they contain a different script. A defect is something that can misteach, contradict, corrupt, confuse, or visibly lower publication quality.
-
-Every target-language sentence, table cell, dialogue turn and assessment item must be grammatical, idiomatic, complete and appropriate to the requested CEFR level. Check predicates/copulas where required, valency, agreement, case/adposition government, articles/determiners, particles/clitics, classifiers/counters, tense/aspect/mood, polarity, word order, reference, register and collocation. A correct conclusion with a false explanation is wrong.
-
-Cross-check every rule against every example, translation, table, dialogue and question. Keep person, number, gender where relevant, quantity, time, place, definiteness, role, referent and communicative force aligned. Reject literal calques, false friends, invented morphology/etymology, malformed Unicode, missing symbols, foreign-language leakage inside instructional fields, mismatched table columns, and true mixed-script corruption inside a single target-language token. Do not treat harmless standalone Latin abbreviations or metalinguistic markers such as vs, IPA, CEFR, A1, B2, URLs, product names, or proper nouns as mixed-script corruption. For non-Latin target languages, only flag script integrity when a single token that is meant to be in the target language is internally contaminated by foreign-script letters, or when a clearly target-language field contains a foreign-language word that is not intentionally quoted or explained.
-
-Instructional-language purity: explanations, glosses, role labels, parentheticals, answer rationales, notes and metadata stay in the selected instructional language, except target-language material intentionally being taught. Do not emit English role labels or glosses inside Turkish materials, or vice versa. If a dialogue role is needed, write it only in the configured instructional language. Never embed a foreign gloss inside a target-language sentence when an instructional-language equivalent is available.
-
-Unicode integrity: output valid normalized Unicode only. Never emit replacement characters, noncharacters, surrogates, broken control characters, or invisible corruption inside words. Preserve legitimate combining marks, diacritics, IPA symbols and language-specific punctuation. If a character is uncertain, regenerate that token correctly rather than inventing punctuation or deleting meaningful letters.
-
-Pronunciation consistency: use one learner-facing pronunciation representation system per document unless another representation is explicitly introduced as a separate named teaching object. Do not mix IPA with ad-hoc learner respelling such as ma-la-KO, mit-RO, ye-vo, etc. If IPA is used, keep all pronunciation fields in IPA; plain orthographic stress marks in target-script examples are allowed and are not a second pronunciation system. Phonemic notation, transliteration and romanization may appear only when explicitly labeled and pedagogically necessary; otherwise omit them. Pronunciation claims must preserve conditioning by stress, position, neighboring sounds and register. Never turn a beginner approximation into exceptionless phonetic truth.
-
-Teach only claims whose scope is accurate. Distinguish productive rules, tendencies, restricted patterns, lexical conventions, irregular forms and exceptions. Never turn a beginner shortcut, pronunciation approximation or cultural tendency into an exceptionless rule. Absolute wording equivalent to always, never, only, every, no exceptions is allowed only when the statement is genuinely exceptionless in the intended scope; otherwise qualify it precisely.
-
-Prefer coherent coverage over breadth. Do not introduce a grammatical mechanism merely as an unexplained example. If a form depends on a case, agreement pattern, aspect, particle or other mechanism not taught enough for the learner to interpret it, either give the minimum complete explanation needed at this level or replace the example with one using already taught knowledge. Do not leave half-taught paradigms: when a lesson explicitly teaches a paradigm, cover the forms needed by its own examples; otherwise label incidental forms as fixed chunks and do not imply the full paradigm was taught. Do not add advanced content only for completeness. For A1-A2, prioritize high-frequency communicative goals, short transparent explanations, manageable progression and clear unit boundaries; optional future-level concepts may be named in one brief preview only when they prevent a likely misconception.
-
-Keep native script authentic and consistent; transliteration may support it but not replace it unless explicitly taught/tested. Keep dialogue roles, politeness and deixis coherent. Preserve natural textbook style instead of overcorrecting valid variation.
-
-Every MCQ must have exactly one defensible answer, four plausible distinct same-category options, a key equal to one option, and an explanation supporting that same answer from taught language knowledge rather than trivia, arithmetic, stereotypes or category guessing. Before finalizing an MCQ, solve it again from the stem without trusting the existing key; then make the key and explanation match that independently derived answer. Do not reject a sound question merely because distractors are simple; reject only if more than one option is genuinely defensible, the keyed answer is wrong, or the explanation contradicts the item.
-
-Before returning final JSON, silently perform one same-call release pass: (1) real target-token script corruption absent, (2) one learner-facing pronunciation system, (3) every example uses taught knowledge or is explicitly treated as a fixed chunk/minimally explained, (4) every MCQ key independently re-solved and consistent. Repair defects inside the same response. Do not add a second model call, retry loop, audit object, score report, or extra output fields. When uncertain, simplify or remove the questionable claim instead of guessing.
-
-FINAL-RELEASE PRINCIPLES:
-- A correct answer or final form with an incorrect explanation is still a publication defect. Verify the linguistic CAUSE, not only the conclusion.
-- Never explain lexical exceptions, indeclinable words, irregular forms, pronunciation exceptions, or conventional constructions as if they followed an ordinary surface-ending rule.
-- Every MCQ must be answerable primarily from taught target-language knowledge. Reject questions whose answer is really determined by common sense, object-function guessing, family relationships, arithmetic, stereotypes, trivia, or other world knowledge.
-- Mere occurrence in an example does not make a form testable. The required grammar, vocabulary meaning, and carrier language must have been explicitly taught before the question.
-- Prefer contextual application and comprehension over bare dictionary translation when the lesson already supplies a natural taught context.
-- Phonetic/transcription claims must distinguish exact facts from learner approximations; do not overstate simplified pronunciation cues as exact phonetics.
-- If a question tests target-language knowledge, the decisive stem/options must contain target-language evidence; do not use material-language-only options as a substitute.
-- TARGET-LANGUAGE OPTION INVARIANT: if the keyed answer is a target-language word, phrase, sentence, inflected form, or cultural expression being learned as language, ALL answer options must be expressed in the target language (except genuinely language-neutral numerals/symbols). A translated gloss may appear in the stem only as support; it may never replace the target-language answer set.
-- Reject MCQs solvable mainly by common sense, object-function guessing, family relations, arithmetic, stereotypes, or trivia; knowing the taught target language must be necessary.
-- COUNTERFACTUAL LANGUAGE-NECESSITY TEST (SURGICAL): for every MCQ, mentally remove or obfuscate the target-language words/forms from stem and options while preserving the material-language scenario, real-world facts, commonsense cues and number sequence. If the keyed answer can still be identified with high confidence, rewrite the item so a previously taught target-language form, meaning, grammatical contrast or communicative function becomes decisive. Reject object-function inference, room/object commonsense, family-relation deduction, arithmetic/sequence completion, stereotypes, trivia and category guessing when external knowledge supplies the answer. Keep legitimate real-life contexts when taught language remains necessary.
-- Reject shallow dictionary/category recall when a natural taught-language context can test the same objective. Prefer contextual comprehension or use over bare recall.
-- Replace subjective claims that a language/culture is beautiful, logical, melodic, easy, hard, superior, etc. with neutral communicative examples.
-- Verify the rule that CAUSES a form, not only the final answer; exceptions and indeclinables must not be justified by superficial spelling.
-- MORPHOLOGICAL CAUSALITY: never infer a prefix, suffix, root boundary, derivation, etymology, or morpheme function merely from a visible letter sequence. Only give a decomposition when it is certainly valid for that lexical item.
-- PHONETIC EPISTEMIC LABELING: keep exact phonetic transcription separate from learner-friendly respelling. If using a pedagogical approximation, label it explicitly and never present it as exact IPA/phonetic truth.
-
-HARD AUDIT GATES:
-1. TARGET-LANGUAGE ACCURACY: inspect every target-language example, dialogue, rule example, MCQ stem and option. Reject malformed morphology, wrong particles/cases/prepositions, invalid numeral/classifier/counter syntax, unnatural valency, impossible collocations, wrong agreement, bad conjugation, or invented forms. A vocabulary example must itself be a fully natural sentence or phrase in {language}; never copy English-style noun counting or word order into {language}.
-2. NATIVE NATURALNESS: prefer the shortest ordinary native construction appropriate to CEFR {level}. Repair textbook-sounding but non-native combinations only when clearly defective.
-3. CEFR SCOPE: at A1/A2 remove or simplify specialist theory, rare exceptions, historical linguistics, dialectology, advanced prosody/pitch-accent theory, and advanced register analysis unless the topic explicitly requires it.
-4. BILINGUAL ENTAILMENT: target-language text, English, and Turkish must express the same proposition. Preserve person, number, tense, polarity, quantity, place, and referent. Do not add information absent from the target sentence.
-5. ENTITY LOCK: keep each person's/place's identity consistent across script, romanization/localization, dialogue and translation. Normal transliteration differences are allowed (for example Japanese ミラー may correctly correspond to Miller); accidental identity mutation is not.
-6. CONTAMINATION: remove editor/model debris, placeholder tokens, foreign garbage, control-character leakage, or unrelated words embedded in translations.
-7. MCQ VALIDITY: exactly one answer must be defensible from content explicitly taught BEFORE the question. Required vocabulary and grammar must already be taught. No family-tree logic, arithmetic, outside knowledge, hidden future content, or merely-incidental grammar.
-8. MCQ DIVERSITY: within this lesson, do not spend two MCQs on the same learning objective using the same cognitive operation. Keep the stronger item and either surgically retarget the weaker one to another explicitly taught objective or put its page index in remove_pages.
-9. DISTRACTORS: all four options must be plausible, same-category, CEFR-appropriate, and pedagogically useful; no random fillers or malformed nonsense unless the lesson explicitly tests that exact learner error.
-10. PEDAGOGICAL SEQUENCING: explanation precedes assessment; examples do not secretly require untaught structures; headings accurately describe their content.
-11. CONSERVATIVE EDITING: if you cannot prove a change is necessary, do not patch it. Never introduce new facts, rules, vocabulary, or cultural claims.
-
-PATCH RULES:
-- Paths must point to EXISTING fields in the supplied JSON.
-- Use remove_pages only for an irreparable/duplicate/unsupported page; indices are zero-based.
-- Return no commentary, scores, or reasoning."""
-
-    try:
-        review = _call_ai(
-            [{"role": "system", "content": audit_system},
-             {"role": "user", "content": "Audit this lesson and return only necessary patches:\n" + payload}],
-            model=MODEL_STRUCTURAL,
-            max_tokens=3200,
-            temperature=0.05,
-            json_mode=True,
-            allow_fallback=False,
-        )
-    except Exception as exc:
-        print(f"[MATERIAL-QA] audit skipped after error: {exc}")
-        return data
-
-    if not isinstance(review, dict):
-        return data
-
-    patches = review.get("patches") or []
-    if isinstance(patches, list):
-        for patch in patches[:80]:
-            if not isinstance(patch, dict):
-                continue
-            _apply_material_patch(data, patch.get("path", ""), patch.get("value"))
-
-    remove_pages = review.get("remove_pages") or []
-    if isinstance(remove_pages, list):
-        valid = sorted(
-            {i for i in remove_pages if isinstance(i, int) and 0 <= i < len(data.get("pages", []))},
-            reverse=True,
-        )
-        for idx in valid:
-            if len(data.get("pages", [])) <= 3:
-                break
-            data["pages"].pop(idx)
-
-    data = _material_deterministic_guard(data)
-    print(f"[MATERIAL-QA] publication audit applied: {len(patches) if isinstance(patches, list) else 0} patches")
-    return data
-
+# _apply_material_patch lived here: it existed only to apply that audit's patches
+# _material_publication_audit lived here: a second, independent semantic pass over
+# the whole lesson that patched arbitrary fields by path. It has had no caller since
+# the publication boundary became the single reviewed surface, and dead code that
+# makes a paid model call is not free - it is one accidental call site away from
+# doubling the semantic cost of every lesson. Removed rather than left loaded.
 
 def _material_release_integrity_v37(data, language, level, material_language="tr"):
     """Deterministic final fail-closed validation; semantic work is done by the single publication audit."""
@@ -3717,20 +3651,33 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
 
     lesson_dict = None
     budget = LESSON_OUTPUT_TOKENS
+    retry_note = ""
     for attempt_idx in range(1, 4):
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-START] '{topic}' ({topic_type}) {level} {language} (attempt {attempt_idx}/3, max_tokens={budget}) → {MODEL_LESSON}\n")
 
         temp = 0.2 if attempt_idx == 1 else (0.25 if attempt_idx == 2 else 0.3)
         call_stats: Dict[str, Any] = {}
+        # A retry that resends the identical prompt asks the same question again
+        # and is answered the same way: a topic that failed the release gate once
+        # failed it three times and still published a fallback, at three times the
+        # price of a lesson that worked. Telling the next attempt which part of the
+        # schema came back empty costs a few dozen tokens and is the only thing in
+        # the retry that carries new information. It is appended AFTER the system
+        # prompt so the cacheable prefix every topic shares is left untouched.
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        if retry_note:
+            messages.append({"role": "user", "content": retry_note})
         raw_dict = _call_ai(
-            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            messages,
             model=MODEL_LESSON,
             max_tokens=budget,
             temperature=temp,
             json_mode=True,
             allow_fallback=False,
             usage_dict=call_stats,
+            cost_stage=_COST_STAGE_LESSON,
+            cost_subject=str(topic),
         )
         norm_dict = _normalize_lesson_pages(raw_dict, topic, language, level)
         if norm_dict and isinstance(norm_dict, dict) and _is_substantive_lesson(norm_dict):
@@ -3739,6 +3686,11 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
                 f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-RESULT] '{topic}' → {len(lesson_dict['pages'])} pages on attempt {attempt_idx}\n")
             break
         else:
+            # This attempt was paid for and is about to be discarded. Say so in
+            # the ledger: a topic that burns three generations and still publishes
+            # a fallback costs three lessons, and that has to be visible as waste
+            # rather than as three ordinary lesson calls.
+            _cost_mark(call_stats.get("cost_entry"), _COST_REJECTED)
             page_count = len(norm_dict.get("pages", [])) if isinstance(norm_dict, dict) else 0
             # A lesson that was cut off at the ceiling does not fail because the
             # model is unwilling or the topic is hard - it fails because the answer
@@ -3748,6 +3700,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
             # on every attempt and fell back. Give the next attempt the room the
             # answer needed instead of nudging temperature, which cannot help.
             truncated = bool(call_stats.get("truncated"))
+            retry_note = _lesson_retry_note(norm_dict, truncated)
             if truncated and budget < LESSON_OUTPUT_TOKENS_MAX:
                 budget = min(budget * 2, LESSON_OUTPUT_TOKENS_MAX)
                 reason = f"output truncated at the ceiling; raising max_tokens to {budget}"

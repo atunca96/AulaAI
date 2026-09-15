@@ -415,7 +415,7 @@ Input:
         res = None
         try:
             from services.ai_engine import _call_ai
-            res = _call_ai([{"role": "user", "content": prompt}], max_tokens=1500, temperature=0.0)
+            res = _call_ai([{"role": "user", "content": prompt}], max_tokens=1500, temperature=0.0, cost_stage="translation")
         except Exception as e:
             logger.error(f"[CURRICULUM TRANSLATOR] AI call failed: {e}")
 

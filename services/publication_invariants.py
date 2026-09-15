@@ -539,11 +539,11 @@ def _track_language(key: str, material_language: Any) -> Optional[str]:
 _CLAIM_FIELDS = ("rule", "explanation", "analysis", "note", "text", "pitfall")
 
 
-def _claim_bearing_fields(entry: Dict[str, Any]) -> List[str]:
+def _claim_bearing_fields(entry: Dict[str, Any], extra: Tuple[str, ...] = ()) -> List[str]:
     out = []
     for key in entry:
         base = _TRACK_SUFFIX.sub("", str(key).casefold())
-        if base in _CLAIM_FIELDS and isinstance(entry.get(key), str):
+        if (base in _CLAIM_FIELDS or base in extra) and isinstance(entry.get(key), str):
             out.append(key)
     return out
 
@@ -584,7 +584,16 @@ def iter_claim_surfaces(data: Any, material_language: str = "tr") -> Iterator[Di
         if not isinstance(page, dict):
             continue
 
-        for key in _claim_bearing_fields(page):
+        # An MCQ is a page in this schema, not an entry inside one, so its
+        # answer-key rationale is a page-level field. Scanning page fields against
+        # _CLAIM_FIELDS alone covered `explanation` only because that name happens
+        # to appear in both lists, and left `why`, `feedback`, `rationale` and
+        # `answer_explanation` unscanned - `why` being the field the question
+        # generator actually writes. The result was scope discipline that depended
+        # on which of two synonymous field names the generator chose. Rationale
+        # fields are claim surfaces wherever they appear, so they are admitted here
+        # by the same rule that admits them inside a container.
+        for key in _claim_bearing_fields(page, RATIONALE_FIELDS):
             value = page.get(key)
             if isinstance(value, str) and value.strip():
                 base = _TRACK_SUFFIX.sub("", str(key).casefold())
@@ -863,6 +872,100 @@ def _collect_lesson_terms(data: Dict[str, Any]) -> Dict[str, Tuple[str, str]]:
 
     walk(data.get("pages"))
     return out
+
+
+def _normalize_transcription(value: Any) -> str:
+    """Compare transcriptions by content, not by incidental spacing or form."""
+    text = unicodedata.normalize("NFC", str(value or "")).strip()
+    return re.sub(r"\s+", " ", text)
+
+
+def unify_phonetic_ownership(data: Any) -> Any:
+    """Make each term's pronunciation a fact the lesson owns once and reuses.
+
+    A term's transcription was produced independently everywhere it appeared: the
+    vocabulary table generated one, the pronunciation section generated another,
+    a practice page generated a third. Nothing compared them, so a learner could
+    meet せんせい as [seɴseː] on one page, [seɰ̃seː] on the next and [seːseː] on a
+    third, and the same Russian word could be transcribed two ways in one lesson.
+    All three cannot be the lesson's answer to "how is this pronounced", and the
+    learner has no way to tell which one to trust.
+
+    The lesson's own schema rules out the innocent explanation. A `phonetic` field
+    that has to cover more than one realization is required to carry them together
+    in a single value, separated by ` / `, with the conditioning explained - so two
+    different values in two different places is never how contextual variation is
+    represented here. It only ever means the fact was regenerated instead of
+    reused.
+
+    Ownership is therefore assigned, not judged: the value the lesson produced
+    most often wins, and the earliest occurrence breaks a tie. This deliberately
+    does not decide which transcription is phonetically correct - deterministic
+    code has no basis for that in any language, and pretending otherwise is how a
+    guard becomes a worse linguist than the model it is guarding. It decides only
+    that the lesson gives one answer instead of three, which is true regardless of
+    which answer is right, and which no amount of language knowledge is needed to
+    establish.
+
+    Terms with a single transcription, and terms with none, are untouched: this
+    never invents a transcription and never fills a gap.
+    """
+    if not isinstance(data, dict):
+        return data
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        return data
+
+    # Pass 1: how many times did the lesson give each value for each term?
+    seen: Dict[str, Dict[str, int]] = {}
+    order: Dict[str, List[str]] = {}
+
+    def survey(node: Any) -> None:
+        if isinstance(node, dict):
+            term = node.get("term") or node.get("word") or node.get("target")
+            phonetic = _normalize_transcription(node.get("phonetic"))
+            if term and phonetic:
+                key = _fold_for_identity(term)
+                if key:
+                    counts = seen.setdefault(key, {})
+                    counts[phonetic] = counts.get(phonetic, 0) + 1
+                    sequence = order.setdefault(key, [])
+                    if phonetic not in sequence:
+                        sequence.append(phonetic)
+            for value in node.values():
+                survey(value)
+        elif isinstance(node, list):
+            for value in node:
+                survey(value)
+
+    survey(pages)
+
+    owners: Dict[str, str] = {}
+    for key, counts in seen.items():
+        if len(counts) < 2:
+            continue
+        sequence = order.get(key) or list(counts)
+        owners[key] = max(sequence, key=lambda value: (counts[value], -sequence.index(value)))
+    if not owners:
+        return data
+
+    # Pass 2: every occurrence of a conflicted term now states the owned value.
+    def apply(node: Any) -> None:
+        if isinstance(node, dict):
+            term = node.get("term") or node.get("word") or node.get("target")
+            phonetic = _normalize_transcription(node.get("phonetic"))
+            if term and phonetic:
+                owned = owners.get(_fold_for_identity(term))
+                if owned and owned != phonetic:
+                    node["phonetic"] = owned
+            for value in node.values():
+                apply(value)
+        elif isinstance(node, list):
+            for value in node:
+                apply(value)
+
+    apply(pages)
+    return data
 
 
 def _shared_suffix_len(a: str, b: str) -> int:
@@ -1593,6 +1696,217 @@ def collect_reviewable_claims(data: Any, material_language: str = "tr") -> List[
 
 # ── Assessment publication boundary ─────────────────────────────────────────
 
+# A parenthetical after an option is a gloss, not the thing the learner chooses
+# between. Four options reading "Pedro is a nurse (ser)", "Pedro is a nurse
+# (estar)" ... are one option shown four times: the contrast has moved out of the
+# option and into an annotation about it, and the question can no longer be
+# answered from what is on the page. Stripping the parenthetical before comparing
+# is what makes that collapse visible.
+_OPTION_GLOSS = re.compile(r"[(（\[【][^)）\]】]*[)）\]】]")
+
+
+def _option_discriminator(value: Any) -> str:
+    """The part of an option a learner must actually tell apart from the others."""
+    text = unicodedata.normalize("NFC", str(value or ""))
+    text = _OPTION_GLOSS.sub(" ", text)
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _script_families(value: Any) -> set:
+    """Writing systems present in a string, named by Unicode itself.
+
+    Derived from each letter's Unicode name rather than from a table of ranges,
+    so a language this pipeline has never been tested against is classified the
+    same way as one it has. Non-letters are ignored: punctuation and digits are
+    shared by every script and say nothing about which one is in use.
+    """
+    families = set()
+    for ch in str(value or ""):
+        if not ch.isalpha():
+            continue
+        try:
+            families.add(unicodedata.name(ch).split(" ", 1)[0])
+        except ValueError:
+            continue
+    return families
+
+
+def collect_target_surfaces(data: Any) -> set:
+    """Target-language strings the lesson itself published.
+
+    The schema already says which fields are written in the language being
+    taught - an item's `term`, a rule's `example`, a comparison's `target`, a
+    dialogue turn's `text` - as opposed to the `_en`/`_tr` tracks beside them
+    that carry the instructional language. Reading that distinction back out
+    gives a per-lesson sample of the target language with no dictionary, no
+    language detection and nothing hardcoded about any particular language.
+
+    It is used to answer one question: are this item's options target-language
+    forms, or are they prose about the target language? A lesson that teaches
+    `der Tisch` and then offers `der Tisch` as an option has answered it.
+    """
+    surfaces: set = set()
+    if not isinstance(data, dict):
+        return surfaces
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        return surfaces
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        for item in page.get("items") or []:
+            if isinstance(item, dict):
+                for key in ("term", "word", "example"):
+                    value = _option_discriminator(item.get(key))
+                    if value:
+                        surfaces.add(value)
+        for rule in page.get("rules") or []:
+            if isinstance(rule, dict):
+                value = _option_discriminator(rule.get("example"))
+                if value:
+                    surfaces.add(value)
+        for comparison in page.get("comparisons") or []:
+            if isinstance(comparison, dict):
+                value = _option_discriminator(comparison.get("target"))
+                if value:
+                    surfaces.add(value)
+        for turn in page.get("dialogue") or []:
+            if isinstance(turn, dict):
+                value = _option_discriminator(turn.get("text"))
+                if value:
+                    surfaces.add(value)
+    return {s for s in surfaces if s}
+
+
+def _options_are_target_forms(raw_options: Any, target_surfaces: Any) -> bool:
+    """Whether these options are target-language forms rather than prose about them.
+
+    An option counts as a target form when the lesson published that exact string
+    as target-language material, or when the lesson published a sentence that
+    contains it. Requiring the lesson's own evidence rather than guessing from the
+    text keeps this from firing on an explanatory option that merely quotes a
+    target ending, which is a legitimate thing to translate.
+    """
+    if not isinstance(raw_options, list) or not target_surfaces:
+        return False
+    matches = 0
+    for option in raw_options:
+        key = _option_discriminator(option)
+        if not key:
+            continue
+        if key in target_surfaces or any(key in surface for surface in target_surfaces):
+            matches += 1
+    # Half the options is the threshold: a single coincidental match says nothing,
+    # while an option set drawn from the lesson's own target-language material
+    # shows up across the set.
+    return matches * 2 >= len(raw_options)
+
+
+def localized_options_are_publishable(raw_options: Any, localized: Any, target_surfaces: Any = None) -> bool:
+    """Whether a localized option list may REPLACE the options a learner chooses from.
+
+    Both renderers treat `options_tr`/`options_en` as a drop-in replacement for
+    `options` whenever the lengths match. That is right for one kind of item and
+    catastrophic for the other:
+
+      * when an MCQ tests metalinguistic knowledge, the options are explanatory
+        prose in the instructional language, and swapping them for the same prose
+        in the learner's language changes nothing about what is being tested;
+
+      * when an MCQ tests a contrast IN the target language, the options ARE the
+        target-language forms. Translating them deletes the question. A Spanish
+        item contrasting four ways of stating a profession became the same Turkish
+        sentence four times; a Japanese item contrasting みて / きいて / よんで /
+        かいて became four Turkish converbs, with the answer key still explaining a
+        distinction that no longer appeared anywhere a learner could see.
+
+    A replacement is refused when it loses either of the two things that make the
+    options answerable, both checked without knowing a single target language:
+
+      distinctness - options that were pairwise different must stay pairwise
+      different, measured after glosses in parentheses are removed, because a
+      contrast that survives only inside an annotation has already collapsed;
+
+      surface - a writing system the original options used must still be present.
+      Options written in kana, Cyrillic, Han, Hangul, Arabic or Devanagari cannot
+      be represented by Latin prose about them, and this is the check that catches
+      a lossy translation whose results happen to stay distinct.
+
+    Neither check can see a target language that shares the instructional
+    language's script and whose glosses happen to stay distinct - German articles
+    rendered as Turkish case suffixes pass both. `target_surfaces`, when the
+    caller has a lesson to draw it from, closes that: options the lesson itself
+    published as target-language material are target-language forms, and those are
+    never replaced.
+
+    Returning False does not mean the translation was wrong. It means the
+    translation is a gloss, and a gloss may not stand in for the answer set.
+    """
+    if not isinstance(raw_options, list) or not isinstance(localized, list):
+        return False
+    if len(raw_options) < 2 or len(localized) != len(raw_options):
+        return False
+    if any(not str(option or "").strip() for option in localized):
+        return False
+    if _options_are_target_forms(raw_options, target_surfaces):
+        return False
+
+    raw_keys = {_option_discriminator(o) for o in raw_options}
+    localized_keys = {_option_discriminator(o) for o in localized}
+    if len(localized_keys) < len(raw_keys):
+        return False
+
+    raw_families: set = set()
+    for option in raw_options:
+        raw_families |= _script_families(option)
+    localized_families: set = set()
+    for option in localized:
+        localized_families |= _script_families(option)
+    if raw_families - localized_families:
+        return False
+    return True
+
+
+def enforce_option_parallelism(data: Any) -> Any:
+    """Drop localized option lists that cannot stand in for the real options.
+
+    Enforced here rather than in a renderer because there is more than one
+    renderer and they made the same substitution independently; a rule that lives
+    at the boundary is one both inherit and neither can skip. Removing the key is
+    the whole repair: with no localized list present, every renderer already falls
+    back to the authored options, which are the forms the question is about.
+
+    The item keeps its localized stem, explanation and answer-key rationale. Only
+    the option list - the one field that must stay in the language being tested -
+    is held to this rule.
+    """
+    if not isinstance(data, dict):
+        return data
+    pages = data.get("pages")
+    if not isinstance(pages, list):
+        return data
+    target_surfaces = collect_target_surfaces(data)
+    for page in pages:
+        if isinstance(page, dict):
+            _enforce_item_option_parallelism(page, target_surfaces)
+    return data
+
+
+def _enforce_item_option_parallelism(item: Dict[str, Any], target_surfaces: Any = None) -> Dict[str, Any]:
+    raw_options = item.get("options")
+    if not isinstance(raw_options, list):
+        raw_options = item.get("choices")
+    if not isinstance(raw_options, list):
+        return item
+    for key in ("options_tr", "options_en"):
+        localized = item.get(key)
+        if localized is None:
+            continue
+        if not localized_options_are_publishable(raw_options, localized, target_surfaces):
+            item.pop(key, None)
+    return item
+
+
 def apply_assessment_invariants(questions: Any, language: Any = None, material_language: str = "tr") -> Any:
     """Deterministic publication discipline for independently generated assessments.
 
@@ -1651,6 +1965,7 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
                 ok = True
             if not ok:
                 continue
+        _enforce_item_option_parallelism(item)
         out.append(item)
     return out
 
@@ -1672,6 +1987,8 @@ def apply_publication_invariants(
         return data
     out = deepcopy(data) if copy else data
     out = prune_invalid_mcq_pages(out)
+    out = enforce_option_parallelism(out)
+    out = unify_phonetic_ownership(out)
     out = collapse_adjacent_duplicates(out)
     out = apply_declared_scope(out, material_language=material_language)
     out = flag_generic_filler(out, topic=topic)

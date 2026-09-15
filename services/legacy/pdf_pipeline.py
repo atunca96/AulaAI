@@ -295,6 +295,14 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
     Final optimized Phase 2 enrichment.
     """
     start_time = datetime.now()
+    # Open a spend ledger for this class. Everything the enrichment phase charges
+    # to the provider lands here, so "what did this class cost" is answered by a
+    # measurement at the end of the build rather than by an estimate afterwards.
+    try:
+        from services import generation_cost
+        generation_cost.reset(f"course {course_id}")
+    except Exception:
+        generation_cost = None
     manual_toc = None
     if manual_toc_path and os.path.exists(manual_toc_path):
         with open(manual_toc_path, "r", encoding="utf-8") as f:
@@ -397,16 +405,52 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
  
         # 20 concurrent workers — modestly reduce 30-topic tail latency without changing work volume
         max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "20"))
-        topic_count = 0
+
+        queued = []
+        for ch in chapters_data:
+            for topic in ch.get("topics", []):
+                if len(queued) >= MAX_TOTAL_TOPICS:
+                    break
+                stext = get_surgical_context(topic.get("page"), source_markdown_content, topic_title=topic.get("title"))
+                queued.append((topic.get("id"), topic.get("title"), topic.get("type"), stext))
+        topic_count = len(queued)
+
+        # Every topic in a class is generated from a byte-identical system prompt:
+        # it varies only by language, level and institution, which are fixed for
+        # the class. That prefix is by far the largest input the pipeline pays for,
+        # and providers serve a repeated prefix from cache at a fraction of the
+        # price — but only once they have served it at least once. Firing all the
+        # topics at the same instant guarantees none of them can benefit, because
+        # no request has returned when the rest are dispatched. Letting the first
+        # topic land before the others go out changes nothing about what is
+        # generated; it only stops the class from paying full price for the same
+        # prefix N times. The cost is one lesson's latency, once per build, and
+        # the ledger's cache-hit ratio reports whether it worked.
+        prime_first = (
+            str(os.getenv("AULAAI_PREFIX_CACHE_PRIME", "1")).strip().lower() not in ("0", "false", "off", "no")
+            and topic_count >= 3
+        )
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_topic = {}
-            for ch in chapters_data:
-                for topic in ch.get("topics", []):
-                    if topic_count >= MAX_TOTAL_TOPICS: break
-                    stext = get_surgical_context(topic.get("page"), source_markdown_content, topic_title=topic.get("title"))
-                    f = executor.submit(process_topic_task, topic.get("id"), topic.get("title"), topic.get("type"), language, level, course_id, source_text=stext, material_language=material_language)
-                    future_to_topic[f] = topic.get("title")
-                    topic_count += 1
+
+            def _submit(entry):
+                t_id, t_title, t_type, stext = entry
+                fut = executor.submit(process_topic_task, t_id, t_title, t_type, language, level, course_id, source_text=stext, material_language=material_language)
+                future_to_topic[fut] = t_title
+                return fut
+
+            rest = queued
+            if prime_first:
+                first_future = _submit(queued[0])
+                rest = queued[1:]
+                _log(f"Phase 2: priming shared prompt prefix with '{queued[0][1]}' before fan-out.")
+                # Wait, but never let a slow or hung first topic hold the build:
+                # the timeout is a ceiling, not a requirement, and the remaining
+                # topics are dispatched either way.
+                concurrent.futures.wait([first_future], timeout=float(os.getenv("AULAAI_PREFIX_CACHE_PRIME_TIMEOUT", "240")))
+            for entry in rest:
+                _submit(entry)
 
             # ANNOUNCE TOTAL STEPS & STAGE: So the progress bar knows its target
             with db_connection() as db:
@@ -445,6 +489,11 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                         _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
         _log(f"Phase 2 Complete for {course_id}.")
+        if generation_cost is not None:
+            try:
+                generation_cost.emit_summary()
+            except Exception as cost_err:
+                _log(f"Cost summary unavailable: {cost_err}")
         _log("Bilingual post-processor disabled: using persisted bilingual lesson fields from the AI engine.")
         with db_connection() as db:
             db.execute("UPDATE courses SET is_building = 0, build_stage = 'completed', progress = ?, total_steps = ?, build_message = 'Classroom is ready!' WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')", (topic_count, topic_count, course_id, gen_id, gen_id))

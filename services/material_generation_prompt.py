@@ -45,6 +45,7 @@ TURKISH TRACK: title_tr, text_tr, explanation_tr, example_tr, rule_tr, analysis_
 - Do not compare target sounds to English words in Turkish fields.
 Both tracks must express the same proposition, entities, polarity, quantity, role and communicative force.
 - When an MCQ tests pedagogical/metalinguistic knowledge and the options are explanatory phrases, provide both English `options` and matching Turkish `options_tr`.
+- When an MCQ tests a contrast IN {language}, the options ARE the {language} forms. Do NOT emit `options_tr`/`options_en` for such an item: a translated option set is what the learner is shown, and translating the forms deletes the distinction the question asks about. Localize the stem and the explanation instead; leave the options in {language}.
 </bilingual_tracks>
 
 <language_integrity>
@@ -148,6 +149,10 @@ Every rule you write is read against the tables, examples and transcriptions you
 - If you are not confident of the correct transcription for a form, omit `phonetic` for it rather than supplying an approximate or partial one. An absent transcription is honest; an invented one is a factual error a learner cannot detect.
 - `phonetic` contains phonetic notation and nothing else. Never let a character from another writing system — an ideograph, a letter of the target script, a syllabary sign — appear inside a transcription, however it got there.
 - Do not leave stray notation fragments in prose. Every bracketed symbol must sit inside a sentence that says what it is; a symbol left dangling after the final full stop is residue, not teaching.
+- A transcription must account for every written unit of `term`, including units a learner might expect to be silent or absorbed. Read `term` unit by unit and check each one is represented before returning: a transcription that silently drops a vowel, a nasal, a length distinction or a final segment is well-formed notation stating a false fact, which is harder for a learner to detect than a malformed one, and no validator can catch it for you.
+- Length, gemination and nasality in a transcription must come from what `term` actually writes. Never lengthen, shorten, merge or delete a segment to make a transcription look tidier or more regular than the form is.
+- A stated count of linguistic units - letters, syllables, moras, tones, segments, cases, genders - is a factual claim about a specific form. Count the units of that exact form, in the unit the sentence names, and count every one of them, including units that are written but not separately pronounced and units carried by a length or nasal mark. If you are not certain the count is right for that form, describe the structure instead of numbering it; an uncounted description is honest, a wrong count is not.
+- The same term must carry the same transcription everywhere it appears in this lesson. Decide it once and repeat that value; do not re-derive it per section.
 </pronunciation_integrity>
 
 <answer_key_quality>
@@ -267,7 +272,7 @@ Return ONLY valid JSON matching this structure:
       "prompt_en": "Question/instruction in English",
       "prompt_tr": "Question/instruction in Turkish",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-      "options_tr": ["Option 1 in Turkish", "Option 2 in Turkish", "Option 3 in Turkish", "Option 4 in Turkish"],
+      "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],
       "answer": "Correct answer",
       "distractors": ["Distractor 1", "Distractor 2", "Distractor 3"],
       "explanation": "Explanation in English",

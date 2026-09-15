@@ -3,12 +3,13 @@ import json
 import os
 import re
 import tempfile
+from functools import lru_cache
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import fitz
 
 from database import db_connection
-from services.material_quality_guard import sanitize_dialogue_speaker
+from services.material_quality_guard import safe_unicode_normalize, sanitize_dialogue_speaker
 
 
 CSS = r'''
@@ -70,11 +71,144 @@ TYPE_LABELS = {
 }
 
 
+# Writing-system marks that Unicode classifies as script Common or Inherited.
+#
+# The layout engine picks ONE font per paragraph, from the scripts the
+# paragraph's characters belong to. A character with a strong script - katakana,
+# Cyrillic, Devanagari - forces a font that can draw it. A character whose script
+# is Common forces nothing: it is typeset in whatever font the paragraph already
+# chose, and if that font has no glyph for it, it is drawn as .notdef. Nothing
+# reports this. The character occupies no ink and the extracted text layer reads
+# NUL, which is exactly how a lesson shipped 「ー」 as an empty pair of brackets
+# while コーヒー on the same page was perfect: inside the word the neighbouring
+# katakana had already forced a font that covers it.
+#
+# So the ranges below are not a list of Japanese characters. They are the marks
+# that cannot ask for a font of their own, which is the property that breaks them.
+_SCRIPT_COMMON_MARKS = (
+    (0x3000, 0x303F),   # CJK symbols and punctuation, incl. the iteration mark
+    (0x3099, 0x309C),   # combining and spacing dakuten / handakuten
+    (0x30A0, 0x30A0),   # katakana-hiragana double hyphen
+    (0x30FB, 0x30FC),   # katakana middle dot, prolonged sound mark
+    (0x0964, 0x0965),   # danda and double danda, shared across Indic scripts
+    (0xFF01, 0xFF65),   # fullwidth forms
+    (0xFF70, 0xFF70),   # halfwidth prolonged sound mark
+)
+
+# A character of one of these scripts standing next to a mark lends it a font, so
+# the mark is already safe and is left exactly as it renders today.
+_STRONG_NEIGHBOUR = (
+    (0x3040, 0x30FA), (0x3400, 0x4DBF), (0x4E00, 0x9FFF),
+    (0xAC00, 0xD7AF), (0xF900, 0xFAFF), (0xFF66, 0xFF9F),
+)
+
+# Probed in order. The first entry is what the deployment image installs through
+# fonts-noto-cjk; the rest let a differently provisioned host still publish
+# correctly instead of silently degrading.
+_MARK_FONT_CANDIDATES = (
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf',
+    '/usr/share/fonts/truetype/fonts-japanese-gothic.ttf',
+    '/etc/alternatives/fonts-japanese-gothic.ttf',
+)
+
+MARK_FONT_FAMILY = 'aulamark'
+
+
+def _in_ranges(cp, ranges):
+    return any(lo <= cp <= hi for lo, hi in ranges)
+
+
+def _lends_font(cp):
+    """Whether a neighbouring character forces a font that also covers a mark.
+
+    Only a strong-script character can do this. Another mark cannot: the kana
+    marks sit inside the kana block by codepoint but carry script Common, so
+    treating one as a neighbour's guarantor would let two adjacent marks vouch for
+    each other and both be dropped - the exact failure, with each character's
+    excuse being the other.
+    """
+    return _in_ranges(cp, _STRONG_NEIGHBOUR) and not _in_ranges(cp, _SCRIPT_COMMON_MARKS)
+
+
+@lru_cache(maxsize=1)
+def _mark_font():
+    """The font used to draw script-Common marks, and what it can actually draw.
+
+    Coverage is probed rather than assumed. Wrapping a character in a font that
+    does not have it would turn a character that renders today into a .notdef -
+    the very failure this exists to prevent - so a mark is only ever re-pointed
+    at a font already known to carry its glyph.
+
+    Returns (absolute path, frozenset of covered codepoints), or None when no
+    suitable font is installed, in which case nothing is rewritten at all.
+    """
+    for path in _MARK_FONT_CANDIDATES:
+        try:
+            real = os.path.realpath(path)
+            if not os.path.exists(real):
+                continue
+            probe = fitz.Font(fontfile=real)
+        except Exception:
+            continue
+        covered = set()
+        for lo, hi in _SCRIPT_COMMON_MARKS:
+            for cp in range(lo, hi + 1):
+                try:
+                    if probe.has_glyph(cp):
+                        covered.add(cp)
+                except Exception:
+                    continue
+        if covered:
+            return (real, frozenset(covered))
+    return None
+
+
+def _wrap_script_marks(escaped):
+    """Point unsupported marks at a font that has them, leaving everything else alone.
+
+    Applied after HTML escaping, and only ever inserts a span around a single
+    character, so it cannot split an entity or alter any other text. A mark that
+    already has a strong-script neighbour is skipped: it renders correctly today,
+    and introducing a font run inside a word would change spacing for no gain.
+    """
+    font = _mark_font()
+    if not font or not escaped:
+        return escaped
+    covered = font[1]
+    out = []
+    for index, ch in enumerate(escaped):
+        cp = ord(ch)
+        if cp not in covered or not _in_ranges(cp, _SCRIPT_COMMON_MARKS):
+            out.append(ch)
+            continue
+        previous = ord(escaped[index - 1]) if index else 0
+        following = ord(escaped[index + 1]) if index + 1 < len(escaped) else 0
+        if _lends_font(previous) or _lends_font(following):
+            out.append(ch)
+            continue
+        out.append('<span class="mark">' + ch + '</span>')
+    return ''.join(out)
+
+
 def _e(value):
-    raw = str(value or '')
-    raw = raw.replace('゛', '†').replace('゜', '‡')
-    raw = re.sub(r'(?<![\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f])ー(?![\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f])', '¤', raw)
-    return html.escape(raw)
+    """The single escaper for everything this renderer writes into a page.
+
+    It was previously three: this definition, a second one further down that
+    ignored it, and a third at the end of the module that wrapped the second. Only
+    the last one ran. That is how the repair for missing script marks - which
+    lived here, swapping each mark for a placeholder that a later pass was meant to
+    find, redact and stamp over with a CJK font - never executed at all: the
+    definition containing it had been shadowed, so no placeholder was ever emitted,
+    nothing was ever stamped, and every standalone mark reached the page as a glyph
+    its font did not have. The source said the problem was handled and the binary
+    never ran the handler.
+
+    Collapsing the chain is the point. One definition means an edit here is an edit
+    to what runs, which was not true of this function for as long as the defect
+    survived.
+    """
+    return _wrap_script_marks(html.escape(safe_unicode_normalize(str(value or ''))))
 
 
 def _pick(obj, en_key, tr_key, is_tr):
@@ -400,6 +534,21 @@ class AcademicPaginator:
         css = CSS
         if allow_row_split:
             css += '\ntable.vocab tr { page-break-inside:auto !important; break-inside:auto !important; }'
+        font = _mark_font()
+        if font:
+            # Declared only for `.mark`, never for `body`: making this the document
+            # font also works, but it re-typesets every paragraph and the engine
+            # then emits non-breaking spaces between words, so the whole text layer
+            # becomes unsearchable and uncopyable. Scoping it to the characters that
+            # need it leaves every other run byte-identical to before.
+            path, _ = font
+            css += (
+                '\n@font-face { font-family: %s; src: url(%s); }'
+                '\n.mark { font-family: %s; }'
+                % (MARK_FONT_FAMILY, os.path.basename(path), MARK_FONT_FAMILY)
+            )
+            archive = fitz.Archive(os.path.dirname(path))
+            return fitz.Story(html=_doc(fragment), user_css=css, archive=archive)
         return fitz.Story(html=_doc(fragment), user_css=css)
 
     def _rect(self):
@@ -560,20 +709,9 @@ class AcademicPaginator:
         self._end_page()
         self.writer.close()
         doc = fitz.open(self.temp_path)
-        _fontfile = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
-        if os.path.exists(_fontfile):
-            for _page in doc:
-                _placements = []
-                for _placeholder, _symbol in (('†', '゛'), ('‡', '゜'), ('¤', 'ー')):
-                    for _rect in _page.search_for(_placeholder):
-                        _placements.append((_rect, _symbol))
-                        _page.add_redact_annot(_rect, fill=None)
-                if _placements:
-                    _page.apply_redactions()
-                    for _rect, _symbol in _placements:
-                        _fontsize = max(6.0, _rect.height * 0.80)
-                        _baseline = _rect.y1 - (_rect.height * 0.15)
-                        _page.insert_text((_rect.x0, _baseline), _symbol, fontname='AulaNotoCJK', fontfile=_fontfile, fontsize=_fontsize)
+        # The placeholder-and-stamp repair that used to run here is gone: marks are
+        # now drawn in the layout pass by a font that has them, so there is nothing
+        # left on the finished page to search for, redact, or draw over.
         total = len(doc)
         page_word = 'Sayfa' if self.is_tr else 'Page'
         for idx, page in enumerate(doc):
@@ -583,7 +721,16 @@ class AcademicPaginator:
             footer_text = 'AulaAI Eğitim Sistemi · Bağımsız Ders Materyali' if self.is_tr else 'AulaAI Educational System · Self-Contained Course Material'
             page.insert_htmlbox(fitz.Rect(38, 814, 430, 832), f"<span style='font-family:sans-serif;font-size:6.7pt;color:#6b7280'>{_e(footer_text)}</span>")
             page.insert_htmlbox(fitz.Rect(465, 814, 558, 832), f"<div style='font-family:sans-serif;font-size:6.7pt;color:#6b7280;text-align:right'>{_e(f'{page_word} {idx+1} / {total}')}</div>")
-        out = doc.tobytes()
+        # Embed only the glyphs this document actually uses. A font wide enough to
+        # cover CJK marks is tens of megabytes, and it is embedded whole unless it
+        # is subset: a two-page lesson that used three marks came to 10 MB. The
+        # call is best-effort because a failure to shrink a correct PDF must not
+        # stop it being published.
+        try:
+            doc.subset_fonts(fallback=False)
+        except Exception as subset_err:
+            print(f"[PDF] font subsetting skipped: {subset_err}")
+        out = doc.tobytes(garbage=4, deflate=True)
         doc.close()
         try:
             os.remove(self.temp_path)
@@ -905,8 +1052,7 @@ def _normalize_content(raw, language=None):
     return _v50_renderer_clean(_v50_original_normalize_content(raw, language=language))
 
 
-def _e(value):
-    return html.escape(_v50_unicode_normalize(str(value or "")))
+# A second _e lived here, shadowing the real one. Removed: there is one escaper.
 
 
 _v50_freeform_keys = {
@@ -1298,11 +1444,7 @@ def _pick(obj, en_key, tr_key, is_tr):
         return _v58_dedup(_v58_shorthand(value, "tr"))
     return value
 
-_v58_previous_e = _e
-
-def _e(value):
-    raw = _v58_safe_unicode(str(value or ""))
-    return _v58_previous_e(raw)
+# A third _e lived here, wrapping the second. Removed with it.
 
 _v58_previous_story = AcademicPaginator._story
 
