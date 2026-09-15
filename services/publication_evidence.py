@@ -37,9 +37,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from services.publication_invariants import (
     _claim_bearing_fields,
+    _collect_lesson_expressions,
     _entry_prose,
     _entry_term,
     _fold_for_identity,
+    _has_generalization_marker,
+    _named_terms_in_text,
     _page_entries,
     _track_language,
     classify_claim_domain,
@@ -56,6 +59,7 @@ FLAG_COVERAGE_GAP = "parallel-rule-states-narrower-coverage-than-a-sibling-rule"
 FLAG_TRANSLATION_POLARITY = "instructional-tracks-disagree-on-polarity"
 FLAG_TRANSLATION_NUMERAL = "instructional-tracks-disagree-on-a-numeral"
 FLAG_RATIONALE_CLAIM = "answer-key-rationale-makes-a-publishable-claim"
+FLAG_THIN_GENERALIZATION = "rule-generalizes-from-a-single-cited-instance"
 
 
 # ── Shared text helpers ─────────────────────────────────────────────────────
@@ -211,7 +215,15 @@ def collect_phonetic_integrity_risks(data: Any, limit: int = 8) -> List[Dict[str
                     seen_paths.add(path)
                     risks.append({
                         "path": path,
+                        # What the reviewer must READ is the pairing (headword plus
+                        # transcription); what it may WRITE is the transcription
+                        # field alone. Those differ here, unlike a prose claim, so
+                        # both are stated explicitly - conflating them is how a
+                        # correct repair used to be measured against the wrong
+                        # string and silently discarded.
                         "text": f"{term} {phon.strip()}",
+                        "field_value": phon.strip(),
+                        "repair": "omit_ok",
                         "quantifiers": flags,
                         "examples": evidence,
                         "domain": "structural",
@@ -361,6 +373,73 @@ def collect_coverage_gaps(data: Any, material_language: str = "tr", limit: int =
                 break
         if len(risks) >= limit:
             break
+    return risks
+
+
+# ── 2b. Generalizations resting on a single instance ────────────────────────
+
+def collect_thin_generalizations(data: Any, material_language: str = "tr", limit: int = 6) -> List[Dict[str, Any]]:
+    """Rules that state a general pattern while citing exactly one example of it.
+
+    A correct example can still produce an over-broad rule: the lesson shows one
+    form, and the explanation around it is written as though the pattern were
+    established. Deterministic code cannot know how far the pattern really
+    extends - but it can see that the lesson generalized from a single instance
+    while other forms sat untouched beside it, and that is a credible risk worth
+    one slot in the review that already runs.
+
+    Requires all of:
+      * a rule or comparison (not a vocabulary note) that generalizes - absolute
+        wording or a near-universal marker;
+      * exactly ONE lesson expression named in the claim;
+      * at least two further lesson expressions the claim never mentions, so the
+        rule genuinely had more material available than it cited.
+
+    The lone instance is supplied as the evidence, so the reviewer can decide
+    whether the rule earns its scope or must be narrowed to what is shown.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("pages"), list):
+        return []
+    expressions = _collect_lesson_expressions(data)
+    if len(expressions) < 3:
+        return []
+
+    risks: List[Dict[str, Any]] = []
+    for p_index, page in enumerate(data["pages"]):
+        if not isinstance(page, dict):
+            continue
+        for container in ("rules", "comparisons"):
+            for e_index, entry in enumerate(page.get(container) or []):
+                if not isinstance(entry, dict):
+                    continue
+                for key in _claim_bearing_fields(entry):
+                    text = entry.get(key)
+                    if not isinstance(text, str) or not text.strip():
+                        continue
+                    code = _track_language(key, material_language)
+                    generalizes = bool(find_absolute_claims(text, code)) or _has_generalization_marker(
+                        text, instructional_code(code)
+                    )
+                    if not generalizes:
+                        continue
+                    named = _named_terms_in_text(text, expressions)
+                    if len(set(_fold_for_identity(t) for t in named)) != 1:
+                        continue
+                    unnamed = len(expressions) - 1
+                    if unnamed < 2:
+                        continue
+                    risks.append({
+                        "path": f"pages.{p_index}.{container}.{e_index}.{key}",
+                        "text": text[:600],
+                        "quantifiers": [FLAG_THIN_GENERALIZATION],
+                        "examples": [
+                            f"the only instance this rule cites: {named[0]}",
+                            f"the lesson shows {unnamed} other expression(s) the rule does not mention",
+                        ],
+                        "domain": classify_claim_domain(text, code) or "unknown",
+                    })
+                    if len(risks) >= limit:
+                        return risks
     return risks
 
 
@@ -532,6 +611,7 @@ def collect_evidence_risks(data: Any, material_language: str = "tr", limit: int 
         collect_phonetic_integrity_risks,
         collect_prose_phonetic_conflicts,
         collect_coverage_gaps,
+        collect_thin_generalizations,
         collect_translation_mismatches,
         collect_rationale_claims,
     )

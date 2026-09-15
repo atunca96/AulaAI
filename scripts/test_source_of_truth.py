@@ -256,10 +256,34 @@ def test_publication_release_order():
     check("ORDER structural integrity runs before semantic review",
           integrity < release, "integrity still runs after publication release")
     tail = body[release:]
-    check("ORDER only text sanitation follows the boundary",
-          "_publication_text_sanitation(lesson_dict" in tail)
-    check("ORDER integrity is not re-run after the boundary",
-          "lesson_dict = _material_release_integrity_v37(lesson_dict" not in tail)
+    check("ORDER nothing reshapes content after the boundary",
+          "lesson_dict = _material_release_integrity_v37(lesson_dict" not in tail
+          and "_normalize_lesson_pages(" not in tail,
+          "a content-shaping step still runs after publication release")
+
+    # Text-layer sanitation is now one of the publication invariants rather than a
+    # separate trailing step, so it also covers material the renderer receives
+    # without passing through generation.
+    from services.publication_invariants import apply_publication_invariants
+    dirty = {"pages": [{"type": "vocabulary",
+                        "text_tr": "a￾b",
+                        "items": [{"term": "xy", "translation_tr": "p￾q",
+                                   "example": "m\x01n"}]}]}
+    clean = apply_publication_invariants(dirty, language="Testish",
+                                         material_language="tr", topic="t", copy=True)
+    blob = repr(clean)
+    residual = [c for c in str(clean)
+                if unicodedata.category(c) in ("Co", "Cn", "Cs", "Cc") and c not in "\n\t"]
+    check("ORDER publication invariants normalize the text layer",
+          residual == [], residual)
+    check("ORDER sanitation reaches nested fields, not just top-level prose",
+          "￾" not in blob and "" not in blob and "\x01" not in blob, blob[:160])
+
+    # The renderer re-applies the publication invariants, so persisted material that
+    # never passed through generation still gets a clean text layer.
+    renderer = (ROOT / "services" / "pdf_renderer_v12.py").read_text(encoding="utf-8")
+    check("ORDER renderer re-applies publication invariants",
+          "apply_publication_invariants" in renderer, "renderer bypasses the boundary")
 
 
 def main():

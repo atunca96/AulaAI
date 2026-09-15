@@ -420,6 +420,31 @@ _ABSOLUTE_CLAIM_PATTERNS: Dict[str, Tuple[Tuple[str, str], ...]] = {
     ),
 }
 
+# Exclusivity / restriction wording. "X is used ONLY for Y" forecloses every
+# other context, so it is a scope claim exactly as categorical as "always" - and
+# it was invisible to the claim layer, which is how restrictive register claims
+# kept publishing unreviewed.
+#
+# These are DETECTION-ONLY and deliberately absent from the table above:
+# deterministic code cannot tell restricted *usage* ("used only in formal
+# speech") from a plain count ("there are only two forms"), and rewriting the
+# second would corrupt a correct sentence. Detection routes the claim to the
+# bounded reviewer, which can tell the difference; nothing here ever rewrites.
+_EXCLUSIVITY_PATTERNS: Dict[str, Tuple[str, ...]] = {
+    "tr": (r"\bsadece\b", r"\byalnızca\b", r"\byalnizca\b", r"\bsırf\b", r"\bsirf\b",
+           r"\byalnız\b", r"\bdışında\s+kullanılmaz\b"),
+    "en": (r"\bonly\s+for\b", r"\bonly\s+in\b", r"\bonly\s+when\b", r"\bonly\s+with\b",
+           r"\bonly\s+used\b", r"\bused\s+only\b", r"\bexclusively\b", r"\bsolely\b",
+           r"\breserved\s+for\b"),
+    "es": (r"\bsólo\s+se\b", r"\bsolo\s+se\b", r"\búnicamente\b", r"\bexclusivamente\b"),
+    "de": (r"\bnur\s+für\b", r"\bnur\s+bei\b", r"\bnur\s+in\b", r"\bausschließlich\b"),
+    "fr": (r"\buniquement\b", r"\bexclusivement\b", r"\bseulement\s+pour\b"),
+    "it": (r"\bsoltanto\b", r"\besclusivamente\b", r"\bsolo\s+per\b"),
+    "pt": (r"\bapenas\s+para\b", r"\bapenas\s+em\b", r"\bexclusivamente\b"),
+    "ru": (r"\bтолько\s+для\b", r"\bтолько\s+в\b", r"\bисключительно\b"),
+}
+
+
 _TENDENCY_SCOPES = {
     "tendency", "tendencies", "typical", "usual", "general", "preference",
     "eğilim", "egilim", "genel", "yaygın", "yaygin",
@@ -432,15 +457,25 @@ _PROTECTED_SPAN = re.compile(r'(`[^`\n]*`|“[^”\n]*”|«[^»\n]*»|"[^"\n]*"
 
 
 def find_absolute_claims(text: Any, instructional_language: Any) -> List[str]:
-    """Return absolute-quantifier matches found outside quoted target material."""
+    """Return categorical-scope wording found outside quoted target material.
+
+    Covers quantifiers and deontic obligation (which are also hedged automatically
+    when the generator declared a tendency) plus exclusivity wording, which is
+    detected here but never rewritten deterministically - see _EXCLUSIVITY_PATTERNS.
+    """
     code = instructional_code(instructional_language)
+    if not isinstance(text, str) or not text.strip():
+        return []
     patterns = _ABSOLUTE_CLAIM_PATTERNS.get(code or "")
-    if not patterns or not isinstance(text, str) or not text.strip():
+    exclusivity = _EXCLUSIVITY_PATTERNS.get(code or "", ())
+    if not patterns and not exclusivity:
         return []
     found: List[str] = []
     parts = _PROTECTED_SPAN.split(text)
     for i in range(0, len(parts), 2):
-        for pattern, _ in patterns:
+        for pattern, _ in (patterns or ()):
+            found.extend(m.group(0) for m in re.finditer(pattern, parts[i], flags=re.IGNORECASE))
+        for pattern in exclusivity:
             found.extend(m.group(0) for m in re.finditer(pattern, parts[i], flags=re.IGNORECASE))
     return found
 
@@ -1274,6 +1309,30 @@ _DOMAIN_GUIDANCE = (
 )
 
 
+def normalize_claim_record(claim: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill in the repair contract a claim does not state for itself.
+
+    Every reviewable record must say three separable things: what the reviewer
+    READS (`text`), what may be WRITTEN back and at which path (`field_value` at
+    `path`), and HOW it may be repaired (`repair`). For ordinary prose these
+    coincide and the defaults apply. For a risk about a non-prose field - a
+    transcription, say - they do not, and leaving them implicit meant a correct
+    repair was size-checked against the wrong string and dropped.
+
+    repair:
+      rescope  - prose; rewrite in place, keeping meaning and instructional language
+      omit_ok  - a field that is better absent than wrong (an unconfirmable
+                 transcription); the reviewer may clear it instead of guessing
+    """
+    record = dict(claim)
+    record.setdefault("field_value", record.get("text") or "")
+    record.setdefault("repair", "rescope")
+    record.setdefault("domain", "unknown")
+    record.setdefault("quantifiers", [])
+    record.setdefault("examples", [])
+    return record
+
+
 def build_claim_review_request(claims: List[Dict[str, Any]], language: Any, level: Any) -> Tuple[str, List[Dict[str, Any]]]:
     """Build the (system prompt, payload) pair for the ONE bounded claim review.
 
@@ -1281,15 +1340,18 @@ def build_claim_review_request(claims: List[Dict[str, Any]], language: Any, leve
     metadata the detectors attach and the instructions the reviewer receives
     cannot drift apart. This adds no model call: it only shapes the existing one.
     """
+    records = [normalize_claim_record(c) for c in claims]
     payload = [
         {
             "id": i,
-            "claim": c.get("text", ""),
-            "domain": c.get("domain") or "unknown",
-            "flag": c.get("quantifiers") or [],
-            "same_lesson_evidence": c.get("examples") or [],
+            "claim": c["text"],
+            "replace_this": c["field_value"],
+            "repair": c["repair"],
+            "domain": c["domain"],
+            "flag": c["quantifiers"],
+            "same_lesson_evidence": c["examples"],
         }
-        for i, c in enumerate(claims)
+        for i, c in enumerate(records)
     ]
     system = (
         f"You verify the scope of teaching claims in {language} material at CEFR {level}.\n"
@@ -1310,7 +1372,14 @@ def build_claim_review_request(claims: List[Dict[str, Any]], language: Any, leve
         "Rules: never add new rules, vocabulary, examples or facts beyond what the evidence already "
         "names; never change the instructional language; never lengthen a claim by more than about "
         "30 percent.\n"
-        'Return ONLY: {"verdicts":[{"id":0,"action":"keep|rescope|correct","value":"replacement text or null"}]}'
+        "`claim` is what you read; `replace_this` is the exact text that will be overwritten by your "
+        "`value`. They are the same for prose, and different when the risk is about a data field: "
+        "there, `claim` shows the field together with the headword it belongs to for context, and "
+        "`value` must be ONLY the replacement for `replace_this` - never the headword, never both.\n"
+        "When `repair` is `omit_ok`, the field is better empty than wrong. If you cannot supply a "
+        "confident, complete value, answer `omit` and the field is dropped. Never pad it to look "
+        "complete, and never guess a transcription.\n"
+        'Return ONLY: {"verdicts":[{"id":0,"action":"keep|rescope|correct|omit","value":"replacement for replace_this, or null"}]}'
     )
     return system, payload
 
@@ -1452,7 +1521,53 @@ def apply_publication_invariants(
     out = collapse_adjacent_duplicates(out)
     out = apply_declared_scope(out, material_language=material_language)
     out = flag_generic_filler(out, topic=topic)
+    out = apply_text_layer_integrity(out, language=language)
     return out
+
+
+def apply_text_layer_integrity(data: Any, language: Optional[str] = None) -> Any:
+    """Normalize characters in every string the lesson will publish.
+
+    This belongs to the publication boundary rather than to generation. Character
+    sanitation used to run only as a generation-time step, so anything that
+    reached persistence by another route - material generated before the rule
+    existed, content written by a different path, an imported or edited lesson -
+    rendered with its original bytes intact. The renderer already re-applies the
+    publication invariants for exactly that reason (see
+    pdf_renderer_v12._publication_invariants); text integrity was the one
+    invariant missing from that set, which is how noncharacter separators kept
+    surviving into the PDF text layer.
+
+    It is pure character normalization: it authors nothing, changes no structure,
+    and is idempotent, so applying it at both generation and render is safe.
+    """
+    if not isinstance(data, dict):
+        return data
+    try:
+        from services.material_quality_guard import safe_unicode_normalize
+    except Exception:
+        return data
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                node[key] = walk(value)
+            return node
+        if isinstance(node, list):
+            for index, value in enumerate(node):
+                node[index] = walk(value)
+            return node
+        if isinstance(node, str) and node:
+            try:
+                return safe_unicode_normalize(node, language)
+            except Exception:
+                return node
+        return node
+
+    try:
+        return walk(data)
+    except Exception:
+        return data
 
 
 # ── Path addressing (used by the bounded claim verifier) ────────────────────

@@ -3267,26 +3267,42 @@ def _verify_absolute_claims(data, claims, language, level, material_language="tr
     if not isinstance(review, dict):
         return data
 
+    from services.publication_invariants import normalize_claim_record, set_by_path
+
     applied = 0
     for verdict in (review.get("verdicts") or [])[:24]:
         if not isinstance(verdict, dict):
             continue
         action = str(verdict.get("action") or "").strip().lower()
-        if action not in ("rescope", "correct"):
+        if action not in ("rescope", "correct", "omit"):
             continue
         try:
-            claim = claims[int(verdict.get("id"))]
+            claim = normalize_claim_record(claims[int(verdict.get("id"))])
         except Exception:
             continue
+
+        # An unconfirmable field is better absent than invented. This is the only
+        # way a repair may shorten a field to nothing, and only where the detector
+        # said so - a transcription the reviewer cannot complete honestly.
+        if action == "omit":
+            if claim["repair"] != "omit_ok":
+                continue
+            if set_by_path(data, claim.get("path", ""), ""):
+                applied += 1
+            continue
+
         value = verdict.get("value")
         if not isinstance(value, str) or not value.strip():
             continue
-        original = claim.get("text") or ""
-        # Reject a "repair" that discards the claim or balloons it: those are rewrites,
-        # not scope corrections.
-        if len(value) < max(12, int(len(original) * 0.5)) or len(value) > int(len(original) * 1.6) + 60:
+
+        # Size the repair against the text that will actually be OVERWRITTEN, not
+        # against the context the reviewer was shown. For prose they are the same
+        # string; for a data field they are not, and measuring against the context
+        # rejected correct repairs for being "too short".
+        original = claim["field_value"] or claim.get("text") or ""
+        floor = 1 if claim["repair"] == "omit_ok" else 12
+        if len(value) < max(floor, int(len(original) * 0.5)) or len(value) > int(len(original) * 1.6) + 60:
             continue
-        from services.publication_invariants import set_by_path
         if set_by_path(data, claim.get("path", ""), value):
             applied += 1
     if applied:
@@ -3589,33 +3605,6 @@ PATCH RULES:
     return data
 
 
-def _publication_text_sanitation(data, language=None):
-    """Normalize characters in every string, without changing structure or meaning.
-
-    This is the only transformation permitted after the publication boundary. It
-    may not add, remove, reorder or reinterpret content: it exists so that prose
-    the bounded reviewer rewrote still reaches the PDF with a clean text layer.
-    """
-    try:
-        from services.material_quality_guard import safe_unicode_normalize
-    except Exception:
-        return data
-
-    def walk(node):
-        if isinstance(node, dict):
-            return {k: walk(v) for k, v in node.items()}
-        if isinstance(node, list):
-            return [walk(v) for v in node]
-        if isinstance(node, str):
-            return safe_unicode_normalize(node, language)
-        return node
-
-    try:
-        return walk(data)
-    except Exception:
-        return data
-
-
 def _material_release_integrity_v37(data, language, level, material_language="tr"):
     """Deterministic final fail-closed validation; semantic work is done by the single publication audit."""
     from services.material_quality_guard import enforce_material_integrity
@@ -3726,10 +3715,10 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [LESSON-BILINGUAL-NATIVE] '{topic}' has incomplete native Turkish fields; no secondary translator will run.\n")
 
-    # Final pass is text sanitation ONLY: it normalizes characters in strings the
-    # reviewer may have rewritten and authors nothing. Anything that can add,
-    # remove or reshape content must run before the publication boundary above.
-    lesson_dict = _publication_text_sanitation(lesson_dict, language)
+    # Nothing runs after the publication boundary. Text-layer sanitation used to
+    # live here as a separate final step; it is now one of the publication
+    # invariants, so it also covers material that reaches the renderer without
+    # passing through generation at all.
     return lesson_dict
     
 

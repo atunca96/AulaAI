@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 
 from services.publication_evidence import (  # noqa: E402
     FLAG_COVERAGE_GAP,
+    FLAG_THIN_GENERALIZATION,
     FLAG_IPA_BORROWED,
     FLAG_PHRASE_IPA_PARTIAL,
     FLAG_PROSE_IPA_CONFLICT,
@@ -34,6 +35,7 @@ from services.publication_evidence import (  # noqa: E402
     collect_phonetic_integrity_risks,
     collect_prose_phonetic_conflicts,
     collect_rationale_claims,
+    collect_thin_generalizations,
     collect_translation_mismatches,
 )
 from services.publication_invariants import (  # noqa: E402
@@ -42,6 +44,9 @@ from services.publication_invariants import (  # noqa: E402
     apply_publication_invariants,
     build_claim_review_request,
     collect_reviewable_claims,
+    find_absolute_claims,
+    hedge_absolute_claims,
+    normalize_claim_record,
 )
 
 FAILURES = []
@@ -306,6 +311,116 @@ def test_review_volume_is_capped():
     check("COST one request for all claims", isinstance(payload, list) and len(payload) == len(claims))
 
 
+# ── Repair contract: a correct fix must survive application ─────────────────
+
+def test_repair_contract_separates_context_from_field():
+    """The reviewer reads context; it writes only the field named at `path`.
+
+    Conflating the two silently discarded correct repairs: a replacement for a
+    short field was size-checked against the longer display context and rejected
+    for being "too short".
+    """
+    lesson = {"pages": [{"type": "vocabulary", "items": [
+        {"term": "zolan", "phonetic": "[ˈzolan]", "translation_tr": "ne"},
+        {"term": "zolan mira tev", "phonetic": "[ˈzolan]", "translation_tr": "bu ne"}]}]}
+    risks = collect_phonetic_integrity_risks(lesson)
+    check("REPAIR risk separates read-context from writable field",
+          risks and risks[0]["text"] != risks[0]["field_value"], risks[:1])
+    check("REPAIR writable field is the transcription alone",
+          risks and risks[0]["field_value"] == "[ˈzolan]", risks[:1])
+    check("REPAIR transcription risks may be honestly omitted",
+          risks and risks[0]["repair"] == "omit_ok", risks[:1])
+
+    _, payload = build_claim_review_request(risks, "Testish", "A1")
+    check("REPAIR payload exposes replace_this and repair policy",
+          payload and payload[0]["replace_this"] == "[ˈzolan]"
+          and payload[0]["repair"] == "omit_ok", payload[:1])
+
+
+def test_prose_claims_keep_default_repair_contract():
+    prose = [{"path": "pages.0.rules.0.rule_tr", "text": "Resmî ortamlarda her zaman X kullanılır."}]
+    record = normalize_claim_record(prose[0])
+    check("REPAIR prose defaults to rescope", record["repair"] == "rescope", record)
+    check("REPAIR prose writes back what it read",
+          record["field_value"] == record["text"], record)
+
+
+# ── Exclusivity is a scope claim ────────────────────────────────────────────
+
+def test_exclusivity_is_detected_but_never_auto_rewritten():
+    for text, code in [("X sadece yakın arkadaşlar için kullanılır.", "tr"),
+                       ("X yalnızca resmî ortamlarda kullanılır.", "tr"),
+                       ("X is only for peers and close acquaintances.", "en"),
+                       ("X is used exclusively in formal settings.", "en")]:
+        check(f"EXCL detected [{code}] {text[:34]!r}",
+              find_absolute_claims(text, code) != [], text)
+
+    # Deterministic code cannot tell restricted usage from a plain count, so it
+    # must never rewrite exclusivity wording - only route it.
+    for text, code in [("Bu kuralda sadece iki biçim vardır.", "tr"),
+                       ("There are only two forms.", "en")]:
+        check(f"EXCL never auto-rewritten [{code}]",
+              hedge_absolute_claims(text, code) == text, hedge_absolute_claims(text, code))
+
+    lesson = {"pages": [{"type": "vocabulary",
+                         "items": [{"term": "vorma", "translation_tr": "selam"}],
+                         "rules": [{"rule_tr": "vorma sadece yakın arkadaşlar arasında kullanılır.",
+                                    "scope": "absolute", "domain": "register"}]}]}
+    claims = collect_reviewable_claims(lesson, material_language="tr")
+    check("EXCL restrictive register claim reaches review",
+          any(c["path"].endswith("rule_tr") for c in claims), [c["path"] for c in claims])
+
+
+# ── Generalizing from a single instance ─────────────────────────────────────
+
+def test_thin_generalization_detected():
+    lesson = {"pages": [{"type": "grammar",
+                         "items": [{"term": "zolan"}, {"term": "mirka"},
+                                   {"term": "tevor"}, {"term": "brenil"}],
+                         "rules": [{"rule_tr": "zolan biçiminde olduğu gibi, bu ek her zaman kullanılır."}]}]}
+    risks = collect_thin_generalizations(lesson, material_language="tr")
+    check("THIN single-instance generalization detected",
+          FLAG_THIN_GENERALIZATION in flags(risks), flags(risks))
+    if risks:
+        check("THIN evidence names the lone instance",
+              any("zolan" in e for e in risks[0]["examples"]), risks[0]["examples"])
+
+
+def test_thin_generalization_precision():
+    multi = {"pages": [{"type": "grammar",
+                        "items": [{"term": "zolan"}, {"term": "mirka"},
+                                  {"term": "tevor"}, {"term": "brenil"}],
+                        "rules": [{"rule_tr": "zolan, mirka ve tevor biçimlerinde bu ek her zaman kullanılır."}]}]}
+    check("THIN not fired when several instances are cited",
+          collect_thin_generalizations(multi, material_language="tr") == [], "false positive")
+
+    plain = {"pages": [{"type": "grammar",
+                        "items": [{"term": "zolan"}, {"term": "mirka"}, {"term": "tevor"}],
+                        "rules": [{"rule_tr": "zolan bir selamlama biçimidir."}]}]}
+    check("THIN not fired on a non-generalizing statement",
+          collect_thin_generalizations(plain, material_language="tr") == [], "false positive")
+
+
+# ── Text-layer integrity is a publication invariant ─────────────────────────
+
+def test_text_integrity_is_part_of_the_boundary():
+    import copy
+    dirty = {"pages": [{"type": "vocabulary", "text_tr": "a\ufffeb",
+                        "items": [{"term": "x\uf8ffy", "example": "m\x01n"}]}]}
+    once = apply_publication_invariants(copy.deepcopy(dirty), language="Testish",
+                                        material_language="tr", topic="t", copy=True)
+    check("TEXT boundary strips unpublishable codepoints",
+          "\uf8ff" not in repr(once) and "\x01" not in repr(once), repr(once)[:140])
+    twice = apply_publication_invariants(copy.deepcopy(once), language="Testish",
+                                         material_language="tr", topic="t", copy=True)
+    check("TEXT boundary sanitation is idempotent", once == twice, "second pass differed")
+    preserve = {"pages": [{"type": "vocabulary", "items": [
+        {"term": "café", "phonetic": "[t͡ɕɪˈtɨrnət͡sətʲ]", "translation_tr": "日本語 العربية"}]}]}
+    kept = apply_publication_invariants(copy.deepcopy(preserve), language="Testish",
+                                        material_language="tr", topic="t", copy=True)
+    check("TEXT valid scripts and IPA preserved", kept == preserve, kept)
+
+
 def main():
     print("[TEST] publication evidence: IPA integrity, coverage gaps, translations, answer keys")
     for fn in (
@@ -327,6 +442,12 @@ def main():
         test_unknown_language_fails_safe,
         test_malformed_shapes_never_raise,
         test_review_volume_is_capped,
+        test_repair_contract_separates_context_from_field,
+        test_prose_claims_keep_default_repair_contract,
+        test_exclusivity_is_detected_but_never_auto_rewritten,
+        test_thin_generalization_detected,
+        test_thin_generalization_precision,
+        test_text_integrity_is_part_of_the_boundary,
     ):
         fn()
     if FAILURES:
