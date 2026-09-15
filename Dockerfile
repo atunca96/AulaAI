@@ -15,9 +15,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# Assemble the publication-grade invariant module exactly from the audited source fragments.
-RUN cat .deploy/publication-invariants.src.* > services/publication_invariants.py \
-    && cat \
+# services/publication_invariants.py is now a normal checked-in module: it used to be
+# reassembled here from .deploy/publication-invariants.src.* byte fragments, which made
+# the runtime source of the publication boundary invisible to review and to git history.
+RUN cat \
        .deploy/publication-grade.part01.patch \
        .deploy/publication-grade.part02.patch \
        .deploy/publication-grade.part03a.patch \
@@ -28,7 +29,6 @@ RUN cat .deploy/publication-invariants.src.* > services/publication_invariants.p
        > /tmp/publication-grade.patch \
     && patch -p2 --batch < /tmp/publication-grade.patch \
     && patch -p1 --batch < .deploy/generalization-v2.patch \
-    && sed -i '/scripts\/test_publication_invariants.py/d' scripts/run_build_pipeline.py \
     && python scripts/run_build_pipeline.py
 
 CMD ["python", "runtime_bootstrap.py"]

@@ -219,7 +219,7 @@
  diff -ru '--exclude=__pycache__' '--exclude=pipeline.log' '--exclude=data' '--exclude=*.pdf' pristine/AulaAI-main/services/material_generation_prompt.py repo/AulaAI-main/services/material_generation_prompt.py
 --- pristine/AulaAI-main/services/material_generation_prompt.py	2026-09-14 21:40:40.000000000 +0000
 +++ repo/AulaAI-main/services/material_generation_prompt.py	2026-09-14 23:35:48.787963867 +0000
-@@ -67,11 +67,25 @@
+@@ -67,11 +67,34 @@
  - Distinguish productive rules from tendencies, restricted patterns, lexical conventions and exceptions.
  - When explaining verb conjugations and stem alternations (e.g., Russian 'ехать' -> 'еду, едешь...'), formulate the full stem transformation precisely (e.g., in Turkish 'gövde ед- biçimine dönüşür', in English 'stem alternates to ед-'); never use fragmented or misleading expressions such as '-д- gövdesi alır'.
  - Grammatical agreement & bilingual translation fidelity: Target language sentences and instructional language translations must maintain strict concord in person, number, and tense (e.g., Russian 'Мы' requires 1st-person plural 'говорим', never 2nd-person plural 'говорите'; Turkish 'Biz ...' requires 1st-person plural concord).
@@ -229,11 +229,20 @@
  </linguistic_truth>
  
 +<claim_scope>
-+Every rule and comparison carries an explicit `scope`:
++Every rule and comparison carries an explicit `scope` AND an explicit `domain`.
++`domain` says what kind of claim it is:
++- `"orthography"`, `"morphology"`, `"syntax"`, `"pronunciation"` — structural properties of the language system.
++- `"lexis"` — word meaning and collocation.
++- `"register"` — politeness, formality, social convention, cultural norm, or a pedagogical recommendation.
++`scope` says how strong it is:
 +- `"absolute"` — genuinely exceptionless within the scope you state in the rule itself.
 +- `"tendency"` — a regularity with real exceptions, a lexical convention, a restricted pattern, or a default that competing forms can override.
 +Rules:
-+- Use absolute wording (always / never / every / without exception, and the equivalent in the instructional language) ONLY inside a rule whose `scope` is `"absolute"`. A rule marked `"tendency"` must be worded as a tendency in BOTH instructional tracks.
++- Use absolute wording (always / never / every / without exception / mandatory / forbidden, and the equivalent in the instructional language) ONLY inside a rule whose `scope` is `"absolute"`. A rule marked `"tendency"` must be worded as a tendency in BOTH instructional tracks.
++- A `"register"` claim is almost never `"absolute"`. Politeness, formality and cultural conventions describe what is usual and safe in a context, not what the language system permits: competing forms are normally acceptable, and a beginner-level simplification is not a linguistic law. Mark such a claim `"tendency"` and word it accordingly — in Turkish prefer "genellikle", "standart olarak", "çoğu resmî bağlamda", "yaygın olarak", "bu seviyede güvenli bir seçim olarak", and the natural equivalents in any other instructional language.
++- Conversely, do NOT hedge a genuinely categorical structural rule. A true spelling prohibition, an invariant form, or a categorical agreement/ordering rule must stay absolute and marked `"absolute"`; weakening it into vague guidance is as serious a defect as overclaiming.
++- Hedge because a claim is contextual, never as a verbal habit. Every explanation must still tell the learner exactly what to do; "genellikle X kullanılır" is scoped and useful, "bazen bazı şeyler değişebilir" is noise.
++- If you present one expression as the required choice in a context, do not elsewhere present a second expression as also acceptable in that same context. Either scope the first claim so both fit, or state plainly which contexts separate them.
 +- Narrow the scope instead of weakening the claim where you can: a statement that is exceptionless for a named closed set (a specific declension, a stated number range, a listed set of graphemes) should say so precisely rather than being stated for the whole language.
 +- A claim about stress, pronunciation, agreement, ordering or morphology must agree with every example, transcription and table row you emit for the same topic. If a single one of your own examples contradicts the wording, the wording is wrong: fix the wording, not the example.
 +- Prefer fewer, correct, well-scoped claims over many impressive-sounding ones. If you cannot state a regularity accurately at this level, teach the forms and omit the generalization.
@@ -246,20 +255,30 @@
  <rules_and_comparisons>
  `pages[].rules` is only for genuine grammatical, morphological, syntactic, orthographic or phonological rules.
  `pages[].comparisons` is only for genuine structural/grammatical contrasts.
-@@ -145,6 +159,7 @@
+@@ -145,6 +168,8 @@
          "example_tr": "Turkish translation",
          "analysis": "Analysis in English",
          "analysis_tr": "Analysis in Turkish",
 +        "scope": "absolute" | "tendency",
++        "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register",
          "source_evidence": "Concrete source evidence when source material exists",
          "source_taught": "Core property taught by source",
          "provenance": "source_explicit" | "source_inherent"
-@@ -185,7 +200,7 @@
+@@ -159,6 +184,8 @@
+         "note_tr": "Precise Turkish note",
+         "source_evidence": "Concrete source evidence when applicable",
+         "source_taught": "Specific structural distinction",
++        "scope": "absolute" | "tendency",
++        "domain": "orthography" | "morphology" | "syntax" | "pronunciation" | "lexis" | "register",
+         "provenance": "source_explicit" | "source_inherent"
+       }}],
+       "dialogue": [{{
+@@ -185,7 +212,7 @@
  
  <final_same_pass_check>
  Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
 -Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
-+Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope (every absolute wording sits in a rule marked "absolute" and survives its own examples); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
++Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope and domain (every absolute wording sits in a rule marked "absolute" and survives its own examples; register/politeness/cultural conventions are scoped as tendencies, structural rules are not hedged away); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
  Return valid JSON only.
  </final_same_pass_check>"""
  
