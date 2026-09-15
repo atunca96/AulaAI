@@ -375,4 +375,55 @@ check("build_stage = 'prepared'" in orchestrator_source,
       "phase one reports its own stage instead of borrowing enrichment's")
 
 
+# ── Typed notation fields admit IPA, not the scripts IPA borrows from ────────
+
+from services.publication_evidence import collect_notation_violations  # noqa: E402
+
+
+def _phon(term, phonetic):
+    return {"pages": [{"type": "vocabulary", "items": [{"term": term, "phonetic": phonetic}]}]}
+
+
+# Production-shaped: ordinary orthography published as its own transcription.
+for label, term, phonetic in (
+    ("whole word in source script", "μάθημα", "[ˈμαθιμα]"),
+    ("article leaked into transcription", "καθηγητής", "[o καθιʝiˈtis]"),
+    ("bare orthographic letters", "γράμματα", "[κ α μ ι ε]"),
+    ("one stray letter in another language", "كتاب", "[kiˈtaːι]"),
+):
+    check(bool(collect_notation_violations(_phon(term, phonetic))),
+          f"{label}: orthography must not pass as notation")
+
+# Legitimate notation must still pass, including the symbols IPA does take from
+# the Greek block and the diacritics NFC composes into single codepoints.
+for label, term, phonetic in (
+    ("dental fricative", "θάλασσα", "[ˈθalasa]"),
+    ("uvular fricative", "χώρα", "[ˈxora]"),
+    ("bilabial fricative", "beta", "[aβa]"),
+    ("IPA gamma is not Greek gamma", "γάλα", "[ˈɣala]"),
+    ("palatal fricatives", "γιατρός", "[ʝaˈtros ˈoçi]"),
+    ("nasal, pharyngeal, eth, ash, slashed o", "mixed", "[siŋ ħa ðis æl øː]"),
+    ("length and half-length", "long", "[aːbˑc]"),
+    ("combining diacritics", "comb", "[ẽ ä n̥ ǫ]"),
+    ("modifier letters", "mod", "[pʰ tʲ kʷ]"),
+    ("tone letters", "tone", "[ma˥˩ ka˦]"),
+    ("tie bars", "tie", "[t͡ʃa d͡ʒo]"),
+    ("japanese fixture", "せんせい", "[seɴseː]"),
+    ("russian fixture", "стол", "[stol]"),
+    ("spanish fixture", "hola", "[ˈola]"),
+    ("arabic fixture", "كَتَبَ", "[kataba]"),
+    ("korean fixture", "학교", "[hak.kjo]"),
+):
+    violations = collect_notation_violations(_phon(term, phonetic))
+    check(not violations, f"{label}: legitimate IPA must still pass ({violations})")
+
+check(collect_notation_violations(_phon("μάθημα", "[ˈμαθιμα]"))[0]["repair"] == "omit_ok",
+      "a corrupt transcription is offered for removal, not for guessing")
+
+source = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "services", "publication_evidence.py"), encoding="utf-8").read()
+check("(0x0370, 0x03FF)" not in source,
+      "the whole Greek block is no longer admitted into notation fields")
+
+
 print(f"cost, RTL text-layer, class-lexicon and progress tests passed ({checks} checks)")

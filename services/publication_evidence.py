@@ -88,8 +88,22 @@ _IPA_RANGES: Tuple[Tuple[int, int], ...] = (
     (0x0250, 0x02AF),  # IPA Extensions
     (0x02B0, 0x02FF),  # Spacing Modifier Letters (ʰ ʲ ˈ ˌ ː …)
     (0x0300, 0x036F),  # Combining Diacritical Marks
-    (0x0370, 0x03FF),  # Greek: IPA borrows β θ χ from these codepoints
+    # IPA borrows exactly three letters from the Greek block, so exactly three are
+    # admitted. Admitting the block they happen to live in admitted the whole Greek
+    # alphabet with them, and a typed field that accepts ordinary orthography is
+    # not a typed field: Greek words published as their own transcription
+    # ([ˈμαθιμα] for μάθημα) passed every check, and a stray Greek letter reached an
+    # Arabic transcription for the same reason. The rule this encodes is general -
+    # a notation field admits the symbols the notation uses, never the script those
+    # symbols were taken from.
+    (0x03B2, 0x03B2),  # β  voiced bilabial fricative
+    (0x03B8, 0x03B8),  # θ  voiceless dental fricative
+    (0x03C7, 0x03C7),  # χ  voiceless uvular fricative
     (0x1AB0, 0x1AFF),  # Combining Diacritical Marks Extended
+    (0x1E00, 0x1EFF),  # Latin Extended Additional: what NFC composes a base letter
+                       # plus an IPA diacritic INTO (e + U+0303 -> ẽ). The combining
+                       # form was admitted and the normalized form was not, so a
+                       # nasalized vowel was legal until normalization touched it.
     (0x1D00, 0x1D7F),  # Phonetic Extensions
     (0x1DC0, 0x1DFF),  # Combining Diacritical Marks Supplement
     (0x2000, 0x206F),  # General Punctuation (‿ ‖ ′ …)
