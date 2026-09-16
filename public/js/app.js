@@ -11805,93 +11805,105 @@ function stableStudyOptionOrder(options, seed) {
   return [...options].sort((a, b) => hash(`${seed}|${a}`) - hash(`${seed}|${b}`));
 }
 
-// ── Lesson navigation helpers ───────────────────────────────────────────────
-// The lesson outline and the unit list are the two things a reader needs to
-// jump around a long lesson. Both are one tap from the sticky bar, and both
-// are ordinary DOM that closes on Escape and on outside tap.
+// ── Material navigation ─────────────────────────────────────────────────────
+// One sheet holds the whole course: units, their topics, and the pages of the
+// topic being read. That replaces a unit list that used to sit inline above
+// every lesson page, and it means switching unit is the same gesture as
+// jumping to a section — no scrolling back to the top of anything.
 
-function toggleStudyPageMenu(forceClose) {
-  const menu = document.getElementById('study-page-menu');
-  if (!menu) return;
-  const trigger = document.querySelector('.lessonbar__title');
-  const open = forceClose === true ? false : menu.hasAttribute('hidden');
-  if (open) {
-    menu.removeAttribute('hidden');
-    if (trigger) trigger.setAttribute('aria-expanded', 'true');
-    const current = menu.querySelector('.is-current');
-    if (current) current.scrollIntoView({ block: 'nearest' });
-  } else {
-    menu.setAttribute('hidden', '');
-    if (trigger) trigger.setAttribute('aria-expanded', 'false');
-  }
+// Topics in course order, so prev/next can run across topic boundaries.
+function studyTopicSequence() {
+  const out = [];
+  (window.curriculum || curriculum || []).forEach((ch, ci) => {
+    (ch.topics || []).forEach(tp => out.push({
+      id: tp.id,
+      title: getLocalizedCurriculumTitle(tp, currentLang),
+      unit: getLocalizedCurriculumTitle(ch, currentLang),
+      unitNo: ch.number || (ci + 1),
+    }));
+  });
+  return out;
 }
 
-// The unit/topic list used to be rendered inline above every lesson page, so
-// it cost ~130px of scrolling on each of them. On phones it becomes a sheet;
-// on desktop the sidebar is still there and this is never called.
-function openStudyUnitsSheet() {
-  const toc = document.querySelector('#s-ai-book-toc, #ai-book-toc');
-  if (!toc) return;
-  let sheet = document.getElementById('study-units-sheet');
+function openStudyOutline() {
+  const st = window._studyOutlineState || {};
+  const seq = studyTopicSequence();
+  let sheet = document.getElementById('study-outline-sheet');
   if (!sheet) {
     sheet = document.createElement('div');
-    sheet.id = 'study-units-sheet';
-    sheet.className = 'modal units-sheet';
+    sheet.id = 'study-outline-sheet';
+    sheet.className = 'modal outline-sheet';
     sheet.innerHTML = `
-      <div class="modal-content units-sheet__panel" role="dialog" aria-modal="true" aria-label="${currentLang === 'tr' ? 'Üniteler' : 'Units'}">
-        <button class="modal-close" onclick="closeStudyUnitsSheet()" aria-label="${currentLang === 'tr' ? 'Kapat' : 'Close'}">&times;</button>
-        <h2 class="units-sheet__title">${currentLang === 'tr' ? 'Üniteler' : 'Units'}</h2>
-        <div class="units-sheet__body"></div>
-        <div class="units-sheet__actions"></div>
+      <div class="modal-content outline-sheet__panel" role="dialog" aria-modal="true">
+        <button class="modal-close" onclick="closeStudyOutline()" aria-label="${currentLang === 'tr' ? 'Kapat' : 'Close'}">&times;</button>
+        <div class="outline-sheet__body"></div>
+        <div class="outline-sheet__actions"></div>
       </div>`;
     document.body.appendChild(sheet);
-    sheet.addEventListener('click', (e) => { if (e.target === sheet) closeStudyUnitsSheet(); });
+    sheet.addEventListener('click', e => { if (e.target === sheet) closeStudyOutline(); });
   }
-  // Mirror the live table of contents, and close the sheet when one is chosen.
-  const body = sheet.querySelector('.units-sheet__body');
-  body.innerHTML = toc.innerHTML;
-  body.querySelectorAll('[onclick]').forEach(btn => {
-    const inner = btn.getAttribute('onclick');
-    btn.setAttribute('onclick', 'closeStudyUnitsSheet(); ' + inner);
+
+  // Units and topics, with the current topic's pages nested under it.
+  let byUnit = [];
+  seq.forEach(item => {
+    let u = byUnit.find(x => x.no === item.unitNo);
+    if (!u) { u = { no: item.unitNo, title: item.unit, topics: [] }; byUnit.push(u); }
+    u.topics.push(item);
   });
-  // Course-level actions live here on phones, where the reader's page header
-  // (which carried them) is replaced by the lesson bar. Nothing is lost: the
-  // buttons are mirrored from the live header, so they stay in one place in
-  // the markup and keep working on desktop.
-  const actions = sheet.querySelector('.units-sheet__actions');
-  actions.innerHTML = '';
-  const exportBtn = document.querySelector('#s-export-pdf-btn, #export-pdf-btn, [onclick*="downloadCourseMaterialPDF"]');
-  if (exportBtn) {
-    const clone = exportBtn.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.className = 'btn btn-outline btn-full';
-    clone.addEventListener('click', () => closeStudyUnitsSheet());
-    actions.appendChild(clone);
-  }
+
+  const pagesFor = (tid) => (tid === st.topicId && Array.isArray(st.pages))
+    ? `<div class="outline__pages">${st.pages.map((pt, i) => `
+        <button type="button" class="outline__page ${i === st.pageIdx ? 'is-current' : ''}"
+                onclick="closeStudyOutline(); showStudyTopic('${tid}', ${i})"
+                ${i === st.pageIdx ? 'aria-current="page"' : ''}>
+          <span class="outline__num">${i + 1}</span><span class="outline__label">${esc(pt || '')}</span>
+        </button>`).join('')}</div>`
+    : '';
+
+  sheet.querySelector('.outline-sheet__body').innerHTML = byUnit.map(u => `
+    <section class="outline__unit">
+      <h3 class="outline__unit-title"><span class="outline__unit-no">${u.no}</span>${esc(u.title)}</h3>
+      ${u.topics.map(tp => `
+        <button type="button" class="outline__topic ${tp.id === st.topicId ? 'is-current' : ''}"
+                onclick="closeStudyOutline(); showStudyTopic('${tp.id}', 0)">
+          ${esc(tp.title)}
+        </button>
+        ${pagesFor(tp.id)}`).join('')}
+    </section>`).join('') ||
+    `<p class="t-meta">${t('class.no_curriculum') || ''}</p>`;
+
+  // Course-level actions. These are deliberately here and not in the toolbar:
+  // they are reached once or twice a session, not on every page.
+  const actions = sheet.querySelector('.outline-sheet__actions');
+  actions.innerHTML = `
+    <button class="btn btn-outline btn-full" onclick="closeStudyOutline(); downloadCourseMaterialPDF()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <span>${t('export_pdf') || 'PDF'}</span>
+    </button>
+    <button class="btn btn-ghost btn-full" onclick="closeStudyOutline(); toggleLanguage()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <span>${currentLang === 'tr' ? 'Arayüz dili: TR' : 'Interface: EN'}</span>
+    </button>`;
 
   sheet.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  const cur = sheet.querySelector('.is-current');
+  if (cur) cur.scrollIntoView({ block: 'center' });
 }
 
-function closeStudyUnitsSheet() {
-  const sheet = document.getElementById('study-units-sheet');
+function closeStudyOutline() {
+  const sheet = document.getElementById('study-outline-sheet');
   if (sheet) sheet.classList.add('hidden');
   document.body.style.overflow = '';
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  const sheet = document.getElementById('study-units-sheet');
-  if (sheet && !sheet.classList.contains('hidden')) { closeStudyUnitsSheet(); return; }
-  const menu = document.getElementById('study-page-menu');
-  if (menu && !menu.hasAttribute('hidden')) toggleStudyPageMenu(true);
-});
+// Kept: older call sites and the lecturer view still reach for these names.
+function openStudyUnitsSheet() { openStudyOutline(); }
+function closeStudyUnitsSheet() { closeStudyOutline(); }
+function toggleStudyPageMenu(forceClose) { if (forceClose !== true) openStudyOutline(); }
 
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('study-page-menu');
-  if (!menu || menu.hasAttribute('hidden')) return;
-  if (e.target.closest('.lessonbar__title') || e.target.closest('#study-page-menu')) return;
-  toggleStudyPageMenu(true);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeStudyOutline();
 });
 
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {
@@ -11905,7 +11917,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     localStorage.setItem('aula_last_topic_' + courseId, topicId);
   }
   localStorage.setItem('aula_last_topic', topicId);
-  localStorage.setItem('aula_last_page', pageIdx);
+  if (pageIdx !== 'last') localStorage.setItem('aula_last_page', pageIdx);
 
   let topic = null;
   const currList = window.curriculum || curriculum || [];
@@ -11930,10 +11942,21 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
   try {
     const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
+
+    // Which instructional track this material was WRITTEN in. The reader used
+    // to branch on currentLang — the language of the app's own chrome — so a
+    // course generated on the English track and opened by someone whose
+    // interface is Turkish looked up _tr fields that do not exist, fell back to
+    // whatever was left, and forced the reader to flip the UI language before
+    // they could read anything. The track is a property of the material, not a
+    // user preference, so it comes from the course.
+    const _declaredTrack = (currentCourse && currentCourse.material_language) ||
+                           (topic && topic.material_language) || null;
+    const matLang = (_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : currentLang;
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
-      if (currentLang === 'tr') {
+      if (matLang === 'tr') {
         res = healTurkishSyntax(res);
       }
       return '\u200E' + res;
@@ -11943,16 +11966,13 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                        (topic && (topic.language || topic.target_language)) ||
                        window.currentDemoLang ||
                        'Spanish';
-    const courseMatLang = (currentCourse && currentCourse.material_language) ||
-                          (topic && topic.material_language) ||
-                          null;
-    const isTrMaterial = (currentLang === 'tr');
+    const isTrMaterial = (matLang === 'tr');
 
     if (content.pages && Array.isArray(content.pages)) {
       content.pages.forEach((p, pIdx) => {
         const isMcq = (p.type === 'mcq' || p.prompt);
         let pageTitle = "";
-        if (currentLang === 'tr') {
+        if (matLang === 'tr') {
           const rawTitle = p.title || topic.title || '';
           pageTitle = (p.title_tr && p.title_tr !== p.title) ? p.title_tr : translateCurriculumTitle(rawTitle);
           if (!pageTitle && isMcq) pageTitle = t('study.quick_check') || 'Hızlı Kontrol';
@@ -11966,9 +11986,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             let html = "";
             
             // Communicative Scene Context (for dialogues/examples)
-            const sceneContext = (currentLang === 'tr' && p.context_tr) ? p.context_tr : (p.context || p.scene || "");
+            const sceneContext = (matLang === 'tr' && p.context_tr) ? p.context_tr : (p.context || p.scene || "");
             if (sceneContext && typeof sceneContext === "string" && sceneContext.trim().length > 0 && !isMcq) {
-              const sceneLabel = currentLang === 'tr' ? 'İletişimsel Bağlam ve Sahne' : 'Communicative Scenario & Setting';
+              const sceneLabel = matLang === 'tr' ? 'İletişimsel Bağlam ve Sahne' : 'Communicative Scenario & Setting';
               html += `
                 <div class="pedagogy-scene-banner">
                   <div class="pedagogy-scene-label">
@@ -11984,9 +12004,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             // For MCQs, NEVER display the answer explanation beforehand; only display explicit intro or instructions if present.
             let text = "";
             if (isMcq) {
-              text = (currentLang === 'tr' && p.intro_tr) ? p.intro_tr : (p.intro || p.context || p.instructions || "");
+              text = (matLang === 'tr' && p.intro_tr) ? p.intro_tr : (p.intro || p.context || p.instructions || "");
             } else {
-              if (currentLang === 'tr') {
+              if (matLang === 'tr') {
                 text = p.text_tr || p.explanation_tr || p.content_tr || p.description_tr;
               } else {
                 text = p.text || p.explanation || p.content || p.description || p.rule || p.intro || "";
@@ -12009,7 +12029,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
             let linesArr = [];
             if (text && typeof text === "string") {
-              const translatedText = (currentLang === 'tr')
+              const translatedText = (matLang === 'tr')
                 ? ((p.text_tr || p.explanation_tr) ? text : _aulaTurkishNow(translateEducationalText(text, 'tr') || text))
                 : (p.text || p.explanation || text);
               const fixDiacriticsText = fixDiacritics(translatedText);
@@ -12037,7 +12057,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
               }
               linesArr = mergedLines;
 
-              const badgeLabel = currentLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
+              const badgeLabel = matLang === 'tr' ? 'Pedagojik Rehber ve Kurallar' : 'Pedagogical Guidelines & Structure';
               if (linesArr.length > 1) {
                 html += `
                   <div class="pedagogy-guide-block">
@@ -12051,7 +12071,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         if (cleanLine.length > 0) {
                           const firstChar = cleanLine.charAt(0);
                           if ((firstChar >= 'a' && firstChar <= 'z') || 'çğıöşü'.includes(firstChar)) {
-                            cleanLine = firstChar.toLocaleUpperCase(currentLang === 'tr' ? 'tr-TR' : 'en-US') + cleanLine.slice(1);
+                            cleanLine = firstChar.toLocaleUpperCase(matLang === 'tr' ? 'tr-TR' : 'en-US') + cleanLine.slice(1);
                           }
                         }
                         return `<div class="pedagogy-rule-item">
@@ -12069,25 +12089,25 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
             // Structured Rules Detection (Interactive Rule Cards)
             let hasRenderedStructuredRules = false;
-            const rawRules = (currentLang === 'tr' && p.rules_tr && Array.isArray(p.rules_tr) && typeof p.rules_tr[0] === 'object') ? p.rules_tr : p.rules;
+            const rawRules = (matLang === 'tr' && p.rules_tr && Array.isArray(p.rules_tr) && typeof p.rules_tr[0] === 'object') ? p.rules_tr : p.rules;
             if (Array.isArray(rawRules) && rawRules.length > 0 && typeof rawRules[0] === 'object') {
               hasRenderedStructuredRules = true;
               html += `<div class="pedagogy-rules-container">`;
               rawRules.forEach((rObj, rIdx) => {
-                const rTitle = (currentLang === 'tr' && rObj.rule_tr) ? rObj.rule_tr : (rObj.rule || rObj.name || `Rule ${rIdx + 1}`);
-                const rExpl = (currentLang === 'tr' && rObj.explanation_tr) ? rObj.explanation_tr : (rObj.explanation || rObj.desc || "");
+                const rTitle = (matLang === 'tr' && rObj.rule_tr) ? rObj.rule_tr : (rObj.rule || rObj.name || `Rule ${rIdx + 1}`);
+                const rExpl = (matLang === 'tr' && rObj.explanation_tr) ? rObj.explanation_tr : (rObj.explanation || rObj.desc || "");
                 const rEx = rObj.example || rObj.target || "";
                 const rExEn = rObj.example_en || rObj.translation || "";
                 const rExTr = rObj.example_tr || (rObj.translation_tr || rObj.turkish || "");
                 let rAnalysis = "";
-                if (currentLang === 'tr') {
+                if (matLang === 'tr') {
                   const rawA = rObj.analysis_tr || rObj.analysis || rObj.breakdown || "";
                   rAnalysis = rObj.analysis_tr || (rawA ? translateEducationalText(rawA, 'tr') : "");
                 } else {
                   const rawA = rObj.analysis || rObj.analysis_tr || rObj.breakdown || "";
                   rAnalysis = rObj.analysis || (rawA ? translateEducationalText(rawA, 'en') : "");
                 }
-                const resolvedTrans = (currentLang === 'tr') ? (rExTr || (rExEn ? translateEducationalText(rExEn) : "")) : (rExEn || rExTr);
+                const resolvedTrans = (matLang === 'tr') ? (rExTr || (rExEn ? translateEducationalText(rExEn) : "")) : (rExEn || rExTr);
 
                 html += `
                   <div class="pedagogy-rule-card">
@@ -12099,12 +12119,12 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     ${rEx ? `
                       <div class="pedagogy-rule-example-box">
                         <div class="pedagogy-rule-example-top">
-                          <span class="pedagogy-rule-example-label">${currentLang === 'tr' ? 'Örnek Kullanım' : 'Example Usage'}</span>
+                          <span class="pedagogy-rule-example-label">${matLang === 'tr' ? 'Örnek Kullanım' : 'Example Usage'}</span>
                           <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(rEx)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
                         </div>
                         <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(rEx)}&rdquo;</div>
                         ${resolvedTrans ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:5px; line-height:1.45;">${fixDiacritics(resolvedTrans)}</div>` : ''}
-                        ${rAnalysis ? `<div class="pedagogy-analysis"><strong class="pedagogy-analysis__label">${currentLang === 'tr' ? 'Dilbilgisi Analizi' : 'Structural Breakdown'}:</strong> ${fixDiacritics(rAnalysis)}</div>` : ''}
+                        ${rAnalysis ? `<div class="pedagogy-analysis"><strong class="pedagogy-analysis__label">${matLang === 'tr' ? 'Dilbilgisi Analizi' : 'Structural Breakdown'}:</strong> ${fixDiacritics(rAnalysis)}</div>` : ''}
                       </div>
                     ` : ''}
                   </div>
@@ -12114,9 +12134,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             }
 
             // Register / Nuance Contrast Section
-            const compList = (currentLang === 'tr' && p.comparisons_tr) ? p.comparisons_tr : (p.comparisons || p.contrasts || []);
+            const compList = (matLang === 'tr' && p.comparisons_tr) ? p.comparisons_tr : (p.comparisons || p.contrasts || []);
             if (Array.isArray(compList) && compList.length > 0) {
-              const compHeader = currentLang === 'tr' ? 'Üslup ve Nüans Karşılaştırması' : 'Register & Nuance Contrast';
+              const compHeader = matLang === 'tr' ? 'Üslup ve Nüans Karşılaştırması' : 'Register & Nuance Contrast';
               html += `
                 <div class="pedagogy-contrast-section">
                   <div class="pedagogy-formula-badge" style="color:var(--accent-light); margin-bottom:8px;">
@@ -12126,7 +12146,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                   <div class="pedagogy-contrast-grid">
                     ${compList.map(c => {
                       let cContext = "";
-                      if (currentLang === 'tr') {
+                      if (matLang === 'tr') {
                         cContext = c.context_tr || (c.context ? translateEducationalText(c.context, 'tr') : (c.label ? translateEducationalText(c.label, 'tr') : "Karşılaştırma"));
                       } else {
                         // Always translate — c.context may be stored in Turkish for older materials
@@ -12135,7 +12155,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       }
                       const cTarget = c.target || c.sentence || c.text || "";
                       let cTrans = "";
-                      if (currentLang === 'tr') {
+                      if (matLang === 'tr') {
                         cTrans = c.translation_tr || (c.translation ? translateEducationalText(c.translation, 'tr') : (c.meaning ? translateEducationalText(c.meaning, 'tr') : ""));
                       } else {
                         // c.translation may be stored in Turkish — always run through EN translation
@@ -12143,7 +12163,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         cTrans = rawTrans ? translateEducationalText(rawTrans, 'en') : "";
                       }
                       let cNote = "";
-                      if (currentLang === 'tr') {
+                      if (matLang === 'tr') {
                         cNote = c.note_tr || (c.note ? translateEducationalText(c.note, 'tr') : (c.explanation ? translateEducationalText(c.explanation, 'tr') : ""));
                       } else {
                         // c.note may be stored in Turkish — always run through EN translation
@@ -12170,9 +12190,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
             }
 
             // Teacher's Pitfall & Caution Box
-            const pitfallVal = (currentLang === 'tr' && p.pitfall_tr) ? p.pitfall_tr : (p.pitfall || p.caution || p.teacher_note || "");
+            const pitfallVal = (matLang === 'tr' && p.pitfall_tr) ? p.pitfall_tr : (p.pitfall || p.caution || p.teacher_note || "");
             if (pitfallVal && typeof pitfallVal === "string" && pitfallVal.trim().length > 0) {
-              const pitfallTitle = currentLang === 'tr' ? 'Öğretmenin Notu & Sık Yapılan Hatalar' : 'Teacher’s Caution & Common Pitfalls';
+              const pitfallTitle = matLang === 'tr' ? 'Öğretmenin Notu & Sık Yapılan Hatalar' : 'Teacher’s Caution & Common Pitfalls';
               html += `
                 <div class="pedagogy-pitfall-card">
                   <div class="pedagogy-pitfall-header">
@@ -12186,7 +12206,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
             // 2. Data List Detection
             let rawData = [];
-            if (currentLang === 'tr') {
+            if (matLang === 'tr') {
               rawData = p.items_tr || p.list_tr || p.examples_tr || p.dialogue_tr || (hasRenderedStructuredRules ? null : p.rules_tr);
             }
             if (!Array.isArray(rawData) || rawData.length === 0) {
@@ -12359,7 +12379,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const avatarLetter = (rawSpeaker.charAt(0) || (isSpeakerB ? 'B' : 'A')).toUpperCase();
                     const isSingleLetterSpeaker = (rawSpeaker.toUpperCase() === avatarLetter || /^(speaker|konuşmacı|hablante)\s*[a-z0-9]$/i.test(rawSpeaker));
                     const speakerDisplayName = isSingleLetterSpeaker
-                      ? (currentLang === 'tr' ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
+                      ? (matLang === 'tr' ? `Konuşmacı ${avatarLetter}` : `Speaker ${avatarLetter}`)
                       : rawSpeaker;
 
                     html += `
@@ -12383,7 +12403,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       // Guideline rule / sentence — render as pedagogical guideline card, NOT as a vocab flashcard with TTS
                       const cleanLine = sTrimmed.replace(/^[•\-\*\s]+/, '').trim();
                       let translatedLine = cleanLine;
-                      if (currentLang === 'tr') {
+                      if (matLang === 'tr') {
                         if (p.rules_tr && Array.isArray(p.rules_tr) && p.rules_tr[itIdx]) {
                           translatedLine = p.rules_tr[itIdx].replace(/^[•\-\*\s]+/, '').trim();
                         } else {
@@ -12393,7 +12413,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       if (translatedLine.length > 0) {
                         const firstChar = translatedLine.charAt(0);
                         if ((firstChar >= 'a' && firstChar <= 'z') || 'çğıöşü'.includes(firstChar)) {
-                          translatedLine = firstChar.toLocaleUpperCase(currentLang === 'tr' ? 'tr-TR' : 'en-US') + translatedLine.slice(1);
+                          translatedLine = firstChar.toLocaleUpperCase(matLang === 'tr' ? 'tr-TR' : 'en-US') + translatedLine.slice(1);
                         }
                       }
                       html += `
@@ -12412,7 +12432,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           <div class="dialogue-card-header">
                             <div class="dialogue-speaker-badge">
                               <div class="dialogue-speaker-avatar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>
-                              <div class="dialogue-speaker-name">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                              <div class="dialogue-speaker-name">${matLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
                             </div>
                             <div class="dialogue-card-actions">
                               <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(sTrimmed)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
@@ -12429,9 +12449,9 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         // Single letter with authentic phonetics guide
                         const phonData = aulaStrictLetterPhonetics(courseLang, sTrimmed) || {};
                         const letterName = phonData.name || (SPANISH_LETTER_SPELLINGS.has(normStr) ? sTrimmed : '');
-                        const phoneticGuide = (currentLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
+                        const phoneticGuide = (matLang === 'tr') ? (phonData.phonetic_tr || '') : (phonData.phonetic_en || '');
                         const exampleWord = phonData.example || '';
-                        const exampleTrans = (currentLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
+                        const exampleTrans = (matLang === 'tr') ? (phonData.example_tr || '') : (phonData.example_en || '');
                         html += `<div class="study-vocab-card alphabet-card">
                             <div class="vocab-card-header">
                               <div class="vocab-term-wrapper">
@@ -12445,12 +12465,12 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                             </div>
                             ${exampleWord ? `
                               <div class="vocab-pedagogy-section">
-                                <div style="font-size:13px; color:var(--text-secondary);">${currentLang === 'tr' ? 'Örnek Sözcük' : 'Example Word'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.85;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>
+                                <div style="font-size:13px; color:var(--text-secondary);">${matLang === 'tr' ? 'Örnek Sözcük' : 'Example Word'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.85;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>
                               </div>` : ''}
                           </div>`;
                       } else {
                         // Multi-char word — dict-clickable, but only over the word text itself
-                        const briefExpl = resolveItemExplanation(null, it, '', currentLang);
+                        const briefExpl = resolveItemExplanation(null, it, '', matLang);
                         html += `<div class="study-vocab-card">
                             <div class="vocab-card-header">
                               <div class="vocab-term-wrapper">
@@ -12475,7 +12495,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     );
                     const rawTransEn = safeStr(it.translation_en || it.english || it.meaning_en || it.translation || it.meaning || it.line_en);
                     const rawTransTr = safeStr(it.translation_tr || it.turkish || it.meaning_tr || it.line_tr);
-                    const isTrUI = (currentLang === 'tr');
+                    const isTrUI = (matLang === 'tr');
                     const cLangLower = (courseLang || '').toLowerCase().trim();
                     const isTargetTurkish = cLangLower.includes('turk') || cLangLower.includes('türk');
                     const isTargetEnglish = cLangLower.includes('engl') || cLangLower.includes('ing');
@@ -12571,7 +12591,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     // Only match pragmatic map for multi-character phrases (never corrupt single letters like 'I')
                     if (!isSingleChar && normK && FRONTEND_PRAGMATIC_MAP[normK]) {
                       const prag = FRONTEND_PRAGMATIC_MAP[normK];
-                      v = (currentLang === 'tr') ? prag.tr : prag.en;
+                      v = (matLang === 'tr') ? prag.tr : prag.en;
                     }
 
                     // Letter self-healing for meaning pill badge (never show example sentence in pill)
@@ -12583,7 +12603,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                       if (isVEmptyOrEcho) {
                         const hasDistinctName = phon.name && phon.name.trim().toUpperCase() !== baseL.toUpperCase();
                         const lName = hasDistinctName ? ` (${phon.name})` : '';
-                        v = (currentLang === 'tr')
+                        v = (matLang === 'tr')
                           ? `${baseL} harfi${lName}`
                           : `Letter ${baseL}${lName}`;
                       }
@@ -12591,7 +12611,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
 
                     // Eliminate calque 'öğleden sonra' if present in v
                     if (typeof v === 'string' && (v.toLowerCase().includes('öğleden sonra') || v.toLowerCase().includes('ogleden sonra'))) {
-                      v = (currentLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
+                      v = (matLang === 'tr') ? 'Tünaydın' : 'Good afternoon';
                     }
 
                     // --- SEMANTIC CONCEPT SELF-HEALING ---
@@ -12599,7 +12619,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     if (termConceptKey) {
                       const transConceptKey = resolveConceptKey(safeStr(v));
                       if ((transConceptKey && areConceptsIncompatible(termConceptKey, transConceptKey)) || !v || v.toLowerCase() === kStr.toLowerCase()) {
-                        const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][currentLang] : null;
+                        const canonicalTitle = CANONICAL_CONCEPT_NAMES[termConceptKey] ? CANONICAL_CONCEPT_NAMES[termConceptKey][matLang] : null;
                         if (canonicalTitle) {
                           v = canonicalTitle;
                         }
@@ -12622,13 +12642,13 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                           <div class="dialogue-card-header">
                             <div class="dialogue-speaker-badge">
                               <div class="dialogue-speaker-avatar"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>
-                              <div class="dialogue-speaker-name">${currentLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
+                              <div class="dialogue-speaker-name">${matLang === 'tr' ? 'Örnek Cümle' : 'Example'}</div>
                             </div>
                             <div class="dialogue-card-actions">
                               ${(v && v.toLowerCase() !== kStr.toLowerCase()) ? `
-                                <button class="dialogue-trans-toggle-btn" onclick="toggleDialogueTrans('${exTransId}', this)" title="${currentLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}">
+                                <button class="dialogue-trans-toggle-btn" onclick="toggleDialogueTrans('${exTransId}', this)" title="${matLang === 'tr' ? 'Çeviriyi Göster / Gizle' : 'Toggle Meaning'}">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                                  <span>${currentLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
+                                  <span>${matLang === 'tr' ? 'Çeviri' : 'Meaning'}</span>
                                 </button>` : ''}
                               ${kStr ? `<button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>` : ''}
                             </div>
@@ -12643,13 +12663,13 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     if (['she', 'he', 'ben', 'i'].includes(letterName.toLowerCase()) && letterName.length > 1) {
                       letterName = phonData.name || kStr;
                     }
-                    const phoneticGuide = (currentLang === 'tr')
+                    const phoneticGuide = (matLang === 'tr')
                       ? (it.phonetic_tr || phonData.phonetic_tr || '')
                       : (it.phonetic_en || phonData.phonetic_en || '');
                     const exampleWord = it.example || phonData.example || '';
                     const rawExEn = it.example_en || phonData.example_en || it.translation_en || '';
                     const rawExTr = it.example_tr || phonData.example_tr || it.translation_tr || '';
-                    const exampleTrans = (currentLang === 'tr') ? (rawExTr || (rawExEn ? translateEducationalText(rawExEn, 'tr') : '')) : (rawExEn || rawExTr);
+                    const exampleTrans = (matLang === 'tr') ? (rawExTr || (rawExEn ? translateEducationalText(rawExEn, 'tr') : '')) : (rawExEn || rawExTr);
 
                     html += `<div class="study-vocab-card alphabet-card">
                         <div class="vocab-term-wrapper">
@@ -12659,7 +12679,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         <div class="alphabet-pronunciation-block" style="text-align:right;">
                           ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
                           ${phoneticGuide ? `<div class="phonetic-badge">${fixDiacritics(phoneticGuide)}</div>` : ''}
-                          ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
+                          ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${matLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
                         </div>
                       </div>`;
                   } else {
@@ -12667,16 +12687,16 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     const _alphabetToken = isLetter ? aulaCanonicalAlphabetToken(kStr) : '';
                     const _letterPhon = isLetter ? (aulaStrictLetterPhonetics(courseLang, _alphabetToken) || {}) : {};
                     const briefExpl = isLetter
-                      ? aulaExactAlphabetExplanation(it, kStr, courseLang, currentLang)
-                      : resolveItemExplanation(it, kStr, safeStr(v), currentLang);
+                      ? aulaExactAlphabetExplanation(it, kStr, courseLang, matLang)
+                      : resolveItemExplanation(it, kStr, safeStr(v), matLang);
                     const bankHit = isLetter ? _letterPhon : (getClientVocabExample(courseLang, kStr) || {});
                     const exampleTarget = it.example || bankHit.example || '';
                     const rawExEn = it.example_en || bankHit.example_en || (isLetter ? enRawV : '') || '';
                     const rawExTr = it.example_tr || bankHit.example_tr || (isLetter ? trRawV : '') || '';
                     let exampleTrans = '';
                     if (isLetter) {
-                      exampleTrans = currentLang === 'tr' ? safeStr(rawExTr).trim() : safeStr(rawExEn).trim();
-                    } else if (currentLang === 'tr') {
+                      exampleTrans = matLang === 'tr' ? safeStr(rawExTr).trim() : safeStr(rawExEn).trim();
+                    } else if (matLang === 'tr') {
                       if (rawExTr && rawExTr.trim()) {
                         exampleTrans = rawExTr.trim();
                       } else if (rawExEn && rawExEn.trim()) {
@@ -12691,7 +12711,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     }
 
                     // --- STRICT ENGLISH LEAK HEALER FOR TURKISH MODE ---
-                    if (currentLang === 'tr') {
+                    if (matLang === 'tr') {
                       if (isSanityEN(v) || /^(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|stop|train|ticket|doctor)$/i.test(v)) {
                         const trTrans = translateOption(v, 'tr');
                         if (trTrans && trTrans.toLowerCase() !== v.toLowerCase()) {
@@ -12714,13 +12734,13 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     // DOM for search and assistive tech but no longer costs every
                     // reader ~120px of scrolling per word.
                     const vocabPhonetic = safeStr(it.phonetic || it.ipa || it.pronunciation ||
-                                                 (currentLang === 'tr' ? it.phonetic_tr : it.phonetic_en) || '');
+                                                 (matLang === 'tr' ? it.phonetic_tr : it.phonetic_en) || '');
                     const vocabNote = briefExpl
-                      ? fixDiacritics((currentLang === 'tr')
+                      ? fixDiacritics((matLang === 'tr')
                           ? humanizeTurkishExplanation(safeStr(briefExpl))
                           : sanitizeEnglishExplanation(safeStr(briefExpl), _alphabetToken || kStr))
                       : '';
-                    const detailLabel = currentLang === 'tr' ? 'Örnek ve not' : 'Example & note';
+                    const detailLabel = matLang === 'tr' ? 'Örnek ve not' : 'Example & note';
                     const hasDetail = !!(vocabNote || exampleTarget);
 
                     html += `<div class="vocab-row">
@@ -12770,16 +12790,16 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                const optionSeed = `${topic && topic.id ? topic.id : 'topic'}|${p.prompt || p.prompt_en || p.prompt_tr || ''}`;
                allOptions = stableStudyOptionOrder(allOptions, optionSeed);
                const translatedPrompt = resolveStudyPrompt(p, topic);
-               const mcqExpl = (currentLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
+               const mcqExpl = (matLang === 'tr' && (p.explanation_tr || p.text_tr)) ? (p.explanation_tr || p.text_tr) : (p.explanation || p.text || "");
                const studyKey = 'study_' + (topic ? topic.id : 'unknown') + '_' + pIdx;
                const savedAnswer = _answeredQuestionsState[studyKey];
 
                let restoredExplBox = '';
                if (savedAnswer && (mcqExpl || savedAnswer.explanation)) {
                  const explToUse = mcqExpl || savedAnswer.explanation;
-                 const explLabel = currentLang === 'tr' ? 'Açıklama' : 'Explanation';
-                 const isAlreadyTr = (currentLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explToUse) || explToUse.includes('doğru') || explToUse.includes('çünkü') || explToUse.includes('ifade'));
-                 const translatedExplanation = (currentLang === 'tr') ? (isAlreadyTr ? explToUse : (typeof translateEducationalText === 'function' ? translateEducationalText(explToUse) : explToUse)) : explToUse;
+                 const explLabel = matLang === 'tr' ? 'Açıklama' : 'Explanation';
+                 const isAlreadyTr = (matLang === 'tr') && (/[çğıöşüÇĞİÖŞÜ]/.test(explToUse) || explToUse.includes('doğru') || explToUse.includes('çünkü') || explToUse.includes('ifade'));
+                 const translatedExplanation = (matLang === 'tr') ? (isAlreadyTr ? explToUse : (typeof translateEducationalText === 'function' ? translateEducationalText(explToUse) : explToUse)) : explToUse;
                  restoredExplBox = `<div class="study-explanation-box" style="margin-top:20px; padding:16px 20px; background:rgba(255,255,255,0.04); border-radius:12px; border:1px solid var(--border); font-size:15px; line-height:1.6; white-space:pre-wrap; color:var(--text-primary);"><div style="font-weight:700; color:var(--accent-light); margin-bottom:6px; display:flex; align-items:center; gap:6px;"><span>${explLabel}</span></div>${fixDiacritics(translatedExplanation)}</div>`;
                }
 
@@ -12830,6 +12850,11 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     pages.push({ title: "Error", icon: "", render: () => `<p>Failed to parse lesson content.</p>` });
   }
 
+  // Stepping backwards across a topic boundary asks for the previous topic's
+  // LAST page, which only becomes a number once that topic's pages are built.
+  if (pageIdx === 'last') pageIdx = Math.max(0, pages.length - 1);
+  pageIdx = Math.min(Math.max(0, Number(pageIdx) || 0), Math.max(0, pages.length - 1));
+
   const page = pages[pageIdx] || pages[0];
   let pageContentHtml = "";
   try {
@@ -12847,51 +12872,51 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   }
   const lvlMeta = CEFR_LEVEL_METAS[lvlKey] || CEFR_LEVEL_METAS['A1'];
 
-  // The lesson bar. Everything needed to know where you are and to move on is
-  // in one 44px sticky strip: the page menu (which doubles as the lesson
-  // outline), the position, and prev/next. It replaces a five-layer header
-  // stack — page title, stale subtitle, export button, inline unit navigator,
-  // breadcrumb, page heading, CEFR blurb — that cost roughly 440px of scrolled
-  // chrome before the first line of the lesson on every single page, and it
-  // fixes the fact that "next page" used to render 81-147px off the right edge
-  // of a phone with the only other page control parked at the very bottom of a
-  // 2,500px scroll.
-  const pageMenuId = 'study-page-menu';
-  const navBtn = (idx, label, cls, aria) => idx === null
-    ? `<button class="btn btn-ghost btn-icon lessonbar__step" disabled aria-hidden="true">${label}</button>`
-    : `<button class="btn btn-ghost btn-icon lessonbar__step" onclick="showStudyTopic('${topicId}', ${idx})" aria-label="${aria}">${label}</button>`;
+  // The material toolbar. One 44px sticky row carries everything a reader
+  // reaches for repeatedly: where they are, the outline (units, topics and the
+  // pages of the current topic), the PDF, and step controls that run
+  // CONTINUOUSLY across topic boundaries so a course never feels like a stack
+  // of dead ends. Anything rarer than that lives in the outline sheet rather
+  // than taking permanent space.
+  const _flat = studyTopicSequence();
+  const _pos = _flat.findIndex(x => x.id === topicId);
+  const prevTopic = _pos > 0 ? _flat[_pos - 1] : null;
+  const nextTopic = (_pos >= 0 && _pos < _flat.length - 1) ? _flat[_pos + 1] : null;
+
+  const stepPrev = pageIdx > 0
+    ? `showStudyTopic('${topicId}', ${pageIdx - 1})`
+    : (prevTopic ? `showStudyTopic('${prevTopic.id}', 'last')` : null);
+  const stepNext = pageIdx < pages.length - 1
+    ? `showStudyTopic('${topicId}', ${pageIdx + 1})`
+    : (nextTopic ? `showStudyTopic('${nextTopic.id}', 0)` : null);
+
+  const step = (action, glyph, aria) => action
+    ? `<button class="btn btn-ghost btn-icon mtoolbar__step" onclick="${action}" aria-label="${aria}">${glyph}</button>`
+    : `<button class="btn btn-ghost btn-icon mtoolbar__step" disabled aria-hidden="true">${glyph}</button>`;
+
+  const pdfAction = currentUser && currentUser.role === 'student'
+    ? 'downloadCourseMaterialPDF()' : 'downloadCourseMaterialPDF()';
+
+  window._studyOutlineState = { topicId, pageIdx, pages: pages.map(pg => pg.title) };
 
   container.innerHTML = `
     <div class="study-topic-wrapper">
-      <nav class="lessonbar" aria-label="${currentLang === 'tr' ? 'Ders gezinmesi' : 'Lesson navigation'}">
-        <button class="lessonbar__units btn btn-ghost btn-icon" onclick="openStudyUnitsSheet()"
-                aria-label="${currentLang === 'tr' ? 'Üniteler' : 'Units'}" title="${currentLang === 'tr' ? 'Üniteler' : 'Üniteler'}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <nav class="mtoolbar" aria-label="${currentLang === 'tr' ? 'Materyal araç çubuğu' : 'Material toolbar'}">
+        <button class="mtoolbar__where" onclick="openStudyOutline()" aria-haspopup="dialog">
+          <span class="mtoolbar__title">${page.icon ? page.icon + ' ' : ''}${page.title}</span>
+          <span class="mtoolbar__pos">${pageIdx + 1}/${pages.length}</span>
+          <svg class="mtoolbar__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <button class="lessonbar__title" onclick="toggleStudyPageMenu()" aria-expanded="false" aria-controls="${pageMenuId}">
-          <span class="lessonbar__name">${page.icon ? page.icon + ' ' : ''}${page.title}</span>
-          <span class="lessonbar__count">${pageIdx + 1}/${pages.length}</span>
-          <svg class="lessonbar__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        <button class="btn btn-ghost btn-icon mtoolbar__pdf" onclick="${pdfAction}"
+                aria-label="${t('export_pdf') || 'PDF'}" title="${t('export_pdf') || 'PDF'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
-        <div class="lessonbar__steps">
-          ${navBtn(pageIdx > 0 ? pageIdx - 1 : null, '&#8249;', '', currentLang === 'tr' ? 'Önceki sayfa' : 'Previous page')}
-          ${navBtn(pageIdx < pages.length - 1 ? pageIdx + 1 : null, '&#8250;', '', currentLang === 'tr' ? 'Sonraki sayfa' : 'Next page')}
-        </div>
-        <div class="lessonbar__progress" role="progressbar" aria-valuenow="${pageIdx + 1}" aria-valuemin="1" aria-valuemax="${pages.length}">
+        ${step(stepPrev, '&#8249;', currentLang === 'tr' ? 'Önceki' : 'Previous')}
+        ${step(stepNext, '&#8250;', currentLang === 'tr' ? 'Sonraki' : 'Next')}
+        <div class="mtoolbar__progress" role="progressbar" aria-valuenow="${pageIdx + 1}" aria-valuemin="1" aria-valuemax="${pages.length}">
           <span style="width:${Math.round(((pageIdx + 1) / pages.length) * 100)}%"></span>
         </div>
       </nav>
-
-      <!-- The outline: every page of this lesson, reachable in one tap. -->
-      <div id="${pageMenuId}" class="lessonmenu" hidden>
-        ${pages.map((pg, i) => `
-          <button type="button" class="lessonmenu__item ${i === pageIdx ? 'is-current' : ''}"
-                  onclick="toggleStudyPageMenu(true); showStudyTopic('${topicId}', ${i})"
-                  ${i === pageIdx ? 'aria-current="page"' : ''}>
-            <span class="lessonmenu__num">${i + 1}</span>
-            <span class="lessonmenu__label">${esc(pg.title || ((t('page') || 'Page') + ' ' + (i + 1)))}</span>
-          </button>`).join('')}
-      </div>
 
       <div class="study-meta meta-chips">
         <span class="meta-chip"><span class="cefr-level-badge" style="background:${lvlMeta.color}22; color:${lvlMeta.color}; border:1px solid ${lvlMeta.color}55;">${currentLang === 'tr' ? lvlMeta.name_tr : lvlMeta.name}</span></span>
@@ -12905,8 +12930,8 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
       </div>
 
       <div class="study-footer-nav">
-        ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">&#8249; ${t('study.back')}</button>` : '<span></span>'}
-        ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} &#8250;</button>` : ''}
+        ${stepPrev ? `<button class="btn btn-outline" onclick="${stepPrev}">&#8249; ${t('study.back')}</button>` : '<span></span>'}
+        ${stepNext ? `<button class="btn btn-primary" onclick="${stepNext}">${t('study.next')} &#8250;</button>` : ''}
       </div>
     </div>
   `;

@@ -1084,6 +1084,7 @@ body:has(#student-dashboard.active) .floating-actions {
   justify-content: center;
   gap: var(--space-4);
   min-height: max(var(--control-md), var(--tap-min));
+  min-width: max(var(--control-md), var(--tap-min));
   padding: 0 var(--space-6);
   background: transparent;
   border: none;
@@ -4262,28 +4263,27 @@ select.text-input option,
    script-safe content blocks.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Lesson bar ───────────────────────────────────────── */
-.lessonbar {
+/* ── Material toolbar ─────────────────────────────────────
+   One sticky row, ~46px, carrying position + outline + PDF + step controls.
+   It is the only persistent chrome the reader adds, and it stands in for a
+   page title, a stale subtitle, an export button, an inline unit list, a
+   breadcrumb and a CEFR blurb that were repeated on every lesson page. */
+.mtoolbar {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 48px;
-  padding: var(--space-2) 0;
+  gap: var(--space-1);
+  min-height: 46px;
+  padding: var(--space-1) 0;
   margin-bottom: var(--space-5);
   background: var(--surface-nav);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
 }
-.lessonbar__units { flex-shrink: 0; color: var(--text-secondary); }
-.lessonbar__units svg { width: var(--icon-lg); height: var(--icon-lg); }
-
-/* The title doubles as the lesson outline trigger, so the one wide target in
-   the bar is also the jump menu. */
-.lessonbar__title {
+.mtoolbar__where {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -4291,7 +4291,7 @@ select.text-input option,
   gap: var(--space-3);
   min-height: max(var(--control-md), var(--tap-min));
   padding: 0 var(--space-4);
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-primary);
@@ -4302,9 +4302,9 @@ select.text-input option,
   cursor: pointer;
   text-align: start;
 }
-.lessonbar__title:hover { background: var(--fill-hover); }
-.lessonbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lessonbar__count {
+.mtoolbar__where:hover { background: var(--fill-hover); }
+.mtoolbar__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mtoolbar__pos {
   flex-shrink: 0;
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);
@@ -4312,83 +4312,125 @@ select.text-input option,
   color: var(--text-muted);
   margin-inline-start: auto;
 }
-.lessonbar__caret { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-muted); }
+.mtoolbar__caret { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); }
 
-.lessonbar__steps { display: flex; gap: var(--space-1); flex-shrink: 0; }
-.lessonbar__step {
+.mtoolbar__pdf { flex-shrink: 0; color: var(--accent-light); }
+[data-theme="light"] .mtoolbar__pdf { color: var(--accent); }
+.mtoolbar__pdf svg { width: var(--icon); height: var(--icon); }
+
+.mtoolbar__step {
+  flex-shrink: 0;
   font-size: var(--fs-2xl);
   line-height: 1;
   color: var(--text-secondary);
   padding-bottom: 3px;
 }
-.lessonbar__step:disabled { opacity: 0.25; }
+.mtoolbar__step:disabled { opacity: 0.22; }
 
-/* Reading progress through the lesson, as a hairline rather than a widget. */
-.lessonbar__progress {
+.mtoolbar__progress {
   position: absolute;
   left: 0; right: 0; bottom: -1px;
   height: 2px;
   background: var(--line-subtle);
 }
-.lessonbar__progress > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  transition: width var(--transition);
-}
+.mtoolbar__progress > span { display: block; height: 100%; background: var(--accent); transition: width var(--transition); }
 
-/* ── Lesson outline ───────────────────────────────────── */
-.lessonmenu {
-  position: sticky;
-  top: 48px;
-  z-index: var(--z-sticky);
-  max-height: min(58vh, 420px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  margin-bottom: var(--space-5);
-  padding: var(--space-3);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-}
-.lessonmenu[hidden] { display: none; }
-.lessonmenu__item {
+/* ── Course outline sheet ─────────────────────────────────
+   Units, their topics, and the pages of the topic being read — the whole
+   course reachable in one gesture, so switching unit and jumping to a section
+   are the same cheap action. */
+.outline-sheet__panel { max-width: 560px; }
+.outline__unit + .outline__unit { margin-top: var(--space-7); }
+.outline__unit-title {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+}
+.outline__unit-no {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--fill-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.outline__topic {
+  display: block;
   width: 100%;
   min-height: max(var(--control-lg), var(--tap-min));
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-5);
   border: none;
+  border-inline-start: 2px solid transparent;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-secondary);
+  font-size: var(--fs-md);
+  text-align: start;
+  cursor: pointer;
+}
+.outline__topic:hover { background: var(--fill-hover); color: var(--text-primary); }
+.outline__topic.is-current {
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+  border-inline-start-color: var(--accent);
+  background: var(--accent-glow);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+[data-theme="light"] .outline__topic.is-current { color: var(--accent); }
+
+.outline__pages {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: var(--space-2) 0 var(--space-3) var(--space-6);
+  padding-inline-start: var(--space-5);
+  border-inline-start: 1px solid var(--line-subtle);
+}
+.outline__page {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: max(var(--control-md), var(--tap-min));
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
   font-size: var(--fs-base);
   text-align: start;
   cursor: pointer;
 }
-.lessonmenu__item:hover { background: var(--fill-hover); color: var(--text-primary); }
-.lessonmenu__item.is-current { background: var(--accent-glow); color: var(--text-primary); font-weight: var(--fw-semibold); }
-[data-theme="light"] .lessonmenu__item.is-current { color: var(--accent); }
-.lessonmenu__num {
+.outline__page:hover { background: var(--fill-hover); color: var(--text-primary); }
+.outline__page.is-current { color: var(--text-primary); font-weight: var(--fw-medium); }
+.outline__num {
   flex-shrink: 0;
-  width: 22px; height: 22px;
-  display: grid; place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--fill-subtle);
+  width: 18px;
   font-size: var(--fs-2xs);
-  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
 }
-.lessonmenu__item.is-current .lessonmenu__num { background: var(--accent); color: var(--accent-contrast); }
-.lessonmenu__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outline__page.is-current .outline__num { color: var(--accent); }
+.outline__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ── Units sheet ──────────────────────────────────────── */
-.units-sheet__panel { max-width: 520px; }
-.units-sheet__title { font-size: var(--fs-2xl); margin-bottom: var(--space-6); }
-.units-sheet__body .study-sidebar-toc,
-.units-sheet__body { max-height: none !important; padding: 0 !important; overflow: visible !important; }
+.outline-sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line-subtle);
+}
+.outline-sheet__actions .btn { justify-content: flex-start; gap: var(--space-5); }
 
 /* ── Lesson page furniture ────────────────────────────── */
 .study-meta { margin-bottom: var(--space-3); }
@@ -4599,8 +4641,7 @@ select.text-input option,
     max-height: none !important;
     overflow: visible !important;
   }
-  .lessonbar { top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px)); }
-  .lessonmenu { top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + 48px); }
+  .mtoolbar { top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px)); }
 }
 
 /* Assessment options are the most-tapped controls in the product. */
@@ -4615,8 +4656,6 @@ select.text-input option,
   white-space: normal;
   height: auto;
 }
-.units-sheet__actions { margin-top: var(--space-7); padding-top: var(--space-6); border-top: 1px solid var(--line-subtle); }
-.units-sheet__actions:empty { display: none; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    DASHBOARD DENSITY ON PHONES
@@ -4798,3 +4837,95 @@ select.text-input option,
   align-items: center;
 }
 .dialogue-trans-toggle-btn { display: inline-flex; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MOBILE COMPACTION
+   ----------------------------------------------------------------------------
+   Density here comes from removing repetition and tightening containers, never
+   from shrinking type or targets. Body text stays at its reading size and every
+   control keeps its 44px floor; what goes is chrome that says the same thing
+   twice and padding that carries no information.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) {
+  /* Nav chrome. 52px instead of 56 buys a row back on every screen without
+     touching the targets inside it, which keep their own minimum. */
+  :root { --topnav-h: 52px; }
+  .topnav { gap: var(--space-3); }
+
+  /* Page frame */
+  .dashboard-content {
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-5));
+    padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
+  }
+  .page-header { margin-bottom: var(--space-5); }
+  .page-header h1 { font-size: var(--fs-xl); }
+
+  /* Cards become rows: a bordered box per item, with its own 24px of padding
+     on four sides, is desktop furniture. */
+  .card { margin-bottom: var(--space-5); border-radius: var(--radius); }
+  .card-header { padding: var(--space-4) var(--space-6); }
+  .card-body { padding: var(--space-6); }
+  .card-header h3 { font-size: var(--fs-base); }
+
+  /* One action group, not a column of full-width buttons. */
+  .page-header .page-actions { gap: var(--space-3); }
+  .card-header > .btn { width: auto; }
+
+  /* Sections */
+  .report-section { margin-bottom: var(--space-7); }
+  .form-group { margin-bottom: var(--space-6); }
+  .chapter-block { margin-bottom: var(--space-4); }
+  .activity-card, .quiz-header { padding: var(--space-6); }
+  .quiz-result-card { padding: var(--space-9) var(--space-6); }
+  .quiz-score-big { font-size: 56px; margin: var(--space-5) 0; }
+
+  /* Overlays: a sheet's header should not cost a third of its height. */
+  .modal-content { padding: var(--space-6); }
+  .modal-content h2 { font-size: var(--fs-xl); }
+
+  /* Student roster rows */
+  .student-card { padding: var(--space-5) var(--space-6); }
+  .student-card-actions { padding-top: var(--space-4); }
+  .student-metrics-box { margin-block: var(--space-5); }
+
+  /* Curriculum */
+  .chapter-header { padding: var(--space-4) var(--space-6); }
+  .topic-item { padding: var(--space-4) var(--space-6); }
+}
+
+@media (max-width: 600px) {
+  .card-body { padding: var(--space-5); }
+  .card-header { padding: var(--space-4) var(--space-5); }
+  .modal-content { padding: var(--space-5); }
+  .page-header h1 { font-size: var(--fs-lg); }
+
+  /* Page actions sit beside the title when they fit rather than each claiming
+     a full-width row of their own. */
+  .page-header .page-actions { flex-wrap: nowrap; }
+  .page-header .page-actions > .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-inline: var(--space-4);
+  }
+  .page-header .page-actions > .btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ── Reader on phones ─────────────────────────────────────
+   The toolbar is the reader's chrome, so the page frame gives it the top of
+   the screen and nothing else competes for it. */
+@media (max-width: 1024px) {
+  .dashboard-content:has(#tab-s-study-tab.active),
+  .dashboard-content:has(#tab-study-materials.active) {
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
+    padding-inline: var(--gutter);
+  }
+  .study-meta { margin-bottom: var(--space-4); }
+  .study-footer-nav { margin-top: var(--space-8); padding-top: var(--space-5); }
+  .vocab-row { padding: var(--space-4) var(--space-5); }
+  .vocab-row__detail { margin-top: var(--space-3); }
+  .pedagogy-rule-card { padding: var(--space-5); margin-bottom: var(--space-4); }
+  .pedagogy-contrast-card, .pedagogy-pitfall-card, .pedagogy-guide-block { padding: var(--space-5); }
+  .pedagogy-rules-container { gap: var(--space-4); }
+  .study-dialogue-card { padding: var(--space-5); }
+}
