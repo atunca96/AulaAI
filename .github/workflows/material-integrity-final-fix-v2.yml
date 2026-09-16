@@ -14,6 +14,8 @@ jobs:
         with:
           ref: material-integrity-final-fix-2
           fetch-depth: 0
+      - name: Install production dependencies
+        run: pip install --disable-pip-version-check -r requirements.txt
       - name: Apply patch
         run: python scripts/apply_material_integrity_final_fix_v2.py
       - name: Full build verification
