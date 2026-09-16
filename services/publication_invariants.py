@@ -2004,6 +2004,15 @@ def enforce_instructional_track(item: Dict[str, Any], material_language: str = "
     guessed at; `False` says the contract could not be satisfied from what the
     item contains.
     """
+    # An item may DECLARE that its stem is a complete question in the taught
+    # language. That is the assessment architecture's contract - a Spanish class
+    # is asked in Spanish, instruction included - and such an item owes no
+    # instructional-track stem because it has no separate instruction to localize.
+    # Explicit metadata, not a guess: ordinary lesson pages never carry it, so
+    # the protection this gate was built for is untouched.
+    if str(item.get("stem_scope") or "").strip().casefold() == "target_complete":
+        return True
+
     track = str(material_language or "tr").strip().casefold()
     if track not in ("tr", "en"):
         track = "tr"
@@ -2120,6 +2129,8 @@ def compose_learner_stem(item: Dict[str, Any], material_language: str = "tr") ->
 
     Returns True when a composition was made.
     """
+    if str(item.get("stem_scope") or "").strip().casefold() == "target_complete":
+        return False  # the stem is already whole; nothing to join to it
     track = str(material_language or "tr").strip().casefold()
     if track not in ("tr", "en"):
         track = "tr"
@@ -2261,10 +2272,81 @@ def apply_assessment_invariants(questions: Any, language: Any = None, material_l
                 continue
         compose_learner_stem(item, material_language)
         _enforce_item_option_parallelism(item)
-        if not enforce_instructional_track(item, material_language):
+        if not enforce_assessment_track(item, material_language):
             continue
         out.append(item)
     return out
+
+
+def enforce_assessment_track(item: Dict[str, Any], material_language: str = "tr") -> bool:
+    """The track contract for an ASSESSMENT item, which is not the page contract.
+
+    A lesson page separates two things: `prompt` holds target-language material
+    and `prompt_tr`/`prompt_en` hold the instruction that introduces it. A page
+    published on the Turkish track with no `prompt_tr` really was showing English
+    prose as though it were Turkish, and `enforce_instructional_track` is the
+    right gate for it.
+
+    An assessment item is built to a DIFFERENT contract, and deliberately so:
+    `prompt` is the complete question in the taught language — stem, any
+    instruction needed to answer, and the material — because that is what the
+    assessment architecture requires (a Spanish class is asked in Spanish).
+    `translation_en`/`translation_tr` are a reference gloss for the learner, and
+    were never the instruction. Such an item has no `prompt_tr` and is not
+    supposed to have one.
+
+    Applying the page gate to it was a schema conflation with a specific, severe
+    consequence. On the Turkish track the gate's accepted names are all
+    `_tr`-suffixed, nothing matched, and it fell through to the cloze exemption —
+    which requires a gap AND no prose beside it. So every communicative question
+    ("¿Qué dices cuando...?") was dropped and only bare cloze items survived. A
+    ten-question quiz assembled two, tripped the hard completion invariant, and
+    returned nothing. Turkish-track quiz generation had been failing outright.
+
+    What an assessment item genuinely owes the track is its ANSWER KEY: the
+    rationale is instructional prose the learner reads and believes, so it must
+    exist in the track being published. That is checked here, and reported
+    through `assessment_track_gaps` — never by discarding the question, because
+    a missing rationale costs a sentence of explanation while a discarded
+    question costs the learner an item and can fail the whole assessment.
+    """
+    track = str(material_language or "tr").strip().casefold()
+    if track not in ("tr", "en"):
+        track = "tr"
+    stem = item.get("prompt") or item.get("question") or item.get("stem")
+    if not (isinstance(stem, str) and stem.strip()):
+        # Nothing claims to be a stem; ordinary structural validation decides.
+        return True
+    # The stem is target-language content by contract. Promote a rationale into
+    # the published track's name when the item carries one under the other's.
+    preferred = "why_tr" if track == "tr" else "why"
+    alternate = "why" if track == "tr" else "why_tr"
+    if not str(item.get(preferred) or "").strip():
+        for fallback in (alternate, "explanation_tr" if track == "tr" else "explanation"):
+            value = item.get(fallback)
+            if isinstance(value, str) and value.strip():
+                item.setdefault(preferred, value)
+                break
+    return True
+
+
+def assessment_track_gaps(questions: Any, material_language: str = "tr") -> List[str]:
+    """Items whose answer key has no rationale in the published track.
+
+    Reported, not enforced (see `enforce_assessment_track`). Used by tests and by
+    the build log so a localization gap is visible rather than silent.
+    """
+    track = str(material_language or "tr").strip().casefold()
+    preferred = "why_tr" if track == "tr" else "why"
+    gaps: List[str] = []
+    if not isinstance(questions, list):
+        return gaps
+    for item in questions:
+        if not isinstance(item, dict):
+            continue
+        if not str(item.get(preferred) or "").strip():
+            gaps.append(str(item.get("prompt") or "")[:80])
+    return gaps
 
 
 _RATIONALE_FIELDS = ("explanation", "rationale", "why", "feedback", "answer_explanation")

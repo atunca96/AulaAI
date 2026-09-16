@@ -5,11 +5,22 @@ Do not patch prompt wording in ai_engine.py or release patch scripts. Change it 
 """
 
 
-def build_material_prompts(*, language, level, topic, topic_type, official_institution, source_text=None):
+def build_material_prompts(*, language, level, topic, topic_type, official_institution, source_text=None, assessment_budget=None):
     source_rule = (
         f"\n\n<source_material>{source_text[:6000]}</source_material>"
         if source_text else ""
     )
+
+    # English and Turkish are taught as a pair, where one instructional track IS
+    # the target language. services/special_pair_profile.py supplies the two
+    # sections that genuinely differ for them and returns None for every other
+    # language, so the general multilingual prompt below is unchanged for
+    # Spanish, German, Russian and the rest.
+    try:
+        from services.special_pair_profile import profile_for
+        pair = profile_for(language, level)
+    except Exception:
+        pair = None
 
     system_prompt = f"""<role>
 You are a distinguished university professor and master pedagogue specializing in {language} language education. Author a publication-ready lesson for adult CEFR {level} learners, aligned with {official_institution} and the Council of Europe CEFR framework. Return valid JSON only: no markdown fences and no text outside JSON.
@@ -176,6 +187,9 @@ Do not emit the same illustrative set, example sentence, table row or rule twice
 </rules_and_comparisons>
 
 <mcq_quality>
+ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr` or `prompt_en` for an assessment item: there is no separate instruction to localize, and a gloss in the stem field is what the learner would be shown instead of the question. Mark each item `"stem_scope": "target_complete"`.
+The ANSWER KEY is the other track: `explanation` and `explanation_tr` explain the key in the instructional language, as elsewhere in this lesson. Assessment content and answer-key explanation never swap.
+NO TRANSLATION ITEMS, at any level: never "what does X mean", "how do you say X", "translate this", or an option set of instructional-language glosses. At A1 that is a reason to ask a SIMPLER {language} question - a short gapped sentence, a two-way contrast, a reply chosen for a situation - not a reason to fall back on translation. Meaning is explained in the answer key afterwards.
 Every MCQ must have exactly 4 distinct, plausible, same-category options and exactly 1 defensible keyed answer.
 - The stem itself must contain all answer-relevant facts. Difficulty must come from {language} competence, not trivia, arithmetic, stereotypes or unstated world knowledge.
 - Never infer gender, nationality, ethnicity, profession, language ability, relationship or another identity fact from a personal name, birthplace, residence, workplace, school, city, or stereotype.
@@ -268,9 +282,8 @@ Return ONLY valid JSON matching this structure:
         "line_en": "English translation",
         "line_tr": "Turkish translation"
       }}],
-      "prompt": "ONLY the {language} material the learner completes or examines - a sentence with a ____ gap, a form, a phrase. Never put the instruction that introduces it here, in any language.",
-      "prompt_en": "Question/instruction in English",
-      "prompt_tr": "The instruction, in Turkish ('Cümleyi tamamlayın:'). Required for every item. The {language} material stays in `prompt`; the two are joined when published.",
+      "prompt": "The COMPLETE question in {language}: the instruction needed to answer it AND the material it points at, in one field. This is the only stem the learner reads.",
+      "stem_scope": "target_complete",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
       "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],
       "answer": "Correct answer",
@@ -288,6 +301,24 @@ Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pron
 Return valid JSON only.
 </final_same_pass_check>"""
 
+    if pair:
+        # Replace the general two-track section rather than appending a
+        # correction to it: two sections disagreeing about which track carries
+        # the teaching is exactly the kind of prompt contradiction that produces
+        # material where half the explanation is missing.
+        start = system_prompt.find("<bilingual_tracks>")
+        end = system_prompt.find("</bilingual_tracks>")
+        if start != -1 and end != -1:
+            system_prompt = (
+                system_prompt[:start]
+                + pair["bilingual_tracks"]
+                + "\n\n"
+                + pair["pair_section"]
+                + system_prompt[end + len("</bilingual_tracks>"):]
+            )
+
+    budget_block = f"\n\n{assessment_budget}\n" if assessment_budget else ""
+
     user_prompt = f"""Generate a complete, publication-ready CEFR {level} {language} lesson on:
 <topic>{topic} ({topic_type})</topic>
 
@@ -296,6 +327,8 @@ Generate both English and Turkish pedagogical fields in the same JSON.{source_ru
 Plan the lesson silently, then generate it. Cover the topic fully at the appropriate CEFR depth without padding, redundant theory or unnecessary metalanguage. Use authentic language, teach before testing, and omit any rule, pronunciation claim or assessment item you cannot state with high confidence.
 
 For closed inventories such as alphabets/writing systems or explicitly requested number ranges, provide the complete inventory. For all other topics, let pedagogical usefulness determine length.
+
+The assessment items in this lesson may assess ONLY what this lesson itself teaches - not a later topic, not another unit.{budget_block}
 
 Respond with ONLY the JSON object."""
 

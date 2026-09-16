@@ -386,14 +386,17 @@ def translate_titles_batch(titles: List[str], target_lang: str = "tr") -> Dict[s
     dest_name = "Turkish" if target_lang == "tr" else "English"
     logger.info(f"[CURRICULUM TRANSLATOR] Translating {len(unique_needed)} titles to {dest_name} via AI...")
 
-    # Call AI in batches
+    # Call AI in batches. A 30-topic syllabus needs two of these, and they are
+    # independent HTTP requests over the same prompt template: running them one
+    # after the other added a whole provider round trip to the critical path of
+    # every curriculum draft for no reason.
     batch_size = 25
     newly_translated: Dict[str, str] = {}
+    chunks = [unique_needed[i:i + batch_size] for i in range(0, len(unique_needed), batch_size)]
 
-    for i in range(0, len(unique_needed), batch_size):
-        chunk = unique_needed[i:i + batch_size]
+    def _translate_chunk(chunk: List[str]):
         indexed_input = {str(idx): chunk[idx] for idx in range(len(chunk))}
-        
+
         prompt = f"""You are a master curriculum translator for language learning platforms.
 Translate each curriculum unit title or topic title into natural, fluent, grammatically correct {dest_name}.
 
@@ -419,6 +422,7 @@ Input:
         except Exception as e:
             logger.error(f"[CURRICULUM TRANSLATOR] AI call failed: {e}")
 
+        resolved: Dict[str, str] = {}
         if isinstance(res, dict):
             mapping = res.get("translations") or res
             for idx_str, trans in mapping.items():
@@ -429,21 +433,30 @@ Input:
                         trans_clean = clean_stutter(trans.strip())
                         if target_lang == "tr":
                             if is_clean_turkish(trans_clean):
-                                newly_translated[orig] = trans_clean
-                                results[orig] = trans_clean
+                                resolved[orig] = trans_clean
                             else:
                                 try:
                                     from services.language_data import UniversalCurriculumTranslator
                                     uct_val = clean_stutter(UniversalCurriculumTranslator.translate(orig))
                                     if is_clean_turkish(uct_val):
-                                        newly_translated[orig] = uct_val
-                                        results[orig] = uct_val
+                                        resolved[orig] = uct_val
                                 except Exception: pass
                         elif target_lang == "en":
-                            newly_translated[orig] = trans_clean
-                            results[orig] = trans_clean
+                            resolved[orig] = trans_clean
                 except (ValueError, TypeError):
                     continue
+        return resolved
+
+    if len(chunks) == 1:
+        chunk_results = [_translate_chunk(chunks[0])] if chunks else []
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(4, len(chunks))) as pool:
+            chunk_results = list(pool.map(_translate_chunk, chunks))
+
+    for resolved in chunk_results:
+        newly_translated.update(resolved)
+        results.update(resolved)
 
     # Fallback for anything that AI failed to translate
     for raw in unique_needed:
