@@ -7,6 +7,7 @@ permissions:
   contents: write
 jobs:
   verify:
+    if: github.event.head_commit.message != 'Apply final material integrity fixes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,9 +15,26 @@ jobs:
           ref: material-integrity-final-fix-2
           fetch-depth: 0
       - name: Apply patch
-        run: python scripts/apply_material_integrity_final_fix.py
+        run: python scripts/apply_material_integrity_final_fix_v2.py
       - name: Full build verification
         run: python scripts/run_build_pipeline.py
+      - name: Focused checks
+        run: |
+          python - <<'PY'
+          from services.legacy.pdf_pipeline import unit_assessment_title, build_unit_assessment_content
+          assert unit_assessment_title('Leisure Activities', 'en', 'Boş Zaman Aktiviteleri') == 'Unit Assessment: Leisure Activities'
+          assert unit_assessment_title('Leisure Activities', 'tr', 'Boş Zaman Aktiviteleri') == 'Ünite Değerlendirmesi: Boş Zaman Aktiviteleri'
+          qs=[{'prompt':'¿Qué te gusta?','answer':'Me gusta leer.','options':['Me gusta leer.','Leo gusta.','Gusta yo leer.','Me gustan leer.'],'distractors':['Leo gusta.','Gusta yo leer.','Me gustan leer.'],'why':'Correct','why_tr':'Doğru'} for _ in range(10)]
+          c=build_unit_assessment_content('Leisure Activities',qs,'tr',unit_title_tr='Boş Zaman Aktiviteleri')
+          assert c['pages'][0]['title'] == 'Unit Assessment: Leisure Activities'
+          assert c['pages'][0]['title_tr'] == 'Ünite Değerlendirmesi: Boş Zaman Aktiviteleri'
+          src=open('services/legacy/pdf_pipeline.py',encoding='utf-8').read()
+          assert 'UPDATE topics SET title = ?, title_tr = ?, content = ?' in src
+          assert '[PHONETIC-COMPLETE]' in src
+          ai=open('services/ai_engine.py',encoding='utf-8').read()
+          assert 'deterministic completion failed' in ai
+          print('focused final material integrity checks: PASS')
+          PY
       - name: Commit production files
         run: |
           git config user.name "AulaAI surgical fix"
