@@ -725,7 +725,13 @@ h1, h2, h3, h4, h5, h6 {
   .cluster-stack-sm > .btn { width: 100%; }
 
   /* Tables become stacked records. Each cell carries its own label via
-     data-label, so no header row is needed and nothing is truncated away. */
+     data-label, so no header row is needed and nothing is truncated away.
+
+     The record reads as a title, then the remaining fields as one wrapping row
+     of label/value chips, then the actions. Giving every secondary field its
+     own full-width 34px row is what made an eight-student roster 2,240px long;
+     as chips those same four fields cost about 40px and are easier to compare
+     side by side. */
   .data-table.is-stacked,
   .data-table.is-stacked thead,
   .data-table.is-stacked tbody,
@@ -735,61 +741,77 @@ h1, h2, h3, h4, h5, h6 {
     display: block;
     width: auto;
   }
-  .data-table.is-stacked thead {
+  /* The header row stays in the DOM so the table keeps its semantics, but it
+     must not lay out at full width: hiding only the <thead> left its cells
+     sized normally inside the clip, which reported as a 166px overflow. Each
+     cell is hidden in its own right. */
+  .data-table.is-stacked thead,
+  .data-table.is-stacked thead tr,
+  .data-table.is-stacked thead th {
     position: absolute;
     width: 1px; height: 1px;
+    padding: 0; margin: -1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     white-space: nowrap;
+    border: none;
   }
   .data-table.is-stacked tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-5);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     background: var(--surface-1);
     padding: var(--space-5) var(--space-6);
-    margin-bottom: var(--space-5);
+    margin-bottom: var(--space-4);
   }
   .data-table.is-stacked tr:hover { background: var(--surface-1); }
+
+  /* Secondary fields: an inline chip carrying its own label. */
   .data-table.is-stacked td {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-6);
-    padding: var(--space-3) 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: 0;
     border-bottom: none;
-    text-align: right;
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    min-width: 0;
+    text-align: start;
   }
   .data-table.is-stacked td::before {
     content: attr(data-label);
-    flex: 0 0 auto;
-    text-align: left;
     font-size: var(--fs-2xs);
     font-weight: var(--fw-semibold);
     letter-spacing: var(--ls-caps);
     text-transform: uppercase;
     color: var(--text-muted);
+    white-space: nowrap;
   }
-  .data-table.is-stacked td:not([data-label]) { justify-content: flex-end; }
-  /* The record's own title row: full width, left aligned, no label. */
+  .data-table.is-stacked td:not([data-label])::before { content: none; }
+
+  /* The record's own title claims the first line to itself. */
   .data-table.is-stacked td:first-child {
+    flex: 1 0 100%;
     display: block;
-    text-align: left;
     font-size: var(--fs-lg);
     font-weight: var(--fw-semibold);
     color: var(--text-primary);
-    padding-bottom: var(--space-4);
-    margin-bottom: var(--space-4);
-    border-bottom: 1px solid var(--line-subtle);
+    line-height: var(--lh-snug);
   }
   .data-table.is-stacked td:first-child::before { content: none; }
-  /* Action cells get their own row of real buttons. */
+
+  /* Actions get their own full-width row under the chips. */
   .data-table.is-stacked td.actions {
+    flex: 1 0 100%;
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-4);
-    padding-top: var(--space-5);
-    margin-top: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-4);
     border-top: 1px solid var(--line-subtle);
   }
   .data-table.is-stacked td.actions::before { content: none; }
@@ -824,4 +846,175 @@ h1, h2, h3, h4, h5, h6 {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   15. DENSITY
+   ----------------------------------------------------------------------------
+   Phones were spending too much vertical space on chrome, padding and repeated
+   metadata, so reaching anything meant scrolling past a lot of nothing. The
+   answer is structural, not typographic: body text stays at a comfortable
+   reading size and targets stay at 44px; what tightens is the space AROUND
+   content, and what disappears is duplication.
+
+   Two paired scales do most of the work. Components use --pad-* and --gap-*
+   instead of raw spacing, so one rule tightens the whole product at a
+   breakpoint rather than a hundred per-page overrides.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Container padding */
+  --pad-card: var(--space-8);      /* 24 */
+  --pad-card-tight: var(--space-6);/* 16 */
+  --pad-row: var(--space-6);
+  /* Rhythm between blocks */
+  --gap-section: var(--space-9);   /* 32 — between major page sections */
+  --gap-block: var(--space-6);     /* 16 — between sibling cards */
+  --gap-tight: var(--space-4);     /* 8  — inside a group */
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --pad-card: var(--space-6);
+    --pad-card-tight: var(--space-5);
+    --pad-row: var(--space-5);
+    --gap-section: var(--space-7);
+    --gap-block: var(--space-5);
+    --gap-tight: var(--space-3);
+  }
+}
+@media (max-width: 375px) {
+  :root {
+    --pad-card: var(--space-5);
+    --pad-card-tight: var(--space-5);
+  }
+}
+
+/* ── Progressive disclosure ──────────────────────────────────────────────────
+   One pattern for "the detail is here when you want it". Used for vocabulary
+   detail, long answer explanations and secondary lesson notes. It is native
+   <details>, so it is keyboard operable and screen-reader announced for free,
+   and the content is in the DOM whether open or closed — nothing is withheld
+   from search or assistive tech, only from the default scroll length. */
+.disclose { border-top: 1px solid var(--line-subtle); }
+.disclose > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: max(var(--control-md), var(--tap-min));
+  padding: var(--space-2) 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.disclose > summary::-webkit-details-marker { display: none; }
+.disclose > summary::after {
+  content: '';
+  width: 7px; height: 7px;
+  margin-inline-start: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+.disclose[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.disclose > summary:hover { color: var(--text-primary); }
+.disclose[open] > summary { color: var(--text-secondary); }
+.disclose__body { padding-block: var(--space-4) var(--space-5); }
+
+/* ── Metadata chips ──────────────────────────────────────────────────────────
+   Secondary facts belong on one wrapping line, not in a stack of labelled
+   rows each costing 40px of height. */
+.meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  white-space: nowrap;
+  min-width: 0;
+}
+.meta-chip + .meta-chip::before {
+  content: '';
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+  margin-inline-end: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ── Compact rows ────────────────────────────────────────────────────────────
+   A list row that shows its primary information at full readability and keeps
+   its secondary information one tap away. Replaces stacks of cards that each
+   held one fact behind 24px of padding on every side. */
+.rowcard {
+  display: block;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--pad-card-tight) var(--pad-row);
+}
+.rowcard + .rowcard { margin-top: var(--gap-tight); }
+.rowcard__lead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  min-width: 0;
+}
+.rowcard__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.rowcard__sub {
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  line-height: var(--lh-snug);
+  min-width: 0;
+}
+
+/* ── Sticky contextual bar ───────────────────────────────────────────────────
+   A single compact bar that carries where-you-are and how-to-move-on. It earns
+   its ~44px by replacing several times that much scrolled-past chrome, and by
+   keeping navigation reachable instead of parked at the bottom of a 2,500px
+   page. */
+.stickybar {
+  position: sticky;
+  top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding-inline: var(--gutter);
+  margin-inline: calc(var(--gutter) * -1);
+  background: var(--surface-nav);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.stickybar__grow { flex: 1 1 auto; min-width: 0; }
+
+/* Squeeze the whole product's section rhythm onto the shared scale. */
+@media (max-width: 1024px) {
+  .card { margin-bottom: var(--gap-block); }
+  .card-header { padding: var(--pad-card-tight) var(--pad-card); }
+  .card-body { padding: var(--pad-card); }
 }

@@ -6873,18 +6873,17 @@ function renderClassroomSelection(courses) {
     const isBuilding = c.is_building === 1;
     const isPhase1 = c.language === "Detecting...";
 
-    return `<div class="card classroom-card" style="position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; border:1px solid var(--border); opacity: ${isPhase1 ? '0.65' : '1'}; transition: opacity 0.3s ease;">
-        ${isBuilding ? '<div style="position:absolute; top:0; left:0; right:0; height:3px; background:var(--gradient-2); animation: slide 2s linear infinite;"></div>' : ''}
+    return `<div class="card classroom-card${isPhase1 ? ' is-pending' : ''}">
+        ${isBuilding ? '<div class="classroom-card__building"></div>' : ''}
         <div class="card-body">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
-                <span style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:1px;" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
-                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteClassroom('${c.id}', ${escJS(c.name)})" style="color:var(--danger); padding:4px;">${SVG_TRASH}</button>
+            <div class="classroom-card__top">
+                <span class="classroom-card__lang" ${c.language === 'Detecting...' ? 'data-i18n="gen.detecting"' : ''}>${c.language === 'Detecting...' ? t('gen.detecting') : (c.language || 'Unknown').toUpperCase()}</span>
+                <button class="btn btn-ghost btn-sm classroom-card__delete" onclick="event.stopPropagation(); deleteClassroom('${c.id}', ${escJS(c.name)})" aria-label="${t('Delete') || 'Delete'}">${SVG_TRASH}</button>
             </div>
-            <h3 style="font-size:20px; margin-bottom:8px;">${esc(c.name)}</h3>
-            <p style="color:var(--text-muted); font-size:14px; margin-bottom:12px;">${esc(c.semester)}</p>
-            <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:8px 12px; margin-bottom:16px; border:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:10px; color:var(--text-muted); font-weight:700; text-transform:uppercase;" data-i18n="class.join_code">${t('class.join_code')}</span>
-                <span style="font-family:monospace; font-size:16px; color:var(--accent); font-weight:700; letter-spacing:2px;">${c.code}</span>
+            <h3 class="classroom-card__name">${esc(c.name)}</h3>
+            <div class="classroom-card__meta meta-chips">
+                <span class="meta-chip">${esc(c.semester)}</span>
+                <span class="meta-chip"><span class="sr-only" data-i18n="class.join_code">${t('class.join_code')}</span><span class="classroom-card__code">${c.code}</span></span>
             </div>
             
             ${isBuilding ? `
@@ -10803,10 +10802,10 @@ function renderStudentHome(data) {
   const statsEl = document.getElementById('student-stats');
   if (statsEl) {
     statsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label" data-i18n="overallMastery">${t('overallMastery')}</div><div class="stat-value ${masteryClass(avg)}">${Math.round(avg * 100)}%</div></div>
-      <div class="stat-card"><div class="stat-label" data-i18n="strongTopics">${t('strongTopics')}</div><div class="stat-value success">${strong}</div></div>
-      <div class="stat-card"><div class="stat-label" data-i18n="needsWork">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : 'success'}">${weak}</div></div>
-      <div class="stat-card"><div class="stat-label" data-i18n="topicsStudied">${t('topicsStudied')}</div><div class="stat-value accent">${masteries.length}</div></div>`;
+      <div class="stat-card"><div class="stat-label" data-i18n="overallMastery">${t('overallMastery')}</div><div class="stat-value ${masteries.length ? masteryClass(avg) : ''}">${Math.round(avg * 100)}%</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="strongTopics">${t('strongTopics')}</div><div class="stat-value ${strong > 0 ? 'success' : ''}">${strong}</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="needsWork">${t('needsWork')}</div><div class="stat-value ${weak > 0 ? 'danger' : ''}">${weak}</div></div>
+      <div class="stat-card"><div class="stat-label" data-i18n="topicsStudied">${t('topicsStudied')}</div><div class="stat-value">${masteries.length}</div></div>`;
   }
 
   const chapterEl = document.getElementById('student-current-chapter');
@@ -11806,6 +11805,95 @@ function stableStudyOptionOrder(options, seed) {
   return [...options].sort((a, b) => hash(`${seed}|${a}`) - hash(`${seed}|${b}`));
 }
 
+// ── Lesson navigation helpers ───────────────────────────────────────────────
+// The lesson outline and the unit list are the two things a reader needs to
+// jump around a long lesson. Both are one tap from the sticky bar, and both
+// are ordinary DOM that closes on Escape and on outside tap.
+
+function toggleStudyPageMenu(forceClose) {
+  const menu = document.getElementById('study-page-menu');
+  if (!menu) return;
+  const trigger = document.querySelector('.lessonbar__title');
+  const open = forceClose === true ? false : menu.hasAttribute('hidden');
+  if (open) {
+    menu.removeAttribute('hidden');
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    const current = menu.querySelector('.is-current');
+    if (current) current.scrollIntoView({ block: 'nearest' });
+  } else {
+    menu.setAttribute('hidden', '');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  }
+}
+
+// The unit/topic list used to be rendered inline above every lesson page, so
+// it cost ~130px of scrolling on each of them. On phones it becomes a sheet;
+// on desktop the sidebar is still there and this is never called.
+function openStudyUnitsSheet() {
+  const toc = document.querySelector('#s-ai-book-toc, #ai-book-toc');
+  if (!toc) return;
+  let sheet = document.getElementById('study-units-sheet');
+  if (!sheet) {
+    sheet = document.createElement('div');
+    sheet.id = 'study-units-sheet';
+    sheet.className = 'modal units-sheet';
+    sheet.innerHTML = `
+      <div class="modal-content units-sheet__panel" role="dialog" aria-modal="true" aria-label="${currentLang === 'tr' ? 'Üniteler' : 'Units'}">
+        <button class="modal-close" onclick="closeStudyUnitsSheet()" aria-label="${currentLang === 'tr' ? 'Kapat' : 'Close'}">&times;</button>
+        <h2 class="units-sheet__title">${currentLang === 'tr' ? 'Üniteler' : 'Units'}</h2>
+        <div class="units-sheet__body"></div>
+        <div class="units-sheet__actions"></div>
+      </div>`;
+    document.body.appendChild(sheet);
+    sheet.addEventListener('click', (e) => { if (e.target === sheet) closeStudyUnitsSheet(); });
+  }
+  // Mirror the live table of contents, and close the sheet when one is chosen.
+  const body = sheet.querySelector('.units-sheet__body');
+  body.innerHTML = toc.innerHTML;
+  body.querySelectorAll('[onclick]').forEach(btn => {
+    const inner = btn.getAttribute('onclick');
+    btn.setAttribute('onclick', 'closeStudyUnitsSheet(); ' + inner);
+  });
+  // Course-level actions live here on phones, where the reader's page header
+  // (which carried them) is replaced by the lesson bar. Nothing is lost: the
+  // buttons are mirrored from the live header, so they stay in one place in
+  // the markup and keep working on desktop.
+  const actions = sheet.querySelector('.units-sheet__actions');
+  actions.innerHTML = '';
+  const exportBtn = document.querySelector('#s-export-pdf-btn, #export-pdf-btn, [onclick*="downloadCourseMaterialPDF"]');
+  if (exportBtn) {
+    const clone = exportBtn.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.className = 'btn btn-outline btn-full';
+    clone.addEventListener('click', () => closeStudyUnitsSheet());
+    actions.appendChild(clone);
+  }
+
+  sheet.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeStudyUnitsSheet() {
+  const sheet = document.getElementById('study-units-sheet');
+  if (sheet) sheet.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const sheet = document.getElementById('study-units-sheet');
+  if (sheet && !sheet.classList.contains('hidden')) { closeStudyUnitsSheet(); return; }
+  const menu = document.getElementById('study-page-menu');
+  if (menu && !menu.hasAttribute('hidden')) toggleStudyPageMenu(true);
+});
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('study-page-menu');
+  if (!menu || menu.hasAttribute('hidden')) return;
+  if (e.target.closest('.lessonbar__title') || e.target.closest('#study-page-menu')) return;
+  toggleStudyPageMenu(true);
+});
+
 function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   const isStudent = currentUser && currentUser.role === 'student';
   const contentId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
@@ -11883,7 +11971,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
               const sceneLabel = currentLang === 'tr' ? 'İletişimsel Bağlam ve Sahne' : 'Communicative Scenario & Setting';
               html += `
                 <div class="pedagogy-scene-banner">
-                  <div style="font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.7px; color:var(--accent); display:flex; align-items:center; gap:6px;">
+                  <div class="pedagogy-scene-label">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                     <span>${sceneLabel}</span>
                   </div>
@@ -12016,7 +12104,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         </div>
                         <div class="foreign-word" role="button" tabindex="0" style="font-style:italic; font-size:16px; font-weight:600; line-height:1.55; color:var(--text-primary); cursor:pointer; display:inline;">&ldquo;${fixDiacritics(rEx)}&rdquo;</div>
                         ${resolvedTrans ? `<div style="font-size:13.5px; color:var(--text-secondary); margin-top:5px; line-height:1.45;">${fixDiacritics(resolvedTrans)}</div>` : ''}
-                        ${rAnalysis ? `<div style="font-size:12px; color:var(--accent-light); margin-top:6px; padding-top:6px; border-top:1px dashed var(--border); line-height:1.4;"><strong style="text-transform:uppercase; font-size:10px; letter-spacing:0.5px;">${currentLang === 'tr' ? 'Dilbilgisi Analizi' : 'Structural Breakdown'}:</strong> ${fixDiacritics(rAnalysis)}</div>` : ''}
+                        ${rAnalysis ? `<div class="pedagogy-analysis"><strong class="pedagogy-analysis__label">${currentLang === 'tr' ? 'Dilbilgisi Analizi' : 'Structural Breakdown'}:</strong> ${fixDiacritics(rAnalysis)}</div>` : ''}
                       </div>
                     ` : ''}
                   </div>
@@ -12356,7 +12444,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                               </div>
                             </div>
                             ${exampleWord ? `
-                              <div class="vocab-pedagogy-section" style="border-left-color: #a5b4fc;">
+                              <div class="vocab-pedagogy-section">
                                 <div style="font-size:13px; color:var(--text-secondary);">${currentLang === 'tr' ? 'Örnek Sözcük' : 'Example Word'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.85;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>
                               </div>` : ''}
                           </div>`;
@@ -12570,7 +12658,7 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                         </div>
                         <div class="alphabet-pronunciation-block" style="text-align:right;">
                           ${letterName ? `<div class="letter-name" style="font-style:italic; font-size:15px; font-weight:600; color:var(--accent-light);">${fixDiacritics(letterName)}</div>` : ''}
-                          ${phoneticGuide ? `<div class="phonetic-badge" style="display:inline-block; margin-top:3px; padding:2px 8px; border-radius:6px; background:rgba(99,102,241,0.15); color:#a5b4fc; font-family:monospace; font-size:12px; font-weight:600; letter-spacing:0.3px;">${fixDiacritics(phoneticGuide)}</div>` : ''}
+                          ${phoneticGuide ? `<div class="phonetic-badge">${fixDiacritics(phoneticGuide)}</div>` : ''}
                           ${exampleWord ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">${currentLang === 'tr' ? 'Örnek' : 'Example'}: <span style="color:var(--text-primary); font-weight:600;">${fixDiacritics(exampleWord)}</span>${exampleTrans ? ` <span style="opacity:0.8;">(${fixDiacritics(exampleTrans)})</span>` : ''}</div>` : ''}
                         </div>
                       </div>`;
@@ -12615,30 +12703,53 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
                     // Part of speech / grammatical category badge if available
                     const posBadge = safeStr(it.pos || it.part_of_speech || it.type || it.category || '').trim();
 
-                    html += `<div class="study-vocab-card">
-                        <div class="vocab-card-header">
-                          <div class="vocab-term-wrapper">
-                            <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
-                            <div class="vocab-term-text"><div dir="auto" class="foreign-word" role="button" tabindex="0" style="cursor:pointer; display:inline;">${fixDiacritics(kStr)}</div></div>
-                          </div>
-                          <div class="vocab-header-actions">
-                            ${posBadge ? `<span class="vocab-pos-badge">${esc(posBadge)}</span>` : ''}
-                            <span class="vocab-meaning-pill">${fixDiacritics(safeStr(v))}</span>
+                    // A vocabulary entry is a compact record, not a stack of three
+                    // nested boxes. The scanning layer — term, transcription,
+                    // meaning — is always visible and wraps freely, so a long
+                    // German compound or an Arabic term with harakat can take the
+                    // width it needs instead of shoving a nowrap meaning pill 25 to
+                    // 101px off the right edge of the phone, which is what used to
+                    // happen. The teaching layer — note, example, translation —
+                    // is one tap away in a native <details>, so it is still in the
+                    // DOM for search and assistive tech but no longer costs every
+                    // reader ~120px of scrolling per word.
+                    const vocabPhonetic = safeStr(it.phonetic || it.ipa || it.pronunciation ||
+                                                 (currentLang === 'tr' ? it.phonetic_tr : it.phonetic_en) || '');
+                    const vocabNote = briefExpl
+                      ? fixDiacritics((currentLang === 'tr')
+                          ? humanizeTurkishExplanation(safeStr(briefExpl))
+                          : sanitizeEnglishExplanation(safeStr(briefExpl), _alphabetToken || kStr))
+                      : '';
+                    const detailLabel = currentLang === 'tr' ? 'Örnek ve not' : 'Example & note';
+                    const hasDetail = !!(vocabNote || exampleTarget);
+
+                    html += `<div class="vocab-row">
+                        <div class="vocab-row__main">
+                          <button class="tts-btn vocab-row__audio" onclick="handleTTSClick(this, ${escJS(kStr)}, null, event)" title="Listen" aria-label="Listen">${TTS_SVG_IDLE}</button>
+                          <div class="vocab-row__text">
+                            <div dir="auto" class="foreign-word vocab-row__term" role="button" tabindex="0">${fixDiacritics(kStr)}</div>
+                            <div class="vocab-row__gloss">
+                              ${vocabPhonetic ? `<span class="vocab-row__ipa" dir="ltr">${fixDiacritics(vocabPhonetic)}</span>` : ''}
+                              <span class="vocab-row__meaning">${fixDiacritics(safeStr(v))}</span>
+                              ${posBadge ? `<span class="vocab-pos-badge">${esc(posBadge)}</span>` : ''}
+                            </div>
                           </div>
                         </div>
-                        ${briefExpl ? `
-                          <div class="vocab-pedagogy-section">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                            <div class="vocab-pedagogy-text">${fixDiacritics((currentLang === 'tr') ? humanizeTurkishExplanation(safeStr(briefExpl)) : sanitizeEnglishExplanation(safeStr(briefExpl), _alphabetToken || kStr))}</div>
-                          </div>` : ''}
-                        ${exampleTarget ? `
-                          <div class="vocab-example-card">
-                            <div class="vocab-example-target-row">
-                              <div class="foreign-word vocab-example-target" role="button" tabindex="0">&ldquo;${fixDiacritics(safeStr(exampleTarget))}&rdquo;</div>
-                              <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(exampleTarget)}, null, event)" title="Listen">${TTS_SVG_IDLE}</button>
-                            </div>
-                            ${exampleTrans ? `<div class="vocab-example-trans">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
-                          </div>` : ''}
+                        ${hasDetail ? `
+                        <details class="disclose vocab-row__detail">
+                          <summary>${detailLabel}</summary>
+                          <div class="disclose__body">
+                            ${vocabNote ? `<p class="vocab-row__note">${vocabNote}</p>` : ''}
+                            ${exampleTarget ? `
+                              <div class="example-block">
+                                <div class="example-block__row">
+                                  <div class="foreign-word example-block__target" dir="auto" role="button" tabindex="0">${fixDiacritics(safeStr(exampleTarget))}</div>
+                                  <button class="tts-btn" onclick="handleTTSClick(this, ${escJS(exampleTarget)}, null, event)" title="Listen" aria-label="Listen">${TTS_SVG_IDLE}</button>
+                                </div>
+                                ${exampleTrans ? `<div class="example-block__trans">${fixDiacritics(safeStr(exampleTrans))}</div>` : ''}
+                              </div>` : ''}
+                          </div>
+                        </details>` : ''}
                       </div>`;
                   }
                 }
@@ -12736,40 +12847,66 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   }
   const lvlMeta = CEFR_LEVEL_METAS[lvlKey] || CEFR_LEVEL_METAS['A1'];
 
+  // The lesson bar. Everything needed to know where you are and to move on is
+  // in one 44px sticky strip: the page menu (which doubles as the lesson
+  // outline), the position, and prev/next. It replaces a five-layer header
+  // stack — page title, stale subtitle, export button, inline unit navigator,
+  // breadcrumb, page heading, CEFR blurb — that cost roughly 440px of scrolled
+  // chrome before the first line of the lesson on every single page, and it
+  // fixes the fact that "next page" used to render 81-147px off the right edge
+  // of a phone with the only other page control parked at the very bottom of a
+  // 2,500px scroll.
+  const pageMenuId = 'study-page-menu';
+  const navBtn = (idx, label, cls, aria) => idx === null
+    ? `<button class="btn btn-ghost btn-icon lessonbar__step" disabled aria-hidden="true">${label}</button>`
+    : `<button class="btn btn-ghost btn-icon lessonbar__step" onclick="showStudyTopic('${topicId}', ${idx})" aria-label="${aria}">${label}</button>`;
+
   container.innerHTML = `
     <div class="study-topic-wrapper">
-      <div class="study-topic-header">
-        <div>
-          <div class="study-breadcrumb-pill">
-            <span class="cefr-level-badge" style="background:${lvlMeta.color}22; color:${lvlMeta.color}; border:1px solid ${lvlMeta.color}55;">${currentLang === 'tr' ? lvlMeta.name_tr : lvlMeta.name}</span>
-            <span class="study-badge-divider">•</span>
-            <span class="study-badge-tag">${esc(headerTopicTitle)}</span>
-            <span class="study-badge-divider">•</span>
-            <span class="study-badge-page"><span data-i18n="page">${currentLang === 'tr' ? 'SAYFA' : 'PAGE'}</span> ${pageIdx + 1}/${pages.length}</span>
-          </div>
-          <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
-          <div class="cefr-level-subtitle">${currentLang === 'tr' ? lvlMeta.focus_tr : lvlMeta.focus}</div>
+      <nav class="lessonbar" aria-label="${currentLang === 'tr' ? 'Ders gezinmesi' : 'Lesson navigation'}">
+        <button class="lessonbar__units btn btn-ghost btn-icon" onclick="openStudyUnitsSheet()"
+                aria-label="${currentLang === 'tr' ? 'Üniteler' : 'Units'}" title="${currentLang === 'tr' ? 'Üniteler' : 'Üniteler'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button class="lessonbar__title" onclick="toggleStudyPageMenu()" aria-expanded="false" aria-controls="${pageMenuId}">
+          <span class="lessonbar__name">${page.icon ? page.icon + ' ' : ''}${page.title}</span>
+          <span class="lessonbar__count">${pageIdx + 1}/${pages.length}</span>
+          <svg class="lessonbar__caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="lessonbar__steps">
+          ${navBtn(pageIdx > 0 ? pageIdx - 1 : null, '&#8249;', '', currentLang === 'tr' ? 'Önceki sayfa' : 'Previous page')}
+          ${navBtn(pageIdx < pages.length - 1 ? pageIdx + 1 : null, '&#8250;', '', currentLang === 'tr' ? 'Sonraki sayfa' : 'Next page')}
         </div>
-        <div style="display:flex; gap:10px; flex-shrink:0; align-items:center;">
-          ${pageIdx > 0 ? `<button class="btn btn-outline btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">← ${t('study.back')}</button>` : ''}
-          ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary btn-sm" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} →</button>` : ''}
+        <div class="lessonbar__progress" role="progressbar" aria-valuenow="${pageIdx + 1}" aria-valuemin="1" aria-valuemax="${pages.length}">
+          <span style="width:${Math.round(((pageIdx + 1) / pages.length) * 100)}%"></span>
         </div>
+      </nav>
+
+      <!-- The outline: every page of this lesson, reachable in one tap. -->
+      <div id="${pageMenuId}" class="lessonmenu" hidden>
+        ${pages.map((pg, i) => `
+          <button type="button" class="lessonmenu__item ${i === pageIdx ? 'is-current' : ''}"
+                  onclick="toggleStudyPageMenu(true); showStudyTopic('${topicId}', ${i})"
+                  ${i === pageIdx ? 'aria-current="page"' : ''}>
+            <span class="lessonmenu__num">${i + 1}</span>
+            <span class="lessonmenu__label">${esc(pg.title || ((t('page') || 'Page') + ' ' + (i + 1)))}</span>
+          </button>`).join('')}
       </div>
+
+      <div class="study-meta meta-chips">
+        <span class="meta-chip"><span class="cefr-level-badge" style="background:${lvlMeta.color}22; color:${lvlMeta.color}; border:1px solid ${lvlMeta.color}55;">${currentLang === 'tr' ? lvlMeta.name_tr : lvlMeta.name}</span></span>
+        <span class="meta-chip">${esc(headerTopicTitle)}</span>
+      </div>
+
+      <h1 class="study-page-heading">${page.icon ? page.icon + ' ' : ''}${page.title}</h1>
+
       <div class="study-card">
         ${pageContentHtml}
       </div>
-      <div class="study-pills-footer">
-        ${pages.map((p, i) => `
-          <button 
-            type="button"
-            class="study-pill-btn"
-            onclick="showStudyTopic('${topicId}', ${i})"
-            title="${esc(p.title || ((t('page') || 'Page') + ' ' + (i + 1)))}"
-            aria-label="Go to page ${i + 1}"
-          >
-            <span class="study-pill ${i === pageIdx ? 'active' : ''}"></span>
-          </button>
-        `).join('')}
+
+      <div class="study-footer-nav">
+        ${pageIdx > 0 ? `<button class="btn btn-outline" onclick="showStudyTopic('${topicId}', ${pageIdx - 1})">&#8249; ${t('study.back')}</button>` : '<span></span>'}
+        ${pageIdx < pages.length - 1 ? `<button class="btn btn-primary" onclick="showStudyTopic('${topicId}', ${pageIdx + 1})">${t('study.next')} &#8250;</button>` : ''}
       </div>
     </div>
   `;
@@ -13505,7 +13642,7 @@ function renderDictContent(word, lang, res) {
           </div>
           <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
             <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px;
-              background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3);
+              background:var(--accent-soft); border:1px solid var(--accent-line);
               font-size:10px; font-weight:700; color:var(--accent-light); text-transform:uppercase; letter-spacing:0.8px;">
               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
               ${displayLang}
@@ -13535,14 +13672,14 @@ function renderDictContent(word, lang, res) {
       </div>
 
       <!-- Pro-Tip -->
-      <div style="padding:10px 14px; border-radius:10px; background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.18); margin-bottom:16px;">
+      <div style="padding:10px 14px; border-radius:10px; background:var(--accent-glow); border:1px solid var(--accent-line); margin-bottom:16px;">
         <span style="font-size:9px; font-weight:800; color:var(--accent-light); text-transform:uppercase; letter-spacing:1px;">${isTr ? '💡 İpucu' : '💡 Pro-Tip'}</span>
         <div style="font-size:12px; color:rgba(255,255,255,0.55); line-height:1.5; margin-top:4px;">${tip}</div>
       </div>
 
       <!-- Footer -->
       <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.06);">
-        <button class="btn btn-ghost btn-sm" style="font-size:10px; padding:5px 11px; border-radius:var(--radius-sm); background:var(--accent-glow); border:1px solid rgba(99,102,241,0.3); color:var(--accent); cursor:pointer; font-weight:700; letter-spacing:0.3px;" onclick="askAiAboutWord()">
+        <button class="btn btn-ghost btn-sm" style="font-size:10px; padding:5px 11px; border-radius:var(--radius-sm); background:var(--accent-glow); border:1px solid var(--accent-line); color:var(--accent); cursor:pointer; font-weight:700; letter-spacing:0.3px;" onclick="askAiAboutWord()">
           ${isTr ? '✦ Asistan ile Açıkla' : '✦ Explain with Assistant'}
         </button>
         <span style="font-size:9px; color:var(--text-muted); cursor:pointer; font-weight:700; text-transform:uppercase; letter-spacing:1px;" onclick="closeDict()">${isTr ? 'Kapat' : 'Dismiss'}</span>

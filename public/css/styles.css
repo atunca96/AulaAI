@@ -2252,6 +2252,19 @@ body:has(#student-dashboard.active) .floating-actions {
    stacked records get their own spacing on phones. */
 .table-wrap { padding: 0; }
 .table-wrap > .data-table { margin: 0; }
+
+/* Between the stacked-record breakpoint and the width where six columns
+   genuinely fit, the table scrolls on purpose rather than being clipped by its
+   card — at tablet width the action buttons were being cut off 166px past the
+   card's edge with no way to reach them. */
+@media (min-width: 601px) {
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .table-wrap > .data-table { min-width: 44rem; }
+}
 @media (max-width: 600px) {
   .table-wrap { padding: var(--space-5); }
 }
@@ -2288,6 +2301,11 @@ body:has(#student-dashboard.active) .floating-actions {
 }
 @media (max-width: 600px) {
   .danger-zone { flex-direction: column; align-items: stretch; }
+  /* flex-basis follows the main axis, so the 24rem basis that gives the text
+     a sensible minimum WIDTH in a row became a 384px minimum HEIGHT once the
+     container turned into a column — 384px of blank space under every
+     lecturer overview. */
+  .danger-zone__text { flex: 0 0 auto; }
   .danger-zone .btn { width: 100%; }
 }
 
@@ -4230,3 +4248,553 @@ select.text-input option,
 .form-row .form-group > input,
 .form-row .form-group > select,
 .form-row .form-group > textarea { max-width: none; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MATERIAL READER — mobile density and navigation
+   ----------------------------------------------------------------------------
+   Measured on real generated lessons at 320-414px, the reader spent roughly
+   440px — over half a phone viewport — on chrome before the first line of the
+   lesson: a page title, a stale subtitle, an export button, an inline unit
+   navigator, a breadcrumb, a page heading and a CEFR blurb, repeated on every
+   page. The only "next page" control rendered 81-147px off the right edge, and
+   the only other page control was a row of dots at the bottom of a 2,500px
+   scroll. This section replaces that with one sticky bar and a set of compact,
+   script-safe content blocks.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Lesson bar ───────────────────────────────────────── */
+.lessonbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-5);
+  background: var(--surface-nav);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.lessonbar__units { flex-shrink: 0; color: var(--text-secondary); }
+.lessonbar__units svg { width: var(--icon-lg); height: var(--icon-lg); }
+
+/* The title doubles as the lesson outline trigger, so the one wide target in
+   the bar is also the jump menu. */
+.lessonbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: max(var(--control-md), var(--tap-min));
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-snug);
+  cursor: pointer;
+  text-align: start;
+}
+.lessonbar__title:hover { background: var(--fill-hover); }
+.lessonbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lessonbar__count {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  margin-inline-start: auto;
+}
+.lessonbar__caret { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-muted); }
+
+.lessonbar__steps { display: flex; gap: var(--space-1); flex-shrink: 0; }
+.lessonbar__step {
+  font-size: var(--fs-2xl);
+  line-height: 1;
+  color: var(--text-secondary);
+  padding-bottom: 3px;
+}
+.lessonbar__step:disabled { opacity: 0.25; }
+
+/* Reading progress through the lesson, as a hairline rather than a widget. */
+.lessonbar__progress {
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--line-subtle);
+}
+.lessonbar__progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--transition);
+}
+
+/* ── Lesson outline ───────────────────────────────────── */
+.lessonmenu {
+  position: sticky;
+  top: 48px;
+  z-index: var(--z-sticky);
+  max-height: min(58vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-bottom: var(--space-5);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.lessonmenu[hidden] { display: none; }
+.lessonmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  min-height: max(var(--control-lg), var(--tap-min));
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-base);
+  text-align: start;
+  cursor: pointer;
+}
+.lessonmenu__item:hover { background: var(--fill-hover); color: var(--text-primary); }
+.lessonmenu__item.is-current { background: var(--accent-glow); color: var(--text-primary); font-weight: var(--fw-semibold); }
+[data-theme="light"] .lessonmenu__item.is-current { color: var(--accent); }
+.lessonmenu__num {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--fill-subtle);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.lessonmenu__item.is-current .lessonmenu__num { background: var(--accent); color: var(--accent-contrast); }
+.lessonmenu__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Units sheet ──────────────────────────────────────── */
+.units-sheet__panel { max-width: 520px; }
+.units-sheet__title { font-size: var(--fs-2xl); margin-bottom: var(--space-6); }
+.units-sheet__body .study-sidebar-toc,
+.units-sheet__body { max-height: none !important; padding: 0 !important; overflow: visible !important; }
+
+/* ── Lesson page furniture ────────────────────────────── */
+.study-meta { margin-bottom: var(--space-3); }
+.study-page-heading { margin-bottom: var(--space-6); }
+
+/* Footer nav mirrors the bar so a reader who has scrolled to the end does not
+   have to scroll back up. */
+.study-footer-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-top: var(--gap-section);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line-subtle);
+}
+
+/* ── Vocabulary rows ──────────────────────────────────── */
+.vocab-row {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--pad-row);
+}
+.vocab-row + .vocab-row { margin-top: var(--gap-tight); }
+
+.vocab-row__main { display: flex; align-items: flex-start; gap: var(--space-4); min-width: 0; }
+.vocab-row__audio { flex-shrink: 0; margin-top: 1px; }
+.vocab-row__text { flex: 1 1 auto; min-width: 0; }
+
+/* The term takes whatever width it needs. A German compound, an Arabic string
+   with harakat and a four-character CJK run all wrap rather than clip. */
+.vocab-row__term {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  display: block;
+  cursor: pointer;
+  overflow-wrap: break-word;
+}
+
+/* Transcription and meaning share one wrapping line beneath the term. */
+.vocab-row__gloss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-2);
+  min-width: 0;
+}
+.vocab-row__ipa {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--accent-light);
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+[data-theme="light"] .vocab-row__ipa { color: var(--accent); }
+.vocab-row__meaning {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+  line-height: var(--lh-snug);
+  min-width: 0;
+}
+.vocab-row__detail { margin-top: var(--space-4); }
+.vocab-row__note {
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  line-height: var(--lh-normal);
+  margin-bottom: var(--space-4);
+}
+
+/* ── Example block ────────────────────────────────────────
+   One recessed well, not a bordered card inside a bordered card. The target
+   sentence and its translation are distinguished by weight, colour and a
+   leading accent rule rather than by another box. */
+.example-block {
+  background: var(--surface-3);
+  border-inline-start: 2px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: var(--space-4) var(--space-5);
+}
+.example-block__row { display: flex; align-items: flex-start; gap: var(--space-4); }
+.example-block__target {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  cursor: pointer;
+  overflow-wrap: break-word;
+}
+.example-block__trans {
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+  margin-top: var(--space-3);
+}
+
+/* Phonetic badges everywhere in the reader share the notation treatment. */
+.phonetic-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--accent-light);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-4);
+  letter-spacing: var(--ls-normal);
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+[data-theme="light"] .phonetic-badge { color: var(--accent); }
+
+/* ── Reader chrome on phones ──────────────────────────────
+   Below the tablet breakpoint the lesson bar carries navigation, so the layers
+   that merely repeated it stand down. Nothing educational is hidden: what goes
+   is the tab title already shown in the nav, a subtitle that still said
+   "choose a topic" after a topic was chosen, the inline unit list now reachable
+   from the bar, and a generic CEFR blurb repeated on every page of every
+   lesson. Together they were ~300px of the ~440px of pre-content chrome. */
+@media (max-width: 1024px) {
+  /* The unit navigator becomes a sheet, opened from the lesson bar. */
+  #s-ai-book-container .study-sidebar,
+  #ai-book-container .study-sidebar { display: none; }
+
+  /* Page title + stale subtitle + export button above the reader. Export
+     stays available from the units sheet and on desktop. */
+  #tab-s-study-tab > .page-header,
+  #tab-study-materials > .page-header { display: none; }
+
+  /* Boilerplate repeated on every lesson page. */
+  .cefr-level-subtitle { display: none; }
+
+  .study-content-panel,
+  .study-container > div:last-child { padding: 0 !important; }
+
+  .study-card {
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .study-topic-wrapper { padding: 0; }
+
+  /* The reader's own bar is the page chrome, so it sits directly beneath the
+     nav rather than below a band of page padding. */
+  .dashboard-content:has(#tab-s-study-tab.active),
+  .dashboard-content:has(#tab-study-materials.active) {
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
+  }
+
+  /* The page name is in the sticky bar at all times; repeating it as a heading
+     that scrolls away is duplication. The <h1> stays in the document so the
+     heading outline and screen readers are unaffected — only its pixels go. */
+  .study-page-heading {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The dot row at the foot of the page is redundant once the bar and the
+     footer buttons exist, and it was the only page control for readers who
+     scrolled to the end. */
+  .study-pills-footer { display: none; }
+
+  /* Rule and contrast blocks: one surface each, not a card inside a card. */
+  .pedagogy-rule-card { padding: var(--space-6); }
+  .pedagogy-rule-example-box {
+    background: var(--surface-3);
+    border: none;
+    border-inline-start: 2px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: var(--space-4) var(--space-5);
+  }
+  .pedagogy-guide-block { padding: var(--space-5) var(--space-6); }
+  .pedagogy-rule-item { padding: var(--space-4) 0; background: transparent; }
+  .pedagogy-contrast-card { padding: var(--space-5) var(--space-6); }
+  .pedagogy-pitfall-card { padding: var(--space-5) var(--space-6); }
+  .pedagogy-scene-banner { padding: var(--space-5) var(--space-6); }
+}
+
+/* On a phone the reader is the whole screen: the page itself scrolls, so every
+   ancestor between the lesson bar and the root must be non-scrolling. The
+   desktop layout nests the reader inside its own scroll panes, which made the
+   bar stick to an inner scrollport and sit 56px below where it belonged,
+   overlapping the lesson heading underneath it. Plain block flow here also
+   avoids the flex sizing that the desktop two-pane layout needs and the phone
+   does not. */
+@media (max-width: 1024px) {
+  .study-container,
+  .study-content-panel,
+  .study-content-area,
+  .study-topic-wrapper,
+  #s-ai-book-content-area,
+  #ai-book-content-area {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .lessonbar { top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px)); }
+  .lessonmenu { top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + 48px); }
+}
+
+/* Assessment options are the most-tapped controls in the product. */
+.study-card .options-grid { display: grid; gap: var(--space-4); }
+.study-card .options-grid .btn {
+  min-height: max(var(--control-xl), var(--tap-min));
+  justify-content: flex-start;
+  text-align: start;
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+  padding: var(--space-5) var(--space-6);
+  white-space: normal;
+  height: auto;
+}
+.units-sheet__actions { margin-top: var(--space-7); padding-top: var(--space-6); border-top: 1px solid var(--line-subtle); }
+.units-sheet__actions:empty { display: none; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   DASHBOARD DENSITY ON PHONES
+   ----------------------------------------------------------------------------
+   Measured at 390px, the lecturer overview was 1,551px — 1.8 screens — to show
+   four numbers and two "nothing here yet" states. The height was not going to
+   content: a 129px card per number, a 171px empty state per card, and a page
+   header repeating what the screen already said. None of this is fixed by
+   smaller type; it is fixed by tighter containers and less repetition.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) {
+  /* Page header: one line of title, one of context, and the actions beside
+     them rather than below. */
+  .page-header { margin-bottom: var(--space-6); row-gap: var(--space-2); }
+  .page-header h1 { font-size: var(--fs-2xl); line-height: var(--lh-tight); }
+  .page-header .subtitle { font-size: var(--fs-sm); margin-top: 0; }
+
+  .stat-card { padding: var(--space-5) var(--space-6); }
+  .stat-label { font-size: var(--fs-2xs); }
+  .stat-value { font-size: var(--fs-3xl); margin-top: var(--space-2); }
+  .stats-grid { gap: var(--space-4); margin-bottom: var(--space-7); }
+
+  /* An empty state inside a card should fill the card, not set its height. */
+  .card-body > .empty-state-sm:only-child { padding: var(--space-7) var(--space-5); }
+  .empty-state-sm .empty-state__mark { width: 28px; height: 28px; }
+
+  .grid-2col { gap: var(--space-5); }
+  .danger-zone { margin-top: var(--gap-section); }
+}
+
+/* At phone widths the metric row goes three-up: a label and a number need far
+   less width than a sentence, and three short columns beat two tall rows. */
+@media (max-width: 600px) {
+  /* Two columns, not three: with four metrics both give two rows, but the
+     wider column stops labels like "Eksiğim Olan Konular" breaking across
+     three lines, so the row is shorter as well as more legible. */
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr)); }
+  .stat-card { padding: var(--space-5); }
+  .stat-value { font-size: var(--fs-2xl); }
+
+  /* A metric is a label and a number. The sentence underneath explains the
+     metric, which is worth its height on a tablet and is the first thing to go
+     when four of them share a phone screen — the label already names the
+     metric, and the sentence stays in the DOM for screen readers. */
+  .stat-sub {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* ── Classroom card ───────────────────────────────────────
+   Was 269px on a phone: a language label row, a name, a semester line, a
+   dashed full-width box holding one five-digit code, and a footer button,
+   each separated by its own margin. The code is metadata, so it joins the
+   semester on one chip line and the card loses about a third of its height
+   without losing a single fact. */
+.classroom-card { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+.classroom-card.is-pending { opacity: 0.65; }
+.classroom-card__building {
+  position: absolute; inset-inline: 0; top: 0; height: 2px;
+  background: var(--gradient-2);
+  animation: slide 2s linear infinite;
+}
+.classroom-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.classroom-card__lang {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  min-width: 0;
+}
+.classroom-card__delete { color: var(--danger); flex-shrink: 0; }
+.classroom-card__name {
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  margin-bottom: var(--space-3);
+}
+.classroom-card__meta { margin-bottom: var(--space-5); }
+.classroom-card__code {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+  letter-spacing: var(--ls-wide);
+}
+
+@media (max-width: 1024px) {
+  .classroom-card .card-body { padding: var(--space-6); }
+  .classroom-card__name { font-size: var(--fs-lg); }
+}
+
+/* ── Picker header ────────────────────────────────────────
+   Title, supporting line and two actions in as few rows as the width allows. */
+@media (max-width: 600px) {
+  .picker__header { padding-bottom: var(--space-5); }
+  .picker__admin { margin-top: var(--gap-section); }
+}
+
+/* ── Minimum legible size ────────────────────────────────
+   Density must not come out of type size. A handful of labels had drifted to
+   10 and 10.5px — below anything readable on a phone, and below the 11px floor
+   the rest of the scale already respects. These are raised to the bottom of
+   the scale rather than being allowed to keep their own ad-hoc values. */
+.pedagogy-rule-example-label,
+.pedagogy-rule-card strong,
+.pedagogy-guide-badge,
+.pedagogy-formula-badge,
+.pedagogy-contrast-tag,
+.vocab-pos-badge,
+.study-badge-page,
+.chat-time,
+.classroom-status {
+  font-size: var(--fs-2xs);
+}
+
+/* Lesson prose keeps a comfortable reading size and leading on phones: the
+   density in this pass comes from structure, never from shrinking the text a
+   student actually has to read. */
+@media (max-width: 1024px) {
+  .pedagogy-rule-explanation,
+  .pedagogy-rule-content,
+  .pedagogy-single-note,
+  .pedagogy-pitfall-body,
+  .pedagogy-contrast-note,
+  .vocab-row__note,
+  .vocab-pedagogy-text {
+    font-size: var(--fs-md);
+    line-height: var(--lh-normal);
+  }
+  .pedagogy-rule-title { font-size: var(--fs-lg); line-height: var(--lh-snug); }
+}
+
+.pedagogy-scene-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--accent);
+}
+.pedagogy-analysis {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: var(--lh-snug);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--line);
+}
+.pedagogy-analysis__label {
+  text-transform: uppercase;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--ls-caps);
+  color: var(--accent-light);
+}
+[data-theme="light"] .pedagogy-analysis__label { color: var(--accent); }
+
+/* Standalone tappable terms are controls, not prose, so they get a real target.
+   Target-language words INSIDE a sentence stay inline — WCAG 2.5.8 exempts
+   inline targets, and giving each word a 44px box would destroy the line. */
+.vocab-row__term,
+.dialogue-trans-toggle-btn {
+  min-height: max(var(--control-md), var(--tap-min));
+  display: flex;
+  align-items: center;
+}
+.dialogue-trans-toggle-btn { display: inline-flex; }
