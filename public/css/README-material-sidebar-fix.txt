@@ -1,0 +1,1 @@
+Desktop material sidebar fix is defined in material-sidebar-desktop-fix.css. It must be linked from index.html or folded into styles.css before release.
