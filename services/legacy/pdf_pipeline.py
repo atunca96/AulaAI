@@ -530,6 +530,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     except Exception as db_err:
                         _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
+        # ── PHASE 2a.5: PHONETIC COMPLETENESS ──
+        try:
+            _repair_missing_phonetics(course_id, language)
+        except Exception as phon_err:
+            _log(f"[PHONETIC-COMPLETE] repair skipped: {phon_err}")
+
         # ── PHASE 2b: UNIT ASSESSMENTS ──
         # Every unit closes with a ten-question assessment drawn from that unit
         # and nothing else. It runs here, after the unit's topics exist, because
@@ -565,6 +571,107 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
 
 
 
+def _repair_missing_phonetics(course_id, language):
+    """Fill blank table phonetics in one bounded batch; never overwrite existing IPA."""
+    with db_connection() as db:
+        rows = db.execute(
+            "SELECT id, content FROM topics WHERE chapter_id IN (SELECT id FROM chapters WHERE course_id = ?) "
+            "AND (type IS NULL OR type != ?)",
+            (course_id, UNIT_ASSESSMENT_TYPE),
+        ).fetchall()
+
+    parsed = []
+    missing = {}
+    examples = []
+
+    def scan(container):
+        if not isinstance(container, list):
+            return
+        for entry in container:
+            if not isinstance(entry, dict):
+                continue
+            term = str(entry.get("term") or entry.get("word") or entry.get("target") or "").strip()
+            phon = str(entry.get("phonetic") or "").strip()
+            if not term or not any(ch.isalpha() for ch in term):
+                continue
+            if phon:
+                if len(examples) < 16:
+                    examples.append((term, phon))
+            else:
+                missing.setdefault(term, []).append(entry)
+
+    for topic_id, raw in rows:
+        try:
+            content = json.loads(raw or "{}") if isinstance(raw, str) else (raw or {})
+        except Exception:
+            continue
+        if not isinstance(content, dict):
+            continue
+        parsed.append((topic_id, content))
+        for page in content.get("pages") or []:
+            if isinstance(page, dict):
+                for key in ("items", "vocabulary", "words"):
+                    scan(page.get(key))
+
+    if not missing:
+        _log("[PHONETIC-COMPLETE] no blank phonetic rows.")
+        return 0
+
+    terms = list(missing)[:160]
+    calibration = "\n".join(f"- {term}: {phon}" for term, phon in examples[:12]) or "(none)"
+    prompt = f"""Fill missing phonetic transcriptions for a {language} language course.
+Return ONLY valid JSON: {{"items":[{{"term":"EXACT INPUT TERM","phonetic":"[standard IPA]"}}]}}.
+Preserve each term exactly. Return one item per input term. `phonetic` must be pronunciation, never translation or a letter name. Match the IPA convention used in the class examples. If a term genuinely has no spoken pronunciation, return an empty string.
+Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".join(f"- {term}" for term in terms)
+    response = _call_ai(
+        [{"role": "user", "content": prompt}],
+        max_tokens=min(3600, 180 + 28 * len(terms)),
+        temperature=0.0,
+        json_mode=True,
+        allow_fallback=True,
+        cost_stage="phonetic_completion",
+        cost_subject=f"course {course_id}",
+    )
+    payload = response.get("items") if isinstance(response, dict) else response
+    if not isinstance(payload, list):
+        _log(f"[PHONETIC-COMPLETE] provider returned no usable mapping for {len(terms)} blank terms.")
+        return 0
+
+    allowed = set(terms)
+    mapping = {}
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        term = str(item.get("term") or "").strip()
+        phon = str(item.get("phonetic") or "").strip()
+        if term in allowed and phon and len(phon) <= 120:
+            mapping[term] = phon
+
+    filled = 0
+    for term, entries in missing.items():
+        phon = mapping.get(term)
+        if not phon:
+            continue
+        for entry in entries:
+            if not str(entry.get("phonetic") or "").strip():
+                entry["phonetic"] = phon
+                filled += 1
+
+    changed = 0
+    with db_connection() as db:
+        for topic_id, content in parsed:
+            row = db.execute("SELECT content FROM topics WHERE id = ?", (topic_id,)).fetchone()
+            serialized = json.dumps(content, ensure_ascii=False)
+            if row and row[0] != serialized:
+                db.execute("UPDATE topics SET content = ? WHERE id = ?", (serialized, topic_id))
+                changed += 1
+        db.commit()
+    _log(f"[PHONETIC-COMPLETE] filled {filled} blank row(s) across {changed} topic(s) in one batch call.")
+    if filled:
+        bump_version()
+    return filled
+
+
 UNIT_ASSESSMENT_TYPE = "unit_assessment"
 
 
@@ -583,7 +690,7 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
 
     with db_connection() as db:
         chapters = db.execute(
-            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
+            "SELECT id, title, title_tr, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
         ).fetchall()
         units = []
         for ch in chapters:
@@ -594,7 +701,7 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
             topics = [{"id": r[0], "title": r[1], "content": r[2]} for r in rows if r[2]]
             max_sort = max([r[3] or 0 for r in rows], default=0)
             if topics:
-                units.append({"chapter_id": ch[0], "title": ch[1], "number": ch[2],
+                units.append({"chapter_id": ch[0], "title": ch[1], "title_tr": ch[2] or ch[1], "number": ch[3],
                               "topics": topics, "next_sort": max_sort + 1})
 
     if not units:
@@ -623,8 +730,11 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
         if len(questions) != UNIT_ASSESSMENT_COUNT:
             _log(f"[UNIT-ASSESSMENT] '{unit['title']}' produced {len(questions)}; skipped.")
             continue
-        content = build_unit_assessment_content(unit["title"], questions, material_language)
-        title = unit_assessment_title(unit["title"], material_language)
+        content = build_unit_assessment_content(
+            unit["title"], questions, material_language, unit_title_tr=unit.get("title_tr")
+        )
+        title_en = unit_assessment_title(unit["title"], "en", unit_title_tr=unit.get("title_tr"))
+        title_tr = unit_assessment_title(unit["title"], "tr", unit_title_tr=unit.get("title_tr"))
         with db_connection() as db:
             existing = db.execute(
                 "SELECT id FROM topics WHERE chapter_id = ? AND type = ?",
@@ -632,24 +742,26 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
             ).fetchone()
             payload = json.dumps(content, ensure_ascii=False)
             if existing:
-                db.execute("UPDATE topics SET title = ?, content = ? WHERE id = ?",
-                           (title, payload, existing[0]))
+                db.execute("UPDATE topics SET title = ?, title_tr = ?, content = ? WHERE id = ?",
+                           (title_en, title_tr, payload, existing[0]))
             else:
                 db.execute(
-                    "INSERT INTO topics (id, chapter_id, type, title, content, sort_order) VALUES (?,?,?,?,?,?)",
-                    (_uid(), unit["chapter_id"], UNIT_ASSESSMENT_TYPE, title, payload, unit["next_sort"]),
+                    "INSERT INTO topics (id, chapter_id, type, title, title_tr, content, sort_order) VALUES (?,?,?,?,?,?,?)",
+                    (_uid(), unit["chapter_id"], UNIT_ASSESSMENT_TYPE, title_en, title_tr, payload, unit["next_sort"]),
                 )
             db.commit()
         _log(f"[UNIT-ASSESSMENT] '{unit['title']}' published {len(questions)} questions.")
     bump_version()
 
 
-def unit_assessment_title(unit_title, material_language="tr"):
-    label = "Ünite Değerlendirmesi" if str(material_language).casefold() == "tr" else "Unit Assessment"
-    return f"{label}: {unit_title}" if unit_title else label
+def unit_assessment_title(unit_title, material_language="tr", unit_title_tr=None):
+    is_tr = str(material_language).casefold() == "tr"
+    label = "Ünite Değerlendirmesi" if is_tr else "Unit Assessment"
+    chosen = (unit_title_tr or unit_title) if is_tr else unit_title
+    return f"{label}: {chosen}" if chosen else label
 
 
-def build_unit_assessment_content(unit_title, questions, material_language="tr"):
+def build_unit_assessment_content(unit_title, questions, material_language="tr", unit_title_tr=None):
     """Lesson-shaped pages for the stored assessment topic.
 
     `stem_scope: target_complete` is what tells the publication boundary that the
@@ -674,11 +786,15 @@ def build_unit_assessment_content(unit_title, questions, material_language="tr")
             "explanation_tr": q.get("why_tr", ""),
             "topic_id": q.get("topic_id"),
         })
-    heading = unit_assessment_title(unit_title, material_language)
-    intro = ("Bu ünitede öğrendiklerinizi değerlendirin." if is_tr
-             else "Check what you have learned in this unit.")
-    return {"pages": [{"type": "overview", "title": heading, "title_tr": heading,
-                       "text": intro, "text_tr": intro}] + pages}
+    heading_en = unit_assessment_title(unit_title, "en", unit_title_tr=unit_title_tr)
+    heading_tr = unit_assessment_title(unit_title, "tr", unit_title_tr=unit_title_tr)
+    return {"pages": [{
+        "type": "overview",
+        "title": heading_en,
+        "title_tr": heading_tr,
+        "text": "Check what you have learned in this unit.",
+        "text_tr": "Bu ünitede öğrendiklerinizi değerlendirin.",
+    }] + pages}
 
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="tr"):

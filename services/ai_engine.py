@@ -2082,6 +2082,57 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
         coverage_plan=coverage_plan_clause(plan),
     )
     if len(questions) < UNIT_ASSESSMENT_COUNT:
+        # `ai_generate_questions` can reach 10 before its publication boundary and
+        # lose one structurally invalid item afterwards. Complete the published set
+        # from already-published formative MCQs in THIS unit only. No provider call.
+        try:
+            from services.publication_invariants import apply_assessment_invariants
+            from services.assessment_validation import looks_like_translation_question
+            seen_prompts = {_normalize_token(q.get("prompt", "")) for q in questions if isinstance(q, dict)}
+            for t, content in zip(usable, contents):
+                if len(questions) >= UNIT_ASSESSMENT_COUNT:
+                    break
+                for page in (content.get("pages") or []):
+                    if len(questions) >= UNIT_ASSESSMENT_COUNT:
+                        break
+                    if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+                        continue
+                    prompt = str(page.get("prompt") or "").strip()
+                    answer = str(page.get("answer") or "").strip()
+                    if not prompt or not answer or looks_like_translation_question(prompt):
+                        continue
+                    prompt_key = _normalize_token(prompt)
+                    if not prompt_key or prompt_key in seen_prompts:
+                        continue
+                    options = list(page.get("options") or [])
+                    if not options:
+                        options = [answer] + list(page.get("distractors") or [])
+                    options = [str(o).strip() for o in options if str(o).strip()]
+                    if len(options) < 4 or answer not in options:
+                        continue
+                    candidate = {
+                        "id": _uid(),
+                        "type": "mcq",
+                        "stem_scope": "target_complete",
+                        "prompt": prompt,
+                        "answer": answer,
+                        "options": options[:4],
+                        "distractors": [o for o in options if _normalize_token(o) != _normalize_token(answer)][:3],
+                        "why": page.get("explanation") or "Correct choice based on the unit material.",
+                        "why_tr": page.get("explanation_tr") or "Ünite içeriğine göre doğru seçenek.",
+                        "topic_id": t.get("id"),
+                    }
+                    published = apply_assessment_invariants(
+                        [candidate], language=language, material_language=material_language
+                    )
+                    if published:
+                        questions.append(published[0])
+                        seen_prompts.add(prompt_key)
+        except Exception as recovery_exc:
+            with open("pipeline.log", "a", encoding="utf-8") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [UNIT-ASSESSMENT] deterministic completion failed: {recovery_exc}\n")
+
+    if len(questions) < UNIT_ASSESSMENT_COUNT:
         with open("pipeline.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [UNIT-ASSESSMENT] '{unit_title}' "
                     f"produced {len(questions)}/{UNIT_ASSESSMENT_COUNT}; not published.\n")
