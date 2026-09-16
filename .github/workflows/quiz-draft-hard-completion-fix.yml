@@ -1,0 +1,60 @@
+name: Quiz draft hard-completion fix
+
+on:
+  push:
+    branches:
+      - quiz-draft-hard-completion-fix
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.event.head_commit.message != 'Fix quiz draft sub-batch hard completion'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: quiz-draft-hard-completion-fix
+          fetch-depth: 0
+
+      - name: Patch only quiz draft pool sizing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('server.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''                    half = (requested_count + 1) // 2\n                    count_a = max(half + 6, 12)\n                    count_b = max((requested_count - half) + 6, 12)\n'''
+          new = '''                    half = (requested_count + 1) // 2\n                    # generate_quiz enforces hard completion for the count it receives.\n                    # These are candidate pools for a final quiz of requested_count, so\n                    # requiring 12 from each pool turns an otherwise usable 10/11-item\n                    # pool into [] before the outer selector can use it. Keep each pool\n                    # hard-complete at the actual final quiz size; the two concurrent\n                    # pools still provide over-generation for dedup/coverage selection.\n                    count_a = max(half + 4, requested_count)\n                    count_b = max((requested_count - half) + 4, requested_count)\n'''
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one quiz pool sizing block, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Focused validation
+        run: |
+          python -m py_compile server.py
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('server.py').read_text(encoding='utf-8')
+          assert 'count_a = max(half + 4, requested_count)' in s
+          assert 'count_b = max((requested_count - half) + 4, requested_count)' in s
+          assert 'count_a = max(half + 6, 12)' not in s
+          # Production default quiz asks for 10; each lower hard-complete pool must now ask for 10, not 12.
+          requested_count = 10
+          half = (requested_count + 1) // 2
+          count_a = max(half + 4, requested_count)
+          count_b = max((requested_count - half) + 4, requested_count)
+          assert (count_a, count_b) == (10, 10)
+          print('quiz draft pool sizing regression: PASS')
+          PY
+          python scripts/test_assessment_architecture.py
+
+      - name: Commit
+        run: |
+          git config user.name "AulaAI quiz fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add server.py
+          git diff --cached --check
+          git commit -m "Fix quiz draft sub-batch hard completion"
+          git push origin HEAD:quiz-draft-hard-completion-fix
