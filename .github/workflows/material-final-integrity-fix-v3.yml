@@ -95,6 +95,8 @@ jobs:
           assert src.index('post-fallback assessment invariants') < src.index('HARD COMPLETION INVARIANT')
           print('focused assertions: PASS')
           PY
+      - name: Install project dependencies for production-equivalent checks
+        run: pip install -q -r requirements.txt
       - name: Full production-equivalent pipeline
         run: python scripts/run_build_pipeline.py
       - name: Commit tested files
