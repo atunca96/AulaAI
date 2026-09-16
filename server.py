@@ -3819,8 +3819,14 @@ table.vt td { padding: 4px 6px; }
                 topup_calls = 0
                 if requested_count >= 8:
                     half = (requested_count + 1) // 2
-                    count_a = max(half + 6, 12)
-                    count_b = max((requested_count - half) + 6, 12)
+                    # generate_quiz enforces hard completion for the count it receives.
+                    # These are candidate pools for a final quiz of requested_count, so
+                    # requiring 12 from each pool turns an otherwise usable 10/11-item
+                    # pool into [] before the outer selector can use it. Keep each pool
+                    # hard-complete at the actual final quiz size; the two concurrent
+                    # pools still provide over-generation for dedup/coverage selection.
+                    count_a = max(half + 4, requested_count)
+                    count_b = max((requested_count - half) + 4, requested_count)
                     
                     topics_a = topic_ids
                     topics_b = topic_ids
