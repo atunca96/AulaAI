@@ -1,0 +1,90 @@
+name: Surgical material integrity fix v3
+
+on:
+  push:
+    branches:
+      - material-integrity-surgical-fix-v3
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.event.head_commit.message != 'Apply surgical material integrity fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: material-integrity-surgical-fix-v3
+          fetch-depth: 0
+
+      - name: Apply fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def r1(path, old, new, label):
+              p=Path(path); s=p.read_text(encoding='utf-8'); n=s.count(old)
+              if n!=1: raise SystemExit(f'{label}: expected 1, found {n}')
+              p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          r1('services/pdf_renderer_v12.py',
+             "                        localized = page.get('options_tr') if is_tr else page.get('options_en')\n                        options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options\n",
+             "                        if str(page.get('stem_scope') or '').casefold() == 'target_complete':\n                            localized = None\n                        else:\n                            localized = page.get('options_tr') if is_tr else page.get('options_en')\n                        options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options\n",
+             'target options')
+
+          r1('services/material_generation_prompt.py',
+             '      "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],\n',
+             '      "options_tr": [],\n', 'options_tr schema')
+          r1('services/material_generation_prompt.py',
+             'ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr` or `prompt_en` for an assessment item: there is no separate instruction to localize, and a gloss in the stem field is what the learner would be shown instead of the question. Mark each item `"stem_scope": "target_complete"`.\n',
+             'ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr`, `prompt_en`, `options_tr` or `options_en` for an assessment item: learner-facing assessment fields remain entirely in the taught language. Mark each item `"stem_scope": "target_complete"`.\n',
+             'assessment contract')
+          r1('services/material_generation_prompt.py',
+             'Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage;',
+             'Verify: canonical spelling/Unicode; factual phonology and standard IPA; every vocabulary/phonetics item with a pronounceable target form has a non-empty `phonetic` value; alphabet/writing-system rows keep letter names separate from actual sound/IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage;',
+             'phonetic completeness')
+
+          p=Path('services/ai_engine.py'); s=p.read_text(encoding='utf-8')
+          old='''    questions = ai_generate_questions(\n        topic_title=unit_title or "Unit Assessment",\n        topic_type="unit_assessment",\n        topic_content={"_preassembled_content_str": content_str},\n'''
+          new='''    fallback_pages = []\n    for content in contents:\n        for page in (content.get("pages") or []):\n            if isinstance(page, dict) and str(page.get("type") or "").casefold() == "mcq":\n                fallback_pages.append(page)\n\n    questions = ai_generate_questions(\n        topic_title=unit_title or "Unit Assessment",\n        topic_type="unit_assessment",\n        topic_content={"_preassembled_content_str": content_str, "pages": fallback_pages},\n'''
+          if s.count(old)!=1: raise SystemExit(f'unit fallback expected 1 found {s.count(old)}')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          p=Path('services/class_lexicon.py'); s=p.read_text(encoding='utf-8')
+          old='''    winners: Dict[str, str] = {}\n    for key, variants in counts.items():\n        if len(variants) < 2:\n            continue\n        ordered = sorted(variants.items(), key=lambda kv: kv[1], reverse=True)\n        if ordered[0][1] > ordered[1][1]:\n            winners[key] = ordered[0][0]\n'''
+          new='''    winners: Dict[str, str] = {}\n    for key, variants in counts.items():\n        if len(variants) == 1:\n            winners[key] = next(iter(variants))\n            continue\n        ordered = sorted(variants.items(), key=lambda kv: kv[1], reverse=True)\n        if ordered[0][1] > ordered[1][1]:\n            winners[key] = ordered[0][0]\n'''
+          if s.count(old)!=1: raise SystemExit('winner block mismatch')
+          s=s.replace(old,new,1)
+          old='''        if isinstance(node, dict):\n            term = node.get("term") or node.get("word") or node.get("target")\n            phonetic = node.get("phonetic")\n            if term and isinstance(phonetic, str) and phonetic.strip():\n                winner = winners.get(fold_term(term))\n                if winner and normalize_transcription(phonetic) != winner:\n                    node["phonetic"] = winner\n                    changed += 1\n'''
+          new='''        if isinstance(node, dict):\n            term = node.get("term") or node.get("word") or node.get("target")\n            phonetic = node.get("phonetic")\n            winner = winners.get(fold_term(term)) if term else None\n            if winner:\n                current = normalize_transcription(phonetic) if isinstance(phonetic, str) else ""\n                if not current or current != winner:\n                    node["phonetic"] = winner\n                    changed += 1\n'''
+          if s.count(old)!=1: raise SystemExit('blank fill block mismatch')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+
+      - name: Tests
+        run: |
+          python -m py_compile services/ai_engine.py services/class_lexicon.py services/material_generation_prompt.py services/pdf_renderer_v12.py
+          python scripts/test_assessment_architecture.py
+          python scripts/test_language_pair_and_contract.py
+          python scripts/test_publication_invariants.py
+          python scripts/test_canonical_material_prompt.py
+          python - <<'PY'
+          from services.class_lexicon import class_phonetic_winners, apply_phonetic_winners
+          lessons=[{"pages":[{"items":[{"term":"hola","phonetic":"[ˈola]"}]}]},{"pages":[{"items":[{"term":"hola","phonetic":""}]}]}]
+          w=class_phonetic_winners(lessons); assert w['hola']=='[ˈola]'; assert apply_phonetic_winners(lessons[1],w)==1
+          assert lessons[1]['pages'][0]['items'][0]['phonetic']=='[ˈola]'
+          p=open('services/material_generation_prompt.py',encoding='utf-8').read(); assert 'options_tr` or `options_en`' in p
+          r=open('services/pdf_renderer_v12.py',encoding='utf-8').read(); assert "stem_scope') or '').casefold() == 'target_complete'" in r
+          a=open('services/ai_engine.py',encoding='utf-8').read(); assert '"pages": fallback_pages' in a
+          print('focused assertions: PASS')
+          PY
+
+      - name: Commit
+        run: |
+          git config user.name "AulaAI surgical fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add services/ai_engine.py services/class_lexicon.py services/material_generation_prompt.py services/pdf_renderer_v12.py
+          git diff --cached --check
+          git commit -m "Apply surgical material integrity fixes"
+          git push origin HEAD:material-integrity-surgical-fix-v3
