@@ -441,6 +441,19 @@ h1, h2, h3, h4, h5, h6 {
 .field-hint { font-size: var(--fs-xs); color: var(--text-muted); line-height: var(--lh-snug); }
 .field-error { font-size: var(--fs-xs); color: var(--danger); line-height: var(--lh-snug); }
 
+/* A note attached to a control that states a product rule the person cannot
+   change — not an error, not a hint they can act on. It reads as information,
+   so it takes the accent rule rather than the danger colour. */
+.field-note {
+  margin: var(--space-4) 0 0;
+  padding-inline-start: var(--space-5);
+  border-inline-start: 2px solid var(--line-strong);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-secondary);
+}
+.field-note--locked { border-inline-start-color: var(--accent); }
+
 .input, .select, .textarea {
   width: 100%;
   min-height: max(var(--control-lg), var(--tap-min));
@@ -1006,6 +1019,126 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-secondary);
   line-height: var(--lh-snug);
   min-width: 0;
+}
+
+/* ── List rows ───────────────────────────────────────────────────────────────
+   The product's default way of showing many of something: one record per row,
+   inside one bordered container, with the record's actions in the row rather
+   than stacked beneath it.
+
+   This replaces the card-per-record pattern. A card is a grouping device for
+   things that belong together; a roster of twenty students is not twenty
+   groups, it is one list. Rendered as cards, each student cost 180-220px on a
+   phone — avatar block, a metrics box with its own border, and three
+   full-width buttons — so twenty students ran to about 4,000px of scrolling to
+   read twenty names. As rows the same twenty fit in roughly a quarter of that,
+   and comparing two students becomes possible because they are side by side
+   rather than a screen apart.
+
+   Density here is structural, not typographic: body text stays at --fs-base,
+   touch targets stay at --tap-min. What goes away is repeated chrome.
+
+     .listrows            the container; owns the border and the dividers
+     .listrow             one record
+       .listrow__marker   optional leading initials/icon
+       .listrow__main     title + meta + optional progress
+       .listrow__actions  trailing controls; labels collapse on phones
+*/
+.listrows {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.listrows--flush { border: 0; border-radius: 0; background: transparent; }
+
+.listrow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: max(52px, var(--tap-min));
+  padding: var(--space-4) var(--pad-row);
+  border-bottom: 1px solid var(--line-subtle);
+  transition: background var(--transition-fast);
+}
+.listrow:last-child { border-bottom: 0; }
+.listrow:hover { background: var(--surface-hover); }
+.listrow.is-muted { opacity: 0.62; }
+/* A clickable row is a control, so it is focusable and operable from the
+   keyboard (see the delegated Enter/Space handler in app.js) and shows the
+   product's one focus ring rather than nothing. */
+.listrow[data-clickable] { cursor: pointer; }
+.listrow[data-clickable]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+  position: relative;
+  z-index: 1;
+}
+
+/* A quiet place for the eye to land. The name is the identifier; the marker is
+   never the thing being read. */
+.listrow__marker {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--marker-bg);
+  border: 1px solid var(--marker-line);
+  color: var(--marker-fg);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+}
+
+/* A row without a marker gives its main column that track instead of leaving a
+   gap where the marker would have been. */
+.listrow__main { min-width: 0; grid-column: 1 / 3; }
+.listrow__marker + .listrow__main { grid-column: 2 / 3; }
+.listrow__title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Secondary facts on one wrapping line of chips, never one fact per row. */
+.listrow__meta { margin-top: var(--space-1); }
+
+/* Progress as a rule under the record rather than a boxed widget beside it. */
+.listrow__bar {
+  height: 3px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--fill-subtle);
+  overflow: hidden;
+}
+.listrow__bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.listrow__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .listrow { gap: var(--space-4); padding-inline: var(--pad-row); }
+  /* Action labels collapse to their icons. The control keeps its accessible
+     name (aria-label / title), its hit area and its meaning — only the
+     redundant word goes, which is what lets three actions stay in the row
+     instead of claiming a 44px stack of their own beneath it. */
+  .listrow__actions .lbl { display: none; }
+  .listrow__actions .btn { padding-inline: var(--space-4); gap: 0; }
 }
 
 /* ── Sticky contextual bar ───────────────────────────────────────────────────

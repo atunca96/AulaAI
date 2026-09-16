@@ -3,6 +3,28 @@
 import json
 
 ALPHABETS = {
+    # English is a taught language in its own right (paired with a Turkish
+    # instructional track). Letter names are given as Turkish-speaking learners
+    # need them: the name of the letter, not its sound value, which `phonetic`
+    # carries separately in generated material.
+    "English": {
+        "type": "Alphabet",
+        "items": [
+            {"term": "A", "translation": "ey"}, {"term": "B", "translation": "bi"},
+            {"term": "C", "translation": "si"}, {"term": "D", "translation": "di"},
+            {"term": "E", "translation": "i"}, {"term": "F", "translation": "ef"},
+            {"term": "G", "translation": "ci"}, {"term": "H", "translation": "eyç"},
+            {"term": "I", "translation": "ay"}, {"term": "J", "translation": "cey"},
+            {"term": "K", "translation": "key"}, {"term": "L", "translation": "el"},
+            {"term": "M", "translation": "em"}, {"term": "N", "translation": "en"},
+            {"term": "O", "translation": "ou"}, {"term": "P", "translation": "pi"},
+            {"term": "Q", "translation": "kyu"}, {"term": "R", "translation": "ar"},
+            {"term": "S", "translation": "es"}, {"term": "T", "translation": "ti"},
+            {"term": "U", "translation": "yu"}, {"term": "V", "translation": "vi"},
+            {"term": "W", "translation": "dabıl-yu"}, {"term": "X", "translation": "eks"},
+            {"term": "Y", "translation": "vay"}, {"term": "Z", "translation": "zed / zi"},
+        ]
+    },
     "Chinese": {
         "type": "Pinyin Initials and Finals",
         "sets": [
@@ -2887,6 +2909,24 @@ def get_special_chars_prompt(language):
 # ── UNIVERSAL CEFR PEDAGOGICAL ASSESSMENT FRAMEWORK (A1 - C2) ──
 
 LANGUAGE_PEDAGOGY = {
+    "English": {
+        "phonetics": (
+            "Test the contrasts a Turkish speaker genuinely has to learn: /θ/ and /ð/ (think, this) against /t/, /d/, /s/, /z/; "
+            "/w/ against /v/ (west vs vest); final /ŋ/ (sing) against /n/ + /g/; the weak vowel /ə/ in unstressed syllables; "
+            "long-short vowel pairs (ship/sheep, full/fool); and word stress, which is contrastive in English (REcord vs reCORD). "
+            "Test pronunciation inside real words and minimal pairs, never as trivia about letter names."
+        ),
+        "grammar_traps": [
+            "articles a / an / the, and the bare plural, where Turkish marks none of them",
+            "fixed SVO word order against Turkish SOV, including question inversion",
+            "auxiliary 'do' in questions and negatives (Do you...? / I don't...)",
+            "present perfect vs. past simple (I have lived / I lived)",
+            "prepositions as separate words with no case suffix (in, on, at, to, for)",
+            "countable vs. uncountable nouns (much / many, a few / a little)",
+            "third-person singular -s, routinely dropped by Turkish speakers",
+            "adjective order and the absence of adjective-noun agreement",
+        ]
+    },
     "Spanish": {
         "phonetics": (
             "Test authentic phonetic discrimination: b/v sound identity, c before e/i (/θ/ or /s/) vs a/o/u (/k/), "

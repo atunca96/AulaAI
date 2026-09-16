@@ -1,3 +1,89 @@
+// ── Language architecture ──
+// Mirror of services/language_profiles.py. Three things stay separate:
+//   * the interface language (`currentLang`) — chrome, switchable at any time;
+//   * the taught language (`course.language`) — what the class teaches;
+//   * the instructional track — the language the published material explains in.
+// For most taught languages the reader follows the interface language. English
+// and Turkish are locked, because for them one track IS the target language:
+// an English class is explained in Turkish, a Turkish class in English, and
+// switching the site language must not move that.
+const AulaLang = (() => {
+  const TAUGHT = [
+    ['English', 'EN'], ['Spanish', 'ES'], ['German', 'DE'], ['French', 'FR'],
+    ['Italian', 'IT'], ['Portuguese', 'PT'], ['Russian', 'RU'], ['Chinese', 'ZH'],
+    ['Japanese', 'JA'], ['Arabic', 'AR'], ['Turkish', 'TR'], ['Dutch', 'NL'],
+    ['Swedish', 'SV'], ['Korean', 'KO'], ['Greek', 'EL']
+  ];
+  const LOCKED = { english: 'tr', turkish: 'en' };
+  const ALIAS = {
+    ingilizce: 'english', türkçe: 'turkish', turkce: 'turkish',
+    español: 'spanish', espanol: 'spanish', ispanyolca: 'spanish',
+    deutsch: 'german', almanca: 'german', francais: 'french', 'français': 'french',
+    italiano: 'italian', portugues: 'portuguese', 'português': 'portuguese'
+  };
+  const key = (name) => {
+    const raw = String(name || '').trim().toLowerCase();
+    return ALIAS[raw] || raw;
+  };
+  return {
+    list: () => TAUGHT.map(([id, code]) => ({ id, code, lockedTrack: LOCKED[id.toLowerCase()] || '' })),
+    lockedTrack: (language) => LOCKED[key(language)] || null,
+    isSpecialPair: (language) => Boolean(LOCKED[key(language)]),
+    // The one supported way to ask which track a course publishes.
+    resolveTrack(language, requested, declared) {
+      const forced = LOCKED[key(language)];
+      if (forced) return forced;
+      const ok = (v) => (v === 'tr' || v === 'en') ? v : null;
+      return ok(requested) || ok(declared) || 'tr';
+    },
+    trackName: (track, inTurkish) => inTurkish
+      ? (track === 'tr' ? 'Türkçe' : 'İngilizce')
+      : (track === 'tr' ? 'Turkish' : 'English'),
+    // Product copy, shown before generation begins so the constraint reads as a
+    // decision rather than as a defect discovered later in the reader.
+    notice(language, uiLang) {
+      const k = key(language);
+      const forced = LOCKED[k];
+      if (!forced) return '';
+      const name = k.charAt(0).toUpperCase() + k.slice(1);
+      if (String(uiLang || '').startsWith('tr')) {
+        const taught = k === 'english' ? 'İngilizce' : 'Türkçe';
+        return `${taught} dersinde ders materyali ${this.trackName(forced, true)} hazırlanır. ` +
+               `Arayüz dilini değiştirmek bunu değiştirmez.`;
+      }
+      return `${name} classes are explained in ${this.trackName(forced, false)}. ` +
+             `Changing the interface language does not change the instructional language.`;
+    }
+  };
+})();
+
+// Clickable list rows are controls, so they behave like controls: focusable,
+// announced as buttons, and activated by Enter or Space. Delegated once here
+// rather than repeated as attributes in every renderer that emits a row.
+document.addEventListener('DOMContentLoaded', () => {
+  const rows = () => document.querySelectorAll('.listrow[data-clickable]:not([tabindex])');
+  const prepare = () => rows().forEach(r => {
+    r.setAttribute('tabindex', '0');
+    if (!r.hasAttribute('role')) r.setAttribute('role', 'button');
+  });
+  prepare();
+  // Renders replace whole containers, so batch to one pass per frame rather
+  // than running for every node the renderer inserts.
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; prepare(); });
+  }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest && e.target.closest('.listrow[data-clickable]');
+    if (!row || row !== e.target) return;
+    e.preventDefault();
+    row.click();
+  });
+});
+
 // ── State & i18n ──
 let currentUser = null;
 let courseId = null;
@@ -938,6 +1024,7 @@ const i18n = {
     'ai.name_placeholder': 'e.g. Intensive Language Course',
     'ai.gen_curriculum': 'Generate Curriculum',
     'loading': 'Loading...',
+    'lang.English': 'English',
     'lang.Spanish': 'Spanish',
     'lang.German': 'German',
     'lang.French': 'French',
@@ -1231,6 +1318,7 @@ const i18n = {
     'ai.name_placeholder': 'ör. Yoğun İspanyolca Yaz Kursu',
     'ai.gen_curriculum': 'Müfredat Oluştur',
     'loading': 'Yükleniyor...',
+    'lang.English': 'İngilizce',
     'lang.Spanish': 'İspanyolca',
     'lang.German': 'Almanca',
     'lang.French': 'Fransızca',
@@ -7307,6 +7395,7 @@ function startAiArchitectFlow() {
   closeClassroomMethodModal();
   modal.classList.remove('hidden');
   renderAiLanguages();
+  renderTrackNotice(_selectedAiLanguage);
   _currentAiStep = 1;
   showAiStep(1);
 }
@@ -7354,22 +7443,10 @@ async function regenerateAiCurriculum() {
 function renderAiLanguages() {
   const grid = document.getElementById('ai-language-grid');
   if (!grid) return;
-  const langs = [
-    { id: 'Spanish', code: 'ES' },
-    { id: 'German', code: 'DE' },
-    { id: 'French', code: 'FR' },
-    { id: 'Italian', code: 'IT' },
-    { id: 'Portuguese', code: 'PT' },
-    { id: 'Russian', code: 'RU' },
-    { id: 'Chinese', code: 'ZH' },
-    { id: 'Japanese', code: 'JA' },
-    { id: 'Arabic', code: 'AR' },
-    { id: 'Turkish', code: 'TR' },
-    { id: 'Dutch', code: 'NL' },
-    { id: 'Swedish', code: 'SV' },
-    { id: 'Korean', code: 'KO' },
-    { id: 'Greek', code: 'EL' }
-  ];
+  // One list, shared with the backend allowlist via AulaLang. English is a
+  // first-class taught language here, not an extra option bolted onto a
+  // dropdown, so every downstream path treats it like any other target.
+  const langs = AulaLang.list();
   // Each language used to be an 85px-tall stacked tile with a centred ISO chip
   // above its name, which on a phone became fifteen full-width blocks and about
   // 1300px of scrolling. They are now compact single-line options that fit two
@@ -7384,8 +7461,28 @@ function renderAiLanguages() {
   `).join('');
 }
 
+// The lecturer is told the instructional-language rule at the moment they pick
+// the language, before any generation is paid for — not after opening a reader
+// whose language control appears not to work.
+function renderTrackNotice(language) {
+  const el = document.getElementById('ai-track-notice');
+  if (!el) return;
+  const text = AulaLang.notice(language, currentLang);
+  el.textContent = text;
+  el.classList.toggle('hidden', !text);
+}
+
+function renderPdfTrackNotice(language) {
+  const el = document.getElementById('pdf-track-notice');
+  if (!el) return;
+  const text = AulaLang.notice(language, currentLang);
+  el.textContent = text;
+  el.classList.toggle('hidden', !text);
+}
+
 function selectAiLanguage(id, btn) {
   _selectedAiLanguage = id;
+  renderTrackNotice(id);
   // Selection is a state class rather than a poked-in inline border colour, so
   // the selected look (fill, border, text) is defined once in the stylesheet.
   document.querySelectorAll('.lang-btn').forEach(b => {
@@ -10026,36 +10123,43 @@ function renderQuizList(quizzes) {
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const container = isLecturer ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
-  container.innerHTML = (!quizzes || quizzes.length === 0) ? emptyState(t('noQuizzes'), '', { mark: 'quiz', compact: true })
-    : quizzes.map(q => {
+  // One assessment per row inside a single bordered list, rather than a card
+  // each. The lecturer's two actions ride in the row and collapse to their
+  // icons on a phone; the student's single action stays a labelled button
+  // because it is the point of the row.
+  if (!quizzes || quizzes.length === 0) {
+    container.classList.remove('listrows');
+    container.innerHTML = emptyState(t('noQuizzes'), '', { mark: 'quiz', compact: true });
+    return;
+  }
+  container.classList.add('listrows');
+  container.innerHTML = quizzes.map(q => {
       const displayTitle = esc(translateQuizTitle(q.title, currentLang));
       const createdLabel = t('Created');
       const formattedDate = new Date(q.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+      const dateChip = `<span class="meta-chip"><span data-i18n="Created">${createdLabel}</span>:&nbsp;<span class="quiz-item-date" data-created-at="${q.created_at}">${formattedDate}</span></span>`;
       if (isLecturer) {
-        return `<div class="card" style="margin-bottom:12px">
-            <div class="card-body flex-between">
-              <div style="flex:1;cursor:pointer" onclick="viewQuiz('${q.id}',${escJS(q.title)})">
-                <strong class="quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</strong>
-                <div style="font-size:13px;color:var(--text-muted);margin-top:4px"><span data-i18n="Created">${createdLabel}</span>: <span class="quiz-item-date" data-created-at="${q.created_at}">${formattedDate}</span></div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-outline btn-sm" onclick="viewQuiz('${q.id}',${escJS(q.title)})">${SVG_EYE} <span data-i18n="viewBtn">${t('viewBtn')}</span></button>
-                <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})">${SVG_TRASH} <span data-i18n="confirm.delete_quiz">${t('confirm.delete_quiz')}</span></button>
-              </div>
+        return `<div class="listrow" data-clickable onclick="viewQuiz('${q.id}',${escJS(q.title)})">
+            <div class="listrow__main">
+              <div class="listrow__title quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</div>
+              <div class="listrow__meta meta-chips">${dateChip}</div>
+            </div>
+            <div class="listrow__actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();viewQuiz('${q.id}',${escJS(q.title)})" aria-label="${t('viewBtn')}" title="${t('viewBtn')}">${SVG_EYE} <span class="lbl" data-i18n="viewBtn">${t('viewBtn')}</span></button>
+              <button class="btn btn-sm btn-danger-quiet" onclick="event.stopPropagation();deleteQuiz('${q.id}',${escJS(q.title)})" aria-label="${t('confirm.delete_quiz')}" title="${t('confirm.delete_quiz')}">${SVG_TRASH} <span class="lbl" data-i18n="confirm.delete_quiz">${t('confirm.delete_quiz')}</span></button>
             </div>
           </div>`;
-      } else {
-        const isCompleted = q.is_completed;
-        return `<div class="card" style="cursor:${isCompleted ? 'default' : 'pointer'};opacity:${isCompleted ? '0.6' : '1'};margin-bottom:12px" onclick="${isCompleted ? '' : `takeQuiz('${q.id}')`}">
-          <div class="card-body flex-between">
-            <div>
-              <strong class="quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</strong>
-              <div style="font-size:13px;color:var(--text-muted);margin-top:4px"><span data-i18n="Created">${createdLabel}</span>: <span class="quiz-item-date" data-created-at="${q.created_at}">${formattedDate}</span> ${isCompleted ? ` · <span style="color:var(--success)">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}</div>
-            </div>
+      }
+      const isCompleted = q.is_completed;
+      return `<div class="listrow${isCompleted ? ' is-muted' : ''}" ${isCompleted ? '' : `data-clickable onclick="takeQuiz('${q.id}')"`}>
+          <div class="listrow__main">
+            <div class="listrow__title quiz-item-title" data-raw-title="${esc(q.title)}">${displayTitle}</div>
+            <div class="listrow__meta meta-chips">${dateChip}${isCompleted ? `<span class="meta-chip tone-success">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}</div>
+          </div>
+          <div class="listrow__actions">
             <span class="btn btn-sm ${isCompleted ? 'btn-ghost' : 'btn-outline'}">${isCompleted ? `<span data-i18n="completed">${t('completed')}</span>` : `<span data-i18n="takeQuizBtn">${t('takeQuizBtn')}</span>`}</span>
           </div>
         </div>`;
-      }
     }).join('');
 }
 
@@ -10341,7 +10445,8 @@ function renderStudentRoster(students) {
   const container = document.getElementById('student-roster');
   if (!container) return;
   if (!Array.isArray(students) || students.length === 0) {
-    container.innerHTML = `<div style="grid-column:1/-1">${emptyState(t('admin.no_students') || 'No students enrolled yet.', '', { mark: 'people' })}</div>`;
+    container.classList.remove('listrows');
+    container.innerHTML = emptyState(t('admin.no_students') || 'No students enrolled yet.', '', { mark: 'people' });
     return;
   }
 
@@ -10350,7 +10455,7 @@ function renderStudentRoster(students) {
     const schoolNum = s.email && s.email.includes('@student.aulaai') ? s.email.split('@')[0] : '';
     const isPermanent = Boolean(s.is_permanent || PERMANENT_STUDENT_NUMBERS.includes(schoolNum) || PERMANENT_STUDENT_NUMBERS.includes(String(s.id || '').replace('student-', '')));
     const kickBtn = !isPermanent
-      ? `<button class="student-btn-kick" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('Kick')}"><span data-i18n="Kick">${t('Kick')}</span></button>`
+      ? `<button class="btn btn-sm btn-danger-quiet" onclick="event.stopPropagation(); deleteStudent('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('Kick')}" aria-label="${t('Kick')}">${SVG_TRASH}<span class="lbl" data-i18n="Kick">${t('Kick')}</span></button>`
       : '';
     const avatarBg = getStudentAvatarBg(s.name);
     const initials = getStudentInitials(s.name);
@@ -10370,49 +10475,36 @@ function renderStudentRoster(students) {
       ? `<span class="badge badge-dot tone-success">${t('admin.active')}</span>`
       : `<span class="badge tone-neutral">${t('admin.inactive')}</span>`;
 
-    return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
-      <!-- Top Row: Avatar + Name & ID -->
-      <div class="student-card-header">
-        <div class="student-avatar" style="background: ${avatarBg};">
-          ${initials}
-        </div>
-        <div class="student-info-block">
-          <div class="student-name-title" title="${esc(s.name)}">${esc(s.name)}</div>
-          <div class="student-id-row">
-            ${schoolNum ? `<span class="student-school-num">#${esc(schoolNum)}</span>` : ''}
-            ${statusBadge}
-          </div>
-        </div>
-      </div>
-
-      <!-- Middle: Mastery Progress & Metrics -->
-      <div class="student-metrics-box">
-        <div class="student-metrics-header">
-          <span class="metric-badge">
-            <span class="metric-indicator" style="background: ${color};"></span>
-            <span data-i18n="Mastery:">${t('Mastery:')}</span> <strong style="color: var(--text-primary); margin-left: 2px;">${pct}%</strong>
+    // One record per row, not one card per student. Name, number, status,
+    // mastery and volume are all on the same two lines, so a lecturer can
+    // compare students by looking rather than by scrolling.
+    return `<div class="listrow" data-clickable onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
+      <span class="listrow__marker" style="background:${avatarBg};" aria-hidden="true">${initials}</span>
+      <div class="listrow__main">
+        <div class="listrow__title" title="${esc(s.name)}">${esc(s.name)}</div>
+        <div class="listrow__meta meta-chips">
+          ${schoolNum ? `<span class="meta-chip student-school-num">#${esc(schoolNum)}</span>` : ''}
+          <span class="meta-chip">
+            <span class="metric-indicator" style="background:${color};"></span>
+            <span data-i18n="Mastery:">${t('Mastery:')}</span>&nbsp;<strong>${pct}%</strong>
           </span>
-          <span class="metric-count">
-            <strong>${s.total_responses || 0}</strong> <span data-i18n="responses">${t('responses')}</span>
-          </span>
+          <span class="meta-chip"><strong>${s.total_responses || 0}</strong>&nbsp;<span data-i18n="responses">${t('responses')}</span></span>
+          ${statusBadge}
         </div>
-        <div class="student-mastery-bar">
-          <div class="student-mastery-fill" style="width:${pct}%; background:${color}"></div>
-        </div>
+        <div class="listrow__bar"><i style="width:${pct}%; background:${color}"></i></div>
       </div>
-
-      <!-- Bottom: Action Buttons -->
-      <div class="student-card-actions">
-        <button class="student-btn-action student-btn-pw" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})" title="${t('admin.set_password')}">
-          ${SVG_KEY} <span data-i18n="admin.set_password">${t('admin.set_password')}</span>
+      <div class="listrow__actions">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); lecturerSetStudentPassword('${s.id}', ${escJS(s.name).replace(/'/g, "\\'")})" title="${t('admin.set_password')}" aria-label="${t('admin.set_password')}">
+          ${SVG_KEY} <span class="lbl" data-i18n="admin.set_password">${t('admin.set_password')}</span>
         </button>
-        <button class="student-btn-action student-btn-msg" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('messageStudent')}">
-          ${SVG_CHAT} <span data-i18n="messageStudent">${t('messageStudent')}</span>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openChatFromRoster('${s.id}',${escJS(s.name).replace(/'/g, "\\'")})" title="${t('messageStudent')}" aria-label="${t('messageStudent')}">
+          ${SVG_CHAT} <span class="lbl" data-i18n="messageStudent">${t('messageStudent')}</span>
         </button>
         ${kickBtn}
       </div>
     </div>`;
   }).join('');
+  container.classList.add('listrows');
   applyTranslations();
 }
 window.renderStudentRoster = renderStudentRoster;
@@ -10832,18 +10924,25 @@ function loadStudentPractice() {
   const practiceEl = document.getElementById('practice-topics');
   if (!practiceEl) return;
   if (!Array.isArray(curriculum) || curriculum.length === 0) {
+    practiceEl.classList.remove('listrows');
     practiceEl.innerHTML = emptyState(t('class.no_curriculum'), '', { mark: 'book' });
     return;
   }
+  // A whole curriculum's worth of topics: rows, not a card each. Thirty topics
+  // as cards ran past 3,000px on a phone to show thirty titles.
+  practiceEl.classList.add('listrows');
   practiceEl.innerHTML = curriculum.map((ch, idx) => (ch.topics || []).map(tp => {
     const tpTitle = getLocalizedCurriculumTitle(tp, currentLang);
     const unitNum = ch.number || (idx + 1);
-    return `<div class="topic-practice-card" onclick="startStudyFirst('${tp.id}')">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start">
-        <div class="topic-type-badge ${tp.type}" style="margin-bottom:8px">${translateBadge(tp.type)}</div>
+    return `<div class="listrow" data-clickable onclick="startStudyFirst('${tp.id}')">
+      <div class="listrow__main">
+        <div class="listrow__title">${esc(tpTitle)}</div>
+        <div class="listrow__meta meta-chips">
+          <span class="meta-chip"><span data-i18n="Unit">${t('Unit')}</span>&nbsp;${unitNum}</span>
+          <span class="meta-chip">${translateDifficulty(tp.difficulty)}</span>
+        </div>
       </div>
-      <div style="font-weight:600;margin-bottom:4px">${esc(tpTitle)}</div>
-      <div style="font-size:13px;color:var(--text-muted)"><span data-i18n="Unit">${t('Unit')}</span> ${unitNum} · ${translateDifficulty(tp.difficulty)}</div>
+      <div class="listrow__actions"><span class="topic-type-badge ${tp.type}">${translateBadge(tp.type)}</span></div>
     </div>`;
   }).join('')).join('');
 }
@@ -10956,51 +11055,42 @@ function renderAssignmentList(assignments) {
   if (!container) return;
 
   if (!assignments || assignments.length === 0) {
+    container.classList.remove('listrows');
     container.innerHTML = emptyState(t('noAssignments'), '', { mark: 'list', compact: true });
     return;
   }
 
-  if (isLecturer) {
-    container.innerHTML = assignments.map(a => {
-      const displayTitle = esc(translateQuizTitle(a.title, currentLang));
-      const createdLabel = t('Created');
-      const formattedDate = new Date(a.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
-      return `
-      <div class="card" style="margin-bottom:12px">
-        <div class="card-body flex-between">
-          <div style="flex:1;cursor:pointer" onclick="viewAssignment('${a.id}',${escJS(a.title)})">
-            <strong class="assignment-item-title" data-raw-title="${esc(a.title)}" style="font-size:15px">${displayTitle}</strong>
-            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-              <span data-i18n="Created">${createdLabel}</span>: <span class="assignment-item-date" data-created-at="${a.created_at}">${formattedDate}</span>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-left:12px">
-            <button class="btn btn-outline btn-sm" onclick="viewAssignment('${a.id}',${escJS(a.title)})">${SVG_EYE} <span data-i18n="viewBtn">${t('viewBtn')}</span></button>
-            <button class="btn btn-sm" style="background:var(--danger-bg,#fde8e8);color:var(--danger);border:1px solid var(--danger)" onclick="deleteAssignment('${a.id}',${escJS(a.title)})">${SVG_TRASH} <span data-i18n="confirm.delete_assignment">${t('confirm.delete_assignment')}</span></button>
-          </div>
+  // Same row treatment as quizzes: the two lists are the same kind of thing and
+  // should not look like two different products.
+  container.classList.add('listrows');
+  container.innerHTML = assignments.map(a => {
+    const displayTitle = esc(translateQuizTitle(a.title, currentLang));
+    const createdLabel = t('Created');
+    const formattedDate = new Date(a.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
+    const dateChip = `<span class="meta-chip"><span data-i18n="Created">${createdLabel}</span>:&nbsp;<span class="assignment-item-date" data-created-at="${a.created_at}">${formattedDate}</span></span>`;
+    if (isLecturer) {
+      return `<div class="listrow" data-clickable onclick="viewAssignment('${a.id}',${escJS(a.title)})">
+        <div class="listrow__main">
+          <div class="listrow__title assignment-item-title" data-raw-title="${esc(a.title)}">${displayTitle}</div>
+          <div class="listrow__meta meta-chips">${dateChip}</div>
+        </div>
+        <div class="listrow__actions">
+          <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();viewAssignment('${a.id}',${escJS(a.title)})" aria-label="${t('viewBtn')}" title="${t('viewBtn')}">${SVG_EYE} <span class="lbl" data-i18n="viewBtn">${t('viewBtn')}</span></button>
+          <button class="btn btn-sm btn-danger-quiet" onclick="event.stopPropagation();deleteAssignment('${a.id}',${escJS(a.title)})" aria-label="${t('confirm.delete_assignment')}" title="${t('confirm.delete_assignment')}">${SVG_TRASH} <span class="lbl" data-i18n="confirm.delete_assignment">${t('confirm.delete_assignment')}</span></button>
         </div>
       </div>`;
-    }).join('');
-  } else {
-    container.innerHTML = assignments.map(a => {
-      const done = a.is_completed;
-      const displayTitle = esc(translateQuizTitle(a.title, currentLang));
-      const createdLabel = t('Created');
-      const formattedDate = new Date(a.created_at).toLocaleDateString(currentLang === 'tr' ? 'tr-TR' : 'en-US');
-      return `
-        <div class="card" style="margin-bottom:12px;cursor:${done ? 'default' : 'pointer'};opacity:${done ? '0.6' : '1'}" onclick="${done ? '' : `takeAssignment('${a.id}')`}">
-          <div class="card-body flex-between">
-            <div>
-              <strong class="assignment-item-title" data-raw-title="${esc(a.title)}" style="font-size:15px">${displayTitle}</strong>
-              <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
-                <span data-i18n="Created">${createdLabel}</span>: <span class="assignment-item-date" data-created-at="${a.created_at}">${formattedDate}</span> ${done ? ` · <span style="color:var(--success)">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}
-              </div>
-            </div>
-            <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? `<span data-i18n="completed">${t('completed')}</span>` : `<span data-i18n="takeQuizBtn">${t('takeQuizBtn')}</span>`}</span>
-          </div>
-        </div>`;
-    }).join('');
-  }
+    }
+    const done = a.is_completed;
+    return `<div class="listrow${done ? ' is-muted' : ''}" ${done ? '' : `data-clickable onclick="takeAssignment('${a.id}')"`}>
+      <div class="listrow__main">
+        <div class="listrow__title assignment-item-title" data-raw-title="${esc(a.title)}">${displayTitle}</div>
+        <div class="listrow__meta meta-chips">${dateChip}${done ? `<span class="meta-chip tone-success">${SVG_CHECK} <span data-i18n="completed">${t('completed')}</span></span>` : ''}</div>
+      </div>
+      <div class="listrow__actions">
+        <span class="btn btn-sm ${done ? 'btn-ghost' : 'btn-outline'}">${done ? `<span data-i18n="completed">${t('completed')}</span>` : `<span data-i18n="takeQuizBtn">${t('takeQuizBtn')}</span>`}</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function deleteAssignment(assignmentId, title) {
@@ -11981,9 +12071,12 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
     // Keep the declared track only as a defensive fallback for invalid state.
     const _declaredTrack = (currentCourse && currentCourse.material_language) ||
                            (topic && topic.material_language) || null;
-    const matLang = (currentLang === 'tr' || currentLang === 'en')
-      ? currentLang
-      : ((_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : 'en');
+    // ...except for the English/Turkish pair, where the track is a property of
+    // what the course teaches and the interface language has no say. AulaLang
+    // makes that the same decision the backend makes.
+    const _taught = (currentCourse && (currentCourse.language || currentCourse.target_language)) ||
+                    (topic && (topic.language || topic.target_language)) || '';
+    const matLang = AulaLang.resolveTrack(_taught, currentLang, _declaredTrack);
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
@@ -13929,8 +14022,13 @@ async function downloadCourseMaterialPDF() {
     return;
   }
 
-  // Show language picker
-  const pdfLang = await showPdfLangPicker();
+  // A special-pair course publishes one track, so there is nothing to pick.
+  // Offering a two-way choice that the server then overrides is the kind of
+  // control that looks broken; skipping it is the honest version.
+  const lockedTrack = AulaLang.lockedTrack(
+    (currentCourse && (currentCourse.language || currentCourse.target_language)) || ''
+  );
+  const pdfLang = lockedTrack || await showPdfLangPicker();
   if (!pdfLang) return; // user cancelled
 
   // Update button state
