@@ -240,7 +240,8 @@ def class_phonetic_winners(lessons: List[Any]) -> Dict[str, str]:
 
     winners: Dict[str, str] = {}
     for key, variants in counts.items():
-        if len(variants) < 2:
+        if len(variants) == 1:
+            winners[key] = next(iter(variants))
             continue
         ordered = sorted(variants.items(), key=lambda kv: kv[1], reverse=True)
         if ordered[0][1] > ordered[1][1]:
@@ -259,9 +260,10 @@ def apply_phonetic_winners(lesson: Any, winners: Dict[str, str]) -> int:
         if isinstance(node, dict):
             term = node.get("term") or node.get("word") or node.get("target")
             phonetic = node.get("phonetic")
-            if term and isinstance(phonetic, str) and phonetic.strip():
-                winner = winners.get(fold_term(term))
-                if winner and normalize_transcription(phonetic) != winner:
+            winner = winners.get(fold_term(term)) if term else None
+            if winner:
+                current = normalize_transcription(phonetic) if isinstance(phonetic, str) else ""
+                if not current or current != winner:
                     node["phonetic"] = winner
                     changed += 1
             for value in node.values():

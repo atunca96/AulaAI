@@ -2060,10 +2060,16 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
     # Terms belonging to no topic in this unit are, by construction, unavailable
     # here — the payload IS the unit. The leakage check therefore has nothing to
     # forbid at this level; the caller supplies later-unit terms when it has them.
+    fallback_pages = []
+    for content in contents:
+        for page in (content.get("pages") or []):
+            if isinstance(page, dict) and str(page.get("type") or "").casefold() == "mcq":
+                fallback_pages.append(page)
+
     questions = ai_generate_questions(
         topic_title=unit_title or "Unit Assessment",
         topic_type="unit_assessment",
-        topic_content={"_preassembled_content_str": content_str},
+        topic_content={"_preassembled_content_str": content_str, "pages": fallback_pages},
         language=language,
         count=UNIT_ASSESSMENT_COUNT,
         level=level,

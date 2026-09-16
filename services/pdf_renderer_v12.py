@@ -1175,7 +1175,10 @@ def render_course_pdf(course_id: str, lang: str = 'en') -> Tuple[bytes, str]:
                         raw_options = page.get('options') or page.get('choices') or []
                         if isinstance(raw_options, dict): raw_options = list(raw_options.values())
                         elif not isinstance(raw_options, list): raw_options = [raw_options] if raw_options else []
-                        localized = page.get('options_tr') if is_tr else page.get('options_en')
+                        if str(page.get('stem_scope') or '').casefold() == 'target_complete':
+                            localized = None
+                        else:
+                            localized = page.get('options_tr') if is_tr else page.get('options_en')
                         options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options
                         options = [_v56q_display_option(opt, course_lang) for opt in options]
                         opts_html = ''.join(f'<div class="mcq-opt">{chr(65+i)}) {_e(opt)}</div>' for i, opt in enumerate(options))
