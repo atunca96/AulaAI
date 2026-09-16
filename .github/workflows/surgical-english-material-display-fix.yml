@@ -19,43 +19,10 @@ jobs:
           fetch-depth: 0
 
       - name: Patch material display language selection
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('public/js/app.js')
-          text = path.read_text(encoding='utf-8')
-
-          old = """    // Which instructional track this material was WRITTEN in. The reader used
-    // to branch on currentLang — the language of the app's own chrome — so a
-    // course generated on the English track and opened by someone whose
-    // interface is Turkish looked up _tr fields that do not exist, fell back to
-    // whatever was left, and forced the reader to flip the UI language before
-    // they could read anything. The track is a property of the material, not a
-    // user preference, so it comes from the course.
-    const _declaredTrack = (currentCourse && currentCourse.material_language) ||
-                           (topic && topic.material_language) || null;
-    const matLang = (_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : currentLang;
-"""
-
-          new = """    // The course's material_language is the generation/default track, not a
-    // permanent reader lock. Published material can expose both TR and EN
-    // instructional fields (PDF export already selects either track), so the
-    // in-app reader must follow the user's current display language as well.
-    // Keep the declared track only as a defensive fallback for invalid state.
-    const _declaredTrack = (currentCourse && currentCourse.material_language) ||
-                           (topic && topic.material_language) || null;
-    const matLang = (currentLang === 'tr' || currentLang === 'en')
-      ? currentLang
-      : ((_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : 'en');
-"""
-
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f'Expected exactly one material-language block; found {count}. Refusing to patch.')
-
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
+        env:
+          OLD_BLOCK_B64: ICAgIC8vIFdoaWNoIGluc3RydWN0aW9uYWwgdHJhY2sgdGhpcyBtYXRlcmlhbCB3YXMgV1JJVFRFTiBpbi4gVGhlIHJlYWRlciB1c2VkCiAgICAvLyB0byBicmFuY2ggb24gY3VycmVudExhbmcg4oCUIHRoZSBsYW5ndWFnZSBvZiB0aGUgYXBwJ3Mgb3duIGNocm9tZSDigJQgc28gYQogICAgLy8gY291cnNlIGdlbmVyYXRlZCBvbiB0aGUgRW5nbGlzaCB0cmFjayBhbmQgb3BlbmVkIGJ5IHNvbWVvbmUgd2hvc2UKICAgIC8vIGludGVyZmFjZSBpcyBUdXJraXNoIGxvb2tlZCB1cCBfdHIgZmllbGRzIHRoYXQgZG8gbm90IGV4aXN0LCBmZWxsIGJhY2sgdG8KICAgIC8vIHdoYXRldmVyIHdhcyBsZWZ0LCBhbmQgZm9yY2VkIHRoZSByZWFkZXIgdG8gZmxpcCB0aGUgVUkgbGFuZ3VhZ2UgYmVmb3JlCiAgICAvLyB0aGV5IGNvdWxkIHJlYWQgYW55dGhpbmcuIFRoZSB0cmFjayBpcyBhIHByb3BlcnR5IG9mIHRoZSBtYXRlcmlhbCwgbm90IGEKICAgIC8vIHVzZXIgcHJlZmVyZW5jZSwgc28gaXQgY29tZXMgZnJvbSB0aGUgY291cnNlLgogICAgY29uc3QgX2RlY2xhcmVkVHJhY2sgPSAoY3VycmVudENvdXJzZSAmJiBjdXJyZW50Q291cnNlLm1hdGVyaWFsX2xhbmd1YWdlKSB8fAogICAgICAgICAgICAgICAgICAgICAgICAgICAodG9waWMgJiYgdG9waWMubWF0ZXJpYWxfbGFuZ3VhZ2UpIHx8IG51bGw7CiAgICBjb25zdCBtYXRMYW5nID0gKF9kZWNsYXJlZFRyYWNrID09PSAndHInIHx8IF9kZWNsYXJlZFRyYWNrID09PSAnZW4nKSA/IF9kZWNsYXJlZFRyYWNrIDogY3VycmVudExhbmc7Cg==
+          NEW_BLOCK_B64: ICAgIC8vIFRoZSBjb3Vyc2UncyBtYXRlcmlhbF9sYW5ndWFnZSBpcyB0aGUgZ2VuZXJhdGlvbi9kZWZhdWx0IHRyYWNrLCBub3QgYQogICAgLy8gcGVybWFuZW50IHJlYWRlciBsb2NrLiBQdWJsaXNoZWQgbWF0ZXJpYWwgY2FuIGV4cG9zZSBib3RoIFRSIGFuZCBFTgogICAgLy8gaW5zdHJ1Y3Rpb25hbCBmaWVsZHMgKFBERiBleHBvcnQgYWxyZWFkeSBzZWxlY3RzIGVpdGhlciB0cmFjayksIHNvIHRoZQogICAgLy8gaW4tYXBwIHJlYWRlciBtdXN0IGZvbGxvdyB0aGUgdXNlcidzIGN1cnJlbnQgZGlzcGxheSBsYW5ndWFnZSBhcyB3ZWxsLgogICAgLy8gS2VlcCB0aGUgZGVjbGFyZWQgdHJhY2sgb25seSBhcyBhIGRlZmVuc2l2ZSBmYWxsYmFjayBmb3IgaW52YWxpZCBzdGF0ZS4KICAgIGNvbnN0IF9kZWNsYXJlZFRyYWNrID0gKGN1cnJlbnRDb3Vyc2UgJiYgY3VycmVudENvdXJzZS5tYXRlcmlhbF9sYW5ndWFnZSkgfHwKICAgICAgICAgICAgICAgICAgICAgICAgICAgKHRvcGljICYmIHRvcGljLm1hdGVyaWFsX2xhbmd1YWdlKSB8fCBudWxsOwogICAgY29uc3QgbWF0TGFuZyA9IChjdXJyZW50TGFuZyA9PT0gJ3RyJyB8fCBjdXJyZW50TGFuZyA9PT0gJ2VuJykKICAgICAgPyBjdXJyZW50TGFuZwogICAgICA6ICgoX2RlY2xhcmVkVHJhY2sgPT09ICd0cicgfHwgX2RlY2xhcmVkVHJhY2sgPT09ICdlbicpID8gX2RlY2xhcmVkVHJhY2sgOiAnZW4nKTsK
+        run: python -c "import os,base64,pathlib; p=pathlib.Path('public/js/app.js'); s=p.read_text(encoding='utf-8'); old=base64.b64decode(os.environ['OLD_BLOCK_B64']).decode(); new=base64.b64decode(os.environ['NEW_BLOCK_B64']).decode(); n=s.count(old); (_ for _ in ()).throw(SystemExit(f'Expected exactly one block; found {n}')) if n != 1 else None; p.write_text(s.replace(old,new,1),encoding='utf-8')"
 
       - name: Syntax check
         run: node --check public/js/app.js
