@@ -9085,7 +9085,10 @@ function populateSelects() {
     const displayTitle = `${t('Unit')} ${displayNum}: ${trTitle}`;
     
     chapterOpts += `<option value="${ch.id}">${displayTitle}</option>`;
-    (ch.topics || []).forEach(tp => { 
+    // A unit's closing assessment is material, not a source to generate FROM:
+    // offering it as a quiz topic would let a quiz be built out of the answers
+    // to that unit's own assessment.
+    (ch.topics || []).filter(tp => tp.type !== 'unit_assessment').forEach(tp => {
       const trTopic = getLocalizedCurriculumTitle(tp, currentLang);
       const badgeText = translateBadge(tp.type);
       topicOpts += `<option value="${tp.id}">U${displayNum} — ${trTopic} (${badgeText})</option>`; 

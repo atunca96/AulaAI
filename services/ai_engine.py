@@ -28,6 +28,7 @@ import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 from services.quiz_source_cache import get_content_hash
 from services import question_contract as qc
+from services.assessment_scope import SCOPE_TOPIC as _SCOPE_TOPIC, SCOPE_UNIT as _SCOPE_UNIT
 
 def _uid():
     return str(uuid.uuid4())
@@ -994,7 +995,7 @@ def _extract_source_backed_metadata(topic_content: Any, material_language: str =
     return "\n\n".join(sections)
 
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None, scope=None, progression=None, coverage_plan="", forbidden_terms=None):
     c = int(count)
     gen_count = qc.overproduction_count(c)
     if timing_ctx is None:
@@ -1273,20 +1274,36 @@ REPETITION & COVERAGE RULES:
         pedagogy_guidance=pedagogy_guidance,
     )
     seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
-    user = qc.build_user_prompt(
-        language=language,
-        level=level,
-        topic_title=topic_title,
-        topic_type=topic_type,
-        gen_count=gen_count,
-        content_str=content_str,
-        variety_focus=selected_variety_focus,
-        forbidden_prompts=forbidden_prompts,
-        forbidden_answers=forbidden_answers,
-        reference_data=ref_data,
-        focus_directive=focus_directive,
-        request_id=f"{seed}_{py_random.random()}",
-    )
+    if scope in (_SCOPE_TOPIC, _SCOPE_UNIT):
+        # A material-internal assessment. Same cached system prefix, same quality
+        # rules; what differs is the boundary it may draw from and the language
+        # budget it must phrase itself inside. Both arrive as short clauses.
+        user = qc.build_material_user_prompt(
+            language=language,
+            level=level,
+            scope=scope,
+            title=topic_title,
+            item_count=gen_count,
+            content_str=content_str,
+            progression=progression or "",
+            coverage_plan=coverage_plan,
+            request_id=f"{seed}_{py_random.random()}",
+        )
+    else:
+        user = qc.build_user_prompt(
+            language=language,
+            level=level,
+            topic_title=topic_title,
+            topic_type=topic_type,
+            gen_count=gen_count,
+            content_str=content_str,
+            variety_focus=selected_variety_focus,
+            forbidden_prompts=forbidden_prompts,
+            forbidden_answers=forbidden_answers,
+            reference_data=ref_data,
+            focus_directive=focus_directive,
+            request_id=f"{seed}_{py_random.random()}",
+        )
     prompt_chars = len(system) + len(user)
     prompt_tokens_est = int(prompt_chars / 4.0)
     t_prompt_duration = time.perf_counter() - t_prompt_start
@@ -1345,6 +1362,27 @@ REPETITION & COVERAGE RULES:
             d = item.get("distractors", [])
             if not (p and a and isinstance(d, list)):
                 return None
+
+            # Deterministic assessment contract: translation drills, stems written
+            # in the instructional language, giveaway glosses and scope leakage.
+            # Run here rather than after assembly so a rejected candidate is
+            # replaced from the pool exactly like any other rejection, instead of
+            # silently shrinking a finished batch.
+            try:
+                from services.assessment_validation import violations as _av_violations, is_fatal as _av_fatal
+                _probs = [x for x in _av_violations(
+                    item,
+                    instructional_track=material_language,
+                    forbidden_terms=forbidden_terms,
+                    require_rationale_track=False,
+                ) if _av_fatal(x)]
+                # Option-shape problems are repaired further down by distractor
+                # supplementation, so they are not grounds for rejection here.
+                _probs = [x for x in _probs if not x.startswith(("distractor_count_", "option_count_", "answer_not_in_options"))]
+                if _probs:
+                    return None
+            except Exception:
+                pass
 
             clean_a_token = _normalize_token(a)
             clean_p_token = _normalize_token(p)
@@ -1934,6 +1972,125 @@ REPETITION & COVERAGE RULES:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n{traceback.format_exc()}\n")
         return []
 
+def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
+                             material_language="tr", unit_index=None, unit_total=None,
+                             model_override=None, timing_ctx=None):
+    """The ten-question assessment that closes a unit.
+
+    `unit_topics` is [{"id","title","content"}, ...] for THIS unit only, already
+    generated. Three things make this different from a standalone quiz over the
+    same topics, and all three are structural rather than requested:
+
+      * the evidence assembled is exactly this unit's topics, so a later unit
+        cannot be drawn from even by accident;
+      * the ten questions are apportioned across those topics by how much each
+        actually teaches, so no substantial taught area is skipped and a
+        thirty-item alphabet topic is not given the same weight as three polite
+        formulas;
+      * the language budget is built from what this unit's lessons really
+        contain, so the questions are phrased inside the learner's repertoire at
+        this point in the course.
+
+    Returns a list of question dicts, or [] when the unit cannot support an
+    assessment. Never returns a partial set: a unit assessment is ten questions
+    or it is not a unit assessment.
+    """
+    from services.assessment_scope import (
+        UNIT_ASSESSMENT_COUNT, plan_unit_coverage, coverage_plan_clause,
+        build_envelope_from_topics, SCOPE_UNIT,
+    )
+    if timing_ctx is None:
+        timing_ctx = {}
+    usable = [t for t in (unit_topics or []) if isinstance(t, dict) and t.get("content")]
+    if not usable:
+        return []
+
+    contents = []
+    for t in usable:
+        c = t.get("content")
+        if isinstance(c, str):
+            try:
+                c = json.loads(c or "{}")
+            except Exception:
+                c = {}
+        contents.append(c if isinstance(c, dict) else {})
+
+    plan = plan_unit_coverage(
+        [{"id": t.get("id"), "title": t.get("title"), "content": c} for t, c in zip(usable, contents)],
+        total=UNIT_ASSESSMENT_COUNT,
+    )
+    if not plan:
+        return []
+
+    envelope = build_envelope_from_topics(
+        level=level, language=language, prior_contents=contents,
+        unit_index=unit_index, unit_total=unit_total,
+    )
+
+    # One assembled payload spanning the unit, labelled by topic so the model can
+    # honour the plan and so attribution survives into the stored questions.
+    parts = []
+    for idx, (t, c) in enumerate(zip(usable, contents), 1):
+        block = [f"[TOPIC {idx}: '{t.get('title')}']"]
+        for page in c.get("pages", []) or []:
+            if not isinstance(page, dict):
+                continue
+            items = [str(i.get("term") or "").strip() for i in (page.get("items") or [])
+                     if isinstance(i, dict) and str(i.get("term") or "").strip()]
+            if items:
+                block.append("  Vocabulary: " + ", ".join(items[:14]))
+            for r in (page.get("rules") or [])[:4]:
+                if isinstance(r, dict) and str(r.get("rule") or "").strip():
+                    line = "  [RULE] " + str(r.get("rule")).strip()
+                    if str(r.get("example") or "").strip():
+                        line += f" — e.g. '{str(r.get('example')).strip()}'"
+                    block.append(line)
+            for cmp_ in (page.get("comparisons") or [])[:3]:
+                if isinstance(cmp_, dict) and str(cmp_.get("target") or "").strip():
+                    block.append("  [CONTRAST] " + str(cmp_.get("target")).strip())
+            txt = str(page.get("text") or "").strip()
+            if txt and len(block) < 4:
+                block.append("  Passage: " + txt[:220])
+        if len(block) > 1:
+            parts.append("\n".join(block))
+    if not parts:
+        return []
+    content_str = "\n\n".join(parts)
+
+    # Terms belonging to no topic in this unit are, by construction, unavailable
+    # here — the payload IS the unit. The leakage check therefore has nothing to
+    # forbid at this level; the caller supplies later-unit terms when it has them.
+    questions = ai_generate_questions(
+        topic_title=unit_title or "Unit Assessment",
+        topic_type="unit_assessment",
+        topic_content={"_preassembled_content_str": content_str},
+        language=language,
+        count=UNIT_ASSESSMENT_COUNT,
+        level=level,
+        is_quiz=True,
+        material_language=material_language,
+        model_override=model_override,
+        timing_ctx=timing_ctx,
+        scope=SCOPE_UNIT,
+        progression=envelope,
+        coverage_plan=coverage_plan_clause(plan),
+    )
+    if len(questions) < UNIT_ASSESSMENT_COUNT:
+        with open("pipeline.log", "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [UNIT-ASSESSMENT] '{unit_title}' "
+                    f"produced {len(questions)}/{UNIT_ASSESSMENT_COUNT}; not published.\n")
+        return []
+
+    # Attribute each question to a topic in the unit, preferring what the model
+    # reported and falling back to the plan rather than to chance.
+    ids = [p.get("topic_id") for p in plan for _ in range(int(p.get("questions") or 0))]
+    for i, q in enumerate(questions[:UNIT_ASSESSMENT_COUNT]):
+        if not q.get("topic_id"):
+            q["topic_id"] = ids[i] if i < len(ids) else (plan[0].get("topic_id"))
+        q["assessment_scope"] = SCOPE_UNIT
+    return questions[:UNIT_ASSESSMENT_COUNT]
+
+
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None, material_language="en"):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, model_override=model_override, material_language=material_language)
 
@@ -1945,15 +2102,95 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150)
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
-def ai_generate_curriculum(language, level, prompt_extra=""):
-    """Course structure in one bilingual pass, grounded in the official authority standards.
+CURRICULUM_UNITS = 6
+CURRICULUM_TOPICS_PER_UNIT = 5
 
-    This used to spend ~5.6k characters of prompt on six worked title examples
-    and three separate restatements of "write real Turkish", against a 4500-token
-    ceiling for an answer whose actual shape - 6 chapters x 5 topics, four short
-    strings each - measures about 1200 tokens. The ceiling is what mattered:
-    `_call_ai` picks its socket timeout from max_tokens, so an oversized budget
-    put a 1.2k-token answer behind a 180-second timeout tier.
+
+def _curriculum_system(language, level, official_institution, cefr_guidance, audience):
+    """Class-invariant half of the curriculum contract, so it can be cached.
+
+    Varies only by language, level and institution. The Tier-1 fallback call and
+    both expansion calls resend it byte-for-byte, so marking it as a cache
+    breakpoint makes every call after the first one cheap.
+    """
+    return f"""You are a bilingual curriculum architect for {language}, working to the official syllabus of {official_institution} and the Council of Europe CEFR framework.
+
+{cefr_guidance}
+
+Every chapter and every topic carries two titles: the professional English title, and the natural Turkish title as an educated Turkish teacher would write it.
+
+'title_tr' rules: 100% Turkish, grammatically correct, no English left inside it, no duplicated words. Never carry English-specific metalanguage across ('Wh- Questions' becomes 'Soru Kelimeleri'; do not write 'Wh- Soruları', and do not use 'Wh- Questions' in the English title of a non-English course either - write 'Question Words (Who, What, Where)'). Target-language forms stay in single quotes: "'Ser' Kullanarak Kimliği Tanımlama".
+
+Topics are real lessons, not labels: functional usage, nuance and situational grammar. Never 'Vocabulary', 'Grammar' or 'Exercises' as a title. Audience: {audience}.
+
+Worked pairs, for calibration:
+  'Polite Expressions for Conversation' -> 'Sohbet İçin Nezaket İfadeleri'
+  'Everyday Survival Vocabulary'        -> 'Günlük Hayatta Kalma Kelimeleri'
+  "Using 'Ser' to Describe Identity"    -> "'Ser' Kullanarak Kimliği Tanımlama"
+"""
+
+
+_LEVEL_GUIDELINES = {
+    "A1": "absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, survival vocabulary, personal information.",
+    "A2": "routine tasks, past tenses (introduction), describing surroundings, simple social exchanges, shopping and work scenarios.",
+    "B1": "travel situations, opinions/dreams/hopes, complex past tenses, future and conditional, giving reasons for plans.",
+    "B2": "technical discussion, interacting with natives without strain, detailed text on diverse subjects, introductory subjunctive.",
+    "C1": "complex subjects, implicit meaning, flexible academic/professional language, deep nuance, advanced idiom.",
+    "C2": "near-native mastery, summarising complex sources, fine shades of meaning, spontaneous academic reconstruction.",
+}
+
+
+def _rows_to_chapters(unit_rows, topic_rows_by_unit):
+    """Decode the compact row form back into the stored chapter shape."""
+    chapters = []
+    for idx, row in enumerate(unit_rows, 1):
+        if not isinstance(row, (list, tuple)) or len(row) < 2:
+            continue
+        topics = []
+        for t in topic_rows_by_unit.get(idx, []):
+            if not isinstance(t, (list, tuple)) or len(t) < 2:
+                continue
+            topics.append({
+                "title": str(t[0]).strip(),
+                "title_tr": str(t[1]).strip(),
+                "type": (str(t[2]).strip() if len(t) > 2 and str(t[2]).strip() else "vocabulary"),
+            })
+        chapters.append({"number": idx, "title": str(row[0]).strip(),
+                         "title_tr": str(row[1]).strip(), "topics": topics})
+    return chapters
+
+
+def ai_generate_curriculum(language, level, prompt_extra=""):
+    """Course structure, generated as an arc plus two concurrent expansions.
+
+    The previous pass cut this call's PROMPT and its ceiling, which helped, and
+    then the remaining time did not move much. Measuring the path rather than
+    guessing at it showed why: with a clean model response there is exactly ONE
+    provider call and no hidden second round trip, so almost all the wall clock
+    is the model DECODING ~1,300 tokens of syllabus JSON, one token at a time.
+    Input size and call count were never the bottleneck; output length is, and
+    output length is the one thing the earlier optimisation could not reduce
+    without deleting curriculum.
+
+    Two changes attack it directly, neither of which removes anything from the
+    result:
+
+      * The wire format is compact rows - ["English title","Türkçe başlık",
+        "type"] - instead of an object per topic. The three key names repeated
+        thirty times were roughly 300 tokens of pure JSON syntax being decoded
+        at conversational speed. They are re-expanded to the stored shape here,
+        deterministically.
+
+      * The syllabus is written as a small ARC call (six chapter titles and a
+        one-line progression) followed by two expansion calls that run
+        CONCURRENTLY, each writing the topics for three chapters and each given
+        the full arc. Half the tokens are now decoded in parallel with the other
+        half. Both halves see all six chapter titles, so progression across the
+        seam is explicit rather than hoped for - if anything this is a tighter
+        constraint than asking one call to keep thirty topics coherent.
+
+    Any failure in the staged path falls back to the original single call, so
+    the worst case is the old behaviour rather than a broken syllabus.
     """
     from services.cefr_reference import get_cefr_conditioning, LANGUAGE_CEFR_STANDARDS
     from services.language_profiles import normalize_language, locked_track, instruction_language_name
@@ -1963,113 +2200,142 @@ def ai_generate_curriculum(language, level, prompt_extra=""):
     official_institution = lang_std.get("institution", f"Council of Europe Official CEFR Framework for {language}")
     cefr_curriculum_guidance = get_cefr_conditioning(language, level, "Curriculum Architecture", "syllabus")
 
-    # The special English/Turkish pair publishes its material on a fixed track;
-    # the syllabus is still authored bilingually (both title fields are stored
-    # and both reader tracks exist), so only the audience note changes.
     canonical = normalize_language(language)
     forced_track = locked_track(canonical)
     audience = "Turkish-speaking learners"
     if forced_track:
         audience = f"learners reading the course in {instruction_language_name(forced_track)}"
 
-    system = f"""You are a bilingual curriculum architect for {language}, working to the official syllabus of {official_institution} and the Council of Europe CEFR framework.
+    system = _curriculum_system(language, level, official_institution, cefr_curriculum_guidance, audience)
+    current_guideline = next((v for k, v in _LEVEL_GUIDELINES.items() if k in level.upper()),
+                             "general CEFR progression.")
+    focus = f" focusing on: {prompt_extra}" if prompt_extra else ""
+    U, T = CURRICULUM_UNITS, CURRICULUM_TOPICS_PER_UNIT
 
-{cefr_curriculum_guidance}
-
-Every chapter and every topic carries two titles in the same response:
-- 'title': the professional English title.
-- 'title_tr': the natural Turkish title, as an educated Turkish teacher would write it.
-
-'title_tr' rules: 100% Turkish, grammatically correct, no English left inside it, no duplicated words. Never carry English-specific metalanguage across ('Wh- Questions' becomes 'Soru Kelimeleri'; do not write 'Wh- Soruları', and do not use 'Wh- Questions' in the English title of a non-English course either - write 'Question Words (Who, What, Where)'). Target-language forms stay in single quotes: "'Ser' Kullanarak Kimliği Tanımlama".
-
-Topics are real lessons, not labels: functional usage, nuance and situational grammar. Never 'Vocabulary', 'Grammar' or 'Exercises' as a title."""
-
-    level_guidelines = {
-        "A1": "absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, survival vocabulary, personal information.",
-        "A2": "routine tasks, past tenses (introduction), describing surroundings, simple social exchanges, shopping and work scenarios.",
-        "B1": "travel situations, opinions/dreams/hopes, complex past tenses, future and conditional, giving reasons for plans.",
-        "B2": "technical discussion, interacting with natives without strain, detailed text on diverse subjects, introductory subjunctive.",
-        "C1": "complex subjects, implicit meaning, flexible academic/professional language, deep nuance, advanced idiom.",
-        "C2": "near-native mastery, summarising complex sources, fine shades of meaning, spontaneous academic reconstruction.",
-    }
-    current_guideline = next((v for k, v in level_guidelines.items() if k in level.upper()), "general CEFR progression.")
-
-    user = f"""Design a {level} {language} syllabus{f' focusing on: {prompt_extra}' if prompt_extra else ''} for {audience}.
-
+    chapters = []
+    source = "staged"
+    t_primary = 0.0
+    try:
+        t_call = time.perf_counter()
+        arc_user = f"""Design the SHAPE of a {level} {language} syllabus{focus} for {audience}.
 LEVEL FOCUS: {current_guideline}
 
-REQUIREMENTS:
-- EXACTLY 6 chapters, EXACTLY 5 descriptive topics each (30 topics).
-- Topics reflect {level} requirements from {official_institution} and progress from foundational to complex.
-- Mix functional language, grammar and cultural context.
-- Both 'title' and 'title_tr' on every chapter and every topic.
+Give EXACTLY {U} chapter titles that progress from foundational to complex, and one line describing the progression as a whole. Do not write topics yet.
 
-Worked pairs, for calibration:
-  'Polite Expressions for Conversation' -> 'Sohbet İçin Nezaket İfadeleri'
-  'Everyday Survival Vocabulary'        -> 'Günlük Hayatta Kalma Kelimeleri'
-  "Using 'Ser' to Describe Identity"    -> "'Ser' Kullanarak Kimliği Tanımlama"
+Return ONLY this JSON, using compact rows ["English title","Türkçe başlık"]:
+{{"arc": "one sentence describing how the {U} chapters progress",
+  "units": [["Everyday Survival Vocabulary","Günlük Hayatta Kalma Kelimeleri"]]}}"""
+        arc_res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": arc_user}],
+                           model=MODEL_CURRICULUM, max_tokens=700, temperature=0.3,
+                           cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level} arc",
+                           cache_system=True)
+        unit_rows = (arc_res or {}).get("units") or []
+        arc_text = str((arc_res or {}).get("arc") or "").strip()
+        if len(unit_rows) < 4:
+            raise ValueError(f"arc returned {len(unit_rows)} units")
+        unit_rows = unit_rows[:U]
 
-Return ONLY this JSON:
-{{
-  "chapters": [
-    {{
-      "number": 1,
-      "title": "Everyday Survival Vocabulary",
-      "title_tr": "Günlük Hayatta Kalma Kelimeleri",
-      "topics": [
-        {{"title": "Polite Expressions for Conversation", "title_tr": "Sohbet İçin Nezaket İfadeleri", "type": "vocabulary"}}
-      ]
-    }}
-  ]
-}}"""
+        listing = "\n".join(f"  {i}. {r[0]} / {r[1]}" for i, r in enumerate(unit_rows, 1)
+                             if isinstance(r, (list, tuple)) and len(r) >= 2)
+        half = (len(unit_rows) + 1) // 2
+        spans = [(1, half), (half + 1, len(unit_rows))]
 
-    # 6 chapters x (2 titles + 5 topics x 3 short strings) lands near 1200 tokens.
-    # 2400 leaves real headroom and keeps the call in the 90s timeout tier.
-    _CURRICULUM_OUTPUT_TOKENS = 2400
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    t_call_start = time.perf_counter()
-    res = _call_ai(messages, model=MODEL_CURRICULUM, max_tokens=_CURRICULUM_OUTPUT_TOKENS, temperature=0.3,
-                   cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level}")
-    t_primary = time.perf_counter() - t_call_start
-    chapters = res.get("chapters", []) if res else []
+        def _expand(span):
+            lo, hi = span
+            want = "\n".join(f'  "{i}": [["English topic title","Türkçe konu başlığı","vocabulary"]]'
+                              for i in range(lo, hi + 1))
+            user = f"""The {level} {language} syllabus{focus} has these {len(unit_rows)} chapters, in order:
+{listing}
 
-    # Tier 1 Fallback: If primary model gave < 4 chapters, try MODEL_FALLBACK
-    if (not chapters or len(chapters) < 4) and MODEL_FALLBACK != MODEL_CURRICULUM:
+PROGRESSION: {arc_text}
+LEVEL FOCUS: {current_guideline}
+
+Write EXACTLY {T} descriptive topics for chapters {lo}-{hi} ONLY. Keep them consistent with the chapters you are NOT writing, so the course does not repeat itself or jump ahead. 'type' is one of vocabulary, grammar, communication, functional, phonetics, mixed.
+
+Return ONLY this JSON, using compact rows ["English title","Türkçe başlık","type"]:
+{{"topics": {{
+{want}
+}}}}"""
+            return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                            model=MODEL_CURRICULUM, max_tokens=1500, temperature=0.3,
+                            cost_stage=_COST_STAGE_CURRICULUM,
+                            cost_subject=f"{language} {level} units {lo}-{hi}",
+                            cache_system=True)
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            halves = list(pool.map(_expand, spans))
+
+        topic_rows = {}
+        for res in halves:
+            for key, rows in ((res or {}).get("topics") or {}).items():
+                try:
+                    topic_rows[int(str(key).strip())] = rows
+                except (TypeError, ValueError):
+                    continue
+        t_primary = time.perf_counter() - t_call
+        chapters = _rows_to_chapters(unit_rows, topic_rows)
+        if len([c for c in chapters if c.get("topics")]) < 4:
+            raise ValueError("expansion produced too few populated units")
+    except Exception as exc:
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] Primary model gave <4 units. Trying fallback {MODEL_FALLBACK}...\n")
-        res_fb = _call_ai(messages, model=MODEL_FALLBACK, max_tokens=_CURRICULUM_OUTPUT_TOKENS, temperature=0.3,
-                          cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level}")
-        if res_fb and res_fb.get("chapters") and len(res_fb["chapters"]) >= 4:
-            chapters = res_fb["chapters"]
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] staged path unavailable ({exc}); "
+                    f"falling back to the single-call syllabus.\n")
+        chapters = []
+        source = "single"
 
-    # Tier 2 Fallback: If still < 4 chapters, load verified blueprint cache
     if not chapters or len(chapters) < 4:
+        t_call = time.perf_counter()
+        user = f"""Design a {level} {language} syllabus{focus} for {audience}.
+LEVEL FOCUS: {current_guideline}
+
+EXACTLY {U} chapters, EXACTLY {T} descriptive topics each. Both titles on every chapter and every topic.
+
+Return ONLY this JSON, using compact rows:
+{{"units": [["English unit title","Türkçe ünite başlığı",
+   [["English topic title","Türkçe konu başlığı","vocabulary"]]]]}}"""
+        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                       model=MODEL_CURRICULUM, max_tokens=2400, temperature=0.3,
+                       cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level}",
+                       cache_system=True)
+        rows = (res or {}).get("units") or []
+        unit_rows, topic_rows = [], {}
+        for i, row in enumerate(rows[:U], 1):
+            if isinstance(row, (list, tuple)) and len(row) >= 2:
+                unit_rows.append([row[0], row[1]])
+                topic_rows[i] = row[2] if len(row) > 2 and isinstance(row[2], list) else []
+        chapters = _rows_to_chapters(unit_rows, topic_rows)
+        t_primary += time.perf_counter() - t_call
+        source = "single"
+
+    # Tier 2 Fallback: verified blueprint cache.
+    if not chapters or len([c for c in chapters if c.get("topics")]) < 4:
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] AI generation returned <4 units. Loading verified blueprint fallback for {language} {level}.\n")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] generation returned <4 populated units. "
+                    f"Loading verified blueprint fallback for {language} {level}.\n")
         cached = _load_blueprint_chapters(language, level)
         if cached:
             from services.curriculum_translator import ensure_bilingual_curriculum
-            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level, t_stage_start, t_primary, "blueprint")
+            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level,
+                                      t_stage_start, t_primary, "blueprint")
 
-    # Clean titles and re-index chapters
     for i, ch in enumerate(chapters):
         ch["number"] = i + 1
-        if "title" in ch and isinstance(ch["title"], str):
+        if isinstance(ch.get("title"), str):
             ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
-        if "title_tr" in ch and isinstance(ch["title_tr"], str):
+        if isinstance(ch.get("title_tr"), str):
             ch["title_tr"] = re.sub(r'^Ünite\s*\d+\s*[:\-]*\s*', '', ch["title_tr"], flags=re.IGNORECASE).strip()
 
-    # ── ULTIMATE SAFETY GUARD: Never return fewer than 4 chapters ──
     if not chapters or len(chapters) < 4:
         cached = _load_blueprint_chapters(language, level, require_four=False)
         if cached:
             from services.curriculum_translator import ensure_bilingual_curriculum
-            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level, t_stage_start, t_primary, "blueprint")
+            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level,
+                                      t_stage_start, t_primary, "blueprint")
 
-    # ── BILINGUAL TITLE ENRICHMENT: Ensure both title (EN) and title_tr (TR) are populated cleanly ──
     from services.curriculum_translator import ensure_bilingual_curriculum
     chapters = ensure_bilingual_curriculum(chapters)
-    return _finish_curriculum(chapters, language, level, t_stage_start, t_primary, "model")
+    return _finish_curriculum(chapters, language, level, t_stage_start, t_primary, source)
 
 
 def _load_blueprint_chapters(language, level, require_four=True):
@@ -3358,7 +3624,7 @@ def _material_release_integrity_v37(data, language, level, material_language="tr
     from services.material_quality_guard import enforce_material_integrity
     return enforce_material_integrity(data, language=language, material_language=material_language) if isinstance(data, dict) else data
 
-def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr"):
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr", unit_index=None, unit_total=None, topics_completed=0):
     """
     Generates a maximum-detail, textbook-quality lesson using Gemini 2.5 Flash.
     No fixed page count — the AI determines the optimal structure based on topic depth.
@@ -3396,6 +3662,16 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     # Build clean, universal, professor-level prompt with full pedagogical freedom
     # AULAAI_CANONICAL_MATERIAL_PROMPT
     from services.material_generation_prompt import build_material_prompts
+    # The language budget for this lesson's own assessment items. Derived from
+    # CEFR and position in the course - deterministic, no model call, and no
+    # dependency on other topics, which matters because topics are generated
+    # concurrently and no sibling lesson exists yet when this one is written.
+    from services.assessment_scope import progression_envelope
+    assessment_budget = progression_envelope(
+        level=level, language=language,
+        unit_index=unit_index, unit_total=unit_total,
+        topics_completed=topics_completed,
+    )
     system_prompt, user_prompt = build_material_prompts(
         language=language,
         level=level,
@@ -3403,6 +3679,7 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         topic_type=topic_type,
         official_institution=official_institution,
         source_text=source_text,
+        assessment_budget=assessment_budget,
     )
 
     lesson_dict = None

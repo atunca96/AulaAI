@@ -109,8 +109,9 @@ def build_system_prompt(
 {pedagogy_guidance}
 
 ── 1. LANGUAGE OF THE ITEM ──
-- 'prompt', 'answer' and every distractor are 100% in {language}. No English or Turkish carrier text anywhere in them — frame the scenario, the instruction and the question itself in authentic {language}.
-- 'translation_en' and 'translation_tr' translate the prompt; 'why'/'why_tr' explain the key in one sentence of at most 15 words.
+- 'prompt', 'answer' and every distractor are 100% in {language}. No English or Turkish carrier text anywhere in them — the stem, ANY instruction needed to answer, the surrounding sentence and the options are all authentic {language}. The question is asked in the language being taught.
+- The ANSWER KEY is the opposite: 'why'/'why_tr' explain the key in the course's instructional language, one sentence of at most 15 words. Assessment content and answer-key explanation are two different tracks and never swap.
+- 'translation_en' and 'translation_tr' are a reference gloss of the prompt. They are never the instruction, and the item must be answerable without reading them.
 - BLANK PRESERVATION: if the prompt contains a blank, both translations keep it as '_____'. Never let a translation reveal the answer word.
   WRONG: prompt "... Le devuelvo _____ euros." -> translation_en "... I return thirty euros to you."
   RIGHT: prompt "... Le devuelvo _____ euros." -> translation_en "... I return _____ euros to you."{track_note}
@@ -158,7 +159,8 @@ def build_system_prompt(
 - The prompt never contains the answer or a stem of it.
 - No meta-orthographic trivia: letter names, "which word has a written accent", "which letter is silent", "which word ends in Y". Such items are shallow and usually have several correct answers. Test spelling and accents inside communicative sentences where exactly one option is spelled correctly and the rest are typical learner errors. For phonetics topics, test pronunciation in real words or minimal pairs.
 - No transparent cognates as the target: the answer must not be trivially recoverable from English or Turkish.
-- No shallow translation drills ("what does X mean", "how do you say X"), no circular definitions that define a word with its own root, no trivial one-word collocation blanks that simply delete the obvious verb.
+- NO TRANSLATION QUESTIONS, EVER, AT ANY LEVEL. Not "what does X mean", not "how do you say X in {language}", not "translate this", not "which option is the English/Turkish for X", and not the reverse direction either. A translation drill tests a bilingual lookup, not the language. At A1 this is not a licence to fall back on translation — it is a reason to make the {language} question simpler: a short gapped sentence, a two-option contrast, a reply chosen for a situation. Meaning belongs in the answer-key explanation afterwards, never in the question.
+- No circular definitions that define a word with its own root, and no trivial one-word collocation blanks that simply delete the obvious verb.
 - No meta-paraphrase ("what did the speaker just say?"). Ask what the person should say or do, or what the information implies.
 - No commercial product trivia, brand names, ticket portfolio specifics or invented legal thresholds.
 - NO ARITHMETIC OF ANY KIND. This is a language platform. Numbers, prices, times and dates are tested through authentic communicative situations — asking a price, a time, a room number, a date, an age — never as a calculation.
@@ -233,6 +235,44 @@ PEDAGOGICAL EMPHASIS FOR THIS BATCH: {variety_focus}
 BATCH SHAPE:
 - At most {blank_cap} of the {gen_count} items may contain a blank ('_____'). The rest are direct situational, comprehension, discrimination or collocation questions with no blank.
 - Spread the {gen_count} items across the different parts/modules of the source above, and across different cognitive tasks.
+
+Return ONLY this JSON object:
+{JSON_SCHEMA_BLOCK.replace("{language}", language)}
+
+UNIQUE_REQUEST_ID: {request_id}"""
+
+
+def build_material_user_prompt(
+    *,
+    language: str,
+    level: str,
+    scope: str,
+    title: str,
+    item_count: int,
+    content_str: str,
+    progression: str,
+    coverage_plan: str = "",
+    request_id: str = "",
+) -> str:
+    """The per-request half for a MATERIAL-INTERNAL assessment (topic or unit).
+
+    Deliberately the same shape as `build_user_prompt`, against the same
+    class-invariant system prompt, so a topic assessment, a unit assessment and a
+    standalone quiz all share one cached prefix and one set of quality rules. The
+    only things that differ are the boundary (which evidence was assembled) and
+    the progression budget — both supplied here as short clauses rather than as
+    another copy of the contract.
+    """
+    from services.assessment_scope import scope_clause
+
+    return f"""TASK: generate EXACTLY {item_count} assessment questions in {language} at CEFR {level}, on '{title}'.
+
+{scope_clause(scope, item_count, coverage_plan)}
+
+{progression}
+
+SOURCE MATERIAL (the only evidence you may assess):
+{content_str}
 
 Return ONLY this JSON object:
 {JSON_SCHEMA_BLOCK.replace("{language}", language)}

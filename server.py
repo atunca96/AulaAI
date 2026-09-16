@@ -3643,7 +3643,7 @@ table.vt td { padding: 4px 6px; }
             if topic_id:
                 topic_ids = [topic_id]
             elif chapter_id and chapter_id != "all":
-                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
                 topic_ids = list(set(t["id"] for t in topics))
             else:
                 topics = db.execute("""
@@ -3713,12 +3713,12 @@ table.vt td { padding: 4px 6px; }
                 # Quizzes strictly cover the entire unit (Chapter)
                 is_chapter = db.execute("SELECT id FROM chapters WHERE id = ?", (chapter_id,)).fetchone()
                 if is_chapter:
-                    topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                    topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
                 else:
                     # If a topic ID was passed, expand to its full parent chapter so quizzes always cover the full unit
                     is_topic = db.execute("SELECT chapter_id FROM topics WHERE id = ?", (chapter_id,)).fetchone()
                     if is_topic and is_topic["chapter_id"]:
-                        topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (is_topic["chapter_id"],)).fetchall()
+                        topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (is_topic["chapter_id"],)).fetchall()
                     else:
                         topics = []
             else:
@@ -4373,7 +4373,7 @@ table.vt td { padding: 4px 6px; }
             if topic_id:
                 topic_ids = [topic_id]
             elif chapter_id and chapter_id != "all":
-                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
                 topic_ids = [t["id"] for t in topics]
             else:
                 topics = db.execute("""
