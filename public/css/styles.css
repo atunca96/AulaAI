@@ -1820,7 +1820,11 @@ body:has(#student-dashboard.active) .floating-actions {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-overlay);
-  padding: var(--space-8);
+  /* One token owns the panel's inset. The sticky close and the sticky action
+     bar cancel it with negative offsets, so when a breakpoint changed the
+     padding alone they drifted out of alignment with the panel edge. */
+  --modal-pad: var(--space-8);
+  padding: var(--modal-pad);
   max-width: 640px;
   width: 100%;
   max-height: min(86vh, 900px);
@@ -1835,7 +1839,7 @@ body:has(#student-dashboard.active) .floating-actions {
   /* .modal-content is a column flex container, so a float here would be
      ignored; align-self is what actually parks it on the trailing edge. */
   position: sticky;
-  top: calc(var(--space-8) * -1);
+  top: calc(var(--modal-pad) * -1);
   align-self: flex-end;
   order: -1;
   margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) calc(var(--space-2) * -1) 0;
@@ -1862,13 +1866,13 @@ body:has(#student-dashboard.active) .floating-actions {
    reach instead of sitting below an invisible fold. */
 .modal-actions {
   position: sticky;
-  bottom: calc(var(--space-8) * -1);
+  bottom: calc(var(--modal-pad) * -1);
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-5);
-  margin: var(--space-8) calc(var(--space-8) * -1) calc(var(--space-8) * -1);
-  padding: var(--space-6) var(--space-8);
+  margin: var(--space-8) calc(var(--modal-pad) * -1) calc(var(--modal-pad) * -1);
+  padding: var(--space-6) var(--modal-pad);
   border-top: 1px solid var(--line-subtle);
   background: var(--surface-2);
 }
@@ -2523,35 +2527,31 @@ body:has(#student-dashboard.active) .floating-actions {
 
   .grid-2col { grid-template-columns: minmax(0, 1fr); }
 
-  /* Dialogs become bottom sheets. The panel keeps its column layout so the
-     sticky close and the sticky action bar still work — the old rule turned
-     it into a plain scrolling box, which is how the AI Architect ended up
-     running off the bottom of the screen with its primary button
-     unreachable. */
-  .modal { padding: 0; align-items: flex-end; }
+  /* Dialogs stay centred on a phone, as a panel rather than a full-bleed
+     bottom sheet. The panel keeps its column layout so the sticky close and
+     the sticky action bar still work — turning it into a plain scrolling box
+     is how the AI Architect once ended up running off the bottom of the screen
+     with its primary button unreachable.
+
+     The inset is applied to the backdrop rather than the panel, so the panel
+     is centred in the space that is actually free: clear of a device cutout on
+     the sides, and of the status bar and home indicator top and bottom. */
+  .modal {
+    align-items: center;
+    padding: calc(var(--space-6) + env(safe-area-inset-top, 0px))
+             var(--gutter-safe)
+             calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  }
   .modal-content {
-    margin: 0;
-    width: 100%;
-    max-width: none;
-    max-height: 92svh;
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    border-bottom: none;
-    /* Side padding follows the page's safe gutter so a sheet, which spans the
-       full width, keeps its content clear of a device cutout. */
-    padding: var(--space-7) var(--gutter-safe);
-    padding-bottom: calc(var(--space-7) + env(safe-area-inset-bottom, 0px));
+    --modal-pad: var(--space-7);
+    /* Whatever is left after the backdrop's inset — the panel scrolls
+       internally rather than growing past the screen. */
+    max-height: 100%;
   }
-  /* When the sheet carries its own action bar, that bar owns the bottom inset
-     and sits flush with the sheet's edge. */
+  /* An action bar owns the panel's bottom edge and sits flush with it; the
+     panel's own overflow clipping keeps the rounded corners. */
   .modal-content:has(.modal-actions) { padding-bottom: 0; }
-  .modal-close { top: calc(var(--space-7) * -1); }
-  .modal-actions {
-    margin-inline: calc(var(--gutter-safe) * -1);
-    margin-bottom: 0;
-    bottom: 0;
-    padding: var(--space-5) var(--gutter-safe);
-    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
-  }
+  .modal-actions { margin-bottom: 0; bottom: 0; padding-block: var(--space-5); }
 
   .pdf-container {
     height: calc(100svh - 120px);
@@ -3667,30 +3667,8 @@ body:has(#student-dashboard.active) .floating-actions {
   }
 }
 
-@media (max-width: 1024px) {
-  /* A short notification ("your classroom is ready") is not a bottom sheet.
-     The sheet rules above set `align-items: flex-end` on .modal, and this
-     override only ever restyled the PANEL — so the panel kept sitting on the
-     bottom edge however it was margined. Centring has to happen on the flex
-     container, so it is done here, and the panel is returned to a centred
-     dialog rather than a full-width sheet.
-
-     Scoped to #confirm-modal on purpose: the sheet treatment is right for the
-     long forms (class creation, the AI Architect), which is why it exists. */
-  #confirm-modal {
-    align-items: center;
-    padding: var(--gutter-safe);
-  }
-  #confirm-modal .modal-content {
-    width: 100%;
-    max-width: 400px;
-    margin: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    max-height: 80svh;
-    padding: var(--space-7);
-  }
-}
+/* The #confirm-modal centring override that used to live here is gone: every
+   dialog is centred on mobile now, so it had nothing left to correct. */
 
 /* ── Modern Classroom Build Banner ── */
 .build-banner-card {
@@ -4747,7 +4725,7 @@ select.text-input option,
   .quiz-score-big { font-size: 56px; margin: var(--space-5) 0; }
 
   /* Overlays: a sheet's header should not cost a third of its height. */
-  .modal-content { padding: var(--space-6); }
+  .modal-content { --modal-pad: var(--space-6); }
   .modal-content h2 { font-size: var(--fs-xl); }
 
   /* Curriculum */
@@ -4758,7 +4736,7 @@ select.text-input option,
 @media (max-width: 600px) {
   .card-body { padding: var(--space-5); }
   .card-header { padding: var(--space-4) var(--space-5); }
-  .modal-content { padding: var(--space-5); }
+  .modal-content { --modal-pad: var(--space-5); }
   .page-header h1 { font-size: var(--fs-lg); }
 
   /* Page actions sit beside the title when they fit rather than each claiming
