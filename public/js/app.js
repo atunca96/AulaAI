@@ -11974,16 +11974,16 @@ function showStudyTopic(topicId, pageIdx = 0, options = {}) {
   try {
     const content = typeof topic.content === 'string' ? JSON.parse(topic.content || '{}') : (topic.content || {});
 
-    // Which instructional track this material was WRITTEN in. The reader used
-    // to branch on currentLang — the language of the app's own chrome — so a
-    // course generated on the English track and opened by someone whose
-    // interface is Turkish looked up _tr fields that do not exist, fell back to
-    // whatever was left, and forced the reader to flip the UI language before
-    // they could read anything. The track is a property of the material, not a
-    // user preference, so it comes from the course.
+    // The course's material_language is the generation/default track, not a
+    // permanent reader lock. Published material can expose both TR and EN
+    // instructional fields (PDF export already selects either track), so the
+    // in-app reader must follow the user's current display language as well.
+    // Keep the declared track only as a defensive fallback for invalid state.
     const _declaredTrack = (currentCourse && currentCourse.material_language) ||
                            (topic && topic.material_language) || null;
-    const matLang = (_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : currentLang;
+    const matLang = (currentLang === 'tr' || currentLang === 'en')
+      ? currentLang
+      : ((_declaredTrack === 'tr' || _declaredTrack === 'en') ? _declaredTrack : 'en');
     const fixDiacritics = (txt) => {
       if (typeof txt !== 'string') return txt;
       let res = txt.replace(/(^|[\s\(\[“"'‘])([\u064B-\u065F\u0670])/g, '$1◌$2');
