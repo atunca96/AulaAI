@@ -27,8 +27,6 @@ import difflib
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 from services.quiz_source_cache import get_content_hash
-from services import question_contract as qc
-from services.assessment_scope import SCOPE_TOPIC as _SCOPE_TOPIC, SCOPE_UNIT as _SCOPE_UNIT
 
 def _uid():
     return str(uuid.uuid4())
@@ -995,9 +993,9 @@ def _extract_source_backed_metadata(topic_content: Any, material_language: str =
     return "\n\n".join(sections)
 
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None, scope=None, progression=None, coverage_plan="", forbidden_terms=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None):
     c = int(count)
-    gen_count = qc.overproduction_count(c)
+    gen_count = max(c + 5, int(c * 1.5), 14)
     if timing_ctx is None:
         timing_ctx = {}
 
@@ -1258,52 +1256,363 @@ REPETITION & COVERAGE RULES:
     pedagogy_guidance = get_pedagogical_guidelines(language, level)
     cefr_guidance = get_cefr_conditioning(language, level, topic_title, topic_type)
 
-    # ── THE CONTRACT ──
-    # services/question_contract.py owns what a question must be. The system
-    # half is class-invariant: target language, CEFR level and the two
-    # conditioning blocks, all fixed for a course. Nothing per-topic,
-    # per-batch or per-sub-batch may enter it, because that is exactly what
-    # makes it a byte-identical prefix across every generation in a class and
-    # lets the provider cache it (see cache_system= on the call below). Topic,
-    # batch size, source material, rolling history and focus live in the user
-    # half, which is small.
-    system = qc.build_system_prompt(
-        language=language,
-        level=level,
-        cefr_guidance=cefr_guidance,
-        pedagogy_guidance=pedagogy_guidance,
-    )
+    system = f"""You are the {language} Pedagogic Assessment Engine (V5). 
+    Your mission: Using the provided textbook content as your source, generate questions that test genuine communicative and linguistic understanding in {language}.
+    
+    {cefr_guidance}
+    
+    {pedagogy_guidance}
+    
+    PEDAGOGIC PROTOCOL & MANDATES:
+    1. 100% TARGET LANGUAGE PROMPTS (CRITICAL & ABSOLUTE REQUIREMENT):
+       - The 'prompt' field MUST BE 100% IN {language}.
+       - ABSOLUTELY ZERO Turkish or English carrier text in the 'prompt' field!
+       - Frame ALL questions, instructions, and scenarios entirely in authentic {language}.
+       - Valid prompt examples:
+         * "¿Cuál es la respuesta adecuada y formal cuando un colega dice 'Mucho gusto'?"
+         * "Completa la frase con la forma verbal correcta: 'Normalmente nosotros ______ en el centro antes de las ocho.'"
+         * "En la pronunciación del español, ¿cuál de estas palabras contiene una 'h' completamente muda?"
+         * "¿Qué expresión se utiliza habitualmente para pedir la cuenta en un restaurante?"
+    2. DUAL TRANSLATION & BLANK PRESERVATION MANDATE (CRITICAL):
+       - 'translation_en': Professional English translation of the prompt.
+       - 'translation_tr': Natural, fluent Turkish translation of the prompt.
+       - BLANK PRESERVATION: If the prompt contains a blank or fill-in-the-blank (e.g. '_____', '____', '___'), the translations ('translation_en' and 'translation_tr') MUST ALSO KEEP THE BLANK AS '_____'!
+         * ABSOLUTELY NEVER insert, translate, or reveal the answer word inside 'translation_en' or 'translation_tr'!
+         * WRONG: prompt="... Le devuelvo _____ euros." -> translation_en="... I return thirty euros to you." (REVEALS ANSWER!)
+         * CORRECT: prompt="... Le devuelvo _____ euros." -> translation_en="... I return _____ euros to you."
+         * CORRECT: prompt="... Le devuelvo _____ euros." -> translation_tr="... Size _____ euro para üstü veriyorum."
+       - 'why': Concise pedagogical explanation in English.
+       - 'why_tr': Concise pedagogical explanation in Turkish.
+    3. STRICT ANTI-GIVEAWAY & BAN ON META-ORTHOGRAPHIC TRIVIA:
+       - The prompt MUST NEVER contain the correct answer or any stem/part of the answer.
+       - STRICT ZERO-TOLERANCE BAN ON META-ORTHOGRAPHIC & ALPHABET TRIVIA:
+         * NEVER ask shallow meta-trivia questions about letter names, string properties, or spelling features (e.g. NEVER ask 'Which word has a tilde / graphic accent?', 'Which letter is silent?', 'Which word ends in Y?', 'Which number between 16 and 29 has a tilde?').
+         * Testing "Which word has a tilde?" is shallow trivia and often creates multiple correct answers.
+         * Test spelling, orthography, and accents EXCLUSIVELY in authentic communicative sentence contexts (e.g. "Tengo _____ años." where only ONE option is correctly spelled, and all 3 distractors are typical learner spelling errors).
+       - For phonetics/alphabet topics, test genuine pronunciation in real words or minimal pairs.
+    4. STRICT ANTI-COGNATE & REAL-CHALLENGE MANDATE:
+       - NEVER ask questions where the target answer is an obvious transparent cognate identical to English/Turkish.
+       - All 4 options (answer + 3 distractors) MUST be drawn from the exact same semantic domain.
+     5. HOMOGENEITY, LINGUISTIC LEVEL & FUNCTIONAL CATEGORY MATCHING (CRITICAL):
+        - All 4 options MUST be the EXACT SAME grammatical type (all verbs, all nouns, all clauses, or all questions).
+        - SAME LINGUISTIC LEVEL & FUNCTIONAL CATEGORY: When possible, distractors should compete with the correct answer at the same linguistic level and functional category.
+        - BAN ON OUT-OF-CATEGORY OPTIONS: Avoid making the answer obvious by mixing it with options from clearly different grammatical, pragmatic, or register categories (e.g. never mix casual conversational remarks with formal institutional prose, and never mix an abstract stance with a simple action).
+    6. STRICT LESSON MATERIAL GROUNDING & LEARNING OBJECTIVES (SCENARIO TRANSFER ONLY):
+       - AUTHORITATIVE SOURCE OF LEARNING OBJECTIVES (PEDAGOGICAL GROUNDING):
+         * The lesson material is the single authoritative source of truth and learning objectives.
+         * Every question MUST assess knowledge, vocabulary, grammar patterns, relationships, examples, or communicative functions explicitly taught or demonstrated in the lesson material.
+         * CONTEXTUAL KNOWLEDGE TRANSFER (SCENARIO TRANSFER ONLY, NEVER UNRESTRICTED ARGUMENT RECOMBINATION):
+           Questions MAY transfer taught linguistic knowledge, grammar structures, and vocabulary into fresh, realistic, CEFR-appropriate communicative contexts. Questions do NOT need to be literal verbatim recall tests. HOWEVER, "fresh context", "variety", "maximum novelty", and "non-verbatim recall" apply EXCLUSIVELY to the external scenario frame—speaker identity, setting, communicative goal, surrounding situation, and task format—NOT to the internal lexical-combinatorial structure of the taught target. When a source-backed lexical item, collocation, fixed/semi-fixed expression, or construction is reused in either a stem, keyed answer, or distractor, preserve its demonstrated head–argument structure, valency, complement type, required preposition/case, modifier relation, and selectional restrictions unless the source itself provides another attested compatible pattern. ABSOLUTELY DO NOT freely substitute a new subject, object, complement, modifier, or semantic argument merely to increase novelty.
+         * BAN ON EXTERNAL FACTS & INVENTIONS: While transfer of taught rules/lexicon is encouraged, questions must NEVER require external facts, unstated assumptions, generic world knowledge, or invented lesson content.
+       - STRICT BAN ON COMMON SENSE & CLOSING THE GATE 1 CO-OCCURRENCE LOOPHOLE (CRITICAL):
+         * Material grounding MUST be evaluated at the level of the COMPLETE LINGUISTIC COMBINATION being tested, NOT isolated word co-occurrence. A phrase or combination is NOT source-supported merely because its individual words appear somewhere in the lesson.
+         * A question or keyed answer is material-grounded ONLY when the complete head–argument, head–modifier, valency, case/preposition, and collocational relationship is directly licensed by source-backed usage or authentic living usage. Synthesizing an unnatural or unattested combination from words that co-occur across the unit is STRICTLY FORBIDDEN and fails Gate 1.
+         * A question FAILS when it relies on an ungrounded word combination, or when it primarily measures common sense, world knowledge, or obvious category matching rather than a material-supported learning objective.
+         * Examples of forbidden generic questions: asking where a doctor works (hospital), what you do when hungry (eat), or generic train delay common sense that anyone knows without studying the lesson.
+         * Questions MUST require understanding of the target language structures, collocations, or distinctions taught in the lesson.
+       - MULTI-PART & OBJECTIVE COVERAGE:
+         * Across the {gen_count} questions in this batch, cover different parts, sections, and learning objectives from the material instead of repeatedly testing the same concept, sentence pattern, vocabulary item, or grammar rule.
+         * Map questions across the different numbered PARTS/sections provided in the source material.
+        - STRICT SOURCE GROUNDING ACROSS ALL LINGUISTIC DOMAINS (CRITICAL MANDATE):
+          * A grammar, vocabulary, discourse, pragmatic, pronunciation, orthographic, or functional rule may be stored or tested ONLY when it is explicitly supported by the source material or is an unambiguously inherent property of the taught target.
+          * ABSOLUTE BAN ON REVERSE-ENGINEERING: NEVER promote an incidental form, word, dialogue line, example, contextual effect, register effect, pragmatic inference, or model-generated interpretation into a learning rule merely because it appears in the material.
+          * Treat explicit rules ('[RULE]') and structural comparisons ('[CONTRAST]') as the PRIMARY and authoritative source of truth for grammar, inflection, and syntactic function questions.
+          * Treat vocabulary items, example sentences, narrative passages, and dialogue ONLY as lexical and contextual evidence, NEVER as proof of a new grammatical rule or function unless directly supported by a matching explicit taught rule.
+          * Keep core linguistic meaning and syntactic function strictly separate from optional contextual, rhetorical, or pragmatic effects.
+          * Treat dialogues and examples as contextual evidence unless the source explicitly foregrounds their language as a learning target.
+          * NO FORCED GRAMMAR QUESTIONS: If a topic has no explicit source-supported grammar rule or comparison, do NOT force or synthesize a grammar question from it; generate supported lexical, contextual, comprehension, or communicative usage questions instead.
+          * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
+           * SURFACE-INDEPENDENT META-LINGUISTIC & DEFINITIONAL GROUNDING MANDATE:
+             All meta-linguistic, rhetorical, semantic, pragmatic, grammatical, discourse, and definitional claims MUST be source-backed regardless of surface question wording.
+             This mandate applies equally whether the question is phrased as 'what is X', 'what does X indicate', 'what is the function of X', 'what is the essential condition for X', 'which attitude does X express', 'what does this construction mean', or any other formulation.
+             If the exact property, function, condition, attitude, or definition being tested is not explicitly supported by source-backed structured metadata ('[RULE]' or '[CONTRAST]' with concrete source evidence), the model MUST NOT synthesize a general definition or inherent form-function claim from pretraining. The model MUST convert that item into contextual recognition or communicative application in context instead.
+           * SYMMETRIC LEXICAL-COMBINATORIAL NATURALNESS & VALENCY IN STEMS AND KEYED ANSWERS (CRITICAL):
+             For every generated stem and keyed correct answer, strictly preserve the lexical and grammatical compatibility demonstrated by source-backed usage:
+             - A verb or expression in the stem or keyed answer must take a natural, authentic subject/object/complement structure;
+             - A modifier or complement may NEVER be transplanted onto a different lexical head merely because it is semantically related;
+             - Fixed and semi-fixed expressions must preserve their authentic argument structure and selectional restrictions;
+             - When the source does not provide enough evidence to form a natural new combination, DO NOT invent one—use the source-backed expression in a genuinely different context (scenario transfer), choose another source-supported target, or generate a natural semantic/functional alternative instead;
+             - Strict confidence threshold: If the model is not confident that a newly composed phrase in the stem or keyed answer is idiomatic and grammatically well-formed in {language}, it MUST avoid that candidate rather than approximate.
+
+     7. SYMMETRIC OPTIONS INTEGRITY: EXACTLY 4 OPTIONS, UNIFORM COMBINATORIAL SCRUTINY & CEFR CALIBRATION (CRITICAL):
+        - EXACTLY 4 OPTIONS: Every question MUST have 1 correct answer and EXACTLY 3 distinct distractors in the 'distractors' array. Total options must ALWAYS be 4.
+        - SYMMETRIC HARD GENERATION SCRUTINY FOR KEYED ANSWERS AND DISTRACTORS:
+          * Every single option—the keyed correct answer AND all 3 distractors—must receive the exact same rigorous scrutiny for lexical head, valency, complement type, preposition/case, selectional restrictions, and combinatorial naturalness.
+          * The keyed answer itself must FIRST be natural, idiomatic, grammatically well-formed, and combinatorially licensed by source-backed usage before checking distinctiveness.
+          * The correct answer MUST be the ONE AND ONLY option that satisfies the question prompt, fully defensible from the lesson material.
+          * All 3 distractors MUST be unequivocally and demonstrably false upon careful examination.
+        - STRICT CEFR {level} DIFFICULTY PRESERVATION:
+          * Strictly respect CEFR {level} linguistic limits across all questions, prompts, and all 4 options.
+          * Keep all target-language wording natural, idiomatic, and examiner-grade in {language}.
+          * Avoid overly advanced vocabulary, dense bureaucracy, or complex syntax above CEFR {level}.
+        - HIGH-CALIBER DISTRACTOR RIGOR & NEAR-MISS COMPETITIVENESS (NO EASY FILLERS):
+          * Distractors must be challenging, sophisticated, and closely competing options that require genuine linguistic discernment to rule out.
+          * ZERO easy 'throwaway' or filler options that a student can eliminate at a superficial glance without thinking.
+           * EVERY OPTION MUST ITSELF BE GRAMMATICALLY NATURAL & AUTONOMOUSLY WELL-FORMED:
+             - Every single option (the correct answer AND all 3 distractors) MUST ITSELF be a 100% grammatically natural, authentic, and attested expression in {language}.
+             - SAFEGUARD 1 - REAL, CORRECTLY FORMED OPTIONS & DISTRACTORS: Every distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms or synthetic inflectional/derivational mutations just to make an option incorrect. If natural parallel forms do not exist, use a plausible semantic or functional distractor instead.
+             - A distractor must be incorrect solely because of the CONTEXT, MEANING, PRAGMATIC FIT, or SUBTLE COLLOCATIONAL MISMATCH with the scenario — NEVER because the option itself is ungrammatical gibberish, an impossible morphological invention, or an unnatural phrase in {language}!
+             - Avoid and reject any option that can be eliminated merely because it sounds unnatural, malformed, invented, or structurally impossible in isolation (e.g. NEVER fabricate artificial affix combinations, non-existent verb inflections, or broken morphological compounds).
+           * At least 1-2 (and where appropriate at least TWO) distractors in EVERY question MUST be plausible near-miss options drawn from the exact same grammatical or semantic category as the answer:
+             - In grammar: Use real, grammatically natural alternative forms (subtle agreement mismatches, correct tense but wrong grammatical person, subtle word-order inversion errors, or real, attested alternative inflectional forms).
+             - In vocabulary/collocations: Use other real, natural words from the exact same semantic field or plausible near-synonyms that do not fit the specific collocational frame, register, or preposition.
+             - In comprehension: Distractors should describe other real, grammatically natural statements mentioned elsewhere in the text (plausible misattributions), requiring careful reading rather than superficial elimination.
+           * SAFEGUARD 2 - COMPLETE NATIVE CONSTRUCTION & TARGET-LANGUAGE VALIDATION ACROSS KEYED ANSWER & DISTRACTORS (CRITICAL):
+             - Validate fixed expressions, collocations, morphology, syntax, semantic relations, and comparisons strictly according to {language} itself rather than through translation-based assumptions or cross-lingual calques.
+             - For idioms, fixed expressions, collocations, and formal phrases in BOTH the keyed answer and distractors, preserve their authentic argument structure and lexical selection exactly as required in {language}: verify which person, object, case, complement, preposition, or collocate the expression naturally takes in {language}, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
+             - Validate collocational naturalness before accepting a question: a word may be semantically related yet must still be rejected if its argument, complement, or surrounding phrase is unnatural in real usage in {language}. Do not make questions artificially harder.
+           * SAFEGUARD 3 - LEXICAL HEAD, VALENCY & COMPLEMENT INTEGRITY (SYMMETRIC STANDARD FOR STEM, ANSWER & DISTRACTORS):
+             - All generated stems, keyed answers, and distractors must strictly preserve the lexical head, valency, complement type, required preposition/case, grammatical compatibility, and collocational relationships demonstrated by authentic living usage and source-backed examples.
+             - ABSOLUTELY DO NOT mechanically transplant a modifier, prepositional complement, or argument from one taught item onto an incompatible head word or verb merely because both belong to the same semantic domain or lesson page.
+             - Fixed and semi-fixed expressions in stems, keyed answers, and distractors must preserve their authentic argument structure and selectional restrictions in full.
+             - Inflectional or derivational material must NOT be mechanically mutated or altered to manufacture an option.
+             - When the source does not provide enough evidence to form a natural new combination, DO NOT invent one—use authentic, contextually plausible alternatives from the taught domain instead of fabricating an unnatural near-miss combination.
+             - Strict confidence threshold: If the model is not confident that an option is 100% natural, idiomatic, and grammatically well-formed in {language}, it MUST avoid that candidate rather than approximate.
+          * REJECTION OF SUPERFICIALLY FORMAL BUT SEMANTICALLY MISSELECTED VOCABULARY:
+            - Strictly reject words that sound superficially elevated, archaic, or formal but are semantically or idiomatically misselected in context.
+            - Never use an elevated register or learned word merely for cosmetic formality if its actual definition, argument structure, or idiomatic domain does not fit the context with 100% precision in {language}.
+          * IDIOMATIC PLAUSIBILITY IN THE EXACT SENTENCE FRAME:
+            - An option must make sense syntactically and idiomatically within the frame, representing a genuine, plausible choice rather than an awkward or arbitrary substitution.
+          * LINGUISTIC LEVEL & FUNCTIONAL CATEGORY MATCHING:
+            - When possible, distractors should compete with the correct answer at the same linguistic level and functional category.
+            - Avoid making the answer obvious by mixing it with options from clearly different grammatical, pragmatic, or register categories.
+          * Distractors do NOT all need to appear verbatim in the source material: CEFR-appropriate real incorrect forms and common learner traps are explicitly welcomed when they produce a more competitive, natural, and pedagogically rigorous question.
+          * ABSOLUTELY NEVER generate absurd, cartoonish, off-domain, or trivially dismissible choices.
+        - LENGTH SYMMETRY: All 4 options (answer + 3 distractors) MUST be approximately the same character length (within ±25%). NEVER make the correct answer substantially longer or more explanatory.
+        - ZERO SEMANTIC DUPLICATES: All 4 options must be distinct from one another. Zero duplicate learning objectives across the entire quiz batch or from recently tested questions.
+
+    8. COGNITIVE TASK & QUESTION FORMAT VARIETY (AVOIDING REPETITIVE TESTING PATTERNS):
+       - ABSOLUTE BAN ON REPETITIVE TESTING PATTERNS:
+         * Across the {gen_count} questions in this batch, you MUST actively vary both the COGNITIVE TASK and the QUESTION FORMAT.
+         * ABSOLUTELY NEVER repeatedly test the same rule, grammatical inflection, or vocabulary category through near-identical sentence templates (e.g. NEVER generate multiple questions that all use the exact same carrier pattern like "Completa la frase: [Person] [verb] [object]" or test the same verb conjugation repeatedly).
+       - MANDATORY DISTRIBUTION OF COGNITIVE TASKS ACROSS EACH BATCH:
+         Distribute the {gen_count} questions across diverse styles. At most 3-4 questions in the entire set may contain a blank ('_____'). The rest MUST be direct communicative questions WITHOUT any blanks:
+          a) PRAGMATIC / SITUATIONAL DECISION (COMMUNICATIVE REACTION - NO BLANK):
+             Real-world social interaction where the learner selects the natural, appropriate response or polite formula to say based on taught expressions.
+          b) FUNCTIONAL COMPREHENSION & DEDUCTION (READING UNDERSTANDING - NO BLANK):
+            Testing specific meaning, speaker intentions, schedule/time details, or communicative purpose directly stated in the lesson material WITHOUT speculative leaps.
+         c) CONTEXTUAL SENTENCE APPLICATION (WITH BLANK - AT MOST 3-4 PER BATCH):
+            Rich communicative sentence testing a specific taught conjugation, preposition, or lexical distinction in context.
+          d) LINGUISTIC DISCRIMINATION & GRAMMATICAL PRECISION (NO BLANK):
+            Selecting which statement is grammatically correct and natural vs. incorrect based strictly on the rule taught in the lesson.
+          e) COMMUNICATIVE INTENT & COLLOCATION IN CONTEXT (NO BLANK):
+            Choosing the proper expression, question word, or natural collocation appropriate for a specific communicative goal taught in the lesson.
+       - STRICT BAN ON SHALLOW TRANSLATION DRILLS: NEVER ask "What is the translation of X?", "What does X mean?", "How do you say X in {language}?", or shallow "Which option means X?".
+       - STRICT ZERO-TOLERANCE BAN ON TRIVIAL 1-WORD COLLOCATION BLANKS:
+         * NEVER test a fixed multi-word collocation by simply removing the single obvious verb.
+       - STRICT BAN ON CIRCULAR TAUTOLOGIES & REPETITIVE DEFINITIONS:
+         * NEVER ask shallow definition questions that define a word with its own stem or root.
+       - STRICT BAN ON COMMERCIAL PRODUCT TRIVIA & INVENTED LEGAL THRESHOLDS:
+         * NEVER test proprietary commercial product brand names, ticket portfolio specifics, or arbitrary legal thresholds.
+       - IN-BATCH CONCEPT & OBJECTIVE DIVERSITY:
+         * Every single question in this batch must target a fresh aspect of the theme with a different cognitive demand.
+
+    9. STRICT ZERO-TOLERANCE BAN ON ARITHMETIC & MATH CALCULATIONS (CRITICAL):
+       - NEVER ask math equations, addition, subtraction, multiplication, or division in words or numbers (e.g., NEVER ask math problems in {language}).
+       - AulaAI is a LANGUAGE platform, NOT a mathematics quiz!
+       - If the lesson covers numbers, currency, or time, test them EXCLUSIVELY in authentic communicative situations (e.g. asking prices, asking times, hotel room numbers, dates, schedules, or ages). NEVER ask the student to solve a math problem!
+    
+    10. NATURAL & AUTHENTIC LIVING COLLOCATIONS IN {language} (UNIVERSAL FOR ALL TOPICS & LEVELS):
+        - All prompts, scenarios, dialogues, and answer options MUST reflect NATURAL, CONTEMPORARY, LIVING {language} as actually spoken and written by native speakers, public institutions, and professionals.
+        - MODERN LIVING TERMINOLOGY & ACCURACY:
+          * Use contemporary standard living vocabulary in {language}; ABSOLUTELY NEVER outdated, obsolete, or archaic terms.
+          * For B1 and intermediate levels, use clear everyday standard expressions; ABSOLUTELY NEVER bureaucratic dispatch jargon, hyper-technical infrastructure terms, or officialese.
+          * In workplace and personal descriptions, use natural authentic phrasing and standard prepositions native to {language}.
+        - EVERYDAY SPOKEN REALISM: In time and daily expressions, use natural spoken terms customary to native speakers of {language} (e.g. natural expressions for midnight, noon, or daily routines), NEVER artificial mechanical formulas (like 'zero hours') in everyday conversation.
+        - DOMAIN & FUNCTIONAL COLLOCATION PRECISION:
+          * Use the genuine, authentic functional collocations native to {language} for the specific domain of '{topic_title}'.
+          * Service notices and institutional announcements: Use authentic standard institutional terminology native to {language} (e.g. clearly distinguish between facilities/services being closed or unavailable vs. unstaffed; distinguish between scheduled stops/services that are not served vs. physically bypassing them).
+          * In spoken/broadcast notices, use natural, concise native phrasing rather than stiff or artificial test-maker jargon.
+          * Distinguish between professional actions, diagnostic terms, symptoms, treatments, commercial requests, and interpersonal norms relevant to '{topic_title}'.
+          * Syntax, clause coordination, and elliptic phrasing must sound completely natural and idiomatic to a native speaker of {language}.
+        - NATURAL CADENCE & EFFORTLESS IDIOMACY:
+          * The phrasing of both the prompt question and the answer options must flow effortlessly with native rhythmic authenticity and examiner-grade poise.
+          * Avoid rigid, robotic, or textbook-formulaic phrasing; use the lively, organic formulations that an educated native speaker naturally uses in everyday interactions.
+        - ZERO MECHANICAL TRANSLATIONESE & CLUNKY LITERALISMS:
+          * Use genuine native idioms, customary institutional/service formulas, and conversational patterns of {language} appropriate for the given topic.
+          * Avoid mechanical word-for-word translation phrasing, robotic literalisms, or stiff pseudo-formal formulas that native speakers never use in real life.
+          * In response options and dialogues, use natural, realistic human phrasing suited to CEFR {level}, NEVER stiff or artificial academic test-maker jargon.
+        - SEMANTIC PRECISION OVER SUPERFICIAL FORMALITY:
+          * Strictly reject semantically misselected but superficially formal vocabulary in context.
+          * Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt in {language}.
+        - STRUCTURAL RULE - EXPLICIT SOURCE-SUPPORTED GROUNDING ACROSS ALL DOMAINS (CRITICAL):
+          * A grammar, vocabulary, discourse, pragmatic, pronunciation, orthographic, or functional rule may be tested ONLY when it is explicitly supported by the source material or is an unambiguously inherent property of the taught target.
+          * Treat explicit rules ('[RULE]') and comparisons ('[CONTRAST]') as the primary source for grammar/function questions; treat items, examples, narrative text, and dialogue only as lexical/contextual evidence unless they are supported by a matching explicit taught rule.
+          * NEVER reverse-engineer a grammatical rule or pragmatic function from an incidental example, dialogue line, suffix, or collocation.
+          * Keep core linguistic meaning and syntactic function strictly separate from optional contextual, rhetorical, or pragmatic effects.
+          * Treat dialogues and examples as contextual evidence unless the source explicitly foregrounds their language as a learning target.
+          * If a topic has no explicit source-supported grammar rule or comparison, do NOT force a grammar question from it; generate supported lexical, contextual, comprehension, or communicative usage questions instead.
+          * Keep dialogue excluded from target selection: dialogue lines are conversational illustrations, never primary testing targets.
+        - UNIVERSAL LEXICAL-COMBINATORIAL NATURALNESS & VALENCY MANDATE (STEMS, KEYED ANSWERS & DISTRACTORS) (CRITICAL):
+          * For EVERY generated stem, keyed answer, and distractor, preserve the lexical and grammatical compatibility demonstrated by source-backed usage in {language}:
+            a) A verb or expression must take a natural subject/object/complement structure;
+            b) A modifier or complement may not be transplanted onto a different lexical head merely because it is semantically related;
+            c) Fixed and semi-fixed expressions must preserve their authentic argument structure and selectional restrictions;
+            d) Inflectional or derivational material must not be mechanically mutated to manufacture an incorrect option.
+          * INSUFFICIENT SOURCE EVIDENCE RULE: When the source does not provide enough evidence to form a natural new combination, do NOT invent one—use the source-backed expression in a genuinely different context, choose another source-supported target, or generate a natural semantic/functional alternative instead.
+          * EQUAL APPLICATION: This requirement applies EQUALLY to correct answers and distractors.
+          * STRICT CONFIDENCE THRESHOLD (AVOID RATHER THAN APPROXIMATE): If the model is not confident that a newly composed phrase is idiomatic and grammatically well-formed in {language}, it MUST avoid that candidate entirely rather than approximate.
+        - STRUCTURAL RULE - NO SPURIOUS MORPHEME-ATTRIBUTION & NATURAL WHOLE-EXPRESSION TESTING:
+          * Do NOT generate meta-linguistic questions that attribute a pragmatic, rhetorical, continuity, completion, certainty, legal, intensity, or discourse meaning to a suffix, ending, case marker, or grammatical construction unless the source explicitly teaches that exact form–function relationship.
+          * When the material teaches an idiom, fixed expression, collocation, discourse marker, or pragmatic phrase, test the whole expression naturally in context instead of decomposing it into morphemes or inventing a grammatical explanation.
+          * SAFEGUARD 1 - COMPLETE NATIVE CONSTRUCTION & TARGET-LANGUAGE VALIDATION (CRITICAL): For fixed expressions and collocations, validate the complete native construction before using it in either the correct answer or a distractor; the expression must take the exact natural person/object/complement, preposition, and case pattern required by real usage in {language}, and an interpretable but non-native collocation is unacceptable. Validate strictly according to {language} itself, never through translation-based assumptions or cross-lingual calques. Preserve authentic argument structure and lexical selection exactly: verify which person, object, case, complement, preposition, or collocate the expression naturally takes in {language}, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable.
+          * SAFEGUARD 2 - FORM-INHERENT SEMANTIC CONTRIBUTION vs. CONTEXT (CRITICAL): For grammar questions, describe only the semantic contribution encoded by the grammatical form itself; never attribute a meaning to the form merely because that meaning is supplied by the lexical verb, surrounding words, discourse context, or real-world situation. If the intended meaning depends on the whole sentence rather than the form itself, ask about the meaning of the complete construction or sentence instead of claiming that the suffix encodes it.
+          * DISTRACTOR AUTHENTICITY SAFEGUARD (CRITICAL): Every distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms just to make an option incorrect. If natural parallel forms do not exist, use a plausible semantic or functional distractor instead.
+          * For genuine morphology items, test only source-supported grammatical distinctions and use authentic natural alternatives; if a clean morphology question cannot be produced, generate a contextual meaning/usage question instead.
+        - NATURALNESS, TECHNICAL PRECISION & PEDAGOGICAL APPROPRIATENESS (MANDATORY):
+          * The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology, exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording.
+          * Every linguistic, grammatical, pragmatic, or domain explanation must be technically precise and no broader than the source supports; never treat a contextual effect as an inherent meaning of a form.
+          * Ensure the stem and keyed answer test EXACTLY the same concept.
+          * For conjunction and discourse-marker items, verify that the actual logical relation between clauses (e.g. contrast, consequence, addition, concession, cause, condition) exactly matches the target function.
+          * Stems, answers, and distractors must all be idiomatic, grammatically valid, functionally plausible, and mutually consistent, while avoiding artificial wording, misleading terminology, or options that are trivially eliminable for the wrong reason.
+          * Within the current test and the two retained previous batches, avoid exact or effectively repeated questions, including the same target tested again with essentially the same context and cognitive task, while still allowing the same broader learning objective to reappear in a genuinely different context or task.
+          * Preserve strict material grounding, CEFR {level} appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity.
+          * Prompts, sentence completions, dialogues, and scenario stems must be fully coherent, idiomatic, and pragmatically grounded utterances rather than fragmented or artificial constructions.
+          * Use precise linguistic and domain terminology when describing grammar, pronunciation, meaning, or usage (e.g. in questions, stem explanations, grammar labels, and phonetic/semantic descriptions).
+          * Distractors must compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable, while strictly ensuring no distractor is also valid for the stem.
+          * Resolve all of this during generation itself so that every delivered item is fully natural, technically precise, and pedagogically appropriate.
+        - Keep language vibrant, culturally authentic, and realistic across every theme.
+
+    11. NO TRIVIAL META-PARAPHRASING ("WHAT DID THE SPEAKER JUST SAY / ASK?"):
+        - NEVER ask shallow meta-questions that merely ask the student to parrot, quote, or trivially summarize what a speaker literally just uttered in the prompt.
+        - Every question MUST test genuine communicative reasoning, situational reaction ("What should the person say or do?"), practical decision-making, or real-world consequence ("What does this information imply?").
+
+    12. RIGOROUS LOGICAL FIDELITY & CEFR LEVEL CALIBRATION (UNIVERSAL):
+        - B1 LEVEL CALIBRATION DIRECTIVE (CRITICAL):
+          * Level B1 represents independent everyday communicative competence (clear standard everyday language).
+          * STRICT BAN ON C1/B2 BUREAUCRATIC OVERLOAD AT B1:
+            - NEVER flood a B1 lesson with dense infrastructure jargon, official technical dispatch terms, or hyper-complex compound nouns.
+            - Use clear standard everyday expressions (e.g. general technical problem, schedule delay, polite staff inquiry).
+            - Focus on the traveler's communicative actions and understanding of clear standard public notices, NOT technical engineering or corporate tariff law.
+        - COMPLETE & SELF-CONTAINED CONTEXT & STRICT ANSWER UNIQUENESS:
+          * The scenario MUST provide all necessary context so that every multiple-choice item has exactly one defensible correct answer in the full sentence and context.
+          * Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem.
+          * Resolve ambiguity during generation itself.
+          * Never mention unexplained premises and expect the learner to guess.
+        - STRICT LITERAL DEDUCTION & ZERO INFERENCE LEAPS:
+          * The question stem and the correct answer MUST be strictly, mathematically, and directly verifiable from what is EXPLICITLY stated in the scenario.
+          * ZERO SPECULATIVE INFERENCE: If the scenario states an event or incident occurs, NEVER infer an unstated consequence or cause (e.g. do NOT assert that duration, costs, schedules, or outcomes have changed unless the scenario explicitly mentions that change).
+          * ACCURATE OPERATIONAL DESCRIPTIONS: Describe consequences using literal, factual statements directly derived from the scenario text without imaginative embellishments.
+          * PRECISE TERMINOLOGICAL BOUNDARIES:
+            - Do not over-narrow broad terms: A general policy, right, document, or procedure applies broadly, NOT solely to one specific sub-case unless specifically restricted in the prompt.
+            - Do not over-generalize specific exceptions: If one specific service, item, or route is unavailable, do NOT assert that all options in that category are cancelled.
+            - Do not over-specify categories: If an announcement or person refers generally to an alternative or solution, do NOT arbitrarily label it with a specific sub-category unless specified in the text.
+          * ZERO CONDITIONAL ENTITLEMENT HALLUCINATIONS: Never present conditional or discretionary amenities/remedies as guaranteed automatic entitlements unless the scenario text explicitly states them as granted.
+          * ZERO UNSTATED LOGISTICAL SPECIFICS: Do not hallucinate unannounced locations, specific facilities, or unmentioned procedural constraints unless explicitly stated in the scenario.
+        - CONTEXTUAL ROLE & ENTITY ACCURACY: Strictly respect the exact roles, locations, statuses, and relationships stated in the scenario (e.g. do not confuse an intermediate transit/transfer point with a final destination; do not confuse a customer with staff; do not confuse a temporary delay with a complete cancellation).
+        - CEFR PROFICIENCY BALANCE: All 4 options must strictly match the CEFR {level} proficiency tier without injecting out-of-level elevated vocabulary or childish simplifications.
+
+    13. MANDATORY PRE-OUTPUT CANDIDATE SELF-VERIFICATION (INDEPENDENT HARD GATES):
+        Before returning each candidate question, internally evaluate and verify it against these independent hard gates. A candidate may enter final JSON output ONLY after passing both Gate A and Gate B independently, in addition to Gates 1–6:
+
+        * GATE A — FORM/FUNCTION ATTRIBUTION INTEGRITY (MANDATORY & INDEPENDENT):
+          Whenever a stem, keyed answer, distractor, or explanation attributes a meaning or function to a grammatical form, morpheme, suffix, construction, connector, marker, or structural pattern, verify that the attributed property is actually contributed by that form itself and is explicitly supported by source-backed metadata.
+          - Never attribute meanings supplied by the lexical root, surrounding words, sentence context, discourse situation, speaker attitude, register, pragmatic inference, or rhetorical outcome to the grammatical form.
+          - If the complete expression conveys a meaning but the form alone does not, either ask about the complete expression/context or reject and replace the candidate.
+          - This gate must separately distinguish inherent form meaning from lexical meaning and contextual/pragmatic effect.
+          - All meta-linguistic, rhetorical, semantic, pragmatic, grammatical, discourse, and definitional claims must be strictly source-backed regardless of surface question wording. If the exact property, function, condition, attitude, or definition being tested is not explicitly supported by source-backed structured metadata ('[RULE]' or '[CONTRAST]' with concrete source evidence), DO NOT synthesize a general definition or inherent form-function claim from pretraining; convert that question into contextual recognition or application in context instead.
+          - REJECT and REPLACE any candidate that fails this gate.
+
+        * GATE B — LEXICAL-COMBINATORIAL INTEGRITY (MANDATORY & INDEPENDENT):
+          Independently verify the stem, keyed answer, and every distractor for authentic head–argument structure, valency, subject/object compatibility, complement type, required case/preposition, modifier attachment, collocation, and fixed/semi-fixed expression structure.
+          - A phrase is not valid merely because its individual words appear in the source.
+          - When a taught expression is transferred into a fresh scenario, only the external scenario may change (speaker identity, setting, communicative goal, surrounding situation, and task format); its internal lexical-combinatorial structure must remain source-supported or naturally licensed by an attested compatible pattern.
+          - Reject and replace any candidate containing an unnatural or mechanically recombined expression, including when it is the keyed correct answer.
+          - Keyed correct answers receive the EXACT SAME rigorous scrutiny as distractors: Gate 4/Gate B must not accept a candidate merely because the keyed answer is uniquely distinguishable; the keyed answer itself must first be natural, idiomatic, grammatically well-formed, and combinatorially licensed by source-backed usage.
+          - Stems, keyed answers, and distractors must strictly preserve the lexical head, valency, complement type, required preposition/case, grammatical compatibility, and collocational relationships demonstrated by authentic living usage and source-backed examples. Absolutely do NOT mechanically transplant a modifier, prepositional complement, or argument onto an incompatible head word, and never mechanically mutate inflectional/derivational material to manufacture an option.
+          - Strict confidence threshold: If not completely confident that a newly composed phrase, collocation, or head–complement combination is idiomatic and grammatically well-formed in {language}, avoid that candidate entirely rather than approximate.
+          - REJECT and REPLACE any candidate containing an unnatural or mechanically recombined expression, including when it is the keyed correct answer.
+
+        * GATE 1 — COMPLETE MATERIAL-SUPPORTED LINGUISTIC COMBINATION (CLOSING CO-OCCURRENCE LOOPHOLE): Does the question assess knowledge, vocabulary, grammar, or communicative functions taught in the material AT THE LEVEL OF THE COMPLETE LINGUISTIC COMBINATION? (A phrase, stem, or keyed answer is NOT source-supported merely because its individual words appear somewhere in the lesson; the complete head–argument, valency, and collocational relationship must be material-backed or authentic native usage. REJECT if the question relies on an ungrounded synthetic recombination of words or measures generic common sense/external knowledge).
+        * GATE 2 — LEVEL FIT: Is the question strictly calibrated to CEFR {level}? (REJECT if too advanced or too simplistic).
+        * GATE 3 — CONTEXTUAL NATURALNESS, TECHNICAL PRECISION & ACCURATE EXPLANATIONS: Is every generated question fully natural and idiomatic in context, technically precise in its linguistic and domain terminology, and pedagogically appropriate for the target CEFR {level}? Ensure there is NO malformed or contextually unnatural wording. SCENARIO-TRANSFER ONLY: Novelty and variety apply EXCLUSIVELY to the external scenario frame (speaker identity, setting, communicative goal, surrounding situation, question format). For conjunction and discourse-marker items, verify that the actual logical relation between clauses exactly matches the target function. Ensure every linguistic, grammatical, pragmatic, or domain explanation is technically precise and no broader than the source supports. Ensure the stem and keyed answer test exactly the same concept. (REJECT if artificial, malformed, misleading, awkward, linguistically imprecise, or contextually unnatural).
+        * GATE 4 — EXACTLY ONE DEFENSIBLE CORRECT ANSWER: Does every multiple-choice item have exactly ONE defensible correct answer in the full sentence and context? Ensure the stem and keyed answer test exactly the same concept. Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. (REJECT if ambiguous, open to multiple interpretations, or if any distractor could also be defended as valid).
+        * GATE 5 — PLAUSIBLE SAME-LEVEL DISTRACTORS: Does EVERY single option stand on its own as a completely natural, grammatically valid, and authentic expression in {language}, with zero malformed or contextually unnatural wording? Distractors must be plausible options that compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable, while strictly ensuring no distractor is also valid for the stem. Distractors must be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt. A distractor must be wrong because of meaning, pragmatic fit, or context, NEVER because the option itself is ungrammatical, awkward, invented, or malformed! (ABSOLUTELY REJECT if any option is itself grammatically unnatural, malformed, invented, structurally/idiomatically implausible in the sentence frame, or trivially eliminable due to category mismatch). Where appropriate, are at least two distractors plausible near-miss options from the same grammatical or semantic category as the answer?
+        * GATE 6 — IN-BATCH DUPLICATE PREVENTION & DISTINCT OBJECTIVE REUSE: Within the current test and the two retained previous batches, avoid exact or effectively repeated questions. Treat two questions as duplicates when they assess essentially the same target through the same pragmatic situation, communicative purpose, expression, reasoning path, or answer distinction, even if their wording or format differs. Reusing the same learning objective is allowed ONLY when the new question genuinely tests a different application, context, contrast, or cognitive operation; do not include two items that merely paraphrase the same scenario or ask for the same expression/function twice. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. (REJECT any question that duplicates a target through essentially the same pragmatic situation, communicative purpose, expression, reasoning path, or answer distinction).
+
+        --> A candidate may enter final ONLY after passing ALL gates (including Gate A and Gate B independently). If any candidate question fails ANY check, DISCARD IT and REPLACE it with a fully compliant question before producing your JSON response!
+    
+    RESPONSE FORMAT:
+    Output EXCLUSIVELY a JSON object."""
+
+    if focus_directive == "focus_grammar":
+        system += f"""
+
+    ================================================================================
+    SUB-BATCH SPECIALIZATION - GRAMMAR & STRUCTURAL FOCUS:
+    ================================================================================
+    Prioritize explicit grammar rules ('[RULE]') and structural contrasts ('[CONTRAST]')
+    taught in the source material.
+    CRITICAL NON-GRAMMAR FALLBACK: If the provided source material lacks explicit taught grammar rules
+    or structural contrasts, do NOT force or reverse-engineer grammar questions; generate supported
+    lexical, communicative, situational, comprehension, or usage questions instead."""
+    elif focus_directive == "focus_lexicon":
+        system += f"""
+
+    ================================================================================
+    SUB-BATCH SPECIALIZATION - IDIOMS, LEXICON & PRAGMATIC SITUATIONS (STRICT MANDATE):
+    ================================================================================
+    Focus 100% on rich lexical distinctions, authentic idioms, professional expressions, and
+    situational communicative reactions taught in the material.
+    ABSOLUTELY DO NOT test repetitive grammatical suffix drills or tense conjugations in this sub-batch.
+    Test distinct idioms, vocabulary domains, and situations across each of the {gen_count} questions."""
+
+    user = f"""TASK: Generate EXACTLY {gen_count} unique {topic_type} questions.
+    TOPIC: {topic_title}
+    LEVEL: {level}
+    SOURCE MATERIAL: {content_str}
+    {ref_data}
+    {forbidden_clause}
+    
+    PEDAGOGICAL EMPHASIS: {selected_variety_focus}
+    VARIETY INSTRUCTION: Vary format, difficulty, and external scenario frame (speaker identity, setting, communicative goal, surrounding situation, and question format). Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition across scenarios, while strictly preserving the demonstrated head–argument structure, valency, complement type, required preposition/case, and selectional restrictions of every taught target. Novelty and variety apply EXCLUSIVELY to the external scenario frame, NEVER to the internal lexical-combinatorial structure of taught expressions. Never substitute or recombine arguments merely to increase novelty.
+    
+    QUESTION FORMAT VARIETY MANDATE (CRITICAL):
+    - Provide a RICH MIX of question types!
+    - DO NOT make all questions fill-in-the-blank! At most 3-4 questions should have a blank ('_____').
+    - The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
+    - ABSOLUTELY ZERO ARITHMETIC: NEVER ask math operations (sumar, multiplicar, 'más', 'plus'). Test numbers only via time, prices, or schedules!
+    
+    JSON STRUCTURE:
+    {{
+      "data": [
+        {{
+          "type": "mcq",
+          "module": "Integer MODULE number this question is drawn from, when the source is a multi-module review syllabus; omit otherwise",
+          "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
+          "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
+          "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
+          "prompt": "Authentic question 100% in {language}",
+          "translation_en": "Natural English translation of the prompt",
+          "translation_tr": "Doğal Türkçe çevirisi",
+          "answer": "Correct answer in {language}",
+          "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
+          "why": "Short 1-sentence reason (max 15 words)",
+          "why_tr": "Kısa 1 cümlelik pedagojik açıklama (en fazla 15 kelime)"
+        }}
+      ]
+    }}
+    
+    CRITICAL MANDATES:
+    1) STRICT MATERIAL GROUNDING, SCENARIO-TRANSFER NOVELTY & COMBINATORIAL NATURALNESS: Preserve strict material grounding, CEFR {level} appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. Questions must assess knowledge, vocabulary, grammar patterns, relationships, or communicative functions explicitly taught or demonstrated in the material. Redefine contextual novelty: "fresh context", "variety", "maximum novelty", and "non-verbatim recall" apply EXCLUSIVELY to the external scenario frame—speaker identity, setting, communicative goal, surrounding situation, and task format—NOT to the internal lexical-combinatorial structure of the taught target. When a source-backed lexical item, collocation, fixed/semi-fixed expression, or construction is reused in a stem or keyed answer, strictly preserve its demonstrated head–argument structure, valency, complement type, required preposition/case, modifier relation, and selectional restrictions; do NOT freely substitute a new subject, object, complement, modifier, or semantic argument merely to increase novelty. When the source does not provide enough evidence to form a natural new combination, do not invent one—use the source-backed expression in a genuinely different scenario context, choose another source-supported target, or generate a natural semantic/functional alternative instead. Questions may transfer taught knowledge into fresh CEFR-appropriate scenarios, but must never require external facts, unstated assumptions, generic world knowledge, or invented lesson content.
+    2) GATE 1 - MATERIAL GROUNDING AT COMBINATION LEVEL (CLOSING CO-OCCURRENCE LOOPHOLE): Material grounding must be evaluated at the level of the COMPLETE LINGUISTIC COMBINATION being tested, NOT isolated word co-occurrence. A phrase or option is NOT source-supported merely because its individual words appear somewhere in the lesson. A question or keyed answer FAILS Gate 1 if it relies on an ungrounded or unnatural synthetic combination of words, or if it primarily measures common sense or external knowledge rather than a material-supported objective.
+    3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch (situational decisions, dialogue/reading comprehension, grammatical precision/discrimination, communicative collocations, and at most 3-4 sentence completions). ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+    4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options. Never use overly advanced terminology or syntax above {level}.
+    5) EXACTLY ONE DEFENSIBLE ANSWER, SYMMETRIC COMBINATORIAL NATURALNESS & PLAUSIBLE DISTRACTORS: Every multiple-choice item MUST have exactly one defensible correct answer in the full sentence and context. SYMMETRIC SCRUTINY: Keyed correct answers receive the EXACT SAME rigorous combinatorial and valency scrutiny as distractors. Gate 4 must NOT accept a candidate merely because the keyed answer is uniquely distinguishable from distractors; the keyed answer ITSELF must first be natural, idiomatic, grammatically well-formed, and combinatorially licensed by source-backed usage (preserving authentic head–argument, valency, preposition/case, and selectional restrictions). Ensure the stem and keyed answer test EXACTLY the same concept. For conjunction and discourse-marker items, verify that the actual logical relation between clauses (e.g. contrast, consequence, addition, concession, cause, condition) exactly matches the target function. Before finalizing, ensure no distractor is also grammatically, semantically, pragmatically, or factually valid for the same stem. Distractors must be plausible options that compete with the correct answer at the same grammatical, semantic, pragmatic, or register level rather than being trivially eliminable. Resolve ambiguity during generation itself. Ensure stems, answers, and distractors are all idiomatic, grammatically valid, functionally plausible, and mutually consistent, with NO malformed or contextually unnatural wording, avoiding artificial wording, misleading terminology, or options trivially eliminable for the wrong reason. EVERY single option (answer and all 3 distractors) and the stem itself MUST be 100% grammatically valid, natural, and authentic in {language}. SAFEGUARD 1: Every option and distractor MUST be a real, correctly formed, naturally usable word, phrase, or construction in {language}; NEVER invent, distort, misspell, mechanically alter, or create obviously malformed forms or synthetic inflectional/derivational mutations just to make an option incorrect; if natural parallel forms do not exist, use a plausible semantic or functional distractor instead. SAFEGUARD 2: For fixed expressions and collocations, validate the complete native construction before using it in either the stem, correct answer, or a distractor; the expression must take the exact natural person/object/complement and case pattern required by real usage, and an interpretable but non-native collocation is unacceptable. Preserve authentic argument structure and lexical selection exactly: verify which person, object, case, complement, or collocate the expression naturally takes, and NEVER attach the expression to an unnatural object merely because the sentence remains interpretable. SAFEGUARD 3 (LEXICAL HEAD, VALENCY, COMPLEMENT INTEGRITY & COMBINATORIAL NATURALNESS ACROSS STEM, ANSWER & DISTRACTORS): All generated stems, keyed answers, and distractors must preserve the lexical head, valency, complement type, required preposition/case, and grammatical compatibility of the head word or expression. Never detach a complement, prepositional phrase, modifier, or argument from one head and mechanically transplant or attach it onto an incompatible or unnatural head to synthesize a stem, answer, or distractor. If three natural same-category distractors cannot be formed with authentic collocations, use authentic contextually plausible alternatives from the taught domain rather than fabricating an unnatural near-miss. Require distractors to be not only grammatical in isolation, but idiomatically plausible in the exact sentence frame of the prompt. STRICT CONFIDENCE THRESHOLD: If you are not completely confident that a newly composed phrase, collocation, or head–complement combination is idiomatic and grammatically well-formed in {language}, do NOT output that candidate; replace it with a source-backed expression in a genuinely different context, choose another source-supported target, or generate a natural semantic/functional alternative instead. Collocational arguments, complements, and surrounding phrases must be 100% authentic in real living usage. ZERO easy throwaways, filler options, or trivially eliminable distractors.
+    6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+    7) AVOID SAME-BATCH SEMANTIC DUPLICATES & SURFACE-INDEPENDENT META-LINGUISTIC & DEFINITIONAL GROUNDING: Within the current test and previous batches, treat two questions as duplicates when they assess essentially the same target through the same pragmatic situation, communicative purpose, expression, reasoning path, or answer distinction, even if their wording or format differs. Reusing the same learning objective is allowed ONLY when the new question genuinely tests a different application, context, contrast, or cognitive operation; do not include two items that merely paraphrase the same scenario or ask for the same expression/function twice. For grammatical, rhetorical, semantic, pragmatic, discourse, attitudinal, condition, or definitional claims across all question formats (including 'what does this indicate', 'what is the function', 'what condition must hold', 'which attitude is expressed', etc.), NEVER synthesize an ungrounded meta-linguistic claim, legal requirement, psychological attitude, or overbroad definition. A meta-linguistic, functional, attitudinal, condition, or definitional question may test ONLY claims explicitly supported by source-backed structured metadata ([RULE] or [CONTRAST] with source_evidence); if the source does not explicitly support the exact claim or distinguish the target concept from closely related concepts, do not generate a meta-linguistic/definitional item and instead assess recognition or application in a source-supported context. Keep core definition, contextual effect, speaker attitude, and rhetorical outcome separate. Preserve strict material grounding, CEFR appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity.
+    8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+    9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills. Test numbers ONLY in authentic communicative contexts (time, prices, dates).
+    10) CONCISE EXPLANATIONS & METADATA: 'why' and 'why_tr' MUST be 1 short concise sentence (max 15 words). 'evidence' and 'material_section' MUST be concise reference pointers (NO chain-of-thought).
+    11) NATURALNESS, TECHNICAL PRECISION, AUTHENTIC USAGE & SYMMETRIC COMBINATORIAL VALENCY: The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology (when describing grammar, pronunciation, meaning, or usage), exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording. Keyed correct answers receive the exact same combinatorial and valency scrutiny as distractors. For every generated stem, keyed answer, and distractor, preserve the lexical and grammatical compatibility demonstrated by source-backed usage: a verb or expression must take a natural subject/object/complement structure; a modifier or complement may not be transplanted onto a different lexical head merely because it is semantically related; fixed and semi-fixed expressions must preserve their authentic argument structure; and inflectional or derivational material must not be mechanically mutated to manufacture an incorrect option. Novelty applies exclusively to the scenario frame, never to argument recombination. When the source does not provide enough evidence to form a natural new combination, do not invent one—use the source-backed expression in a genuinely different scenario context, choose another source-supported target, or generate a natural semantic/functional alternative instead. STRICT CONFIDENCE THRESHOLD: If not completely confident that a newly composed phrase is idiomatic and grammatically well-formed in the target language, avoid that candidate entirely rather than approximate. SAFEGUARD 1: Every distractor must be a real, correctly formed, naturally usable word, phrase, or construction in {language}; never invent, distort, misspell, mechanically alter, or create obviously malformed forms or synthetic inflectional mutations just to make an option incorrect; if natural parallel forms do not exist, use a plausible semantic or functional distractor instead. SAFEGUARD 2: For fixed expressions and collocations, validate the complete native construction before using it in either the stem, correct answer, or a distractor; the expression must take the exact natural person/object/complement and case pattern required by real usage, and an interpretable but non-native collocation is unacceptable. Preserve authentic argument structure and lexical selection exactly: verify which person, object, case, complement, or collocate the expression naturally takes, and never attach the expression to an unnatural object merely because the sentence remains interpretable. SAFEGUARD 3: Strictly preserve lexical head, valency, complement type, and grammatical compatibility across stems, answers, and distractors; never transplant or recombine modifiers or complements onto incompatible heads, strictly prohibiting mechanical complement transplantation or unattested de novo hybridization. For grammatical, rhetorical, semantic, pragmatic, discourse, or literary concepts, never synthesize a broad definition from examples or merge neighboring concepts into one another; a meta-linguistic, functional, attitudinal, condition, or definitional question across any surface wording may test only claims explicitly supported by source-backed structured metadata ([RULE] or [CONTRAST] with source_evidence); if not clearly distinguished, assess recognition or application in context instead. Keep core definition, contextual effect, speaker attitude, and rhetorical outcome separate. For grammar questions, describe only the semantic contribution encoded by the grammatical form itself; never attribute a meaning to the form merely because that meaning is supplied by the lexical verb, surrounding words, discourse context, or real-world situation. If the intended meaning depends on the whole sentence rather than the form itself, ask about the meaning of the complete construction or sentence instead of claiming that the suffix encodes it. Do NOT generate meta-linguistic questions that attribute a pragmatic, rhetorical, continuity, completion, certainty, legal, intensity, or discourse meaning to a suffix, ending, case marker, or grammatical construction unless the source explicitly teaches that exact form–function relationship. When the material teaches an idiom, fixed expression, collocation, discourse marker, or pragmatic phrase, test the whole expression naturally in context instead of decomposing it into morphemes or inventing a grammatical explanation. For genuine morphology items, test only source-supported grammatical distinctions and use authentic natural alternatives; if a clean morphology question cannot be produced, generate a contextual meaning/usage question instead. Every linguistic, grammatical, pragmatic, or domain explanation must be technically precise and no broader than the source supports; never treat a contextual effect as an inherent meaning of a form. Ensure the stem and keyed answer test exactly the same concept, and for conjunction/discourse-marker items verify that the actual logical relation between clauses exactly matches the target function. Stems, scenarios, and all 4 options must flow with effortless native idiomacy, living contemporary vocabulary, and examiner-grade precision. Resolve all issues during generation itself.
+    12) PRE-OUTPUT CANDIDATE SELF-VERIFICATION (INDEPENDENT HARD GATES A & B): Internally verify each candidate question against all independent hard gates before returning JSON. A candidate may enter final ONLY after passing both Gate A and Gate B independently, in addition to Gates 1–6:
+    - GATE A (FORM/FUNCTION ATTRIBUTION INTEGRITY - MANDATORY & INDEPENDENT): Whenever a stem, keyed answer, distractor, or explanation attributes a meaning or function to a grammatical form, morpheme, suffix, construction, connector, marker, or structural pattern, verify that the attributed property is actually contributed by that form itself and is explicitly supported by source-backed metadata. Never attribute meanings supplied by the lexical root, surrounding words, sentence context, discourse situation, speaker attitude, register, pragmatic inference, or rhetorical outcome to the grammatical form. If the complete expression conveys a meaning but the form alone does not, either ask about the complete expression/context or reject and replace the candidate. This gate must separately distinguish inherent form meaning from lexical meaning and contextual/pragmatic effect. All meta-linguistic, rhetorical, semantic, pragmatic, grammatical, discourse, and definitional claims must be strictly source-backed.
+    - GATE B (LEXICAL-COMBINATORIAL INTEGRITY - MANDATORY & INDEPENDENT): Independently verify the stem, keyed answer, and every distractor for authentic head–argument structure, valency, subject/object compatibility, complement type, required case/preposition, modifier attachment, collocation, and fixed/semi-fixed expression structure. A phrase is not valid merely because its individual words appear in the source. When a taught expression is transferred into a fresh scenario, only the external scenario may change; its internal lexical-combinatorial structure must remain source-supported or naturally licensed by an attested compatible pattern. Keyed correct answers receive the EXACT SAME scrutiny as distractors: Gate 4/Gate B must not accept a candidate merely because the keyed answer is uniquely distinguishable; the keyed answer itself must first be natural, idiomatic, grammatically well-formed, and combinatorially licensed by source-backed usage. Reject and replace any candidate containing an unnatural or mechanically recombined expression, including when it is the keyed correct answer.
+    - GATES 1–6: Gate 1 Material combination grounding (no co-occurrence loophole), Gate 2 CEFR {level} fit, Gate 3 Contextual naturalness & technical precision with scenario-only transfer, Gate 4 Exactly one defensible correct answer, Gate 5 Plausible same-level competitive distractors (real words, no mutations), Gate 6 In-batch anti-repetition vs. broader objective reuse. Discard and replace any candidate failing any gate. Resolve ambiguity and all issues during generation itself."""
+
+    # MAX VARIETY SEED: Uses generation_seed if provided to differentiate sub-batches, else high-precision timestamp
     seed = generation_seed if generation_seed is not None else (int(time.time() * 1000) % 999999)
-    if scope in (_SCOPE_TOPIC, _SCOPE_UNIT):
-        # A material-internal assessment. Same cached system prefix, same quality
-        # rules; what differs is the boundary it may draw from and the language
-        # budget it must phrase itself inside. Both arrive as short clauses.
-        user = qc.build_material_user_prompt(
-            language=language,
-            level=level,
-            scope=scope,
-            title=topic_title,
-            item_count=gen_count,
-            content_str=content_str,
-            progression=progression or "",
-            coverage_plan=coverage_plan,
-            request_id=f"{seed}_{py_random.random()}",
-        )
-    else:
-        user = qc.build_user_prompt(
-            language=language,
-            level=level,
-            topic_title=topic_title,
-            topic_type=topic_type,
-            gen_count=gen_count,
-            content_str=content_str,
-            variety_focus=selected_variety_focus,
-            forbidden_prompts=forbidden_prompts,
-            forbidden_answers=forbidden_answers,
-            reference_data=ref_data,
-            focus_directive=focus_directive,
-            request_id=f"{seed}_{py_random.random()}",
-        )
+    user += f"\n\nUNIQUE_REQUEST_ID: {seed}_{py_random.random()}"
     prompt_chars = len(system) + len(user)
     prompt_tokens_est = int(prompt_chars / 4.0)
     t_prompt_duration = time.perf_counter() - t_prompt_start
@@ -1318,25 +1627,10 @@ REPETITION & COVERAGE RULES:
         else:
             target_model = model_override if model_override else MODEL_STRUCTURAL
             target_temp = 0.95 if existing_questions else 0.90
-            calc_max_tokens = qc.output_token_budget(gen_count)
+            calc_max_tokens = min(5000, max(1500, gen_count * 250))
             t_ai_start = time.perf_counter()
             main_usage: Dict[str, Any] = {}
-            res = _call_ai(
-                [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                model=target_model,
-                max_tokens=calc_max_tokens,
-                temperature=target_temp,
-                json_mode=True,
-                allow_fallback=True,
-                usage_dict=main_usage,
-                cost_stage=_COST_STAGE_QUESTIONS,
-                cost_subject=str(topic_title),
-                # Class-invariant by construction (see the contract above). Every
-                # quiz, activity and assignment in a course sends this same
-                # prefix, so marking it is what turns ~30 repeats of it per class
-                # into one paid copy.
-                cache_system=True,
-            )
+            res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=target_model, max_tokens=calc_max_tokens, temperature=target_temp, json_mode=True, allow_fallback=True, usage_dict=main_usage, cost_stage=_COST_STAGE_QUESTIONS, cost_subject=str(topic_title))
             t_ai_duration = time.perf_counter() - t_ai_start
             m_cost = main_usage.get("cost")
             if m_cost is None:
@@ -1362,27 +1656,6 @@ REPETITION & COVERAGE RULES:
             d = item.get("distractors", [])
             if not (p and a and isinstance(d, list)):
                 return None
-
-            # Deterministic assessment contract: translation drills, stems written
-            # in the instructional language, giveaway glosses and scope leakage.
-            # Run here rather than after assembly so a rejected candidate is
-            # replaced from the pool exactly like any other rejection, instead of
-            # silently shrinking a finished batch.
-            try:
-                from services.assessment_validation import violations as _av_violations, is_fatal as _av_fatal
-                _probs = [x for x in _av_violations(
-                    item,
-                    instructional_track=material_language,
-                    forbidden_terms=forbidden_terms,
-                    require_rationale_track=False,
-                ) if _av_fatal(x)]
-                # Option-shape problems are repaired further down by distractor
-                # supplementation, so they are not grounds for rejection here.
-                _probs = [x for x in _probs if not x.startswith(("distractor_count_", "option_count_", "answer_not_in_options"))]
-                if _probs:
-                    return None
-            except Exception:
-                pass
 
             clean_a_token = _normalize_token(a)
             clean_p_token = _normalize_token(p)
@@ -1666,19 +1939,74 @@ REPETITION & COVERAGE RULES:
                 if fa and fa not in cur_forbidden_answers:
                     cur_forbidden_answers.append(fa)
 
-            topup_user = qc.build_topup_prompt(
-                language=language,
-                level=level,
-                topic_title=topic_title,
-                topic_type=topic_type,
-                shortfall=shortfall,
-                content_str=content_str,
-                variety_focus=selected_variety_focus,
-                rejected_prompts=cur_forbidden_prompts,
-                request_id=f"{seed}_topup_1_{py_random.random()}",
-            )
+            p_list = "\n".join(f"- {p[:120]}" for p in cur_forbidden_prompts[-35:])
+            a_str = ", ".join(f"'{ans}'" for ans in cur_forbidden_answers[-35:])
+            topup_forbidden_clause = f"""
+================================================================================
+ROLLING-HISTORY CONTEXT & REPETITION PREVENTION MANDATE (ALL CEFR LEVELS):
+================================================================================
+Target items already tested in current batch and previous batches (ABSOLUTELY DO NOT REPEAT):
+- Target answers previously tested: [{a_str}]
+- Stems/questions previously tested:
+{p_list}
+================================================================================
+"""
+            topup_user = f"""TASK: Generate EXACTLY {shortfall} unique {topic_type} questions.
+TOPIC: {topic_title}
+LEVEL: {level}
+SOURCE MATERIAL: {content_str}
+{ref_data}
+{topup_forbidden_clause}
 
-            topup_max_tokens = qc.output_token_budget(shortfall, ceiling=3000)
+PEDAGOGICAL EMPHASIS: {selected_variety_focus}
+VARIETY INSTRUCTION: Vary format, difficulty, and external scenario frame (speaker identity, setting, communicative goal, surrounding situation, and question format). Freely introduce relevant thematic expressions and natural dialogue patterns appropriate for CEFR {level} to ensure maximum novelty and zero repetition across scenarios, while strictly preserving the demonstrated head–argument structure, valency, complement type, required preposition/case, and selectional restrictions of every taught target. Novelty and variety apply EXCLUSIVELY to the external scenario frame, NEVER to the internal lexical-combinatorial structure of taught expressions. Never substitute or recombine arguments merely to increase novelty.
+
+QUESTION FORMAT VARIETY MANDATE (CRITICAL):
+- Provide a RICH MIX of question types!
+- DO NOT make all questions fill-in-the-blank! At most 1 question should have a blank ('_____').
+- The majority of questions MUST BE direct situational questions ("¿Qué dices cuando...?"), communicative reactions ("¿Cuál es la respuesta adecuada?"), or contextual understanding questions WITHOUT any blanks!
+- ABSOLUTELY ZERO ARITHMETIC: NEVER ask math operations (sumar, multiplicar, 'más', 'plus'). Test numbers only via time, prices, or schedules!
+
+JSON STRUCTURE:
+{{
+  "data": [
+    {{
+      "type": "mcq",
+      "module": "Integer MODULE number this question is drawn from, when the source is a multi-module review syllabus; omit otherwise",
+      "material_section": "Concise section identifier (e.g. 'Part 2: Core Lexicon' or 'Part 4: Dialogue')",
+      "evidence": "Concise source reference (sentence, rule, example, dialogue line, or vocabulary item - NO chain-of-thought)",
+      "cognitive_task": "situational_decision | dialogue_comprehension | sentence_application | grammatical_discrimination | communicative_collocation",
+      "prompt": "Authentic question 100% in {language}",
+      "translation_en": "Natural English translation of the prompt",
+      "translation_tr": "Doğal Türkçe çevirisi",
+      "answer": "Correct answer in {language}",
+      "distractors": ["Distractor 1 in {language}", "Distractor 2 in {language}", "Distractor 3 in {language}"],
+      "why": "Short 1-sentence reason (max 15 words)",
+      "why_tr": "Kısa 1 cümlelik pedagojik açıklama (en fazla 15 kelime)"
+    }}
+  ]
+}}
+
+CRITICAL MANDATES:
+1) STRICT MATERIAL GROUNDING, SCENARIO-TRANSFER NOVELTY & COMBINATORIAL NATURALNESS: Preserve strict material grounding, CEFR {level} appropriateness, broad unit coverage, and authentic usage; never force novelty at the expense of quality or source fidelity. Questions must assess knowledge, vocabulary, grammar patterns, relationships, or communicative functions explicitly taught or demonstrated in the material. Novelty and variety apply EXCLUSIVELY to the external scenario frame, never to internal argument recombination. Preserve the lexical and grammatical compatibility demonstrated by source-backed usage: a verb or expression must take a natural subject/object/complement structure; a modifier or complement may not be transplanted onto a different lexical head merely because it is semantically related; fixed and semi-fixed expressions must preserve their authentic argument structure; and inflectional or derivational material must not be mechanically mutated to manufacture an incorrect option. When the source does not provide enough evidence to form a natural new combination, do not invent one—use the source-backed expression in a genuinely different scenario context, choose another source-supported target, or generate a natural semantic/functional alternative instead.
+2) GATE 1 - MATERIAL GROUNDING AT COMBINATION LEVEL (CLOSING CO-OCCURRENCE LOOPHOLE): Material grounding must be evaluated at the level of the COMPLETE LINGUISTIC COMBINATION being tested, NOT isolated word co-occurrence. A phrase or option is NOT source-supported merely because its individual words appear somewhere in the lesson. A question or keyed answer FAILS Gate 1 if it relies on an ungrounded synthetic combination of words, or if it primarily measures common sense or external knowledge rather than a material-supported objective.
+3) COGNITIVE TASK & FORMAT VARIETY: Actively vary cognitive tasks across the batch. ABSOLUTELY NEVER repeat the same carrier pattern or test the same rule repeatedly through near-identical sentence templates.
+4) STRICT CEFR {level} CALIBRATION: Strictly preserve CEFR {level} difficulty across questions and options.
+5) EXACTLY ONE DEFENSIBLE ANSWER, SYMMETRIC COMBINATORIAL NATURALNESS & PLAUSIBLE DISTRACTORS: Every multiple-choice item MUST have exactly one defensible correct answer in the full sentence and context. SYMMETRIC SCRUTINY: Keyed correct answers receive the EXACT SAME rigorous combinatorial and valency scrutiny as distractors. Gate 4 must NOT accept a candidate merely because the keyed answer is uniquely distinguishable from distractors; the keyed answer ITSELF must first be natural, idiomatic, grammatically well-formed, and combinatorially licensed by source-backed usage (preserving authentic head–argument, valency, preposition/case, and selectional restrictions). Stems, answers, and distractors must all be 100% natural, grammatically valid, and authentic in {language}. SAFEGUARD 1: Every distractor must be a real, naturally usable word, phrase, or construction in {language}; never invent or mechanically mutate forms. SAFEGUARD 2: For fixed expressions and collocations in stems, answers, or distractors, validate the complete native construction and authentic argument structure. SAFEGUARD 3: Strictly preserve lexical head, valency, complement type, and grammatical compatibility across stems, answers, and distractors; never transplant modifiers or complements onto incompatible heads. STRICT CONFIDENCE THRESHOLD: If not completely confident that a newly composed phrase is idiomatic and grammatically well-formed in {language}, do NOT output that candidate.
+6) 100% TARGET LANGUAGE: 'prompt', 'answer', and 'distractors' MUST BE 100% IN {language}.
+7) AVOID SAME-BATCH SEMANTIC DUPLICATES & STRICT CONCEPT-DEFINITION GROUNDING: Within the current test and previous batches, treat two questions as duplicates when they assess essentially the same target through the same pragmatic situation, communicative purpose, expression, reasoning path, or answer distinction, even if their wording or format differs. Reusing the same learning objective is allowed ONLY when the new question genuinely tests a different application, context, contrast, or cognitive operation; do not include two items that merely paraphrase the same scenario or ask for the same expression/function twice. For grammatical, rhetorical, semantic, pragmatic, discourse, or literary concepts, never synthesize a broad definition from examples or merge neighboring concepts into one another. A definitional question may test ONLY the properties explicitly supported by the source-backed structured metadata; if the source does not clearly distinguish the target concept, assess recognition or application in context instead.
+8) BLANK TRANSLATION RULE: If and only if 'prompt' contains a blank ('_____'), 'translation_en' and 'translation_tr' MUST keep '_____' without revealing the answer word.
+9) STRICTLY NO ARITHMETIC: NEVER generate math calculations, equations, or addition/multiplication drills.
+10) CONCISE EXPLANATIONS & METADATA: 'why' and 'why_tr' MUST be 1 short concise sentence (max 15 words).
+11) NATURALNESS, TECHNICAL PRECISION, AUTHENTIC USAGE & SYMMETRIC COMBINATORIAL VALENCY: The model itself must produce fully natural and idiomatic questions, precise linguistic and domain terminology, exactly one defensible correct answer, plausible same-level distractors, and NO malformed or contextually unnatural wording. Keyed answers receive the exact same combinatorial scrutiny as distractors. Stems, keyed answers, and distractors must preserve source-backed lexical valency and combinatorial naturalness; never mutate morphology or transplant complements. Apply strict confidence threshold.
+12) PRE-OUTPUT CANDIDATE SELF-VERIFICATION (INDEPENDENT HARD GATES A & B): Internally verify each candidate question against all independent hard gates before returning JSON. A candidate may enter final ONLY after passing both Gate A and Gate B independently, in addition to Gates 1–6:
+- GATE A (FORM/FUNCTION ATTRIBUTION INTEGRITY - MANDATORY & INDEPENDENT): Whenever a stem, keyed answer, distractor, or explanation attributes a meaning or function to a grammatical form, morpheme, suffix, construction, connector, marker, or structural pattern, verify that the attributed property is actually contributed by that form itself and is explicitly supported by source-backed metadata. Never attribute meanings supplied by the lexical root, surrounding words, sentence context, discourse situation, speaker attitude, register, pragmatic inference, or rhetorical outcome to the grammatical form. If the complete expression conveys a meaning but the form alone does not, either ask about the complete expression/context or reject and replace the candidate. This gate must separately distinguish inherent form meaning from lexical meaning and contextual/pragmatic effect.
+- GATE B (LEXICAL-COMBINATORIAL INTEGRITY - MANDATORY & INDEPENDENT): Independently verify the stem, keyed answer, and every distractor for authentic head–argument structure, valency, subject/object compatibility, complement type, required case/preposition, modifier attachment, collocation, and fixed/semi-fixed expression structure. A phrase is not valid merely because its individual words appear in the source. When a taught expression is transferred into a fresh scenario, only the external scenario may change; its internal lexical-combinatorial structure must remain source-supported or naturally licensed by an attested compatible pattern. Reject and replace any candidate containing an unnatural or mechanically recombined expression, including when it is the keyed correct answer.
+- GATES 1–6: Gate 1 Material combination grounding (no co-occurrence loophole), Gate 2 CEFR {level} fit, Gate 3 Contextual naturalness & technical precision with scenario-only transfer, Gate 4 Exactly one defensible correct answer with intrinsic keyed-answer validation, Gate 5 Plausible same-level competitive distractors (real words, no mutations), Gate 6 In-batch anti-repetition vs. broader objective reuse. Discard and replace any candidate failing any gate.
+
+UNIQUE_REQUEST_ID: {seed}_topup_1_{py_random.random()}"""
+
+            topup_max_tokens = min(3500, max(800, shortfall * 250))
             topup_usage: Dict[str, Any] = {}
             topup_res = _call_ai(
                 [{"role": "system", "content": system}, {"role": "user", "content": topup_user}],
@@ -1690,9 +2018,6 @@ REPETITION & COVERAGE RULES:
                 usage_dict=topup_usage,
                 cost_stage=_COST_STAGE_QUESTIONS,
                 cost_subject=str(topic_title),
-                # Same prefix as the main call it follows, so the top-up pays for
-                # its own short user message and nothing else.
-                cache_system=True,
             )
             timing_ctx["topup_ai_calls"] = 1
             top_c = topup_usage.get("cost")
@@ -1972,125 +2297,6 @@ REPETITION & COVERAGE RULES:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-CRASH] {e}\n{traceback.format_exc()}\n")
         return []
 
-def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
-                             material_language="tr", unit_index=None, unit_total=None,
-                             model_override=None, timing_ctx=None):
-    """The ten-question assessment that closes a unit.
-
-    `unit_topics` is [{"id","title","content"}, ...] for THIS unit only, already
-    generated. Three things make this different from a standalone quiz over the
-    same topics, and all three are structural rather than requested:
-
-      * the evidence assembled is exactly this unit's topics, so a later unit
-        cannot be drawn from even by accident;
-      * the ten questions are apportioned across those topics by how much each
-        actually teaches, so no substantial taught area is skipped and a
-        thirty-item alphabet topic is not given the same weight as three polite
-        formulas;
-      * the language budget is built from what this unit's lessons really
-        contain, so the questions are phrased inside the learner's repertoire at
-        this point in the course.
-
-    Returns a list of question dicts, or [] when the unit cannot support an
-    assessment. Never returns a partial set: a unit assessment is ten questions
-    or it is not a unit assessment.
-    """
-    from services.assessment_scope import (
-        UNIT_ASSESSMENT_COUNT, plan_unit_coverage, coverage_plan_clause,
-        build_envelope_from_topics, SCOPE_UNIT,
-    )
-    if timing_ctx is None:
-        timing_ctx = {}
-    usable = [t for t in (unit_topics or []) if isinstance(t, dict) and t.get("content")]
-    if not usable:
-        return []
-
-    contents = []
-    for t in usable:
-        c = t.get("content")
-        if isinstance(c, str):
-            try:
-                c = json.loads(c or "{}")
-            except Exception:
-                c = {}
-        contents.append(c if isinstance(c, dict) else {})
-
-    plan = plan_unit_coverage(
-        [{"id": t.get("id"), "title": t.get("title"), "content": c} for t, c in zip(usable, contents)],
-        total=UNIT_ASSESSMENT_COUNT,
-    )
-    if not plan:
-        return []
-
-    envelope = build_envelope_from_topics(
-        level=level, language=language, prior_contents=contents,
-        unit_index=unit_index, unit_total=unit_total,
-    )
-
-    # One assembled payload spanning the unit, labelled by topic so the model can
-    # honour the plan and so attribution survives into the stored questions.
-    parts = []
-    for idx, (t, c) in enumerate(zip(usable, contents), 1):
-        block = [f"[TOPIC {idx}: '{t.get('title')}']"]
-        for page in c.get("pages", []) or []:
-            if not isinstance(page, dict):
-                continue
-            items = [str(i.get("term") or "").strip() for i in (page.get("items") or [])
-                     if isinstance(i, dict) and str(i.get("term") or "").strip()]
-            if items:
-                block.append("  Vocabulary: " + ", ".join(items[:14]))
-            for r in (page.get("rules") or [])[:4]:
-                if isinstance(r, dict) and str(r.get("rule") or "").strip():
-                    line = "  [RULE] " + str(r.get("rule")).strip()
-                    if str(r.get("example") or "").strip():
-                        line += f" — e.g. '{str(r.get('example')).strip()}'"
-                    block.append(line)
-            for cmp_ in (page.get("comparisons") or [])[:3]:
-                if isinstance(cmp_, dict) and str(cmp_.get("target") or "").strip():
-                    block.append("  [CONTRAST] " + str(cmp_.get("target")).strip())
-            txt = str(page.get("text") or "").strip()
-            if txt and len(block) < 4:
-                block.append("  Passage: " + txt[:220])
-        if len(block) > 1:
-            parts.append("\n".join(block))
-    if not parts:
-        return []
-    content_str = "\n\n".join(parts)
-
-    # Terms belonging to no topic in this unit are, by construction, unavailable
-    # here — the payload IS the unit. The leakage check therefore has nothing to
-    # forbid at this level; the caller supplies later-unit terms when it has them.
-    questions = ai_generate_questions(
-        topic_title=unit_title or "Unit Assessment",
-        topic_type="unit_assessment",
-        topic_content={"_preassembled_content_str": content_str},
-        language=language,
-        count=UNIT_ASSESSMENT_COUNT,
-        level=level,
-        is_quiz=True,
-        material_language=material_language,
-        model_override=model_override,
-        timing_ctx=timing_ctx,
-        scope=SCOPE_UNIT,
-        progression=envelope,
-        coverage_plan=coverage_plan_clause(plan),
-    )
-    if len(questions) < UNIT_ASSESSMENT_COUNT:
-        with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [UNIT-ASSESSMENT] '{unit_title}' "
-                    f"produced {len(questions)}/{UNIT_ASSESSMENT_COUNT}; not published.\n")
-        return []
-
-    # Attribute each question to a topic in the unit, preferring what the model
-    # reported and falling back to the plan rather than to chance.
-    ids = [p.get("topic_id") for p in plan for _ in range(int(p.get("questions") or 0))]
-    for i, q in enumerate(questions[:UNIT_ASSESSMENT_COUNT]):
-        if not q.get("topic_id"):
-            q["topic_id"] = ids[i] if i < len(ids) else (plan[0].get("topic_id"))
-        q["assessment_scope"] = SCOPE_UNIT
-    return questions[:UNIT_ASSESSMENT_COUNT]
-
-
 def ai_generate_activity_batch(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, model_override=None, material_language="en"):
     return ai_generate_questions(topic_title, topic_type, topic_content, language, count, level, existing_questions=existing_questions, is_pdf_source=is_pdf_source, model_override=model_override, material_language=material_language)
 
@@ -2102,284 +2308,138 @@ def ai_grade_open_response(question, student_answer, correct_answer):
     result = _call_ai([{"role": "user", "content": prompt}], max_tokens=150)
     return (result.get("score", 0.0), result.get("feedback", "")) if result else (0.0, "")
 
-CURRICULUM_UNITS = 6
-CURRICULUM_TOPICS_PER_UNIT = 5
-
-
-def _curriculum_system(language, level, official_institution, cefr_guidance, audience):
-    """Class-invariant half of the curriculum contract, so it can be cached.
-
-    Varies only by language, level and institution. The Tier-1 fallback call and
-    both expansion calls resend it byte-for-byte, so marking it as a cache
-    breakpoint makes every call after the first one cheap.
-    """
-    return f"""You are a bilingual curriculum architect for {language}, working to the official syllabus of {official_institution} and the Council of Europe CEFR framework.
-
-{cefr_guidance}
-
-Every chapter and every topic carries two titles: the professional English title, and the natural Turkish title as an educated Turkish teacher would write it.
-
-'title_tr' rules: 100% Turkish, grammatically correct, no English left inside it, no duplicated words. Never carry English-specific metalanguage across ('Wh- Questions' becomes 'Soru Kelimeleri'; do not write 'Wh- Soruları', and do not use 'Wh- Questions' in the English title of a non-English course either - write 'Question Words (Who, What, Where)'). Target-language forms stay in single quotes: "'Ser' Kullanarak Kimliği Tanımlama".
-
-Topics are real lessons, not labels: functional usage, nuance and situational grammar. Never 'Vocabulary', 'Grammar' or 'Exercises' as a title. Audience: {audience}.
-
-Worked pairs, for calibration:
-  'Polite Expressions for Conversation' -> 'Sohbet İçin Nezaket İfadeleri'
-  'Everyday Survival Vocabulary'        -> 'Günlük Hayatta Kalma Kelimeleri'
-  "Using 'Ser' to Describe Identity"    -> "'Ser' Kullanarak Kimliği Tanımlama"
-"""
-
-
-_LEVEL_GUIDELINES = {
-    "A1": "absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, survival vocabulary, personal information.",
-    "A2": "routine tasks, past tenses (introduction), describing surroundings, simple social exchanges, shopping and work scenarios.",
-    "B1": "travel situations, opinions/dreams/hopes, complex past tenses, future and conditional, giving reasons for plans.",
-    "B2": "technical discussion, interacting with natives without strain, detailed text on diverse subjects, introductory subjunctive.",
-    "C1": "complex subjects, implicit meaning, flexible academic/professional language, deep nuance, advanced idiom.",
-    "C2": "near-native mastery, summarising complex sources, fine shades of meaning, spontaneous academic reconstruction.",
-}
-
-
-def _rows_to_chapters(unit_rows, topic_rows_by_unit):
-    """Decode the compact row form back into the stored chapter shape."""
-    chapters = []
-    for idx, row in enumerate(unit_rows, 1):
-        if not isinstance(row, (list, tuple)) or len(row) < 2:
-            continue
-        topics = []
-        for t in topic_rows_by_unit.get(idx, []):
-            if not isinstance(t, (list, tuple)) or len(t) < 2:
-                continue
-            topics.append({
-                "title": str(t[0]).strip(),
-                "title_tr": str(t[1]).strip(),
-                "type": (str(t[2]).strip() if len(t) > 2 and str(t[2]).strip() else "vocabulary"),
-            })
-        chapters.append({"number": idx, "title": str(row[0]).strip(),
-                         "title_tr": str(row[1]).strip(), "topics": topics})
-    return chapters
-
-
 def ai_generate_curriculum(language, level, prompt_extra=""):
-    """Course structure, generated as an arc plus two concurrent expansions.
-
-    The previous pass cut this call's PROMPT and its ceiling, which helped, and
-    then the remaining time did not move much. Measuring the path rather than
-    guessing at it showed why: with a clean model response there is exactly ONE
-    provider call and no hidden second round trip, so almost all the wall clock
-    is the model DECODING ~1,300 tokens of syllabus JSON, one token at a time.
-    Input size and call count were never the bottleneck; output length is, and
-    output length is the one thing the earlier optimisation could not reduce
-    without deleting curriculum.
-
-    Two changes attack it directly, neither of which removes anything from the
-    result:
-
-      * The wire format is compact rows - ["English title","Türkçe başlık",
-        "type"] - instead of an object per topic. The three key names repeated
-        thirty times were roughly 300 tokens of pure JSON syntax being decoded
-        at conversational speed. They are re-expanded to the stored shape here,
-        deterministically.
-
-      * The syllabus is written as a small ARC call (six chapter titles and a
-        one-line progression) followed by two expansion calls that run
-        CONCURRENTLY, each writing the topics for three chapters and each given
-        the full arc. Half the tokens are now decoded in parallel with the other
-        half. Both halves see all six chapter titles, so progression across the
-        seam is explicit rather than hoped for - if anything this is a tighter
-        constraint than asking one call to keep thirty topics coherent.
-
-    Any failure in the staged path falls back to the original single call, so
-    the worst case is the old behaviour rather than a broken syllabus.
-    """
+    """Generates course structure, creating both English and Turkish versions natively via AI, grounded in official authority standards."""
     from services.cefr_reference import get_cefr_conditioning, LANGUAGE_CEFR_STANDARDS
-    from services.language_profiles import normalize_language, locked_track, instruction_language_name
-
-    t_stage_start = time.perf_counter()
     lang_std = LANGUAGE_CEFR_STANDARDS.get(language, {})
     official_institution = lang_std.get("institution", f"Council of Europe Official CEFR Framework for {language}")
     cefr_curriculum_guidance = get_cefr_conditioning(language, level, "Curriculum Architecture", "syllabus")
 
-    canonical = normalize_language(language)
-    forced_track = locked_track(canonical)
-    audience = "Turkish-speaking learners"
-    if forced_track:
-        audience = f"learners reading the course in {instruction_language_name(forced_track)}"
+    system = f"""You are a world-class bilingual curriculum architect and expert linguist operating under the official academic framework of {official_institution} and the Council of Europe CEFR standards (A1-C2) for {language}. 
+    Your mission: Design an authoritative, pedagogically deep, and culturally rich roadmap for learning {language}, strictly adhering to the official syllabus requirements of {official_institution} for level {level}.
+    
+    {cefr_curriculum_guidance}
+    
+    CRITICAL BILINGUAL GENERATION REQUIREMENT:
+    You MUST generate BOTH language versions natively in the exact same output:
+    1. 'title': The professional English curriculum title (e.g., 'Polite Expressions for Conversation', 'Everyday Survival Vocabulary').
+    2. 'title_tr': The authentic, natural Turkish curriculum title (e.g., 'Sohbet İçin Nezaket İfadeleri', 'Günlük Hayatta Kalma Kelimeleri').
+    
+    STRICT LINGUISTIC RULES FOR 'title_tr':
+    - Every 'title_tr' must be 100% natural, grammatically correct Turkish as written by an educated Turkish teacher.
+    - NEVER leave English words in 'title_tr' (e.g. NEVER write 'Nazik İfadeler for Conversation' or 'Traveling İçin Temel Kelimeler').
+    - NEVER use English-specific terms like 'Wh- Questions' or 'Wh- Soruları'. In Turkish, use 'Soru Kelimeleri' or 'Soru Sözcükleri' (e.g., 'Soru Kelimeleri: Kim, Ne, Nerede').
+    - In non-English target languages, do NOT write 'Wh- Questions' in English titles either; use 'Question Words (Who, What, Where)' or 'Information Questions'.
+    - NEVER duplicate words (e.g. NEVER write 'Günlük Hayatta Hayatta Kalma' or 've ve').
+    - Target language verbs or grammatical markers (like 'ser', 'estar') stay in single quotes: e.g. "'Ser' Kullanarak Kimliği Tanımlama".
+    - PEDAGOGIC DEPTH: Go beyond simple vocabulary. Each topic should feel like a real lesson that covers functional usage, nuances, and situational grammar."""
+    
+    level_guidelines = {
+        "A1": "Focus on absolute basics: alphabet/phonetics, greetings, numbers, basic present tense, immediate survival vocabulary, and personal info.",
+        "A2": "Focus on routine tasks, past tenses (intro), describing surroundings, simple social exchanges, and common shopping/work scenarios.",
+        "B1": "Focus on traveling situations, expressing opinions/dreams/hopes, complex past tenses, future/conditional, and providing reasons for plans.",
+        "B2": "Focus on technical discussions, interacting with natives without strain, detailed text on diverse subjects, and introductory Subjunctive mood.",
+        "C1": "Focus on complex subjects, implicit meaning, flexible/effective language for academic/professional use, deep nuance, and advanced idiomatic usage.",
+        "C2": "Focus on near-native mastery, summarizing complex sources, precise expression of fine shades of meaning, and spontaneous academic reconstruction."
+    }
+    
+    # Determine the closest CEFR guideline
+    current_guideline = next((v for k, v in level_guidelines.items() if k in level.upper()), "Follow general CEFR progression.")
 
-    system = _curriculum_system(language, level, official_institution, cefr_curriculum_guidance, audience)
-    current_guideline = next((v for k, v in _LEVEL_GUIDELINES.items() if k in level.upper()),
-                             "general CEFR progression.")
-    focus = f" focusing on: {prompt_extra}" if prompt_extra else ""
-    U, T = CURRICULUM_UNITS, CURRICULUM_TOPICS_PER_UNIT
+    user = f"""Create a comprehensive {level} {language} course syllabus{f' focusing on: {prompt_extra}' if prompt_extra else ''}.
+LEVEL-SPECIFIC FOCUS: {current_guideline}
 
-    chapters = []
-    source = "staged"
-    t_primary = 0.0
-    try:
-        t_call = time.perf_counter()
-        arc_user = f"""Design the SHAPE of a {level} {language} syllabus{focus} for {audience}.
-LEVEL FOCUS: {current_guideline}
+REASONING DIRECTIVE:
+In your internal reasoning process, analyze the target CEFR requirements from {official_institution} for {level} {language}.
+Formulate a strictly logical, pedagogically rich progression across exactly 6 chapters with 5 descriptive topics each (30 topics total).
+Reflect on Turkish-speaking learners' linguistic profile, avoiding English interference.
+Verify that every single 'title_tr' is authentic, grammatically pure Turkish.
 
-Give EXACTLY {U} chapter titles that progress from foundational to complex, and one line describing the progression as a whole. Do not write topics yet.
+RULES:
+1. PEDAGOGICAL ACCURACY: The topics MUST strictly reflect the {level} level requirements.
+2. NO GENERIC TITLES: Do NOT use 'Vocabulary', 'Grammar', or 'Exercises'. Every topic must be descriptive (e.g., 'Navigating a Hospital', 'The Imperfect vs. Preterite', 'Debating Environmental Ethics').
+3. PROGRESSION: Ensure units move logically from foundational to complex within the {level} bracket.
+4. VARIETY: Mix functional language, grammar, and cultural context.
+5. MANDATORY SCOPE: Generate EXACTLY 6 chapters.
+6. TOPIC DENSITY: Each chapter MUST have EXACTLY 5 descriptive topics (30 topics total).
+7. BILINGUAL PAIRS (MANDATORY): For every chapter and topic, provide BOTH English ('title') and Turkish ('title_tr'):
+   - Example 1: 'title': 'Polite Expressions for Conversation' -> 'title_tr': 'Sohbet İçin Nezaket İfadeleri'
+   - Example 2: 'title': 'Basic Adjectives for Personal Description' -> 'title_tr': 'Kişisel Tanım İçin Temel Sıfatlar'
+   - Example 3: 'title': 'Everyday Survival Vocabulary' -> 'title_tr': 'Günlük Hayatta Kalma Kelimeleri'
+   - Example 4: 'title': 'Essential Vocabulary for Traveling' -> 'title_tr': 'Seyahat İçin Temel Kelimeler'
+   - Example 5: 'title': "Using 'Ser' to Describe Identity" -> 'title_tr': "'Ser' Kullanarak Kimliği Tanımlama"
+   - Example 6: 'title': 'Question Words: Who, What, Where' -> 'title_tr': 'Soru Kelimeleri: Kim, Ne, Nerede'
+   - Every word in 'title_tr' must be 100% Turkish. No English leakages. No 'Wh- Soruları'. No word duplications.
 
-Return ONLY this JSON, using compact rows ["English title","Türkçe başlık"]:
-{{"arc": "one sentence describing how the {U} chapters progress",
-  "units": [["Everyday Survival Vocabulary","Günlük Hayatta Kalma Kelimeleri"]]}}"""
-        arc_res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": arc_user}],
-                           model=MODEL_CURRICULUM, max_tokens=700, temperature=0.3,
-                           cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level} arc",
-                           cache_system=True)
-        unit_rows = (arc_res or {}).get("units") or []
-        arc_text = str((arc_res or {}).get("arc") or "").strip()
-        if len(unit_rows) < 4:
-            raise ValueError(f"arc returned {len(unit_rows)} units")
-        unit_rows = unit_rows[:U]
-
-        listing = "\n".join(f"  {i}. {r[0]} / {r[1]}" for i, r in enumerate(unit_rows, 1)
-                             if isinstance(r, (list, tuple)) and len(r) >= 2)
-        half = (len(unit_rows) + 1) // 2
-        spans = [(1, half), (half + 1, len(unit_rows))]
-
-        def _expand(span):
-            lo, hi = span
-            want = "\n".join(f'  "{i}": [["English topic title","Türkçe konu başlığı","vocabulary"]]'
-                              for i in range(lo, hi + 1))
-            user = f"""The {level} {language} syllabus{focus} has these {len(unit_rows)} chapters, in order:
-{listing}
-
-PROGRESSION: {arc_text}
-LEVEL FOCUS: {current_guideline}
-
-Write EXACTLY {T} descriptive topics for chapters {lo}-{hi} ONLY. Keep them consistent with the chapters you are NOT writing, so the course does not repeat itself or jump ahead. 'type' is one of vocabulary, grammar, communication, functional, phonetics, mixed.
-
-Return ONLY this JSON, using compact rows ["English title","Türkçe başlık","type"]:
-{{"topics": {{
-{want}
-}}}}"""
-            return _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                            model=MODEL_CURRICULUM, max_tokens=1500, temperature=0.3,
-                            cost_stage=_COST_STAGE_CURRICULUM,
-                            cost_subject=f"{language} {level} units {lo}-{hi}",
-                            cache_system=True)
-
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            halves = list(pool.map(_expand, spans))
-
-        topic_rows = {}
-        for res in halves:
-            for key, rows in ((res or {}).get("topics") or {}).items():
-                try:
-                    topic_rows[int(str(key).strip())] = rows
-                except (TypeError, ValueError):
-                    continue
-        t_primary = time.perf_counter() - t_call
-        chapters = _rows_to_chapters(unit_rows, topic_rows)
-        if len([c for c in chapters if c.get("topics")]) < 4:
-            raise ValueError("expansion produced too few populated units")
-    except Exception as exc:
+Return ONLY valid JSON:
+{{
+  "chapters": [
+    {{
+      "number": 1,
+      "title": "Everyday Survival Vocabulary",
+      "title_tr": "Günlük Hayatta Kalma Kelimeleri",
+      "topics": [
+        {{
+          "title": "Polite Expressions for Conversation",
+          "title_tr": "Sohbet İçin Nezaket İfadeleri",
+          "type": "vocabulary"
+        }}
+      ]
+    }}
+  ]
+}}"""
+    res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_CURRICULUM, max_tokens=4500, temperature=0.3, cost_stage=_COST_STAGE_CURRICULUM)
+    chapters = res.get("chapters", []) if res else []
+    
+    # Tier 1 Fallback: If primary model gave < 4 chapters, try MODEL_FALLBACK
+    if (not chapters or len(chapters) < 4) and MODEL_FALLBACK != MODEL_CURRICULUM:
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] staged path unavailable ({exc}); "
-                    f"falling back to the single-call syllabus.\n")
-        chapters = []
-        source = "single"
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] Primary model gave <4 units. Trying fallback {MODEL_FALLBACK}...\n")
+        res_fb = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}], model=MODEL_FALLBACK, max_tokens=4500, temperature=0.3, cost_stage=_COST_STAGE_CURRICULUM)
+        if res_fb and res_fb.get("chapters") and len(res_fb["chapters"]) >= 4:
+            chapters = res_fb["chapters"]
 
+    # Tier 2 Fallback: If still < 4 chapters, load verified blueprint cache
     if not chapters or len(chapters) < 4:
-        t_call = time.perf_counter()
-        user = f"""Design a {level} {language} syllabus{focus} for {audience}.
-LEVEL FOCUS: {current_guideline}
-
-EXACTLY {U} chapters, EXACTLY {T} descriptive topics each. Both titles on every chapter and every topic.
-
-Return ONLY this JSON, using compact rows:
-{{"units": [["English unit title","Türkçe ünite başlığı",
-   [["English topic title","Türkçe konu başlığı","vocabulary"]]]]}}"""
-        res = _call_ai([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                       model=MODEL_CURRICULUM, max_tokens=2400, temperature=0.3,
-                       cost_stage=_COST_STAGE_CURRICULUM, cost_subject=f"{language} {level}",
-                       cache_system=True)
-        rows = (res or {}).get("units") or []
-        unit_rows, topic_rows = [], {}
-        for i, row in enumerate(rows[:U], 1):
-            if isinstance(row, (list, tuple)) and len(row) >= 2:
-                unit_rows.append([row[0], row[1]])
-                topic_rows[i] = row[2] if len(row) > 2 and isinstance(row[2], list) else []
-        chapters = _rows_to_chapters(unit_rows, topic_rows)
-        t_primary += time.perf_counter() - t_call
-        source = "single"
-
-    # Tier 2 Fallback: verified blueprint cache.
-    if not chapters or len([c for c in chapters if c.get("topics")]) < 4:
         with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] generation returned <4 populated units. "
-                    f"Loading verified blueprint fallback for {language} {level}.\n")
-        cached = _load_blueprint_chapters(language, level)
-        if cached:
-            from services.curriculum_translator import ensure_bilingual_curriculum
-            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level,
-                                      t_stage_start, t_primary, "blueprint")
+            f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM] AI generation returned <4 units. Loading verified blueprint fallback for {language} {level}.\n")
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    if cached_data and cached_data.get("chapters") and len(cached_data["chapters"]) >= 4:
+                        from services.curriculum_translator import ensure_bilingual_curriculum
+                        return ensure_bilingual_curriculum(cached_data["chapters"])
+            except Exception:
+                pass
 
+    # Clean titles and re-index chapters
     for i, ch in enumerate(chapters):
         ch["number"] = i + 1
-        if isinstance(ch.get("title"), str):
+        if "title" in ch and isinstance(ch["title"], str):
             ch["title"] = re.sub(r'^Unit\s*\d+\s*[:\-]*\s*', '', ch["title"], flags=re.IGNORECASE).strip()
-        if isinstance(ch.get("title_tr"), str):
+        if "title_tr" in ch and isinstance(ch["title_tr"], str):
             ch["title_tr"] = re.sub(r'^Ünite\s*\d+\s*[:\-]*\s*', '', ch["title_tr"], flags=re.IGNORECASE).strip()
 
+    # ── ULTIMATE SAFETY GUARD: Never return fewer than 4 chapters ──
     if not chapters or len(chapters) < 4:
-        cached = _load_blueprint_chapters(language, level, require_four=False)
-        if cached:
-            from services.curriculum_translator import ensure_bilingual_curriculum
-            return _finish_curriculum(ensure_bilingual_curriculum(cached), language, level,
-                                      t_stage_start, t_primary, "blueprint")
+        cache_file = _get_blueprint_path(language, level)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_data = json.load(f)
+                    if cached_data and cached_data.get("chapters"):
+                        from services.curriculum_translator import ensure_bilingual_curriculum
+                        return ensure_bilingual_curriculum(cached_data["chapters"])
+            except Exception:
+                pass
 
+    # ── BILINGUAL TITLE ENRICHMENT: Ensure both title (EN) and title_tr (TR) are populated cleanly ──
     from services.curriculum_translator import ensure_bilingual_curriculum
     chapters = ensure_bilingual_curriculum(chapters)
-    return _finish_curriculum(chapters, language, level, t_stage_start, t_primary, source)
 
-
-def _load_blueprint_chapters(language, level, require_four=True):
-    """Verified blueprint cache for a language/level, or None."""
-    cache_file = _get_blueprint_path(language, level)
-    if not os.path.exists(cache_file):
-        return None
-    try:
-        with open(cache_file, "r", encoding="utf-8") as f:
-            cached_data = json.load(f)
-    except Exception:
-        return None
-    chapters = (cached_data or {}).get("chapters") or []
-    if not chapters or (require_four and len(chapters) < 4):
-        return None
     return chapters
-
-
-def _finish_curriculum(chapters, language, level, t_stage_start, t_primary, source):
-    """Mark the syllabus as already healed, and record where the time went.
-
-    `_aulaai_bilingual_healed` lets the HTTP layer skip a second full
-    `ensure_bilingual_curriculum` pass over the same chapters - that pass was
-    pure duplicate work, and when its heuristics disagreed with themselves it
-    could also fire a second round of translation calls for titles the first
-    pass had already translated.
-    """
-    total = time.perf_counter() - t_stage_start
-    try:
-        with open("pipeline.log", "a", encoding="utf-8") as f:
-            f.write(
-                f"[{datetime.now().strftime('%H:%M:%S')}] [CURRICULUM-TIMING] {language} {level} "
-                f"source={source} units={len(chapters)} provider={t_primary:.1f}s "
-                f"bilingual={max(0.0, total - t_primary):.1f}s total={total:.1f}s\n"
-            )
-    except Exception:
-        pass
-    if isinstance(chapters, list):
-        for ch in chapters:
-            if isinstance(ch, dict):
-                ch["_aulaai_bilingual_healed"] = True
-    return chapters
-
-
 def ai_generate_report_insights(cohort_data):
     """Generates high-level pedagogical insights for teacher reports."""
     prompt = f"Analyze student performance and provide 3 actionable teaching insights: {json.dumps(cohort_data)}"
@@ -3624,7 +3684,7 @@ def _material_release_integrity_v37(data, language, level, material_language="tr
     from services.material_quality_guard import enforce_material_integrity
     return enforce_material_integrity(data, language=language, material_language=material_language) if isinstance(data, dict) else data
 
-def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr", unit_index=None, unit_total=None, topics_completed=0):
+def generate_full_lesson(topic, topic_type, language, count=6, level='A1', source_text=None, material_language="tr"):
     """
     Generates a maximum-detail, textbook-quality lesson using Gemini 2.5 Flash.
     No fixed page count — the AI determines the optimal structure based on topic depth.
@@ -3662,16 +3722,6 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
     # Build clean, universal, professor-level prompt with full pedagogical freedom
     # AULAAI_CANONICAL_MATERIAL_PROMPT
     from services.material_generation_prompt import build_material_prompts
-    # The language budget for this lesson's own assessment items. Derived from
-    # CEFR and position in the course - deterministic, no model call, and no
-    # dependency on other topics, which matters because topics are generated
-    # concurrently and no sibling lesson exists yet when this one is written.
-    from services.assessment_scope import progression_envelope
-    assessment_budget = progression_envelope(
-        level=level, language=language,
-        unit_index=unit_index, unit_total=unit_total,
-        topics_completed=topics_completed,
-    )
     system_prompt, user_prompt = build_material_prompts(
         language=language,
         level=level,
@@ -3679,7 +3729,6 @@ def generate_full_lesson(topic, topic_type, language, count=6, level='A1', sourc
         topic_type=topic_type,
         official_institution=official_institution,
         source_text=source_text,
-        assessment_budget=assessment_budget,
     )
 
     lesson_dict = None

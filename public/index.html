@@ -539,9 +539,6 @@
                     <div id="ai-language-grid" class="choice-grid">
                         <!-- Languages will be injected here -->
                     </div>
-                    <!-- Shown only for English and Turkish, whose instructional
-                         track is fixed by what they teach. -->
-                    <p id="ai-track-notice" class="field-note field-note--locked hidden"></p>
                 </div>
 
                 <div class="wizard-step">
@@ -668,7 +665,7 @@
                         <span style="color:var(--accent-light); margin-right:6px;">*</span>
                         <span data-i18n="ai.select_lang">Select Language (Optional but Recommended)</span>
                     </label>
-                    <select id="pdf-language-select" class="select-input" onchange="renderPdfTrackNotice(this.value)">
+                    <select id="pdf-language-select" class="select-input">
                         <option value="Detecting...">Auto-Detect (Slower)</option>
                         <option value="Spanish">Spanish</option>
                         <option value="German">German</option>
@@ -686,7 +683,6 @@
                         <option value="Greek">Greek</option>
                         <option value="English">English</option>
                     </select>
-                    <p id="pdf-track-notice" class="field-note field-note--locked hidden"></p>
                 </div>
 
 
@@ -1011,7 +1007,7 @@
                     <p class="subtitle" data-i18n="Monitor individual student progress">Monitor individual student progress</p>
                 </div>
                 <div id="pending-roster"></div>
-                <div id="student-roster" class="listrows"></div>
+                <div id="student-roster" class="roster-grid"></div>
             </section>
 
             <!-- Reports Tab -->
@@ -1188,7 +1184,7 @@
                     <p class="subtitle" data-i18n="selectPractice">Select a topic to practice</p>
                     <p class="form-note" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
                 </div>
-                <div id="practice-topics" class="listrows"></div>
+                <div id="practice-topics" class="topic-grid"></div>
                 <div id="practice-area" class="hidden"></div>
             </section>
 

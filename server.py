@@ -957,22 +957,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             if not word: return self._send_error("word required")
             
             material_language = "en"
-            course_language = lang
             if course_id:
                 try:
                     with db_connection() as db:
-                        row = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
-                        if row:
-                            if row["material_language"]:
-                                material_language = row["material_language"]
-                            if row["language"]:
-                                course_language = row["language"]
+                        row = db.execute("SELECT material_language FROM courses WHERE id=?", (course_id,)).fetchone()
+                        if row and row["material_language"]:
+                            material_language = row["material_language"]
                 except Exception as e:
                     print(f"[ERROR] Failed to query material_language for dictionary explain: {e}")
-
-            from services.language_profiles import resolve_track
-            material_language = resolve_track(course_language, requested=ui_lang, declared=material_language)
-
+            
+            if ui_lang and ui_lang in ["tr", "en"]:
+                material_language = ui_lang
+                
             result = ai_explain_word(word, lang or "English", material_language=material_language)
             return self._send_json(result)
         elif path == "/api/tts":
@@ -1080,22 +1076,6 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         lang = qp.get("lang", ["en"])[0].lower()
         if lang not in ("en", "tr"):
             lang = "en"
-
-        # A special-pair course publishes one track. Honouring ?lang= for it
-        # would export a PDF whose instructional prose is in the language being
-        # taught, which is not a translation of this course's material - it is a
-        # different course. The export is pinned server-side so a stale client,
-        # a shared link or a direct request cannot produce one.
-        try:
-            from services.language_profiles import locked_track
-            with db_connection() as _db:
-                _row = _db.execute("SELECT language FROM courses WHERE id=?", (course_id,)).fetchone()
-            _forced = locked_track(_row["language"]) if _row else None
-            if _forced:
-                lang = _forced
-        except Exception:
-            pass
-
         is_tr = (lang == "tr")
 
         # AULA_ACADEMIC_PDF_RENDERER_V2
@@ -3643,7 +3623,7 @@ table.vt td { padding: 4px 6px; }
             if topic_id:
                 topic_ids = [topic_id]
             elif chapter_id and chapter_id != "all":
-                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
                 topic_ids = list(set(t["id"] for t in topics))
             else:
                 topics = db.execute("""
@@ -3713,12 +3693,12 @@ table.vt td { padding: 4px 6px; }
                 # Quizzes strictly cover the entire unit (Chapter)
                 is_chapter = db.execute("SELECT id FROM chapters WHERE id = ?", (chapter_id,)).fetchone()
                 if is_chapter:
-                    topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
+                    topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
                 else:
                     # If a topic ID was passed, expand to its full parent chapter so quizzes always cover the full unit
                     is_topic = db.execute("SELECT chapter_id FROM topics WHERE id = ?", (chapter_id,)).fetchone()
                     if is_topic and is_topic["chapter_id"]:
-                        topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (is_topic["chapter_id"],)).fetchall()
+                        topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (is_topic["chapter_id"],)).fetchall()
                     else:
                         topics = []
             else:
@@ -4186,22 +4166,18 @@ table.vt td { padding: 4px 6px; }
             return self._send_error("Missing required fields for explanation", 400)
             
         material_language = "en"
-        course_language = language
         if course_id:
             try:
                 with db_connection() as db:
-                    row = db.execute("SELECT language, material_language FROM courses WHERE id=?", (course_id,)).fetchone()
-                    if row:
-                        if row["material_language"]:
-                            material_language = row["material_language"]
-                        if row["language"]:
-                            course_language = row["language"]
+                    row = db.execute("SELECT material_language FROM courses WHERE id=?", (course_id,)).fetchone()
+                    if row and row["material_language"]:
+                        material_language = row["material_language"]
             except Exception as e:
                 print(f"[ERROR] Failed to query material_language for activity explain: {e}")
-
-        from services.language_profiles import resolve_track
-        material_language = resolve_track(course_language, requested=ui_lang, declared=material_language)
-
+                
+        if ui_lang and ui_lang in ["tr", "en"]:
+            material_language = ui_lang
+            
         result = ai_explain_activity(prompt, correct_answer, student_answer, language, material_language=material_language)
         return self._send_json(result)
 
@@ -4373,7 +4349,7 @@ table.vt td { padding: 4px 6px; }
             if topic_id:
                 topic_ids = [topic_id]
             elif chapter_id and chapter_id != "all":
-                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != 'unit_assessment')", (chapter_id,)).fetchall()
+                topics = db.execute("SELECT id FROM topics WHERE chapter_id = ?", (chapter_id,)).fetchall()
                 topic_ids = [t["id"] for t in topics]
             else:
                 topics = db.execute("""
@@ -4671,41 +4647,26 @@ table.vt td { padding: 4px 6px; }
         result = ai_generate_curriculum(language, level, course_name)
         if not result or len(result) < 4:
             # Fallback to cached blueprint if available
-            from services.ai_engine import _load_blueprint_chapters
-            cached = _load_blueprint_chapters(language, level)
-            if cached:
-                result = cached
+            from services.ai_engine import _get_blueprint_path
+            cache_file = _get_blueprint_path(language, level)
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r", encoding="utf-8") as f:
+                        cached_data = json.load(f)
+                        if cached_data and cached_data.get("chapters") and len(cached_data["chapters"]) >= 4:
+                            result = cached_data["chapters"]
+                except Exception:
+                    pass
 
         if not result: return self._send_error("Failed to generate syllabus", 500)
-
-        # ai_generate_curriculum already ran ensure_bilingual_curriculum and said
-        # so. Running it a second time here re-walked every chapter and topic
-        # through the same hybrid/stutter heuristics, and any title the first
-        # pass healed into something the heuristics then disliked bought a second
-        # round of translation calls for work already done.
-        # Non-short-circuiting on purpose: every chapter must have the marker
-        # stripped before this is serialised, not just the ones checked before
-        # the first miss.
-        markers = [isinstance(ch, dict) and ch.pop("_aulaai_bilingual_healed", False) for ch in result]
-        already_healed = bool(markers) and all(markers)
-        if not already_healed:
-            try:
-                from services.curriculum_translator import ensure_bilingual_curriculum
-                result = ensure_bilingual_curriculum(result)
-            except Exception as e:
-                print(f"[CURRICULUM] Warning: ensure_bilingual_curriculum in _draft_curriculum: {e}")
-
-        payload = {"syllabus": result}
+        
         try:
-            from services.language_profiles import track_notice, locked_track
-            notice_en = track_notice(language, "en")
-            if notice_en:
-                payload["instruction_track"] = locked_track(language)
-                payload["instruction_notice"] = notice_en
-                payload["instruction_notice_tr"] = track_notice(language, "tr")
-        except Exception:
-            pass
-        return self._send_json(payload)
+            from services.curriculum_translator import ensure_bilingual_curriculum
+            result = ensure_bilingual_curriculum(result)
+        except Exception as e:
+            print(f"[CURRICULUM] Warning: ensure_bilingual_curriculum in _draft_curriculum: {e}")
+            
+        return self._send_json({"syllabus": result})
 
     def _create_classroom_from_scratch(self):
         """Creates a classroom without a PDF."""

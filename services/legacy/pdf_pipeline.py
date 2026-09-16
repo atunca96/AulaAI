@@ -120,19 +120,8 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 except:
                     language = "Unknown"
             _log(f"Language detected: {language}")
-            # Detection can only now tell us this is an English or Turkish class,
-            # after the row was written with whatever track the lecturer picked.
-            # Re-lock it here, or the build would generate material on a track the
-            # course is not allowed to publish.
-            from services.language_profiles import locked_track
             with db_connection() as db:
-                forced = locked_track(language)
-                if forced:
-                    db.execute("UPDATE courses SET language = ?, material_language = ? WHERE id = ?",
-                               (language, forced, course_id))
-                    _log(f"Instructional track locked to '{forced}' for a {language} class.")
-                else:
-                    db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+                db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
                 db.commit()
             
             bump_version()
@@ -401,7 +390,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             
             return full_text[:8000]
  
-        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en", unit_index=None, unit_total=None, topics_completed=0):
+        def process_topic_task(t_id, t_title, t_type, language, level, course_id, source_text=None, material_language="en"):
             from services.ai_engine import generate_full_lesson, _is_substantive_lesson, synthesize_substantive_lesson
             try:
                 with db_connection() as db:
@@ -411,8 +400,7 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             except Exception: pass
             lesson = None
             try:
-                lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language,
-                                              unit_index=unit_index, unit_total=unit_total, topics_completed=topics_completed)
+                lesson = generate_full_lesson(t_title, t_type, language, 5, level, source_text=source_text, material_language=material_language)
             except Exception as gen_err:
                 _log(f"[TOPIC-TASK] generate_full_lesson failed for '{t_title}': {gen_err}")
 
@@ -426,20 +414,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         max_workers = int(os.getenv("PIPELINE_MAX_WORKERS", "20"))
 
         queued = []
-        _unit_total = len(chapters_data)
-        _seen = 0
-        for _u_idx, ch in enumerate(chapters_data, 1):
+        for ch in chapters_data:
             for topic in ch.get("topics", []):
                 if len(queued) >= MAX_TOTAL_TOPICS:
                     break
                 stext = get_surgical_context(topic.get("page"), source_markdown_content, topic_title=topic.get("title"))
-                # `topics_completed` is this topic's position in the course, which
-                # is what the assessment language budget needs: a lesson early in
-                # unit 1 may only phrase its questions out of what unit 1 has
-                # taught by then.
-                queued.append((topic.get("id"), topic.get("title"), topic.get("type"), stext,
-                               _u_idx, _unit_total, _seen))
-                _seen += 1
+                queued.append((topic.get("id"), topic.get("title"), topic.get("type"), stext))
         topic_count = len(queued)
 
         # Every topic in a class is generated from a byte-identical system prompt:
@@ -462,10 +442,8 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             future_to_topic = {}
 
             def _submit(entry):
-                t_id, t_title, t_type, stext, u_idx, u_total, done_before = entry
-                fut = executor.submit(process_topic_task, t_id, t_title, t_type, language, level, course_id,
-                                      source_text=stext, material_language=material_language,
-                                      unit_index=u_idx, unit_total=u_total, topics_completed=done_before)
+                t_id, t_title, t_type, stext = entry
+                fut = executor.submit(process_topic_task, t_id, t_title, t_type, language, level, course_id, source_text=stext, material_language=material_language)
                 future_to_topic[fut] = t_title
                 return fut
 
@@ -530,18 +508,6 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
                     except Exception as db_err:
                         _log(f"Failed fallback commit for {failed_title}: {db_err}")
 
-        # ── PHASE 2b: UNIT ASSESSMENTS ──
-        # Every unit closes with a ten-question assessment drawn from that unit
-        # and nothing else. It runs here, after the unit's topics exist, because
-        # it is built from the material the learner was actually shown rather
-        # than from the curriculum's intention. Units are independent, so they
-        # are generated concurrently; a unit that cannot produce ten publishable
-        # questions publishes none, and the build continues.
-        try:
-            _build_unit_assessments(course_id, language, level, material_language, gen_id)
-        except Exception as ua_err:
-            _log(f"[UNIT-ASSESSMENT] phase skipped: {ua_err}")
-
         _log(f"Phase 2 Complete for {course_id}.")
         if generation_cost is not None:
             try:
@@ -564,134 +530,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
             db.commit()
 
 
-
-UNIT_ASSESSMENT_TYPE = "unit_assessment"
-
-
-def _build_unit_assessments(course_id, language, level, material_language, gen_id=None):
-    """Generate and persist the closing assessment for every unit in a course.
-
-    Stored as a synthetic topic at the end of its chapter, carrying lesson-shaped
-    `mcq` pages. That choice is deliberate: the reader, the outline, the PDF
-    exporter and the navigation already know how to present a topic made of mcq
-    pages, so an assessment appears at the end of every unit without a single
-    renderer change. `type='unit_assessment'` keeps it identifiable, so the
-    lecturer's topic pickers can exclude it from ordinary quiz sources.
-    """
-    from services.ai_engine import generate_unit_assessment
-    from services.assessment_scope import UNIT_ASSESSMENT_COUNT
-
-    with db_connection() as db:
-        chapters = db.execute(
-            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
-        ).fetchall()
-        units = []
-        for ch in chapters:
-            rows = db.execute(
-                "SELECT id, title, content, sort_order FROM topics WHERE chapter_id = ? AND (type IS NULL OR type != ?) ORDER BY sort_order",
-                (ch[0], UNIT_ASSESSMENT_TYPE),
-            ).fetchall()
-            topics = [{"id": r[0], "title": r[1], "content": r[2]} for r in rows if r[2]]
-            max_sort = max([r[3] or 0 for r in rows], default=0)
-            if topics:
-                units.append({"chapter_id": ch[0], "title": ch[1], "number": ch[2],
-                              "topics": topics, "next_sort": max_sort + 1})
-
-    if not units:
-        return
-    total_units = len(units)
-    _log(f"[UNIT-ASSESSMENT] building {total_units} unit assessment(s) for {course_id}.")
-
-    def _one(unit):
-        try:
-            return unit, generate_unit_assessment(
-                unit_title=unit["title"], unit_topics=unit["topics"], language=language,
-                level=level, material_language=material_language,
-                unit_index=unit.get("number"), unit_total=total_units,
-            )
-        except Exception as exc:
-            _log(f"[UNIT-ASSESSMENT] '{unit['title']}' failed: {exc}")
-            return unit, []
-
-    results = []
-    workers = min(int(os.getenv("PIPELINE_MAX_WORKERS", "20")), max(1, total_units))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        for unit, questions in pool.map(_one, units):
-            results.append((unit, questions))
-
-    for unit, questions in results:
-        if len(questions) != UNIT_ASSESSMENT_COUNT:
-            _log(f"[UNIT-ASSESSMENT] '{unit['title']}' produced {len(questions)}; skipped.")
-            continue
-        content = build_unit_assessment_content(unit["title"], questions, material_language)
-        title = unit_assessment_title(unit["title"], material_language)
-        with db_connection() as db:
-            existing = db.execute(
-                "SELECT id FROM topics WHERE chapter_id = ? AND type = ?",
-                (unit["chapter_id"], UNIT_ASSESSMENT_TYPE),
-            ).fetchone()
-            payload = json.dumps(content, ensure_ascii=False)
-            if existing:
-                db.execute("UPDATE topics SET title = ?, content = ? WHERE id = ?",
-                           (title, payload, existing[0]))
-            else:
-                db.execute(
-                    "INSERT INTO topics (id, chapter_id, type, title, content, sort_order) VALUES (?,?,?,?,?,?)",
-                    (_uid(), unit["chapter_id"], UNIT_ASSESSMENT_TYPE, title, payload, unit["next_sort"]),
-                )
-            db.commit()
-        _log(f"[UNIT-ASSESSMENT] '{unit['title']}' published {len(questions)} questions.")
-    bump_version()
-
-
-def unit_assessment_title(unit_title, material_language="tr"):
-    label = "Ünite Değerlendirmesi" if str(material_language).casefold() == "tr" else "Unit Assessment"
-    return f"{label}: {unit_title}" if unit_title else label
-
-
-def build_unit_assessment_content(unit_title, questions, material_language="tr"):
-    """Lesson-shaped pages for the stored assessment topic.
-
-    `stem_scope: target_complete` is what tells the publication boundary that the
-    stem is a whole question in the taught language and owes no instructional
-    localization — the assessment contract, declared rather than inferred.
-    """
-    is_tr = str(material_language).casefold() == "tr"
-    pages = []
-    for idx, q in enumerate(questions, 1):
-        options = q.get("options") or ([q.get("answer")] + list(q.get("distractors") or []))
-        pages.append({
-            "type": "mcq",
-            "stem_scope": "target_complete",
-            "assessment_scope": "unit",
-            "title": f"Question {idx}",
-            "title_tr": f"Soru {idx}",
-            "prompt": q.get("prompt", ""),
-            "options": [o for o in options if str(o).strip()][:4],
-            "answer": q.get("answer", ""),
-            "distractors": list(q.get("distractors") or [])[:3],
-            "explanation": q.get("why", ""),
-            "explanation_tr": q.get("why_tr", ""),
-            "topic_id": q.get("topic_id"),
-        })
-    heading = unit_assessment_title(unit_title, material_language)
-    intro = ("Bu ünitede öğrendiklerinizi değerlendirin." if is_tr
-             else "Check what you have learned in this unit.")
-    return {"pages": [{"type": "overview", "title": heading, "title_tr": heading,
-                       "text": intro, "text_tr": intro}] + pages}
-
-
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="tr"):
     import logging
     logging.getLogger(__name__).warning("LEGACY PIPELINE IN USE")
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
-
-    # The instructional track is a property of what the course teaches, decided
-    # once here and stored, so nothing downstream has to re-derive it.
-    from services.language_profiles import resolve_track
-    material_language = resolve_track(language, declared=material_language)
-
+    
     course_id = _uid()
     code = generate_classroom_code()
     textbook_url = "/books/" + os.path.basename(pdf_path)
@@ -759,13 +603,6 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
 
 
 def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None, material_language="tr"):
-    # Same lock as the PDF path: English taught -> Turkish instruction, Turkish
-    # taught -> English instruction, every other language keeps what was asked
-    # for. Enforced at the write so the course row is never in a state the
-    # reader has to correct for.
-    from services.language_profiles import resolve_track
-    material_language = resolve_track(language, declared=material_language)
-
     gen_id = _uid()
     if existing_course_id:
         course_id = existing_course_id

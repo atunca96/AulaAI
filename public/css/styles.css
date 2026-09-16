@@ -1735,26 +1735,197 @@ body:has(#student-dashboard.active) .floating-actions {
 .feedback-msg.clickable-feedback { cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; }
 .feedback-msg.clickable-feedback:hover { filter: brightness(1.1); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
 
-/* ── Roster ──────────────────────────────────────────────
-   The roster renders through the shared .listrows / .listrow primitive in
-   foundation.css. What used to live here — .student-card and its avatar block,
-   bordered metrics box and three full-width action buttons — is gone with it:
-   a roster is one list, not one card per person. Only the two pieces the row
-   still uses are kept.
-
-   A number is identity, so it stays monospaced and set apart from prose. */
-.student-school-num {
-  font-family: var(--font-mono);
-  font-weight: var(--fw-semibold);
-  color: var(--text-muted);
+/* ── Roster ──────────────────────────────────────────── */
+.roster-grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); 
+  gap: 16px; 
 }
-/* The mastery dot that precedes the percentage in a row's metadata. */
+.student-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.student-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.35);
+}
+.student-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+/* Initials marker. One quiet accent-tinted treatment across the roster: the
+   name is the identifier, the marker is only a place for the eye to land. */
+.student-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  background: var(--marker-bg);
+  border: 1px solid var(--marker-line);
+  color: var(--marker-fg);
+  flex-shrink: 0;
+  letter-spacing: var(--ls-normal);
+}
+.student-info-block {
+  flex: 1;
+  min-width: 0;
+}
+.student-name-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.student-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+.student-school-num {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  background: var(--fill-subtle);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.student-status-indicator {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  white-space: nowrap;
+}
+/* The mastery readout used to be a bordered, filled box inside the card — a
+   card inside a card. It is now just a block with its own spacing; the
+   grouping is already obvious from position. */
+.student-metrics-box {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-block: var(--space-6);
+}
+.student-metrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.metric-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 .metric-indicator {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   display: inline-block;
+}
+.metric-count {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.student-mastery-bar {
+  height: 6px;
+  background: var(--fill-subtle);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.student-mastery-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.student-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+/* Both row actions are secondary: messaging a student is not a more important
+   act than setting their password, and a gold fill repeated down a roster of
+   eight cards is emphasis with nothing to emphasise. */
+.student-btn-action {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: max(var(--control-sm), var(--tap-min));
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  min-width: 0;
+}
+.student-btn-pw {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.student-btn-pw:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+.student-btn-msg {
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-line);
+  color: var(--accent-light);
+}
+[data-theme="light"] .student-btn-msg { color: var(--accent); }
+.student-btn-msg:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+.student-btn-kick {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   flex-shrink: 0;
+}
+.student-btn-kick:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
 }
 
 /* ── Progress Bars ───────────────────────────────────── */
@@ -1792,9 +1963,16 @@ body:has(#student-dashboard.active) .floating-actions {
 .risk-badge.warning { background: var(--warning-bg); color: var(--warning); }
 .risk-badge.low { background: rgba(59,130,246,0.12); color: var(--info); }
 
-/* The practice list renders through the shared .listrows / .listrow primitive.
-   .topic-grid and .topic-practice-card went with it: a curriculum is a list of
-   topics, and as a card grid thirty topics cost over 3,000px on a phone. */
+.topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.topic-practice-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.topic-practice-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 
 /* ── Modal ────────────────────────────────────────────── */
 /* ── Overlays ────────────────────────────────────────────
@@ -2566,7 +2744,9 @@ body:has(#student-dashboard.active) .floating-actions {
      read fine, and four full-width cards is 370px of scrolling for four
      numbers. Below ~340px the track stops fitting and it collapses on its own.
      Everything else that was two-up does become one-up. */
-  .options-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .options-grid,
+  .roster-grid,
+  .topic-grid  { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
 
   /* Page actions go full width and stack, instead of wrapping a label across
      three lines inside a shrunken button. */
@@ -2596,6 +2776,7 @@ body:has(#student-dashboard.active) .floating-actions {
   .form-actions > .btn { width: 100%; }
 
   .chapter-header { padding: var(--space-5) var(--space-6); }
+  .student-card { padding: var(--space-6); }
   .activity-card { padding: var(--space-6); }
   .activity-prompt { font-size: var(--fs-lg); line-height: var(--lh-snug); }
   .fill-blank-input { width: 100%; margin-bottom: var(--space-6); }
@@ -3513,9 +3694,11 @@ body:has(#student-dashboard.active) .floating-actions {
    bottom of the sheet on a phone. */
 .card,
 .classroom-card,
+.student-card,
 .method-card,
 .stat-card,
 .chapter-block,
+.topic-practice-card,
 .activity-card,
 .chat-wrapper,
 .syllabus-chapter,
@@ -3527,9 +3710,9 @@ body:has(#student-dashboard.active) .floating-actions {
 .classroom-status,
 .nav-badge,
 .progress-bar-container,
+.student-mastery-bar,
 .progress-bar,
-.listrow__bar,
-.listrow__bar > i,
+.student-mastery-fill,
 .progress-fill,
 .progress-bar-fill,
 .tag-badge {
@@ -4720,6 +4903,11 @@ select.text-input option,
   .modal-content { padding: var(--space-6); }
   .modal-content h2 { font-size: var(--fs-xl); }
 
+  /* Student roster rows */
+  .student-card { padding: var(--space-5) var(--space-6); }
+  .student-card-actions { padding-top: var(--space-4); }
+  .student-metrics-box { margin-block: var(--space-5); }
+
   /* Curriculum */
   .chapter-header { padding: var(--space-4) var(--space-6); }
   .topic-item { padding: var(--space-4) var(--space-6); }
@@ -4759,123 +4947,4 @@ select.text-input option,
   .pedagogy-contrast-card, .pedagogy-pitfall-card, .pedagogy-guide-block { padding: var(--space-5); }
   .pedagogy-rules-container { gap: var(--space-4); }
   .study-dialogue-card { padding: var(--space-5); }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   PHONE DENSITY
-   ---------------------------------------------------------------------------
-   Outside the material reader, vertical scrolling is the expensive resource.
-   Everything below trades repeated chrome — padding, boxes inside boxes, one
-   fact per line, a full-width button under every record — for information the
-   person came to read. Nothing here shrinks body text or a touch target: the
-   floors set in foundation.css (--fs-base for prose, --tap-min for controls)
-   still hold, and density comes from structure instead.
-
-   These rules live together rather than beside each component so the phone
-   layout can be read, and changed, as one decision.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-@media (max-width: 600px) {
-
-  /* ── Metric row ──
-     Four metrics used to be four stacked cards, each with a 34px display
-     number and a caption, costing roughly 400px before the dashboard said
-     anything. As a two-column strip the same four numbers cost about 130px and
-     can be compared against each other, which is what a metric row is for.
-     The label leads, the number sits opposite it on the same optical line, and
-     the caption runs underneath on one line. */
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-4);
-    margin-bottom: var(--gap-section);
-  }
-  .stat-card {
-    padding: var(--space-5);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    column-gap: var(--space-4);
-  }
-  .stat-label { grid-column: 1; grid-row: 1; }
-  .stat-value {
-    grid-column: 2;
-    grid-row: 1;
-    margin-top: 0;
-    font-size: var(--fs-2xl);
-  }
-  .stat-sub {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    margin-top: var(--space-2);
-    font-size: var(--fs-2xs);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* ── Class picker ──
-     The card's action moves beside its content instead of under it, so a class
-     costs one row rather than a title block plus a 52px footer button. */
-  .classroom-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-  .classroom-card .card-body { padding: var(--space-5) var(--pad-row); }
-  .classroom-card__top { margin-bottom: var(--space-2); }
-  .classroom-card__name {
-    font-size: var(--fs-md);
-    margin-bottom: var(--space-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .classroom-card__meta { margin-bottom: 0; }
-  .classroom-card > .btn:last-child {
-    width: auto;
-    border: none;
-    border-inline-start: 1px solid var(--line-subtle);
-    border-radius: 0;
-    align-self: stretch;
-    padding-inline: var(--space-6);
-    min-height: 0;
-  }
-  /* A class that is still building keeps its progress on its own line: it is
-     live state, not metadata, and it is the reason the person is looking. */
-  .classroom-card:has(.classroom-card__building) { grid-template-columns: minmax(0, 1fr); }
-  .classroom-card:has(.classroom-card__building) > .btn:last-child {
-    width: 100%;
-    border-inline-start: none;
-    border-top: 1px solid var(--line-subtle);
-    min-height: var(--control-lg);
-  }
-
-  /* ── At-risk list ──
-     Name and badges on one row, wrapping only when the badges genuinely do not
-     fit, instead of a bordered card per student. */
-  .risk-item {
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    padding: var(--space-4) var(--pad-row);
-    margin-bottom: var(--space-3);
-  }
-  .risk-badges { flex-wrap: wrap; }
-
-  /* ── Progress readouts ──
-     A progress row is a label and a number over a bar. 16px between rows was
-     built for a desktop report card. */
-  .progress-item { margin-bottom: var(--space-5); }
-  .progress-label { font-size: var(--fs-sm); }
-
-  /* ── Section rhythm ──
-     Report sections were separated by 28px of nothing. */
-  .report-section { margin-bottom: var(--gap-section); }
-  .report-section h3 { font-size: var(--fs-lg); margin-bottom: var(--space-5); }
-}
-
-/* On the narrowest phones the metric strip keeps two columns — the labels are
-   short enough — but the caption is allowed to go, because a caption that
-   ellipses to three words is noise where the number is the point. */
-@media (max-width: 340px) {
-  .stat-sub { display: none; }
 }
