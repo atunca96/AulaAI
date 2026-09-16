@@ -842,8 +842,8 @@ const i18n = {
   en: {
     langBtn: 'Language: EN',
     // New login showcase translations
-    'hero.value_title': 'Marmara University Language Portal',
-    'hero.value_subtitle': 'Curriculum-based interactive practices and resource management system for the School of Foreign Languages.',
+    'hero.value_title': 'Language Portal',
+    'hero.value_subtitle': 'Curriculum-based interactive practices and resource management system.',
     'hero.widget_title': 'INTERACTIVE STUDY MATERIAL',
     'hero.demo_es_trans': 'Hello, how are you today?',
     'hero.demo_de_trans': 'Hello, how are you today?',
@@ -1291,8 +1291,8 @@ const i18n = {
   },
   tr: {
     // New login showcase translations
-    'hero.value_title': 'Marmara Üniversitesi Dil Eğitim Portalı',
-    'hero.value_subtitle': 'Yabancı Diller Yüksekokulu müfredatına dayalı interaktif dil alıştırmaları ve kaynak yönetim sistemi.',
+    'hero.value_title': 'Dil Eğitim Portalı',
+    'hero.value_subtitle': 'Müfredata dayalı interaktif dil alıştırmaları ve kaynak yönetim sistemi.',
     'hero.widget_title': 'ETKİLEŞİMLİ ÇALIŞMA MATERYALİ',
     'hero.demo_es_trans': 'Merhaba, bugün nasılsın?',
     'hero.demo_de_trans': 'Merhaba, bugün nasılsın?',
