@@ -389,8 +389,13 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
             if "level" in l_row.keys() and l_row["level"]:
                 course_level = l_row["level"]
 
-    if ui_lang and ui_lang in ["tr", "en"]:
-        material_language = ui_lang
+    # The reader may follow the interface language for ordinary taught languages.
+    # For the English/Turkish pair the course's instructional track is fixed by
+    # what it teaches, so `ui_lang` must not move it: an English course explained
+    # in English, or a Turkish course explained in Turkish, is a different
+    # product, not a translation of this one.
+    from services.language_profiles import resolve_track
+    material_language = resolve_track(base_lang, requested=ui_lang, declared=material_language)
 
     questions = []
 

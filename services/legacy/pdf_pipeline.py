@@ -120,8 +120,19 @@ def start_pipeline_background(pdf_path, toc_range, lecturer_id, course_id, cours
                 except:
                     language = "Unknown"
             _log(f"Language detected: {language}")
+            # Detection can only now tell us this is an English or Turkish class,
+            # after the row was written with whatever track the lecturer picked.
+            # Re-lock it here, or the build would generate material on a track the
+            # course is not allowed to publish.
+            from services.language_profiles import locked_track
             with db_connection() as db:
-                db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
+                forced = locked_track(language)
+                if forced:
+                    db.execute("UPDATE courses SET language = ?, material_language = ? WHERE id = ?",
+                               (language, forced, course_id))
+                    _log(f"Instructional track locked to '{forced}' for a {language} class.")
+                else:
+                    db.execute("UPDATE courses SET language = ? WHERE id = ?", (language, course_id))
                 db.commit()
             
             bump_version()
@@ -535,7 +546,12 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
     logging.getLogger(__name__).warning("LEGACY PIPELINE IN USE")
     if not course_name or course_name.strip() == "":
         course_name = os.path.basename(pdf_path).replace(".pdf", "").replace("course_", "")
-    
+
+    # The instructional track is a property of what the course teaches, decided
+    # once here and stored, so nothing downstream has to re-derive it.
+    from services.language_profiles import resolve_track
+    material_language = resolve_track(language, declared=material_language)
+
     course_id = _uid()
     code = generate_classroom_code()
     textbook_url = "/books/" + os.path.basename(pdf_path)
@@ -603,6 +619,13 @@ def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None,
 
 
 def process_manual_to_classroom(chapters, language, level, lecturer_id, course_name, existing_course_id=None, material_language="tr"):
+    # Same lock as the PDF path: English taught -> Turkish instruction, Turkish
+    # taught -> English instruction, every other language keeps what was asked
+    # for. Enforced at the write so the course row is never in a state the
+    # reader has to correct for.
+    from services.language_profiles import resolve_track
+    material_language = resolve_track(language, declared=material_language)
+
     gen_id = _uid()
     if existing_course_id:
         course_id = existing_course_id

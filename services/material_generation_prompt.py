@@ -11,6 +11,17 @@ def build_material_prompts(*, language, level, topic, topic_type, official_insti
         if source_text else ""
     )
 
+    # English and Turkish are taught as a pair, where one instructional track IS
+    # the target language. services/special_pair_profile.py supplies the two
+    # sections that genuinely differ for them and returns None for every other
+    # language, so the general multilingual prompt below is unchanged for
+    # Spanish, German, Russian and the rest.
+    try:
+        from services.special_pair_profile import profile_for
+        pair = profile_for(language, level)
+    except Exception:
+        pair = None
+
     system_prompt = f"""<role>
 You are a distinguished university professor and master pedagogue specializing in {language} language education. Author a publication-ready lesson for adult CEFR {level} learners, aligned with {official_institution} and the Council of Europe CEFR framework. Return valid JSON only: no markdown fences and no text outside JSON.
 </role>
@@ -287,6 +298,22 @@ Before returning JSON, silently repair the draft once in this same call. Add no 
 Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope and domain (every absolute wording sits in a rule marked "absolute" and survives its own examples; register/politeness/cultural conventions are scoped as tendencies, structural rules are not hedged away); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
 Return valid JSON only.
 </final_same_pass_check>"""
+
+    if pair:
+        # Replace the general two-track section rather than appending a
+        # correction to it: two sections disagreeing about which track carries
+        # the teaching is exactly the kind of prompt contradiction that produces
+        # material where half the explanation is missing.
+        start = system_prompt.find("<bilingual_tracks>")
+        end = system_prompt.find("</bilingual_tracks>")
+        if start != -1 and end != -1:
+            system_prompt = (
+                system_prompt[:start]
+                + pair["bilingual_tracks"]
+                + "\n\n"
+                + pair["pair_section"]
+                + system_prompt[end + len("</bilingual_tracks>"):]
+            )
 
     user_prompt = f"""Generate a complete, publication-ready CEFR {level} {language} lesson on:
 <topic>{topic} ({topic_type})</topic>
