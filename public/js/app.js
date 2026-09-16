@@ -2247,6 +2247,16 @@ const BADGE_PAIRS = [
   ['FUNCTIONAL', 'İŞLEVSEL'],
   ['CULTURAL CONTEXT', 'KÜLTÜREL BAĞLAM'],
   ['CULTURAL', 'KÜLTÜREL'],
+  ['CULTURE', 'KÜLTÜR'],
+  // Types the curriculum, the TOC parser and the build fall back to. Without a
+  // pair here translateBadge returns the raw English word title-cased, so a
+  // Turkish reader saw "Mixed", "Review" or "Concept" sitting among localized
+  // badges.
+  ['MIXED', 'KARMA'],
+  ['REVIEW', 'TEKRAR'],
+  ['CONCEPT', 'KAVRAM'],
+  ['OVERVIEW', 'GENEL BAKIŞ'],
+  ['UNIT ASSESSMENT', 'ÜNİTE DEĞERLENDİRMESİ'],
   ['COMMUNICATION', 'İLETİŞİM'],
   ['PRONUNCIATION', 'TELAFFUZ'],
   ['EXAMPLES', 'ÖRNEKLER'],
