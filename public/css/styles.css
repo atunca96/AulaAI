@@ -4879,3 +4879,21 @@ select.text-input option,
 @media (max-width: 340px) {
   .stat-sub { display: none; }
 }
+
+/* Material reader sidebar on desktop: 250px/260px was clipping long unit and
+   topic names. Widen the rail and let topic buttons wrap instead of
+   truncating. Tablet/mobile (<=1024px) keeps the narrow layout above. */
+@media (min-width: 1025px) {
+  .study-sidebar {
+    width: 330px;
+    max-width: 360px;
+  }
+
+  .study-topic-btn {
+    white-space: normal;
+    width: 100%;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    height: auto;
+  }
+}
