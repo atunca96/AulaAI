@@ -10,6 +10,9 @@
         })();
     </script>
     <meta charset="UTF-8">
+    <!-- Pinch-zoom stays available: locking it out is an accessibility failure,
+         and the 16px form controls in foundation.css already prevent the iOS
+         auto-zoom that user-scalable=no was there to suppress. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,30 +26,1410 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/foundation.css?v=20260916_ui01">
     <link rel="stylesheet" href="/css/styles.css?v=20260916_ui01">
-    <link rel="stylesheet" href="/css/material-sidebar-desktop-fix.css?v=20260916_sidebar03">
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/bilingual_materials.js?v=20260911_v016" defer></script>
     <script src="/js/app.js?v=20260913_quality_v18" defer></script>
-    <script src="/js/material-sidebar-hotfix.js?v=20260916_sidebar03" defer></script>
     <style>
-        .foreign-word { display:inline!important; cursor:pointer!important; user-select:none!important; -webkit-user-select:none!important; position:relative; color:inherit; transition:color .2s ease; }
-        .foreign-word:hover { color:var(--accent)!important; box-shadow:inset 0 -1.5px 0 0 var(--accent); text-shadow:none; }
-        .tap-highlight { background:var(--accent-glow)!important; border-radius:2px; transition:background .3s ease; animation:pulse-highlight 1.5s infinite; }
-        @keyframes pulse-highlight { 0%{opacity:.7}50%{opacity:1}100%{opacity:.7} }
-        #dict-word-title,.vocab-word-title,.study-word-title { display:inline-block!important; width:fit-content!important; font-size:20px; font-weight:700; color:var(--text-primary); border-bottom:2px solid var(--accent)!important; padding-bottom:2px; margin-bottom:12px; font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; letter-spacing:-.02em; }
-        .ai-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; box-shadow:var(--shadow-lg); margin-top:10px; }
-        .ai-explanation,.english-translation,.ai-explanation *,.english-translation * { cursor:default!important; user-select:text!important; -webkit-user-select:text!important; pointer-events:auto!important; }
-        .ai-explanation .foreign-word,.english-translation .foreign-word { cursor:default!important; box-shadow:none!important; }
-        .ai-explanation .foreign-word:hover,.english-translation .foreign-word:hover { color:inherit!important; }
-        @keyframes dictScaleUp { from{transform:scale(.95) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1} }
-        #aula-dict-popup { display:none; position:absolute; z-index:10001; width:min(520px,calc(100vw - 32px)); max-height:calc(100vh - 120px); overflow-y:auto; overflow-x:hidden; background:var(--bg-secondary); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:24px; pointer-events:auto; animation:dictScaleUp .25s cubic-bezier(.2,.8,.2,1.1); }
-        .dict-meaning-item { padding:10px; border-radius:var(--radius); background:rgba(255,255,255,.02); border:1px solid var(--border); transition:.2s; }
-        .dict-meaning-item:hover { background:rgba(255,255,255,.04); }
-        .study-card [dir="auto"] { cursor:default; transition:color .2s; }
-        .ai-explanation,.ai-explanation *,.english-translation,.english-translation * { color:inherit!important; text-decoration:none!important; }
+        .foreign-word {
+            display: inline !important;
+            cursor: pointer !important; /* Professional Hand Cursor */
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            position: relative;
+            color: inherit;
+            transition: color 0.2s ease;
+        }
+        
+        .foreign-word:hover {
+            color: var(--accent) !important;
+            /* Box-shadow is the most stable 'snap' for inline text */
+            box-shadow: inset 0 -1.5px 0 0 var(--accent);
+            text-shadow: none;
+        }
+
+        .tap-highlight {
+            background: var(--accent-glow) !important;
+            border-radius: 2px;
+            transition: background 0.3s ease;
+            animation: pulse-highlight 1.5s infinite;
+        }
+
+        @keyframes pulse-highlight {
+            0% { opacity: 0.7; }
+            50% { opacity: 1.0; }
+            100% { opacity: 0.7; }
+        }
+
+        /* Dictionary & List Title Snaps */
+        #dict-word-title, .vocab-word-title, .study-word-title {
+            display: inline-block !important;
+            width: fit-content !important;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--accent) !important;
+            padding-bottom: 2px;
+            margin-bottom: 12px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        .ai-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-lg);
+            margin-top: 10px;
+        }
+        
+        /* Shield for Explanations - NO selection, NO plus cursor */
+        .ai-explanation, .english-translation, .ai-explanation *, .english-translation * {
+            cursor: default !important;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            pointer-events: auto !important; 
+        }
+        
+        /* The "Anti-Plus" Override: No cell cursor inside the shield */
+        .ai-explanation .foreign-word, .english-translation .foreign-word {
+            cursor: default !important;
+            box-shadow: none !important; /* No underline inside explanations */
+        }
+        .ai-explanation .foreign-word:hover, .english-translation .foreign-word:hover {
+            color: inherit !important;
+        }
+
+        /* AulaAI Dictionary Aero Popup */
+        @keyframes dictScaleUp { from { transform:scale(0.95) translateY(10px); opacity:0; } to { transform:scale(1) translateY(0); opacity:1; } }
+        #aula-dict-popup {
+            display:none; position:absolute; z-index:10001; width:min(520px, calc(100vw - 32px)); max-height:calc(100vh - 120px); overflow-y:auto; overflow-x:hidden;
+            background: var(--bg-secondary); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+            border:1px solid var(--border); border-radius: var(--radius-lg); 
+            box-shadow: var(--shadow-lg); 
+            padding:24px; pointer-events:auto;
+            animation:dictScaleUp 0.25s cubic-bezier(0.2, 0.8, 0.2, 1.1);
+        }
+        .dict-meaning-item { padding:10px; border-radius: var(--radius); background:rgba(255,255,255,0.02); border:1px solid var(--border); transition:0.2s; }
+        .dict-meaning-item:hover { background:rgba(255,255,255,0.04); }
+        .study-card [dir="auto"] { cursor: default; transition: color 0.2s; }
+        
+        /* The "Color-Lock" Shield: Ensure explanations never turn blue on hover */
+        .ai-explanation, .ai-explanation *, .english-translation, .english-translation * {
+            color: inherit !important;
+            text-decoration: none !important;
+        }
     </style>
 </head>
 <body>
-    <script>location.replace('/');</script>
+    <!-- Floating Actions -->
+    <div class="floating-actions">
+        <div class="lang-switcher action-pill-container">
+            <button class="btn-lang" onclick="toggleTheme()" id="global-theme-toggle-btn" title="Toggle Theme">
+                <span id="global-theme-toggle-icon" style="display:inline-flex; align-items:center; justify-content:center;"><svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></span>
+                <span id="global-theme-toggle-text" data-i18n="theme.dark">Theme: Dark</span>
+            </button>
+            <span class="action-separator">|</span>
+            <button class="btn-lang" onclick="toggleLanguage()" id="lang-btn">
+                <svg class="lang-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <span data-i18n="langBtn">Language: EN</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <div id="mobile-sidebar" class="mobile-only drawer">
+        <div id="sidebar-overlay" class="drawer__scrim" onclick="toggleSidebar()"></div>
+        <nav id="sidebar-content" class="drawer__panel" aria-label="Main navigation">
+            <header class="drawer__header">
+                <div class="drawer__identity">
+                    <div id="sidebar-user-name" class="drawer__name">Guest</div>
+                    <div id="sidebar-user-role" class="drawer__role">Role</div>
+                </div>
+                <button class="drawer__close btn btn-ghost btn-icon" onclick="toggleSidebar()" aria-label="Close navigation">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <div id="sidebar-course-info" class="drawer__course">
+                    <div id="sidebar-course-name" class="drawer__course-name">Course Name</div>
+                    <div id="sidebar-course-code" class="drawer__course-code">#00000</div>
+                </div>
+            </header>
+            <div id="sidebar-nav" class="drawer__nav">
+                <div class="lecturer-only drawer__group" style="display:none;">
+                    <button class="btn btn-ghost sidebar-item" data-tab="overview" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="17" x2="9" y2="9"></line><line x1="15" y1="17" x2="15" y2="13"></line></svg></span> <span data-i18n="Overview">Overview</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="curriculum" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></span> <span data-i18n="Curriculum">Curriculum</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="activities" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span> <span data-i18n="Activities">Activities</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="quizzes-mgmt" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span> <span data-i18n="Quizzes">Quizzes</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="assignments-mgmt" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></span> <span data-i18n="Assignments">Assignments</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="students-tab" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span> <span data-i18n="Students">Students</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="study-materials" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></span> <span data-i18n="Material">Material</span>
+                    </button>
+                    <button id="l-sidebar-book-tab" class="btn btn-ghost sidebar-item" data-tab="book" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span> <span data-i18n="Read Textbook">Read Textbook</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="inbox" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span> <span data-i18n="inbox">Messages</span>
+                    </button>
+                    <hr class="drawer__divider" aria-hidden="true">
+                    <button class="btn btn-ghost sidebar-item sidebar-item--leave" onclick="toggleSidebar(); showClassroomSelection()">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span> <span data-i18n="View Classrooms">View Classrooms</span>
+                    </button>
+                </div>
+                <div class="student-only drawer__group" style="display:none;">
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-home" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></span> <span data-i18n="home">Home</span>
+                    </button>
+                    <button id="s-sidebar-book-tab" class="btn btn-ghost sidebar-item" data-tab="s-book" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span> <span data-i18n="Read Textbook">Textbook</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-practice" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></span> <span data-i18n="practice">Practice</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-quizzes" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span> <span data-i18n="quizzes">Quizzes</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-assignments" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></span> <span data-i18n="Assignments">Assignments</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-book" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></span> <span data-i18n="study">Study</span>
+                    </button>
+                    <button class="btn btn-ghost sidebar-item" data-tab="s-messages" onclick="toggleSidebar(); switchTab(this)">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span> <span data-i18n="messageTeacher">Messages</span>
+                    </button>
+                </div>
+                <div class="drawer__section">
+                    <div class="drawer__section-label t-label" data-i18n="language">Language</div>
+                    <button class="btn btn-outline btn-full drawer__lang" onclick="toggleLanguage()" id="sidebar-lang-btn">
+                        <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+                        <span id="sidebar-lang-label">EN</span>
+                    </button>
+                </div>
+            </div>
+            <footer class="drawer__footer">
+                <button class="btn btn-ghost btn-full drawer__signout" onclick="toggleSidebar(); logout()">
+                    <span class="sidebar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></span>
+                    <span data-i18n="signOut">Sign Out</span>
+                </button>
+            </footer>
+        </nav>
+    </div>
+
+
+    <!-- Settings Modal Removed -->
+
+    <!-- Loading Screen -->
+    <style>
+        #loading-screen { display: none; justify-content:center; align-items:center; height:100vh; flex-direction:column; gap:16px; }
+        #loading-screen.active { display: flex; }
+        .screen.active.flex-center { display: flex !important; align-items: center; justify-content: center; }
+        #waiting-room-screen { 
+            position: fixed; inset: 0; z-index: 10000; 
+            background: var(--bg-primary); 
+            padding: 20px;
+        }
+        /* Creative Lock Animations */
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(4px); }
+            50% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+        @keyframes glow-pulse {
+            0% { box-shadow: 0 0 5px var(--accent-glow); border-color: var(--accent); }
+            50% { box-shadow: 0 0 15px rgba(197, 160, 89, 0.4); border-color: var(--accent-light); }
+            100% { box-shadow: 0 0 5px var(--accent-glow); border-color: var(--accent); }
+        }
+        .shake-active { animation: shake 0.3s ease-in-out; }
+        .glow-active { animation: glow-pulse 1s infinite; }
+        .architect-whisper {
+            position: absolute; top: -25px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: white; padding: 4px 12px; border-radius: 20px;
+            font-size: 11px; font-weight: 700; opacity: 0; transition: all 0.3s ease;
+            pointer-events: none; white-space: nowrap; box-shadow: var(--shadow-sm);
+            z-index: 100;
+        }
+        .architect-whisper.visible { opacity: 1; top: -35px; }
+    </style>
+    <div id="loading-screen" class="screen active">
+        <img src="/img/aula_ai_logo.png" alt="AulaAI" style="height:120px;width:auto;object-fit:contain;filter:drop-shadow(0 0 10px rgba(255,255,255,0.2))">
+        <div style="color:var(--text-muted); font-size:14px; letter-spacing:1px; text-transform:uppercase; margin-top:20px;">Loading AulaAI...</div>
+    </div>
+
+
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen">
+        <div class="login-container">
+            <div class="login-hero">
+                
+                <!-- Branding Header inside Hero -->
+                <div class="hero-branding">
+                    <img src="/img/aula_ai_logo.png" alt="AulaAI" class="hero-logo-img">
+                    <div class="hero-branding-text">
+                        <span class="hero-branding-title">AulaAI</span>
+                        <span class="hero-branding-sub">Marmara Üniversitesi</span>
+                    </div>
+                </div>
+
+                <!-- Academic / Institutional Showcase -->
+                <div class="hero-minimal-showcase">
+                    <div class="hero-value-statement">
+                        <h1 class="hero-value-title" data-i18n="hero.value_title">Marmara Üniversitesi Dil Eğitim Portalı</h1>
+                        <p class="hero-value-subtitle" data-i18n="hero.value_subtitle">Yabancı Diller Yüksekokulu müfredatına dayalı interaktif dil alıştırmaları ve kaynak yönetim sistemi.</p>
+                    </div>
+
+                    <!-- Academic Sheet Container -->
+                    <div class="academic-sheet">
+                        <div class="sheet-header">
+                            <span class="sheet-title" data-i18n="hero.widget_title">MÜFREDAT ALISTIRMASI</span>
+                            <div class="sheet-toggles">
+                                <button class="sheet-toggle-btn active" onclick="switchDemoLang('Spanish')" data-i18n="lang.Spanish">Spanish</button>
+                                <span class="toggle-separator">|</span>
+                                <button class="sheet-toggle-btn" onclick="switchDemoLang('German')" data-i18n="lang.German">German</button>
+                                <span class="toggle-separator">|</span>
+                                <button class="sheet-toggle-btn" onclick="switchDemoLang('French')" data-i18n="lang.French">French</button>
+                            </div>
+                        </div>
+
+                        <div class="sheet-body">
+                            <div class="sheet-sentence-row">
+                                <p id="demo-spanish-sentence" class="sheet-sentence">
+                                    <span class="foreign-word">Hola</span>, ¿<span class="foreign-word">cómo</span> <span class="foreign-word">estás</span> <span class="foreign-word">hoy</span>?
+                                </p>
+                                <button class="tts-btn tts-link-btn" onclick="handleDemoTTS(this)" title="Listen Pronunciation">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;">
+                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="demo-translation-block" class="sheet-translation">
+                                <span class="sheet-translation-label" data-i18n="Translation">Çeviri</span>: 
+                                <span id="demo-translated-text" data-i18n="hero.demo_es_trans">Merhaba, bugün nasılsın?</span>
+                            </div>
+                        </div>
+                        
+                        <div class="sheet-footer" style="display:none;">
+                            <span class="sheet-tip" data-i18n="hero.demo_tip">Not: Anında sözlük çevirisi için İspanyolca kelimelerin üzerine tıklayabilirsiniz.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hero-footer-sub">
+                    Yapay Zeka Destekli Dil Akademisi
+                </div>
+            </div>
+            <div class="login-form-section">
+                <!-- Tab switcher -->
+                <div class="login-tabs-wrapper">
+                    <button id="tab-student" class="login-tab-btn active" onclick="switchLoginTab('student')">
+                        <svg class="login-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                            <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/>
+                        </svg>
+                        <span data-i18n="Student">Student</span>
+                    </button>
+                    <button id="tab-lecturer" class="login-tab-btn" onclick="switchLoginTab('lecturer')">
+                        <svg class="login-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        <span data-i18n="Lecturer">Lecturer</span>
+                    </button>
+                </div>
+
+                <!-- Lecturer Login -->
+                <div id="lecturer-login-panel" style="display:none">
+                    <h2 data-i18n="Lecturer Login">Lecturer Login</h2>
+                    <p class="login-hint" data-i18n="Sign in with your email and password">E-posta ve şŞifrenizle giriş yapın</p>
+                    <form id="login-form" onsubmit="handleLogin(event); return false;">
+                        <div class="form-group">
+                            <label for="login-email" data-i18n="Email">Email</label>
+                            <input type="email" id="login-email" placeholder="your@email.com" data-i18n="Email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password" data-i18n="Password">Password</label>
+                            <input type="password" id="login-password" placeholder="••••••••" data-i18n="Password" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="login-remember">
+                                <span class="checkbox-custom"></span>
+                                <span data-i18n="Remember Me">Beni Hatırla</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full btn-lg" id="login-btn" data-i18n="Sign In">Giriş Yap</button>
+                        <div id="login-error" class="error-msg hidden"></div>
+                    </form>
+                    <div class="login-footer">
+                        <span data-i18n="login.agree_prefix">By signing in, you agree to our </span>
+                        <a href="#" onclick="openPrivacyModal(); return false;" class="login-footer-link" data-i18n="login.privacy_policy">Privacy Policy</a>
+                        <span data-i18n="login.agree_suffix">.</span>
+                    </div>
+                </div>
+
+                <!-- Student Login -->
+                <div id="student-login-panel">
+                    <h2 data-i18n="Student Login">Student Login</h2>
+                    <p class="login-hint" data-i18n="student_login_hint">Sign in with your student number and password</p>
+                    <form id="student-login-form" onsubmit="handleStudentLogin(event); return false;">
+                        <div class="form-group">
+                            <label for="student-number" data-i18n="student_number">Student Number</label>
+                            <input type="text" id="student-number" class="text-input" placeholder="e.g. 2021123456" data-i18n="student_number_placeholder" autocomplete="username" spellcheck="false" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="student-password" data-i18n="Password">Password</label>
+                            <input type="password" id="student-password" class="text-input" placeholder="••••••••" data-i18n="Password" autocomplete="current-password" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom:20px">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="student-login-remember">
+                                <span class="checkbox-custom"></span>
+                                <span data-i18n="Remember Me">Beni Hatırla</span>
+                            </label>
+                        </div>
+                        <div id="student-login-error" class="error-box hidden" style="margin-bottom:20px;"></div>
+                        <button type="submit" class="btn btn-primary btn-full btn-lg" id="student-login-btn" data-i18n="signIn">Sign In</button>
+                    </form>
+                    <div class="login-footer">
+                        <span data-i18n="login.agree_prefix">By signing in, you agree to our </span>
+                        <a href="#" onclick="openPrivacyModal(); return false;" class="login-footer-link" data-i18n="login.privacy_policy">Privacy Policy</a>
+                        <span data-i18n="login.agree_suffix">.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Waiting Room Screen -->
+    <div id="waiting-room-screen" class="screen flex-center">
+        <div class="card" style="max-width:500px; width:100%; text-align:center; padding:48px 32px; border:2px solid var(--accent); background:var(--bg-card); box-shadow:var(--shadow-lg); position:relative;">
+            <div style="margin-bottom:32px; display:flex; justify-content:center;">
+                <svg style="width:72px; height:72px; color:var(--accent); filter:drop-shadow(0 0 20px var(--accent-glow));" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <h2 style="font-size:2rem; margin-bottom:16px;" data-i18n="Account Pending Approval">Account Pending Approval</h2>
+            <p style="color:var(--text-secondary); margin-top:16px; line-height:1.6; font-size:1.1rem" data-i18n="Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.">
+                Please wait for your lecturer to approve your account. This screen will refresh automatically once approved.
+            </p>
+            <div style="margin-top:40px; display:flex; flex-direction:column; gap:20px; align-items:center;">
+                <div class="spinner" style="width:40px; height:40px; border-width:4px;"></div>
+                <button class="btn btn-ghost" onclick="if(window._waitingPoll){clearInterval(window._waitingPoll);window._waitingPoll=null;} localStorage.removeItem('aula_last_course'); showScreen('student-portal-screen'); refreshStudentEnrollments();" style="color:var(--text-muted); font-weight:500; padding:12px 24px; border:1px solid var(--border);" data-i18n="Go Back">Go Back to Classrooms</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Classroom Selection Screen -->
+    <div id="classroom-selection-screen" class="screen">
+        <div class="dashboard-content picker">
+            <!-- Title and primary action sit together at the top so the page
+                 reads as one decision, instead of a centred title, a lone card
+                 in a half-empty two-column grid, and a bare "Sign Out" text
+                 link adrift in the middle of the screen. -->
+            <header class="page-header picker__header">
+                <div>
+                    <h1 data-i18n="class.selection">Classroom Selection</h1>
+                    <p class="subtitle" data-i18n="class.subtitle">Select a classroom to manage or create a new one</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+                    <button class="btn btn-primary" onclick="openClassroomMethodModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span data-i18n="class.create_generic">Create New Classroom</span>
+                    </button>
+                </div>
+            </header>
+
+            <div id="classroom-list" class="grid-auto">
+                <!-- Classrooms rendered here -->
+            </div>
+
+            <!-- Admin Students Panel -->
+            <div id="admin-students-panel" class="hidden picker__admin"></div>
+        </div>
+    </div>
+
+    <!-- Classroom Method Selection Modal -->
+    <div id="classroom-method-modal" class="modal hidden">
+        <div class="modal-content dialog-sm" style="max-width:560px; text-align:center;">
+            <button class="modal-close" onclick="closeClassroomMethodModal()">&times;</button>
+            <h2 style="margin-bottom:8px; display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px; color:var(--accent);">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                <span data-i18n="class.create_title">Classroom Creation</span>
+            </h2>
+            <p style="color:var(--text-muted); margin-bottom:32px; font-size:14px;" data-i18n="class.choose_method">Choose how you want to build your course</p>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                <!-- PDF Path -->
+                <div class="method-card" onclick="startPdfCreationFlow()">
+                    <div class="method-icon-wrapper pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                            <polyline points="10 9 9 9 8 9"/>
+                        </svg>
+                    </div>
+                    <h3 style="margin-bottom:8px;" data-i18n="class.magic_pdf">Magic PDF</h3>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.4;" data-i18n="class.magic_pdf_desc">Upload a textbook PDF and let AI build the course from it.</p>
+                </div>
+                
+                <!-- AI Architect Path -->
+                <div class="method-card active-method" onclick="startAiArchitectFlow()">
+                    <div class="method-icon-wrapper ai">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9.93 10.93L12 4l2.07 6.93L21 13l-6.93 2.07L12 22l-2.07-6.93L3 13l6.93-2.07z"/>
+                        </svg>
+                    </div>
+                    <h3 style="margin-bottom:8px; color:var(--accent-light);" data-i18n="class.ai_architect">AI Architect</h3>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.4;" data-i18n="class.ai_architect_desc">No PDF? Just tell AI the language and level, and it creates the course.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Architect Wizard Modal -->
+    <div id="ai-architect-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:600px;">
+            <button class="modal-close" onclick="closeAiArchitectModal()">&times;</button>
+            
+            <!-- Step 1: Language & Level -->
+            <div id="ai-step-1">
+                <h2 style="margin-bottom:8px; display:inline-flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px; height:22px; color:var(--accent);">
+                        <path d="M9.93 10.93L12 4l2.07 6.93L21 13l-6.93 2.07L12 22l-2.07-6.93L3 13l6.93-2.07z"/>
+                    </svg>
+                    <span data-i18n="class.ai_architect">AI Architect</span>
+                </h2>
+                <p class="wizard-intro" data-i18n="ai.tell_teach">Tell AI what you want to teach</p>
+
+                <div class="wizard-step">
+                    <div class="wizard-step__head">
+                        <span class="wizard-step__num" aria-hidden="true">1</span>
+                        <label class="wizard-step__label" data-i18n="ai.select_lang">Select Language</label>
+                    </div>
+                    <div id="ai-language-grid" class="choice-grid">
+                        <!-- Languages will be injected here -->
+                    </div>
+                    <!-- Shown only for English and Turkish, whose instructional
+                         track is fixed by what they teach. -->
+                    <p id="ai-track-notice" class="field-note field-note--locked hidden"></p>
+                </div>
+
+                <div class="wizard-step">
+                    <div class="wizard-step__head">
+                        <span class="wizard-step__num" aria-hidden="true">2</span>
+                        <label class="wizard-step__label" data-i18n="ai.target_level">Target Level</label>
+                    </div>
+                    <div class="choice-grid choice-grid--level">
+                        <button type="button" class="choice-tile level-btn" data-level="A1" aria-pressed="false" onclick="selectAiLevel('A1')">A1</button>
+                        <button type="button" class="choice-tile level-btn" data-level="A2" aria-pressed="false" onclick="selectAiLevel('A2')">A2</button>
+                        <button type="button" class="choice-tile level-btn" data-level="B1" aria-pressed="false" onclick="selectAiLevel('B1')">B1</button>
+                        <button type="button" class="choice-tile level-btn" data-level="B2" aria-pressed="false" onclick="selectAiLevel('B2')">B2</button>
+                        <button type="button" class="choice-tile level-btn" data-level="C1" aria-pressed="false" onclick="selectAiLevel('C1')">C1</button>
+                        <button type="button" class="choice-tile level-btn" data-level="C2" aria-pressed="false" onclick="selectAiLevel('C2')">C2</button>
+                    </div>
+                </div>
+
+                <div class="wizard-step">
+                    <div class="wizard-step__head">
+                        <span class="wizard-step__num" aria-hidden="true">3</span>
+                        <label class="wizard-step__label" for="ai-course-name" data-i18n="ai.course_name">Course Name</label>
+                    </div>
+                    <input type="text" id="ai-course-name" class="text-input" data-i18n-placeholder="ai.name_placeholder" placeholder="e.g. Intensive Language Course">
+                </div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-primary btn-lg btn-full" onclick="generateAiCurriculum()" id="ai-gen-btn" data-i18n="ai.gen_curriculum">Generate Curriculum</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Curriculum Review -->
+            <div id="ai-step-2" class="hidden">
+                <h2 style="margin-bottom:8px; display:inline-flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:20px; height:20px; color:var(--accent);">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    <span data-i18n="ai.review_title">Review Curriculum</span>
+                </h2>
+                <p style="color:var(--text-muted); margin-bottom:24px; font-size:14px;" data-i18n="ai.review_desc">AI suggested these topics. You can edit or remove them.</p>
+                
+                <div id="ai-curriculum-list" style="max-height:400px; overflow-y:auto; margin-bottom:12px; padding:10px; background:rgba(0,0,0,0.2); border-radius:12px;">
+                    <!-- Topics will be injected here -->
+                </div>
+
+                <button class="btn btn-ghost" onclick="addUnitToAiArchitect()" style="width:100%; margin-bottom:24px; border:1px dashed var(--border); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span data-i18n="ai.add_unit">Add Custom Unit</span>
+                </button>
+
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" onclick="prevAiStep()" data-i18n="go_back">Back</button>
+                    <button class="btn btn-outline" onclick="regenerateAiCurriculum()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        <span data-i18n="ai.regenerate">Regenerate</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="buildAiClassroom()" id="ai-build-btn" data-i18n="class.build_btn">Build Classroom</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Classroom Modal (PDF Upload Wizard) -->
+    <div id="create-classroom-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:580px;">
+            <button class="modal-close" onclick="closeCreateClassroomModal()">&times;</button>
+            <h2 style="margin-bottom:4px; display:inline-flex; align-items:center; gap:8px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:20px; height:20px; color:var(--accent);">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <span data-i18n="class.magic_pdf">Magic PDF</span>
+            </h2>
+            <p style="color:var(--text-muted); margin-bottom:28px; font-size:13px;" data-i18n="class.magic_pdf_wizard_desc">Upload a textbook and let AI build your course automatically.</p>
+            
+            <form id="create-classroom-form" onsubmit="handleCreateClassroom(event)">
+                <!-- Step 1: Course Name -->
+                <div class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">1</span>
+                        <span data-i18n="class.name">Classroom Name</span>
+                    </label>
+                    <input type="text" id="course-name-input" class="text-input" data-i18n-placeholder="class.name_placeholder" placeholder="e.g. Spanish 101 — Fall 2026" required style="font-size:14px;">
+                </div>
+
+                <!-- Step 2: PDF Upload (Drag & Drop) -->
+                <div class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">2</span>
+                        <span data-i18n="class.upload_pdf">Upload PDF Textbook</span>
+                    </label>
+                    <div id="pdf-drop-zone" style="border:2px dashed var(--border); border-radius:14px; padding:32px 24px; text-align:center; cursor:pointer; transition:all 0.2s; background:rgba(255,255,255,0.02);" onclick="document.getElementById('pdf-upload').click()">
+                        <input type="file" id="pdf-upload" accept="application/pdf" style="display:none;" onchange="onPdfFileSelected(this)">
+                        <div id="pdf-drop-empty">
+                            <div style="margin-bottom:12px; opacity:0.6; display:inline-flex; align-items:center; justify-content:center;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:40px; height:40px; color:var(--text-muted);">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </div>
+                            <p style="font-weight:600; margin-bottom:4px;" data-i18n="class.drop_pdf">Click to select or drag & drop your PDF</p>
+                            <p style="font-size:12px; color:var(--text-muted);" data-i18n="class.pdf_limit">Searchable text PDFs only. Scanned images are not supported.</p>
+                        </div>
+                        <div id="pdf-drop-filled" class="hidden" style="display:flex; align-items:center; gap:14px; text-align:left;">
+                            <div style="color:var(--accent); display:flex; align-items:center; justify-content:center;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:36px; height:36px;">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                            </div>
+                            <div style="flex:1; min-width:0;">
+                                <div id="pdf-file-name" style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">—</div>
+                                <div id="pdf-file-size" style="font-size:12px; color:var(--text-muted);">—</div>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); clearPdfUpload()" style="color:var(--danger); font-size:16px; padding:4px 8px;">&times;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2.5: Select Language -->
+                <div class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">*</span>
+                        <span data-i18n="ai.select_lang">Select Language (Optional but Recommended)</span>
+                    </label>
+                    <select id="pdf-language-select" class="select-input" onchange="renderPdfTrackNotice(this.value)">
+                        <option value="Detecting...">Auto-Detect (Slower)</option>
+                        <option value="Spanish">Spanish</option>
+                        <option value="German">German</option>
+                        <option value="French">French</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Portuguese">Portuguese</option>
+                        <option value="Russian">Russian</option>
+                        <option value="Chinese">Chinese</option>
+                        <option value="Japanese">Japanese</option>
+                        <option value="Arabic">Arabic</option>
+                        <option value="Turkish">Turkish</option>
+                        <option value="Dutch">Dutch</option>
+                        <option value="Swedish">Swedish</option>
+                        <option value="Korean">Korean</option>
+                        <option value="Greek">Greek</option>
+                        <option value="English">English</option>
+                    </select>
+                    <p id="pdf-track-notice" class="field-note field-note--locked hidden"></p>
+                </div>
+
+
+
+                <!-- Step 3: Auto-Extract -->
+                <div id="section-extract" class="form-group">
+                    <label style="font-weight:700; font-size:13px;">
+                        <span style="color:var(--accent-light); margin-right:6px;">3</span>
+                        <span data-i18n="class.extract_step">Extract & Analyze</span>
+                    </label>
+                    <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;" data-i18n="class.extract_desc">AI will scan your PDF and extract the table of contents, chapters, and topics.</p>
+                    <button type="button" id="deep-extract-btn" class="btn btn-primary" style="width:100%; padding:12px; font-size:14px;" onclick="triggerDeepExtract()">
+                        <span data-i18n="class.deep_extract">Deep Extract</span>
+                    </button>
+                    <div id="extract-status" class="hidden" style="margin-top:12px; padding:14px; border-radius:var(--radius); background:var(--accent-glow); border:1px solid var(--border); display:flex; align-items:center; gap:10px;">
+                        <div class="spinner-small"></div>
+                        <span id="extract-status-text" style="font-size:13px; color:var(--text-muted);" data-i18n="class.analyzing">Analyzing your PDF…</span>
+                    </div>
+                    <div id="extract-success" class="hidden" style="margin-top:12px; padding:14px; border-radius:var(--radius); background:var(--success-bg); border:1px solid var(--success); display:flex; align-items:center; gap:10px;">
+                        <div>
+                            <div style="font-weight:700; font-size:13px; color:#22c55e;" data-i18n="class.extract_done">Extraction Complete</div>
+                            <div id="extract-summary" style="font-size:12px; color:var(--text-muted);"></div>
+                        </div>
+                    </div>
+                    <div id="extract-preview" class="hidden" style="margin-top:12px; max-height:280px; overflow-y:auto; padding:16px; border-radius:12px; background:var(--bg-input, rgba(255,255,255,0.04)); border:1px solid var(--border); font-size:12px; line-height:1.7; font-family:'Inter',sans-serif;">
+                    </div>
+                </div>
+
+                <!-- Scan Range (Elevated from Advanced Options) -->
+                <div style="margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <label style="font-weight:700; font-size:13px; margin:0; display:block; color:var(--text-primary);">Scan Range (PDF pages)</label>
+                            <small style="color:var(--text-muted); font-size:11px;">Which pages contain the Table of Contents (e.g., 1-12)</small>
+                        </div>
+                        <input type="text" id="pdf-toc-range" class="text-input" value="1-12" style="width:80px; padding:8px; font-size:13px; text-align:center; height:auto; background:var(--bg-input);">
+                    </div>
+                </div>
+
+                <!-- Hidden inputs (kept so app.js doesn't crash) -->
+                <textarea id="markdown-analysis-input" style="display:none;"></textarea>
+                <textarea id="manual-toc-input" style="display:none;"></textarea>
+
+                <!-- Status & Submit -->
+                <div id="creation-status" class="hidden" style="margin-bottom:16px; padding:14px; border-radius:12px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font-size:14px; display:flex; align-items:center; gap:12px;">
+                    <div class="spinner"></div>
+                    <span id="creation-status-text" data-i18n="class.building_msg">Building your classroom… This may take a minute.</span>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="submit-creation-btn" style="padding:14px; font-size:15px;" data-i18n="class.start_pipeline">Launch Architect</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Portal Screen -->
+    <div id="student-portal-screen" class="screen">
+        <div class="dashboard-content picker">
+            <!-- The title and the join action used to share one flex row at
+                 every width, so on a 390px screen the heading was squeezed to
+                 ~200px and the button's label broke across three lines. -->
+            <header class="page-header picker__header">
+                <div>
+                    <h1 data-i18n="student.welcome">Welcome to AulaAI</h1>
+                    <p class="subtitle" data-i18n="student.select_class">Select a classroom to continue learning</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+                    <button class="btn btn-primary" onclick="openJoinClassroomModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span data-i18n="student.join_new">Join New Classroom</span>
+                    </button>
+                </div>
+            </header>
+            <div id="student-classrooms-grid" class="classroom-grid">
+                <!-- Classrooms rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Classroom Modal -->
+    <div id="join-classroom-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="modal-close" onclick="closeJoinClassroomModal()">&times;</button>
+            <div style="text-align:center; margin-bottom:24px;">
+                <div style="margin-bottom:16px; display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9v2M15 9v2M9 15v2M15 15v2"></path></svg></div>
+                <h2 data-i18n="student.join_title">Join Classroom</h2>
+                <p style="color:var(--text-muted); font-size:14px;" data-i18n="student.enter_code">Enter the 5-digit code provided by your teacher</p>
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+                <input type="text" id="join-class-code" class="text-input" maxlength="10" placeholder="e.g. 12345" style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:700;" oninput="this.value = this.value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 10)" onkeydown="if(event.key==='Enter') handleJoinClassroom()">
+            </div>
+            <button class="btn btn-primary btn-full btn-lg" onclick="handleJoinClassroom()" data-i18n="student.join_btn">Join Classroom</button>
+        </div>
+    </div>
+
+    <!-- PIN Entry Modal (Deprecated) -->
+    <div id="pin-entry-modal" class="modal hidden" style="display:none !important;">
+        <div class="modal-content" style="max-width:360px;">
+            <button class="modal-close" onclick="closePinModal()">&times;</button>
+            <div style="text-align:center; margin-bottom:24px;">
+                <div style="margin-bottom:16px; display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+                <h2 id="pin-modal-title" data-i18n="student.pin_required">Security PIN Required</h2>
+                <p id="pin-modal-desc" style="color:var(--text-muted); font-size:14px;" data-i18n="student.pin_desc">Please enter your 4-digit PIN for this classroom.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+                <input type="password" id="student-pin-input" class="text-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" style="text-align:center; font-size:32px; letter-spacing:12px; font-weight:700;" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)">
+            </div>
+            <div id="pin-error" class="error-box hidden" style="margin-bottom:16px;"></div>
+            <button id="pin-submit-btn" class="btn btn-primary btn-full btn-lg" data-i18n="submit">Verify & Enter</button>
+        </div>
+    </div>
+
+    <!-- Lecturer Dashboard -->
+    <div id="lecturer-dashboard" class="screen">
+        <nav class="topnav">
+            <button class="mobile-only mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open navigation" style="background:none; border:none; color:var(--text-primary); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;"><svg style="width:22px;height:22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+            <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
+                <img src="/img/aula_ai_logo.png" alt="AulaAI" class="nav-logo-img">
+                <span class="nav-badge" data-i18n="Lecturer">Lecturer</span>
+                <span id="nav-course-name" class="nav-course-name"></span>
+                <span id="nav-course-code" class="pc-only nav-course-code"></span>
+            </div>
+            <button class="btn btn-ghost btn-sm pc-only nav-back-btn" onclick="event.stopPropagation(); showClassroomSelection()" title="View Classrooms" aria-label="View Classrooms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg><span class="nav-back-label" data-i18n="View Classrooms">View Classrooms</span></button>
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="overview" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="17" x2="9" y2="9"></line><line x1="15" y1="17" x2="15" y2="13"></line></svg></span><span class="tab-label" data-i18n="Overview">Overview</span></button>
+                <button class="nav-tab" data-tab="curriculum" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></span><span class="tab-label" data-i18n="Curriculum">Curriculum</span></button>
+                <button class="nav-tab" data-tab="activities" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span><span class="tab-label" data-i18n="Activities">Activities</span></button>
+                <button class="nav-tab pc-only" data-tab="quizzes-mgmt" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span><span class="tab-label" data-i18n="Quizzes">Quizzes</span></button>
+                <button class="nav-tab pc-only" data-tab="assignments-mgmt" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button class="nav-tab pc-only" data-tab="students-tab" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span><span class="tab-label" data-i18n="Students">Students</span></button>
+                <button class="nav-tab pc-only" id="lecturer-study-tab" data-tab="study-materials" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></span><span class="tab-label" data-i18n="Material">Material</span></button>
+                <button class="nav-tab pc-only" id="lecturer-book-tab" data-tab="book" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span><span class="tab-label" data-i18n="Read Textbook">Read Textbook</span></button>
+                <button class="nav-tab pc-only" data-tab="inbox" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="tab-label" data-i18n="inbox">Messages</span><span id="inbox-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
+            </div>
+            <div class="nav-user">
+                <button class="btn btn-ghost btn-sm nav-lang-btn" onclick="toggleLanguage()" id="lecturer-lang-btn" aria-label="Change language">TR</button>
+                <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme"><svg class="theme-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+            </div>
+        </nav>
+
+        <main class="dashboard-content">
+            <!-- Overview Tab -->
+            <section id="tab-overview" class="tab-panel active">
+                <div class="page-header">
+                    <h1 data-i18n="Dashboard">Dashboard</h1>
+                    <p class="subtitle" id="overview-greeting"></p>
+                </div>
+                <div class="stats-grid" id="overview-stats"></div>
+                
+                <!-- Modern Rebuilt Lecturer Building Banner -->
+                <div id="lecturer-building-banner" class="build-banner-card hidden">
+                    <div id="architect-whisper" class="architect-whisper" data-i18n="architect.busy">The Architect is busy...</div>
+                    <div class="build-banner-top">
+                        <div class="build-banner-left">
+                            <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                            <div>
+                                <div class="build-banner-title">
+                                    <span data-i18n="class.building_title">Classroom Content Generation</span>
+                                    <span id="lecturer-stage-badge" class="build-stage-badge">ANALYZING</span>
+                                </div>
+                                <div id="lecturer-progress-detail" class="build-banner-detail" data-i18n="class.building_msg">Your content is being built from the textbook...</div>
+                            </div>
+                        </div>
+                        <div class="build-banner-right" style="display:flex; align-items:center; gap:8px;">
+                            <button id="lecturer-stop-btn" class="btn btn-ghost btn-xs" onclick="stopClassroomBuild(currentCourse ? currentCourse.id : null)" style="font-size:11px; color:var(--danger); border:1px solid rgba(239,68,68,0.4); padding:4px 10px; border-radius:6px; cursor:pointer;">
+                                🛑 <span data-i18n="class.stop_build">Durdur</span>
+                            </button>
+                            <button id="lecturer-force-restart-btn" class="btn btn-ghost btn-xs" onclick="rebuildClassroom(true)" style="font-size:11px; color:var(--accent-light); border:1px solid var(--border); padding:4px 10px; border-radius:6px; cursor:pointer;">
+                                <span data-i18n="class.force_restart">Force Restart</span>
+                            </button>
+                            <span id="lecturer-progress-text" class="build-pct-pill">0%</span>
+                        </div>
+                    </div>
+                    <!-- Step tracker -->
+                    <div class="build-steps-track" id="lecturer-steps-track">
+                        <div class="build-step-node" data-step="analyzing"><span class="build-step-dot"></span><span data-i18n="step.analysis">1. Analysis</span></div>
+                        <div class="build-step-node" data-step="structuring"><span class="build-step-dot"></span><span data-i18n="step.curriculum">2. Curriculum</span></div>
+                        <div class="build-step-node" data-step="enriching"><span class="build-step-dot"></span><span data-i18n="step.lessons">3. Lessons</span></div>
+                        <div class="build-step-node" data-step="finalizing"><span class="build-step-dot"></span><span data-i18n="step.finalize">4. Finalize</span></div>
+                    </div>
+                    <div class="build-banner-bar">
+                        <div id="lecturer-progress-fill" class="build-banner-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="grid-2col">
+                    <div class="card" id="at-risk-card">
+                        <div class="card-header">
+                            <h3 data-i18n="at_risk_students">At-Risk Students</h3>
+                        </div>
+                        <div class="card-body" id="at-risk-list"></div>
+                    </div>
+                    <div class="card" id="topic-difficulty-card">
+                        <div class="card-header">
+                            <h3 data-i18n="topic_difficulty">Topic Difficulty</h3>
+                        </div>
+                        <div class="card-body" id="topic-difficulty-chart"></div>
+                    </div>
+                </div>
+                <!-- Destructive action. Set apart from the reporting above it,
+                     labelled honestly, and given the weight a data wipe earns
+                     rather than a near-invisible ghost link. -->
+                <section class="danger-zone">
+                    <div class="danger-zone__text">
+                        <h3 class="danger-zone__title" data-i18n="data_mgmt">Data Management</h3>
+                        <p class="danger-zone__body" data-i18n="erase_all_desc">Bu sınıftaki öğrenci yanıtlarını ve başarı verilerini sıfırlar.</p>
+                    </div>
+                    <button id="erase-data-btn" class="btn btn-danger-quiet btn-sm" onclick="resetData()" data-i18n="reset_class_data_btn">Sınıfı Sıfırla</button>
+                </section>
+            </section>
+
+            <section id="tab-curriculum" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h1 data-i18n="Curriculum">Curriculum</h1>
+                        <p class="subtitle" id="curriculum-subtitle"></p>
+                    </div>
+                </div>
+                <div id="curriculum-tree"></div>
+            </section>
+
+            <!-- Activities Tab -->
+            <section id="tab-activities" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="In-Class Activities">In-Class Activities</h1>
+                    <p class="subtitle" data-i18n="Generate and launch live activities">Generate and launch live activities</p>
+                </div>
+                <div class="activity-launcher">
+                    <div class="card">
+                        <div class="card-header"><h3 data-i18n="Launch Activity">Launch Activity</h3></div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label data-i18n="Select Chapter & Topic">Select Chapter & Topic</label>
+                                <select id="activity-topic-select" class="select-input">
+                                    <option value="" data-i18n="Loading curriculum...">Loading curriculum...</option>
+                                </select>
+                            </div>
+                            <p class="form-note" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
+                            <button id="generate-activity-btn" class="btn btn-primary" onclick="launchActivity()" data-i18n="Generate Activity">Generate Activity</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="activity-preview" class="hidden"></div>
+            </section>
+
+            <!-- Quizzes Tab -->
+            <section id="tab-quizzes-mgmt" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="Quiz Management">Quiz Management</h1>
+                    <p class="subtitle" data-i18n="Create and manage quizzes">Create and manage quizzes</p>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3 data-i18n="Create New Quiz">Create New Quiz</h3></div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label data-i18n="Quiz Title">Quiz Title</label>
+                                <input type="text" id="quiz-title" class="text-input" data-i18n-placeholder="Quiz Title" placeholder="Chapter 3 Quiz">
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="Chapter">Chapter</label>
+                                <select id="quiz-chapter-select" class="select-input">
+                                    <option value="" data-i18n="All chapters">All chapters</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="Questions">Questions</label>
+                                <input type="number" id="quiz-count" class="text-input" value="10" min="5" max="20">
+                            </div>
+                        </div>
+                        <p class="form-note" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
+                        <button class="btn btn-primary" onclick="createQuiz()" data-i18n="Create Quiz">Create Quiz</button>
+                        <div id="quiz-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--radius); background:var(--accent-glow); border:1px solid var(--border);">
+                            <div class="spinner-small"></div>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Sorular oluşturuluyor...</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="quiz-list" class="card-list"></div>
+            </section>
+
+            <!-- Assignments Tab -->
+            <section id="tab-assignments-mgmt" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="Assignment Management">Assignment Management</h1>
+                    <p class="subtitle" data-i18n="Assign homework to your students">Assign homework to your students</p>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3 data-i18n="Create New Assignment">Create New Assignment</h3></div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label data-i18n="Assignment Title">Assignment Title</label>
+                                <input type="text" id="assignment-title" class="text-input" data-i18n-placeholder="Assignment Title" placeholder="Week 1 Homework">
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="Chapter">Chapter</label>
+                                <select id="assignment-chapter-select" class="select-input">
+                                    <option value="" data-i18n="All chapters">All chapters</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label data-i18n="Questions">Questions</label>
+                                <input type="number" id="assignment-count" class="text-input" value="15" min="5" max="20">
+                            </div>
+                        </div>
+                        <p class="form-note" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
+                        <button class="btn btn-primary" onclick="createAssignment()" data-i18n="Create Assignment">Create Assignment</button>
+                        <div id="assignment-gen-progress" class="hidden" style="margin-top:16px; display:flex; align-items:center; gap:10px; padding:12px; border-radius:var(--radius); background:var(--accent-glow); border:1px solid var(--border);">
+                            <div class="spinner-small"></div>
+                            <span style="font-size:13px; color:var(--text-muted);" data-i18n="gen.generating">Sorular oluşturuluyor...</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="assignment-list" class="card-list"></div>
+            </section>
+            
+            <!-- Students Tab -->
+            <section id="tab-students-tab" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="Student Roster">Student Roster</h1>
+                    <p class="subtitle" data-i18n="Monitor individual student progress">Monitor individual student progress</p>
+                </div>
+                <div id="pending-roster"></div>
+                <div id="student-roster" class="listrows"></div>
+            </section>
+
+            <!-- Reports Tab -->
+            <!-- Reports Tab (hidden for now)
+            <section id="tab-reports" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h1 data-i18n="report.title">Weekly Report</h1>
+                        <p class="subtitle" data-i18n="report.subtitle">AI-generated class performance analysis</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="generateReport()" data-i18n="report.generate">
+                        Report
+                    </button>
+                </div>
+                <div id="report-content"></div>
+            </section>
+            -->
+            
+            <!-- Messages Tab (formerly Inbox) -->
+            <section id="tab-inbox" class="tab-panel">
+                <div class="page-header">
+                    <h1 id="inbox-title"><span data-i18n="inbox">Messages</span></h1>
+                    <button class="btn btn-primary" onclick="openNewChatModal()" style="display:flex; align-items:center; gap:8px;">
+                        <span>+</span> <span data-i18n="newChat">New Chat</span>
+                    </button>
+                </div>
+                <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
+                    <div class="chat-header mobile-only">
+                        <button class="btn btn-ghost btn-icon" onclick="loadInbox()" aria-label="Back to conversations">←</button>
+                        <h2 id="mobile-inbox-title" style="margin:0; font-size:16px;" data-i18n="inbox">Messages</h2>
+                    </div>
+                    <div id="inbox-back-btn" class="hidden pc-only" style="margin-bottom:12px; cursor:pointer; color:var(--accent); font-weight:600;" onclick="loadInbox()">← <span data-i18n="inbox">Messages</span></div>
+                    <div id="inbox-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
+                    <div id="inbox-reply-area" class="hidden chat-input-area" style="display:flex; gap:8px;">
+                        <input type="text" id="inbox-reply-text" class="text-input" data-i18n-placeholder="typeReply" placeholder="Type a reply..." onkeydown="if(event.key==='Enter') sendLecturerMessage()">
+                        <button class="btn btn-primary" onclick="sendLecturerMessage()" data-i18n="sendBtn">Send</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Book Tab -->
+            <section id="tab-book" class="tab-panel">
+                <div class="page-header">
+                    <h1 id="book-tab-main-title"><span data-i18n="book">Book</span></h1>
+                    <p class="subtitle book-subtitle">Course Textbook</p>
+                </div>
+                <div class="pdf-container pc-only" style="position:relative;">
+                    <iframe src="about:blank" class="pdf-viewer" loading="lazy"></iframe>
+                    <div class="pdf-empty-state hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:var(--bg-card); z-index:10;">
+                        <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
+                        <h2 data-i18n="class.no_curriculum">No curriculum data available</h2>
+                        <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
+                    </div>
+                </div>
+
+                <div class="mobile-preview mobile-only">
+                    <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
+                        <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
+                            <div style="position:absolute; top:0; left:0; width:40px; height:40px; background:var(--accent); clip-path: polygon(0 0, 0% 100%, 100% 0);"></div>
+                            <div style="display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></div>
+                            <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
+                        </div>
+                        <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
+                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
+                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">Read Textbook</a>
+                    </div>
+                </div>
+            </section>
+            <!-- AI Study Materials Tab (Lecturer) -->
+            <section id="tab-study-materials" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h1><span data-i18n="Material">Material</span></h1>
+                        <p class="subtitle book-subtitle">Course Materials</p>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding-top:4px;">
+                        <button id="export-pdf-btn" class="btn btn-ghost" onclick="downloadCourseMaterialPDF()" title="Export all course materials as PDF" style="display:flex; align-items:center; gap:6px; font-size:13px; padding:8px 14px; border:1px solid var(--border);">
+                            <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span data-i18n="export_pdf">Export PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Digital Study Container -->
+                <div class="study-container hidden" id="ai-book-container">
+                    <div class="study-sidebar">
+                        <div class="study-sidebar-header">
+                            <h3 data-i18n="Units">Units</h3>
+                        </div>
+                        <div id="ai-book-toc" class="study-sidebar-toc"></div>
+                    </div>
+                    <div id="ai-book-content" class="study-content-panel">
+                        <div id="ai-book-content-area" class="study-content-area">
+                            <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
+                                <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:54px;height:54px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
+                                <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
+                                <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Student Dashboard -->
+    <div id="student-dashboard" class="screen">
+        <nav class="topnav student-nav">
+            <button class="mobile-only mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open navigation" style="background:none; border:none; color:var(--text-primary); cursor:pointer; display:inline-flex; align-items:center; justify-content:center;"><svg style="width:22px;height:22px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+            <div class="nav-brand" style="cursor:pointer" onclick="goToHome()">
+                <img src="/img/aula_ai_logo.png" alt="AulaAI" class="nav-logo-img">
+                <span class="nav-badge" data-i18n="Student" style="font-size:10px; padding:2px 6px;">Student</span>
+                <span id="student-nav-course-name" class="mobile-only nav-course-name"></span>
+                <span id="student-nav-course-code" class="pc-only hidden nav-course-code"></span>
+            </div>
+            <button class="btn btn-outline btn-sm pc-only" onclick="event.stopPropagation(); showStudentPortal()" style="margin-left:12px; font-size:11px; padding:4px 10px; border-radius:8px; border-color:var(--border); color:var(--text-muted); height: 28px; flex-shrink:0; background:rgba(255,255,255,0.02); display:inline-flex; align-items:center; gap:4px;" data-i18n="View Classrooms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:12px; height:12px; stroke-width:2.5px;"><polyline points="15 18 9 12 15 6"></polyline></svg><span style="margin-top:-1px;">View Classrooms</span></button>
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="s-home" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></span><span class="tab-label" data-i18n="home">Home</span></button>
+                <button class="nav-tab" data-tab="s-practice" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></span><span class="tab-label" data-i18n="practice">Practice</span></button>
+                <button class="nav-tab" data-tab="s-quizzes" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span><span class="tab-label" data-i18n="quizzes">Quizzes</span></button>
+                <button class="nav-tab" data-tab="s-assignments" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg></span><span class="tab-label" data-i18n="Assignments">Assignments</span></button>
+                <button id="nav-s-study-tab" class="nav-tab" data-tab="s-study-tab" onclick="switchTab(this)"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></span><span class="tab-label" data-i18n="study">Material</span></button>
+                <button class="nav-tab" data-tab="s-messages" onclick="switchTab(this)" style="position:relative;"><span class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span class="tab-label" data-i18n="messageTeacher">Messages</span><span id="message-badge" style="position:absolute; top:2px; right:2px; background:var(--danger); color:white; font-size:9px; font-weight:bold; border-radius:10px; padding:1px 4px; display:none; line-height:1;">0</span></button>
+            </div>
+            <div class="nav-user">
+                <button class="btn btn-ghost btn-sm nav-lang-btn" onclick="toggleLanguage()" id="student-lang-btn" aria-label="Change language">TR</button>
+                <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" id="student-theme-toggle-btn" title="Toggle Theme"><svg class="theme-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
+                <button class="btn btn-ghost" onclick="logout()" data-i18n="signOut">Sign Out</button>
+            </div>
+        </nav>
+
+        <main class="dashboard-content">
+
+
+
+            <section id="tab-s-home" class="tab-panel active">
+                <div class="page-header">
+                    <h1 id="student-greeting"></h1>
+                    <p class="subtitle" data-i18n="keepUp">Keep up the great work!</p>
+                </div>
+                
+                <!-- Modern Rebuilt Student Building Banner -->
+                <div id="student-building-banner" class="build-banner-card hidden">
+                    <div class="build-banner-top">
+                        <div class="build-banner-left">
+                            <div class="spinner-small" style="border-top-color:var(--accent);"></div>
+                            <div>
+                                <div class="build-banner-title">
+                                    <span data-i18n="class.building_title_student">Course Content Update in Progress</span>
+                                    <span id="student-stage-badge" class="build-stage-badge">UPDATING</span>
+                                </div>
+                                <div id="student-progress-detail" class="build-banner-detail" data-i18n="class.building_msg_student">The lecturer is updating course materials...</div>
+                            </div>
+                        </div>
+                        <div class="build-banner-right">
+                            <span id="student-progress-text" class="build-pct-pill">0%</span>
+                        </div>
+                    </div>
+                    <div class="build-banner-bar">
+                        <div id="student-progress-fill" class="build-banner-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="student-stats"></div>
+                <div class="card">
+                    <div class="card-header"><h3 data-i18n="currentChapter">Current Chapter</h3></div>
+                    <div class="card-body" id="student-current-chapter"></div>
+                </div>
+            </section>
+
+            <section id="tab-s-practice" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="practice">Practice</h1>
+                    <p class="subtitle" data-i18n="selectPractice">Select a topic to practice</p>
+                    <p class="form-note" data-i18n="draft.lang_warning">Not: Soru içeriğinin dili oluşturma sırasında sabitlenir ve arayüz diliyle birlikte değişmez.</p>
+                </div>
+                <div id="practice-topics" class="listrows"></div>
+                <div id="practice-area" class="hidden"></div>
+            </section>
+
+            <section id="tab-s-quizzes" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="quizzes">Quizzes</h1>
+                    <p class="subtitle" data-i18n="availableQuizzes">Available quizzes</p>
+                </div>
+                <div id="student-quiz-list"></div>
+                <div id="quiz-taking-area" class="hidden"></div>
+            </section>
+
+            <section id="tab-s-assignments" class="tab-panel">
+                <div class="page-header">
+                    <h1 data-i18n="Assignments">Assignments</h1>
+                    <p class="subtitle" data-i18n="Your homework tasks">Your homework tasks</p>
+                </div>
+                <div id="student-assignment-list" class="card-list"></div>
+                <div id="assignment-taking-area" class="hidden"></div>
+            </section>
+
+
+            
+            <section id="tab-s-messages" class="tab-panel">
+                <div class="page-header" style="margin-bottom:16px;">
+                    <h1><span data-i18n="messageTeacher">Message Teacher</span></h1>
+                </div>
+                <div class="chat-wrapper" style="background:var(--bg-card); border-radius:16px; border:1px solid var(--border); padding:24px; display:flex; flex-direction:column; height:60vh;">
+                    <div class="chat-header mobile-only">
+                        <button class="btn btn-ghost btn-icon" onclick="closeMobileChat()" aria-label="Back to conversations">←</button>
+                        <h2 style="margin:0; font-size:16px;" data-i18n="messageTeacher">Message Teacher</h2>
+                    </div>
+                    <div id="student-chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:12px; margin-bottom:16px; padding-right:8px;"></div>
+                    <div class="chat-input-area" style="display:flex; gap:8px;">
+                        <input type="text" id="message-text" class="text-input" data-i18n-placeholder="typeReply" placeholder="Write your message here..." onkeydown="if(event.key==='Enter') sendMessage()">
+                        <button class="btn btn-primary" onclick="sendMessage()" data-i18n="sendBtn">Send</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Digital Study Tab (Student AI Lessons) -->
+            <section id="tab-s-study-tab" class="tab-panel">
+                <div class="page-header">
+                    <div>
+                        <h1 id="s-study-tab-main-title" data-i18n="Material">Material</h1>
+                        <p class="subtitle" style="color: var(--text-secondary); margin:0;" data-i18n="select_study_topic">Select a topic from the sidebar to begin your lesson</p>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding-top:4px;">
+                        <button id="s-export-pdf-btn" class="btn btn-ghost" onclick="downloadCourseMaterialPDF()" title="Export all course materials as PDF" style="display:flex; align-items:center; gap:6px; font-size:13px; padding:8px 14px; border:1px solid var(--border);">
+                            <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span data-i18n="export_pdf">Export PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                
+                <div class="study-container" id="s-ai-book-container">
+                    <!-- Sidebar -->
+                    <div class="study-sidebar">
+                        <div class="study-sidebar-header">
+                            <h3 data-i18n="Units">Units</h3>
+                        </div>
+                        <div id="s-ai-book-toc" class="study-sidebar-toc"></div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div id="s-ai-book-content" class="study-content-panel">
+                        <div id="study-topic-loading" class="hidden" style="position:absolute; inset:0; background:rgba(0,0,0,0.5); z-index:10; display:flex; align-items:center; justify-content:center;">
+                            <div class="spinner"></div>
+                        </div>
+                        <div id="s-ai-book-content-area" class="study-content-area">
+                            <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-align: center;">
+                                <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:54px;height:54px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></div>
+                                <h2 data-i18n="select_study_topic" style="font-size: 22px; font-weight: 600; color: var(--text-primary);">Select a topic to start studying</h2>
+                                <p style="margin-top: 10px; color: var(--text-muted); font-size: 15px;" data-i18n="study.sidebar_guide">Use the sidebar on the left to navigate through units.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fallback for PDF-only courses -->
+                <div id="s-ai-book-fallback" class="hidden" style="text-align:center; padding:100px 20px; background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border);">
+                    <div style="margin-bottom:24px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
+                    <h2 data-i18n="class.pdf_only_msg">Traditional Classroom</h2>
+                    <p style="color:var(--text-secondary); margin-top:16px; font-size:18px;">This course uses a PDF textbook. Please use the <b>Textbook</b> tab to study.</p>
+                    <button class="btn btn-primary" style="margin-top:32px; padding:12px 32px;" onclick="document.querySelector('[data-tab=s-book]').click()" data-i18n="Read Textbook">Go to Textbook</button>
+                </div>
+            </section>
+
+            <!-- Student Textbook Tab (PDF) -->
+            <section id="tab-s-book" class="tab-panel hidden">
+                <div class="page-header">
+                    <h1><span data-i18n="Read Textbook">Textbook</span></h1>
+                    <p class="subtitle book-subtitle">Course Materials</p>
+                </div>
+                <div class="pdf-container pc-only" style="position:relative; height:calc(100vh - 200px); background:var(--bg-card); border-radius:16px; overflow:hidden; border:1px solid var(--border);">
+                    <iframe src="about:blank" class="pdf-viewer" style="width:100%; height:100%; border:none;" loading="lazy"></iframe>
+                    <div class="pdf-empty-state hidden" style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; background:var(--bg-card); z-index:10;">
+                        <div style="margin-bottom:20px; display:flex; justify-content:center;"><svg style="width:64px;height:64px;color:var(--accent);opacity:0.8;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></div>
+                        <h2 data-i18n="class.no_textbook">No Textbook Available</h2>
+                        <p style="color:var(--text-secondary); margin-top:10px;">Please upload a PDF to see the textbook here.</p>
+                    </div>
+                </div>
+                <div class="mobile-preview mobile-only">
+                    <div class="card" style="padding:0; overflow:hidden; text-align:center; background:transparent; border:none;">
+                        <div class="mobile-book-thumbnail" style="width:100%; max-width:280px; aspect-ratio: 1/1.4; background:linear-gradient(135deg, #fefefe, #f0f0f0); margin: 0 auto 20px; border-radius:12px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; justify-content:center; align-items:center; border: 1px solid var(--border); position:relative; overflow:hidden;">
+                            <div style="position:absolute; top:0; left:0; width:40px; height:40px; background:var(--accent); clip-path: polygon(0 0, 0% 100%, 100% 0);"></div>
+                            <div style="display:flex; justify-content:center;"><svg style="width:48px;height:48px;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></div>
+                            <div style="margin-top:12px; font-weight:700; color:#333; padding:0 20px;" class="mobile-book-title-thumb">Textbook</div>
+                        </div>
+                        <h3 style="margin-bottom:8px;" class="mobile-book-title">Course Textbook</h3>
+                        <p style="color:var(--text-secondary); margin-bottom:24px; font-size:14px;">Complete Textbook (PDF)</p>
+                        <a href="#" target="_blank" class="btn btn-primary mobile-book-link" style="width:100%; padding:16px;" data-i18n="Read Textbook">Read Textbook</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="student-detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div id="student-detail-body"></div>
+        </div>
+    </div>
+
+    <div id="draft-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:800px;">
+            <button class="modal-close" onclick="closeDraftModal()">&times;</button>
+            <div id="draft-body"></div>
+        </div>
+    </div>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacy-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:600px;">
+            <button class="modal-close" onclick="closePrivacyModal()">&times;</button>
+            <h2 style="margin-bottom:20px; font-family:'Georgia', serif;" data-i18n="privacy.title">Privacy Policy</h2>
+            <div class="modal-scroll-area" style="max-height:400px; overflow-y:auto; padding-right:10px; font-size:14px; line-height:1.6;">
+                <p style="margin-bottom:16px;" data-i18n="privacy.intro">AulaAI processes minimal student and lecturer data solely to provide customized language learning materials.</p>
+                
+                <h4 style="margin:20px 0 8px 0; font-family:'Georgia', serif;" data-i18n="privacy.h1">1. Data Collection</h4>
+                <p style="margin-bottom:16px;" data-i18n="privacy.p1">We collect student names, school numbers, classroom join codes, dialogue audio files, and uploaded educational PDFs. This data is used by AI models to generate personalized worksheets and flashcards.</p>
+                
+                <h4 style="margin:20px 0 8px 0; font-family:'Georgia', serif;" data-i18n="privacy.h2">2. Local Processing & Security</h4>
+                <p style="margin-bottom:16px;" data-i18n="privacy.p2">All records are stored securely on local database servers. We comply with standard KVKK and GDPR data minimization requirements. Your data is never sold or used for advertisement targeting.</p>
+                
+                <h4 style="margin:20px 0 8px 0; font-family:'Georgia', serif;" data-i18n="privacy.h3">3. Your Rights</h4>
+                <p style="margin-bottom:16px;" data-i18n="privacy.p3">Students and lecturers have full rights to retrieve their overall curriculum history, export generated notes, and permanently terminate their accounts from the system at any time.</p>
+            </div>
+            <div style="margin-top:24px; text-align:right;">
+                <button class="btn btn-primary" onclick="closePrivacyModal()" data-i18n="ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Confirm Modal -->
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px; text-align:center;">
+            <h3 id="confirm-title" style="margin-bottom:16px; font-weight:600;">Confirm</h3>
+            <p id="confirm-message" style="margin-bottom:24px; color:var(--text-secondary);"></p>
+            <div id="confirm-input-container" class="hidden" style="margin-bottom:24px;">
+                <input type="text" id="confirm-input" class="text-input" placeholder="" autocomplete="off">
+            </div>
+            <div style="display:flex; gap:12px; justify-content:center;">
+                <button class="btn btn-outline" id="confirm-cancel-btn" style="flex:1;" data-i18n="cancel">Cancel</button>
+                <button class="btn btn-primary" id="confirm-ok-btn" style="flex:1;" data-i18n="ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="new-chat-modal" class="modal hidden">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <h2 style="margin-bottom:16px;" data-i18n="newChat">New Chat</h2>
+            <div class="form-group" style="margin-bottom:16px;">
+                <input type="text" id="student-search-input" class="text-input" data-i18n-placeholder="searchStudent" placeholder="Search students..." oninput="filterNewChatStudents()">
+            </div>
+            <div id="new-chat-student-list" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                <!-- Students rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="building-screen" class="hidden" style="position:fixed; inset:0; background:rgba(10, 14, 26, 0.9); backdrop-filter:blur(20px); z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px;">
+        <div class="loader-container" style="margin-bottom:32px; position:relative;">
+            <div class="loader-ring" style="width:100px; height:100px; border-radius:50%; border:4px solid rgba(255,255,255,0.05); border-top-color:var(--accent); animation:spin 1s linear infinite;"></div>
+            <div class="loader-glow" style="position:absolute; inset:0; background:var(--accent); filter:blur(40px); opacity:0.15; border-radius:50%;"></div>
+            <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;"><svg style="width:36px;height:36px;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg></div>
+        </div>
+        <h2 style="font-size:28px; font-weight:800; margin-bottom:12px; background:linear-gradient(135deg, #fff, rgba(255,255,255,0.7)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;" class="building-label" data-i18n="gen.building">Building your classroom...</h2>
+        <p id="building-screen-msg" style="color:var(--text-secondary); max-width:400px; font-size:15px; margin-bottom:20px;" data-i18n="gen.ai_architecting">Our AI is architecting your curriculum and generating study materials. Please wait a moment.</p>
+        
+        <div id="building-screen-progress-box" style="width:100%; max-width:380px; margin-bottom:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:8px;">
+                <span id="building-screen-status" style="color:var(--accent); font-weight:600;">Dersler hazırlanıyor...</span>
+                <span id="building-screen-pct" style="font-family:monospace; font-weight:700; color:#fff;">15%</span>
+            </div>
+            <div style="width:100%; height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                <div id="building-screen-bar" style="height:100%; width:15%; background:var(--gradient-2); transition:width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <button id="building-screen-stop-btn" class="btn btn-outline" onclick="stopCurrentActiveBuilding()" style="color:var(--danger); border-color:rgba(239,68,68,0.4); font-size:13px; padding:8px 20px; border-radius:8px;">
+            🛑 <span data-i18n="class.stop_build">Oluşturmayı Durdur</span>
+        </button>
+    </div>
+
+    <!-- AulaAI Global Dictionary Popup -->
+    <div id="aula-dict-popup">
+        <div id="dict-loading" style="display:none; text-align:center; padding:20px;">
+            <div class="spinner" style="width:28px; height:28px; margin:0 auto 12px; border-top-color:var(--accent);"></div>
+            <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:2px; font-weight:800;">Translating...</div>
+        </div>
+        <div id="dict-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h4 id="dict-word" style="margin:0; font-size:24px; color:#fff; font-weight:800; letter-spacing:-0.5px;">Word</h4>
+                <button onclick="closeDict()" style="background:rgba(255,255,255,0.05); border:none; color:#fff; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center;">&times;</button>
+            </div>
+            <div id="dict-phonetic" style="color:var(--accent-light); font-size:14px; font-weight:600; margin-bottom:20px; font-family:'Inter', monospace; opacity:0.8;">/phonetic/</div>
+            <div id="dict-meanings" style="display:flex; flex-direction:column; gap:12px;">
+                <!-- Meanings injected here -->
+            </div>
+            <div style="margin-top:24px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+                <span id="dict-source" style="font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; font-weight:800;">Wiktionary</span>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px; padding:6px 12px; border-radius:var(--radius-sm); background:var(--accent-glow); border:1px solid var(--border); color:var(--accent); cursor:pointer;" onclick="askAiAboutWord()" data-i18n="explain_ai">Explain with Assistant</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Privacy Policy modal controls
+            window.openPrivacyModal = () => {
+                const modal = document.getElementById("privacy-modal");
+                if (modal) modal.classList.remove("hidden");
+            };
+            window.closePrivacyModal = () => {
+                const modal = document.getElementById("privacy-modal");
+                if (modal) modal.classList.add("hidden");
+            };
+        });
+    </script>
 </body>
 </html>
