@@ -187,7 +187,7 @@ Do not emit the same illustrative set, example sentence, table row or rule twice
 </rules_and_comparisons>
 
 <mcq_quality>
-ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr` or `prompt_en` for an assessment item: there is no separate instruction to localize, and a gloss in the stem field is what the learner would be shown instead of the question. Mark each item `"stem_scope": "target_complete"`.
+ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr`, `prompt_en`, `options_tr` or `options_en` for an assessment item: learner-facing assessment fields remain entirely in the taught language. Mark each item `"stem_scope": "target_complete"`.
 The ANSWER KEY is the other track: `explanation` and `explanation_tr` explain the key in the instructional language, as elsewhere in this lesson. Assessment content and answer-key explanation never swap.
 NO TRANSLATION ITEMS, at any level: never "what does X mean", "how do you say X", "translate this", or an option set of instructional-language glosses. At A1 that is a reason to ask a SIMPLER {language} question - a short gapped sentence, a two-way contrast, a reply chosen for a situation - not a reason to fall back on translation. Meaning is explained in the answer key afterwards.
 Every MCQ must have exactly 4 distinct, plausible, same-category options and exactly 1 defensible keyed answer.
@@ -285,7 +285,7 @@ Return ONLY valid JSON matching this structure:
       "prompt": "The COMPLETE question in {language}: the instruction needed to answer it AND the material it points at, in one field. This is the only stem the learner reads.",
       "stem_scope": "target_complete",
       "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-      "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],
+      "options_tr": [],
       "answer": "Correct answer",
       "distractors": ["Distractor 1", "Distractor 2", "Distractor 3"],
       "explanation": "Explanation in English",
@@ -297,7 +297,7 @@ Return ONLY valid JSON matching this structure:
 
 <final_same_pass_check>
 Before returning JSON, silently repair the draft once in this same call. Add no audit fields and make no extra model call.
-Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope and domain (every absolute wording sits in a rule marked "absolute" and survives its own examples; register/politeness/cultural conventions are scoped as tendencies, structural rules are not hedged away); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
+Verify: canonical spelling/Unicode; factual phonology and standard IPA; every vocabulary/phonetics item with a pronounceable target form has a non-empty `phonetic` value; alphabet/writing-system rows keep letter names separate from actual sound/IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage; internal counts/list/category consistency; grammatical labels/functions; rule-example consistency; claim scope and domain (every absolute wording sits in a rule marked "absolute" and survives its own examples; register/politeness/cultural conventions are scoped as tendencies, structural rules are not hedged away); no adjacent duplicate blocks; CEFR proportionality; natural dialogue; and MCQ entailment/key validity with authentic, plausible, same-category distractors.
 Return valid JSON only.
 </final_same_pass_check>"""
 
