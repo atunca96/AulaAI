@@ -4909,3 +4909,51 @@ select.text-input option,
 @media (max-width: 340px) {
   .stat-sub { display: none; }
 }
+
+/* ── Toasts ──────────────────────────────────────────────
+   A passive notice: it reports what already happened and dismisses itself, so
+   it never blocks the screen. Centred at the top, clear of the notch and of
+   the top nav, where it does not cover the content the person is reading and
+   does not collide with the bottom-sheet dialogs. */
+#toast-stack {
+  position: fixed;
+  top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-5));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  width: max-content;
+  max-width: min(420px, calc(100vw - (var(--gutter-safe) * 2)));
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  cursor: pointer;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5) var(--space-6);
+  font-size: var(--fs-base);
+  line-height: var(--lh-snug);
+  color: var(--text-primary);
+  text-align: start;
+  animation: toast-in 0.18s ease;
+}
+.toast--success { border-inline-start-color: var(--success); }
+.toast--error   { border-inline-start-color: var(--danger); }
+.toast--info    { border-inline-start-color: var(--accent); }
+.toast.is-leaving { opacity: 0; transition: opacity 0.2s ease; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .toast.is-leaving { transition: none; }
+}
