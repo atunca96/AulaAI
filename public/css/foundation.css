@@ -1,0 +1,827 @@
+/* ============================================================================
+   AulaAI — Foundation
+   ----------------------------------------------------------------------------
+   The design language, in one place: scales, surfaces, primitives.
+
+   This file is loaded BEFORE styles.css and deliberately owns the *system*
+   (type, spacing, radii, elevation, control sizing, focus, layout, responsive
+   behaviour of shared primitives). styles.css owns *components* built on top.
+   Keeping that boundary is what stops the stylesheet drifting back into the
+   pile of per-page, per-breakpoint patches it used to be.
+
+   Identity is unchanged: deep academic navy, classic gold, sharp corners.
+   What changes is the discipline with which those are applied.
+   ========================================================================= */
+
+/* ── 1. Scales ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Spacing — 4px base. Every margin/padding/gap should come from here. */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 64px;
+
+  /* Type — a UI scale, not a display scale. Academic reads calm, not loud. */
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-base: 14px;
+  --fs-md: 15px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 20px;
+  --fs-3xl: 24px;
+  --fs-4xl: 28px;
+  --fs-5xl: 34px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+  --lh-relaxed: 1.7;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Optical letter-spacing: tighten as size grows, open up small caps. */
+  --ls-tight: -0.02em;
+  --ls-snug: -0.01em;
+  --ls-normal: 0;
+  --ls-wide: 0.04em;
+  --ls-caps: 0.08em;
+
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radii — sharp and institutional. Four steps, no improvisation. */
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 10px;
+  --radius-pill: 999px;
+
+  /* Elevation — three steps. Shadows separate layers; they are not decoration. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.25);
+  --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.45);
+
+  /* Control sizing — one ladder for buttons, inputs, selects and icon buttons. */
+  --control-xs: 28px;
+  --control-sm: 32px;
+  --control-md: 38px;
+  --control-lg: 44px;
+  --control-xl: 52px;
+  /* Minimum comfortable touch target. Raised to --control-lg on coarse pointers. */
+  --tap-min: 32px;
+
+  /* Icon sizing — tied to the control ladder so icons never float off-centre. */
+  --icon-sm: 14px;
+  --icon: 16px;
+  --icon-lg: 20px;
+  --icon-xl: 24px;
+
+  /* Layout */
+  --container: 1200px;
+  --container-wide: 1560px;
+  --container-narrow: 760px;
+  --gutter: 16px;          /* page side padding; grows at larger breakpoints */
+  --topnav-h: 56px;
+
+  /* Focus — one ring, used everywhere, never removed without replacement. */
+  --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
+
+  /* Z-index — a named ladder beats scattered magic numbers. */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-topnav: 1000;
+  --z-drawer: 1500;
+  --z-overlay: 2000;
+  --z-modal: 20000;
+  --z-toast: 30000;
+
+  --transition-fast: 0.15s ease;
+  --transition: 0.2s ease-in-out;
+}
+
+@media (min-width: 768px) {
+  :root { --gutter: 24px; }
+}
+@media (min-width: 1200px) {
+  :root { --gutter: 32px; }
+}
+
+/* Real touch targets without inflating the desktop UI. Both conditions are
+   listed on purpose: `pointer: coarse` catches touch laptops and tablets, and
+   the width query catches phones in browsers (and test harnesses) that report
+   a fine pointer despite a 360px viewport. */
+@media (pointer: coarse) {
+  :root { --tap-min: 44px; }
+}
+@media (max-width: 1024px) {
+  :root { --tap-min: 44px; }
+}
+
+/* ── 2. Surface hierarchy ────────────────────────────────────────────────── */
+/* Four levels, dark and light. Components pick a level; they don't invent one. */
+
+:root {
+  --surface-0: #09162a;   /* page */
+  --surface-1: #0f2440;   /* card */
+  --surface-2: #14304f;   /* raised: nav, drawer, modal */
+  --surface-3: #081527;   /* recessed: inputs, wells, code */
+  --surface-hover: #132b4d;
+
+  --line: rgba(255, 255, 255, 0.10);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --line-subtle: rgba(255, 255, 255, 0.06);
+
+  /* Translucent nav/drawer fills derived from the page colour, not invented. */
+  --scrim: rgba(4, 10, 20, 0.62);
+  --surface-nav: rgba(9, 22, 42, 0.82);
+
+  /* Neutral avatar/marker fill — replaces the old rainbow gradients. */
+  --marker-bg: rgba(197, 160, 89, 0.14);
+  --marker-fg: var(--accent-light);
+  --marker-line: rgba(197, 160, 89, 0.3);
+
+  /* Accent tints. Three steps so a selected tile, a soft chip and an accent
+     border all draw from the same ramp instead of inventing their own alpha.
+     These replace a stray indigo (#6366f1) that predated the gold identity. */
+  --accent-soft: rgba(197, 160, 89, 0.16);
+  --accent-line: rgba(197, 160, 89, 0.34);
+
+  /* Neutral fills for wells, tracks, chips and hover states. Components used
+     to write rgba(255,255,255,0.0x) inline, which is invisible on a white
+     card — several light-theme surfaces (the mastery track, the student
+     number chip) simply disappeared. */
+  --fill-subtle: rgba(255, 255, 255, 0.07);
+  --fill-hover: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] {
+  --surface-0: #f4f6fa;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --surface-3: #f7f9fc;
+  --surface-hover: #f2f5fa;
+
+  --line: #dcdfe6;
+  --line-strong: #c3c9d4;
+  --line-subtle: #e9ecf1;
+
+  --scrim: rgba(16, 26, 44, 0.42);
+  --surface-nav: rgba(255, 255, 255, 0.88);
+
+  --marker-bg: rgba(11, 47, 97, 0.08);
+  --marker-fg: #0b2f61;
+  --marker-line: rgba(11, 47, 97, 0.18);
+
+  --accent-soft: rgba(11, 47, 97, 0.10);
+  --accent-line: rgba(11, 47, 97, 0.24);
+
+  --fill-subtle: rgba(11, 47, 97, 0.09);
+  --fill-hover: rgba(11, 47, 97, 0.05);
+
+  --shadow-sm: 0 1px 2px rgba(16, 26, 44, 0.06);
+  --shadow: 0 4px 10px rgba(16, 26, 44, 0.07);
+  --shadow-lg: 0 10px 24px rgba(16, 26, 44, 0.09);
+  --shadow-overlay: 0 24px 60px rgba(16, 26, 44, 0.18);
+
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 4px var(--accent);
+}
+
+/* ── 3. Reset & base ─────────────────────────────────────────────────────── */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis-weight: none;
+}
+
+/* Long words in any language — German compounds, Turkish agglutination, URLs,
+   CJK runs — break instead of forcing the page wider than the viewport.
+   `break-word`, not `anywhere`: `anywhere` also shrinks an element's
+   min-content width, which lets a tight table column collapse and hyphenate
+   ordinary names ("Yusuf Araba / cı"). `break-word` only breaks a word that
+   genuinely cannot fit on a line of its own. */
+body, p, li, td, th, dd, dt, h1, h2, h3, h4, h5, h6, label, span, div {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+/* Codes, numbers and phonetics must stay intact even if they are long. */
+code, kbd, samp, pre, .mono, [class*="code"], [class*="phonetic"] {
+  overflow-wrap: normal;
+}
+
+/* Flex/grid children default to min-width:auto, which is the single most
+   common cause of accidental horizontal scroll. Opt out globally. */
+.stack > *, .cluster > *, .page > *,
+.grid-auto > *, .card > *, .toolbar > * {
+  min-width: 0;
+}
+
+img, video, canvas { max-width: 100%; }
+img, video { height: auto; }
+
+/* An icon is sized by its own rule and must not be squeezed by the flex row it
+   sits in. Without this, every nav tab icon computed to 0px wide and rendered
+   as a 2px sliver beside its label — a row of dots where the iconography
+   should be. `max-width: 100%` must not apply to them for the same reason. */
+svg { flex-shrink: 0; max-width: none; }
+/* Inline illustrative SVGs still scale with their container. */
+svg.responsive-svg, figure svg, .illustration svg { max-width: 100%; flex-shrink: 1; }
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+button { background: none; border: none; }
+
+/* One focus treatment across the product. Visible, on-brand, never removed. */
+:focus { outline: none; }
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+  position: relative;
+  z-index: var(--z-sticky);
+}
+
+::selection { background: var(--accent); color: #0a1626; }
+[data-theme="light"] ::selection { background: var(--accent); color: #fff; }
+
+/* ── 4. Typography ───────────────────────────────────────────────────────── */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  font-weight: var(--fw-bold);
+  text-wrap: balance;
+}
+
+/* Titles are sized by role, not by tag, so a section heading looks the same
+   whether the markup reached for h2 or h3. */
+.t-page    { font-size: var(--fs-4xl); font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); line-height: var(--lh-tight); }
+.t-section { font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: var(--ls-snug); line-height: var(--lh-snug); }
+.t-card    { font-size: var(--fs-lg);  font-weight: var(--fw-semibold); letter-spacing: var(--ls-snug); line-height: var(--lh-snug); }
+.t-body    { font-size: var(--fs-base); font-weight: var(--fw-regular); line-height: var(--lh-normal); color: var(--text-secondary); }
+.t-meta    { font-size: var(--fs-sm);  font-weight: var(--fw-medium); color: var(--text-muted); }
+
+/* Small caps labels: the one place wide tracking is correct. */
+.t-label {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Reading measure. Prose that runs the full width of a 1440px screen is
+   unreadable no matter how good the type is. */
+.measure { max-width: 68ch; }
+.measure-narrow { max-width: 52ch; }
+
+/* ── 5. Layout primitives ────────────────────────────────────────────────── */
+
+/* The page frame every screen sits in — one gutter, one max width. */
+.page {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.page-wide   { max-width: var(--container-wide); }
+.page-narrow { max-width: var(--container-narrow); }
+
+/* Vertical rhythm as a primitive rather than a thousand margin-bottoms. */
+.stack { display: flex; flex-direction: column; }
+.stack-4  { gap: var(--space-4); }
+.stack-5  { gap: var(--space-5); }
+.stack-6  { gap: var(--space-6); }
+.stack-8  { gap: var(--space-8); }
+.stack-9  { gap: var(--space-9); }
+
+/* Horizontal group that wraps gracefully instead of overflowing. */
+.cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+.cluster-end { justify-content: flex-end; }
+.cluster-between { justify-content: space-between; }
+
+/* Auto grid that never produces a lonely half-width card in a wide row:
+   items grow to fill the track, so one item spans the row. */
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--grid-min, 280px), 100%), 1fr));
+  gap: var(--space-6);
+}
+
+/* ── 6. Buttons ──────────────────────────────────────────────────────────── */
+/* Four weights: primary (one per view), secondary, quiet, destructive.
+   Size comes from the control ladder; nothing sets its own height. */
+
+.btn {
+  --btn-h: var(--control-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: max(var(--btn-h), var(--tap-min));
+  padding-inline: var(--space-6);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-snug);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+}
+.btn > svg, .btn .tab-icon svg { width: var(--icon); height: var(--icon); flex-shrink: 0; }
+
+.btn:disabled, .btn[disabled], .btn.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Size modifiers */
+.btn-xs { --btn-h: var(--control-xs); padding-inline: var(--space-4); font-size: var(--fs-xs); gap: var(--space-3); }
+.btn-sm { --btn-h: var(--control-sm); padding-inline: var(--space-5); font-size: var(--fs-sm); }
+.btn-lg { --btn-h: var(--control-lg); padding-inline: var(--space-8); font-size: var(--fs-md); }
+.btn-xl { --btn-h: var(--control-xl); padding-inline: var(--space-9); font-size: var(--fs-lg); }
+.btn-full { width: 100%; }
+
+/* Icon-only buttons stay square and keep a real hit area. */
+.btn-icon {
+  --btn-h: var(--control-md);
+  width: max(var(--btn-h), var(--tap-min));
+  min-width: max(var(--btn-h), var(--tap-min));
+  padding-inline: 0;
+  border-radius: var(--radius);
+}
+.btn-icon.btn-sm { --btn-h: var(--control-sm); }
+.btn-icon.btn-lg { --btn-h: var(--control-lg); }
+
+/* Busy state: the label stays put so the button doesn't resize mid-submit. */
+.btn.is-loading { position: relative; color: transparent !important; pointer-events: none; }
+.btn.is-loading::after {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: aula-spin 0.7s linear infinite;
+  color: var(--text-primary);
+}
+@keyframes aula-spin { to { transform: rotate(360deg); } }
+
+/* ── 7. Fields ───────────────────────────────────────────────────────────── */
+
+.field { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.field-label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  letter-spacing: var(--ls-normal);
+  text-transform: none;
+}
+
+.field-hint { font-size: var(--fs-xs); color: var(--text-muted); line-height: var(--lh-snug); }
+.field-error { font-size: var(--fs-xs); color: var(--danger); line-height: var(--lh-snug); }
+
+.input, .select, .textarea {
+  width: 100%;
+  min-height: max(var(--control-lg), var(--tap-min));
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  /* 16px on touch devices is what stops iOS zooming the viewport on focus. */
+  font-size: var(--fs-md);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.textarea { min-height: 96px; padding: var(--space-5); line-height: var(--lh-normal); resize: vertical; }
+
+.input::placeholder, .textarea::placeholder { color: var(--text-muted); }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--line-strong); }
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.input:disabled, .select:disabled, .textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-3);
+}
+.input[aria-invalid="true"], .is-invalid { border-color: var(--danger); }
+
+@media (pointer: coarse) {
+  .input, .select, .textarea { font-size: 16px; }
+}
+
+/* Native selects need room for their own chevron. */
+.select { padding-right: var(--space-9); }
+
+/* ── 8. Surfaces ─────────────────────────────────────────────────────────── */
+
+/* A surface exists to group related things. Padding comes from one scale so
+   cards stop having six different internal rhythms. */
+.surface {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+.surface-raised { background: var(--surface-2); box-shadow: var(--shadow); }
+.surface-inset  { background: var(--surface-3); }
+.surface-quiet  { background: transparent; border-color: var(--line-subtle); }
+
+.pad-5 { padding: var(--space-5); }
+.pad-6 { padding: var(--space-6); }
+.pad-7 { padding: var(--space-7); }
+.pad-8 { padding: var(--space-8); }
+
+/* A surface directly inside a surface loses its border: nesting is expressed
+   by spacing and type, not by drawing another box around everything. */
+.surface .surface-quiet { background: transparent; border: none; padding-inline: 0; }
+
+/* ── 9. Status colour ────────────────────────────────────────────────────── */
+/* Status uses tone, not a different hue per component. */
+
+.tone-neutral { --tone: var(--text-muted);  --tone-bg: var(--line-subtle); --tone-line: var(--line); }
+.tone-accent  { --tone: var(--accent-light); --tone-bg: var(--accent-glow); --tone-line: rgba(197,160,89,0.28); }
+.tone-success { --tone: var(--success);      --tone-bg: var(--success-bg);  --tone-line: rgba(16,185,129,0.24); }
+.tone-warning { --tone: var(--warning);      --tone-bg: var(--warning-bg);  --tone-line: rgba(245,158,11,0.24); }
+.tone-danger  { --tone: var(--danger);       --tone-bg: var(--danger-bg);   --tone-line: rgba(239,68,68,0.24); }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg, var(--line-subtle));
+  border: 1px solid var(--tone-line, var(--line));
+  color: var(--tone, var(--text-secondary));
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.badge-dot::before {
+  content: '';
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── 10. Data display ────────────────────────────────────────────────────── */
+
+/* Tables are legible and dense on desktop. On small screens each row becomes
+   a stacked record (see the responsive block below) rather than a squeeze. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
+}
+.data-table th {
+  padding: var(--space-5) var(--space-6);
+  text-align: left;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr { transition: background var(--transition-fast); }
+.data-table tbody tr:hover { background: var(--surface-hover); }
+.data-table td:first-child { color: var(--text-primary); font-weight: var(--fw-medium); }
+.data-table .num { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* When horizontal scroll genuinely is the right answer, say so visibly. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* ── 11. Empty / loading / error states ──────────────────────────────────── */
+/* States are product surfaces, not placeholders. No stock illustrations. */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-10) var(--space-7);
+  text-align: center;
+  min-height: 200px;
+}
+.empty-state__mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+.empty-state__mark svg { width: var(--icon-lg); height: var(--icon-lg); }
+.empty-state__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-snug);
+}
+.empty-state__body {
+  font-size: var(--fs-base);
+  color: var(--text-muted);
+  max-width: 44ch;
+  line-height: var(--lh-normal);
+}
+.empty-state__action { margin-top: var(--space-4); }
+
+/* Compact variant for inside a card body or a sidebar: it fills the space it
+   is given rather than reserving 200px of its own. */
+.empty-state-sm { min-height: 0; padding: var(--space-8) var(--space-6); gap: var(--space-3); }
+.empty-state-sm .empty-state__mark { width: 32px; height: 32px; margin-bottom: 0; }
+.empty-state-sm .empty-state__mark svg { width: var(--icon); height: var(--icon); }
+.empty-state-sm .empty-state__title { font-size: var(--fs-base); }
+.empty-state-sm .empty-state__body { font-size: var(--fs-sm); max-width: 38ch; }
+
+/* Skeletons mirror the shape of the content they stand in for. */
+.skeleton {
+  background: linear-gradient(90deg, var(--line-subtle) 25%, var(--line) 37%, var(--line-subtle) 63%);
+  background-size: 400% 100%;
+  animation: aula-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes aula-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+.skeleton-line { height: 12px; margin-bottom: var(--space-4); }
+.skeleton-line:last-child { width: 60%; margin-bottom: 0; }
+.skeleton-title { height: 20px; width: 40%; margin-bottom: var(--space-6); }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  .btn.is-loading::after { animation-duration: 2s; }
+}
+
+/* ── 12. Overlays ────────────────────────────────────────────────────────── */
+/* One overlay model: centred dialog on desktop, bottom sheet on phones.
+   The body scrolls; header and footer stay put. That is what stops modal
+   content running off the bottom of a phone with no way to reach the action. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: min(86vh, 860px);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+.dialog-sm { max-width: 460px; }
+.dialog-lg { max-width: 860px; }
+
+.dialog__header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-8) var(--space-6);
+  border-bottom: 1px solid var(--line-subtle);
+}
+.dialog__title { font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: var(--ls-snug); }
+.dialog__subtitle { font-size: var(--fs-base); color: var(--text-muted); margin-top: var(--space-2); line-height: var(--lh-snug); }
+.dialog__close { margin-inline-start: auto; flex-shrink: 0; }
+
+.dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: var(--space-7) var(--space-8);
+}
+
+.dialog__footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-8);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--surface-2);
+}
+
+/* ── 13. Responsive system ───────────────────────────────────────────────── */
+/* Breakpoints used across the product, and only these:
+     ≤ 600px   phone
+     ≤ 900px   large phone / small tablet
+     ≤ 1024px  tablet — below this the top tab bar becomes a drawer
+     ≤ 1200px  small laptop
+   Mobile is not "desktop, narrower". Patterns change where they should. */
+
+@media (max-width: 1024px) {
+  /* Dialogs become bottom sheets: full width, rounded top, thumb-reachable
+     action bar pinned above the home indicator. */
+  .overlay { padding: 0; align-items: flex-end; }
+  .dialog {
+    max-width: none;
+    max-height: 92svh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-bottom: none;
+  }
+  .dialog__header { padding: var(--space-6) var(--space-6) var(--space-5); }
+  .dialog__body   { padding: var(--space-6); }
+  .dialog__footer {
+    padding: var(--space-5) var(--space-6);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  }
+  /* A sheet's actions stack full width and read primary-first. */
+  .dialog__footer .btn { flex: 1 1 auto; }
+}
+
+@media (max-width: 600px) {
+  .t-page    { font-size: var(--fs-3xl); }
+  .t-section { font-size: var(--fs-xl); }
+
+  /* Auto grids collapse to one column; two narrow columns on a 320px screen
+     is not density, it is damage. */
+  .grid-auto { --grid-min: 100%; gap: var(--space-5); }
+
+  /* Toolbar actions become full-width stacked buttons rather than a row of
+     truncated chips. */
+  .cluster-stack-sm { flex-direction: column; align-items: stretch; width: 100%; }
+  .cluster-stack-sm > .btn { width: 100%; }
+
+  /* Tables become stacked records. Each cell carries its own label via
+     data-label, so no header row is needed and nothing is truncated away. */
+  .data-table.is-stacked,
+  .data-table.is-stacked thead,
+  .data-table.is-stacked tbody,
+  .data-table.is-stacked tr,
+  .data-table.is-stacked th,
+  .data-table.is-stacked td {
+    display: block;
+    width: auto;
+  }
+  .data-table.is-stacked thead {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .data-table.is-stacked tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--surface-1);
+    padding: var(--space-5) var(--space-6);
+    margin-bottom: var(--space-5);
+  }
+  .data-table.is-stacked tr:hover { background: var(--surface-1); }
+  .data-table.is-stacked td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding: var(--space-3) 0;
+    border-bottom: none;
+    text-align: right;
+  }
+  .data-table.is-stacked td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: var(--ls-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .data-table.is-stacked td:not([data-label]) { justify-content: flex-end; }
+  /* The record's own title row: full width, left aligned, no label. */
+  .data-table.is-stacked td:first-child {
+    display: block;
+    text-align: left;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--text-primary);
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-4);
+    border-bottom: 1px solid var(--line-subtle);
+  }
+  .data-table.is-stacked td:first-child::before { content: none; }
+  /* Action cells get their own row of real buttons. */
+  .data-table.is-stacked td.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding-top: var(--space-5);
+    margin-top: var(--space-2);
+    border-top: 1px solid var(--line-subtle);
+  }
+  .data-table.is-stacked td.actions::before { content: none; }
+  .data-table.is-stacked td.actions .btn { flex: 1 1 auto; }
+}
+
+/* ── 14. Utilities ───────────────────────────────────────────────────────── */
+
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Clamp keeps meaning: two full lines beat one ellipsised one for long
+   Turkish and German labels. */
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.safe-b { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

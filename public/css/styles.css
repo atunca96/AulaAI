@@ -2,9 +2,10 @@
 /* Student Portal */
 .classroom-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 24px;
-    margin-top: 24px;
+    /* auto-fit (not auto-fill) so one class stretches to fill the row rather
+       than sitting in a 300px box beside an empty track. */
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    gap: var(--space-6);
 }
 
 .classroom-card {
@@ -122,69 +123,68 @@
     }
 }
 
+/* Palette.
+   The identity — deep academic navy, classic gold — is unchanged. What is new
+   is that the legacy background and border aliases now resolve to the surface
+   ladder in foundation.css, so there is one definition of "card background"
+   in the product instead of four that drifted apart.
+   Scales (radius, shadow, spacing, type, transition) live in foundation.css
+   and are deliberately NOT redeclared here. */
 :root {
-  --bg-primary: #09162a;      /* Solid deep academic navy background */
-  --bg-secondary: #0b2347;    /* Slightly lighter navy for sidebars/drawers */
-  --bg-card: #0f2440;         /* Card background */
-  --bg-card-hover: #132b4d;   /* Hovered card background */
-  --bg-input: #081527;        /* Form input background */
-  --border: rgba(255, 255, 255, 0.12); /* Clean thin borders */
-  --border-light: rgba(255, 255, 255, 0.08);
+  --bg-primary: var(--surface-0);
+  --bg-secondary: var(--surface-2);
+  --bg-card: var(--surface-1);
+  --bg-card-hover: var(--surface-hover);
+  --bg-input: var(--surface-3);
+  --border: var(--line);
+  --border-light: var(--line-subtle);
   --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --text-main: #f8fafc;
-  --text-muted: rgba(255, 255, 255, 0.4);
-  --accent: #c5a059;          /* Classic Gold accent */
-  --accent-light: #d6b87d;    /* Muted gold */
-  --accent-glow: rgba(197, 160, 89, 0.08);
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.05);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.05);
-  --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.05);
-  --info: #3b82f6;
-  --gradient-1: linear-gradient(135deg, #0b2f61, #132b4d); /* University navy gradient */
-  --gradient-2: linear-gradient(135deg, #c5a059, #b89047); /* Gold gradient */
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.48);
+  --accent: #c5a059;          /* Classic gold */
+  --accent-light: #d6b87d;
+  --accent-glow: rgba(197, 160, 89, 0.10);
+  --accent-contrast: #0a1626; /* Text that sits on a gold fill */
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.10);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.10);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.10);
+  --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.10);
+  --gradient-1: linear-gradient(135deg, #0b2f61, #132b4d);
+  --gradient-2: linear-gradient(135deg, #c5a059, #b89047);
   --gradient-3: linear-gradient(135deg, #c5a059, #8c6b2d);
-  --radius: 4px;              /* Sharp layout */
-  --radius-lg: 6px;
-  --radius-sm: 2px;
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.25);
-  --bg-main: #09162a;
+  --bg-main: var(--surface-0);
   --text-main: #ffffff;
-  --transition: 0.2s ease-in-out;
 }
 
 [data-theme="light"] {
-  --bg-primary: #f4f6fa;      /* Clean gray-cream academic background */
-  --bg-secondary: #ebedf2;    /* Slightly darker gray for sidebar/drawer */
-  --bg-card: #ffffff;         /* White cards */
-  --bg-card-hover: #f7f9fc;
-  --bg-input: #ffffff;
-  --border: #dcdfe6;          /* Clean light gray borders */
-  --border-light: #e4e7ed;
-  --text-primary: #0b2f61;    /* Deep navy text for strong academic feel */
-  --text-secondary: #3b4b61;  /* Muted slate blue body text */
-  --text-muted: #71829e;      /* Soft slate gray */
+  --text-primary: #0b2f61;    /* Deep navy for a strong academic feel */
+  --text-secondary: #41526b;
+  /* #5b6b85 clears 4.5:1 against every light surface it is used on — white
+     cards (5.40), the recessed #f7f9fc well (5.12) and the #e9ecf1 chip fill
+     (4.56). The previous value passed on white by eye but measured 4.23, and
+     failed outright on the tinted surfaces. */
+  --text-muted: #5b6b85;
   --accent: #0b2f61;          /* Deep navy accent */
   --accent-light: #16468a;
-  --accent-glow: rgba(11, 47, 97, 0.05);
-  --success: #16a34a;
-  --success-bg: rgba(22, 163, 74, 0.03);
-  --warning: #d97706;
-  --warning-bg: rgba(217, 119, 6, 0.03);
-  --danger: #dc2626;
-  --danger-bg: rgba(220, 38, 38, 0.03);
-  --info: #2563eb;
-  --bg-main: #f4f6fa;
+  --accent-glow: rgba(11, 47, 97, 0.06);
+  --accent-contrast: #ffffff;
+  --success: #15803d;
+  --success-bg: rgba(21, 128, 61, 0.08);
+  --warning: #b45309;
+  --warning-bg: rgba(180, 83, 9, 0.08);
+  --danger: #b91c1c;
+  --danger-bg: rgba(185, 28, 28, 0.07);
+  --info: #1d4ed8;
+  --info-bg: rgba(29, 78, 216, 0.07);
+  --bg-main: var(--surface-0);
   --text-main: #0b2f61;
   --gradient-1: linear-gradient(135deg, #0b2f61, #16468a);
   --gradient-2: linear-gradient(135deg, #0b2f61, #3a78b4);
-  --gradient-3: linear-gradient(135deg, #d4af37, #b8860b);
-  --shadow: 0 4px 8px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.05);
+  --gradient-3: linear-gradient(135deg, #16468a, #0b2f61);
 }
 
 *, *::before, *::after { 
@@ -428,10 +428,13 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.15);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--surface-3);
 }
+.sheet-header > .sheet-title { min-width: 0; }
 
 [data-theme="light"] .sheet-header {
   border-bottom: 1px solid #dcdfe6;
@@ -455,25 +458,37 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .sheet-toggles {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
+  /* Each toggle keeps its label on one line, so the row has to be allowed to
+     wrap — otherwise three language names overflow a 320px card. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  min-width: 0;
 }
 
 .sheet-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  /* Was 22px tall on a touch screen. The visible type stays small; the target
+     does not. */
+  min-height: max(var(--control-sm), var(--tap-min));
   background: none;
   border: none;
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 4px;
-  transition: color 0.2s ease;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
 }
 
 [data-theme="light"] .sheet-toggle-btn {
-  color: #71829e;
+  color: var(--text-muted);
 }
 
 .sheet-toggle-btn:hover {
@@ -580,7 +595,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 [data-theme="light"] .tts-link-btn {
-  color: #71829e;
+  color: var(--text-muted);
 }
 
 .tts-link-btn:hover {
@@ -654,7 +669,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 [data-theme="light"] .sheet-tip {
-  color: #71829e;
+  color: var(--text-muted);
 }
 
 
@@ -664,14 +679,11 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   bottom: 32px;
   left: 32px;
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.05em;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-}
-[data-theme="light"] .hero-footer-sub {
-  color: var(--text-secondary);
 }
 .login-form-section {
   display: flex;
@@ -797,38 +809,60 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   opacity: 1;
 }
 
-/* Language Switcher Styling */
+/* Theme / language switcher */
 .lang-switcher {
-  background: rgba(11, 14, 22, 0.6);
+  background: var(--surface-nav);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
-  border-radius: 30px;
-  padding: 4px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2);
+  box-shadow: var(--shadow-lg);
+  transition: border-color var(--transition-fast);
 }
-[data-theme="light"] .lang-switcher {
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 12px 30px var(--accent-glow);
-}
-.lang-switcher:hover {
-  border-color: var(--border-light);
-  transform: translateY(-2px);
-}
-/* Floating Actions & Switchers */
+.lang-switcher:hover { border-color: var(--line-strong); }
+
+/* The floating pill is the only way to reach theme and language on the signed
+   out and classroom-picker screens, so it lives there. Inside a dashboard the
+   nav bar and the drawer already carry both controls, and a fixed pill in the
+   bottom-right corner sat on top of page content on every phone screen —
+   including, on the overview tab, directly over the reset-classroom button.
+   So it stands down wherever a dashboard is the active screen. */
 .floating-actions {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
+  bottom: max(var(--space-8), env(safe-area-inset-bottom, 0px));
+  right: var(--space-8);
+  z-index: var(--z-sticky);
+}
+body:has(#lecturer-dashboard.active) .floating-actions,
+body:has(#student-dashboard.active) .floating-actions {
+  display: none;
+}
+/* Where the pill does float, the screen under it reserves room so it never
+   sits on top of the last line of content. */
+.screen.active:not(#lecturer-dashboard):not(#student-dashboard) {
+  padding-bottom: calc(var(--control-lg) + var(--space-11));
 }
 .action-pill-container {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px !important;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) !important;
 }
+/* Compact by design. This control floats over page content, so it shows the
+   theme icon and a two-letter language code rather than "Theme: Dark | TR" —
+   a 160px label bar parked over a data table is obstruction, not affordance.
+   The full labels stay available to assistive tech and as tooltips. */
+.floating-actions #global-theme-toggle-text {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.floating-actions .btn-lang { padding-inline: var(--space-5); gap: var(--space-3); }
+.floating-actions .lang-icon { display: none; }
 .action-separator {
   color: var(--border);
   font-size: 14px;
@@ -853,7 +887,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 .study-vocab-card:hover {
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: var(--accent-line);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
@@ -887,8 +921,8 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   font-size: 14.5px;
   line-height: 1.3;
   color: var(--text-primary);
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.28);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
   padding: 4px 12px;
   border-radius: 20px;
   letter-spacing: 0.2px;
@@ -896,8 +930,8 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 [data-theme="light"] .vocab-meaning-pill {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.2);
+  background: var(--accent-glow);
+  border-color: var(--accent-line);
   color: var(--accent);
 }
 
@@ -908,9 +942,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   letter-spacing: 0.5px;
   padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(99, 102, 241, 0.12);
+  background: var(--accent-soft);
   color: var(--accent);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  border: 1px solid var(--accent-line);
 }
 
 .vocab-pedagogy-section {
@@ -1011,8 +1045,8 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   display: inline-block;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  background: var(--accent-soft);
+  color: var(--accent-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   font-weight: 600;
@@ -1047,18 +1081,21 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .btn-lang {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: max(var(--control-md), var(--tap-min));
+  padding: 0 var(--space-6);
   background: transparent;
   border: none;
-  border-radius: 25px;
+  border-radius: var(--radius-pill);
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
+.btn-lang:hover { color: var(--text-primary); }
 .btn-lang:hover {
   color: var(--text-primary);
 }
@@ -1113,58 +1150,123 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   color: var(--bg-primary);
 }
 
-.form-group { margin-bottom: 20px; }
-.form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-.form-group input, .text-input, .select-input {
+/* ── Forms ───────────────────────────────────────────────
+   Labels are sentence case, not uppercase micro-type: a form is read, not
+   scanned, and uppercase 13px with letter-spacing is the single biggest
+   reason the create flows read as a template rather than a product. */
+.form-group { margin-bottom: var(--space-7); }
+.form-group label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-3);
+  text-transform: none;
+  letter-spacing: var(--ls-normal);
+}
+.form-group input, .form-group select, .form-group textarea,
+.text-input, .select-input {
   width: 100%;
-  padding: 10px 14px;
+  min-height: max(var(--control-lg), var(--tap-min));
+  padding: var(--space-4) var(--space-5);
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--fs-md);
   font-family: inherit;
-  transition: var(--transition);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
-.form-group input:focus, .text-input:focus, .select-input:focus {
+.form-group textarea { min-height: 96px; line-height: var(--lh-normal); resize: vertical; }
+.form-group input:hover, .text-input:hover, .select-input:hover { border-color: var(--line-strong); }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus,
+.text-input:focus, .select-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-glow);
+  box-shadow: var(--focus-ring);
+}
+.form-group input:disabled, .text-input:disabled, .select-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* 16px is the threshold below which iOS zooms the viewport on focus. */
+@media (pointer: coarse) {
+  .form-group input, .form-group select, .form-group textarea,
+  .text-input, .select-input { font-size: 16px; }
 }
 
-/* ── Buttons ─────────────────────────────────────────── */
+/* ── Buttons ─────────────────────────────────────────────
+   Four weights and one size ladder. Primary is gold and is meant to appear
+   once per view; secondary is a bordered navy; ghost carries no chrome until
+   you touch it; danger is reserved for destruction. Sizes come from
+   --control-*, so nothing sets its own height any more. */
 .btn {
+  --btn-h: var(--control-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border: none;
-  border-radius: var(--radius-sm);
+  gap: var(--space-4);
+  min-height: max(var(--btn-h), var(--tap-min));
+  padding: 0 var(--space-6);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-snug);
+  line-height: 1.25;
   cursor: pointer;
-  transition: var(--transition);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* Primary: the one gold action. Gold on navy needs dark text to stay legible. */
 .btn-primary {
-  background: var(--gradient-1);
-  color: #fff;
-  box-shadow: 0 2px 12px var(--accent-glow);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
-.btn-full { width: 100%; justify-content: center; padding: 14px; font-size: 15px; }
-.btn-ghost { background: transparent; color: var(--text-secondary); }
-.btn-ghost:hover { color: var(--text-primary); }
-.btn-outline {
+.btn-primary:hover { background: var(--accent-light); border-color: var(--accent-light); }
+.btn-primary:active { background: var(--accent); }
+
+/* Secondary: structure without shouting. */
+.btn-outline,
+.btn-secondary {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-primary);
 }
-.btn-outline:hover { border-color: var(--accent); background: var(--accent-glow); }
-.btn-sm { padding: 6px 14px; font-size: 13px; }
-.btn-success { background: var(--success); color: #fff; }
-.btn-danger { background: var(--danger); color: #fff; }
+.btn-outline:hover, .btn-secondary:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-hover);
+}
+[data-theme="light"] .btn-outline:hover, [data-theme="light"] .btn-secondary:hover {
+  background: var(--surface-3);
+}
+
+/* Ghost: for tertiary and in-toolbar actions. */
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { color: var(--text-primary); background: var(--surface-hover); }
+[data-theme="light"] .btn-ghost:hover { background: var(--surface-3); }
+
+.btn-success { background: var(--success); border-color: var(--success); color: var(--accent-contrast); }
+.btn-danger  { background: var(--danger);  border-color: var(--danger);  color: #fff; }
+/* Destructive actions that are not the main event: readable, clearly hazardous,
+   but not competing with the primary button for attention. */
+.btn-danger-quiet {
+  background: var(--danger-bg);
+  border-color: var(--tone-line, rgba(248, 113, 113, 0.32));
+  color: var(--danger);
+}
+.btn-danger-quiet:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+.btn-full { width: 100%; }
+.btn-xs { --btn-h: var(--control-xs); padding: 0 var(--space-4); font-size: var(--fs-xs); gap: var(--space-3); }
+.btn-sm { --btn-h: var(--control-sm); padding: 0 var(--space-5); font-size: var(--fs-sm); }
+.btn-lg { --btn-h: var(--control-lg); padding: 0 var(--space-8); font-size: var(--fs-md); }
+
+.btn:disabled, .btn[disabled] { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.btn > svg { width: var(--icon); height: var(--icon); flex-shrink: 0; }
 
 .error-msg { color: var(--danger); font-size: 14px; margin-top: 12px; text-align: center; }
 .hidden { display: none !important; }
@@ -1192,27 +1294,29 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .topnav {
   display: flex;
   align-items: center;
-  padding: 0 24px;
-  height: 56px;
-  background: rgba(14, 18, 29, 0.75);
+  gap: var(--space-5);
+  padding: 0 var(--gutter);
+  height: var(--topnav-h);
+  /* Was a hardcoded rgba(14,18,29,.75) that matched nothing in the palette,
+     which is why the bar read as a different, greyer navy than the page. */
+  background: var(--surface-nav);
   border-bottom: 1px solid var(--border);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: var(--z-topnav);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
-[data-theme="light"] .topnav {
-  background: rgba(255, 255, 255, 0.8);
-}
+[data-theme="light"] .topnav { background: var(--surface-nav); }
 .nav-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-right: 16px;
+  gap: var(--space-4);
+  margin-right: var(--space-2);
   flex-shrink: 0;
+  min-width: 0;
 }
 .nav-logo { font-size: 20px; }
 .nav-logo-img { height: 28px; width: auto; object-fit: contain; }
@@ -1229,36 +1333,42 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   letter-spacing: 0.8px;
 }
 .student-badge { background: linear-gradient(135deg, #10b981, #059669); }
+/* The tab row is the nav's flexible zone. min-width:0 lets it yield to the
+   fixed zones, and overflow-x means that if it ever does run out of room the
+   tabs scroll instead of being silently clipped at the right edge — which is
+   what was happening at 1280-1440px, where "Messages" disappeared under the
+   account controls. */
 .nav-tabs {
   display: flex;
-  gap: 6px;
-  flex: 1;
+  gap: var(--space-1);
+  flex: 1 1 auto;
   min-width: 0;
   justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.nav-tabs::-webkit-scrollbar { display: none; }
 .nav-tab {
-  height: 34px;
-  padding: 0 14px;
+  height: var(--control-sm);
+  padding: 0 var(--space-4);
+  flex: 0 0 auto;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   white-space: nowrap;
   cursor: pointer;
-  transition: var(--transition);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 .nav-tab:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.03);
-}
-[data-theme="light"] .nav-tab:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--fill-hover);
 }
 .nav-tab.active {
   color: var(--text-primary);
@@ -1301,11 +1411,12 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 
 /* ── Dashboard Content ───────────────────────────────── */
 .dashboard-content { max-width: 1280px; margin: 0 auto; padding: 84px 24px 32px; }
+/* The study surfaces are wider than the rest of the product, but they keep the
+   same side gutter — a 20px inset here against a 16px page gutter elsewhere is
+   exactly the kind of 4px drift that makes tabs feel like separate apps. */
 .dashboard-content:has(#tab-study-materials.active),
 .dashboard-content:has(#tab-s-study-tab.active) {
-  max-width: 1560px;
-  padding-left: 20px;
-  padding-right: 20px;
+  max-width: var(--container-wide);
 }
 
 @keyframes tabFadeSlide {
@@ -1334,60 +1445,137 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   }
 }
 
-.page-header { margin-bottom: 28px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
-.page-header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
-.subtitle { color: var(--text-secondary); font-size: 15px; margin-top: 4px; }
+/* ── Page header ─────────────────────────────────────────
+   Title and its supporting line form one block on the left; page actions sit
+   on the right and drop below the title when there is no room for both. The
+   old rule let a 28px h1 and the action share one line at any width, which is
+   why the mobile dashboard title collided with the greeting beside it. */
+.page-header {
+  margin-bottom: var(--space-9);
+  /* A two-column grid with explicit placement, because the markup uses two
+     shapes: sometimes <h1> and <p class="subtitle"> are direct siblings,
+     sometimes they are wrapped in a div next to an action. With flex and
+     space-between, the first shape threw the subtitle to the far right of the
+     screen, a thousand pixels from the title it belongs to. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: var(--space-8);
+  row-gap: var(--space-4);
+}
+.page-header > h1            { grid-area: 1 / 1 / 2 / 2; min-width: 0; }
+.page-header > .subtitle     { grid-area: 2 / 1 / 3 / 2; min-width: 0; }
+.page-header > div:first-child { grid-area: 1 / 1 / 3 / 2; min-width: 0; }
+.page-header > .page-actions,
+.page-header > .btn,
+.page-header > button {
+  grid-area: 1 / 2 / 3 / 3;
+  justify-self: end;
+  align-self: end;
+}
+.page-header h1 {
+  font-size: var(--fs-4xl);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+}
+.page-header .subtitle { margin-top: var(--space-3); }
+/* Action cluster on the right of a page header. */
+.page-header .page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+.subtitle { color: var(--text-secondary); font-size: var(--fs-md); line-height: var(--lh-snug); }
 
-/* ── Stats Grid ──────────────────────────────────────── */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 28px; }
+/* ── Stats ───────────────────────────────────────────────
+   A metric row is a scoreboard, not a colour chart. Values are plain text in
+   the primary colour and only take a status colour when the status is the
+   point. The old .accent painted the number with the navy page gradient and
+   clipped it to the glyphs, which made it almost invisible on a navy card. */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-9);
+}
 .stat-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  transition: var(--transition);
+  padding: var(--space-7);
+  transition: border-color var(--transition-fast);
 }
-.stat-card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
+.stat-card:hover { border-color: var(--line-strong); }
 .stat-label {
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: var(--ls-caps);
   color: var(--text-muted);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
 }
-.stat-value { font-size: 32px; font-weight: 800; margin-top: 6px; letter-spacing: -1px; }
-.stat-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
-.stat-value.accent { background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.stat-value {
+  font-size: var(--fs-5xl);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  margin-top: var(--space-4);
+  letter-spacing: var(--ls-tight);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-3);
+  line-height: var(--lh-snug);
+}
+/* Status variants stay available for the metrics where the colour carries
+   meaning (at-risk counts, failing averages) rather than decorating. */
+.stat-value.accent  { color: var(--text-primary); }
 .stat-value.success { color: var(--success); }
 .stat-value.warning { color: var(--warning); }
-.stat-value.danger { color: var(--danger); }
+.stat-value.danger  { color: var(--danger); }
 
-/* ── Cards ────────────────────────────────────────────── */
+/* ── Cards ───────────────────────────────────────────────
+   A card is a grouping device. Header and body share one horizontal rhythm so
+   a title always sits on the same optical line as the content beneath it, and
+   the card carries no shadow of its own — the border does the separating, and
+   elevation is reserved for things that genuinely float. */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
-  transition: var(--transition);
+  margin-bottom: var(--space-6);
+  transition: border-color var(--transition-fast);
 }
 .card-header {
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--line-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
 }
-.card-header h3 { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15.5px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.015em; }
-.card-body { padding: 24px; }
+.card-header h3 {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-snug);
+  min-width: 0;
+}
+.card-body { padding: var(--space-8); }
+/* A card whose body is nothing but a state should not also draw a header rule
+   above an empty box. */
+.card-body > .empty-state:only-child { padding-block: var(--space-9); }
 
-.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* Two-column layouts collapse at the tablet breakpoint (see the responsive
+   section); min-width:0 keeps a wide child from pushing the grid open. */
+.grid-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
 
 /* ── Curriculum Tree ─────────────────────────────────── */
 .chapter-block {
@@ -1435,7 +1623,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   margin-bottom: 4px;
   transition: var(--transition);
 }
-.topic-item:hover { background: rgba(255,255,255,0.03); }
+.topic-item:hover { background: var(--fill-hover); }
 .topic-info { display: flex; align-items: center; gap: 12px; }
 .topic-type-badge {
   padding: 3px 10px;
@@ -1575,19 +1763,22 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   gap: 12px;
   margin-bottom: 14px;
 }
+/* Initials marker. One quiet accent-tinted treatment across the roster: the
+   name is the identifier, the marker is only a place for the eye to land. */
 .student-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  font-size: 15px;
-  color: #ffffff;
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-sm);
+  background: var(--marker-bg);
+  border: 1px solid var(--marker-line);
+  color: var(--marker-fg);
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  letter-spacing: -0.5px;
+  letter-spacing: var(--ls-normal);
 }
 .student-info-block {
   flex: 1;
@@ -1611,9 +1802,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .student-school-num {
   font-size: 11.5px;
   color: var(--text-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -1627,13 +1818,16 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   background: rgba(34, 197, 94, 0.12);
   color: #22c55e;
   border: 1px solid rgba(34, 197, 94, 0.25);
+  white-space: nowrap;
 }
+/* The mastery readout used to be a bordered, filled box inside the card — a
+   card inside a card. It is now just a block with its own spacing; the
+   grouping is already obvious from position. */
 .student-metrics-box {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-block: var(--space-6);
 }
 .student-metrics-header {
   display: flex;
@@ -1660,8 +1854,8 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 .student-mastery-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 3px;
+  background: var(--fill-subtle);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 .student-mastery-fill {
@@ -1677,38 +1871,44 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
+/* Both row actions are secondary: messaging a student is not a more important
+   act than setting their password, and a gold fill repeated down a roster of
+   eight cards is emphasis with nothing to emphasise. */
 .student-btn-action {
-  flex: 1;
+  flex: 1 1 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: var(--space-3);
+  min-height: max(var(--control-sm), var(--tap-min));
+  padding: 0 var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
+  min-width: 0;
 }
 .student-btn-pw {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  border: 1px solid var(--border);
   color: var(--text-primary);
 }
 .student-btn-pw:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
 }
 .student-btn-msg {
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #ffffff;
-  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent-line);
+  color: var(--accent-light);
 }
+[data-theme="light"] .student-btn-msg { color: var(--accent); }
 .student-btn-msg:hover {
-  filter: brightness(1.12);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 .student-btn-kick {
   background: rgba(239, 68, 68, 0.08);
@@ -1774,36 +1974,80 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .topic-practice-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 
 /* ── Modal ────────────────────────────────────────────── */
+/* ── Overlays ────────────────────────────────────────────
+   Centred dialog on desktop, bottom sheet on phones and tablets. The scroll
+   lives on the content, so the close button stays reachable and nothing runs
+   off the bottom of a phone with no way to get back to it. */
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 20000;
-  backdrop-filter: blur(4px);
+  padding: var(--space-6);
+  z-index: var(--z-modal);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .modal-content {
-  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-overlay);
+  padding: var(--space-8);
   max-width: 640px;
-  width: 90%;
-  max-height: 80vh;
+  width: 100%;
+  max-height: min(86vh, 900px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   position: relative;
 }
+/* The close control is a real 44px target that stays pinned while the body
+   scrolls under it, rather than a 24px glyph that scrolls away. */
 .modal-close {
-  position: absolute;
-  top: 12px;
-  right: 16px;
+  /* .modal-content is a column flex container, so a float here would be
+     ignored; align-self is what actually parks it on the trailing edge. */
+  position: sticky;
+  top: calc(var(--space-8) * -1);
+  align-self: flex-end;
+  order: -1;
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) calc(var(--space-2) * -1) 0;
+  width: max(var(--control-md), var(--tap-min));
+  min-height: max(var(--control-md), var(--tap-min));
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   color: var(--text-muted);
-  font-size: 24px;
+  font-size: var(--fs-3xl);
+  line-height: 1;
   cursor: pointer;
+  z-index: var(--z-sticky);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.modal-close:hover { color: var(--text-primary); background: var(--surface-hover); }
+[data-theme="light"] .modal-close:hover { background: var(--surface-3); }
+
+/* A sticky action bar so the primary action of a long wizard is always in
+   reach instead of sitting below an invisible fold. */
+.modal-actions {
+  position: sticky;
+  bottom: calc(var(--space-8) * -1);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-5);
+  margin: var(--space-8) calc(var(--space-8) * -1) calc(var(--space-8) * -1);
+  padding: var(--space-6) var(--space-8);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--surface-2);
 }
 
 /* ── Quiz Taking ─────────────────────────────────────── */
@@ -1838,113 +2082,402 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 /* ── Responsive ──────────────────────────────────────── */
 
 /* Tablet */
-@media (max-width: 1200px) {
+/* Between roughly 1240px and 1500px the bar cannot show everything at full
+   size. Rather than clip the last tabs, it sheds chrome in order of
+   importance: first the "view classrooms" label, then the role badge, then
+   the tab labels. */
+@media (max-width: 1500px) {
+  .nav-back-btn .nav-back-label { display: none; }
+  .nav-back-btn { padding-inline: var(--space-4); }
+}
+@media (max-width: 1340px) {
+  .nav-badge { display: none; }
+  #nav-course-code { display: none; }
+}
+@media (max-width: 1240px) {
   .nav-title { display: none; }
   .tab-label { display: none; }
-  .nav-tab { padding: 8px; }
+  .nav-tab { padding: 0 var(--space-4); }
 }
 @media (max-width: 1024px) {
-  .grid-2col { grid-template-columns: 1fr; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .nav-brand { 
-    margin-right: 0; 
-    gap: 4px; 
-    flex: 1; 
+  .grid-2col { grid-template-columns: minmax(0, 1fr); }
+
+  /* The compact bar carries the menu, the mark, and the account actions.
+     Anything that cannot be read at this width is in the drawer instead —
+     the class name and code are shown in full in the drawer header. */
+  .nav-brand {
+    margin-right: 0;
+    gap: var(--space-3);
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    white-space: nowrap;
   }
   .nav-title { display: none; }
+  .nav-logo-img { height: 22px; }
+  .nav-badge { font-size: var(--fs-2xs); padding: var(--space-1) var(--space-4); flex-shrink: 0; }
+
+  #nav-course-name, #student-nav-course-name { display: none !important; }
+  .nav-separator { display: none; }
+
+  .nav-user { display: flex; gap: var(--space-3); align-items: center; }
+}
+
+/* Below 480px the role badge is the first thing to go: on a 320px screen it
+   was being clipped mid-word by the bar it sits in. The role is stated in
+   full at the top of the drawer. */
+@media (max-width: 480px) {
+  .nav-badge { display: none; }
   .nav-logo-img { height: 20px; }
-  .nav-badge { font-size: 9px; padding: 2px 6px; flex-shrink: 0; }
+}
+/* ^ The tablet block ends HERE. It used to run on for another 330 lines,
+   swallowing the messaging styles below and the whole mobile layout section,
+   so chat bubbles were unstyled on desktop and the "mobile" rules were really
+   "tablet and below". Closing it is the fix; the rules that follow are global
+   again, and the genuinely responsive ones live in their own blocks. */
 
-  #nav-course-name, #student-nav-course-name {
-    font-size: 11px !important;
-    max-width: 80px !important;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    border-left: 1px solid rgba(255,255,255,0.1) !important;
-    padding-left: 6px !important;
-    margin-left: 4px !important;
-  }
+/* ── Classroom picker ────────────────────────────────────
+   A tighter grid minimum than the default so a single class fills its row
+   rather than floating in a half-empty two-column layout. */
+/* One container width for the whole screen so the header, the class grid and
+   the roster table share a left edge. The grid minimum does the work of
+   keeping class cards from stretching absurdly wide. */
+.picker { --grid-min: 340px; }
+.picker__header { border-bottom: 1px solid var(--line-subtle); padding-bottom: var(--space-7); }
+.picker__admin { margin-top: var(--space-11); }
 
-  .nav-user {
-    display: flex !important;
-    gap: 4px;
-    align-items: center;
-  }
-  .nav-user .btn {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    white-space: nowrap;
-  }
+/* The class card's footer action fills the card and is the card's affordance,
+   so it reads as "enter" rather than as a second competing button. */
+.classroom-card > .btn:last-child {
+  border-radius: 0;
+  border-inline: none;
+  border-bottom: none;
+  border-top: 1px solid var(--line-subtle);
+  min-height: var(--control-xl);
+}
 
-  #theme-toggle-btn, #student-theme-toggle-btn {
-    font-size: 14px !important;
-    margin-right: 0 !important;
-    padding: 6px !important;
-  }
+/* ── Wizard steps ────────────────────────────────────────
+   The create flows are the product's most important screens. Steps are
+   numbered with a real marker rather than "1." typed into a label, and each
+   step is a block with its own rhythm so a three-step form reads as three
+   decisions instead of one long column of controls. */
+.wizard-intro {
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-snug);
+  margin-bottom: var(--space-9);
+  max-width: 52ch;
+}
+.wizard-step { margin-bottom: var(--space-9); }
+.wizard-step:last-of-type { margin-bottom: 0; }
+.wizard-step__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+.wizard-step__num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-glow);
+  color: var(--accent-light);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="light"] .wizard-step__num { color: var(--accent); }
+.wizard-step__label {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-snug);
+}
 
-  /* Sidebar Styles */
-  #sidebar-content {
-    background: var(--bg-secondary) !important;
-    border-right: 1px solid var(--border) !important;
-  }
-  .sidebar-item {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 12px !important;
-    padding: 10px 16px !important;
-    border-radius: 8px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    transition: var(--transition) !important;
-    margin-bottom: 4px;
-    border: 1px solid transparent !important;
-    width: calc(100% - 8px) !important;
-    margin-left: 4px;
-    color: var(--text-secondary) !important;
-    background: transparent !important;
-    font-family: 'Inter', sans-serif !important;
-  }
-  .sidebar-item:hover {
-    color: var(--text-primary) !important;
-    background: rgba(255, 255, 255, 0.03) !important;
-  }
-  [data-theme="light"] .sidebar-item:hover {
-    background: rgba(0, 0, 0, 0.03) !important;
-  }
-  .sidebar-item.active {
-    color: var(--text-primary) !important;
-    background: var(--accent-glow) !important;
-    border-color: var(--accent-glow) !important;
-    border-left: 3px solid var(--accent) !important;
-    border-radius: 0 var(--radius) var(--radius) 0 !important;
-    margin-left: 0;
-    width: 100% !important;
-  }
-  [data-theme="light"] .sidebar-item.active {
-    background: var(--accent-glow) !important;
-    border-color: var(--border) !important;
-    border-left-color: var(--accent) !important;
-    color: var(--accent) !important;
-  }
-  .sidebar-item:active {
-    transform: scale(0.98);
-  }
-  .sidebar-icon {
-    font-size: 18px;
-    width: 24px;
-    display: flex;
-    justify-content: center;
-  }
-  #nav-course-name {
-    display: none !important;
-  }
+/* ── Choice tiles ────────────────────────────────────────
+   Selectable options — target languages, CEFR levels. Compact single-line
+   rows so fifteen of them fit on a phone screen without a thousand pixels of
+   scrolling, with one selected treatment shared by every choice group. */
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: var(--space-4);
+}
+.choice-grid--level { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
 
-/* ── Messaging App Styles ── */
+.choice-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: max(var(--control-lg), var(--tap-min));
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+.choice-tile:hover { border-color: var(--line-strong); color: var(--text-primary); }
+.choice-tile.is-selected {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+}
+[data-theme="light"] .choice-tile.is-selected { color: var(--accent); }
+
+/* The ISO code reads as quiet leading metadata, not a coloured badge. */
+.choice-tile__code {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-wide);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.choice-tile.is-selected .choice-tile__code { color: var(--accent-light); }
+[data-theme="light"] .choice-tile.is-selected .choice-tile__code { color: var(--accent); }
+.choice-tile__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A table's card body carries no padding of its own: the table's own cell
+   padding provides the inset, so rows can run edge to edge on desktop and the
+   stacked records get their own spacing on phones. */
+.table-wrap { padding: 0; }
+.table-wrap > .data-table { margin: 0; }
+@media (max-width: 600px) {
+  .table-wrap { padding: var(--space-5); }
+}
+
+/* ── Danger zone ─────────────────────────────────────────
+   Destructive settings get their own block at the end of a page, visually
+   separated and honestly labelled, rather than a near-invisible ghost link in
+   a grey strip. */
+.danger-zone {
+  margin-top: var(--space-11);
+  padding: var(--space-6) var(--space-7);
+  border: 1px solid var(--tone-line, rgba(248, 113, 113, 0.22));
+  border-radius: var(--radius-lg);
+  background: var(--danger-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+.danger-zone__text { flex: 1 1 24rem; min-width: 0; }
+.danger-zone__title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-snug);
+}
+.danger-zone__body {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-2);
+  line-height: var(--lh-snug);
+  max-width: 62ch;
+}
+@media (max-width: 600px) {
+  .danger-zone { flex-direction: column; align-items: stretch; }
+  .danger-zone .btn { width: 100%; }
+}
+
+/* ── Mobile navigation drawer ────────────────────────────
+   The drawer is the primary navigation below 1024px, so it is built as a real
+   surface rather than a narrow strip of inline styles. It takes most of the
+   screen, groups the class tabs separately from the "leave this class" and
+   account actions, and its close control is a normal 44px target inside the
+   header instead of a 28px circle straddling the panel edge. */
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  pointer-events: none;
+}
+.drawer__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.drawer__panel {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  /* Wide enough for full menu labels in Turkish and German, capped so the
+     page behind stays visible as context. */
+  width: min(320px, 86vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border-inline-end: 1px solid var(--border);
+  transform: translateX(-102%);
+  /* The panel keeps its box-shadow only while open: parked off-screen its
+     60px blur still painted across the left edge of every page, which is what
+     that faint vertical band down the side of the dashboard was. visibility
+     also keeps the closed drawer out of the tab order. */
+  visibility: hidden;
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.28s;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+.drawer.is-open .drawer__panel {
+  visibility: visible;
+  box-shadow: var(--shadow-overlay);
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s;
+}
+.drawer.is-open { pointer-events: auto; }
+.drawer.is-open .drawer__scrim { opacity: 1; pointer-events: auto; }
+.drawer.is-open .drawer__panel { transform: translateX(0); }
+
+.drawer__header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  padding: calc(var(--space-7) + env(safe-area-inset-top, 0px)) var(--space-6) var(--space-6);
+  border-bottom: 1px solid var(--line-subtle);
+}
+.drawer__identity { min-width: 0; }
+.drawer__name {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--ls-snug);
+  overflow-wrap: anywhere;
+}
+.drawer__role {
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+.drawer__close { align-self: start; color: var(--text-muted); }
+.drawer__close svg { width: var(--icon-lg); height: var(--icon-lg); }
+
+/* Course name and code are separate lines: they used to butt together as
+   "Demo Classroom#11111" with nothing between them. */
+.drawer__course {
+  grid-column: 1 / -1;
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-subtle);
+  min-width: 0;
+}
+.drawer__course-name {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer__course-code {
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--accent-light);
+  margin-top: var(--space-2);
+  letter-spacing: var(--ls-wide);
+}
+
+.drawer__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.drawer__group { display: flex; flex-direction: column; gap: var(--space-1); }
+/* Separates the tabs of the current class from the actions that leave it. */
+.drawer__divider {
+  height: 1px;
+  border: none;
+  background: var(--line-subtle);
+  margin: var(--space-5) var(--space-5);
+}
+.sidebar-item--leave { color: var(--accent-light); }
+
+.drawer__section {
+  margin-top: auto;
+  padding-top: var(--space-7);
+}
+.drawer__section-label { margin-bottom: var(--space-4); padding-inline-start: var(--space-4); }
+.drawer__lang { justify-content: flex-start; gap: var(--space-5); }
+
+.drawer__footer {
+  flex: 0 0 auto;
+  padding: var(--space-5);
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line-subtle);
+}
+.drawer__signout {
+  justify-content: flex-start;
+  gap: var(--space-5);
+  color: var(--danger);
+}
+.drawer__signout:hover { background: var(--danger-bg); color: var(--danger); }
+
+/* Drawer nav items. One row height, one active treatment — a gold rail on the
+   leading edge — used for both roles. */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-5);
+  width: 100%;
+  min-height: max(var(--control-lg), var(--tap-min));
+  padding: var(--space-4) var(--space-5);
+  border: none;
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--radius);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  background: transparent;
+  text-align: start;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+.sidebar-item:hover { color: var(--text-primary); background: var(--surface-hover); }
+[data-theme="light"] .sidebar-item:hover { background: var(--surface-3); }
+.sidebar-item.active {
+  color: var(--text-primary);
+  background: var(--accent-glow);
+  border-inline-start-color: var(--accent);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+[data-theme="light"] .sidebar-item.active { color: var(--accent); }
+.sidebar-item > span:not(.sidebar-icon) { min-width: 0; }
+
+.sidebar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-lg);
+  flex-shrink: 0;
+}
+.sidebar-icon svg { width: var(--icon-lg); height: var(--icon-lg); }
+
+/* ── Messaging ───────────────────────────────────────── */
 .chat-container {
     display: flex;
     flex-direction: column;
@@ -2085,203 +2618,163 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
     }
 }
 
+/* ── Tablet and below: layout pattern changes ────────────
+   Below 1024px the top tab bar is replaced by the drawer, so the nav becomes
+   a compact bar and the content gets phone-appropriate gutters. These rules
+   used to be inside the same runaway block as the chat styles above. */
+/* ════════════════════════════════════════════════════════════════════════
+   RESPONSIVE LAYOUT
+   Two breakpoints carry the layout changes, and only two:
+
+     ≤ 1024px  the top tab bar gives way to the drawer, so the nav becomes a
+               compact bar and the page switches to phone gutters;
+     ≤ 600px   multi-column layouts become single column and side-by-side
+               controls stack.
+
+   Everything that used to be scattered through five overlapping blocks of
+   per-page overrides lives here, expressed once against the shared
+   primitives. Sizing comes from the tokens, so these rules change *layout*,
+   not magic numbers.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) {
   .topnav {
     position: fixed;
+    inset-inline: 0;
     top: 0;
-    left: 0;
-    right: 0;
     flex-wrap: nowrap;
     justify-content: flex-start;
-    padding: env(safe-area-inset-top, 0) 10px 0;
-    height: calc(52px + env(safe-area-inset-top, 0));
-    backdrop-filter: blur(12px);
-    overflow: hidden;
-    gap: 4px;
-    z-index: 1000;
+    padding: env(safe-area-inset-top, 0px) var(--space-5) 0;
+    height: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
+    gap: var(--space-4);
+    z-index: var(--z-topnav);
   }
 
-  /* Tabs → Hidden on mobile (moved to sidebar) */
-  .nav-tabs {
-    display: none !important;
-  }
-  .nav-tabs::-webkit-scrollbar { display: none; }
+  /* The tab row moves wholesale into the drawer rather than being squeezed
+     into a horizontally scrolling strip of 9px labels. */
+  .nav-tabs { display: none !important; }
 
-  .nav-tab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-width: 64px;
-    flex: 0 0 auto;
-    padding: 8px 6px 6px;
-    border-radius: 0;
-    background: transparent;
-    scroll-snap-align: center;
-    -webkit-tap-highlight-color: transparent;
-    position: relative;
-  }
-  .nav-tab:hover { background: transparent; }
-  .nav-tab.active {
-    background: transparent;
-    color: var(--accent-light);
-  }
-  .nav-tab.active::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 25%;
-    right: 25%;
-    height: 3px;
-    background: var(--accent);
-    border-radius: 0 0 4px 4px;
-  }
-
-  .tab-icon {
-    font-size: 20px;
-    margin-bottom: 2px;
-    display: block;
-    filter: grayscale(0.8) brightness(0.6);
-    transition: all 0.2s ease;
-  }
-  .nav-tab.active .tab-icon {
-    filter: none;
-    transform: scale(1.1);
-  }
-  .tab-label {
-    font-size: 9px;
-    line-height: 1.2;
-    white-space: nowrap;
-    letter-spacing: 0.2px;
-  }
-
-  /* Dashboard content — space for bottom nav */
+  /* Content clears the fixed bar and ends at the safe area. It used to
+     reserve 90px at the bottom for a mobile tab bar that does not exist,
+     which is where a chunk of the dead space at the foot of every phone
+     screen came from. */
   .dashboard-content {
-    padding: 68px 14px 16px;
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px));
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-7));
+    padding-inline: var(--gutter);
+    padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Handle notch and safe areas */
-  body {
-    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
-  }
+  /* Side insets belong to the scroll container, not to <body>: on body they
+     shift the fixed top bar out of alignment with the page under it. */
+  body { padding: 0; }
 
-  /* Page headers */
-  .page-header { 
-    margin-bottom: 20px; 
-    padding-top: 10px;
-  }
-  .page-header h1 { font-size: 24px; font-weight: 800; }
-  .subtitle { font-size: 14px; }
+  .page-header { margin-bottom: var(--space-8); }
+  .page-header h1 { font-size: var(--fs-3xl); }
+  .subtitle { font-size: var(--fs-base); }
 
-  /* Stats */
-  .stats-grid { 
-    grid-template-columns: repeat(2, 1fr); 
-    gap: 12px; 
-    margin-bottom: 24px; 
-  }
-  .stat-card { 
-    padding: 16px; 
-    border-radius: var(--radius-lg);
-    background: var(--bg-card);
-  }
-  .stat-value { font-size: 28px; }
-  .stat-label { font-size: 11px; letter-spacing: 1px; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: var(--space-5); margin-bottom: var(--space-8); }
+  .stat-card { padding: var(--space-6); }
+  .stat-value { font-size: var(--fs-4xl); }
 
-  /* Cards */
-  .card {
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow);
-  }
-  .card-header, .card-body { padding: 18px 20px; }
+  .card { margin-bottom: var(--space-5); }
+  .card-header { padding: var(--space-5) var(--space-6); }
+  .card-body { padding: var(--space-6); }
 
-  /* Forms */
-  .form-row { flex-direction: column; gap: 14px; }
-  .form-group label { font-size: 11px; margin-bottom: 8px; }
-  .form-group input { 
-    min-height: 52px; 
-    border-radius: var(--radius); 
-    font-size: 16px !important; /* Prevent iOS Zoom */
-  }
+  .grid-2col { grid-template-columns: minmax(0, 1fr); }
 
-  /* Grids */
-  .grid-2col { grid-template-columns: 1fr; }
-  .options-grid { grid-template-columns: 1fr; gap: 10px; }
-  .roster-grid { grid-template-columns: 1fr; gap: 10px; }
-  .topic-grid { grid-template-columns: 1fr; gap: 12px; }
-
-  /* Practice cards */
-  .topic-practice-card { 
-    padding: 18px; 
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .topic-practice-card .topic-name { font-size: 16px; }
-
-  /* Activity cards */
-  .activity-card { 
-    padding: 20px; 
-    border-radius: var(--radius-lg);
-  }
-  .activity-prompt { font-size: 17px; line-height: 1.4; }
-  .fill-blank-input { 
-    width: 100%; 
-    margin-bottom: 16px; 
-    min-height: 52px;
-  }
-
-  /* Curriculum */
-  .chapter-block { border-radius: var(--radius); margin-bottom: 12px; }
-  .chapter-header { padding: 18px 20px; }
-  .chapter-num { width: 32px; height: 32px; border-radius: var(--radius-sm); }
-
-  /* Student cards */
-  .student-card { 
-    padding: 18px 20px; 
-    border-radius: var(--radius-lg);
-  }
-
-  /* Modal — full screen on mobile */
+  /* Dialogs become bottom sheets. The panel keeps its column layout so the
+     sticky close and the sticky action bar still work — the old rule turned
+     it into a plain scrolling box, which is how the AI Architect ended up
+     running off the bottom of the screen with its primary button
+     unreachable. */
+  .modal { padding: 0; align-items: flex-end; }
   .modal-content {
     margin: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    max-height: 92vh;
-    padding: 32px 20px;
-    position: fixed;
+    width: 100%;
+    max-width: none;
+    max-height: 92svh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-bottom: none;
+    padding: var(--space-7) var(--space-6);
+    padding-bottom: calc(var(--space-7) + env(safe-area-inset-bottom, 0px));
+  }
+  /* When the sheet carries its own action bar, that bar owns the bottom inset
+     and sits flush with the sheet's edge. */
+  .modal-content:has(.modal-actions) { padding-bottom: 0; }
+  .modal-close { top: calc(var(--space-7) * -1); }
+  .modal-actions {
+    margin-inline: calc(var(--space-6) * -1);
+    margin-bottom: 0;
     bottom: 0;
-    left: 0;
-    right: 0;
-    box-shadow: var(--shadow-lg);
+    padding: var(--space-5) var(--space-6);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Buttons */
-  .btn { 
-    min-height: 48px; 
-    border-radius: var(--radius-sm);
-    font-size: 15px;
-  }
-  .btn-full { min-height: 54px; }
-
-  /* PDF Viewer on mobile */
   .pdf-container {
-    height: calc(100vh - 120px);
+    height: calc(100svh - 120px);
     border-radius: 0;
-    border-left: none;
-    border-right: none;
+    border-inline: none;
   }
 }
 
+@media (max-width: 600px) {
+  /* The metric row keeps the auto-fit track from the tablet rule rather than
+     being forced to one column: at 360-414px two 150px cards still fit and
+     read fine, and four full-width cards is 370px of scrolling for four
+     numbers. Below ~340px the track stops fitting and it collapses on its own.
+     Everything else that was two-up does become one-up. */
+  .options-grid,
+  .roster-grid,
+  .topic-grid  { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+
+  /* Page actions go full width and stack, instead of wrapping a label across
+     three lines inside a shrunken button. */
+  .page-header { grid-template-columns: minmax(0, 1fr); }
+  .page-header > h1            { grid-area: auto; }
+  .page-header > .subtitle     { grid-area: auto; }
+  .page-header > div:first-child { grid-area: auto; }
+  .page-header > .page-actions,
+  .page-header > .btn,
+  .page-header > button {
+    grid-area: auto;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .page-header .page-actions { display: flex; }
+  .page-header .page-actions > .btn { flex: 1 1 auto; }
+
+  .card-header { flex-wrap: wrap; }
+  .card-header > .btn { width: 100%; }
+
+  .form-row { flex-direction: column; gap: var(--space-5); }
+  /* A form's submit in a single-column layout spans the column: a 180px
+     button floating at the left of a full-width field stack reads as unrelated
+     to it. */
+  .card-body > .btn-primary,
+  .card-body > form > .btn-primary,
+  .form-actions > .btn { width: 100%; }
+
+  .chapter-header { padding: var(--space-5) var(--space-6); }
+  .student-card { padding: var(--space-6); }
+  .activity-card { padding: var(--space-6); }
+  .activity-prompt { font-size: var(--fs-lg); line-height: var(--lh-snug); }
+  .fill-blank-input { width: 100%; margin-bottom: var(--space-6); }
+
+  /* A sheet's actions stack, primary first (it is last in the DOM, so the
+     visual order is reversed rather than the markup). */
+  .modal-actions { flex-direction: column-reverse; align-items: stretch; }
+  .modal-actions > .btn { width: 100%; }
+}
+
 /* Small phones (iPhone SE, etc) */
+/* Small phones. The previous rules here forced the metric row back to two
+   columns and shrank the type to 22px/8px to make it fit — the narrowest
+   screen was getting the densest layout. It now keeps the single column the
+   600px breakpoint establishes, and only the gutter tightens. */
 @media (max-width: 375px) {
-  .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stat-card { padding: 12px; }
-  .stat-value { font-size: 22px; }
-  .topic-grid { grid-template-columns: 1fr; }
-  .nav-tab { min-width: 56px; }
-  .tab-label { font-size: 8px; }
-  .tab-icon { font-size: 18px; }
-  .page-header h1 { font-size: 20px; }
+  :root { --gutter: 12px; }
+  .stat-card { padding: var(--space-5); }
+  .page-header h1 { font-size: var(--fs-2xl); }
 }
 
 /* Mobile Login Optimization */
@@ -2354,10 +2847,10 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
     margin: 0 auto !important;
     width: 100% !important;
     max-width: 480px !important;
-    font-size: 11px !important;
-    color: rgba(255, 255, 255, 0.4) !important;
+    font-size: var(--fs-2xs) !important;
+    color: var(--text-muted) !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: var(--ls-wide) !important;
   }
   .login-form-section h2 { font-size: 24px; }
   .login-hint { font-size: 14px; margin-bottom: 24px; }
@@ -3011,6 +3504,25 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .mobile-only { display: none !important; }
 .pc-only { display: flex; }
 
+/* Nav utility controls: theme and language sit together at the end of the bar
+   with one treatment. The theme toggle used to be .mobile-only (the floating
+   pill covered its job on desktop) and the language button was a bordered box
+   next to a borderless icon — two controls doing the same class of work,
+   styled as if unrelated. */
+#theme-toggle-btn, #student-theme-toggle-btn {
+  color: var(--text-secondary);
+}
+#theme-toggle-btn .theme-svg-icon,
+#student-theme-toggle-btn .theme-svg-icon { width: var(--icon-lg); height: var(--icon-lg); }
+.nav-lang-btn {
+  min-width: max(var(--control-sm), var(--tap-min));
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--ls-wide);
+  color: var(--text-secondary);
+}
+#theme-toggle-btn:hover, #student-theme-toggle-btn:hover, .nav-lang-btn:hover { color: var(--text-primary); }
+
 .ai-badge {
   display: inline-flex;
   align-items: center;
@@ -3148,48 +3660,40 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
     box-shadow: none !important;
 }
 
-/* Global Academic Visual Sheet Overrides */
-.card, 
-.classroom-card, 
-.student-card, 
-.method-card, 
-.stat-card, 
-.chapter-block, 
-.topic-practice-card, 
-.activity-card, 
-.modal-content, 
-.chat-wrapper, 
+/* The sharp, unshadowed academic treatment these three blanket !important
+   rules used to enforce is now a property of the components themselves: every
+   surface, control and indicator takes its corner from the radius scale and
+   none of them carry decorative elevation. Keeping the sledgehammer as well
+   only meant it also flattened the two places where elevation is meaningful —
+   the overlay and the drawer — and overrode the sheet's own corner radius,
+   which is what left the AI Architect's action bar floating 40px above the
+   bottom of the sheet on a phone. */
+.card,
+.classroom-card,
+.student-card,
+.method-card,
+.stat-card,
+.chapter-block,
+.topic-practice-card,
+.activity-card,
+.chat-wrapper,
 .syllabus-chapter,
 .report-card,
 .study-card {
-  border-radius: var(--radius-lg) !important;
-  box-shadow: none !important;
-  border: 1px solid var(--border) !important;
+  box-shadow: none;
 }
 
-.btn, 
-.demo-btn, 
-.option-btn, 
-.btn-lang, 
-.lang-switcher,
-.fill-blank-input,
-.text-input,
-.select-input {
-  border-radius: var(--radius-sm) !important;
-  box-shadow: none !important;
-}
-
-.classroom-status, 
-.nav-badge, 
-.progress-bar-container, 
-.student-mastery-bar, 
+.classroom-status,
+.nav-badge,
+.progress-bar-container,
+.student-mastery-bar,
 .progress-bar,
 .student-mastery-fill,
 .progress-fill,
 .progress-bar-fill,
 .tag-badge {
-  border-radius: var(--radius-sm) !important;
-  box-shadow: none !important;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
 }
 
 /* Chat bubble styling: clean sheets rather than round SaaS bubbles */
@@ -3211,7 +3715,8 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .checkbox-container {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 10px !important;
+  min-height: max(var(--control-md), var(--tap-min));
+  gap: var(--space-5) !important;
   cursor: pointer !important;
   user-select: none !important;
   font-size: 13px !important;
@@ -3361,7 +3866,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--accent-soft);
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -3376,10 +3881,10 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   font-weight: 800;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--accent-glow);
   padding: 4px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid var(--accent-line);
 }
 .build-banner-detail {
   font-size: 13px;
@@ -3411,9 +3916,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 .build-step-node.active {
   color: var(--accent);
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--accent-soft);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.3);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
 }
 .build-step-node.done {
   color: var(--success, #10b981);
@@ -3437,7 +3942,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 .build-banner-fill {
   height: 100%;
-  background: linear-gradient(90deg, #6366f1, #3b82f6, #06b6d4);
+  background: var(--gradient-2);
   width: 0%;
   border-radius: 10px;
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -3476,14 +3981,14 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 .study-dialogue-card:hover {
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: var(--accent-line);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
 }
 
 .study-dialogue-card.speaker-a {
   border-left: 4px solid var(--accent);
   border-radius: 16px 16px 16px 6px;
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, rgba(0, 0, 0, 0) 100%), var(--bg-input);
+  background: linear-gradient(180deg, var(--accent-glow) 0%, rgba(0, 0, 0, 0) 100%), var(--bg-input);
 }
 
 .study-dialogue-card.speaker-b {
@@ -3521,9 +4026,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 .speaker-a .dialogue-speaker-avatar {
-  background: rgba(99, 102, 241, 0.18);
+  background: var(--accent-soft);
   color: var(--accent);
-  border: 1.5px solid rgba(99, 102, 241, 0.45);
+  border: 1.5px solid var(--accent-line);
 }
 
 .speaker-b .dialogue-speaker-avatar {
@@ -3599,13 +4104,129 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 .dialogue-trans-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill-hover);
   color: var(--text-primary);
   border-color: var(--accent);
 }
 
 .dialogue-trans-toggle-btn.active {
-  background: rgba(99, 102, 241, 0.15);
+  background: var(--accent-soft);
   color: var(--accent);
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: var(--accent-line);
 }
+
+
+/* ── Touch target floor ──────────────────────────────────
+   Icon-only controls carry no label to give them width, so they were ending
+   up 24px and 36px wide. These are the real interactive elements of the
+   product — a delete on a class card, the pronunciation button beside a
+   sentence — and they get a proper square target. */
+.btn-ghost:not(.btn-full):empty,
+.btn-ghost > svg:only-child { pointer-events: none; }
+
+.btn.btn-ghost.btn-sm,
+.btn.btn-ghost.btn-xs {
+  min-width: max(var(--control-sm), var(--tap-min));
+}
+.tts-btn,
+.tts-link-btn,
+.mobile-menu-btn,
+button.mobile-only {
+  min-width: max(var(--control-md), var(--tap-min));
+  min-height: max(var(--control-md), var(--tap-min));
+}
+
+/* The brand block doubles as a control, so it gets a row height rather than
+   hugging a 20px logo. */
+.nav-brand { min-height: max(var(--control-md), var(--tap-min)); }
+
+/* ── Top bar chrome ──────────────────────────────────────
+   The class name and code used to carry their layout in inline style
+   attributes, so the breakpoint ladder could not reach them and the bar had
+   no way to shed weight as it narrowed. */
+.nav-course-name {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  border-inline-start: 1px solid var(--border);
+  padding-inline-start: var(--space-4);
+  margin-inline-start: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14ch;
+}
+.nav-course-code {
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-line);
+  margin-inline-start: var(--space-3);
+  white-space: nowrap;
+}
+.nav-back-btn {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  margin-inline-end: var(--space-2);
+}
+.nav-back-btn:hover { color: var(--text-primary); }
+
+/* ── Selects ─────────────────────────────────────────────
+   Native select chrome is a different shape, colour and height on every
+   platform, so next to a styled text input it reads as a foreign control.
+   These draw their own chevron and match the input ladder exactly. */
+.select-input,
+select.text-input,
+.form-group select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-inline-end: var(--space-10);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right var(--space-6) center,
+    right calc(var(--space-6) - 5px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.select-input:disabled,
+select.text-input:disabled { cursor: not-allowed; }
+/* The dropdown list itself is drawn by the OS; give it readable colours. */
+.select-input option,
+select.text-input option,
+.form-group select option {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+/* A caveat about what a form will produce, placed above the action it
+   qualifies rather than orphaned below it. */
+.form-note {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+  max-width: 72ch;
+  margin-bottom: var(--space-6);
+}
+
+/* ── Form measure ────────────────────────────────────────
+   A single field stretched across a 1200px card is hard to scan and makes a
+   short form look unfinished. Fields in a full-width card get a comfortable
+   measure; fields inside a .form-row keep sharing the row equally. */
+.card-body > .form-group > input,
+.card-body > .form-group > select,
+.card-body > .form-group > textarea,
+.card-body > form > .form-group > input,
+.card-body > form > .form-group > select,
+.card-body > form > .form-group > textarea {
+  max-width: 44rem;
+}
+.form-row .form-group > input,
+.form-row .form-group > select,
+.form-row .form-group > textarea { max-width: none; }

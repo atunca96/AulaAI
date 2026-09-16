@@ -161,6 +161,36 @@ async function speakText(text, lang) {
 const TTS_SVG_IDLE = '<svg style="width:16px;height:16px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
 const TTS_SVG_PLAYING = '<svg style="width:16px;height:16px;display:inline-block;vertical-align:middle;color:var(--accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
 const SVG_TRASH = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+
+// ── Empty states ───────────────────────────────────────────────────────────
+// Every "nothing here yet" surface used to be an ad-hoc <p> in muted grey, or
+// in one case a 36px 📚 emoji standing in for an illustration. One helper, one
+// treatment: a small line mark, a title that says what is missing, a sentence
+// that says what to do about it, and an optional action.
+const EMPTY_MARKS = {
+  list:    '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  people:  '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>',
+  book:    '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  chart:   '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  check:   '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  quiz:    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'
+};
+
+function emptyState(title, body, opts) {
+  opts = opts || {};
+  const mark = EMPTY_MARKS[opts.mark || 'list'] || EMPTY_MARKS.list;
+  const cls = opts.compact ? 'empty-state empty-state-sm' : 'empty-state';
+  const action = opts.action
+    ? `<div class="empty-state__action">${opts.action}</div>`
+    : '';
+  const bodyEl = body ? `<p class="empty-state__body">${body}</p>` : '';
+  return `<div class="${cls}">
+    <span class="empty-state__mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${mark}</svg></span>
+    <p class="empty-state__title">${title}</p>
+    ${bodyEl}${action}
+  </div>`;
+}
 const SVG_EDIT = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 const SVG_GEAR = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 const SVG_BOOK = '<svg style="width:14px;height:14px;display:inline-block;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
@@ -311,12 +341,16 @@ function toggleSidebar() {
   const overlay = document.getElementById('sidebar-overlay');
   if (!sidebar || !content) return;
 
-  const isOpen = content.style.transform === 'translateX(220px)';
+  // Open state is a class rather than an inline translateX(220px), so the
+  // drawer's width is owned by CSS and can adapt to the viewport instead of
+  // being pinned to one magic number in two places.
+  const isOpen = sidebar.classList.contains('is-open');
   if (isOpen) {
-    content.style.transform = 'translateX(0)';
-    overlay.style.opacity = '0';
-    overlay.style.pointerEvents = 'none';
-    sidebar.style.pointerEvents = 'none';
+    sidebar.classList.remove('is-open');
+    content.style.transform = '';
+    overlay.style.opacity = '';
+    overlay.style.pointerEvents = '';
+    sidebar.style.pointerEvents = '';
     document.body.style.overflow = '';
     document.body.style.touchAction = '';
   } else {
@@ -354,10 +388,11 @@ function toggleSidebar() {
     // Apply translations to sidebar elements
     applyTranslations();
 
-    content.style.transform = 'translateX(220px)';
-    overlay.style.opacity = '1';
-    overlay.style.pointerEvents = 'auto';
-    sidebar.style.pointerEvents = 'auto';
+    sidebar.classList.add('is-open');
+    content.style.transform = '';
+    overlay.style.opacity = '';
+    overlay.style.pointerEvents = '';
+    sidebar.style.pointerEvents = '';
     document.body.style.overflow = 'hidden';
     document.body.style.touchAction = 'none'; // Prevent background touch/scroll
   }
@@ -820,6 +855,8 @@ const i18n = {
     Kick: 'Kick', 'Mastery:': 'Mastery:', responses: 'responses',
     // Reports
     'report.title': 'Weekly Report', 'report.subtitle': 'AI-generated class performance analysis', 'report.generate': 'Report',
+    'report.no_data': 'No data yet', 'report.no_data_body': 'Figures appear here once students start answering.',
+    'no_at_risk': 'No at-risk students',
     'Content Map': 'Content Map', 'You': 'You',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — Content Map',
@@ -867,9 +904,9 @@ const i18n = {
     'class.ai_architect': 'AI Architect',
     'class.ai_architect_desc': 'No PDF? Just tell AI the language and level, and it creates the course.',
     'ai.tell_teach': 'Tell AI what you want to teach',
-    'ai.select_lang': '1. Select Language',
-    'ai.target_level': '2. Target Level',
-    'ai.course_name': '3. Course Name',
+    'ai.select_lang': 'Select Language',
+    'ai.target_level': 'Target Level',
+    'ai.course_name': 'Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
     'ai.gen_curriculum': 'Generate Curriculum',
     'ai.clear_cache': 'Clear Cached Blueprints',
@@ -895,9 +932,9 @@ const i18n = {
     'class.toc_range_hint': 'If left empty, AI will use the Manual Syllabus above as the primary source.',
 
     // Student Portal
-    'ai.select_lang': '1. Select Language',
-    'ai.target_level': '2. Target Level',
-    'ai.course_name': '3. Course Name',
+    'ai.select_lang': 'Select Language',
+    'ai.target_level': 'Target Level',
+    'ai.course_name': 'Course Name',
     'ai.name_placeholder': 'e.g. Intensive Language Course',
     'ai.gen_curriculum': 'Generate Curriculum',
     'loading': 'Loading...',
@@ -1188,9 +1225,9 @@ const i18n = {
     'privacy.h3': '3. Haklarınız',
     'privacy.p3': 'Öğrenciler ve öğretim elemanları, PIN kodlarının sıfırlanmasını talep etme, müfredat geçmişlerini görüntüleme veya hesap veri tabanlarının kalıcı olarak silinmesini isteme hakkına sahiptir. Sorularınız için rkahraman@marmara.edu.tr adresine e-posta gönderebilirsiniz.',
     page: 'SAYFA',
-    'ai.select_lang': '1. Dil Seçin',
-    'ai.target_level': '2. Hedef Seviye',
-    'ai.course_name': '3. Kurs Adı',
+    'ai.select_lang': 'Dil Seçin',
+    'ai.target_level': 'Hedef Seviye',
+    'ai.course_name': 'Kurs Adı',
     'ai.name_placeholder': 'ör. Yoğun İspanyolca Yaz Kursu',
     'ai.gen_curriculum': 'Müfredat Oluştur',
     'loading': 'Yükleniyor...',
@@ -1422,6 +1459,8 @@ const i18n = {
     // Reports
     'report.title': 'Haftalık Rapor', 'report.subtitle': 'Yapay zeka destekli sınıf performans analizi',
     'report.generate': 'Rapor Oluştur',
+    'report.no_data': 'Henüz veri yok', 'report.no_data_body': 'Öğrenciler yanıt vermeye başlayınca veriler burada görünecek.',
+    'no_at_risk': 'Riskli öğrenci yok',
     'Content Map': 'İçerik Haritası', 'You': 'Siz', 'Curriculum': 'Müfredat',
     // Curriculum
     'Aula Internacional Plus 1 — Content Map': 'Aula Internacional Plus 1 — İçerik Haritası',
@@ -1476,9 +1515,9 @@ const i18n = {
     'class.ai_architect': 'Yapay Zeka Mimarı',
     'class.ai_architect_desc': 'PDF yok mu? Yapay zekaya dili ve seviyeyi söyleyin, o kursu oluştursun.',
     'ai.tell_teach': 'Yapay zekaya ne öğretmek istediğinizi söyleyin',
-    'ai.select_lang': '1. Dil Seçin',
-    'ai.target_level': '2. Hedef Seviye',
-    'ai.course_name': '3. Kurs Adı',
+    'ai.select_lang': 'Dil Seçin',
+    'ai.target_level': 'Hedef Seviye',
+    'ai.course_name': 'Kurs Adı',
     'ai.name_placeholder': 'Örn: Yoğun İspanyolca Yaz Kursu',
     'ai.gen_curriculum': 'Müfredatı Oluştur',
     'ai.clear_cache': 'Önbellekteki Taslakları Temizle',
@@ -1793,10 +1832,10 @@ function applyTranslations(root = document) {
     langBtn.setAttribute('data-i18n', 'langBtn');
     langBtn.textContent = currentLang === 'en' ? 'EN' : 'TR';
   }
-  const studentLangBtn = document.getElementById('student-lang-btn');
-  if (studentLangBtn) {
-    studentLangBtn.textContent = currentLang === 'en' ? 'EN' : 'TR';
-  }
+  // Both dashboards carry the same control, so both labels update.
+  document.querySelectorAll('.nav-lang-btn').forEach(b => {
+    b.textContent = currentLang === 'en' ? 'EN' : 'TR';
+  });
   const sidebarLangLabel = document.getElementById('sidebar-lang-label');
   if (sidebarLangLabel) {
     sidebarLangLabel.textContent = currentLang === 'en' ? 'EN' : 'TR';
@@ -6826,7 +6865,7 @@ function renderClassroomSelection(courses) {
   const container = document.getElementById('classroom-list');
   if (!container) return;
   if (!courses || courses.length === 0) {
-    container.innerHTML = `<p style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">${t('no_classrooms_found')}</p>`;
+    container.innerHTML = `<div style="grid-column:1/-1">${emptyState(t('no_classrooms_found'), t('class.subtitle'), { mark: 'book' })}</div>`;
     return;
   }
 
@@ -7339,31 +7378,41 @@ function renderAiLanguages() {
     { id: 'Korean', code: 'KO' },
     { id: 'Greek', code: 'EL' }
   ];
+  // Each language used to be an 85px-tall stacked tile with a centred ISO chip
+  // above its name, which on a phone became fifteen full-width blocks and about
+  // 1300px of scrolling. They are now compact single-line options that fit two
+  // or three to a row at any width, with the code as quiet leading metadata.
   grid.innerHTML = langs.map(l => `
-    <button class="btn btn-ghost lang-btn" onclick="selectAiLanguage('${l.id}', this)" style="display:flex; flex-direction:column; gap:8px; padding:14px; border:2px solid ${_selectedAiLanguage === l.id ? 'var(--accent)' : 'var(--border)'}; border-radius:12px; height:auto; min-width:0; align-items:center;">
-      <span style="font-size:13px; font-weight:800; letter-spacing:0.5px; padding:4px 8px; border-radius:6px; background:rgba(99,102,241,0.12); color:var(--accent);">${l.code}</span>
-      <span style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; text-align:center;">${t('lang.' + l.id)}</span>
+    <button type="button" class="choice-tile lang-btn${_selectedAiLanguage === l.id ? ' is-selected' : ''}"
+            aria-pressed="${_selectedAiLanguage === l.id}"
+            onclick="selectAiLanguage('${l.id}', this)">
+      <span class="choice-tile__code">${l.code}</span>
+      <span class="choice-tile__label">${t('lang.' + l.id)}</span>
     </button>
   `).join('');
 }
 
 function selectAiLanguage(id, btn) {
   _selectedAiLanguage = id;
-  document.querySelectorAll('.lang-btn').forEach(b => b.style.borderColor = 'var(--border)');
-  btn.style.borderColor = 'var(--accent)';
+  // Selection is a state class rather than a poked-in inline border colour, so
+  // the selected look (fill, border, text) is defined once in the stylesheet.
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    b.classList.remove('is-selected');
+    b.setAttribute('aria-pressed', 'false');
+  });
+  if (btn) {
+    btn.classList.add('is-selected');
+    btn.setAttribute('aria-pressed', 'true');
+  }
 }
 
 function selectAiLevel(level) {
   _selectedAiLevel = level;
   document.querySelectorAll('.level-btn').forEach(b => {
-    b.classList.remove('btn-primary');
-    b.classList.add('btn-ghost');
+    const on = b.dataset.level === level || b.textContent.trim() === level;
+    b.classList.toggle('is-selected', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
-  const activeBtn = Array.from(document.querySelectorAll('.level-btn')).find(b => b.textContent === level);
-  if (activeBtn) {
-    activeBtn.classList.remove('btn-ghost');
-    activeBtn.classList.add('btn-primary');
-  }
 }
 
 async function generateAiCurriculum() {
@@ -8364,7 +8413,7 @@ async function loadInbox() {
   }
 
   if (!messages || messages.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted); text-align:center; padding:20px;" data-i18n="no_messages">${t('no_messages')}</p>`;
+    container.innerHTML = emptyState(t('no_messages'), '', { mark: 'message', compact: true });
     return;
   }
 
@@ -8523,7 +8572,7 @@ function renderNewChatStudents() {
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = `<p style="text-align:center; color:var(--text-muted); padding:20px;" data-i18n="noNewChats">${t('noNewChats')}</p>`;
+    list.innerHTML = emptyState(t('noNewChats'), '', { mark: 'message', compact: true });
     return;
   }
 
@@ -8617,25 +8666,35 @@ async function loadOverview() {
 
 function renderOverview(report) {
   const s = report.summary || {};
+  // Before anyone has answered anything there is no mastery signal, so the
+  // class average is 0 by absence rather than by failure. Painting that 0%
+  // alarm-red is the first thing a lecturer saw on a brand-new class.
+  const hasActivity = Object.keys(report.topic_difficulty || {}).length > 0;
+  const masteryTone = hasActivity ? masteryClass(s.class_avg_mastery) : '';
   document.getElementById('overview-stats').innerHTML = `
     <div class="stat-card"><div class="stat-label" data-i18n="STUDENTS">STUDENTS</div><div class="stat-value accent">${s.total_students || 0}</div><div class="stat-sub"><span data-i18n-data='{"count":${s.active_students || 0}}' data-i18n="active_this_week">${s.active_students || 0} Active this week</span></div></div>
-    <div class="stat-card"><div class="stat-label" data-i18n="CLASS_MASTERY">CLASS MASTERY</div><div class="stat-value ${masteryClass(s.class_avg_mastery)}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub" data-i18n="avg_across_topics">Average across all topics</div></div>
-    <div class="stat-card"><div class="stat-label" data-i18n="AT_RISK">AT RISK</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : 'success'}">${s.at_risk_count || 0}</div><div class="stat-sub" data-i18n="students_needing_attention">Students needing attention</div></div>
-    <div class="stat-card"><div class="stat-label" data-i18n="TOP_PERFORMERS">TOP PERFORMERS</div><div class="stat-value success">${s.top_performer_count || 0}</div><div class="stat-sub" data-i18n="mastery_above_80">Mastery above 80%</div></div>`;
+    <div class="stat-card"><div class="stat-label" data-i18n="CLASS_MASTERY">CLASS MASTERY</div><div class="stat-value ${masteryTone}">${Math.round((s.class_avg_mastery || 0) * 100)}%</div><div class="stat-sub" data-i18n="avg_across_topics">Average across all topics</div></div>
+    <div class="stat-card"><div class="stat-label" data-i18n="AT_RISK">AT RISK</div><div class="stat-value ${s.at_risk_count > 0 ? 'danger' : ''}">${s.at_risk_count || 0}</div><div class="stat-sub" data-i18n="students_needing_attention">Students needing attention</div></div>
+    <div class="stat-card"><div class="stat-label" data-i18n="TOP_PERFORMERS">TOP PERFORMERS</div><div class="stat-value ${s.top_performer_count > 0 ? 'success' : ''}">${s.top_performer_count || 0}</div><div class="stat-sub" data-i18n="mastery_above_80">Mastery above 80%</div></div>`;
 
   const atRisk = report.at_risk_students || [];
   const atRiskList = document.getElementById('at-risk-list');
   if (atRisk.length === 0) {
-    atRiskList.innerHTML = `<p style="color:var(--text-muted)" data-i18n="no_at_risk">No at-risk students</p>`;
+    atRiskList.innerHTML = emptyState(t('no_at_risk'), t('report.no_data_body'), { mark: 'check', compact: true });
   } else {
     atRiskList.innerHTML = atRisk.map(s => `<div class="risk-item"><div><span class="risk-name">${s.name}</span></div><div class="risk-badges"><span class="risk-badge ${s.overall_mastery < 0.4 ? 'critical' : 'warning'}">${Math.round(s.overall_mastery * 100)}% <span data-i18n="mastery">mastery</span></span>${s.flags.map(f => `<span class="risk-badge low" data-i18n="${f}">${t(f)}</span>`).join('')}</div></div>`).join('');
   }
   const td = report.topic_difficulty || {};
   const chartEl = document.getElementById('topic-difficulty-chart');
   if (chartEl) {
-    chartEl.innerHTML = Object.entries(td).slice(0, 8).map(([name, score]) =>
-      `<div class="progress-item"><div class="progress-label"><span>${translateCurriculumTitle(name, currentLang)}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
-    ).join('');
+    const rows = Object.entries(td).slice(0, 8);
+    // This card used to render an empty box when there was no data, so the
+    // dashboard showed a titled card with nothing under it.
+    chartEl.innerHTML = rows.length === 0
+      ? emptyState(t('report.no_data'), t('report.no_data_body'), { mark: 'chart', compact: true })
+      : rows.map(([name, score]) =>
+          `<div class="progress-item"><div class="progress-label"><span>${translateCurriculumTitle(name, currentLang)}</span><span>${Math.round(score * 100)}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${score * 100}%;background:${masteryColor(score)}"></div></div></div>`
+        ).join('');
   }
 
   applyTranslations(); // Unify everything!
@@ -8661,8 +8720,8 @@ function renderCurriculum() {
       subtitleEl.textContent = `${cName} — ${t('Content Map')}`;
     }
 
-    if (!curriculum || !Array.isArray(curriculum)) {
-      document.getElementById('curriculum-tree').innerHTML = `<p style="color:var(--text-muted); padding:20px;">${t('class.no_curriculum')}</p>`;
+    if (!Array.isArray(curriculum) || curriculum.length === 0) {
+      document.getElementById('curriculum-tree').innerHTML = emptyState(t('class.no_curriculum'), '', { mark: 'book' });
       return;
     }
 
@@ -9975,7 +10034,7 @@ function renderQuizList(quizzes) {
   const isLecturer = currentUser && currentUser.role === 'lecturer';
   const container = isLecturer ? document.getElementById('quiz-list') : document.getElementById('student-quiz-list');
   if (!container) return;
-  container.innerHTML = (!quizzes || quizzes.length === 0) ? `<p style="color:var(--text-muted);padding:20px" data-i18n="noQuizzes">${t('noQuizzes')}</p>`
+  container.innerHTML = (!quizzes || quizzes.length === 0) ? emptyState(t('noQuizzes'), '', { mark: 'quiz', compact: true })
     : quizzes.map(q => {
       const displayTitle = esc(translateQuizTitle(q.title, currentLang));
       const createdLabel = t('Created');
@@ -10276,28 +10335,21 @@ function getStudentInitials(name) {
   return name.slice(0, 2).toUpperCase();
 }
 
-const STUDENT_AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #6366f1, #8b5cf6)',
-  'linear-gradient(135deg, #3b82f6, #06b6d4)',
-  'linear-gradient(135deg, #10b981, #059669)',
-  'linear-gradient(135deg, #f59e0b, #d97706)',
-  'linear-gradient(135deg, #ec4899, #8b5cf6)',
-  'linear-gradient(135deg, #8b5cf6, #d946ef)',
-  'linear-gradient(135deg, #14b8a6, #0284c7)',
-  'linear-gradient(135deg, #f43f5e, #fb7185)'
-];
-
-function getStudentAvatarBg(name) {
-  let hash = 0;
-  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return STUDENT_AVATAR_GRADIENTS[Math.abs(hash) % STUDENT_AVATAR_GRADIENTS.length];
+// Initials markers used to pick from eight saturated rainbow gradients keyed on
+// a hash of the name. Eight unrelated hues on one roster read as a template,
+// they clash with the navy-and-gold identity, and the colour carried no meaning
+// — two students with adjacent hashes looked categorically different for no
+// reason. One quiet accent-tinted marker lets the names themselves do the
+// distinguishing. Kept as a function so callers are unchanged.
+function getStudentAvatarBg() {
+  return 'var(--marker-bg)';
 }
 
 function renderStudentRoster(students) {
   const container = document.getElementById('student-roster');
   if (!container) return;
   if (!Array.isArray(students) || students.length === 0) {
-    container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:32px; color:var(--text-muted); background:var(--bg-card); border:1px solid var(--border); border-radius:12px;">${t('admin.no_students') || 'No students enrolled yet.'}</div>`;
+    container.innerHTML = `<div style="grid-column:1/-1">${emptyState(t('admin.no_students') || 'No students enrolled yet.', '', { mark: 'people' })}</div>`;
     return;
   }
 
@@ -10323,8 +10375,8 @@ function renderStudentRoster(students) {
     }
 
     const statusBadge = isOnline
-      ? `<span class="student-status-indicator" style="background:rgba(34,197,94,0.12); color:#22c55e; border:1px solid rgba(34,197,94,0.25); display:inline-flex; align-items:center; gap:4px;"><span style="width:5px; height:5px; border-radius:50%; background:#22c55e; box-shadow:0 0 6px #22c55e; display:inline-block;"></span>${t('admin.active')}</span>`
-      : `<span class="student-status-indicator" style="background:rgba(156,163,175,0.1); color:#9ca3af; border:1px solid rgba(156,163,175,0.2);">${t('admin.inactive')}</span>`;
+      ? `<span class="badge badge-dot tone-success">${t('admin.active')}</span>`
+      : `<span class="badge tone-neutral">${t('admin.inactive')}</span>`;
 
     return `<div class="student-card" onclick="showStudentDetail('${s.id}',${escJS(s.name)}, '${schoolNum}', ${isPermanent})">
       <!-- Top Row: Avatar + Name & ID -->
@@ -10617,7 +10669,7 @@ function renderReport(report) {
   }
 
   if (!data) {
-    content.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">${t('report.no_data')}</div>`;
+    content.innerHTML = emptyState(t('report.no_data'), '', { mark: 'chart' });
     return;
   }
 
@@ -10787,8 +10839,8 @@ function renderStudentHome(data) {
 function loadStudentPractice() {
   const practiceEl = document.getElementById('practice-topics');
   if (!practiceEl) return;
-  if (!curriculum || !Array.isArray(curriculum)) {
-    practiceEl.innerHTML = '';
+  if (!Array.isArray(curriculum) || curriculum.length === 0) {
+    practiceEl.innerHTML = emptyState(t('class.no_curriculum'), '', { mark: 'book' });
     return;
   }
   practiceEl.innerHTML = curriculum.map((ch, idx) => (ch.topics || []).map(tp => {
@@ -10892,7 +10944,7 @@ function renderStudentProgress(data) {
   chart.innerHTML = (data.masteries || []).map(m => {
     const pct = Math.round(m.score * 100);
     return `<div class="progress-item"><div class="progress-label"><span>${translateCurriculumTitle(m.title)} <span class="topic-type-badge ${m.type}" style="margin-left:8px">${translateBadge(m.type)}</span></span><span>${pct}%</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${masteryColor(m.score)}"></div></div></div>`;
-  }).join('') || `<p style="color:var(--text-muted)">${t('No quizzes yet.')}</p>`;
+  }).join('') || emptyState(t('No quizzes yet.'), '', { mark: 'quiz', compact: true });
 }
 
 async function loadAssignmentList() {
@@ -10912,7 +10964,7 @@ function renderAssignmentList(assignments) {
   if (!container) return;
 
   if (!assignments || assignments.length === 0) {
-    container.innerHTML = `<p style="color:var(--text-muted);padding:20px;text-align:center" data-i18n="noAssignments">${t('noAssignments')}</p>`;
+    container.innerHTML = emptyState(t('noAssignments'), '', { mark: 'list', compact: true });
     return;
   }
 
@@ -11464,12 +11516,15 @@ function renderStudyBook() {
   if (!toc) return;
 
   if (!curriculum || curriculum.length === 0) {
-    toc.innerHTML = `<p style="color:var(--text-muted); font-size:13px; padding:10px;">${t('class.no_curriculum') || 'No curriculum loaded.'}</p>`;
+    toc.innerHTML = emptyState(t('class.no_curriculum') || 'No curriculum loaded.', '', { mark: 'book', compact: true });
     // Also clear the content area spinner and show a proper empty state
     const contentAreaId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
     const contentArea = document.getElementById(contentAreaId);
     if (contentArea) {
-      contentArea.innerHTML = `<div style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted); text-align:center; padding:40px;"><div style="font-size:36px; margin-bottom:16px;">📚</div><h3 style="font-size:18px; font-weight:600; color:var(--text-primary); margin-bottom:8px;">${currentLang === 'tr' ? 'Henüz materyal bulunmuyor' : 'No materials available yet'}</h3><p style="font-size:14px; color:var(--text-muted);">${currentLang === 'tr' ? 'Bu sınıf için materyal oluşturulmamış.' : 'No materials have been created for this course.'}</p></div>`;
+      contentArea.innerHTML = emptyState(
+        currentLang === 'tr' ? 'Henüz materyal bulunmuyor' : 'No materials available yet',
+        currentLang === 'tr' ? 'Bu sınıf için materyal oluşturulmamış.' : 'No materials have been created for this course.',
+        { mark: 'book' });
     }
     return;
   }
@@ -13066,7 +13121,7 @@ function renderAdminStudentPanelSync(students) {
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
           <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')}</h3>
         </div>
-        <p style="color:var(--text-muted); text-align:center; padding:20px;">${t('admin.no_students')}</p>
+        ${emptyState(t('admin.no_students'), '', { mark: 'people', compact: true })}
       </div>`;
     return;
   }
@@ -13084,57 +13139,63 @@ function renderAdminStudentPanelSync(students) {
       if (now - lastSeen < 12 * 1000) isOnline = true;
     }
 
-    const statusBadge = isOnline 
-      ? `<span style="background:rgba(34,197,94,0.15); color:#22c55e; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:5px;"><span style="width:6px; height:6px; border-radius:50%; background:#22c55e; display:inline-block; box-shadow:0 0 8px #22c55e;"></span>${t('admin.active')}</span>`
+    // Three hand-rolled pills with hardcoded greens, ambers and greys become
+    // one badge primitive carrying a status tone.
+    const statusBadge = isOnline
+      ? `<span class="badge badge-dot tone-success">${t('admin.active')}</span>`
       : (s.status === 'pending'
-         ? `<span style="background:rgba(234,179,8,0.15); color:#eab308; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.pending')}</span>`
-         : `<span style="background:rgba(156,163,175,0.1); color:#9ca3af; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;">${t('admin.inactive')}</span>`);
+         ? `<span class="badge tone-warning">${t('admin.pending')}</span>`
+         : `<span class="badge tone-neutral">${t('admin.inactive')}</span>`);
 
     const enrollmentList = s.enrolled_in ? s.enrolled_in.split(',').join(', ') : '—';
 
+    // Three actions that used to be three differently coloured pills (gold,
+    // amber, red) of equal weight. Only removal is destructive, so only it
+    // carries the danger tone; the rest are plain secondary actions.
     const removeBtn = !isPermanent
-      ? `<button class="btn btn-sm" style="background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>`
+      ? `<button class="btn btn-sm btn-danger-quiet" onclick="event.stopPropagation(); adminKickStudent('${s.id}', ${escJS(s.name)})">${t('admin.remove')}</button>`
       : '';
 
     return `
-      <tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:12px 16px; font-weight:600; color:var(--text-primary);">${esc(s.name)}</td>
-        <td style="padding:12px 16px; color:var(--text-muted); font-family:monospace; font-size:13px;">${esc(schoolNum)}</td>
-        <td style="padding:12px 16px; color:var(--text-muted); font-size:13px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(enrollmentList)}</td>
-        <td style="padding:12px 16px; text-align:center; font-weight:600; color:var(--accent-light);">${s.total_responses || 0}</td>
-        <td style="padding:12px 16px; text-align:center;">${statusBadge}</td>
-        <td style="padding:12px 16px; text-align:right; display:flex; gap:6px; justify-content:flex-end; align-items:center;">
-          <button class="btn btn-sm" style="background:var(--accent-glow); color:var(--accent); border:1px solid var(--accent); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
-          <button class="btn btn-sm" style="background:var(--warning-bg); color:var(--warning); border:1px solid var(--warning); padding:4px 10px; border-radius:var(--radius-sm); font-size:11px;" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
+      <tr>
+        <td data-label="${t('admin.student_name')}">${esc(s.name)}</td>
+        <td data-label="${t('admin.student_id')}" class="mono">${esc(schoolNum)}</td>
+        <td data-label="${t('admin.enrolled_in')}" class="truncate">${esc(enrollmentList)}</td>
+        <td data-label="${t('admin.responses')}" class="num">${s.total_responses || 0}</td>
+        <td data-label="${t('admin.status')}">${statusBadge}</td>
+        <td class="actions">
+          <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); adminSetStudentPassword('${s.id}', ${escJS(s.name)}, '${schoolNum}')">${t('admin.set_password')}</button>
+          <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); adminResetStudentProgress('${s.id}', ${escJS(s.name)})">${t('admin.reset_progress')}</button>
           ${removeBtn}
         </td>
       </tr>`;
   }).join('');
 
+  // The table is dense and scannable on a desktop and becomes one stacked
+  // record per student below 600px (see .data-table.is-stacked), instead of
+  // six columns squeezed into 390px and overflowing the viewport by 337px.
   panel.innerHTML = `
-    <div style="padding:24px; border:1px solid var(--border); border-radius:16px; background:rgba(255,255,255,0.02);">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
-        <h3 style="margin:0; font-size:18px; display:inline-flex; align-items:center; gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:18px; height:18px; stroke-width:2px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>${t('admin.all_students')} <span style="font-size:14px; color:var(--text-muted); font-weight:400;">(${students.length})</span></h3>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button class="btn btn-sm btn-primary" style="padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;" onclick="adminOpenCreateStudentModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px; height:14px; stroke-width:2px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>${t('admin.add_student')}</button>
-        </div>
+    <section class="card">
+      <div class="card-header">
+        <h3>${t('admin.all_students')} <span class="t-meta">(${students.length})</span></h3>
+        <button class="btn btn-sm btn-primary" onclick="adminOpenCreateStudentModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>${t('admin.add_student')}</button>
       </div>
-      <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
-        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+      <div class="card-body table-wrap">
+        <table class="data-table is-stacked">
           <thead>
-            <tr style="background:rgba(255,255,255,0.03); border-bottom:2px solid var(--border);">
-              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_name')}</th>
-              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.student_id')}</th>
-              <th style="padding:10px 16px; text-align:left; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.enrolled_in')}</th>
-              <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.responses')}</th>
-              <th style="padding:10px 16px; text-align:center; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.status')}</th>
-              <th style="padding:10px 16px; text-align:right; font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px;">${t('admin.action')}</th>
+            <tr>
+              <th>${t('admin.student_name')}</th>
+              <th>${t('admin.student_id')}</th>
+              <th>${t('admin.enrolled_in')}</th>
+              <th class="num">${t('admin.responses')}</th>
+              <th>${t('admin.status')}</th>
+              <th><span class="sr-only">${t('admin.action')}</span></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-    </div>`;
+    </section>`;
 }
 
 async function loadAdminStudentPanel(isRefresh = false) {
@@ -13146,7 +13207,7 @@ async function loadAdminStudentPanel(isRefresh = false) {
   if (_lastAdminStudentsData) {
     renderAdminStudentPanelSync(_lastAdminStudentsData);
   } else if (!isRefresh && !panel.innerHTML.trim()) {
-    panel.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">${t('loading')}</div>`;
+    panel.innerHTML = `<div class="card"><div class="card-body"><div class="skeleton skeleton-title"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div><div class="skeleton skeleton-line"></div></div></div>`;
   }
 
   try {
