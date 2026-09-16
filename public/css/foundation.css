@@ -99,6 +99,24 @@
   --gutter: 16px;          /* page side padding; grows at larger breakpoints */
   --topnav-h: 56px;
 
+  /* ── Safe horizontal spacing ──
+     One system for how close anything may sit to an edge, so breathing room
+     comes from tokens rather than per-page margin hacks.
+
+       --gutter-safe  the page's side padding, widened when a device cutout
+                      (notch, rounded corner) eats into the viewport. Applied
+                      symmetrically: the cutout is physical, so padding only
+                      one logical side would move with text direction and land
+                      on the wrong edge in RTL.
+       --pad-read     the inset content keeps from the frame it sits inside,
+                      so a card, a callout or a bulleted line never touches
+                      the border drawn around it.
+
+     Both are used through inline (logical) properties, which gives RTL the
+     same spacing mirrored without a single direction-specific rule. */
+  --gutter-safe: max(var(--gutter), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  --pad-read: var(--space-5);
+
   /* Focus — one ring, used everywhere, never removed without replacement. */
   --focus-ring: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
 
@@ -313,7 +331,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 100%;
   max-width: var(--container);
   margin-inline: auto;
-  padding-inline: var(--gutter);
+  padding-inline: var(--gutter-safe);
 }
 .page-wide   { max-width: var(--container-wide); }
 .page-narrow { max-width: var(--container-narrow); }
@@ -1003,8 +1021,8 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   gap: var(--space-3);
   min-height: 44px;
-  padding-inline: var(--gutter);
-  margin-inline: calc(var(--gutter) * -1);
+  padding-inline: var(--gutter-safe);
+  margin-inline: calc(var(--gutter-safe) * -1);
   background: var(--surface-nav);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);

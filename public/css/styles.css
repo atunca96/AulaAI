@@ -1296,7 +1296,7 @@ body:has(#student-dashboard.active) .floating-actions {
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  padding: 0 var(--gutter);
+  padding-inline: var(--gutter-safe);
   height: var(--topnav-h);
   /* Was a hardcoded rgba(14,18,29,.75) that matched nothing in the palette,
      which is why the bar read as a different, greyer navy than the page. */
@@ -2679,7 +2679,7 @@ body:has(#student-dashboard.active) .floating-actions {
      screen came from. */
   .dashboard-content {
     padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-7));
-    padding-inline: var(--gutter);
+    padding-inline: var(--gutter-safe);
     padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
   }
 
@@ -2714,7 +2714,9 @@ body:has(#student-dashboard.active) .floating-actions {
     max-height: 92svh;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     border-bottom: none;
-    padding: var(--space-7) var(--space-6);
+    /* Side padding follows the page's safe gutter so a sheet, which spans the
+       full width, keeps its content clear of a device cutout. */
+    padding: var(--space-7) var(--gutter-safe);
     padding-bottom: calc(var(--space-7) + env(safe-area-inset-bottom, 0px));
   }
   /* When the sheet carries its own action bar, that bar owns the bottom inset
@@ -2722,10 +2724,10 @@ body:has(#student-dashboard.active) .floating-actions {
   .modal-content:has(.modal-actions) { padding-bottom: 0; }
   .modal-close { top: calc(var(--space-7) * -1); }
   .modal-actions {
-    margin-inline: calc(var(--space-6) * -1);
+    margin-inline: calc(var(--gutter-safe) * -1);
     margin-bottom: 0;
     bottom: 0;
-    padding: var(--space-5) var(--space-6);
+    padding: var(--space-5) var(--gutter-safe);
     padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   }
 
@@ -2789,9 +2791,12 @@ body:has(#student-dashboard.active) .floating-actions {
 /* Small phones. The previous rules here forced the metric row back to two
    columns and shrank the type to 22px/8px to make it fit — the narrowest
    screen was getting the densest layout. It now keeps the single column the
-   600px breakpoint establishes, and only the gutter tightens. */
+   600px breakpoint establishes.
+   The gutter is deliberately NOT tightened here any more: a 12px inset was
+   the narrowest screen getting the least breathing room, which is where the
+   glued-to-the-edge feel was worst. 16px on both sides costs 8px of a 320px
+   screen and buys a page that reads as a page. */
 @media (max-width: 375px) {
-  :root { --gutter: 12px; }
   .stat-card { padding: var(--space-5); }
   .page-header h1 { font-size: var(--fs-2xl); }
 }
@@ -4572,12 +4577,26 @@ select.text-input option,
   .study-content-panel,
   .study-container > div:last-child { padding: 0 !important; }
 
+  /* The card stops being a card — it is the page itself — but it keeps a
+     reading inset. With the padding zeroed outright, every block inside the
+     lesson (rule cards, callouts, vocabulary rows, bulleted lines) sat flush
+     against the border of the frame around it, which is what made the text
+     read as glued to the edge of the screen. Inline only: vertical density
+     is untouched. */
   .study-card {
-    padding: 0 !important;
+    padding-block: 0 !important;
+    padding-inline: var(--pad-read) !important;
     background: transparent !important;
     border: none !important;
     overflow: visible !important;
   }
+
+  /* Siblings of the card inside the same column get the same inset, so the
+     lesson reads as one text column rather than three differently-indented
+     ones. The toolbar is deliberately excluded: it is a bar and spans the
+     full width of the frame. */
+  .study-footer-nav,
+  .study-meta { padding-inline: var(--pad-read); }
 
   .study-topic-wrapper { padding: 0; }
 
@@ -4918,7 +4937,7 @@ select.text-input option,
   .dashboard-content:has(#tab-s-study-tab.active),
   .dashboard-content:has(#tab-study-materials.active) {
     padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
-    padding-inline: var(--gutter);
+    padding-inline: var(--gutter-safe);
   }
   .study-meta { margin-bottom: var(--space-4); }
   .study-footer-nav { margin-top: var(--space-8); padding-top: var(--space-5); }

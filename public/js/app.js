@@ -1930,17 +1930,10 @@ function toggleLanguage() {
   } catch (e) { console.warn(e); }
 
   // 3. Re-render Study Material book & topic
+  // renderStudyBook() re-opens the current topic itself, so switching the
+  // interface language is no longer the only path back to readable content.
   try {
     renderStudyBook();
-    let lastTopic = localStorage.getItem('aula_last_topic');
-    let lastPage = parseInt(localStorage.getItem('aula_last_page') || '0');
-    if (!lastTopic && curriculum && curriculum[0] && curriculum[0].topics && curriculum[0].topics[0]) {
-      lastTopic = curriculum[0].topics[0].id;
-      lastPage = 0;
-    }
-    if (lastTopic) {
-      showStudyTopic(lastTopic, lastPage, { preserveScroll: true });
-    }
   } catch (e) { console.warn(e); }
 
   // 4. Re-render role dashboard synchronously
@@ -11501,6 +11494,36 @@ async function submitAssignment(area) {
 }
 
 // ── Digital Study Book (AI Architect) ──
+
+// Which topic the reader should land on when the material view is entered.
+// Resolution order: the topic last read in THIS course, then the older global
+// last-read key (kept so existing readers keep their place), then the first
+// topic of the book. Every candidate is checked against the curriculum that is
+// actually loaded, so an id left behind by another course falls through to the
+// first topic instead of resolving to nothing.
+function resolveInitialStudyTopic() {
+  const currList = window.curriculum || curriculum || [];
+  if (!Array.isArray(currList) || currList.length === 0) return null;
+
+  const exists = (id) => !!id && currList.some(ch => (ch.topics || []).some(tp => tp && tp.id === id));
+  const lastPage = () => {
+    const n = parseInt(localStorage.getItem('aula_last_page') || '0', 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+
+  const perCourse = courseId ? localStorage.getItem('aula_last_topic_' + courseId) : null;
+  if (exists(perCourse)) return { topicId: perCourse, pageIdx: lastPage() };
+
+  const global = localStorage.getItem('aula_last_topic');
+  if (exists(global)) return { topicId: global, pageIdx: lastPage() };
+
+  for (const ch of currList) {
+    const first = (ch.topics || [])[0];
+    if (first && first.id) return { topicId: first.id, pageIdx: 0 };
+  }
+  return null;
+}
+
 function renderStudyBook() {
   const isStudent = currentUser.role === 'student';
   const containerId = isStudent ? 's-ai-book-container' : 'ai-book-container';
@@ -11546,10 +11569,18 @@ function renderStudyBook() {
     </div>
   `;}).join('');
 
-  // After rendering TOC — if no active topic exists yet, restore the welcoming placeholder
-  // (prevents the loading spinner from getting permanently stuck)
+  // With the table of contents on screen, open what the reader should be looking
+  // at. This is what makes entering a material render immediately: the only code
+  // that used to open a topic lived in toggleLanguage(), so the reader landed on
+  // the placeholder below until they flipped the interface language.
   const activeTopicBtn = document.querySelector('.study-topic-btn.active');
   if (!activeTopicBtn) {
+    const initial = resolveInitialStudyTopic();
+    if (initial) {
+      showStudyTopic(initial.topicId, initial.pageIdx, { preserveScroll: true });
+      return;
+    }
+    // Nothing openable — keep the welcoming placeholder rather than a stuck spinner.
     const contentAreaId = isStudent ? 's-ai-book-content-area' : 'ai-book-content-area';
     const contentArea = document.getElementById(contentAreaId);
     if (contentArea && !contentArea.querySelector('.study-card:not(.skeleton-loading), .study-content-page')) {
