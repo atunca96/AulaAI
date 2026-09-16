@@ -1767,6 +1767,48 @@ const i18n = {
   }
 };
 
+// A passive notice: it reports something that already happened and does not
+// need dismissing. Nine call sites across the build, rebuild and PDF-export
+// flows had always called showToast()/showNotification(), but neither function
+// existed — so each of those lines threw a ReferenceError and took the rest of
+// its function with it. That is why a finished class kept saying "building"
+// (the refresh on the next line never ran) and why the rebuild button did
+// nothing at all (it threw before reaching the request).
+function showToast(message, type = 'info') {
+  try {
+    let stack = document.getElementById('toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'toast-stack';
+      document.body.appendChild(stack);
+    }
+    const el = document.createElement('div');
+    el.className = 'toast toast--' + (['success', 'error', 'info'].includes(type) ? type : 'info');
+    // An error interrupts; a confirmation should not steal the screen reader's
+    // place in the queue.
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    el.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    el.textContent = String(message == null ? '' : message);
+    stack.appendChild(el);
+
+    const remove = () => {
+      el.classList.add('is-leaving');
+      setTimeout(() => el.remove(), 200);
+    };
+    setTimeout(remove, type === 'error' ? 6000 : 4000);
+    el.addEventListener('click', remove);
+  } catch (err) {
+    // A notice is never worth breaking the flow that reported it — which is
+    // exactly the failure this function was added to end.
+    console.error('[toast]', message, err);
+  }
+}
+// Both names are in use; they have always meant the same thing. Declared as a
+// function rather than a const so it is hoisted like showToast — a call from
+// anything that runs before this line would otherwise hit the temporal dead
+// zone and throw the very error this is fixing.
+function showNotification(message, type) { return showToast(message, type); }
+
 function t(key, data = {}) {
   try {
     const lang = currentLang || localStorage.getItem('aula_lang') || 'tr';
