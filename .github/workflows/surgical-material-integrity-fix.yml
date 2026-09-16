@@ -1,0 +1,139 @@
+name: Surgical material integrity fix
+
+on:
+  push:
+    branches:
+      - material-integrity-surgical-fix
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.event.head_commit.message != 'Apply surgical material integrity fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: material-integrity-surgical-fix
+          fetch-depth: 0
+
+      - name: Apply surgical fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {n}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'services/pdf_renderer_v12.py',
+              "                        localized = page.get('options_tr') if is_tr else page.get('options_en')\n                        options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options\n",
+              "                        # A target-complete assessment is authored wholly in the taught language.\n                        # Localized option arrays are instructional glosses and must never replace\n                        # the learner-facing target-language choices.\n                        if str(page.get('stem_scope') or '').casefold() == 'target_complete':\n                            localized = None\n                        else:\n                            localized = page.get('options_tr') if is_tr else page.get('options_en')\n                        options = localized if isinstance(localized, list) and len(localized) == len(raw_options) else raw_options\n",
+              'target-complete option rendering',
+          )
+
+          replace_once(
+              'services/material_generation_prompt.py',
+              '      "options_tr": ["ONLY when `options` are explanatory phrases about {language}, never when `options` are {language} forms - omit this field entirely for target-form items"],\n',
+              '      "options_tr": [],\n',
+              'material MCQ options_tr schema',
+          )
+          replace_once(
+              'services/material_generation_prompt.py',
+              'ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr` or `prompt_en` for an assessment item: there is no separate instruction to localize, and a gloss in the stem field is what the learner would be shown instead of the question. Mark each item `"stem_scope": "target_complete"`.\n',
+              'ASSESSMENT LANGUAGE: the question is asked in the language being taught. `prompt` carries the WHOLE item in {language} - the instruction, the scenario and the material - and every option and the keyed answer are in {language} too. Do NOT emit `prompt_tr`, `prompt_en`, `options_tr` or `options_en` for an assessment item: there is no separate instruction or option set to localize, and a gloss in the learner-facing fields would replace the actual target-language assessment. Mark each item `"stem_scope": "target_complete"`.\n',
+              'assessment-language contract',
+          )
+          replace_once(
+              'services/material_generation_prompt.py',
+              'Verify: canonical spelling/Unicode; factual phonology and standard IPA; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage;',
+              'Verify: canonical spelling/Unicode; factual phonology and standard IPA; every vocabulary/phonetics item with a pronounceable target form has a non-empty `phonetic` value; alphabet/writing-system rows keep the letter name in translation/name and actual sound/IPA in `phonetic`; one pronunciation system; localized instructional language and zero foreign grammar shorthand leakage;',
+              'pronunciation completeness contract',
+          )
+
+          p = Path('services/ai_engine.py')
+          text = p.read_text(encoding='utf-8')
+          old = '''    questions = ai_generate_questions(\n        topic_title=unit_title or "Unit Assessment",\n        topic_type="unit_assessment",\n        topic_content={"_preassembled_content_str": content_str},\n'''
+          new = '''    # Give the existing bounded deterministic fallback access to this unit's\n    # already-published formative MCQs. Live production showed 8/10 and 9/10\n    # shortfalls after the single bounded top-up; the old preassembled-only\n    # payload left fallback with no pages to reuse. This adds no model call.\n    fallback_pages = []\n    for content in contents:\n        for page in (content.get("pages") or []):\n            if isinstance(page, dict) and str(page.get("type") or "").casefold() == "mcq":\n                fallback_pages.append(page)\n\n    questions = ai_generate_questions(\n        topic_title=unit_title or "Unit Assessment",\n        topic_type="unit_assessment",\n        topic_content={"_preassembled_content_str": content_str, "pages": fallback_pages},\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'unit fallback payload: expected one match, found {text.count(old)}')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          p = Path('services/legacy/pdf_pipeline.py')
+          text = p.read_text(encoding='utf-8')
+          text, n = re.subn(r'SELECT id, title, number FROM chapters WHERE course_id = \? ORDER BY number',
+                            'SELECT id, title, title_tr, number FROM chapters WHERE course_id = ? ORDER BY number', text, count=1)
+          if n != 1: raise SystemExit(f'chapter bilingual query patch count={n}')
+          old = '''                units.append({"chapter_id": ch[0], "title": ch[1], "number": ch[2],\n                              "topics": topics, "next_sort": max_sort + 1})\n'''
+          new = '''                units.append({"chapter_id": ch[0], "title": ch[1], "title_tr": ch[2] or ch[1], "number": ch[3],\n                              "topics": topics, "next_sort": max_sort + 1})\n'''
+          if text.count(old) != 1: raise SystemExit(f'unit dict bilingual patch count={text.count(old)}')
+          text = text.replace(old, new, 1)
+          old = '''        content = build_unit_assessment_content(unit["title"], questions, material_language)\n        title = unit_assessment_title(unit["title"], material_language)\n'''
+          new = '''        content = build_unit_assessment_content(\n            unit["title"], questions, material_language, unit_title_tr=unit.get("title_tr")\n        )\n        title = unit_assessment_title(unit["title"], material_language, unit_title_tr=unit.get("title_tr"))\n'''
+          if text.count(old) != 1: raise SystemExit(f'unit bilingual call patch count={text.count(old)}')
+          text = text.replace(old, new, 1)
+          old = '''def unit_assessment_title(unit_title, material_language="tr"):\n    label = "Ünite Değerlendirmesi" if str(material_language).casefold() == "tr" else "Unit Assessment"\n    return f"{label}: {unit_title}" if unit_title else label\n\n\ndef build_unit_assessment_content(unit_title, questions, material_language="tr"):\n'''
+          new = '''def unit_assessment_title(unit_title, material_language="tr", unit_title_tr=None):\n    is_tr = str(material_language).casefold() == "tr"\n    label = "Ünite Değerlendirmesi" if is_tr else "Unit Assessment"\n    chosen = (unit_title_tr or unit_title) if is_tr else unit_title\n    return f"{label}: {chosen}" if chosen else label\n\n\ndef build_unit_assessment_content(unit_title, questions, material_language="tr", unit_title_tr=None):\n'''
+          if text.count(old) != 1: raise SystemExit(f'unit title function patch count={text.count(old)}')
+          text = text.replace(old, new, 1)
+          old = '''    heading = unit_assessment_title(unit_title, material_language)\n    intro = ("Bu ünitede öğrendiklerinizi değerlendirin." if is_tr\n             else "Check what you have learned in this unit.")\n    return {"pages": [{"type": "overview", "title": heading, "title_tr": heading,\n                       "text": intro, "text_tr": intro}] + pages}\n'''
+          new = '''    heading_en = unit_assessment_title(unit_title, "en", unit_title_tr=unit_title_tr)\n    heading_tr = unit_assessment_title(unit_title, "tr", unit_title_tr=unit_title_tr)\n    return {"pages": [{\n        "type": "overview",\n        "title": heading_en,\n        "title_tr": heading_tr,\n        "text": "Check what you have learned in this unit.",\n        "text_tr": "Bu ünitede öğrendiklerinizi değerlendirin.",\n    }] + pages}\n'''
+          if text.count(old) != 1: raise SystemExit(f'unit overview bilingual patch count={text.count(old)}')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          p = Path('services/class_lexicon.py')
+          text = p.read_text(encoding='utf-8')
+          old = '''    winners: Dict[str, str] = {}\n    for key, variants in counts.items():\n        if len(variants) < 2:\n            continue\n        ordered = sorted(variants.items(), key=lambda kv: kv[1], reverse=True)\n        if ordered[0][1] > ordered[1][1]:\n            winners[key] = ordered[0][0]\n'''
+          new = '''    winners: Dict[str, str] = {}\n    for key, variants in counts.items():\n        if len(variants) == 1:\n            winners[key] = next(iter(variants))\n            continue\n        ordered = sorted(variants.items(), key=lambda kv: kv[1], reverse=True)\n        if ordered[0][1] > ordered[1][1]:\n            winners[key] = ordered[0][0]\n'''
+          if text.count(old) != 1: raise SystemExit(f'class phonetic winner patch count={text.count(old)}')
+          text = text.replace(old, new, 1)
+          old = '''        if isinstance(node, dict):\n            term = node.get("term") or node.get("word") or node.get("target")\n            phonetic = node.get("phonetic")\n            if term and isinstance(phonetic, str) and phonetic.strip():\n                winner = winners.get(fold_term(term))\n                if winner and normalize_transcription(phonetic) != winner:\n                    node["phonetic"] = winner\n                    changed += 1\n'''
+          new = '''        if isinstance(node, dict):\n            term = node.get("term") or node.get("word") or node.get("target")\n            phonetic = node.get("phonetic")\n            winner = winners.get(fold_term(term)) if term else None\n            if winner:\n                current = normalize_transcription(phonetic) if isinstance(phonetic, str) else ""\n                if not current:\n                    node["phonetic"] = winner\n                    changed += 1\n                elif current != winner:\n                    node["phonetic"] = winner\n                    changed += 1\n'''
+          if text.count(old) != 1: raise SystemExit(f'class blank phonetic fill patch count={text.count(old)}')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Static and focused tests
+        run: |
+          python -m py_compile services/ai_engine.py services/legacy/pdf_pipeline.py services/class_lexicon.py services/material_generation_prompt.py services/pdf_renderer_v12.py
+          python scripts/test_assessment_architecture.py
+          python scripts/test_language_pair_and_contract.py
+          python scripts/test_multilingual_assessment_and_render.py
+          python scripts/test_publication_invariants.py
+          python scripts/test_canonical_material_prompt.py
+          python - <<'PY'
+          from services.legacy.pdf_pipeline import build_unit_assessment_content
+          from services.class_lexicon import class_phonetic_winners, apply_phonetic_winners
+          qs = [{"prompt":"¿Qué dices?","answer":"Hola","distractors":["Adiós","Gracias","Perdón"],"options":["Hola","Adiós","Gracias","Perdón"],"why":"Greeting","why_tr":"Selamlaşma"} for _ in range(10)]
+          content = build_unit_assessment_content("Greetings", qs, "tr", unit_title_tr="Selamlaşmalar")
+          overview = content["pages"][0]
+          assert overview["title"] == "Unit Assessment: Greetings"
+          assert overview["title_tr"] == "Ünite Değerlendirmesi: Selamlaşmalar"
+          assert overview["text"].startswith("Check what") and overview["text_tr"].startswith("Bu ünitede")
+          lessons = [{"pages":[{"items":[{"term":"hola","phonetic":"[ˈola]"}]}]}, {"pages":[{"items":[{"term":"hola","phonetic":""}]}]}]
+          winners = class_phonetic_winners(lessons)
+          assert winners.get("hola") == "[ˈola]"
+          assert apply_phonetic_winners(lessons[1], winners) == 1
+          assert lessons[1]["pages"][0]["items"][0]["phonetic"] == "[ˈola]"
+          prompt = open('services/material_generation_prompt.py', encoding='utf-8').read()
+          assert 'Do NOT emit `prompt_tr`, `prompt_en`, `options_tr` or `options_en`' in prompt
+          renderer = open('services/pdf_renderer_v12.py', encoding='utf-8').read()
+          assert "stem_scope') or '').casefold() == 'target_complete'" in renderer
+          print('focused surgical assertions: PASS')
+          PY
+
+      - name: Commit fixes
+        run: |
+          git config user.name "AulaAI surgical fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add services/ai_engine.py services/legacy/pdf_pipeline.py services/class_lexicon.py services/material_generation_prompt.py services/pdf_renderer_v12.py
+          git diff --cached --check
+          git commit -m "Apply surgical material integrity fixes"
+          git push origin HEAD:material-integrity-surgical-fix
