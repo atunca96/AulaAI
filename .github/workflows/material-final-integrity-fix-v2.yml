@@ -1,0 +1,104 @@
+name: Final material integrity fix v2
+on:
+  push:
+    branches: [material-final-integrity-fix-v2]
+permissions:
+  contents: write
+jobs:
+  patch-test:
+    if: github.event.head_commit.message != 'Apply final material integrity fixes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: material-final-integrity-fix-v2
+          fetch-depth: 0
+      - name: Apply fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def one(path, old, new, label):
+              p=Path(path); s=p.read_text(encoding='utf-8')
+              if s.count(old)!=1: raise SystemExit(f'{label}: {s.count(old)} matches')
+              p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          p=Path('services/ai_engine.py'); s=p.read_text(encoding='utf-8')
+          old='''        # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──\n        if len(final) < c and isinstance(topic_content, dict):\n'''
+          new='''        # Completion is measured on publishable items. Previously the hard count\n        # happened first, then publication validation could prune 10/10 to 0/10.\n        # Validate while the existing zero-cost deterministic fallback can still refill.\n        try:\n            from services.publication_invariants import apply_assessment_invariants\n            final = apply_assessment_invariants(final, language=language, material_language=material_language)\n        except Exception as exc:\n            print(f"[PUBLICATION] pre-completion assessment invariants skipped: {exc}")\n\n        # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──\n        if len(final) < c and isinstance(topic_content, dict):\n'''
+          if s.count(old)!=1: raise SystemExit('pre-publication insertion mismatch')
+          s=s.replace(old,new,1)
+          old='''        # Sanitize Turkish fields in generated questions\n        for q in final:\n'''
+          new='''        # Fallback candidates must also be publication-safe before hard completion.\n        try:\n            from services.publication_invariants import apply_assessment_invariants\n            final = apply_assessment_invariants(final, language=language, material_language=material_language)\n        except Exception as exc:\n            print(f"[PUBLICATION] post-fallback assessment invariants skipped: {exc}")\n\n        # Sanitize Turkish fields in generated questions\n        for q in final:\n'''
+          if s.count(old)!=1: raise SystemExit('post-fallback insertion mismatch')
+          s=s.replace(old,new,1)
+          old='''        # Assessments now cross a publication boundary too. This is deterministic\n        # only and adds no model call: answer keys used to reach the learner with\n        # no publication discipline of any kind.\n        try:\n            from services.publication_invariants import apply_assessment_invariants\n            final = apply_assessment_invariants(final, language=language, material_language=material_language)\n        except Exception as exc:\n            print(f"[PUBLICATION] assessment invariants skipped: {exc}")\n        return final\n'''
+          new='''        # Already publication-validated before hard completion; never prune after success.\n        return final\n'''
+          if s.count(old)!=1: raise SystemExit('trailing assessment boundary mismatch')
+          s=s.replace(old,new,1)
+
+          old='''                        _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""\n                        clean_items.append({\n                            "term": it.get("term") or it.get("word") or "",\n                            "phonetic": it.get("phonetic") or it.get("phonetic_en") or "",\n                            "phonetic_en": it.get("phonetic_en") or it.get("phonetic") or "",\n                            "phonetic_tr": it.get("phonetic_tr") or "",\n'''
+          new='''                        _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""\n                        _phon = (it.get("phonetic") or it.get("phonetic_en") or it.get("phonetic_tr")\n                                 or it.get("pronunciation") or it.get("ipa") or it.get("transcription") or "")\n                        clean_items.append({\n                            "term": it.get("term") or it.get("word") or "",\n                            "phonetic": _phon,\n                            "phonetic_en": _phon,\n                            "phonetic_tr": _phon,\n'''
+          if s.count(old)!=1: raise SystemExit('main phonetic ownership mismatch')
+          s=s.replace(old,new,1)
+          old='''                _expl_en = v.get("explanation_en") or v.get("explanation") or v.get("tip") or ""\n                clean_items.append({\n                    "term": v.get("term") or v.get("word") or "",\n                    "phonetic": v.get("phonetic") or v.get("phonetic_en") or "",\n                    "phonetic_en": v.get("phonetic_en") or v.get("phonetic") or "",\n                    "phonetic_tr": v.get("phonetic_tr") or "",\n'''
+          new='''                _expl_en = v.get("explanation_en") or v.get("explanation") or v.get("tip") or ""\n                _phon = (v.get("phonetic") or v.get("phonetic_en") or v.get("phonetic_tr")\n                         or v.get("pronunciation") or v.get("ipa") or v.get("transcription") or "")\n                clean_items.append({\n                    "term": v.get("term") or v.get("word") or "",\n                    "phonetic": _phon,\n                    "phonetic_en": _phon,\n                    "phonetic_tr": _phon,\n'''
+          if s.count(old)!=1: raise SystemExit('fallback phonetic ownership mismatch')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          p=Path('services/legacy/pdf_pipeline.py'); s=p.read_text(encoding='utf-8')
+          old='''            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)\n'''
+          new='''            "SELECT id, title, title_tr, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)\n'''
+          if s.count(old)!=1: raise SystemExit('chapter query mismatch')
+          s=s.replace(old,new,1)
+          old='''            if topics:\n                units.append({"chapter_id": ch[0], "title": ch[1], "number": ch[2],\n                              "topics": topics, "next_sort": max_sort + 1})\n'''
+          new='''            if topics:\n                if len(ch) >= 4:\n                    chapter_title_tr, chapter_number = ch[2] or ch[1], ch[3]\n                else:\n                    chapter_title_tr, chapter_number = ch[1], ch[2]\n                units.append({"chapter_id": ch[0], "title": ch[1], "title_tr": chapter_title_tr, "number": chapter_number,\n                              "topics": topics, "next_sort": max_sort + 1})\n'''
+          if s.count(old)!=1: raise SystemExit('unit row mismatch')
+          s=s.replace(old,new,1)
+          old='''        content = build_unit_assessment_content(unit["title"], questions, material_language)\n        title = unit_assessment_title(unit["title"], material_language)\n'''
+          new='''        content = build_unit_assessment_content(unit["title"], questions, material_language, unit_title_tr=unit.get("title_tr"))\n        title = unit_assessment_title(unit["title"], material_language, unit_title_tr=unit.get("title_tr"))\n'''
+          if s.count(old)!=1: raise SystemExit('unit call mismatch')
+          s=s.replace(old,new,1)
+          old='''def unit_assessment_title(unit_title, material_language="tr"):\n    label = "Ünite Değerlendirmesi" if str(material_language).casefold() == "tr" else "Unit Assessment"\n    return f"{label}: {unit_title}" if unit_title else label\n\n\ndef build_unit_assessment_content(unit_title, questions, material_language="tr"):\n'''
+          new='''def unit_assessment_title(unit_title, material_language="tr", unit_title_tr=None):\n    is_tr = str(material_language).casefold() == "tr"\n    label = "Ünite Değerlendirmesi" if is_tr else "Unit Assessment"\n    chosen = (unit_title_tr or unit_title) if is_tr else unit_title\n    return f"{label}: {chosen}" if chosen else label\n\n\ndef build_unit_assessment_content(unit_title, questions, material_language="tr", unit_title_tr=None):\n'''
+          if s.count(old)!=1: raise SystemExit('unit title function mismatch')
+          s=s.replace(old,new,1)
+          old='''    heading = unit_assessment_title(unit_title, material_language)\n    intro = ("Bu ünitede öğrendiklerinizi değerlendirin." if is_tr\n             else "Check what you have learned in this unit.")\n    return {"pages": [{"type": "overview", "title": heading, "title_tr": heading,\n                       "text": intro, "text_tr": intro}] + pages}\n'''
+          new='''    heading_en = unit_assessment_title(unit_title, "en", unit_title_tr=unit_title_tr)\n    heading_tr = unit_assessment_title(unit_title, "tr", unit_title_tr=unit_title_tr)\n    return {"pages": [{"type": "overview", "title": heading_en, "title_tr": heading_tr,\n                       "text": "Check what you have learned in this unit.",\n                       "text_tr": "Bu ünitede öğrendiklerinizi değerlendirin."}] + pages}\n'''
+          if s.count(old)!=1: raise SystemExit('unit overview mismatch')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+
+          p=Path('services/material_quality_guard.py'); s=p.read_text(encoding='utf-8')
+          old='''    return deduplicate_morphological_parentheticals(text)\n\n\ndef sanitize_dialogue_speaker(value: Any) -> str:\n'''
+          new='''    if lang_clean in {"en", "english", "ingilizce"}:\n        parts = re.split(r'(`[^`\\n]*`|“[^”\\n]*”|«[^»\\n]*»|"[^"\\n]*"|\\'[^\\'\\n]{1,80}\\')', text)\n        replacements = ((r"\\beril\\b", "masculine"), (r"\\bdişil\\b", "feminine"),\n                        (r"\\bdisil\\b", "feminine"), (r"\\btekil\\b", "singular"),\n                        (r"\\bçoğul\\b", "plural"), (r"\\bcogul\\b", "plural"),\n                        (r"\\bnötr\\b", "neuter"), (r"\\bnotr\\b", "neuter"))\n        for i in range(0, len(parts), 2):\n            for pattern, repl in replacements:\n                parts[i] = re.sub(pattern, repl, parts[i], flags=re.IGNORECASE)\n        return deduplicate_morphological_parentheticals("".join(parts))\n    return deduplicate_morphological_parentheticals(text)\n\n\ndef sanitize_dialogue_speaker(value: Any) -> str:\n'''
+          if s.count(old)!=1: raise SystemExit('EN leakage sanitizer mismatch')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+      - name: Focused assertions
+        run: |
+          python -m py_compile services/ai_engine.py services/legacy/pdf_pipeline.py services/material_quality_guard.py
+          python - <<'PY'
+          from services.legacy.pdf_pipeline import build_unit_assessment_content
+          from services.material_quality_guard import sanitize_instructional_metalanguage
+          qs=[{"prompt":"¿Qué haces?","options":["leo","como","voy","soy"],"answer":"leo","distractors":["como","voy","soy"],"why":"ok","why_tr":"uyar"} for _ in range(10)]
+          o=build_unit_assessment_content("Leisure Activities",qs,"tr",unit_title_tr="Boş Zaman Aktiviteleri")["pages"][0]
+          assert o["title"]=="Unit Assessment: Leisure Activities"
+          assert o["title_tr"]=="Ünite Değerlendirmesi: Boş Zaman Aktiviteleri"
+          assert o["text"].startswith("Check what") and o["text_tr"].startswith("Bu ünitede")
+          cleaned=sanitize_instructional_metalanguage("They (dişil) are friendly; trabajador (eril tekil).","en")
+          print('EN cleanup:', cleaned)
+          assert "dişil" not in cleaned and "eril" not in cleaned and "feminine" in cleaned and "masculine" in cleaned
+          src=open('services/ai_engine.py',encoding='utf-8').read()
+          assert src.index('pre-completion assessment invariants') < src.index('DETERMINISTIC CONTENT FALLBACK') < src.index('HARD COMPLETION INVARIANT')
+          assert src.index('post-fallback assessment invariants') < src.index('HARD COMPLETION INVARIANT')
+          print('focused assertions: PASS')
+          PY
+      - name: Full production-equivalent build checks
+        run: python scripts/run_build_pipeline.py
+      - name: Commit tested files
+        run: |
+          git config user.name "AulaAI integrity fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add services/ai_engine.py services/legacy/pdf_pipeline.py services/material_quality_guard.py
+          git diff --cached --check
+          git commit -m "Apply final material integrity fixes"
+          git push origin HEAD:material-final-integrity-fix-v2
