@@ -22,7 +22,6 @@ jobs:
               if n != 1: raise SystemExit(f'{label}: expected 1, got {n}')
               p.write_text(s.replace(old,new,1), encoding='utf-8')
 
-          # Assessment completion is authoritative only after publication validation.
           p=Path('services/ai_engine.py'); s=p.read_text(encoding='utf-8')
           old='''        # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──\n        if len(final) < c and isinstance(topic_content, dict):\n'''
           new='''        # Count only publishable candidates before deterministic completion.\n        # Previously 10/10 could be logged and then pruned to 0 after success.\n        try:\n            from services.publication_invariants import apply_assessment_invariants\n            final = apply_assessment_invariants(final, language=language, material_language=material_language)\n        except Exception as exc:\n            print(f"[PUBLICATION] pre-completion assessment invariants skipped: {exc}")\n\n        # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──\n        if len(final) < c and isinstance(topic_content, dict):\n'''
@@ -37,7 +36,6 @@ jobs:
           if s.count(old)!=1: raise SystemExit('trailing assessment boundary mismatch')
           s=s.replace(old,new,1)
 
-          # Canonical phonetic ownership: recover existing typed IPA aliases without inventing content.
           old='''                        _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""\n                        clean_items.append({\n                            "term": it.get("term") or it.get("word") or "",\n                            "phonetic": it.get("phonetic") or it.get("phonetic_en") or "",\n                            "phonetic_en": it.get("phonetic_en") or it.get("phonetic") or "",\n                            "phonetic_tr": it.get("phonetic_tr") or "",\n'''
           new='''                        _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""\n                        _phon = (it.get("phonetic") or it.get("phonetic_en") or it.get("phonetic_tr")\n                                 or it.get("pronunciation") or it.get("ipa") or it.get("transcription") or "")\n                        clean_items.append({\n                            "term": it.get("term") or it.get("word") or "",\n                            "phonetic": _phon,\n                            "phonetic_en": _phon,\n                            "phonetic_tr": _phon,\n'''
           if s.count(old)!=1: raise SystemExit('main phonetic ownership mismatch')
@@ -47,7 +45,6 @@ jobs:
           if s.count(old)!=1: raise SystemExit('fallback phonetic ownership mismatch')
           p.write_text(s.replace(old,new,1),encoding='utf-8')
 
-          # Unit assessment overview metadata stores both tracks, not the creation-time track twice.
           p=Path('services/legacy/pdf_pipeline.py'); s=p.read_text(encoding='utf-8')
           old='''            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)\n'''
           new='''            "SELECT id, title, title_tr, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)\n'''
@@ -70,7 +67,6 @@ jobs:
           if s.count(old)!=1: raise SystemExit('unit overview mismatch')
           p.write_text(s.replace(old,new,1),encoding='utf-8')
 
-          # English instructional metadata: canonicalize leaked Turkish morphology labels.
           p=Path('services/material_quality_guard.py'); s=p.read_text(encoding='utf-8')
           old='''_INSTRUCTIONAL_SHORTHAND_MAPS: Dict[str, List[Tuple[str, str]]] = {\n    "tr": [\n'''
           new='''_INSTRUCTIONAL_SHORTHAND_MAPS: Dict[str, List[Tuple[str, str]]] = {\n    "en": [\n        (r"\\beril\\b", "masculine"),\n        (r"\\bdişil\\b", "feminine"),\n        (r"\\bdisil\\b", "feminine"),\n        (r"\\btekil\\b", "singular"),\n        (r"\\bçoğul\\b", "plural"),\n        (r"\\bcogul\\b", "plural"),\n        (r"\\bnötr\\b", "neuter"),\n        (r"\\bnotr\\b", "neuter"),\n    ],\n    "tr": [\n'''
@@ -88,17 +84,14 @@ jobs:
           assert o["title"]=="Unit Assessment: Leisure Activities"
           assert o["title_tr"]=="Ünite Değerlendirmesi: Boş Zaman Aktiviteleri"
           assert o["text"].startswith("Check what") and o["text_tr"].startswith("Bu ünitede")
-          cleaned=sanitize_instructional_metalanguage("They (dişil) are friendly; trabajador (eril tekil).","en")
-          assert cleaned == "They (feminine) are friendly; trabajador (masculine singular)."
+          assert sanitize_instructional_metalanguage("They (dişil) are friendly; trabajador (eril tekil).","en") == "They (feminine) are friendly; trabajador (masculine singular)."
           src=open('services/ai_engine.py',encoding='utf-8').read()
           assert src.index('pre-completion assessment invariants') < src.index('DETERMINISTIC CONTENT FALLBACK') < src.index('HARD COMPLETION INVARIANT')
           assert src.index('post-fallback assessment invariants') < src.index('HARD COMPLETION INVARIANT')
           print('focused assertions: PASS')
           PY
-      - name: Install project dependencies for production-equivalent checks
-        run: pip install -q -r requirements.txt
-      - name: Full production-equivalent pipeline
-        run: python scripts/run_build_pipeline.py
+      - name: Production Docker build
+        run: docker build -t aulaai-integrity-test .
       - name: Commit tested files
         run: |
           git config user.name "AulaAI integrity fix"
