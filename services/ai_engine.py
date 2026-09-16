@@ -1718,6 +1718,14 @@ REPETITION & COVERAGE RULES:
             t_topup = time.perf_counter() - t_topup_start
         timing_ctx["top_up"] = t_topup
 
+        # Count only publishable candidates before deterministic completion.
+        # Previously 10/10 could be logged and then pruned to 0 after success.
+        try:
+            from services.publication_invariants import apply_assessment_invariants
+            final = apply_assessment_invariants(final, language=language, material_language=material_language)
+        except Exception as exc:
+            print(f"[PUBLICATION] pre-completion assessment invariants skipped: {exc}")
+
         # ── DETERMINISTIC CONTENT FALLBACK (Safety Net if AI Provider Fails Completely) ──
         if len(final) < c and isinstance(topic_content, dict):
             fallback_attempted = c - len(final)
@@ -1889,6 +1897,14 @@ REPETITION & COVERAGE RULES:
                             })
                             fallback_accepted += 1
 
+        # Deterministic fallback candidates cross the same boundary before
+        # the hard completion decision. No additional model call is introduced.
+        try:
+            from services.publication_invariants import apply_assessment_invariants
+            final = apply_assessment_invariants(final, language=language, material_language=material_language)
+        except Exception as exc:
+            print(f"[PUBLICATION] post-fallback assessment invariants skipped: {exc}")
+
         # Sanitize Turkish fields in generated questions
         for q in final:
             if q.get("translation_tr"):
@@ -1957,14 +1973,7 @@ REPETITION & COVERAGE RULES:
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [QUIZ-STAGE-TIMING] DB: {t_db:.3f}s | Assembly: {t_assembly:.3f}s | Provenance: {t_prov:.3f}s | Prompt: {t_prompt_duration:.3f}s ({prompt_chars}c/~{prompt_tokens_est}t) | AI: {t_ai_duration:.2f}s (${main_cost:.6f}) | Parse: {t_parse_duration:.3f}s | Filter: {t_filter_duration:.3f}s | Topup: {t_topup:.2f}s (calls={topup_calls}, ${topup_cost:.6f}) | Persist: {t_persist:.3f}s | Total: {t_total:.2f}s | Cost: ${total_cost:.6f}\n")
             f.write(f"[{datetime.now().strftime('%H:%M:%S')}] [AI-V2-DONE] topic={topic_title} requested={c} returned={len(final)}\n")
             
-        # Assessments now cross a publication boundary too. This is deterministic
-        # only and adds no model call: answer keys used to reach the learner with
-        # no publication discipline of any kind.
-        try:
-            from services.publication_invariants import apply_assessment_invariants
-            final = apply_assessment_invariants(final, language=language, material_language=material_language)
-        except Exception as exc:
-            print(f"[PUBLICATION] assessment invariants skipped: {exc}")
+        # Already publication-validated before hard completion; never prune after success.
         return final
     except Exception as e:
         import traceback
@@ -2726,11 +2735,13 @@ def _normalize_lesson_pages(data, topic, language, level):
                 for it in p["items"]:
                     if isinstance(it, dict):
                         _expl_en = it.get("explanation_en") or it.get("explanation") or it.get("tip") or ""
+                        _phon = (it.get("phonetic") or it.get("phonetic_en") or it.get("phonetic_tr")
+                                 or it.get("pronunciation") or it.get("ipa") or it.get("transcription") or "")
                         clean_items.append({
                             "term": it.get("term") or it.get("word") or "",
-                            "phonetic": it.get("phonetic") or it.get("phonetic_en") or "",
-                            "phonetic_en": it.get("phonetic_en") or it.get("phonetic") or "",
-                            "phonetic_tr": it.get("phonetic_tr") or "",
+                            "phonetic": _phon,
+                            "phonetic_en": _phon,
+                            "phonetic_tr": _phon,
                             "translation": it.get("translation") or it.get("meaning") or it.get("english") or "",
                             "translation_en": it.get("translation_en") or it.get("translation") or it.get("meaning") or it.get("english") or "",
                             "translation_tr": it.get("translation_tr") or "",
@@ -2877,11 +2888,13 @@ def _normalize_lesson_pages(data, topic, language, level):
         for v in vocab_items:
             if isinstance(v, dict):
                 _expl_en = v.get("explanation_en") or v.get("explanation") or v.get("tip") or ""
+                _phon = (v.get("phonetic") or v.get("phonetic_en") or v.get("phonetic_tr")
+                         or v.get("pronunciation") or v.get("ipa") or v.get("transcription") or "")
                 clean_items.append({
                     "term": v.get("term") or v.get("word") or "",
-                    "phonetic": v.get("phonetic") or v.get("phonetic_en") or "",
-                    "phonetic_en": v.get("phonetic_en") or v.get("phonetic") or "",
-                    "phonetic_tr": v.get("phonetic_tr") or "",
+                    "phonetic": _phon,
+                    "phonetic_en": _phon,
+                    "phonetic_tr": _phon,
                     "translation": v.get("translation") or v.get("meaning") or "",
                     "translation_en": v.get("translation_en") or v.get("translation") or v.get("meaning") or "",
                     "translation_tr": v.get("translation_tr") or "",

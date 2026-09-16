@@ -482,6 +482,16 @@ def safe_unicode_normalize(text: str, language: Optional[str] = None) -> str:
 # ── INSTRUCTIONAL SHORTHAND & METAMATERIAL PURITY ────────────────────────────
 
 _INSTRUCTIONAL_SHORTHAND_MAPS: Dict[str, List[Tuple[str, str]]] = {
+    "en": [
+        (r"\beril\b", "masculine"),
+        (r"\bdişil\b", "feminine"),
+        (r"\bdisil\b", "feminine"),
+        (r"\btekil\b", "singular"),
+        (r"\bçoğul\b", "plural"),
+        (r"\bcogul\b", "plural"),
+        (r"\bnötr\b", "neuter"),
+        (r"\bnotr\b", "neuter"),
+    ],
     "tr": [
         # Parenthesized forms: (masc.), (masculine), etc.
         (r"\(\s*masc(?:\.|uline)?\s*\)", "(eril)"),

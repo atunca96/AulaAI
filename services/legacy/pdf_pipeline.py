@@ -583,7 +583,7 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
 
     with db_connection() as db:
         chapters = db.execute(
-            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
+            "SELECT id, title, title_tr, number FROM chapters WHERE course_id = ? ORDER BY number", (course_id,)
         ).fetchall()
         units = []
         for ch in chapters:
@@ -594,7 +594,11 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
             topics = [{"id": r[0], "title": r[1], "content": r[2]} for r in rows if r[2]]
             max_sort = max([r[3] or 0 for r in rows], default=0)
             if topics:
-                units.append({"chapter_id": ch[0], "title": ch[1], "number": ch[2],
+                if len(ch) >= 4:
+                    chapter_title_tr, chapter_number = ch[2] or ch[1], ch[3]
+                else:
+                    chapter_title_tr, chapter_number = ch[1], ch[2]
+                units.append({"chapter_id": ch[0], "title": ch[1], "title_tr": chapter_title_tr, "number": chapter_number,
                               "topics": topics, "next_sort": max_sort + 1})
 
     if not units:
@@ -623,8 +627,8 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
         if len(questions) != UNIT_ASSESSMENT_COUNT:
             _log(f"[UNIT-ASSESSMENT] '{unit['title']}' produced {len(questions)}; skipped.")
             continue
-        content = build_unit_assessment_content(unit["title"], questions, material_language)
-        title = unit_assessment_title(unit["title"], material_language)
+        content = build_unit_assessment_content(unit["title"], questions, material_language, unit_title_tr=unit.get("title_tr"))
+        title = unit_assessment_title(unit["title"], material_language, unit_title_tr=unit.get("title_tr"))
         with db_connection() as db:
             existing = db.execute(
                 "SELECT id FROM topics WHERE chapter_id = ? AND type = ?",
@@ -644,12 +648,14 @@ def _build_unit_assessments(course_id, language, level, material_language, gen_i
     bump_version()
 
 
-def unit_assessment_title(unit_title, material_language="tr"):
-    label = "Ünite Değerlendirmesi" if str(material_language).casefold() == "tr" else "Unit Assessment"
-    return f"{label}: {unit_title}" if unit_title else label
+def unit_assessment_title(unit_title, material_language="tr", unit_title_tr=None):
+    is_tr = str(material_language).casefold() == "tr"
+    label = "Ünite Değerlendirmesi" if is_tr else "Unit Assessment"
+    chosen = (unit_title_tr or unit_title) if is_tr else unit_title
+    return f"{label}: {chosen}" if chosen else label
 
 
-def build_unit_assessment_content(unit_title, questions, material_language="tr"):
+def build_unit_assessment_content(unit_title, questions, material_language="tr", unit_title_tr=None):
     """Lesson-shaped pages for the stored assessment topic.
 
     `stem_scope: target_complete` is what tells the publication boundary that the
@@ -674,11 +680,11 @@ def build_unit_assessment_content(unit_title, questions, material_language="tr")
             "explanation_tr": q.get("why_tr", ""),
             "topic_id": q.get("topic_id"),
         })
-    heading = unit_assessment_title(unit_title, material_language)
-    intro = ("Bu ünitede öğrendiklerinizi değerlendirin." if is_tr
-             else "Check what you have learned in this unit.")
-    return {"pages": [{"type": "overview", "title": heading, "title_tr": heading,
-                       "text": intro, "text_tr": intro}] + pages}
+    heading_en = unit_assessment_title(unit_title, "en", unit_title_tr=unit_title_tr)
+    heading_tr = unit_assessment_title(unit_title, "tr", unit_title_tr=unit_title_tr)
+    return {"pages": [{"type": "overview", "title": heading_en, "title_tr": heading_tr,
+                       "text": "Check what you have learned in this unit.",
+                       "text_tr": "Bu ünitede öğrendiklerinizi değerlendirin."}] + pages}
 
 
 def process_pdf_to_classroom(pdf_path, toc_range, lecturer_id, course_name=None, manual_toc=None, source_markdown_path=None, language=None, level="A1", material_language="tr"):
