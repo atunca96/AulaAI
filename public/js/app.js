@@ -7302,7 +7302,12 @@ async function selectClassroom(id, isLecturer = true) {
     targetTopic = curriculum[0].topics[0].id;
     targetPage = 0;
   }
-  if (isStudyTab && targetTopic) {
+  // renderStudyBook() above already opened a topic, and resolved it against the
+  // curriculum (so a stale stored id cannot leave the reader blank). Opening it
+  // a second time here repainted the entire reader synchronously for no reason,
+  // which is the flicker on first entering a class.
+  const alreadyOpen = !!document.querySelector('.study-topic-btn.active');
+  if (isStudyTab && targetTopic && !alreadyOpen) {
     showStudyTopic(targetTopic, targetPage);
   } else if (isStudyTab && (!curriculum || curriculum.length === 0)) {
     const contentArea = document.getElementById(currentUser.role === 'student' ? 's-ai-book-content-area' : 'ai-book-content-area');
