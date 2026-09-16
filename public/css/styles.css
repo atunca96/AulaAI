@@ -3667,16 +3667,28 @@ body:has(#student-dashboard.active) .floating-actions {
   }
 }
 
-@media (max-width: 768px) {
-  /* Center the generic confirm modal on mobile instead of sliding it up from bottom */
+@media (max-width: 1024px) {
+  /* A short notification ("your classroom is ready") is not a bottom sheet.
+     The sheet rules above set `align-items: flex-end` on .modal, and this
+     override only ever restyled the PANEL — so the panel kept sitting on the
+     bottom edge however it was margined. Centring has to happen on the flex
+     container, so it is done here, and the panel is returned to a centred
+     dialog rather than a full-width sheet.
+
+     Scoped to #confirm-modal on purpose: the sheet treatment is right for the
+     long forms (class creation, the AI Architect), which is why it exists. */
+  #confirm-modal {
+    align-items: center;
+    padding: var(--gutter-safe);
+  }
   #confirm-modal .modal-content {
-    position: relative !important;
-    bottom: auto !important;
-    left: auto !important;
-    right: auto !important;
-    margin: 20px !important;
-    border-radius: var(--radius-lg) !important;
-    max-height: 80vh !important;
+    width: 100%;
+    max-width: 400px;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    max-height: 80svh;
+    padding: var(--space-7);
   }
 }
 
