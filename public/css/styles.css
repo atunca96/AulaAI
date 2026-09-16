@@ -2827,6 +2827,24 @@ body:has(#student-dashboard.active) .floating-actions {
   background: var(--text-muted);
 }
 
+/* Desktop only: widen the sidebar and let long unit/topic names wrap
+   instead of being clipped. Tablet/mobile (<=1024px) styles are untouched. */
+@media (min-width: 1025px) {
+  .study-sidebar {
+    width: 330px;
+    min-width: 300px;
+    max-width: 360px;
+  }
+
+  .study-sidebar-toc .study-topic-btn {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    height: auto;
+  }
+}
+
 /* Right Content Panel: Fixed 100% Height, Flex Column */
 .study-content-panel {
   flex: 1;
