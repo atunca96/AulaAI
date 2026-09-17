@@ -34,57 +34,55 @@ css += r'''
     pointer-events: none;
   }
 
-  /* Mobile study/material viewport: no horizontal canvas. */
-  #study-screen.active {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    overflow-x: hidden !important;
-    overscroll-behavior-x: none;
-    touch-action: pan-y;
-  }
-  #study-screen.active .study-main,
-  #study-screen.active .study-content,
-  #study-screen.active .material-content {
+  /* The real material layout uses these study-* containers. The existing
+     tablet rule deliberately sets their overflow to visible, which allowed a
+     nowrap/desktop-width child to enlarge the page horizontally on iPhone. */
+  .study-container,
+  .study-content-panel,
+  .study-content-area,
+  .study-topic-wrapper,
+  .study-card {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    box-sizing: border-box;
+    box-sizing: border-box !important;
     overflow-x: hidden !important;
   }
 
-  /* Generated material blocks may carry desktop widths/min-widths. Constrain
-     direct content descendants without changing their vertical layout. */
-  #study-screen.active .study-content > *,
-  #study-screen.active .material-content > * {
-    max-width: 100% !important;
+  .study-content-panel,
+  .study-card {
+    overflow-y: visible !important;
+  }
+
+  .study-card *,
+  .study-content-area *,
+  .study-topic-wrapper * {
     min-width: 0 !important;
+    max-width: 100% !important;
     box-sizing: border-box;
   }
 
-  #study-screen.active img,
-  #study-screen.active video,
-  #study-screen.active iframe,
-  #study-screen.active table,
-  #study-screen.active pre {
-    max-width: 100% !important;
-  }
-  #study-screen.active img,
-  #study-screen.active video,
-  #study-screen.active iframe {
-    height: auto;
-  }
-
-  /* IPA/transcription and generated examples are the visible offenders: allow
-     them to wrap instead of widening the material canvas. */
-  #study-screen.active p,
-  #study-screen.active li,
-  #study-screen.active span,
-  #study-screen.active code,
-  #study-screen.active pre {
+  .study-card p,
+  .study-card li,
+  .study-card span,
+  .study-card code,
+  .study-card pre,
+  .study-content-area p,
+  .study-content-area li,
+  .study-content-area span,
+  .study-content-area code,
+  .study-content-area pre {
     white-space: normal !important;
     overflow-wrap: anywhere !important;
-    word-break: break-word;
-    min-width: 0;
+    word-break: break-word !important;
+  }
+
+  .study-card img,
+  .study-card video,
+  .study-card iframe,
+  .study-card table,
+  .study-card pre {
+    max-width: 100% !important;
   }
 }
 '''
@@ -92,8 +90,8 @@ styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr09", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr09", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr10", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr10", 1)
 
 # Mobile login fields stay read-only until that specific field is intentionally
 # touched. Programmatic focus can still paint :focus on a read-only input, so
@@ -169,6 +167,6 @@ index = index.replace(anchor, keyboard_guard + "\n    " + anchor, 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll + login focus + strict mobile material viewport")
+print("[BOOT] applied native iOS overscroll + login focus + real mobile study overflow fix")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
