@@ -100,7 +100,10 @@
 }
 
 .classroom-code {
-    font-family: 'JetBrains Mono', monospace;
+    /* Was a hardcoded `'JetBrains Mono', monospace`, which fell past the
+       unloaded family to the generic monospace — Courier on iOS — while the
+       rest of the app's codes fell to ui-monospace. One token, one face. */
+    font-family: var(--font-mono);
     font-weight: 700;
     color: var(--accent-light);
     font-size: 13px;
