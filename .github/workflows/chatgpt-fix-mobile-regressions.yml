@@ -1,0 +1,40 @@
+name: chatgpt-fix-mobile-regressions
+on:
+  push:
+    branches: [chatgpt-fix-mobile-regressions]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt-fix-mobile-regressions
+      - name: Fix mobile regressions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          cssp=Path('public/css/styles.css'); css=cssp.read_text()
+          old='body:has(> .screen.active:not(#login-screen)) { padding-top: 6vh; padding-bottom: 8vh; }'
+          if css.count(old)!=1: raise SystemExit(f'expected global optical rule once, found {css.count(old)}')
+          css=css.replace(old, 'body:has(> .screen.active:not(#login-screen)) { padding-top: 0; padding-bottom: 0; }', 1)
+          # Keep the useful optical placement local to the two intended short-page surfaces only.
+          css += '''\n\n/* Mobile optical placement: short study/activity surfaces only. */\n@media (max-width: 1024px) {\n  body:has(#study-screen.active),\n  body:has(#classroom-activities-screen.active) {\n    padding-top: 6vh;\n    padding-bottom: 8vh;\n  }\n\n  /* Disable Safari double-tap zoom without disabling two-finger pinch zoom. */\n  html, body, body * { touch-action: manipulation; }\n}\n'''
+          cssp.write_text(css)
+
+          ip=Path('public/index.html'); s=ip.read_text()
+          oldv='/css/styles.css?v=20260917_optical02'; newv='/css/styles.css?v=20260917_mobilefix01'
+          if s.count(oldv)!=1: raise SystemExit(f'expected css version once, found {s.count(oldv)}')
+          ip.write_text(s.replace(oldv,newv,1))
+          PY
+      - name: Verify and commit
+        run: |
+          git diff --check
+          git diff -- public/css/styles.css public/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/css/styles.css public/index.html
+          git commit -m "fix: scope mobile optical spacing and disable double-tap zoom"
+          git push origin HEAD:chatgpt-fix-mobile-regressions
