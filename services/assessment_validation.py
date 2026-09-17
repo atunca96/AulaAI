@@ -32,7 +32,63 @@ __all__ = [
     "violations", "filter_publishable", "normalize_token",
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
+    "giveaway_features",
 ]
+
+
+# A short letter or digraph the stem puts in quotes — 'h', "qu", «ñ», 'ch'.
+# Three characters is the ceiling on purpose: it covers every digraph and
+# trigraph a course teaches while excluding quoted words, which are a normal
+# and legitimate thing for a stem to do.
+_QUOTED_FEATURE = re.compile(r"""['"‘’“”«»]\s*([^\s'"‘’“”«»]{1,3})\s*['"‘’“”«»]""")
+
+
+def giveaway_features(item: Dict[str, Any]) -> List[str]:
+    """Features the stem names that only the keyed answer actually exhibits.
+
+    An item asking which word shows some spelling or sound feature is only a
+    question if every option could plausibly be the one. When the feature
+    appears in the key and nowhere else, the learner finds the answer by
+    scanning for a letter — the rule being taught is never consulted, and the
+    item reads as trivial however plausible the distractors look as words.
+
+    Deliberately surface-level and language-agnostic: it compares substrings,
+    knows nothing about Spanish or Turkish, and fires only on the shape of the
+    item. Accents are preserved through the comparison, because for these
+    features 'ñ' and 'n', or 'ü' and 'u', are exactly the distinction at stake.
+    """
+    stem = str(item.get("prompt") or "")
+    if not stem:
+        return []
+
+    answer = str(item.get("answer") or "").casefold()
+    if not answer:
+        return []
+
+    opts = item.get("options")
+    if isinstance(opts, list) and opts:
+        pool = [str(o).casefold() for o in opts]
+    else:
+        distractors = item.get("distractors")
+        pool = [answer] + [
+            str(d).casefold() for d in (distractors if isinstance(distractors, list) else [])
+        ]
+    pool = [o for o in pool if o]
+    if len(pool) < 3:
+        return []
+
+    found: List[str] = []
+    for raw in _QUOTED_FEATURE.findall(stem):
+        feature = raw.casefold()
+        # Letters only: quoted punctuation, digits and IPA brackets are not
+        # orthographic features of the kind this catches.
+        if not feature or not all(ch.isalpha() for ch in feature):
+            continue
+        if feature not in answer:
+            continue
+        if sum(1 for o in pool if feature in o) == 1 and feature not in found:
+            found.append(feature)
+    return found
 
 
 def normalize_token(text: Any) -> str:
@@ -192,6 +248,15 @@ def violations(
     if looks_like_translation_question(stem):
         problems.append("translation_question")
 
+    # The stem must not hand the answer over on the surface. The contract
+    # already forbids meta-orthographic trivia ("which letter is silent",
+    # "which word has a written accent") in prose; nothing checked it, and
+    # items of exactly that shape reached learners — "which word has a silent
+    # 'h'" answered by hotel among gato, mesa and casa, where one option
+    # contains an h at all. This is that rule with teeth.
+    for feature in giveaway_features(item):
+        problems.append(f"feature_only_in_key:{feature}")
+
     # The stem must be target-language prose, not instructional-language prose.
     if stem and instructional_prose_ratio(stem, instructional_track) >= max_instructional_ratio:
         problems.append("stem_in_instructional_language")
@@ -229,7 +294,7 @@ _DROP_PREFIXES = (
     "missing_stem", "missing_answer", "distractor_count_", "duplicate_options",
     "answer_among_distractors", "option_count_", "answer_not_in_options",
     "translation_question", "stem_in_instructional_language",
-    "answer_revealed_in_", "out_of_scope:",
+    "answer_revealed_in_", "out_of_scope:", "feature_only_in_key:",
 )
 
 
