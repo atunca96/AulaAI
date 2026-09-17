@@ -759,13 +759,13 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    band: it behaves like every other line of text on the site. */
 .site-footer {
   flex-shrink: 0;
-  /* The room underneath is the same reserve the privacy line gets at the foot
-     of the login form — `40px + --control-lg` — and for the same reason: the
-     floating theme/language pill sits in that corner, and text at the end of a
-     page otherwise lands either under it or on the very edge of the screen.
-     Same logic, same number, so the two lines sit the same way. */
-  padding: var(--space-5) var(--gutter-safe) calc(var(--space-10) + var(--control-lg) + env(safe-area-inset-bottom, 0px));
-  text-align: center;
+  /* Ordinary spacing, top and bottom — the page ends just after this line
+     instead of trailing a screen of nothing. The reserve that used to sit here
+     existed only to keep the text out from under the floating theme/language
+     pill; aligning to the leading edge does that for free, because the pill is
+     in the opposite corner. */
+  padding: var(--space-5) var(--gutter-safe) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  text-align: start;
   font-size: 11px;
   line-height: 1.5;
   color: var(--text-muted);
@@ -2739,14 +2739,14 @@ body:has(#student-dashboard.active) .floating-actions {
     background: var(--bg-primary);
     /* Symmetric, plus room at the bottom for the floating theme/language
        pill so it never lands on the privacy link. */
-    padding: 40px 20px calc(40px + var(--control-lg));
+    padding: 34px 20px calc(40px + var(--control-lg));
   }
   .login-form-brand {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 30px;
+    margin-bottom: 22px;
   }
   .login-form-brand__logo { height: 34px; width: auto; }
   .login-form-brand__name {
@@ -2760,7 +2760,7 @@ body:has(#student-dashboard.active) .floating-actions {
      desktop rules for the same elements are untouched, and switchDemoLang /
      handleDemoTTS still have their .academic-sheet to work on there. */
   .login-form-section h2 { font-size: 24px; }
-  .login-hint { font-size: 14px; margin-bottom: 24px; }
+  .login-hint { font-size: 14px; margin-bottom: 18px; }
   .form-group input { padding: 14px 16px; font-size: 16px; } /* 16px prevents iOS zoom */
   .btn-full { padding: 16px; font-size: 16px; }
   .demo-btn { padding: 14px 16px; }
