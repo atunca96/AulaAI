@@ -5046,7 +5046,22 @@ select.text-input option,
 }
 
 
-/* Mobile tap behavior only. Layout remains owned by each screen/component. */
+/* Mobile study pages sit at the intended optical height instead of being
+   either hard-centred or pinned directly under the nav. This moves the reader
+   as one block, so assessment and in-class activity pages share the same top. */
 @media (max-width: 1024px) {
+  .dashboard-content:has(#tab-study-materials.active) .study-container,
+  .dashboard-content:has(#tab-s-study-tab.active) .study-container {
+    margin-top: 15vh;
+  }
+
+  /* Do not animate the material shell/content into place on iOS. The content
+     is already painted before reveal; these transforms only make that paint
+     look like the old first-frame glitch. */
+  .study-topic-wrapper, .study-card, #activity-preview {
+    animation: none !important;
+    transform: none !important;
+  }
+
   html, body, body * { touch-action: manipulation; }
 }
