@@ -18,6 +18,62 @@ single_render = """  if (isStudyTab && (!curriculum || curriculum.length === 0))
 if source.count(double_render) != 1:
     raise RuntimeError("material double-render guard changed")
 source = source.replace(double_render, single_render, 1)
+
+# Classroom entry used to repaint the same reader repeatedly: once before reveal,
+# again through the post-reveal switchTab, then several more times while
+# initLecturer/initStudent settled. Keep the first complete pre-reveal paint and
+# make later renderStudyBook calls no-ops only for the duration of that entry.
+render_decl = "function renderStudyBook() {"
+if source.count(render_decl) != 1:
+    raise RuntimeError("renderStudyBook declaration changed")
+source = source.replace(render_decl, render_decl + "\n  if (window.__aulaClassroomStudyPaintLocked) return;", 1)
+
+first_paint = "  renderStudyBook();\n\n  // 4. Restore exact study topic synchronously if on study materials or book"
+locked_paint = "  renderStudyBook();\n  window.__aulaClassroomStudyPaintLocked = true;\n\n  // 4. Restore exact study topic synchronously if on study materials or book"
+if source.count(first_paint) != 1:
+    raise RuntimeError("classroom first material paint changed")
+source = source.replace(first_paint, locked_paint, 1)
+
+post_reveal_lecturer = """    if (tabBtn) {
+      switchTab(tabBtn, false, !_isNavigatingFromPopState);
+    } else {"""
+post_reveal_lecturer_fixed = """    if (tabBtn) {
+      // Target tab was already activated before the dashboard was revealed.
+      // Do not repaint the reader after reveal.
+    } else {"""
+if source.count(post_reveal_lecturer) != 1:
+    raise RuntimeError("lecturer post-reveal tab block changed")
+source = source.replace(post_reveal_lecturer, post_reveal_lecturer_fixed, 1)
+
+post_reveal_student = """    if (tabBtn) {
+      switchTab(tabBtn, true, !_isNavigatingFromPopState);
+    } else {"""
+post_reveal_student_fixed = """    if (tabBtn) {
+      // Target tab was already activated before the dashboard was revealed.
+      // Do not repaint the reader after reveal.
+    } else {"""
+if source.count(post_reveal_student) != 1:
+    raise RuntimeError("student post-reveal tab block changed")
+source = source.replace(post_reveal_student, post_reveal_student_fixed, 1)
+
+lecturer_init = "    await initLecturer();\n  } else {"
+lecturer_init_fixed = "    await initLecturer();\n  } else {"
+if source.count(lecturer_init) != 1:
+    raise RuntimeError("lecturer init block changed")
+
+unlock_anchor = """    await initStudent();
+  }
+
+  // Ensure the route URL is updated"""
+unlock_fixed = """    await initStudent();
+  }
+  window.__aulaClassroomStudyPaintLocked = false;
+
+  // Ensure the route URL is updated"""
+if source.count(unlock_anchor) != 1:
+    raise RuntimeError("classroom material unlock anchor changed")
+source = source.replace(unlock_anchor, unlock_fixed, 1)
+
 app_js.write_text(source, encoding="utf-8")
 
 styles = ROOT / "public" / "css" / "styles.css"
