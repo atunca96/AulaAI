@@ -551,6 +551,12 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         except Exception as ua_err:
             _log(f"[UNIT-ASSESSMENT] phase skipped: {ua_err}")
 
+        # ── PHASE 2c: AUDIT THE FINISHED BOOK ──
+        try:
+            _audit_course(course_id)
+        except Exception as audit_err:
+            _log(f"[AUDIT] skipped: {audit_err}")
+
         _log(f"Phase 2 Complete for {course_id}.")
         if generation_cost is not None:
             try:
@@ -699,6 +705,110 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
     if filled:
         bump_version()
     return filled
+
+
+def _audit_course(course_id):
+    """Run every deterministic check over the finished book and report.
+
+    Each check this project has already earned runs per item or per batch, so
+    nothing ever looked at the artefact the learner actually holds. That is why
+    three separate defects — a question asked twice, a letter the stem gives
+    away, a pronunciation column with holes — were all found by a person reading
+    a finished PDF rather than by the build that produced it.
+
+    This makes no model call and changes nothing. It reports, because a build
+    that silently ships a defect it could name is the thing worth fixing first;
+    what to do about each class is a decision with its own trade-offs, and
+    several of them are already handled upstream. Returns the findings so a
+    caller or a test can assert on them.
+    """
+    from services.assessment_validation import (
+        stem_key, giveaway_features, mixed_spelling_variants, violations, is_fatal,
+    )
+    from services.publication_evidence import is_usable_transcription
+
+    with db_connection() as db:
+        rows = db.execute(
+            "SELECT id, title, content FROM topics WHERE chapter_id IN "
+            "(SELECT id FROM chapters WHERE course_id = ?)",
+            (course_id,),
+        ).fetchall()
+
+    seen_stems = {}
+    findings = {"repeated_stems": [], "giveaway": [], "spelling_variants": [],
+                "invalid_items": [], "phonetic_gaps": [], "bad_transcriptions": []}
+    items = 0
+    vocab_rows = 0
+
+    for topic_id, title, raw in rows:
+        try:
+            content = json.loads(raw or "{}") if isinstance(raw, str) else (raw or {})
+        except Exception:
+            continue
+        if not isinstance(content, dict):
+            continue
+        for page in content.get("pages") or []:
+            if not isinstance(page, dict):
+                continue
+
+            # Vocabulary rows: a pronunciation column with holes, or holding prose.
+            for key in ("items", "vocabulary", "words"):
+                for entry in (page.get(key) or []):
+                    if not isinstance(entry, dict):
+                        continue
+                    term = str(entry.get("term") or entry.get("word") or entry.get("phrase")
+                               or entry.get("sentence") or entry.get("target") or "").strip()
+                    if not term or not any(ch.isalpha() for ch in term):
+                        continue
+                    vocab_rows += 1
+                    phon = str(entry.get("phonetic") or entry.get("pronunciation") or "").strip()
+                    if not phon:
+                        findings["phonetic_gaps"].append(term)
+                    elif not is_usable_transcription(phon, term):
+                        findings["bad_transcriptions"].append(f"{term}: {phon}")
+
+            if str(page.get("type") or "").casefold() != "mcq":
+                continue
+            prompt = str(page.get("prompt") or "").strip()
+            if not prompt:
+                continue
+            items += 1
+            answer = str(page.get("answer") or "").strip()
+            options = [str(o) for o in (page.get("options") or []) if str(o).strip()]
+
+            key = stem_key(prompt)
+            if key and key in seen_stems:
+                findings["repeated_stems"].append(f"{seen_stems[key]} == {title}: {prompt[:70]}")
+            elif key:
+                seen_stems[key] = title
+
+            item = {"prompt": prompt, "answer": answer, "options": options,
+                    "distractors": [o for o in options if o != answer]}
+            if answer and len(options) >= 3:
+                if giveaway_features(item):
+                    findings["giveaway"].append(f"{prompt[:60]} -> {giveaway_features(item)}")
+                if mixed_spelling_variants(options):
+                    findings["spelling_variants"].append(f"{prompt[:50]} -> {options}")
+                fatal = [v for v in violations(item, instructional_track="tr",
+                                               require_rationale_track=False) if is_fatal(v)]
+                if fatal:
+                    findings["invalid_items"].append(f"{prompt[:50]} -> {fatal}")
+
+    total = sum(len(v) for v in findings.values())
+    if not total:
+        _log(f"[AUDIT] {items} question(s), {vocab_rows} vocabulary row(s): clean.")
+        return findings
+
+    _log(f"[AUDIT] {items} question(s), {vocab_rows} vocabulary row(s): {total} finding(s).")
+    for name, found in findings.items():
+        if not found:
+            continue
+        _log(f"[AUDIT]   {name}: {len(found)}")
+        for line in found[:5]:
+            _log(f"[AUDIT]     - {line}")
+        if len(found) > 5:
+            _log(f"[AUDIT]     ... and {len(found) - 5} more")
+    return findings
 
 
 UNIT_ASSESSMENT_TYPE = "unit_assessment"
