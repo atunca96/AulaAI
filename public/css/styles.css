@@ -771,6 +771,17 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   color: var(--text-muted);
   letter-spacing: 0.01em;
 }
+/* On the login screen the notice is simply the next line after the privacy
+   sentence, inside the form, laid out by the same rules. No page-level footer
+   there at all, so nothing sits below a fold and nothing can reveal it by
+   scrolling — there is nothing to scroll. */
+.login-copyright {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+body:has(#login-screen.active) .site-footer { display: none; }
 .login-footer-link {
   color: var(--accent-light);
   text-decoration: none;
@@ -2739,14 +2750,14 @@ body:has(#student-dashboard.active) .floating-actions {
     background: var(--bg-primary);
     /* Symmetric, plus room at the bottom for the floating theme/language
        pill so it never lands on the privacy link. */
-    padding: 34px 20px calc(40px + var(--control-lg));
+    padding: 26px 20px calc(28px + var(--control-lg));
   }
   .login-form-brand {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
   }
   .login-form-brand__logo { height: 34px; width: auto; }
   .login-form-brand__name {
