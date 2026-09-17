@@ -871,13 +871,13 @@ h1, h2, h3, h4, h5, h6 {
     align-items: center;
     position: relative;
   }
-  /* The remaining pixel is optical, not geometric. The label is all-caps and
-     the value is mixed-case, so even on a shared baseline the label's mass
-     sits a cap-height above the value's x-height and the names read as low.
-     One pixel up settles them against each other. */
+  /* This offset is optical, not geometric. The label is all-caps and the value
+     is mixed-case, so even on a shared baseline the label's mass sits a
+     cap-height above the value's x-height and the names read as low. One pixel
+     was not enough of a correction to settle them; two is. */
   .data-table.is-stacked .cell-scroll-x {
     position: relative;
-    top: -1px;
+    top: -2px;
   }
   /* A fade at the right edge, shown only while there is more list to reach.
      Painted by the CELL rather than as a mask on the scroller: masking a
