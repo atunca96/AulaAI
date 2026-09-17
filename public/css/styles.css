@@ -265,7 +265,12 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 /* ── Screens ─────────────────────────────────────────── */
-.screen { display: none; min-height: 100vh; min-height: 100dvh; }
+/* No viewport floor. A screen is as tall as what it holds, so a short page
+   ends just after its content instead of padding out to a full screen and
+   leaving a gap beneath it. The body keeps min-height:100dvh, so the page
+   background still covers the screen — it is the empty box that is gone, not
+   the backdrop. */
+.screen { display: none; }
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -2481,7 +2486,9 @@ body:has(#student-dashboard.active) .floating-actions {
     .chat-wrapper.is-active {
         display: flex !important;
         flex-direction: column !important;
-        min-height: 400px;
+        /* Enough for a short conversation without opening a void under an
+           empty one. */
+        min-height: 260px;
         height: auto !important;
         background: var(--bg-card);
         border-radius: 12px;
