@@ -209,6 +209,12 @@ html, body {
   position: relative;
   -webkit-text-size-adjust: 100%;
   background: var(--bg-primary);
+  /* iOS Safari rubber-bands the whole page past its top/bottom edge, and
+     paints the revealed strip using the system default (white), not this
+     background — the page itself has no content there to show. Disabling
+     the bounce on the document is what actually removes the gap, rather
+     than trying to chase it with a matching color. */
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -2492,8 +2498,13 @@ body:has(#student-dashboard.active) .floating-actions {
     top: 0;
     flex-wrap: nowrap;
     justify-content: flex-start;
-    padding: env(safe-area-inset-top, 0px) var(--space-5) 0;
-    height: calc(var(--topnav-h) + env(safe-area-inset-top, 0px));
+    /* Padding to the raw inset puts the logo flush against the notch/Dynamic
+       Island edge — fine in a browser tab, where Safari's own chrome already
+       adds clearance, but tight enough as a home-screen app (full-bleed,
+       black-translucent status bar) to read as "behind" it. A small buffer
+       on top of the inset gives it room to breathe in both. */
+    padding: calc(env(safe-area-inset-top, 0px) + var(--space-3)) var(--space-5) 0;
+    height: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-3));
     gap: var(--space-4);
     z-index: var(--z-topnav);
   }
