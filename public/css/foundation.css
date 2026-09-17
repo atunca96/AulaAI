@@ -809,13 +809,21 @@ h1, h2, h3, h4, h5, h6 {
   }
   .data-table.is-stacked tr:hover { background: var(--surface-1); }
 
-  /* Secondary fields: an inline chip carrying its own label. */
+  /* Secondary fields: an inline chip carrying its own label.
+
+     The whole block is set in the mono face — every label and every value, so
+     the label reads as the heading of the value beside it rather than as a
+     different kind of text. Previously only the ID cell was mono, which made
+     its ID / EMAIL label the odd one out among four labels that should match.
+     The two cells that carry prose rather than data, the student's name and
+     the action buttons, opt back out below. */
   .data-table.is-stacked td {
     display: inline-flex;
     align-items: baseline;
     gap: var(--space-2);
     padding: 0;
     border-bottom: none;
+    font-family: var(--font-mono);
     font-size: var(--fs-sm);
     color: var(--text-secondary);
     min-width: 0;
@@ -832,10 +840,12 @@ h1, h2, h3, h4, h5, h6 {
   }
   .data-table.is-stacked td:not([data-label])::before { content: none; }
 
-  /* The record's own title claims the first line to itself. */
+  /* The record's own title claims the first line to itself. A person's name is
+     prose, not a field, so it keeps the UI face. */
   .data-table.is-stacked td:first-child {
     flex: 1 0 100%;
     display: block;
+    font-family: var(--font-ui);
     font-size: var(--fs-lg);
     font-weight: var(--fw-semibold);
     color: var(--text-primary);
@@ -843,9 +853,12 @@ h1, h2, h3, h4, h5, h6 {
   }
   .data-table.is-stacked td:first-child::before { content: none; }
 
-  /* Actions get their own full-width row under the chips. */
+  /* Actions get their own full-width row under the chips. Buttons are
+     `font-family: inherit`, so pinning the cell keeps their labels on the UI
+     face rather than dragging them into the mono block. */
   .data-table.is-stacked td.actions {
     flex: 1 0 100%;
+    font-family: var(--font-ui);
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-4);
