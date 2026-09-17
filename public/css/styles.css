@@ -224,7 +224,16 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   color: var(--text-primary);
+  /* On iOS `100vh` is the LARGE viewport — the height the page WOULD have if
+     Safari's toolbars were collapsed. While they are showing, a body pinned to
+     100vh is ~90-140px taller than the visual viewport, so every screen is
+     scrollable by exactly that much even when its content fits, and the strip
+     the content does not cover publishes page background. That is the band
+     along the bottom, and (once scrolled) the navy hero filling the top.
+     `100dvh` is the viewport as it actually is right now; the `100vh` line
+     above it stays as the fallback for browsers without dvh. */
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
@@ -244,7 +253,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 /* ── Screens ─────────────────────────────────────────── */
-.screen { display: none; min-height: 100vh; }
+.screen { display: none; min-height: 100vh; min-height: 100dvh; }
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -309,6 +318,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 .login-hero {
   background: #09162a; /* Solid academic navy */
@@ -2644,11 +2654,9 @@ body:has(#student-dashboard.active) .floating-actions {
 
 /* Mobile Login Optimization */
 @media (max-width: 768px) {
-  /* .screen is min-height:100vh, which on iOS is the LARGE viewport (toolbars
-     hidden). A child at 100dvh is therefore always shorter than its parent
-     while the toolbars are showing, and the difference published a strip of
-     page background below the form — the black band along the bottom. Both
-     now measure the same way.
+  /* body and .screen now measure in dvh too (see the body rule), so the whole
+     chain — body, screen, container — is the same height as the visual
+     viewport and the login page does not scroll at all when it fits.
 
      The reversal is gone too. column-reverse on a scrolling box puts the
      scroll origin at the BOTTOM, which is what left unscrolled space at the
@@ -2762,6 +2770,7 @@ body:has(#student-dashboard.active) .floating-actions {
   .login-form-section {
     padding: 16px 32px;
     min-height: 100vh;
+    min-height: 100dvh;
     overflow-y: auto;
   }
   .login-form-section h2 { font-size: 20px; margin-bottom: 2px; }
