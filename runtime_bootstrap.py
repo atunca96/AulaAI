@@ -8,7 +8,21 @@ source = app_js.read_text(encoding="utf-8")
 marker = "// ── Pull-to-refresh suppression (iOS Safari) ──"
 pos = source.find(marker)
 if pos < 0: raise RuntimeError("iOS PTR handler marker missing")
-app_js.write_text(source[:pos].rstrip() + "\n", encoding="utf-8")
+source = source[:pos].rstrip() + "\n"
+
+# renderStudyBook() already resolves and opens the initial topic. The old
+# fallback used a desktop-sidebar .active button as proof that this happened;
+# on the mobile reader that proof can be absent, so selectClassroom() rendered
+# the same topic a second time and produced the one-frame entry flicker.
+double_render = """  const alreadyOpen = !!document.querySelector('.study-topic-btn.active');
+  if (isStudyTab && targetTopic && !alreadyOpen) {
+    showStudyTopic(targetTopic, targetPage);
+  } else if (isStudyTab && (!curriculum || curriculum.length === 0)) {"""
+single_render = """  if (isStudyTab && (!curriculum || curriculum.length === 0)) {"""
+if source.count(double_render) != 1:
+    raise RuntimeError("material double-render guard changed")
+source = source.replace(double_render, single_render, 1)
+app_js.write_text(source, encoding="utf-8")
 
 styles = ROOT / "public" / "css" / "styles.css"
 css = styles.read_text(encoding="utf-8")
@@ -41,7 +55,7 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr22',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr22',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr23',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr23',1)
 mobile_guards=r'''
 <script>
 (function(){
