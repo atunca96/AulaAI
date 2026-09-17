@@ -645,7 +645,8 @@ function startLiveSync() {
             // Update local state if it finished building
             if (!prog.is_building && currentCourse.is_building) {
               currentCourse.is_building = 0;
-              showToast(t('Classroom is ready!'), "success");
+              // No toast here: the same polling pass raises the "Congratulations!"
+              // modal a few lines below, so this said the same thing twice.
               refreshCurrentView();
             }
           }
