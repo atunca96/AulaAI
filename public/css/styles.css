@@ -752,33 +752,34 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    rule, no padding block — hold the cost to ~25px rather than ~40px, and the
    muted colour keeps it reading as a footer mark rather than a third
    sentence after the privacy line. */
-.login-copyright {
-  margin-top: 10px;
+/* One footer for the whole site, in the flow at the bottom of the page rather
+   than floating over it. It is the last child of <body>, a column flex
+   container, so it follows whichever screen is active on every section of the
+   site and scrolls with the content — present everywhere, in the way nowhere. */
+.site-footer {
+  flex-shrink: 0;
+  padding: var(--space-5) var(--gutter-safe) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-primary);
+  text-align: center;
   font-size: 11px;
+  line-height: 1.5;
   color: var(--text-muted);
   letter-spacing: 0.01em;
 }
 @media (max-width: 768px) {
-  /* Pinned rather than left at the end of the form. The form stands taller
-     than a short phone's viewport, so in the flow this line sits below the
-     fold and is only read by someone who scrolls looking for it — which is the
-     one thing a rights notice should not depend on. Fixed, it is on screen
-     whichever panel is open and wherever the form has been scrolled to.
-
-     It shares the bottom band with the floating theme/language pill: this on
-     the left, the pill on the right, the two reading as one footer bar. The
-     offset centres it against the pill's 44px rather than sitting it on the
-     same bottom edge, which would look dropped.
-
-     Both login panels carry a copy, but the hidden one is inside a
-     display:none panel and so is never laid out — they cannot stack. */
-  .login-copyright {
-    position: fixed;
-    left: var(--gutter-safe);
-    bottom: calc(16px + (var(--control-lg) - 16px) / 2);
-    margin-top: 0;
-    z-index: var(--z-sticky);
-    pointer-events: none;
+  /* The theme/language pill floats at bottom-right, so at the foot of the page
+     it would land on the notice. Extra room below the text lifts it clear of
+     the pill's band — except on the dashboards, which hide the pill and so do
+     not pay for it. The selectors mirror the ones that hide it. */
+  .site-footer {
+    /* The pill measures 54px and sits 16px off the bottom, so it owns the last
+       70px of the viewport; this clears it with room to spare. */
+    padding-bottom: calc(var(--control-lg) + var(--space-10) + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(#lecturer-dashboard.active) .site-footer,
+  body:has(#student-dashboard.active) .site-footer {
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   }
 }
 .login-footer-link {
@@ -2348,6 +2349,17 @@ body:has(#student-dashboard.active) .floating-actions {
   padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line-subtle);
 }
+/* Reload the current view. It lives beside sign-out because both are utility
+   actions on the way out of the menu rather than places to go, and it takes the
+   same row shape so it adds a line, not a new kind of thing. Muted, not
+   accented: it is a convenience, and nothing on this screen should compete with
+   sign-out for attention. */
+.drawer__refresh {
+  justify-content: flex-start;
+  gap: var(--space-5);
+  color: var(--text-secondary);
+}
+.drawer__refresh:hover { background: var(--fill-hover); color: var(--text-primary); }
 .drawer__signout {
   justify-content: flex-start;
   gap: var(--space-5);
