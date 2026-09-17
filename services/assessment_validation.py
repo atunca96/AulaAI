@@ -36,17 +36,34 @@ __all__ = [
 ]
 
 
-# A short letter or digraph the stem puts in quotes — 'h', "qu", «ñ», 'ch'.
-# Three characters is the ceiling on purpose: it covers every digraph and
-# trigraph a course teaches while excluding quoted words, which are a normal
-# and legitimate thing for a stem to do.
-_QUOTED_FEATURE = re.compile(r"""['"‘’“”«»]\s*([^\s'"‘’“”«»]{1,3})\s*['"‘’“”«»]""")
+# A short letter or digraph the stem sets apart in quotes — 'h', «ñ», 「は」.
+# Quotation is the one cue every taught script shares, so the marks of all of
+# them belong here: Latin and Cyrillic pairs, the guillemets Arabic and French
+# use, the low quotes of German and Polish, and the corner brackets of Japanese
+# and Chinese. Missing 「」 meant the check simply never fired on Japanese.
+#
+# Three characters is the ceiling. In an alphabetic script that covers every
+# digraph and trigraph a course teaches while excluding quoted words; in CJK a
+# three-character string may well be a word, and the ceiling stops protecting
+# on its own. The two guards below carry it there instead — the key must
+# contain the feature, and exactly one option may — which is what makes the
+# check safe in a script whose word lengths it cannot reason about.
+_QUOTE_MARKS = "'\"‘’“”„‚«»‹›「」『』｢｣〈〉"
+_QUOTED_FEATURE = re.compile(
+    r"[{q}]\s*([^\s{q}]{{1,3}})\s*[{q}]".format(q=re.escape(_QUOTE_MARKS))
+)
 
-# The same feature named without quotes, by capitalising it: "la letra H muda",
-# "las letras QU", "hangi kelimede Ğ var". A run of one to three capitals
+# The same feature named by capitalising it instead: "la letra H muda", "las
+# letras QU", "hangi kelimede Ğ var", "буква Ы". A run of one to three capitals
 # standing alone inside an otherwise lower-case sentence is a letter being
-# named, not a word — and it is how the generator writes these when it does not
-# reach for quotation marks, which is most of the time.
+# named, not a word.
+#
+# This is an EXTRA cue, not the mechanism. It exists only in bicameral scripts,
+# so it adds nothing for Arabic, Hebrew, Japanese, Chinese, Korean or Thai —
+# which is why quotation above has to carry those on its own. A case-less stem
+# that names a letter without quoting it offers no surface marker of any kind,
+# and nothing here can find it; that limit is real and better stated than
+# papered over.
 _CAPITALISED_FEATURE = re.compile(r"(?<![^\W\d_])([^\W\d_]{1,3})(?![^\W\d_])")
 
 
