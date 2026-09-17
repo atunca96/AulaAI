@@ -10,10 +10,6 @@ pos = source.find(marker)
 if pos < 0: raise RuntimeError("iOS PTR handler marker missing")
 source = source[:pos].rstrip() + "\n"
 
-# renderStudyBook() already resolves and opens the initial topic. The old
-# fallback used a desktop-sidebar .active button as proof that this happened;
-# on the mobile reader that proof can be absent, so selectClassroom() rendered
-# the same topic a second time and produced the one-frame entry flicker.
 double_render = """  const alreadyOpen = !!document.querySelector('.study-topic-btn.active');
   if (isStudyTab && targetTopic && !alreadyOpen) {
     showStudyTopic(targetTopic, targetPage);
@@ -27,6 +23,12 @@ app_js.write_text(source, encoding="utf-8")
 styles = ROOT / "public" / "css" / "styles.css"
 css = styles.read_text(encoding="utf-8")
 css += r'''
+/* Classroom dashboards are fully prepared before showScreen() reveals them.
+   The generic .screen.active fadeIn starts at opacity:0 + translateY(8px),
+   which made the already-rendered material visibly dim/shift for ~400ms on
+   entry. Login/other screen transitions keep the animation; classroom entry
+   paints at its final state immediately. */
+#lecturer-dashboard.screen.active,#student-dashboard.screen.active{animation:none!important}
 @media (max-width:768px){
  #login-screen.active{height:100dvh;min-height:100dvh;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
  #login-screen.active::after{content:'';display:block;height:1px;width:1px;pointer-events:none}
@@ -55,7 +57,7 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr23',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr23',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr24',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr24',1)
 mobile_guards=r'''
 <script>
 (function(){
