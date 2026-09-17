@@ -1719,8 +1719,29 @@ table.vt td { padding: 4px 6px; }
             started_at = row["build_started_at"] or 0
             elapsed = (time.time() - started_at) if started_at > 0 else 0
 
+            # A build sits in 'starting' only for as long as the worker process
+            # needs to boot and write 'analyzing' — seconds. Minutes there means
+            # no worker ever claimed the job, or a worker is running but every
+            # status write it makes is being discarded, because each one is
+            # guarded by `generation_id = ? OR generation_id IS NULL OR
+            # ? = 'LEGACY'` and its gen_id does not match the row. Content writes
+            # carry no such guard, so in that second case the classroom builds
+            # correctly while the row never moves: the build succeeds and the
+            # screen reads 3% until the fifteen-minute timeout below.
+            #
+            # Neither case recovers on its own, and neither needs fifteen minutes
+            # to be obvious. Surfacing it as a timeout reuses the state the UI
+            # already renders, with Force Restart offered.
+            if is_building and stage == "starting" and started_at > 0 and elapsed > 120:
+                print(f"[SERVER] Build for {course_id} never left 'starting' after {elapsed:.0f}s. No worker claimed it, or its status writes are being dropped by a generation_id mismatch.")
+                db.execute("UPDATE courses SET is_building = 0, build_stage = 'timeout', build_message = 'Generation did not start. Please click Force Restart.' WHERE id = ?", (course_id,))
+                db.commit()
+                is_building = False
+                stage = "timeout"
+                message = "Generation did not start. Please click Force Restart."
+
             # STALE/TIMEOUT PROTECTION: If building has run > 15 minutes, auto-recover
-            if is_building and started_at > 0 and elapsed > 900:
+            elif is_building and started_at > 0 and elapsed > 900:
                 print(f"[SERVER] Stale build detected for {course_id} (elapsed {elapsed:.0f}s). Auto-recovering...")
                 db.execute("UPDATE courses SET is_building = 0, build_stage = 'timeout', build_message = 'Build timed out. Please click Force Restart.' WHERE id = ?", (course_id,))
                 db.commit()
