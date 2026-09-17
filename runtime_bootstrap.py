@@ -25,7 +25,6 @@ css += r'''
  #s-ai-book-content-area .study-card *,#ai-book-content-area .study-card *{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
  #s-ai-book-content-area .study-card p,#s-ai-book-content-area .study-card li,#s-ai-book-content-area .study-card span,#s-ai-book-content-area .study-card div,#s-ai-book-content-area .study-card code,#s-ai-book-content-area .study-card pre,#ai-book-content-area .study-card p,#ai-book-content-area .study-card li,#ai-book-content-area .study-card span,#ai-book-content-area .study-card div,#ai-book-content-area .study-card code,#ai-book-content-area .study-card pre,.vocab-row__ipa,.phonetic-badge{overflow-wrap:anywhere!important;word-break:break-word!important}
  .vocab-row__ipa,.phonetic-badge{white-space:normal!important}
-
  .outline__pages{display:none!important}
  .outline-sheet__panel{width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important;min-width:0!important;overflow-x:hidden!important;overscroll-behavior:contain!important;box-sizing:border-box!important}
  .outline-sheet__panel *,.outline__unit,.outline__unit-title,.outline__topic{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
@@ -36,18 +35,13 @@ css += r'''
  .outline__unit-title[data-aula-unit-toggle="1"]::after{content:'›';margin-inline-start:auto;font-size:20px;line-height:1;transform:rotate(90deg);transition:transform .15s ease}
  .outline__unit[data-aula-expanded="1"]>.outline__unit-title::after{transform:rotate(-90deg)}
  .outline__unit:not([data-aula-expanded="1"])>:not(.outline__unit-title){display:none!important}
- /* Opening is authoritative: override any stale collapsed/hidden state left by
-    the original outline component after its first close. */
- .outline__unit[data-aula-expanded="1"]>.outline__topics,
- .outline__unit[data-aula-expanded="1"]>.outline__topic-list,
- .outline__unit[data-aula-expanded="1"]>[class*="topic"]:not(.outline__unit-title){display:block!important;height:auto!important;max-height:none!important;visibility:visible!important;opacity:1!important}
 }
 '''
 styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr18',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr18',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr19',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr19',1)
 mobile_guards=r'''
 <script>
 (function(){
@@ -58,27 +52,13 @@ mobile_guards=r'''
  function blurStartup(){if(!mobile)return;var a=document.activeElement;if(a&&a.closest&&a.closest('#login-screen')&&/^(INPUT|TEXTAREA)$/.test(a.tagName)&&a.dataset.aulaStartupUnlocked!=='1')a.blur()}
  function unlock(e){if(!mobile)return;var el=e.target&&e.target.closest?e.target.closest('#login-screen input,#login-screen textarea'):null;if(!el)return;el.dataset.aulaStartupUnlocked='1';if(el.dataset.aulaStartupReadonly==='1'){el.readOnly=false;delete el.dataset.aulaStartupReadonly}}
  function prep(){if(!mobile)return;document.querySelectorAll('.outline__unit').forEach(function(u){var t=u.querySelector(':scope>.outline__unit-title');if(!t)return;t.dataset.aulaUnitToggle='1';t.setAttribute('role','button');t.setAttribute('tabindex','0');t.setAttribute('aria-expanded',u.dataset.aulaExpanded==='1'?'true':'false')})}
- function toggle(t){
-   var u=t.closest('.outline__unit');if(!u)return;
-   var open=u.dataset.aulaExpanded!=='1';
-   document.querySelectorAll('.outline__unit[data-aula-expanded="1"]').forEach(function(o){if(o!==u){delete o.dataset.aulaExpanded;var x=o.querySelector(':scope>.outline__unit-title');if(x)x.setAttribute('aria-expanded','false')}});
-   if(open){
-     /* Native outline code can leave a persistent collapsed state after the
-        first close. Clear every known state before reopening our unit. */
-     u.classList.remove('collapsed','is-collapsed','closed','is-closed');
-     u.removeAttribute('hidden');
-     u.dataset.aulaExpanded='1';
-     Array.from(u.children).forEach(function(ch){
-       if(ch===t||ch.classList.contains('outline__pages'))return;
-       ch.removeAttribute('hidden');
-       if(ch.style){ch.style.removeProperty('display');ch.style.removeProperty('height');ch.style.removeProperty('max-height');ch.style.removeProperty('visibility');ch.style.removeProperty('opacity')}
-     });
-   }else delete u.dataset.aulaExpanded;
-   t.setAttribute('aria-expanded',open?'true':'false');
- }
- function cleanExtras(){if(!mobile)return;var p=document.querySelector('.outline-sheet__panel');if(!p)return;Array.from(p.querySelectorAll('button,a,[role="button"],div')).forEach(function(el){var text=(el.textContent||'').replace(/\s+/g,' ').trim().toLowerCase(),act=((el.getAttribute('onclick')||'')+' '+(el.getAttribute('href')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).toLowerCase();if(!(/pdf indir|download pdf|pdf download/.test(text)||/pdf/.test(act)||/arayüz dili\s*:|interface language\s*:/.test(text)))return;var row=el;while(row.parentElement&&row.parentElement!==p&&row.parentElement.children.length===1)row=row.parentElement;if(row!==p)row.remove()})}
+ function toggle(t){var u=t.closest('.outline__unit');if(!u)return;var open=u.dataset.aulaExpanded!=='1';document.querySelectorAll('.outline__unit[data-aula-expanded="1"]').forEach(function(o){if(o!==u){delete o.dataset.aulaExpanded;var x=o.querySelector(':scope>.outline__unit-title');if(x)x.setAttribute('aria-expanded','false')}});if(open)u.dataset.aulaExpanded='1';else delete u.dataset.aulaExpanded;t.setAttribute('aria-expanded',open?'true':'false')}
+ /* Remove only the two unwanted ACTION BUTTONS. Never remove their actions
+    container: openStudyOutline() reuses that node and writes innerHTML into it
+    on every subsequent open. */
+ function cleanExtras(){if(!mobile)return;var p=document.querySelector('.outline-sheet__panel');if(!p)return;p.querySelectorAll('.outline-sheet__actions button,.outline-sheet__actions a').forEach(function(el){var h=((el.textContent||'')+' '+(el.getAttribute('onclick')||'')+' '+(el.getAttribute('href')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).replace(/\s+/g,' ').toLowerCase();if(/pdf|download|arayüz dili\s*:|interface\s*:|interface language\s*:/.test(h))el.remove()})}
  function cleanDesktop(){if(mobile)return;document.querySelectorAll('.mtoolbar button,.mtoolbar a').forEach(function(el){var h=((el.textContent||'')+' '+(el.title||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('onclick')||'')+' '+(el.getAttribute('href')||'')).toLowerCase();if(/pdf|download/.test(h))el.remove()})}
- var sy=0,locked=false;function panel(){var p=document.querySelector('.outline-sheet__panel');if(!p)return null;var r=p.getBoundingClientRect(),s=getComputedStyle(p);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'?p:null}function scrollLock(){if(!mobile)return;var open=!!panel();if(open&&!locked){sy=scrollY||0;Object.assign(document.body.style,{position:'fixed',top:(-sy)+'px',left:'0',right:'0',width:'100%'});locked=true}else if(!open&&locked){['position','top','left','right','width'].forEach(function(k){document.body.style[k]=''});scrollTo(0,sy);locked=false}}
+ var sy=0,locked=false;function panel(){var root=document.getElementById('study-outline-sheet'),p=document.querySelector('.outline-sheet__panel');if(!root||!p||root.classList.contains('hidden'))return null;var r=p.getBoundingClientRect(),s=getComputedStyle(p);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'?p:null}function scrollLock(){if(!mobile)return;var open=!!panel();if(open&&!locked){sy=scrollY||0;Object.assign(document.body.style,{position:'fixed',top:(-sy)+'px',left:'0',right:'0',width:'100%'});locked=true}else if(!open&&locked){['position','top','left','right','width'].forEach(function(k){document.body.style[k]=''});scrollTo(0,sy);locked=false}}
  function sync(){lockFields();blurStartup();prep();cleanExtras();cleanDesktop();requestAnimationFrame(scrollLock)}
  var q=false;new MutationObserver(function(){if(q)return;q=true;requestAnimationFrame(function(){q=false;sync()})}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
  document.addEventListener('DOMContentLoaded',function(){sync();requestAnimationFrame(blurStartup)},{once:true});addEventListener('pageshow',sync);document.addEventListener('focusin',function(e){if(!mobile)return;var el=e.target;if(el&&el.closest&&el.closest('#login-screen')&&/^(INPUT|TEXTAREA)$/.test(el.tagName)&&el.dataset.aulaStartupUnlocked!=='1'){lock(el);el.blur()}},true);document.addEventListener('touchstart',unlock,{capture:true,passive:true});document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
