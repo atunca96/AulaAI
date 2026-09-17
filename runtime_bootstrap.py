@@ -23,13 +23,12 @@ app_js.write_text(source, encoding="utf-8")
 styles = ROOT / "public" / "css" / "styles.css"
 css = styles.read_text(encoding="utf-8")
 css += r'''
-/* Classroom dashboards are fully prepared before showScreen() reveals them.
-   The generic .screen.active fadeIn starts at opacity:0 + translateY(8px),
-   which made the already-rendered material visibly dim/shift for ~400ms on
-   entry. Login/other screen transitions keep the animation; classroom entry
-   paints at its final state immediately. */
-#lecturer-dashboard.screen.active,#student-dashboard.screen.active{animation:none!important}
+/* Do not animate mobile app screens. The generic fadeIn animates opacity and
+   transform on the entire screen; on iOS that promotes the reader to a
+   composited layer exactly while Safari is replacing the loading screen,
+   producing the dim/shifted frame visible in the recording. */
 @media (max-width:768px){
+ .screen.active{animation:none!important;transform:none!important;opacity:1!important}
  #login-screen.active{height:100dvh;min-height:100dvh;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
  #login-screen.active::after{content:'';display:block;height:1px;width:1px;pointer-events:none}
  .study-container{min-height:0!important;height:auto!important}
@@ -57,7 +56,7 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr24',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr24',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr25',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr25',1)
 mobile_guards=r'''
 <script>
 (function(){
