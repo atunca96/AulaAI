@@ -2637,7 +2637,10 @@ body:has(#student-dashboard.active) .floating-actions {
   }
   .login-hero {
     min-height: auto;
-    padding: 48px 20px 80px 20px; /* Extra bottom padding for floating actions overlay */
+    /* Sized for what is left: the 80px bottom inset and 36px rhythm were
+       spacing a demo sheet that no longer renders here, and without it they
+       read as a block of empty navy. */
+    padding: 40px 20px 44px;
     border-right: none;
     border-top: 1px solid var(--border);
     border-bottom: none;
@@ -2645,7 +2648,7 @@ body:has(#student-dashboard.active) .floating-actions {
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    gap: 36px;
+    gap: 24px;
   }
   .hero-branding {
     position: static !important;
@@ -2674,16 +2677,20 @@ body:has(#student-dashboard.active) .floating-actions {
     margin: 0 auto !important;
   }
   .hero-value-title {
-    font-size: 22px !important;
-    line-height: 1.3 !important;
+    font-size: 25px !important;
+    line-height: 1.25 !important;
   }
   .hero-value-subtitle {
     font-size: 13px !important;
     line-height: 1.5 !important;
   }
-  .academic-sheet {
-    width: 100% !important;
-  }
+  /* The three-language demo sheet is a desktop showpiece. On a phone the hero
+     sits BELOW the sign-in form (the container is column-reverse), so by the
+     time it is reached the person has already chosen to log in — the demo is
+     scrolling past an audience that is no longer being persuaded. Hidden
+     rather than removed, so the desktop layout and its switchDemoLang /
+     handleDemoTTS handlers are untouched. */
+  .academic-sheet { display: none; }
   .hero-footer-sub {
     display: block !important;
     position: static !important;
