@@ -2618,7 +2618,7 @@ body:has(#student-dashboard.active) .floating-actions {
      which is where a chunk of the dead space at the foot of every phone
      screen came from. */
   .dashboard-content {
-    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-7));
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-8));
     padding-inline: var(--gutter-safe);
     /* No safe-area inset here: the site footer sits below this and reserves
        it once, at the actual bottom of the page. Reserving it in both places
@@ -4807,7 +4807,10 @@ select.text-input option,
 
   /* Page frame */
   .dashboard-content {
-    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-5));
+    /* One gap under the top bar for ordinary dashboard tabs. The study
+       surfaces are deliberately excluded: their optical heights are set on
+       .study-container above and are not this rule's to move. */
+    padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-8));
     /* Same: the safe area is the footer's to reserve, not this container's. */
     padding-bottom: var(--space-8);
   }
