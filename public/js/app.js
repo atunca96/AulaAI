@@ -14272,3 +14272,72 @@ window.downloadCourseMaterialPDF = downloadCourseMaterialPDF;
     if (installPicker() || tries > 50) clearInterval(timer);
   }, 100);
 })();
+
+// ── Pull-to-refresh suppression (iOS Safari) ──
+// Safari reloads the page when the DOCUMENT is dragged downwards past its top.
+// CSS cannot switch that off: WebKit honours `overscroll-behavior` on nested
+// scroll containers, but the pull-to-refresh gesture is browser UI and neither
+// the root element's value nor a fixed, non-scrollable body takes it away —
+// with nothing scrollable under the finger there is nothing to absorb the drag,
+// so it reaches the browser regardless. Cancelling the touch is the only thing
+// that does.
+//
+// The handler is deliberately narrow. It cancels a move only when the gesture
+// is unambiguously pull-to-refresh and nothing else could act on it: a single
+// finger, dragging downwards, travelling more vertically than horizontally,
+// with every scroller under the touch point — the innermost one and the
+// document itself — already at the top. Anything that can still scroll down,
+// any horizontal swipe and any pinch is left alone, so ordinary scrolling and
+// carousels behave exactly as before.
+(function suppressPullToRefresh() {
+  var startX = 0;
+  var startY = 0;
+  var innerScroller = null;
+  var tracking = false;
+
+  // The nearest ancestor that actually scrolls vertically. `overflow: hidden`
+  // does not count: it cannot be scrolled by touch, so it cannot absorb this.
+  function scrollableAncestor(node) {
+    while (node && node.nodeType === 1 && node !== document.documentElement) {
+      var overflowY = getComputedStyle(node).overflowY;
+      if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    tracking = e.touches.length === 1;
+    if (!tracking) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    // Resolved once per gesture: walking the tree on every move would be work
+    // on the scroll path, and the element under the finger does not change.
+    innerScroller = scrollableAncestor(e.target);
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function (e) {
+    if (!tracking || e.touches.length !== 1) return;
+
+    var dy = e.touches[0].clientY - startY;
+    var dx = e.touches[0].clientX - startX;
+    // Downward, and more vertical than horizontal — a sideways swipe that
+    // drifts a pixel or two down must still reach a horizontal scroller.
+    if (dy <= 0 || Math.abs(dy) <= Math.abs(dx)) return;
+
+    // Read live rather than latching at touchstart, so a drag that begins
+    // mid-page and carries on past the top is still caught at the moment it
+    // arrives there.
+    if (innerScroller && innerScroller.scrollTop > 0) return;
+    var doc = document.scrollingElement || document.documentElement;
+    if (doc.scrollTop > 0) return;
+
+    e.preventDefault();
+  }, { passive: false });
+
+  function endGesture() { tracking = false; innerScroller = null; }
+  document.addEventListener('touchend', endGesture, { passive: true });
+  document.addEventListener('touchcancel', endGesture, { passive: true });
+})();

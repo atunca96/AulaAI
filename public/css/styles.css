@@ -2686,27 +2686,6 @@ body:has(#student-dashboard.active) .floating-actions {
     height: auto;
     min-height: 100dvh;
   }
-  /* What iOS reloads is the DOCUMENT being dragged down, and
-     overscroll-behavior on the root element does not stop that in Safari:
-     WebKit honours it on nested scroll containers, but the pull-to-refresh
-     gesture is browser UI and the root value does not govern it. (It does in
-     Chrome, which is why that rule reads as though it should be enough.)
-
-     So the document is given nothing to drag. A fixed, viewport-sized body is
-     not a scrollable document, and whatever scrolling this screen still needs
-     — a short phone, or the keyboard pushing the form up — happens inside the
-     body instead. On a nested scroller `overscroll-behavior-y: contain` is
-     honoured, so the gesture stops there and never reaches the browser.
-
-     Scoped with :has to the login screen, which is the one screen that fits a
-     viewport and needs no document scroll. Every other screen is untouched and
-     keeps scrolling the document normally. */
-  body:has(#login-screen.active) {
-    position: fixed;
-    inset: 0;
-    overflow-y: auto;
-    overscroll-behavior-y: contain;
-  }
   .login-hero { display: none; }
   .login-form-section {
     /* The only panel now, so it owns the whole viewport and the form centres
