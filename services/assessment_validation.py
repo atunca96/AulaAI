@@ -32,7 +32,7 @@ __all__ = [
     "violations", "filter_publishable", "normalize_token",
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
-    "giveaway_features",
+    "giveaway_features", "normalize_option",
 ]
 
 
@@ -89,6 +89,28 @@ def giveaway_features(item: Dict[str, Any]) -> List[str]:
         if sum(1 for o in pool if feature in o) == 1 and feature not in found:
             found.append(feature)
     return found
+
+
+def normalize_option(text: Any) -> str:
+    """Identity of a single option, as the learner reads it.
+
+    Diacritics are KEPT. `normalize_token` strips them, which is right for
+    matching prose across spellings but wrong for options, where the diacritic
+    IS the answer: 'ü' against 'u' in Turkish vowel harmony, 'ñ' against 'n' in
+    Spanish, 'café' against 'cafe' in an accent item — which §7 of the contract
+    explicitly asks for, one option spelled correctly and the rest typical
+    learner errors. Stripped, all four collapse to one key and the item is
+    dropped as duplicate_options, so the validator was destroying exactly the
+    items the contract prescribes.
+
+    Composed and decomposed spellings of the same grapheme still compare equal,
+    so a model emitting u + combining diaeresis has not invented a new option.
+    """
+    if not text:
+        return ""
+    s = unicodedata.normalize("NFC", str(text).strip().casefold())
+    s = re.sub(r"[^\w\s]", "", s, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def normalize_token(text: Any) -> str:
@@ -222,17 +244,17 @@ def violations(
     clean_d = [d for d in distractors if d]
     if len(clean_d) != 3:
         problems.append(f"distractor_count_{len(clean_d)}")
-    keys = [normalize_token(answer)] + [normalize_token(d) for d in clean_d]
+    keys = [normalize_option(answer)] + [normalize_option(d) for d in clean_d]
     if len(set(k for k in keys if k)) != len([k for k in keys if k]):
         problems.append("duplicate_options")
-    if normalize_token(answer) in {normalize_token(d) for d in clean_d}:
+    if normalize_option(answer) in {normalize_option(d) for d in clean_d}:
         problems.append("answer_among_distractors")
 
     options = item.get("options")
     if isinstance(options, list) and options:
         if len(options) != 4:
             problems.append(f"option_count_{len(options)}")
-        opt_keys = [normalize_token(o) for o in options]
+        opt_keys = [normalize_option(o) for o in options]
         present = [k for k in opt_keys if k]
         # `options` is the list the learner actually reads, and it is assembled
         # separately from `distractors` (shuffled, sometimes supplemented). A
@@ -241,7 +263,7 @@ def violations(
         # buttons — so it is checked on its own terms rather than inferred.
         if len(set(present)) != len(present) and "duplicate_options" not in problems:
             problems.append("duplicate_options")
-        if normalize_token(answer) and normalize_token(answer) not in set(opt_keys):
+        if normalize_option(answer) and normalize_option(answer) not in set(opt_keys):
             problems.append("answer_not_in_options")
 
     # The question must not be a translation drill.
