@@ -1,0 +1,50 @@
+name: chatgpt-mobile-final-scope
+on:
+  push:
+    branches: [chatgpt-mobile-final-scope]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt-mobile-final-scope
+      - name: Apply scoped mobile fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/css/styles.css'); s=p.read_text()
+          old='''@media (max-width: 1024px) {\n  .screen.active { margin-top: auto; }\n  .site-footer { margin-bottom: auto; }\n  body:has(> .screen.active:not(#login-screen)) { padding-top: 0; padding-bottom: 0; }\n}'''
+          new='''@media (max-width: 1024px) {\n  /* Normal app screens stay in document flow. Never globally centre them. */\n  .screen.active { margin-top: 0; }\n  .site-footer { margin-bottom: 0; }\n  body:has(> .screen.active:not(#login-screen)) { padding-top: 0; padding-bottom: 0; }\n}'''
+          if s.count(old)!=1: raise SystemExit(f'centering block count={s.count(old)}')
+          s=s.replace(old,new,1)
+          old2='''/* Mobile optical placement: short study/activity surfaces only. */\n@media (max-width: 1024px) {\n  body:has(#study-screen.active),\n  body:has(#classroom-activities-screen.active) {\n    padding-top: 6vh;\n    padding-bottom: 8vh;\n  }\n\n  /* Disable Safari double-tap zoom without disabling two-finger pinch zoom. */\n  html, body, body * { touch-action: manipulation; }\n}'''
+          new2='''/* Mobile tap behavior only. Layout remains owned by each screen/component. */\n@media (max-width: 1024px) {\n  html, body, body * { touch-action: manipulation; }\n}'''
+          if s.count(old2)!=1: raise SystemExit(f'optical block count={s.count(old2)}')
+          p.write_text(s.replace(old2,new2,1))
+
+          p=Path('public/index.html'); s=p.read_text()
+          old='/css/styles.css?v=20260917_mobilefix01'; new='/css/styles.css?v=20260917_mobilefix02'
+          if s.count(old)!=1: raise SystemExit(f'css key count={s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+
+          # iOS Safari can still smart-zoom form controls despite touch-action.
+          # Suppress only the second tap on login controls; no document touchmove/PTR interception.
+          p=Path('runtime_bootstrap.py'); s=p.read_text()
+          anchor=" document.addEventListener('click',function(e){if(!mobile){requestAnimationFrame(cleanDesktop);return}var t=e.target&&e.target.closest?e.target.closest('.outline__unit-title'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();toggle(t)},true);"
+          insert="""\n var lastLoginTap=0,lastLoginTarget=null;\n document.addEventListener('touchend',function(e){\n   if(!mobile||e.touches.length)return;\n   var t=e.target&&e.target.closest?e.target.closest('#login-screen input,#login-screen textarea,#login-screen button,#login-screen a,#login-screen label'):null;\n   if(!t){lastLoginTap=0;lastLoginTarget=null;return}\n   var now=Date.now();\n   if(t===lastLoginTarget&&now-lastLoginTap<350)e.preventDefault();\n   lastLoginTap=now;lastLoginTarget=t;\n },{capture:true,passive:false});"""
+          if s.count(anchor)!=1: raise SystemExit(f'bootstrap anchor count={s.count(anchor)}')
+          p.write_text(s.replace(anchor,insert+'\n'+anchor,1))
+          PY
+      - name: Verify and commit
+        run: |
+          git diff --check
+          git diff -- public/css/styles.css public/index.html runtime_bootstrap.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/css/styles.css public/index.html runtime_bootstrap.py
+          git commit -m "fix: remove mobile centering and stop login double-tap zoom"
+          git push origin HEAD:chatgpt-mobile-final-scope
