@@ -746,6 +746,18 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   text-align: center;
   line-height: 1.5;
 }
+/* Kept deliberately small and quiet, because it is paying for itself in
+   vertical space: the phone login form already stands ~16px taller than a
+   700px viewport before this line exists. 11px type and a plain margin — no
+   rule, no padding block — hold the cost to ~25px rather than ~40px, and the
+   muted colour keeps it reading as a footer mark rather than a third
+   sentence after the privacy line. */
+.login-copyright {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
 .login-footer-link {
   color: var(--accent-light);
   text-decoration: none;
