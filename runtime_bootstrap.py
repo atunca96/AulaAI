@@ -25,8 +25,6 @@ css += r'''
  #s-ai-book-content-area .study-card *,#ai-book-content-area .study-card *{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
  #s-ai-book-content-area .study-card p,#s-ai-book-content-area .study-card li,#s-ai-book-content-area .study-card span,#s-ai-book-content-area .study-card div,#s-ai-book-content-area .study-card code,#s-ai-book-content-area .study-card pre,#ai-book-content-area .study-card p,#ai-book-content-area .study-card li,#ai-book-content-area .study-card span,#ai-book-content-area .study-card div,#ai-book-content-area .study-card code,#ai-book-content-area .study-card pre,.vocab-row__ipa,.phonetic-badge{overflow-wrap:anywhere!important;word-break:break-word!important}
  .vocab-row__ipa,.phonetic-badge{white-space:normal!important}
- .study-content-panel:not(.aula-material-ready){visibility:hidden!important}
- .study-content-panel.aula-material-ready{visibility:visible!important}
  .outline__pages{display:none!important}
  .outline-sheet__panel{width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important;min-width:0!important;overflow-x:hidden!important;overscroll-behavior:contain!important;box-sizing:border-box!important}
  .outline-sheet__panel *,.outline__unit,.outline__unit-title,.outline__topic{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
@@ -43,7 +41,7 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr21',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr21',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr22',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr22',1)
 mobile_guards=r'''
 <script>
 (function(){
@@ -57,44 +55,9 @@ mobile_guards=r'''
  function toggle(t){var u=t.closest('.outline__unit');if(!u)return;var open=u.dataset.aulaExpanded!=='1';document.querySelectorAll('.outline__unit[data-aula-expanded="1"]').forEach(function(o){if(o!==u){delete o.dataset.aulaExpanded;var x=o.querySelector(':scope>.outline__unit-title');if(x)x.setAttribute('aria-expanded','false')}});if(open)u.dataset.aulaExpanded='1';else delete u.dataset.aulaExpanded;t.setAttribute('aria-expanded',open?'true':'false')}
  function cleanExtras(){if(!mobile)return;var p=document.querySelector('.outline-sheet__panel');if(!p)return;p.querySelectorAll('.outline-sheet__actions button,.outline-sheet__actions a').forEach(function(el){var h=((el.textContent||'')+' '+(el.getAttribute('onclick')||'')+' '+(el.getAttribute('href')||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('title')||'')).replace(/\s+/g,' ').toLowerCase();if(/pdf|download|arayüz dili\s*:|interface\s*:|interface language\s*:/.test(h))el.remove()})}
  function cleanDesktop(){if(mobile)return;document.querySelectorAll('.mtoolbar button,.mtoolbar a').forEach(function(el){var h=((el.textContent||'')+' '+(el.title||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.getAttribute('onclick')||'')+' '+(el.getAttribute('href')||'')).toLowerCase();if(/pdf|download/.test(h))el.remove()})}
- var revealToken=0;
- function scheduleMaterialReveal(panel){
-   if(!mobile||!panel)return;
-   var token=++revealToken;
-   requestAnimationFrame(function(){requestAnimationFrame(function(){if(token===revealToken)panel.classList.add('aula-material-ready')})});
- }
- function materialPanelFromNode(node){
-   if(!node)return null;
-   var el=node.nodeType===1?node:node.parentElement;
-   if(!el)return null;
-   var content=el.matches&&el.matches('#s-ai-book-content-area,#ai-book-content-area')?el:(el.closest?el.closest('#s-ai-book-content-area,#ai-book-content-area'):null);
-   return content&&content.closest('.study-content-panel');
- }
- function settleExistingMaterial(){
-   if(!mobile)return;
-   var content=document.querySelector('#s-ai-book-content-area,#ai-book-content-area');
-   if(!content||!(content.children.length||(content.textContent||'').trim()))return;
-   var panel=content.closest('.study-content-panel');
-   if(panel&&!panel.classList.contains('aula-material-ready'))scheduleMaterialReveal(panel);
- }
  var sy=0,locked=false;function panel(){var root=document.getElementById('study-outline-sheet'),p=document.querySelector('.outline-sheet__panel');if(!root||!p||root.classList.contains('hidden'))return null;var r=p.getBoundingClientRect(),s=getComputedStyle(p);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'?p:null}function scrollLock(){if(!mobile)return;var open=!!panel();if(open&&!locked){sy=scrollY||0;Object.assign(document.body.style,{position:'fixed',top:(-sy)+'px',left:'0',right:'0',width:'100%'});locked=true}else if(!open&&locked){['position','top','left','right','width'].forEach(function(k){document.body.style[k]=''});scrollTo(0,sy);locked=false}}
- function sync(){lockFields();blurStartup();prep();cleanExtras();cleanDesktop();settleExistingMaterial();requestAnimationFrame(scrollLock)}
- var q=false;new MutationObserver(function(mutations){
-   /* innerHTML replacement happens synchronously. MutationObserver callbacks run
-      before the browser's next paint, so drop READY here, in the same rendering
-      turn, instead of waiting for the generic rAF sync. This blocks the stale /
-      half-built material frame that was still flashing after the first render. */
-   if(mobile){
-     var changedPanel=null;
-     for(var i=0;i<mutations.length;i++){
-       if(mutations[i].type!=='childList')continue;
-       changedPanel=materialPanelFromNode(mutations[i].target);
-       if(changedPanel)break;
-     }
-     if(changedPanel){changedPanel.classList.remove('aula-material-ready');scheduleMaterialReveal(changedPanel)}
-   }
-   if(q)return;q=true;requestAnimationFrame(function(){q=false;sync()})
- }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
+ function sync(){lockFields();blurStartup();prep();cleanExtras();cleanDesktop();requestAnimationFrame(scrollLock)}
+ var q=false;new MutationObserver(function(){if(q)return;q=true;requestAnimationFrame(function(){q=false;sync()})}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
  document.addEventListener('DOMContentLoaded',function(){sync();requestAnimationFrame(blurStartup)},{once:true});addEventListener('pageshow',sync);document.addEventListener('focusin',function(e){if(!mobile)return;var el=e.target;if(el&&el.closest&&el.closest('#login-screen')&&/^(INPUT|TEXTAREA)$/.test(el.tagName)&&el.dataset.aulaStartupUnlocked!=='1'){lock(el);el.blur()}},true);document.addEventListener('touchstart',unlock,{capture:true,passive:true});document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
  document.addEventListener('click',function(e){if(!mobile){requestAnimationFrame(cleanDesktop);return}var t=e.target&&e.target.closest?e.target.closest('.outline__unit-title'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();toggle(t)},true);
 })();
