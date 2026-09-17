@@ -22,7 +22,10 @@ styles = ROOT / "public" / "css" / "styles.css"
 css = styles.read_text(encoding="utf-8")
 css += r'''
 
-/* iOS Safari pull-to-refresh boundary. */
+/* iOS Safari pull-to-refresh boundary.
+   Keep this native: no touchmove preventDefault. The login becomes a genuine
+   nested scroller by one physical CSS pixel, which keeps Safari's gesture on
+   the element instead of handing it to document pull-to-refresh. */
 @media (max-width: 768px) {
   #login-screen.active {
     height: 100dvh;
@@ -44,49 +47,11 @@ styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr05", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr05", 1)
-
-# A later app callback can focus a login field after load/pageshow, so a
-# one-shot blur races and loses. Until the user actually interacts with the
-# page, reject any focus that lands on a mobile form control. A real tap/pointer
-# immediately arms normal focus before Safari focuses the tapped field.
-keyboard_guard = r'''
-    <script>
-    (function () {
-        if (!window.matchMedia('(max-width: 768px)').matches) return;
-
-        var userInteracted = false;
-        function arm() { userInteracted = true; }
-        document.addEventListener('touchstart', arm, { capture: true, passive: true, once: true });
-        document.addEventListener('pointerdown', arm, { capture: true, passive: true, once: true });
-        document.addEventListener('mousedown', arm, { capture: true, passive: true, once: true });
-        document.addEventListener('keydown', arm, { capture: true, once: true });
-
-        document.addEventListener('focusin', function (e) {
-            if (userInteracted) return;
-            var el = e.target;
-            if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
-                requestAnimationFrame(function () { el.blur(); });
-            }
-        }, true);
-
-        function dismiss() {
-            if (userInteracted) return;
-            var active = document.activeElement;
-            if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) active.blur();
-        }
-        window.addEventListener('pageshow', dismiss);
-        window.addEventListener('load', dismiss);
-    })();
-    </script>
-'''
-if "</body>" not in index:
-    raise RuntimeError("index body closing tag missing")
-index = index.replace("</body>", keyboard_guard + "\n</body>", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr03", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr03", 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll boundary + pre-interaction focus guard")
+print("[BOOT] applied native iOS overscroll boundary fix")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
