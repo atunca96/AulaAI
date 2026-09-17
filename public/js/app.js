@@ -8746,7 +8746,16 @@ function toggleTheme() {
   setTheme(newTheme);
 }
 
+// Safari paints its status-bar area, its overscroll gutter and its
+// pull-to-refresh band with theme-color, so a value that does not track the
+// page shows up as a coloured strip above and below it. The page colour is
+// --surface-0, which changes with the theme, so the meta has to change too.
+const THEME_COLOR = { dark: '#09162a', light: '#f4f6fa' };
+
 function setTheme(theme) {
+  const meta = document.getElementById('theme-color-meta');
+  if (meta) meta.setAttribute('content', THEME_COLOR[theme === 'light' ? 'light' : 'dark']);
+
   const btns = [document.getElementById('theme-toggle-btn'), document.getElementById('student-theme-toggle-btn')];
   const globalIcon = document.getElementById('global-theme-toggle-icon');
   const globalText = document.getElementById('global-theme-toggle-text');

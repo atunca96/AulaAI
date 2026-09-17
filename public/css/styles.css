@@ -2654,15 +2654,22 @@ body:has(#student-dashboard.active) .floating-actions {
 
 /* Mobile Login Optimization */
 @media (max-width: 768px) {
-  /* body and .screen now measure in dvh too (see the body rule), so the whole
-     chain — body, screen, container — is the same height as the visual
-     viewport and the login page does not scroll at all when it fits.
+  /* The phone login is ONE panel, exactly one viewport tall, and it does not
+     scroll. That is the whole fix, and the dvh work above it was only half.
 
-     The reversal is gone too. column-reverse on a scrolling box puts the
-     scroll origin at the BOTTOM, which is what left unscrolled space at the
-     top and made the whole screen jitter while Safari's toolbars animated.
-     `order` puts the form above the hero without reversing anything, and
-     dropping overflow-y lets the document do the one scroll it needs. */
+     The hero used to sit below the form, ordered second. It is ~400px of
+     marketing copy underneath a form that already fills the screen, so the
+     page was always taller than the viewport and always scrollable — and a
+     scrollable page is what lets iOS Safari collapse its toolbars, open its
+     overscroll gutter and put its pull-to-refresh strip above the document.
+     That strip is painted in `theme-color`, not in the page background, which
+     is why the band at the top stayed black through every change made to the
+     page's own colours and heights. Nothing below the fold was being read
+     anyway: by the time you scroll past a sign-in form you have already
+     decided to sign in.
+
+     With the hero gone the form is ~650px in a ~700px viewport, so it fits,
+     nothing scrolls, and the toolbars stay put. */
   #login-screen { min-height: 100dvh; }
   .login-container {
     display: flex;
@@ -2670,13 +2677,21 @@ body:has(#student-dashboard.active) .floating-actions {
     height: auto;
     min-height: 100dvh;
   }
-  .login-form-section { order: 1; }
-  .login-hero { order: 2; }
+  .login-hero { display: none; }
   .login-form-section {
-    /* Equal top and bottom, matching the hero below it. */
-    padding: 44px 20px;
+    /* The only panel now, so it owns the whole viewport and the form centres
+       inside it — no second background to meet, and no seam to mismatch. */
+    flex: 1 0 auto;
     min-height: auto;
-    justify-content: flex-start;
+    justify-content: center;
+    /* Matching the page background rather than the raised surface: with one
+       panel there is no two-column split left to distinguish, and a single
+       colour from the status bar to the home indicator is the thing that
+       cannot band. */
+    background: var(--bg-primary);
+    /* Symmetric, plus room at the bottom for the floating theme/language
+       pill so it never lands on the privacy link. */
+    padding: 40px 20px calc(40px + var(--control-lg));
   }
   .login-form-brand {
     display: flex;
@@ -2692,63 +2707,10 @@ body:has(#student-dashboard.active) .floating-actions {
     letter-spacing: -0.02em;
     color: var(--text-primary);
   }
-  .login-hero {
-    min-height: auto;
-    /* Takes whatever height is left over, so the panel itself reaches the
-       bottom of the screen and there is never a band of page background
-       under it to mismatch. */
-    flex: 1 0 auto;
-    /* Equal top and bottom, matching the form above it — plus room at the
-       bottom for the floating theme/language pill, reserved inside the hero
-       rather than under the screen. */
-    padding: 44px 20px calc(44px + var(--control-lg));
-    border-right: none;
-    border-top: 1px solid var(--border);
-    border-bottom: none;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: 24px;
-  }
-  /* The form section carries the brand mark on a phone, so the hero's copy of
-     it would be the same logo a second time, further down the same scroll.
-     The rules that used to lay it out here go with it. */
-  .hero-branding { display: none; }
-  .hero-minimal-showcase {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 28px !important;
-    width: 100% !important;
-    max-width: 480px !important;
-    margin: 0 auto !important;
-  }
-  .hero-value-title {
-    font-size: 25px !important;
-    line-height: 1.25 !important;
-  }
-  .hero-value-subtitle {
-    font-size: 13px !important;
-    line-height: 1.5 !important;
-  }
-  /* The three-language demo sheet is a desktop showpiece. On a phone the hero
-     sits BELOW the sign-in form (the hero is ordered second), so by the
-     time it is reached the person has already chosen to log in — the demo is
-     scrolling past an audience that is no longer being persuaded. Hidden
-     rather than removed, so the desktop layout and its switchDemoLang /
-     handleDemoTTS handlers are untouched. */
-  .academic-sheet { display: none; }
-  .hero-footer-sub {
-    display: block !important;
-    position: static !important;
-    margin: 0 auto !important;
-    width: 100% !important;
-    max-width: 480px !important;
-    font-size: var(--fs-2xs) !important;
-    color: var(--text-muted) !important;
-    text-transform: uppercase !important;
-    letter-spacing: var(--ls-wide) !important;
-  }
+  /* Every rule that laid out the hero and its children on a phone lived
+     here. The hero is display:none above, so all of it was dead weight; the
+     desktop rules for the same elements are untouched, and switchDemoLang /
+     handleDemoTTS still have their .academic-sheet to work on there. */
   .login-form-section h2 { font-size: 24px; }
   .login-hint { font-size: 14px; margin-bottom: 24px; }
   .form-group input { padding: 14px 16px; font-size: 16px; } /* 16px prevents iOS zoom */

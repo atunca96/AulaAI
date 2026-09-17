@@ -16,7 +16,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0a0e1a">
+    <!-- Safari paints its own strips with theme-color: the status bar area, the
+         gutter it opens when the page is overscrolled, and the pull-to-refresh
+         band above the document. #0a0e1a matched nothing in the app — not the
+         page (--surface-0: #09162a), not any surface above it — so every one of
+         those strips read as a black band against the page. These two track
+         --surface-0 in each scheme, so the strips are the page colour. Keep
+         it in step with foundation.css if --surface-0 ever moves. This is the
+         dark value; setTheme() rewrites it on every theme change, because the
+         app picks its theme from data-theme and localStorage, not from
+         prefers-color-scheme — a media-switched pair here would go out of step
+         with the page the moment someone toggled the pill. -->
+    <meta name="theme-color" id="theme-color-meta" content="#09162a">
     <title>AulaAI — Language Learning System</title>
     <meta name="description" content="AI-powered language learning system">
     <link rel="manifest" href="/manifest.json">
@@ -24,11 +35,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;600;800;900&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/foundation.css?v=20260916_ui01">
-    <link rel="stylesheet" href="/css/styles.css?v=20260916_ui01">
+    <link rel="stylesheet" href="/css/foundation.css?v=20260917_login01">
+    <link rel="stylesheet" href="/css/styles.css?v=20260917_login01">
     <link rel="icon" type="image/png" href="/img/icon.png">
     <script src="/js/bilingual_materials.js?v=20260911_v016" defer></script>
-    <script src="/js/app.js?v=20260913_quality_v18" defer></script>
+    <script src="/js/app.js?v=20260917_login01" defer></script>
     <style>
         .foreign-word {
             display: inline !important;
