@@ -558,6 +558,13 @@ def is_usable_transcription(value: Any, term: Any = "") -> bool:
     text = " ".join(str(value or "").split())
     if not text or len(text) > 120:
         return False
+    # One row may legitimately carry two readings: 'x' is [ks] / [s]. Each side
+    # is judged on its own; a slash is an alternation, not prose.
+    if "/" in text:
+        parts = [p.strip() for p in text.split("/") if p.strip()]
+        if 2 <= len(parts) <= 3:
+            return all(is_usable_transcription(p, term) for p in parts)
+        return False
     if not (text.startswith("[") and text.endswith("]")):
         return False
     inner = text[1:-1].strip()
@@ -570,7 +577,10 @@ def is_usable_transcription(value: Any, term: Any = "") -> bool:
     if len(head_raw) > 2 and inner.casefold() == head_raw.casefold():
         return False
     # Sentence punctuation and capitals belong to prose, never to a transcription.
-    if re.search(r"[0-9,;.!?]", inner) or any(ch.isupper() for ch in inner):
+    # The full stop is NOT in that set: IPA separates syllables with it, and
+    # rejecting it called [ˈo.la] and [pɾo.feˈsoɾ] unusable — 73 false findings
+    # against 347 rows of one real course.
+    if re.search(r"[0-9,;!?]", inner) or any(ch.isupper() for ch in inner):
         return False
     if _outside_ipa_repertoire(inner):
         return False
