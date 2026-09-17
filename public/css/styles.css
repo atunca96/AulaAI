@@ -759,7 +759,12 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    band: it behaves like every other line of text on the site. */
 .site-footer {
   flex-shrink: 0;
-  padding: var(--space-5) var(--gutter-safe) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  /* The room underneath is the same reserve the privacy line gets at the foot
+     of the login form — `40px + --control-lg` — and for the same reason: the
+     floating theme/language pill sits in that corner, and text at the end of a
+     page otherwise lands either under it or on the very edge of the screen.
+     Same logic, same number, so the two lines sit the same way. */
+  padding: var(--space-5) var(--gutter-safe) calc(var(--space-10) + var(--control-lg) + env(safe-area-inset-bottom, 0px));
   text-align: center;
   font-size: 11px;
   line-height: 1.5;
