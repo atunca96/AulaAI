@@ -752,29 +752,19 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    rule, no padding block — hold the cost to ~25px rather than ~40px, and the
    muted colour keeps it reading as a footer mark rather than a third
    sentence after the privacy line. */
-/* One footer for the whole site, in the flow at the bottom of the page rather
-   than floating over it. It is the last child of <body>, a column flex
-   container, so it follows whichever screen is active on every section of the
-   site and scrolls with the content — present everywhere, in the way nowhere. */
-/* A plain bar fixed to the bottom of the viewport: on every page, always, and
-   touching the layout of nothing above it. The screens are exactly as they
-   were — the previous attempt shortened them to make room and the login form
-   stopped fitting, which is what clipped it mid-sentence and pushed it up.
-   pointer-events:none so a line of small print can never swallow a tap. */
+/* Ordinary text at the end of the page. It is the last child of <body>, which
+   is a column flex container, so it follows whichever screen is active and
+   scrolls with the content — off the bottom of a short page until you scroll
+   for it, and gone again when you scroll back. No border, no bar, no reserved
+   band: it behaves like every other line of text on the site. */
 .site-footer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--z-sticky);
-  padding: var(--space-4) var(--gutter-safe) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-primary);
+  flex-shrink: 0;
+  padding: var(--space-5) var(--gutter-safe) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   text-align: center;
   font-size: 11px;
   line-height: 1.5;
   color: var(--text-muted);
   letter-spacing: 0.01em;
-  pointer-events: none;
 }
 .login-footer-link {
   color: var(--accent-light);
@@ -894,8 +884,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    So it stands down wherever a dashboard is the active screen. */
 .floating-actions {
   position: fixed;
-  /* Sits above the footer bar rather than on top of it. */
-  bottom: calc(var(--site-footer-h) + var(--space-5));
+  bottom: max(var(--space-8), env(safe-area-inset-bottom, 0px));
   right: var(--space-8);
   z-index: var(--z-sticky);
 }
@@ -910,15 +899,8 @@ body:has(#student-dashboard.active) .floating-actions {
    the reserve OUTSIDE that height made the page taller than the screen and
    published a strip of page background below it. It reserves the same room
    inside its own hero instead, where it costs no document height. */
-/* The footer bar is fixed, so every screen reserves its height at the foot of
-   its content. Global box-sizing is border-box and the screens are sized by
-   min-height, so this insets the content without adding a pixel of scroll. */
-.screen.active:not(#login-screen) {
-  padding-bottom: var(--site-footer-h);
-}
-/* Where the pill floats too, the reserve covers both it and the bar beneath. */
 .screen.active:not(#lecturer-dashboard):not(#student-dashboard):not(#login-screen) {
-  padding-bottom: calc(var(--control-lg) + var(--space-11) + var(--site-footer-h));
+  padding-bottom: calc(var(--control-lg) + var(--space-11));
 }
 .action-pill-container {
   display: flex;
@@ -2752,7 +2734,7 @@ body:has(#student-dashboard.active) .floating-actions {
     background: var(--bg-primary);
     /* Symmetric, plus room at the bottom for the floating theme/language
        pill so it never lands on the privacy link. */
-    padding: 40px 20px calc(40px + var(--control-lg) + var(--site-footer-h));
+    padding: 40px 20px calc(40px + var(--control-lg));
   }
   .login-form-brand {
     display: flex;
@@ -2779,7 +2761,7 @@ body:has(#student-dashboard.active) .floating-actions {
   .demo-btn { padding: 14px 16px; }
   .nav-logo-img { height: 28px; width: auto; }
   .floating-actions {
-    bottom: calc(var(--site-footer-h) + var(--space-5));
+    bottom: 16px;
     right: 16px;
   }
   .btn-lang {
