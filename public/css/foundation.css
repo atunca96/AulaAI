@@ -246,9 +246,17 @@ body, p, li, td, th, dd, dt, h1, h2, h3, h4, h5, h6, label, span, div {
   overflow-wrap: break-word;
   word-break: normal;
 }
-/* Codes, numbers and phonetics must stay intact even if they are long. */
+/* Codes, numbers and phonetics must stay intact even if they are long — and
+   they are set in the mono face, because an identifier is not prose.
+   `font-family` used to be missing here, so `.mono` was a dead class: the
+   student roster marks an ID with it precisely to set it apart from the name
+   beside it, and got body text. Everything in this group now resolves to one
+   face instead of some of it reaching --font-mono and the rest silently not.
+   Low specificity on purpose: the components that name --font-mono themselves
+   still win, and this only catches what nothing else styles. */
 code, kbd, samp, pre, .mono, [class*="code"], [class*="phonetic"] {
   overflow-wrap: normal;
+  font-family: var(--font-mono);
 }
 
 /* Flex/grid children default to min-width:auto, which is the single most
