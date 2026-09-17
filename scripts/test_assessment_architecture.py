@@ -437,6 +437,35 @@ def test_item_validation():
     batch = av.filter_publishable([good, {**good, "prompt": "What does 'casa' mean?"}], instructional_track="tr")
     check(len(batch["kept"]) == 1 and len(batch["rejected"]) == 1, "the batch filter separates the two")
 
+    # A stem asked once already, anywhere in the course. Taken from a shipped
+    # A1 book that carried three questions twice, stem for stem.
+    sk = av.stem_key
+    check(sk("¿Qué palabra tiene la letra hache muda?") == sk("¿Qué palabra tiene la letra hache muda?"),
+          "a verbatim repeat is the same stem")
+    check(sk("Son las 08:00. ¡Buenos ______!") == sk("Son las 08:00. ¡Buenos ___!"),
+          "and stays the same when the gap is drawn a different length")
+    check(sk("¿Cómo se escribe?") == sk("¿Como se escribe?"),
+          "a dropped accent does not make it a new question")
+
+    # The near-misses this must NOT collapse: both score above 0.85 on a
+    # similarity ratio, and both are legitimate items.
+    check(sk("Mi hermano ___ los ojos marrones.") != sk("Mi hermana ___ los ojos verdes."),
+          "a masculine/feminine contrast pair survives")
+    check(sk("¿Cómo se escribe el número 24?") != sk("¿Cómo se escribe el número 34?"),
+          "so do two questions about different numbers")
+
+    # Script-agnostic: the key is built from normalization, not from an alphabet.
+    check(sk("「は」が入る言葉は?") == sk("「は」が入る言葉は?"), "stems compare in Japanese")
+    check(sk("Как пишется 24?") != sk("Как пишется 34?"), "and stay distinct in Cyrillic")
+
+    # The generator must accept the list and must not need it.
+    import inspect
+    from services import ai_engine as _ae
+    check("prior_stems" in inspect.signature(_ae.ai_generate_questions).parameters,
+          "the generator takes a course-wide stem list")
+    check(inspect.signature(_ae.ai_generate_questions).parameters["prior_stems"].default is None,
+          "and works without one")
+
 
 # ── 10. Token discipline ──────────────────────────────────────────────────────
 

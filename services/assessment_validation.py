@@ -33,6 +33,7 @@ __all__ = [
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
     "giveaway_features", "normalize_option", "mixed_spelling_variants",
+    "stem_key",
 ]
 
 
@@ -186,6 +187,35 @@ def normalize_token(text: Any) -> str:
     nfkd = unicodedata.normalize("NFKD", str(text).lower().strip())
     no_marks = "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
     return re.sub(r"[^\w\s]", "", no_marks).strip()
+
+
+def stem_key(text: Any) -> str:
+    """Identity of a question stem, for deciding it has been asked before.
+
+    `normalize_token` alone is not enough here: an underscore is a word
+    character, so it survives punctuation stripping and a stem gapped with
+    `____` reads as different from the same stem gapped with `______`. The gap
+    run is collapsed first, and whitespace with it, so two stems compare equal
+    exactly when a learner would read them as the same question.
+
+    Deliberately exact. Two stems that merely RESEMBLE each other are not the
+    same question — 'Mi hermano ___ los ojos marrones' against 'Mi hermana ___
+    los ojos verdes' is a masculine/feminine contrast worth drilling twice, and
+    'how do you write 24' against 'how do you write 34' tests different
+    numbers. Both sit above 0.85 on a similarity ratio, so a fuzzy version of
+    this check would throw away good items. Only a stem repeated verbatim
+    carries no information the learner did not already have.
+
+    Diacritics come off with everything else, which is what makes a stem
+    re-emitted with a dropped accent still count as the same question. In kana
+    that also collapses voicing, so が and か compare equal and two Japanese
+    stems could in principle collide on nothing else. The cost if they do is
+    one candidate refused and replaced from the pool, which is the cheaper way
+    to be wrong than letting a repeat through in every Latin-script course.
+    """
+    if not text:
+        return ""
+    return " ".join(normalize_token(re.sub(r"_+", " ", str(text))).split())
 
 
 # ── Translation questions ─────────────────────────────────────────────────────
