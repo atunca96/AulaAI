@@ -874,10 +874,15 @@ h1, h2, h3, h4, h5, h6 {
   /* This offset is optical, not geometric. The label is all-caps and the value
      is mixed-case, so even on a shared baseline the label's mass sits a
      cap-height above the value's x-height and the names read as low. One pixel
-     was not enough of a correction to settle them; two is. */
+     read low still and two read high, so the correction is half a pixel —
+     which on a 3x phone is a real, visible pixel and a half.
+
+     It has to be a transform. `top: -1.5px` renders byte-identically to
+     `top: -2px`: offsets are snapped to layout pixels, so the half is thrown
+     away and lands on the value that read too high. A transform is not
+     snapped, and this one measurably differs from both -1px and -2px. */
   .data-table.is-stacked .cell-scroll-x {
-    position: relative;
-    top: -2px;
+    transform: translateY(-1.5px);
   }
   /* A fade at the right edge, shown only while there is more list to reach.
      Painted by the CELL rather than as a mask on the scroller: masking a
