@@ -857,6 +857,7 @@ const i18n = {
     // The year is read at load rather than written into the string, so the
     // notice does not quietly go stale every January.
     'legal.copyright': `© ${new Date().getFullYear()} AulaAI. All rights reserved.`,
+    'action.refresh': 'Refresh',
     'privacy.title': 'Privacy Policy',
     'privacy.intro': 'AulaAI processes minimal student and lecturer data solely to provide customized language learning materials.',
     'privacy.h1': '1. Data Collection',
@@ -1307,6 +1308,7 @@ const i18n = {
     'login.privacy_policy': 'Gizlilik Politikası',
     'login.agree_suffix': '\'mızı kabul etmiş olursunuz.',
     'legal.copyright': `© ${new Date().getFullYear()} AulaAI. Tüm hakları saklıdır.`,
+    'action.refresh': 'Yenile',
     'privacy.title': 'Gizlilik Politikası',
     'privacy.intro': 'AulaAI, öğrencilere ve öğretmenlere kişiselleştirilmiş dil öğrenim materyalleri sunabilmek amacıyla yalnızca asgari düzeyde veri işlemektedir.',
     'privacy.h1': '1. Veri Toplama',
