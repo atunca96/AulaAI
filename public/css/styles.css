@@ -5052,7 +5052,7 @@ select.text-input option,
 @media (max-width: 1024px) {
   .dashboard-content:has(#tab-study-materials.active) .study-container,
   .dashboard-content:has(#tab-s-study-tab.active) .study-container {
-    margin-top: 10vh;
+    margin-top: 7vh;
   }
 
   /* The in-class activity position was already approved; preserve it while
