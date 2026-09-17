@@ -209,12 +209,6 @@ html, body {
   position: relative;
   -webkit-text-size-adjust: 100%;
   background: var(--bg-primary);
-  /* iOS Safari rubber-bands the whole page past its top/bottom edge, and
-     paints the revealed strip using the system default (white), not this
-     background — the page itself has no content there to show. Disabling
-     the bounce on the document is what actually removes the gap, rather
-     than trying to chase it with a matching color. */
-  overscroll-behavior-y: none;
 }
 
 body {
@@ -2636,18 +2630,29 @@ body:has(#student-dashboard.active) .floating-actions {
 
 /* Mobile Login Optimization */
 @media (max-width: 768px) {
+  /* .screen is min-height:100vh, which on iOS is the LARGE viewport (toolbars
+     hidden). A child at 100dvh is therefore always shorter than its parent
+     while the toolbars are showing, and the difference published a strip of
+     page background below the form — the black band along the bottom. Both
+     now measure the same way.
+
+     The reversal is gone too. column-reverse on a scrolling box puts the
+     scroll origin at the BOTTOM, which is what left unscrolled space at the
+     top and made the whole screen jitter while Safari's toolbars animated.
+     `order` puts the form above the hero without reversing anything, and
+     dropping overflow-y lets the document do the one scroll it needs. */
+  #login-screen { min-height: 100dvh; }
   .login-container {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column;
     height: auto;
-    min-height: 100vh;
     min-height: 100dvh;
-    overflow-y: auto;
   }
+  .login-form-section { order: 1; }
+  .login-hero { order: 2; }
   .login-form-section {
-    /* The brand mark below now occupies the top, so the form starts lower
-       without the screen opening on a gap. */
-    padding: 36px 20px 56px;
+    /* Equal top and bottom, matching the hero below it. */
+    padding: 44px 20px;
     min-height: auto;
     justify-content: flex-start;
   }
@@ -2667,10 +2672,12 @@ body:has(#student-dashboard.active) .floating-actions {
   }
   .login-hero {
     min-height: auto;
-    /* Sized for what is left: the 80px bottom inset and 36px rhythm were
-       spacing a demo sheet that no longer renders here, and without it they
-       read as a block of empty navy. */
-    padding: 40px 20px 44px;
+    /* Takes whatever height is left over, so the panel itself reaches the
+       bottom of the screen and there is never a band of page background
+       under it to mismatch. */
+    flex: 1 0 auto;
+    /* Equal top and bottom, matching the form above it. */
+    padding: 44px 20px;
     border-right: none;
     border-top: 1px solid var(--border);
     border-bottom: none;
@@ -2701,7 +2708,7 @@ body:has(#student-dashboard.active) .floating-actions {
     line-height: 1.5 !important;
   }
   /* The three-language demo sheet is a desktop showpiece. On a phone the hero
-     sits BELOW the sign-in form (the container is column-reverse), so by the
+     sits BELOW the sign-in form (the hero is ordered second), so by the
      time it is reached the person has already chosen to log in — the demo is
      scrolling past an audience that is no longer being persuaded. Hidden
      rather than removed, so the desktop layout and its switchDemoLang /
