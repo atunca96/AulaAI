@@ -48,6 +48,12 @@ def test_validator():
         ("[e]", "e", True, "and so are the rest of them"),
         ("[kasa]", "casa", True, "plain ASCII is notation when it fits the headword"),
         ("[cine]", "cine", False, "but a whole word echoed back is not"),
+        # IPA separates syllables with a full stop, and one row may carry two
+        # readings. Rejecting either produced 73 false findings on a real course.
+        ("[ˈo.la]", "hola", True, "a syllable dot is notation, not sentence punctuation"),
+        ("[pɾo.feˈsoɾ]", "profesor", True, "including in a longer word"),
+        ("[ks] / [s]", "x", True, "two readings of one letter are both judged"),
+        ("[ˈkasa, evi]", "casa", False, "a comma is still prose"),
     ]:
         check(ok(value, term) is expected, why)
 
