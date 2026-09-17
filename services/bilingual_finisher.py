@@ -287,6 +287,141 @@ def _call_openrouter(prompt):
     res = _call_ai([{"role": "user", "content": prompt}], model=model, max_tokens=1200, temperature=0.1, json_mode=True)
     return res if isinstance(res, dict) and "error_details" not in res else {}
 
+_PHONETIC_CONTAINERS = ("items", "entries", "vocabulary", "terms", "rows")
+
+
+def _collect_phonetic_gaps(content):
+    """(term, item) for every vocabulary entry published without a transcription.
+
+    A lesson is allowed to omit `phonetic` — the generation contract says an
+    absent transcription is honest and an invented one is a factual error the
+    learner cannot detect. What it is not allowed to do is leave a pronunciation
+    COLUMN with holes in it, which is what the reader actually sees: a table
+    where most rows carry IPA and a few are simply blank, indistinguishable from
+    a rendering bug. This finds those holes so one pass can close them.
+    """
+    gaps = []
+
+    def walk(node):
+        if isinstance(node, list):
+            for child in node:
+                walk(child)
+            return
+        if not isinstance(node, dict):
+            return
+        for container in _PHONETIC_CONTAINERS:
+            entries = node.get(container)
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                term = str(entry.get("term") or "").strip()
+                phon = str(entry.get("phonetic") or entry.get("pronunciation") or "").strip()
+                if term and not phon:
+                    gaps.append((term, entry))
+        for value in node.values():
+            if isinstance(value, (dict, list)):
+                walk(value)
+
+    walk(content)
+    return gaps
+
+
+# Symbols that carry no meaning outside phonetic notation. The repertoire check
+# alone cannot separate IPA from ordinary prose, because IPA is built from Latin
+# letters: '[sinema anlamında]' is a Turkish gloss and every character in it is
+# inside the permitted ranges. Requiring at least one of these is what makes the
+# difference — a stress or length mark, or a symbol no orthography spells with.
+_IPA_ONLY = set("ˈˌːˑθðʃʒŋɲʎβɣɾʁʔɛɔɪʊæøœɨʌəɑɐɜɡʧʤʝɟçɕʑɸʕħɹɻʈɖɳɭʂʐɬɮʋɥʍɚɝ")
+
+
+def _valid_transcription(value, term):
+    """True when `value` is usable IPA for `term` rather than prose or an echo."""
+    from services.publication_evidence import _outside_ipa_repertoire
+    text = normalize_transcription_safe(value)
+    if not text or len(text) > 120:
+        return False
+    if not (text.startswith("[") and text.endswith("]")):
+        return False
+    inner = text[1:-1].strip()
+    if not inner:
+        return False
+    # An echo of the headword is not a transcription.
+    if inner.casefold() == str(term or "").strip().casefold():
+        return False
+    # Sentence punctuation and capitals belong to prose, never to a transcription.
+    if re.search(r"[0-9,;.!?]", inner) or any(ch.isupper() for ch in inner):
+        return False
+    if not any(ch in _IPA_ONLY for ch in inner):
+        return False
+    return not _outside_ipa_repertoire(inner)
+
+
+def normalize_transcription_safe(value):
+    try:
+        from services.class_lexicon import normalize_transcription
+        return normalize_transcription(value)
+    except Exception:
+        return " ".join(str(value or "").split())
+
+
+def backfill_missing_phonetics(topic_data_list, language):
+    """Fill the holes in a course's pronunciation columns. One batched call.
+
+    Runs once per course, after every lesson exists, so the terms of the whole
+    course are requested together rather than a call per lesson. Every returned
+    value is checked against the IPA repertoire before it is written: a model
+    that answers with prose, a translation or the headword itself fills nothing,
+    because a wrong transcription is worse for a learner than a blank cell.
+    """
+    gaps = []
+    for _tid, _title, content in topic_data_list:
+        gaps.extend(_collect_phonetic_gaps(content))
+    if not gaps:
+        return 0
+
+    # One request per distinct term, however many entries share it.
+    by_term = {}
+    for term, entry in gaps:
+        by_term.setdefault(term, []).append(entry)
+    terms = sorted(by_term)
+    if len(terms) > 300:
+        terms = terms[:300]
+
+    prompt = (
+        f"Give the standard IPA transcription of each {language} term below.\n"
+        "Return JSON only: {\"map\": {\"<term>\": \"[ipa]\"}}.\n"
+        "Rules: transcribe the ENTIRE term including every word of a phrase; "
+        "use one consistent reference variety for all of them; wrap each value "
+        "in square brackets; use IPA symbols only - no translations, no respellings, "
+        "no explanation. If you are not confident of a term's transcription, omit "
+        "that key entirely rather than guessing.\n\n"
+        + "\n".join(f"- {t}" for t in terms)
+    )
+    try:
+        res = _call_openrouter(prompt)
+    except Exception as exc:
+        logger.warning(f"[BILINGUAL] Phonetic backfill call failed: {exc}")
+        return 0
+
+    mapping = res.get("map") if isinstance(res, dict) else None
+    if not isinstance(mapping, dict):
+        return 0
+
+    filled = 0
+    for term, value in mapping.items():
+        entries = by_term.get(str(term).strip())
+        if not entries or not _valid_transcription(value, term):
+            continue
+        text = normalize_transcription_safe(value)
+        for entry in entries:
+            entry["phonetic"] = text
+            filled += 1
+    print(f"[BILINGUAL] Phonetic backfill: {filled} entr(ies) across {len(terms)} requested term(s).")
+    return filled
+
+
 def batch_translate_strings(strings, target_lang="tr"):
     """Translates a list of strings to target_lang, using cache and OpenRouter."""
     if not strings:
@@ -761,6 +896,18 @@ def finalize_course_bilingual_data(course_id: str):
             ch_tr = trans_map.get(ch["title"].strip()) if (not ch["title_tr"] or not is_clean_turkish(ch["title_tr"])) else ch["title_tr"]
             if ch_tr:
                 db.execute("UPDATE chapters SET title_tr = ? WHERE id = ?", (ch_tr, ch["id"]))
+
+        # Close the holes in the pronunciation columns before the contents are
+        # serialized below. Mutates the same dicts the loop is about to write.
+        try:
+            course_language = "the target language"
+            with db_connection() as _lang_db:
+                _row = _lang_db.execute("SELECT language FROM courses WHERE id = ?", (course_id,)).fetchone()
+                if _row and _row["language"]:
+                    course_language = str(_row["language"])
+            backfill_missing_phonetics(topic_data_list, course_language)
+        except Exception as exc:
+            logger.warning(f"[BILINGUAL] Phonetic backfill skipped: {exc}")
 
         # Update topics
         for tid, ttitle, content in topic_data_list:
