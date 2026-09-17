@@ -227,6 +227,26 @@ html {
   text-size-adjust: 100%;
 }
 
+/* Double-tap to zoom is off on touch devices. It fires on any second tap
+   within the gesture window — including two ordinary taps on the same piece of
+   text — and leaves the page zoomed and scrolled under the status bar, which
+   is not a state anyone asked to be in.
+
+   `manipulation` means panning and continuous zooming only, so pinch-to-zoom
+   still works: zooming is still available, it just has to be asked for with
+   two fingers. Set on the root, because the gesture is resolved against the
+   touched element AND its ancestors, so this covers the whole document.
+
+   The same declaration removes the ~300ms tap delay that only exists because
+   the browser was waiting to see whether a second tap was coming. Buttons
+   answer immediately now.
+
+   Scoped by pointer rather than width: this is about how the device is
+   touched, not how wide it is. */
+@media (pointer: coarse) {
+  html { touch-action: manipulation; }
+}
+
 body {
   font-family: var(--font-ui);
   font-size: var(--fs-base);
