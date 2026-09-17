@@ -265,8 +265,23 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 }
 
 /* ── Screens ─────────────────────────────────────────── */
-.screen { display: none; min-height: 100vh; min-height: 100dvh; }
-.screen.active { display: block; animation: fadeIn 0.4s ease; }
+/* Screens no longer claim a whole viewport of their own. When they did, the
+   page measured one viewport PLUS the footer, so the footer was always exactly
+   its own height below the fold and any scroll at all — a keyboard opening, a
+   double tap — was what revealed it. As flex items inside a body that is
+   min-height:100dvh, they take the viewport MINUS the footer, the document
+   fits exactly, and there is nothing left to scroll. */
+.screen { display: none; }
+.screen.active { display: block; flex: 1 0 auto; min-height: 0; animation: fadeIn 0.4s ease; }
+/* `min-height` does not cap a flex container — the body still grows to fit its
+   content, so there is never a deficit and nothing ever shrinks. The login
+   screen is the one screen that scrolls its own content (it is a scroll
+   container, which is what absorbs the pull-to-refresh gesture), so it is the
+   one screen that can be given a definite height to shrink into. The form
+   scrolls inside it and the footer keeps its band.
+   Every other screen keeps an auto-height body and simply grows the page when
+   it has more to show than fits. */
+body:has(#login-screen.active) { height: 100dvh; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
@@ -329,8 +344,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .login-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
 }
 .login-hero {
   background: #09162a; /* Solid academic navy */
@@ -759,7 +773,6 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 .site-footer {
   flex-shrink: 0;
   padding: var(--space-5) var(--gutter-safe) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--line-subtle);
   background: var(--bg-primary);
   text-align: center;
   font-size: 11px;
@@ -2729,12 +2742,11 @@ body:has(#student-dashboard.active) .floating-actions {
 
      With the hero gone the form is ~650px in a ~700px viewport, so it fits,
      nothing scrolls, and the toolbars stay put. */
-  #login-screen { min-height: 100dvh; }
   .login-container {
     display: flex;
     flex-direction: column;
     height: auto;
-    min-height: 100dvh;
+    min-height: 100%;
   }
   .login-hero { display: none; }
   .login-form-section {
@@ -2790,8 +2802,7 @@ body:has(#student-dashboard.active) .floating-actions {
 @media (max-height: 500px) and (orientation: landscape) {
   .login-form-section {
     padding: 16px 32px;
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 100%;
     overflow-y: auto;
   }
   .login-form-section h2 { font-size: 20px; margin-bottom: 2px; }

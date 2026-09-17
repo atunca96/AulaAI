@@ -81,7 +81,12 @@ css = styles.read_text(encoding="utf-8")
 css += r'''
 @media (max-width:768px){
  .screen.active{animation:none!important;transform:none!important;opacity:1!important}
- #login-screen.active{height:100dvh;min-height:100dvh;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+ /* Sized by the flex line rather than pinned to 100dvh, so the site footer gets
+    its own band and the document fits the viewport exactly. Still a scroll
+    container, and the 1px ::after below still keeps it minimally scrollable,
+    so it absorbs the overscroll gesture and pull-to-refresh stays off. The form
+    scrolls inside it; the page itself no longer scrolls at all. */
+ #login-screen.active{flex:1 1 auto;min-height:0;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
  #login-screen.active::after{content:'';display:block;height:1px;width:1px;pointer-events:none}
  .study-container{min-height:0!important;height:auto!important}
  .study-container,.study-content-panel,.study-content-area,.study-topic-wrapper,.study-card{min-width:0!important;box-sizing:border-box!important}
