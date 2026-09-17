@@ -3,9 +3,10 @@
   "short_name": "AulaAI",
   "description": "AI-powered Language Learning System",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0e1a",
-  "theme_color": "#6366f1",
+  "background_color": "#09162a",
+  "theme_color": "#09162a",
   "icons": [
     {
       "src": "/img/icon.png",
