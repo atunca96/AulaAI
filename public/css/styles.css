@@ -692,6 +692,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   padding: 48px 80px;
   background: var(--bg-secondary);
 }
+/* The desktop hero carries the branding beside the form, so the phone-only
+   brand mark stays out of the way here. */
+.login-form-brand { display: none; }
 .login-form-section h2 {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: 26px;
@@ -2631,9 +2634,25 @@ body:has(#student-dashboard.active) .floating-actions {
     overflow-y: auto;
   }
   .login-form-section {
-    padding: 40px 20px 60px 20px;
+    /* The brand mark below now occupies the top, so the form starts lower
+       without the screen opening on a gap. */
+    padding: 36px 20px 56px;
     min-height: auto;
     justify-content: flex-start;
+  }
+  .login-form-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 30px;
+  }
+  .login-form-brand__logo { height: 34px; width: auto; }
+  .login-form-brand__name {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
   }
   .login-hero {
     min-height: auto;
