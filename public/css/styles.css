@@ -915,17 +915,12 @@ body:has(#student-dashboard.active) .floating-actions {
    the reserve OUTSIDE that height made the page taller than the screen and
    published a strip of page background below it. It reserves the same room
    inside its own hero instead, where it costs no document height. */
-/* Room under a screen's last card so the floating pill cannot sit on it. It
-   used to reserve the pill's whole height, from when the screen was the last
-   thing on the page. The footer now follows and contributes its own 41px, so
-   the card still ends clear of the pill on a third of the space — and the
-   notice lands just under the content instead of a gap below it.
-   40 and not 32: the pill stands 54px tall 16px off the bottom, so it owns the
-   last 70px of the screen; 40 + the footer's 41 puts the card 81px clear of it
-   rather than 3. */
-.screen.active:not(#lecturer-dashboard):not(#student-dashboard):not(#login-screen) {
-  padding-bottom: var(--space-10);
-}
+/* No pill reserve on the screen itself any more. The footer follows every
+   screen and stands 41px tall plus the safe-area inset, and the content
+   container keeps its own 24px, so the last card already ends ~99px above the
+   bottom of the page — well clear of the 70px the pill occupies. Reserving
+   another 40px here only pushed the notice away from the content it belongs
+   under. */
 .action-pill-container {
   display: flex;
   align-items: center;
