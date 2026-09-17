@@ -1,0 +1,33 @@
+name: chatgpt-optical-position
+on:
+  push:
+    branches: [chatgpt-mobile-optical-position]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: chatgpt-mobile-optical-position}
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/css/styles.css'); s=p.read_text()
+          anchor='''/* Mobile tap behavior only. Layout remains owned by each screen/component. */\n@media (max-width: 1024px) {\n  html, body, body * { touch-action: manipulation; }\n}'''
+          replacement='''/* Mobile study pages sit at the intended optical height instead of being\n   either hard-centred or pinned directly under the nav. This moves the reader\n   as one block, so assessment and in-class activity pages share the same top. */\n@media (max-width: 1024px) {\n  .dashboard-content:has(#tab-study-materials.active) .study-container,\n  .dashboard-content:has(#tab-s-study-tab.active) .study-container {\n    margin-top: 15vh;\n  }\n\n  /* Do not animate the material shell/content into place on iOS. The content\n     is already painted before reveal; these transforms only make that paint\n     look like the old first-frame glitch. */\n  .study-topic-wrapper, .study-card, #activity-preview {\n    animation: none !important;\n    transform: none !important;\n  }\n\n  html, body, body * { touch-action: manipulation; }\n}'''
+          if s.count(anchor)!=1: raise SystemExit(f'mobile anchor count={s.count(anchor)}')
+          p.write_text(s.replace(anchor,replacement,1))
+
+          p=Path('public/index.html'); s=p.read_text()
+          old='/css/styles.css?v=20260917_mobilefix02'; new='/css/styles.css?v=20260917_mobilefix03'
+          if s.count(old)!=1: raise SystemExit(f'css cache key count={s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/css/styles.css public/index.html
+          git commit -m "fix: place mobile study pages at optical height"
+          git push origin HEAD:chatgpt-mobile-optical-position
