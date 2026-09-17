@@ -2605,7 +2605,10 @@ body:has(#student-dashboard.active) .floating-actions {
   .dashboard-content {
     padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-7));
     padding-inline: var(--gutter-safe);
-    padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
+    /* No safe-area inset here: the site footer sits below this and reserves
+       it once, at the actual bottom of the page. Reserving it in both places
+       pushed the notice a whole inset away from the content. */
+    padding-bottom: var(--space-9);
   }
 
   /* Side insets belong to the scroll container, not to <body>: on body they
@@ -2808,7 +2811,7 @@ body:has(#student-dashboard.active) .floating-actions {
   .form-group input { padding: 10px 14px; }
   .btn-full { padding: 12px; }
   .demo-accounts { margin-top: 16px; padding-top: 12px; }
-  .dashboard-content { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+  .dashboard-content { padding-bottom: 70px; } /* footer reserves the safe area */
 }
 
 /* ── Utility ─────────────────────────────────────────── */
@@ -4790,7 +4793,8 @@ select.text-input option,
   /* Page frame */
   .dashboard-content {
     padding-top: calc(var(--topnav-h) + env(safe-area-inset-top, 0px) + var(--space-5));
-    padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
+    /* Same: the safe area is the footer's to reserve, not this container's. */
+    padding-bottom: var(--space-8);
   }
   .page-header { margin-bottom: var(--space-5); }
   .page-header h1 { font-size: var(--fs-xl); }
