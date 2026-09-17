@@ -1,0 +1,53 @@
+name: chatgpt-optical-center
+
+on:
+  push:
+    branches: [chatgpt-optical-center]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt-optical-center
+      - name: Apply optical vertical bias
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          css_path = Path('public/css/styles.css')
+          css = css_path.read_text()
+          old = '''@media (max-width: 1024px) {
+            .screen.active { margin-top: auto; }
+            .site-footer { margin-bottom: auto; }
+          }'''
+          new = '''@media (max-width: 1024px) {
+            .screen.active { margin-top: auto; }
+            .site-footer { margin-bottom: auto; }
+            body:has(> .screen.active:not(#login-screen)) { padding-bottom: 14vh; }
+          }'''
+          if css.count(old) != 1:
+              raise SystemExit(f'expected centering block exactly once, found {css.count(old)}')
+          css_path.write_text(css.replace(old, new, 1))
+
+          index_path = Path('public/index.html')
+          index = index_path.read_text()
+          old_v = '/css/styles.css?v=20260917_center01'
+          new_v = '/css/styles.css?v=20260917_optical01'
+          if index.count(old_v) != 1:
+              raise SystemExit(f'expected stylesheet version exactly once, found {index.count(old_v)}')
+          index_path.write_text(index.replace(old_v, new_v, 1))
+          PY
+      - name: Verify only intended edits and commit
+        run: |
+          git diff --check
+          git diff -- public/css/styles.css public/index.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/css/styles.css public/index.html
+          git commit -m "fix: bias short-page content toward optical center"
+          git push origin HEAD:chatgpt-optical-center
