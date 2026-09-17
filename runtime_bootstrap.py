@@ -34,47 +34,26 @@ css += r'''
     pointer-events: none;
   }
 
-  /* The real material layout uses these study-* containers. The existing
-     tablet rule deliberately sets their overflow to visible, which allowed a
-     nowrap/desktop-width child to enlarge the page horizontally on iPhone. */
+  /* Keep the existing responsive widths/padding intact. Only stop material
+     descendants from creating a horizontal page overflow. */
   .study-container,
   .study-content-panel,
   .study-content-area,
   .study-topic-wrapper,
   .study-card {
-    width: 100% !important;
-    max-width: 100% !important;
     min-width: 0 !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important;
   }
 
-  .study-content-panel,
+  .study-container,
+  .study-content-panel {
+    overflow-x: clip !important;
+  }
+
+  .study-content-area,
+  .study-topic-wrapper,
   .study-card {
-    overflow-y: visible !important;
-  }
-
-  .study-card *,
-  .study-content-area *,
-  .study-topic-wrapper * {
-    min-width: 0 !important;
     max-width: 100% !important;
-    box-sizing: border-box;
-  }
-
-  .study-card p,
-  .study-card li,
-  .study-card span,
-  .study-card code,
-  .study-card pre,
-  .study-content-area p,
-  .study-content-area li,
-  .study-content-area span,
-  .study-content-area code,
-  .study-content-area pre {
-    white-space: normal !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
   }
 
   .study-card img,
@@ -84,14 +63,22 @@ css += r'''
   .study-card pre {
     max-width: 100% !important;
   }
+
+  .study-card p,
+  .study-card li,
+  .study-card code,
+  .study-card pre {
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
 }
 '''
 styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr10", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr10", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr11", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr11", 1)
 
 # Mobile login fields stay read-only until that specific field is intentionally
 # touched. Programmatic focus can still paint :focus on a read-only input, so
@@ -167,6 +154,6 @@ index = index.replace(anchor, keyboard_guard + "\n    " + anchor, 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll + login focus + real mobile study overflow fix")
+print("[BOOT] applied native iOS overscroll + login focus + non-destructive mobile material overflow fix")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
