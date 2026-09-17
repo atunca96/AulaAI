@@ -33,14 +33,44 @@ css += r'''
     width: 1px;
     pointer-events: none;
   }
+
+  /* Material reader is vertical-only on phones. Keep oversized generated
+     descendants inside the viewport instead of letting Safari pan the reader
+     sideways. This is intentionally scoped to the study/material surface. */
+  #study-screen,
+  #study-screen .study-main,
+  #study-screen .study-content,
+  #study-screen .material-content {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+  #study-screen img,
+  #study-screen video,
+  #study-screen iframe,
+  #study-screen table,
+  #study-screen pre,
+  #study-screen code {
+    max-width: 100%;
+  }
+  #study-screen img,
+  #study-screen video,
+  #study-screen iframe {
+    height: auto;
+  }
+  #study-screen p,
+  #study-screen li,
+  #study-screen div {
+    overflow-wrap: anywhere;
+  }
 }
 '''
 styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr07", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr07", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr08", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr08", 1)
 
 # Mobile login fields stay read-only until that specific field is intentionally
 # touched. Programmatic focus can still paint :focus on a read-only input, so
@@ -116,6 +146,6 @@ index = index.replace(anchor, keyboard_guard + "\n    " + anchor, 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll boundary + tap-only mobile keyboard guard")
+print("[BOOT] applied native iOS overscroll + login focus + mobile material x-overflow fixes")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
