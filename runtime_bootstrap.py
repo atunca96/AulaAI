@@ -161,4 +161,19 @@ mobile_guards=r'''
 anchor='<script src="/js/bilingual_materials.js?v=20260911_v016" defer></script>'
 if anchor not in index: raise RuntimeError("script anchor missing")
 index_html.write_text(index.replace(anchor,mobile_guards+'\n    '+anchor,1),encoding="utf-8")
+
+# Quiz drafts should generate exactly the requested number first. The existing
+# generate_quiz hard-completion/top-up path then asks only for any true deficit.
+server_path = ROOT / "server.py"
+server_source = server_path.read_text(encoding="utf-8")
+quiz_parallel = "                if requested_count >= 8:\n"
+quiz_single_count = "                        count=requested_count + 6,\n"
+if server_source.count(quiz_parallel) != 1:
+    raise RuntimeError("quiz parallel generation branch changed")
+if server_source.count(quiz_single_count) != 1:
+    raise RuntimeError("quiz single generation count changed")
+server_source = server_source.replace(quiz_parallel, "                if False and requested_count >= 8:\n", 1)
+server_source = server_source.replace(quiz_single_count, "                        count=requested_count,\n", 1)
+server_path.write_text(server_source, encoding="utf-8")
+
 runpy.run_path(str(ROOT/"server.py"),run_name="__main__")
