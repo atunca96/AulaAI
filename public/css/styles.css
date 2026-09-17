@@ -2669,24 +2669,10 @@ body:has(#student-dashboard.active) .floating-actions {
     justify-content: flex-start;
     gap: 24px;
   }
-  .hero-branding {
-    position: static !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 12px !important;
-    margin: 0 auto;
-    width: 100%;
-    max-width: 480px;
-  }
-  .hero-logo-img {
-    height: 36px !important;
-  }
-  .hero-branding-title {
-    font-size: 18px !important;
-  }
-  .hero-branding-sub {
-    font-size: 11px !important;
-  }
+  /* The form section carries the brand mark on a phone, so the hero's copy of
+     it would be the same logo a second time, further down the same scroll.
+     The rules that used to lay it out here go with it. */
+  .hero-branding { display: none; }
   .hero-minimal-showcase {
     display: flex !important;
     flex-direction: column !important;

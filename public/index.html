@@ -345,9 +345,10 @@
                 <!-- Phone-only brand mark. The hero carries the branding, but on a
                      phone the hero sits BELOW the form (column-reverse), so the
                      screen opened on an unlabelled form with dead space above it.
-                     Hidden from assistive tech: the hero still names the product,
-                     and this would only announce it twice. -->
-                <div class="login-form-brand" aria-hidden="true">
+                     Not aria-hidden: the hero's copy is display:none on a phone,
+                     so this is the only thing naming the product there. On
+                     desktop this one is hidden instead, so neither duplicates. -->
+                <div class="login-form-brand">
                     <img src="/img/aula_ai_logo.png" alt="" class="login-form-brand__logo">
                     <span class="login-form-brand__name">AulaAI</span>
                 </div>
