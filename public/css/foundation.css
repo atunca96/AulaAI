@@ -865,8 +865,36 @@ h1, h2, h3, h4, h5, h6 {
   .data-table.is-stacked .cell-scroll-x::-webkit-scrollbar { display: none; }
   /* A scroll container exports no baseline of its own — one would be
      synthesised from its bottom edge, dropping the value below the label it
-     sits next to. Centring the pair keeps them on one line. */
-  .data-table.is-stacked td:has(> .cell-scroll-x) { align-items: center; }
+     sits next to. Centring the pair keeps them on one line: measured, the two
+     baselines land within a quarter of a pixel of each other. */
+  .data-table.is-stacked td:has(> .cell-scroll-x) {
+    align-items: center;
+    position: relative;
+  }
+  /* The remaining pixel is optical, not geometric. The label is all-caps and
+     the value is mixed-case, so even on a shared baseline the label's mass
+     sits a cap-height above the value's x-height and the names read as low.
+     One pixel up settles them against each other. */
+  .data-table.is-stacked .cell-scroll-x {
+    position: relative;
+    top: -1px;
+  }
+  /* A fade at the right edge, shown only while there is more list to reach.
+     Painted by the CELL rather than as a mask on the scroller: masking a
+     scroll container repaints it on every frame of the scroll, and the scroll
+     being smooth matters more than the hint does. --surface-1 is the card's
+     own background — including its hover state — so the names dissolve into
+     the card rather than into a guessed colour, in either theme. */
+  .data-table.is-stacked td:has(> .cell-scroll-x.has-more)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--space-8);
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--surface-1));
+  }
 
   /* The record's own title claims the first line to itself. A person's name is
      prose, not a field, so it keeps the UI face. */
