@@ -1924,6 +1924,14 @@ body:has(#student-dashboard.active) .floating-actions {
   max-width: 640px;
   width: 100%;
   max-height: min(86vh, 900px);
+  /* A dialog scrolls in one direction only. `overflow-y: auto` on its own is
+     not that: the other axis computes to `auto` as well, which on iOS gives
+     the panel an elastic sideways drag with nothing to reach — the AI
+     Architect's language list slid left and right under the thumb. Clipping
+     the axis costs nothing, because no dialog overflows it: measured at 320,
+     393 and 430px, all ten have scrollWidth exactly equal to clientWidth.
+     Nested scrollers inside keep working; they scroll themselves. */
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
