@@ -281,7 +281,7 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
 @media (max-width: 1024px) {
   .screen.active { margin-top: auto; }
   .site-footer { margin-bottom: auto; }
-  body:has(> .screen.active:not(#login-screen)) { padding-top: 6vh; padding-bottom: 8vh; }
+  body:has(> .screen.active:not(#login-screen)) { padding-top: 0; padding-bottom: 0; }
 }
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -5042,4 +5042,17 @@ select.text-input option,
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
   .toast.is-leaving { transition: none; }
+}
+
+
+/* Mobile optical placement: short study/activity surfaces only. */
+@media (max-width: 1024px) {
+  body:has(#study-screen.active),
+  body:has(#classroom-activities-screen.active) {
+    padding-top: 6vh;
+    padding-bottom: 8vh;
+  }
+
+  /* Disable Safari double-tap zoom without disabling two-finger pinch zoom. */
+  html, body, body * { touch-action: manipulation; }
 }
