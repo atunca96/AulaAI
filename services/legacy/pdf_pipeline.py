@@ -598,7 +598,7 @@ def _repair_missing_phonetics(course_id, language):
         for entry in container:
             if not isinstance(entry, dict):
                 continue
-            term = str(entry.get("term") or entry.get("word") or entry.get("target") or "").strip()
+            term = str(entry.get("term") or entry.get("word") or entry.get("phrase") or entry.get("sentence") or entry.get("target") or "").strip()
             phonetic = str(entry.get("phonetic") or "").strip()
             if not term or not any(ch.isalpha() for ch in term):
                 continue
@@ -630,7 +630,7 @@ def _repair_missing_phonetics(course_id, language):
     calibration = "\n".join(f"- {term}: {phon}" for term, phon in examples[:12]) or "(none)"
     prompt = f"""Fill missing phonetic transcriptions for a {language} language course.
 Return ONLY valid JSON in this exact shape: {{"items":[{{"term":"EXACT INPUT TERM","phonetic":"[standard IPA]"}}]}}.
-Preserve each term exactly. Return one item per input term. `phonetic` must be a pronunciation transcription, never a translation or a letter name. Match the IPA convention shown by the existing class examples. If a term genuinely has no spoken pronunciation, return an empty string.
+Preserve each term exactly. Return one item per input term. `phonetic` must be a pronunciation transcription, never a translation or a letter name. Match the IPA convention shown by the existing class examples. Transcribe every word of a multi-word phrase, not just its first word. A form pronounced differently across accepted standard varieties is not a reason to omit it: use the variety shown by the existing class examples. Return an empty string only when the term has no spoken pronunciation or you genuinely cannot transcribe it.
 Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".join(f"- {term}" for term in terms)
 
     response = _call_ai(
