@@ -840,6 +840,34 @@ h1, h2, h3, h4, h5, h6 {
   }
   .data-table.is-stacked td:not([data-label])::before { content: none; }
 
+  /* One value can outrun the card — a student enrolled in five classrooms. It
+     scrolls sideways on its own rather than being cut off with an ellipsis,
+     and nothing else in the record moves: the label stays put beside it and
+     the other fields are untouched.
+
+     The span is inline everywhere else, so it creates no scroll container and
+     the desktop table's ellipsis still works on it. Only here does it become a
+     block, which is what lets overflow apply.
+
+     `overscroll-behavior-x: contain` matters on iOS: without it, swiping past
+     the end of the list hands the gesture to Safari and navigates back. */
+  .data-table.is-stacked .cell-scroll-x {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .data-table.is-stacked .cell-scroll-x::-webkit-scrollbar { display: none; }
+  /* A scroll container exports no baseline of its own — one would be
+     synthesised from its bottom edge, dropping the value below the label it
+     sits next to. Centring the pair keeps them on one line. */
+  .data-table.is-stacked td:has(> .cell-scroll-x) { align-items: center; }
+
   /* The record's own title claims the first line to itself. A person's name is
      prose, not a field, so it keeps the UI face. */
   .data-table.is-stacked td:first-child {

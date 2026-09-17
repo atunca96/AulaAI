@@ -13515,7 +13515,7 @@ function renderAdminStudentPanelSync(students) {
       <tr>
         <td data-label="${t('admin.student_name')}">${esc(s.name)}</td>
         <td data-label="${t('admin.student_id')}" class="mono">${esc(schoolNum)}</td>
-        <td data-label="${t('admin.enrolled_in')}" class="truncate">${esc(enrollmentList)}</td>
+        <td data-label="${t('admin.enrolled_in')}" class="truncate"><span class="cell-scroll-x">${esc(enrollmentList)}</span></td>
         <td data-label="${t('admin.responses')}" class="num">${s.total_responses || 0}</td>
         <td data-label="${t('admin.status')}">${statusBadge}</td>
         <td class="actions">
