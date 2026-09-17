@@ -534,8 +534,15 @@ def collect_thin_generalizations(data: Any, material_language: str = "tr", limit
 # Symbols that carry no meaning outside phonetic notation. The repertoire check
 # below cannot separate IPA from ordinary prose on its own, because IPA is built
 # from Latin letters: every character of '[sinema anlamında]' — a Turkish gloss —
-# sits inside the permitted ranges. Requiring one of these is what tells notation
-# from prose: a stress or length mark, or a symbol no orthography spells with.
+# sits inside the permitted ranges.
+#
+# Presence of one of these settles it. ABSENCE settles nothing, and treating it
+# as disqualifying was wrong: an alphabet table transcribes its vowels as [a],
+# [e], [i], [o], [u], which carry no exotic symbol and are perfectly good IPA. A
+# first version of this check called all five unusable and reported 130 false
+# findings against 341 rows of one real course. What separates a gloss from a
+# plain transcription is not the alphabet, it is proportion — a translation runs
+# to a different length and word count than the headword it is standing next to.
 _IPA_ONLY = set("ˈˌːˑθðʃʒŋɲʎβɣɾʁʔɛɔɪʊæøœɨʌəɑɐɜɡʧʤʝɟçɕʑɸʕħɹɻʈɖɳɭʂʐɬɮʋɥʍɚɝ")
 
 
@@ -556,14 +563,27 @@ def is_usable_transcription(value: Any, term: Any = "") -> bool:
     inner = text[1:-1].strip()
     if not inner:
         return False
-    if inner.casefold() == str(term or "").strip().casefold():
+    # A whole word echoed back is not a transcription. A single letter is a
+    # different matter: an alphabet table's [a] for 'a' is both an echo and the
+    # correct IPA, so the rule applies only to terms long enough to be words.
+    head_raw = str(term or "").strip()
+    if len(head_raw) > 2 and inner.casefold() == head_raw.casefold():
         return False
     # Sentence punctuation and capitals belong to prose, never to a transcription.
     if re.search(r"[0-9,;.!?]", inner) or any(ch.isupper() for ch in inner):
         return False
-    if not any(ch in _IPA_ONLY for ch in inner):
+    if _outside_ipa_repertoire(inner):
         return False
-    return not _outside_ipa_repertoire(inner)
+    if any(ch in _IPA_ONLY for ch in inner):
+        return True
+    # No symbol settles it, so judge by proportion to the headword. A
+    # transcription tracks its term's shape; a translation does not.
+    head = " ".join(str(term or "").split())
+    if not head:
+        return True
+    if abs(len(inner.split()) - len(head.split())) > 1:
+        return False
+    return len(inner) <= max(3, len(head) * 2.5)
 
 
 # ── 1b. Notation fields holding characters from another writing system ──────

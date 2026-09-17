@@ -40,7 +40,14 @@ def test_validator():
         ("[Cine]", "cine", False, "capitals are prose, not notation"),
         ("[ˈkasa, evi]", "casa", False, "so is sentence punctuation"),
         ("[]", "x", False, "empty brackets publish nothing"),
-        ("[sol]", "sol", False, "plain ASCII with no IPA-only symbol stays blank"),
+        # An alphabet table transcribes its vowels as [a], [e], [i]. These carry
+        # no exotic symbol and are also echoes of their own headword. A first
+        # version of this check refused all five and reported 130 false findings
+        # against 341 rows of one real course.
+        ("[a]", "a", True, "an alphabet row's own vowel is a real transcription"),
+        ("[e]", "e", True, "and so are the rest of them"),
+        ("[kasa]", "casa", True, "plain ASCII is notation when it fits the headword"),
+        ("[cine]", "cine", False, "but a whole word echoed back is not"),
     ]:
         check(ok(value, term) is expected, why)
 

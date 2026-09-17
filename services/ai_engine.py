@@ -1862,6 +1862,20 @@ REPETITION & COVERAGE RULES:
                         clean_d = [o for o in clean_opts if _normalize_token(o) != a_tok][:3]
                         if len(clean_d) < 3:
                             continue
+                        # This fallback lifts an mcq page straight out of the
+                        # lesson, so on a unit assessment it is the one path that
+                        # can hand back the unit's own exercise verbatim — which
+                        # is exactly what it did for the two repeats in a build
+                        # whose log reads fallback_acc=2. The candidate route
+                        # already refuses a stem asked before; this route skips
+                        # that route entirely, so it has to make the same check.
+                        if prior_stem_keys:
+                            try:
+                                from services.assessment_validation import stem_key as _sk
+                                if _sk(prompt_txt) in prior_stem_keys:
+                                    continue
+                            except Exception:
+                                pass
                         opts = [ans_txt] + clean_d
                         py_random.shuffle(opts)
                         p_tr = page.get("prompt_tr") or page.get("translation_tr", "")
