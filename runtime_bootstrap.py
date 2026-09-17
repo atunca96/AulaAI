@@ -34,34 +34,57 @@ css += r'''
     pointer-events: none;
   }
 
-  /* Material reader is vertical-only on phones. Keep oversized generated
-     descendants inside the viewport instead of letting Safari pan the reader
-     sideways. This is intentionally scoped to the study/material surface. */
-  #study-screen,
-  #study-screen .study-main,
-  #study-screen .study-content,
-  #study-screen .material-content {
-    max-width: 100%;
-    min-width: 0;
-    overflow-x: clip;
+  /* Mobile study/material viewport: no horizontal canvas. */
+  #study-screen.active {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
-  #study-screen img,
-  #study-screen video,
-  #study-screen iframe,
-  #study-screen table,
-  #study-screen pre,
-  #study-screen code {
-    max-width: 100%;
+  #study-screen.active .study-main,
+  #study-screen.active .study-content,
+  #study-screen.active .material-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+    overflow-x: hidden !important;
   }
-  #study-screen img,
-  #study-screen video,
-  #study-screen iframe {
+
+  /* Generated material blocks may carry desktop widths/min-widths. Constrain
+     direct content descendants without changing their vertical layout. */
+  #study-screen.active .study-content > *,
+  #study-screen.active .material-content > * {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  #study-screen.active img,
+  #study-screen.active video,
+  #study-screen.active iframe,
+  #study-screen.active table,
+  #study-screen.active pre {
+    max-width: 100% !important;
+  }
+  #study-screen.active img,
+  #study-screen.active video,
+  #study-screen.active iframe {
     height: auto;
   }
-  #study-screen p,
-  #study-screen li,
-  #study-screen div {
-    overflow-wrap: anywhere;
+
+  /* IPA/transcription and generated examples are the visible offenders: allow
+     them to wrap instead of widening the material canvas. */
+  #study-screen.active p,
+  #study-screen.active li,
+  #study-screen.active span,
+  #study-screen.active code,
+  #study-screen.active pre {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word;
+    min-width: 0;
   }
 }
 '''
@@ -69,8 +92,8 @@ styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr08", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr08", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr09", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr09", 1)
 
 # Mobile login fields stay read-only until that specific field is intentionally
 # touched. Programmatic focus can still paint :focus on a read-only input, so
@@ -146,6 +169,6 @@ index = index.replace(anchor, keyboard_guard + "\n    " + anchor, 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll + login focus + mobile material x-overflow fixes")
+print("[BOOT] applied native iOS overscroll + login focus + strict mobile material viewport")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
