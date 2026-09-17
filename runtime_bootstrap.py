@@ -52,15 +52,12 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-# Safari can paint the document before either external stylesheet has arrived.
-# Put the app surface on html/body in the head itself so the first paint already
-# matches AulaAI instead of WebKit's default black launch/document surface.
 boot_style = """    <style id=\"aula-boot-paint\">\n        html,body{margin:0;min-height:100%;background:#09162a;color-scheme:dark}\n        html[data-theme=\"light\"],html[data-theme=\"light\"] body{background:#f4f7fb;color-scheme:light}\n    </style>\n"""
 head_anchor='    <meta charset="UTF-8">\n'
 if boot_style not in index:
     if head_anchor not in index: raise RuntimeError("head boot-paint anchor missing")
     index=index.replace(head_anchor,head_anchor+boot_style,1)
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr26',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr26',1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr27',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr27',1)
 mobile_guards=r'''
 <script>
 (function(){
@@ -79,6 +76,47 @@ mobile_guards=r'''
  var q=false;new MutationObserver(function(){if(q)return;q=true;requestAnimationFrame(function(){q=false;sync()})}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
  document.addEventListener('DOMContentLoaded',function(){sync();requestAnimationFrame(blurStartup)},{once:true});addEventListener('pageshow',sync);document.addEventListener('focusin',function(e){if(!mobile)return;var el=e.target;if(el&&el.closest&&el.closest('#login-screen')&&/^(INPUT|TEXTAREA)$/.test(el.tagName)&&el.dataset.aulaStartupUnlocked!=='1'){lock(el);el.blur()}},true);document.addEventListener('touchstart',unlock,{capture:true,passive:true});document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
  document.addEventListener('click',function(e){if(!mobile){requestAnimationFrame(cleanDesktop);return}var t=e.target&&e.target.closest?e.target.closest('.outline__unit-title'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();toggle(t)},true);
+})();
+</script>
+<script>
+/* Temporary cross-platform startup trace. Keeps a copy in localStorage so the
+   trace survives navigation/reload and can be copied from the browser console. */
+(function(){
+ const t0=performance.now(), rows=[];
+ function active(){return Array.from(document.querySelectorAll('.screen.active')).map(x=>x.id||x.className).join(',')||'-'}
+ function snap(event,extra){
+   const loading=document.getElementById('loading-screen');
+   const s={t:+(performance.now()-t0).toFixed(1),event,ready:document.readyState,active:active(),loading:loading?getComputedStyle(loading).display:'missing',extra:extra||''};
+   rows.push(s); window.__AULA_STARTUP_TRACE=rows;
+   try{localStorage.setItem('aula_startup_trace',JSON.stringify(rows))}catch(e){}
+   console.log('[AULA-TRACE]',s);
+ }
+ window.__AULA_TRACE=snap;
+ snap('trace-installed');
+ document.addEventListener('DOMContentLoaded',()=>snap('DOMContentLoaded'),{once:true});
+ addEventListener('load',()=>snap('window-load'),{once:true});
+ addEventListener('pageshow',e=>snap('pageshow','persisted='+e.persisted));
+ new PerformanceObserver(list=>list.getEntries().forEach(e=>snap('paint',e.name+'@'+e.startTime.toFixed(1)))).observe({type:'paint',buffered:true});
+ new MutationObserver(ms=>{
+   let relevant=false;
+   for(const m of ms){
+     const el=m.target.nodeType===1?m.target:m.target.parentElement;
+     if(el&&(el.matches?.('.screen,#loading-screen,#s-ai-book-content-area,#ai-book-content-area')||el.closest?.('.screen,#loading-screen,#s-ai-book-content-area,#ai-book-content-area'))){relevant=true;break}
+   }
+   if(relevant)snap('dom-mutation');
+ }).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
+ ['selectClassroom','switchTab','renderStudyBook','showStudyTopic','showScreen'].forEach(name=>{
+   let tries=0;
+   const timer=setInterval(()=>{
+     tries++;
+     const fn=window[name];
+     if(typeof fn==='function'&&!fn.__aulaTraced){
+       const wrapped=function(){snap(name+':start',Array.from(arguments).slice(0,2).map(x=>typeof x==='object'?'[object]':String(x)).join('|'));try{return fn.apply(this,arguments)}finally{snap(name+':end')}};
+       wrapped.__aulaTraced=true; window[name]=wrapped; clearInterval(timer);
+     } else if(tries>200) clearInterval(timer);
+   },25);
+ });
+ setTimeout(()=>snap('trace-5s'),5000); setTimeout(()=>snap('trace-10s'),10000);
 })();
 </script>
 '''
