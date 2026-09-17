@@ -370,6 +370,32 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 for r in recent:
                     forbidden_questions.append({"prompt": r["prompt"], "answer": r["answer"]})
 
+    # Every stem already asked anywhere in this course, for the exact-repeat
+    # check in the generator. The rolling history above stays topic-scoped and
+    # keeps feeding the prompt unchanged — this list is never shown to a model,
+    # so it costs no tokens and cannot dilute the guidance the prompt already
+    # carries. It exists because the learner reads the whole book, while until
+    # now nothing compared a new question against any topic but its own.
+    prior_stems = []
+    if topic_ids:
+        try:
+            with db_connection() as db_conn:
+                rows = db_conn.cursor().execute(
+                    """SELECT q.prompt FROM questions q
+                         JOIN topics t   ON q.topic_id = t.id
+                         JOIN chapters c ON t.chapter_id = c.id
+                        WHERE c.course_id = (
+                              SELECT c2.course_id FROM topics t2
+                                JOIN chapters c2 ON t2.chapter_id = c2.id
+                               WHERE t2.id = ?)
+                        ORDER BY q.id DESC LIMIT 2000""",
+                    (topic_ids[0],),
+                ).fetchall()
+                prior_stems = [r["prompt"] for r in rows if r["prompt"]]
+        except Exception as e:
+            print(f"[CONTENT] Course-wide stem history unavailable, keeping topic scope: {e}")
+            prior_stems = []
+
     # Base language & level discovery
     base_lang = "Unknown"
     material_language = "en"
@@ -436,6 +462,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                     count=c_count,
                     level=course_level,
                     existing_questions=forbidden_questions,
+                    prior_stems=prior_stems,
                     is_quiz=is_quiz,
                     material_language=material_language,
                     generation_seed=generation_seed,
@@ -534,6 +561,7 @@ def generate_assessment_set(topic_ids, count=10, is_quiz=False, ui_lang="en", ex
                 count=c_count,
                 level=course_level,
                 existing_questions=forbidden_questions,
+                prior_stems=prior_stems,
                 is_quiz=is_quiz,
                 material_language=material_language,
                 generation_seed=generation_seed,

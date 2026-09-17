@@ -995,7 +995,7 @@ def _extract_source_backed_metadata(topic_content: Any, material_language: str =
     return "\n\n".join(sections)
 
 
-def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None, scope=None, progression=None, coverage_plan="", forbidden_terms=None):
+def ai_generate_questions(topic_title, topic_type, topic_content, language, count=10, level='A1', existing_questions=None, is_pdf_source=False, is_quiz=False, source_text_override=None, model_override=None, material_language="en", generation_seed=None, focus_directive=None, timing_ctx=None, scope=None, progression=None, coverage_plan="", forbidden_terms=None, prior_stems=None):
     c = int(count)
     gen_count = qc.overproduction_count(c)
     if timing_ctx is None:
@@ -1171,6 +1171,21 @@ def ai_generate_questions(topic_title, topic_type, topic_content, language, coun
     forbidden_prompts = []
     forbidden_answer_keys = set()
     forbidden_prompt_keys = set()
+
+    # Stems already asked ELSEWHERE IN THE SAME COURSE. The rolling history
+    # above is scoped to the topic being generated, and the in-batch checks see
+    # only the batch, so nothing ever compared a new question against the rest
+    # of the book — which is how one A1 course shipped three questions twice,
+    # stem for stem, with their options merely reshuffled.
+    prior_stem_keys = set()
+    try:
+        from services.assessment_validation import stem_key as _stem_key
+        for s in (prior_stems or []):
+            k = _stem_key(s)
+            if k:
+                prior_stem_keys.add(k)
+    except Exception:
+        prior_stem_keys = set()
 
     if existing_questions and isinstance(existing_questions, list):
         for q in existing_questions:
@@ -1394,6 +1409,22 @@ REPETITION & COVERAGE RULES:
             # IN-BATCH PATTERN & PROMPT DIVERSITY: Reject near-identical prompt stems or sentence templates
             if any(difflib.SequenceMatcher(None, clean_p_token, _normalize_token(f.get("prompt", ""))).ratio() > 0.85 for f in current_final):
                 return None
+
+            # COURSE-WIDE REPETITION: a stem already asked under another topic.
+            # Exact match only, unlike the in-batch rule above. Within one batch
+            # a near-identical stem is a template being reused and the pool can
+            # replace it; across a whole course, resemblance is normal and often
+            # deliberate — a masculine and a feminine version of one sentence, or
+            # the same question asked of two different numbers, both score above
+            # 0.85 while testing different things. Rejecting those would delete
+            # good items, so only a verbatim repeat is refused.
+            if prior_stem_keys:
+                try:
+                    from services.assessment_validation import stem_key as _sk
+                    if _sk(p) in prior_stem_keys:
+                        return None
+                except Exception:
+                    pass
 
             # COGNITIVE TASK VARIETY: Allow adequate fill-in-the-blank questions
             has_blank = "_" in p or "____" in p
