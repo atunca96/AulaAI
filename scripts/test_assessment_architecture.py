@@ -466,6 +466,32 @@ def test_item_validation():
     check(inspect.signature(_ae.ai_generate_questions).parameters["prior_stems"].default is None,
           "and works without one")
 
+    # A unit assessment is written from its unit's lessons, so it is the one
+    # generator that can re-ask a lesson's own exercise. In a shipped A1 book
+    # every repeated question was exactly that.
+    _real = _ae.ai_generate_questions
+    _cap = {}
+    try:
+        _ae.ai_generate_questions = lambda **kw: (
+            _cap.update(kw)
+            or [{"prompt": f"Q{i}", "answer": "a", "distractors": ["b", "c", "d"]} for i in range(10)]
+        )
+        _lesson = json.dumps({"pages": [
+            {"type": "vocabulary", "items": [{"term": "hola"}, {"term": "casa"}, {"term": "mesa"}]},
+            {"type": "grammar", "rules": [{"rule": "h is silent", "example": "hola"}]},
+            {"type": "mcq", "prompt": "¿Dónde compras medicamentos?", "answer": "en la farmacia"},
+        ]})
+        _ae.generate_unit_assessment(
+            unit_title="U1",
+            unit_topics=[{"id": "t1", "title": "Alfabeto", "content": _lesson}],
+            language="Spanish", level="A1", material_language="tr",
+            unit_index=1, unit_total=3,
+        )
+    finally:
+        _ae.ai_generate_questions = _real
+    check(_cap.get("prior_stems") == ["¿Dónde compras medicamentos?"],
+          "a unit assessment is told what its own lessons already asked")
+
 
 # ── 10. Token discipline ──────────────────────────────────────────────────────
 
