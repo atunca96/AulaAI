@@ -3479,7 +3479,13 @@ body:has(#student-dashboard.active) .floating-actions {
     .study-container {
         flex-direction: column !important;
         height: auto !important;
+        /* Same iOS trap as the body rule: `100vh` is the LARGE viewport, so
+           while Safari's toolbars are showing this floor is ~90-140px taller
+           than the screen and the study page scrolls past its own content into
+           a strip of page background. `!important` has to be repeated on the
+           fallback pair, or the dvh line loses to the vh one above it. */
         min-height: 100vh !important;
+        min-height: 100dvh !important;
     }
     
     /* Study Units Sidebar (now top) */
