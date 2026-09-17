@@ -205,10 +205,19 @@ html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  overflow-x: hidden;
-  position: relative;
   -webkit-text-size-adjust: 100%;
   background: var(--bg-primary);
+}
+/* `overflow-x: hidden` and `position: relative` used to sit on BOTH html and
+   body. On the root element that turns the document itself into a scroll
+   container, and iOS then stops painting the page background into the strips
+   its toolbars vacate as they collapse and expand — which is the black bands
+   at the top and bottom, and the jitter while they animate. Horizontal
+   clipping belongs on the body, where it does the same job without owning
+   the document's scrolling. */
+body {
+  overflow-x: hidden;
+  position: relative;
 }
 
 body {
@@ -842,8 +851,13 @@ body:has(#student-dashboard.active) .floating-actions {
   display: none;
 }
 /* Where the pill does float, the screen under it reserves room so it never
-   sits on top of the last line of content. */
-.screen.active:not(#lecturer-dashboard):not(#student-dashboard) {
+   sits on top of the last line of content.
+
+   The login screen is excluded: it is sized to exactly one viewport, so adding
+   the reserve OUTSIDE that height made the page taller than the screen and
+   published a strip of page background below it. It reserves the same room
+   inside its own hero instead, where it costs no document height. */
+.screen.active:not(#lecturer-dashboard):not(#student-dashboard):not(#login-screen) {
   padding-bottom: calc(var(--control-lg) + var(--space-11));
 }
 .action-pill-container {
@@ -2676,8 +2690,10 @@ body:has(#student-dashboard.active) .floating-actions {
        bottom of the screen and there is never a band of page background
        under it to mismatch. */
     flex: 1 0 auto;
-    /* Equal top and bottom, matching the form above it. */
-    padding: 44px 20px;
+    /* Equal top and bottom, matching the form above it — plus room at the
+       bottom for the floating theme/language pill, reserved inside the hero
+       rather than under the screen. */
+    padding: 44px 20px calc(44px + var(--control-lg));
     border-right: none;
     border-top: 1px solid var(--border);
     border-bottom: none;
