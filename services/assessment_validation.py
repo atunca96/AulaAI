@@ -32,7 +32,7 @@ __all__ = [
     "violations", "filter_publishable", "normalize_token",
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
-    "giveaway_features", "normalize_option",
+    "giveaway_features", "normalize_option", "mixed_spelling_variants",
 ]
 
 
@@ -89,6 +89,39 @@ def giveaway_features(item: Dict[str, Any]) -> List[str]:
         if sum(1 for o in pool if feature in o) == 1 and feature not in found:
             found.append(feature)
     return found
+
+
+def mixed_spelling_variants(options: Sequence[Any]) -> bool:
+    """True when one option is another one misspelled, among otherwise real forms.
+
+    Group the options by their accent-stripped form. A healthy set lands at one
+    of two extremes:
+
+      * ONE group — every option is the same word in competing spellings. That
+        is a spelling item, which the contract asks for by name.
+      * AS MANY GROUPS AS OPTIONS — every option is a genuinely different form.
+        `hablo / hablas / habla / hablan` is four real words sharing a stem, and
+        a good item.
+
+    Anything between the two means some options are the same word differing
+    only by diacritics while the rest are different words — which is how
+    `francesa / francés / frances` happens. `frances` is not a form a learner
+    believes in; it is `francés` with the accent knocked off, a typo standing
+    in for a distractor while the real contrast (masculine against feminine)
+    is carried by one option alone.
+
+    Only applied when every option is word-length. Single letters and short
+    affixes are compared as letters, where a diacritic is the whole point:
+    Turkish 'ı / i / u / ü' is four distinct letters, not one letter misspelt.
+    """
+    opts = [str(o).strip() for o in (options or [])]
+    opts = [o for o in opts if o]
+    if len(opts) < 4:
+        return False
+    if any(len(normalize_option(o)) < 3 for o in opts):
+        return False
+    groups = {normalize_token(o) for o in opts}
+    return 1 < len(groups) < len(opts)
 
 
 def normalize_option(text: Any) -> str:
@@ -279,6 +312,12 @@ def violations(
     for feature in giveaway_features(item):
         problems.append(f"feature_only_in_key:{feature}")
 
+    # A misspelling of one option standing among otherwise real forms. §4
+    # already forbids manufacturing a wrong option by mechanical mutation;
+    # this is that rule measured.
+    if mixed_spelling_variants(item.get("options") or ([answer] + clean_d)):
+        problems.append("mixed_spelling_variants")
+
     # The stem must be target-language prose, not instructional-language prose.
     if stem and instructional_prose_ratio(stem, instructional_track) >= max_instructional_ratio:
         problems.append("stem_in_instructional_language")
@@ -317,6 +356,7 @@ _DROP_PREFIXES = (
     "answer_among_distractors", "option_count_", "answer_not_in_options",
     "translation_question", "stem_in_instructional_language",
     "answer_revealed_in_", "out_of_scope:", "feature_only_in_key:",
+    "mixed_spelling_variants",
 )
 
 
