@@ -219,6 +219,15 @@ body {
   overflow-x: hidden;
   position: relative;
 }
+/* Turns off pull-to-refresh. `contain` and not `none`: contain stops the
+   gesture chaining out to the browser, which is the refresh; `none` would
+   additionally kill the rubber-band bounce, and an earlier attempt at that
+   is what made the page feel glitchy. It has to sit on `html` — unlike
+   `overflow`, overscroll-behavior set on `body` does not propagate to the
+   viewport, so on the body it would do nothing here. */
+html {
+  overscroll-behavior-y: contain;
+}
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
