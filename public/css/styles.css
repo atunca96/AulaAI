@@ -758,6 +758,29 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
   color: var(--text-muted);
   letter-spacing: 0.01em;
 }
+@media (max-width: 768px) {
+  /* Pinned rather than left at the end of the form. The form stands taller
+     than a short phone's viewport, so in the flow this line sits below the
+     fold and is only read by someone who scrolls looking for it — which is the
+     one thing a rights notice should not depend on. Fixed, it is on screen
+     whichever panel is open and wherever the form has been scrolled to.
+
+     It shares the bottom band with the floating theme/language pill: this on
+     the left, the pill on the right, the two reading as one footer bar. The
+     offset centres it against the pill's 44px rather than sitting it on the
+     same bottom edge, which would look dropped.
+
+     Both login panels carry a copy, but the hidden one is inside a
+     display:none panel and so is never laid out — they cannot stack. */
+  .login-copyright {
+    position: fixed;
+    left: var(--gutter-safe);
+    bottom: calc(16px + (var(--control-lg) - 16px) / 2);
+    margin-top: 0;
+    z-index: var(--z-sticky);
+    pointer-events: none;
+  }
+}
 .login-footer-link {
   color: var(--accent-light);
   text-decoration: none;
