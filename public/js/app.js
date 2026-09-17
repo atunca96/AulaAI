@@ -14144,10 +14144,9 @@ async function downloadCourseMaterialPDF() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showNotification(
-      currentLang === 'tr' ? '✅ PDF başarıyla indirildi!' : '✅ PDF downloaded successfully!',
-      'success'
-    );
+    // No success toast: the browser's own download UI already confirms this,
+    // and the file is in the user's hands either way. The failure branch below
+    // stays, because a PDF that never arrives is the case worth announcing.
   } catch (e) {
     console.error('[PDF Export]', e);
     showNotification(
