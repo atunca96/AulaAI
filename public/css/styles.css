@@ -271,6 +271,17 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    background still covers the screen — it is the empty box that is gone, not
    the backdrop. */
 .screen { display: none; }
+/* A page with less on it than fits sits in the middle of the screen rather than
+   at the top with the remainder below it. The auto margins go on the ends of
+   the body's flex column — the top of the screen and the bottom of the notice —
+   so the two centre together as one block and stay adjacent; putting one on the
+   screen alone would have centred the page and thrown the notice to the floor.
+   Free space only: when the content is taller than the viewport both resolve to
+   zero and nothing moves. */
+@media (max-width: 1024px) {
+  .screen.active { margin-top: auto; }
+  .site-footer { margin-bottom: auto; }
+}
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
