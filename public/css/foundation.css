@@ -64,6 +64,10 @@
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
+  /* Height of the fixed site footer. Anything else that floats against the
+     bottom of the viewport clears it by referring to this rather than guessing. */
+  --site-footer-h: calc(8px + 17px + 8px + env(safe-area-inset-bottom, 0px));
+
   /* Radii — sharp and institutional. Four steps, no improvisation. */
   --radius-sm: 2px;
   --radius: 4px;
