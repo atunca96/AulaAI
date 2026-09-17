@@ -1,0 +1,32 @@
+name: chatgpt-position-tweak
+on:
+  push:
+    branches: [chatgpt-mobile-position-tweak]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: chatgpt-mobile-position-tweak}
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/css/styles.css'); s=p.read_text()
+          old='''  .dashboard-content:has(#tab-study-materials.active) .study-container,\n  .dashboard-content:has(#tab-s-study-tab.active) .study-container {\n    margin-top: 15vh;\n  }'''
+          new='''  .dashboard-content:has(#tab-study-materials.active) .study-container,\n  .dashboard-content:has(#tab-s-study-tab.active) .study-container {\n    margin-top: 10vh;\n  }\n\n  /* The in-class activity position was already approved; preserve it while\n     assessment/lesson pages move slightly upward. */\n  .study-container:has(#activity-preview:not(:empty)) {\n    margin-top: 15vh;\n  }\n\n  /* The classroom picker has no top nav, so using the generic dashboard\n     top-nav allowance pushes its first decision block too low on iPhone. */\n  #classroom-selection-screen .dashboard-content.picker {\n    padding-top: calc(env(safe-area-inset-top, 0px) + 36px);\n  }'''
+          if s.count(old)!=1: raise SystemExit(f'position block count={s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          p=Path('public/index.html'); s=p.read_text()
+          old='/css/styles.css?v=20260917_mobilefix03'; new='/css/styles.css?v=20260917_mobilefix04'
+          if s.count(old)!=1: raise SystemExit(f'cache key count={s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/css/styles.css public/index.html
+          git commit -m "fix: refine mobile optical positions"
+          git push origin HEAD:chatgpt-mobile-position-tweak
