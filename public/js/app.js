@@ -14273,6 +14273,43 @@ window.downloadCourseMaterialPDF = downloadCourseMaterialPDF;
   }, 100);
 })();
 
+// ── Edge fade for horizontally scrollable cells ──
+// The fade itself is CSS; this only answers the one question CSS cannot,
+// which is whether there is any list left to scroll to. Without that the
+// gradient would sit over the last word of a student enrolled in a single
+// classroom, where nothing is being hidden.
+//
+// The class goes on the scroller and the gradient is drawn by its cell, so
+// scrolling never repaints a masked element.
+(function cellScrollFade() {
+  function update(el) {
+    el.classList.toggle('has-more', el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  }
+  function scanAll() {
+    var cells = document.querySelectorAll('.cell-scroll-x');
+    for (var i = 0; i < cells.length; i++) update(cells[i]);
+  }
+
+  // `scroll` does not bubble, so it is caught on the way down instead.
+  document.addEventListener('scroll', function (e) {
+    var el = e.target;
+    if (el && el.classList && el.classList.contains('cell-scroll-x')) update(el);
+  }, true);
+
+  addEventListener('resize', scanAll);
+  document.addEventListener('DOMContentLoaded', scanAll);
+
+  // The roster is rendered long after load and re-rendered whenever it
+  // changes, so the scan follows the DOM. Coalesced to one pass per frame —
+  // a render that appends nine rows must not trigger nine scans.
+  var queued = false;
+  new MutationObserver(function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; scanAll(); });
+  }).observe(document.documentElement, { subtree: true, childList: true });
+})();
+
 // ── Pull-to-refresh suppression (iOS Safari) ──
 // Safari reloads the page when the DOCUMENT is dragged downwards past its top.
 // CSS cannot switch that off: WebKit honours `overscroll-behavior` on nested
