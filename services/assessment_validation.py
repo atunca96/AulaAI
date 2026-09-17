@@ -32,7 +32,57 @@ __all__ = [
     "violations", "filter_publishable", "normalize_token",
     "TRANSLATION_REQUEST", "looks_like_translation_question",
     "instructional_prose_ratio", "out_of_scope_terms",
+    "giveaway_features", "normalize_option", "mixed_spelling_variants",
 ]
+
+
+_QUOTED_FEATURE = re.compile(r"[\'\"‘’“”«»]\s*([^\s\'\"‘’“”«»]{1,3})\s*[\'\"‘’“”«»]")
+_CAPITALISED_FEATURE = re.compile(r"(?<![^\W\d_])([^\W\d_]{1,3})(?![^\W\d_])")
+
+
+def giveaway_features(item: Dict[str, Any]) -> List[str]:
+    """Named surface features that only the keyed option exhibits."""
+    stem = str(item.get("prompt") or "")
+    answer = str(item.get("answer") or "").casefold()
+    if not stem or not answer:
+        return []
+    opts = item.get("options")
+    if isinstance(opts, list) and opts:
+        pool = [str(o).casefold() for o in opts if str(o).strip()]
+    else:
+        ds = item.get("distractors")
+        pool = [answer] + [str(d).casefold() for d in (ds if isinstance(ds, list) else []) if str(d).strip()]
+    if len(pool) < 3:
+        return []
+    candidates = list(_QUOTED_FEATURE.findall(stem))
+    if any(ch.islower() for ch in stem):
+        candidates += [tok for tok in _CAPITALISED_FEATURE.findall(stem) if tok.isupper()]
+    found = []
+    for raw in candidates:
+        feature = raw.casefold()
+        if not feature or not all(ch.isalpha() for ch in feature):
+            continue
+        if feature in answer and sum(1 for option in pool if feature in option) == 1 and feature not in found:
+            found.append(feature)
+    return found
+
+
+def normalize_option(text: Any) -> str:
+    """Normalize option identity without erasing meaningful diacritics."""
+    if not text:
+        return ""
+    value = unicodedata.normalize("NFC", str(text).strip().casefold())
+    value = re.sub(r"[^\w\s]", "", value, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def mixed_spelling_variants(options: Sequence[Any]) -> bool:
+    """Catch one accent-stripped typo mixed among otherwise distinct forms."""
+    opts = [str(o).strip() for o in (options or []) if str(o).strip()]
+    if len(opts) < 4 or any(len(normalize_option(o)) < 3 for o in opts):
+        return False
+    groups = {normalize_token(o) for o in opts}
+    return 1 < len(groups) < len(opts)
 
 
 def normalize_token(text: Any) -> str:
@@ -166,17 +216,17 @@ def violations(
     clean_d = [d for d in distractors if d]
     if len(clean_d) != 3:
         problems.append(f"distractor_count_{len(clean_d)}")
-    keys = [normalize_token(answer)] + [normalize_token(d) for d in clean_d]
+    keys = [normalize_option(answer)] + [normalize_option(d) for d in clean_d]
     if len(set(k for k in keys if k)) != len([k for k in keys if k]):
         problems.append("duplicate_options")
-    if normalize_token(answer) in {normalize_token(d) for d in clean_d}:
+    if normalize_option(answer) in {normalize_option(d) for d in clean_d}:
         problems.append("answer_among_distractors")
 
     options = item.get("options")
     if isinstance(options, list) and options:
         if len(options) != 4:
             problems.append(f"option_count_{len(options)}")
-        opt_keys = [normalize_token(o) for o in options]
+        opt_keys = [normalize_option(o) for o in options]
         present = [k for k in opt_keys if k]
         # `options` is the list the learner actually reads, and it is assembled
         # separately from `distractors` (shuffled, sometimes supplemented). A
@@ -185,12 +235,18 @@ def violations(
         # buttons — so it is checked on its own terms rather than inferred.
         if len(set(present)) != len(present) and "duplicate_options" not in problems:
             problems.append("duplicate_options")
-        if normalize_token(answer) and normalize_token(answer) not in set(opt_keys):
+        if normalize_option(answer) and normalize_option(answer) not in set(opt_keys):
             problems.append("answer_not_in_options")
 
     # The question must not be a translation drill.
     if looks_like_translation_question(stem):
         problems.append("translation_question")
+
+    for feature in giveaway_features(item):
+        problems.append(f"feature_only_in_key:{feature}")
+
+    if mixed_spelling_variants(item.get("options") or ([answer] + clean_d)):
+        problems.append("mixed_spelling_variants")
 
     # The stem must be target-language prose, not instructional-language prose.
     if stem and instructional_prose_ratio(stem, instructional_track) >= max_instructional_ratio:
@@ -229,7 +285,8 @@ _DROP_PREFIXES = (
     "missing_stem", "missing_answer", "distractor_count_", "duplicate_options",
     "answer_among_distractors", "option_count_", "answer_not_in_options",
     "translation_question", "stem_in_instructional_language",
-    "answer_revealed_in_", "out_of_scope:",
+    "answer_revealed_in_", "out_of_scope:", "feature_only_in_key:",
+    "mixed_spelling_variants",
 )
 
 

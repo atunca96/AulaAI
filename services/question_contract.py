@@ -139,6 +139,8 @@ def build_system_prompt(
 - HOMOGENEITY: all four options share the same grammatical type, semantic domain, linguistic level and functional category. Never make the key obvious by mixing registers or categories (a casual remark among formal institutional phrasings; an abstract stance among concrete actions).
 - COMPETITIVENESS: at least two distractors are plausible near-misses from the same grammatical or semantic category — a real alternative inflection, a correct tense in the wrong person, a genuine near-synonym that fails the collocational frame, a true statement from elsewhere in the text that misattributes. Zero throwaways that a learner eliminates at a glance. Distractors need not appear verbatim in the source; real CEFR-appropriate learner traps are welcome.
 - Reject vocabulary that sounds elevated or formal but is semantically misselected in context. Superficial formality is not precision.
+- REALISTIC ERROR: every distractor must be something a learner at CEFR {level} could genuinely choose: interference, an overgeneralised rule, the right form for the wrong category, or a confusable neighbour. Never use a correct option with an accent or letter mechanically removed as a throwaway typo among otherwise real forms.
+- SHARED TRIGGER: when the stem names a spelling, sound or form feature, every option must carry that feature on the surface; otherwise the answer can be found by scanning for the named letter instead of knowing the rule.
 - LENGTH SYMMETRY: the four options stay within ±25% of one another in length. The key is never the longest or most explanatory.
 - No two options may be semantically equivalent, and no distractor may be defensible as a second correct answer.
 
