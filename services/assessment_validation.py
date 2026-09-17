@@ -42,6 +42,13 @@ __all__ = [
 # and legitimate thing for a stem to do.
 _QUOTED_FEATURE = re.compile(r"""['"‘’“”«»]\s*([^\s'"‘’“”«»]{1,3})\s*['"‘’“”«»]""")
 
+# The same feature named without quotes, by capitalising it: "la letra H muda",
+# "las letras QU", "hangi kelimede Ğ var". A run of one to three capitals
+# standing alone inside an otherwise lower-case sentence is a letter being
+# named, not a word — and it is how the generator writes these when it does not
+# reach for quotation marks, which is most of the time.
+_CAPITALISED_FEATURE = re.compile(r"(?<![^\W\d_])([^\W\d_]{1,3})(?![^\W\d_])")
+
 
 def giveaway_features(item: Dict[str, Any]) -> List[str]:
     """Features the stem names that only the keyed answer actually exhibits.
@@ -77,8 +84,17 @@ def giveaway_features(item: Dict[str, Any]) -> List[str]:
     if len(pool) < 3:
         return []
 
+    candidates = list(_QUOTED_FEATURE.findall(stem))
+    # Unquoted candidates only count where the stem has lower case to stand out
+    # from; an all-caps stem is shouting, not naming letters.
+    if any(ch.islower() for ch in stem):
+        candidates += [
+            tok for tok in _CAPITALISED_FEATURE.findall(stem)
+            if tok.isupper()
+        ]
+
     found: List[str] = []
-    for raw in _QUOTED_FEATURE.findall(stem):
+    for raw in candidates:
         feature = raw.casefold()
         # Letters only: quoted punctuation, digits and IPA brackets are not
         # orthographic features of the kind this catches.
