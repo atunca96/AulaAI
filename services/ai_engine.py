@@ -2106,6 +2106,14 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
             if isinstance(page, dict) and str(page.get("type") or "").casefold() == "mcq":
                 fallback_pages.append(page)
 
+    # What this unit's own lessons already asked. A unit assessment is written
+    # from the unit's lessons, so without this it re-asks one of their exercises
+    # word for word: every repeated question in a shipped A1 book was a lesson
+    # exercise reappearing in the assessment that closes that same unit. The
+    # generator refuses a candidate matching one of these and replaces it from
+    # the pool, so the unit still gets its full ten questions.
+    lesson_stems = [str(p.get("prompt") or "") for p in fallback_pages if p.get("prompt")]
+
     questions = ai_generate_questions(
         topic_title=unit_title or "Unit Assessment",
         topic_type="unit_assessment",
@@ -2120,6 +2128,7 @@ def generate_unit_assessment(unit_title, unit_topics, language, level="A1",
         scope=SCOPE_UNIT,
         progression=envelope,
         coverage_plan=coverage_plan_clause(plan),
+        prior_stems=lesson_stems,
     )
     if len(questions) < UNIT_ASSESSMENT_COUNT:
         with open("pipeline.log", "a", encoding="utf-8") as f:
