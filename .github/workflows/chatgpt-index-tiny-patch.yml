@@ -1,0 +1,31 @@
+name: chatgpt-index-tiny-patch
+on:
+  push:
+    branches: [chatgpt-mobile-final-scope]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: chatgpt-mobile-final-scope}
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/index.html'); s=p.read_text()
+          old='content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"'
+          new='content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"'
+          if s.count(old)!=1: raise SystemExit(f'viewport count={s.count(old)}')
+          s=s.replace(old,new,1)
+          old='/css/styles.css?v=20260917_mobilefix01'; new='/css/styles.css?v=20260917_mobilefix02'
+          if s.count(old)!=1: raise SystemExit(f'css key count={s.count(old)}')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/index.html
+          git commit -m "fix: suppress Safari smart zoom and refresh mobile css"
+          git push origin HEAD:chatgpt-mobile-final-scope
