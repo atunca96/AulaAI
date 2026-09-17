@@ -23,10 +23,6 @@ app_js.write_text(source, encoding="utf-8")
 styles = ROOT / "public" / "css" / "styles.css"
 css = styles.read_text(encoding="utf-8")
 css += r'''
-/* Do not animate mobile app screens. The generic fadeIn animates opacity and
-   transform on the entire screen; on iOS that promotes the reader to a
-   composited layer exactly while Safari is replacing the loading screen,
-   producing the dim/shifted frame visible in the recording. */
 @media (max-width:768px){
  .screen.active{animation:none!important;transform:none!important;opacity:1!important}
  #login-screen.active{height:100dvh;min-height:100dvh;overflow-y:scroll;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
@@ -56,7 +52,15 @@ styles.write_text(css,encoding="utf-8")
 
 index_html=ROOT/"public"/"index.html"
 index=index_html.read_text(encoding="utf-8")
-index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr25',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr25',1)
+# Safari can paint the document before either external stylesheet has arrived.
+# Put the app surface on html/body in the head itself so the first paint already
+# matches AulaAI instead of WebKit's default black launch/document surface.
+boot_style = """    <style id=\"aula-boot-paint\">\n        html,body{margin:0;min-height:100%;background:#09162a;color-scheme:dark}\n        html[data-theme=\"light\"],html[data-theme=\"light\"] body{background:#f4f7fb;color-scheme:light}\n    </style>\n"""
+head_anchor='    <meta charset="UTF-8">\n'
+if boot_style not in index:
+    if head_anchor not in index: raise RuntimeError("head boot-paint anchor missing")
+    index=index.replace(head_anchor,head_anchor+boot_style,1)
+index=index.replace('/js/app.js?v=20260917_login04','/js/app.js?v=20260917_ptr26',1).replace('/css/styles.css?v=20260917_login04','/css/styles.css?v=20260917_ptr26',1)
 mobile_guards=r'''
 <script>
 (function(){
