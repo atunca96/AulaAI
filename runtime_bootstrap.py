@@ -47,11 +47,38 @@ styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr03", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr03", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr04", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr04", 1)
+
+# Mobile Safari may restore focus to the login field while reopening/restoring
+# the page, which immediately raises the software keyboard. Blur any restored
+# form focus after the initial page restore. This does not block normal taps:
+# after startup the fields behave exactly as before.
+keyboard_guard = r'''
+    <script>
+    (function () {
+        function dismissRestoredMobileFocus() {
+            if (!window.matchMedia('(max-width: 768px)').matches) return;
+            var active = document.activeElement;
+            if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) active.blur();
+        }
+        window.addEventListener('pageshow', function () {
+            requestAnimationFrame(function () {
+                requestAnimationFrame(dismissRestoredMobileFocus);
+            });
+        });
+        window.addEventListener('load', function () {
+            setTimeout(dismissRestoredMobileFocus, 150);
+        });
+    })();
+    </script>
+'''
+if "</body>" not in index:
+    raise RuntimeError("index body closing tag missing")
+index = index.replace("</body>", keyboard_guard + "\n</body>", 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied native iOS overscroll boundary fix")
+print("[BOOT] applied native iOS overscroll boundary + mobile focus guard")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
