@@ -131,6 +131,16 @@ mobile_guards=r'''
  function sync(){lockFields();blurStartup();prep();cleanExtras();cleanDesktop();requestAnimationFrame(scrollLock)}
  var q=false;new MutationObserver(function(){if(q)return;q=true;requestAnimationFrame(function(){q=false;sync()})}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']});
  document.addEventListener('DOMContentLoaded',function(){sync();requestAnimationFrame(blurStartup)},{once:true});addEventListener('pageshow',sync);document.addEventListener('focusin',function(e){if(!mobile)return;var el=e.target;if(el&&el.closest&&el.closest('#login-screen')&&/^(INPUT|TEXTAREA)$/.test(el.tagName)&&el.dataset.aulaStartupUnlocked!=='1'){lock(el);el.blur()}},true);document.addEventListener('touchstart',unlock,{capture:true,passive:true});document.addEventListener('pointerdown',unlock,{capture:true,passive:true});
+
+ var lastLoginTap=0,lastLoginTarget=null;
+ document.addEventListener('touchend',function(e){
+   if(!mobile||e.touches.length)return;
+   var t=e.target&&e.target.closest?e.target.closest('#login-screen input,#login-screen textarea,#login-screen button,#login-screen a,#login-screen label'):null;
+   if(!t){lastLoginTap=0;lastLoginTarget=null;return}
+   var now=Date.now();
+   if(t===lastLoginTarget&&now-lastLoginTap<350)e.preventDefault();
+   lastLoginTap=now;lastLoginTarget=t;
+ },{capture:true,passive:false});
  document.addEventListener('click',function(e){if(!mobile){requestAnimationFrame(cleanDesktop);return}var t=e.target&&e.target.closest?e.target.closest('.outline__unit-title'):null;if(!t)return;e.preventDefault();e.stopImmediatePropagation();toggle(t)},true);
 })();
 </script>

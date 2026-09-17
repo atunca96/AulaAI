@@ -279,8 +279,9 @@ h1, h2, h3, h4, h5, h6, .classroom-name, .logo-mark, .card-header h3, .modal-con
    Free space only: when the content is taller than the viewport both resolve to
    zero and nothing moves. */
 @media (max-width: 1024px) {
-  .screen.active { margin-top: auto; }
-  .site-footer { margin-bottom: auto; }
+  /* Normal app screens stay in document flow. Never globally centre them. */
+  .screen.active { margin-top: 0; }
+  .site-footer { margin-bottom: 0; }
   body:has(> .screen.active:not(#login-screen)) { padding-top: 0; padding-bottom: 0; }
 }
 .screen.active { display: block; animation: fadeIn 0.4s ease; }
@@ -5045,14 +5046,7 @@ select.text-input option,
 }
 
 
-/* Mobile optical placement: short study/activity surfaces only. */
+/* Mobile tap behavior only. Layout remains owned by each screen/component. */
 @media (max-width: 1024px) {
-  body:has(#study-screen.active),
-  body:has(#classroom-activities-screen.active) {
-    padding-top: 6vh;
-    padding-bottom: 8vh;
-  }
-
-  /* Disable Safari double-tap zoom without disabling two-finger pinch zoom. */
   html, body, body * { touch-action: manipulation; }
 }
