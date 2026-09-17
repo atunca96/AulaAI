@@ -34,7 +34,13 @@ css += r'''
     pointer-events: none;
   }
 
-  /* Material page: preserve the existing responsive layout, only remove x overflow. */
+  /* Material page: content-sized on phones. The old mobile rule inherited a
+     100dvh minimum from the desktop frame, which left a large empty navy slab
+     after short lesson pages. */
+  .study-container {
+    min-height: 0 !important;
+    height: auto !important;
+  }
   .study-container,
   .study-content-panel,
   .study-content-area,
@@ -67,36 +73,33 @@ css += r'''
     word-break: break-word !important;
   }
 
-  /* Unit/topic outline sheet is also vertical-only on phones. */
+  /* Unit -> topic only. Pages remain page navigation inside the selected topic,
+     not another hierarchy level in the unit picker. */
+  .outline__pages { display: none !important; }
+
   .outline-sheet__panel {
     width: calc(100vw - 24px) !important;
     max-width: calc(100vw - 24px) !important;
     min-width: 0 !important;
     overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
     box-sizing: border-box !important;
   }
   .outline-sheet__panel *,
   .outline__unit,
   .outline__unit-title,
-  .outline__topic,
-  .outline__pages,
-  .outline__page {
+  .outline__topic {
     min-width: 0 !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
   }
   .outline__unit-title,
-  .outline__topic,
-  .outline__page,
-  .outline__label {
+  .outline__topic {
     white-space: normal !important;
     overflow-wrap: anywhere !important;
     word-break: break-word !important;
   }
 
-  /* On mobile the outline starts at unit level. Tapping a unit heading reveals
-     its topic/sub-header choices; choosing the topic keeps the app's existing
-     selection handler intact. */
   .outline__unit-title[data-aula-unit-toggle="1"] {
     width: 100%;
     min-height: 44px;
@@ -115,27 +118,22 @@ css += r'''
     transform: rotate(90deg);
     transition: transform .15s ease;
   }
-  .outline__unit.is-aula-expanded > .outline__unit-title::after {
-    transform: rotate(-90deg);
-  }
-  .outline__unit:not(.is-aula-expanded) > :not(.outline__unit-title) {
-    display: none !important;
-  }
+  .outline__unit.is-aula-expanded > .outline__unit-title::after { transform: rotate(-90deg); }
+  .outline__unit:not(.is-aula-expanded) > :not(.outline__unit-title) { display: none !important; }
 }
 '''
 styles.write_text(css, encoding="utf-8")
 
 index_html = ROOT / "public" / "index.html"
 index = index_html.read_text(encoding="utf-8")
-index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr12", 1)
-index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr12", 1)
+index = index.replace("/js/app.js?v=20260917_login04", "/js/app.js?v=20260917_ptr13", 1)
+index = index.replace("/css/styles.css?v=20260917_login04", "/css/styles.css?v=20260917_ptr13", 1)
 
 mobile_guards = r'''
     <script>
     (function () {
         if (!window.matchMedia('(max-width: 768px)').matches) return;
 
-        /* Login: no startup keyboard/focus until the exact field is tapped. */
         function loginFields() {
             return document.querySelectorAll('#login-screen input, #login-screen textarea');
         }
@@ -163,8 +161,6 @@ mobile_guards = r'''
             }
         }
 
-        /* Material outline: present units first, then reveal that unit's
-           sub-headers/topics without invoking the topic-selection handler. */
         function prepareOutline() {
             document.querySelectorAll('.outline__unit').forEach(function (unit) {
                 var title = unit.querySelector(':scope > .outline__unit-title');
@@ -190,22 +186,58 @@ mobile_guards = r'''
             title.setAttribute('aria-expanded', opening ? 'true' : 'false');
         }
 
+        /* iOS scroll lock for the unit/topic sheet. The sheet may be shorter
+           than the viewport, so overscroll containment alone cannot make it a
+           scroll container; freeze the document while it exists instead. */
+        var outlineScrollY = 0;
+        var outlineLocked = false;
+        function visibleOutlinePanel() {
+            var panel = document.querySelector('.outline-sheet__panel');
+            if (!panel) return null;
+            var r = panel.getBoundingClientRect();
+            var s = getComputedStyle(panel);
+            return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden' ? panel : null;
+        }
+        function syncOutlineScrollLock() {
+            var open = !!visibleOutlinePanel();
+            if (open && !outlineLocked) {
+                outlineScrollY = window.scrollY || 0;
+                document.body.style.position = 'fixed';
+                document.body.style.top = (-outlineScrollY) + 'px';
+                document.body.style.left = '0';
+                document.body.style.right = '0';
+                document.body.style.width = '100%';
+                outlineLocked = true;
+            } else if (!open && outlineLocked) {
+                document.body.style.position = '';
+                document.body.style.top = '';
+                document.body.style.left = '';
+                document.body.style.right = '';
+                document.body.style.width = '';
+                window.scrollTo(0, outlineScrollY);
+                outlineLocked = false;
+            }
+        }
+
         var observer = new MutationObserver(function () {
             lockLoginFields();
             clearStartupFocus();
             prepareOutline();
+            requestAnimationFrame(syncOutlineScrollLock);
         });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
         document.addEventListener('DOMContentLoaded', function () {
             lockLoginFields();
             clearStartupFocus();
             prepareOutline();
+            syncOutlineScrollLock();
             requestAnimationFrame(clearStartupFocus);
         }, { once: true });
         window.addEventListener('pageshow', function () {
             lockLoginFields();
             clearStartupFocus();
             prepareOutline();
+            syncOutlineScrollLock();
         });
         document.addEventListener('focusin', function (e) {
             var el = e.target;
@@ -220,7 +252,10 @@ mobile_guards = r'''
 
         document.addEventListener('click', function (e) {
             var title = e.target && e.target.closest ? e.target.closest('.outline__unit-title[data-aula-unit-toggle="1"]') : null;
-            if (!title) return;
+            if (!title) {
+                requestAnimationFrame(syncOutlineScrollLock);
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             toggleUnit(title);
@@ -242,6 +277,6 @@ index = index.replace(anchor, mobile_guards + "\n    " + anchor, 1)
 index_html.write_text(index, encoding="utf-8")
 
 server = ROOT / "server.py"
-print("[BOOT] applied iOS overscroll + login focus + mobile material/outline fixes")
+print("[BOOT] applied iOS overscroll + compact mobile lesson + flat unit/topic outline")
 print("[BOOT] starting AulaAI")
 runpy.run_path(str(server), run_name="__main__")
