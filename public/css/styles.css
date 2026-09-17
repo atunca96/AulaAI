@@ -5052,7 +5052,19 @@ select.text-input option,
 @media (max-width: 1024px) {
   .dashboard-content:has(#tab-study-materials.active) .study-container,
   .dashboard-content:has(#tab-s-study-tab.active) .study-container {
+    margin-top: 10vh;
+  }
+
+  /* The in-class activity position was already approved; preserve it while
+     assessment/lesson pages move slightly upward. */
+  .study-container:has(#activity-preview:not(:empty)) {
     margin-top: 15vh;
+  }
+
+  /* The classroom picker has no top nav, so using the generic dashboard
+     top-nav allowance pushes its first decision block too low on iPhone. */
+  #classroom-selection-screen .dashboard-content.picker {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 36px);
   }
 
   /* Do not animate the material shell/content into place on iOS. The content
