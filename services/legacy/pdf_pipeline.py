@@ -598,7 +598,12 @@ def _repair_missing_phonetics(course_id, language):
         for entry in container:
             if not isinstance(entry, dict):
                 continue
-            term = str(entry.get("term") or entry.get("word") or entry.get("target") or "").strip()
+            # Same key order the PDF renderer reads a row's headword from.
+            # It also accepts `phrase` and `sentence`, and those were missing
+            # here, so a phrase row was invisible to this repair and shipped
+            # with an empty pronunciation cell.
+            term = str(entry.get("term") or entry.get("word") or entry.get("phrase")
+                       or entry.get("sentence") or entry.get("target") or "").strip()
             phonetic = str(entry.get("phonetic") or "").strip()
             if not term or not any(ch.isalpha() for ch in term):
                 continue
@@ -630,7 +635,7 @@ def _repair_missing_phonetics(course_id, language):
     calibration = "\n".join(f"- {term}: {phon}" for term, phon in examples[:12]) or "(none)"
     prompt = f"""Fill missing phonetic transcriptions for a {language} language course.
 Return ONLY valid JSON in this exact shape: {{"items":[{{"term":"EXACT INPUT TERM","phonetic":"[standard IPA]"}}]}}.
-Preserve each term exactly. Return one item per input term. `phonetic` must be a pronunciation transcription, never a translation or a letter name. Match the IPA convention shown by the existing class examples. If a term genuinely has no spoken pronunciation, return an empty string.
+Preserve each term exactly. Return one item per input term. `phonetic` must be a pronunciation transcription, never a translation or a letter name. Match the IPA convention shown by the existing class examples. Transcribe every word of a multi-word phrase, not just its first word. A form pronounced differently across accepted standard varieties is NOT a reason to return nothing: use the variety the examples above are written in and transcribe it. Return an empty string only for a term with no spoken pronunciation at all, or one whose transcription you genuinely do not know.
 Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".join(f"- {term}" for term in terms)
 
     response = _call_ai(
@@ -647,15 +652,28 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
         _log(f"[PHONETIC-COMPLETE] provider returned no usable mapping for {len(terms)} blank terms.")
         return 0
 
+    from services.publication_evidence import is_usable_transcription
+
     allowed = set(terms)
     mapping = {}
+    refused = 0
     for item in payload:
         if not isinstance(item, dict):
             continue
         term = str(item.get("term") or "").strip()
         phonetic = str(item.get("phonetic") or "").strip()
-        if term in allowed and phonetic and len(phonetic) <= 120:
-            mapping[term] = phonetic
+        if term not in allowed or not phonetic:
+            continue
+        # Any non-empty string used to be accepted here, so a translation or a
+        # letter name came back and was published as this row's pronunciation.
+        # A value that is not recognisably notation leaves the cell blank, which
+        # is a visible gap rather than a fact the learner cannot check.
+        if not is_usable_transcription(phonetic, term):
+            refused += 1
+            continue
+        mapping[term] = phonetic
+    if refused:
+        _log(f"[PHONETIC-COMPLETE] refused {refused} returned value(s) that were not transcriptions.")
 
     filled = 0
     for term, entries in missing.items():

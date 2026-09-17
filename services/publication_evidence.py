@@ -531,6 +531,41 @@ def collect_thin_generalizations(data: Any, material_language: str = "tr", limit
     return risks
 
 
+# Symbols that carry no meaning outside phonetic notation. The repertoire check
+# below cannot separate IPA from ordinary prose on its own, because IPA is built
+# from Latin letters: every character of '[sinema anlamında]' — a Turkish gloss —
+# sits inside the permitted ranges. Requiring one of these is what tells notation
+# from prose: a stress or length mark, or a symbol no orthography spells with.
+_IPA_ONLY = set("ˈˌːˑθðʃʒŋɲʎβɣɾʁʔɛɔɪʊæøœɨʌəɑɐɜɡʧʤʝɟçɕʑɸʕħɹɻʈɖɳɭʂʐɬɮʋɥʍɚɝ")
+
+
+def is_usable_transcription(value: Any, term: Any = "") -> bool:
+    """True when `value` can be published as `term`'s transcription.
+
+    Used to decide whether a repaired transcription may be written into a
+    lesson. A blank pronunciation cell is a visible gap; a cell holding a
+    translation, a letter name or the headword echoed back is a factual error
+    the learner cannot detect, so anything that is not recognisably notation
+    leaves the cell alone.
+    """
+    text = " ".join(str(value or "").split())
+    if not text or len(text) > 120:
+        return False
+    if not (text.startswith("[") and text.endswith("]")):
+        return False
+    inner = text[1:-1].strip()
+    if not inner:
+        return False
+    if inner.casefold() == str(term or "").strip().casefold():
+        return False
+    # Sentence punctuation and capitals belong to prose, never to a transcription.
+    if re.search(r"[0-9,;.!?]", inner) or any(ch.isupper() for ch in inner):
+        return False
+    if not any(ch in _IPA_ONLY for ch in inner):
+        return False
+    return not _outside_ipa_repertoire(inner)
+
+
 # ── 1b. Notation fields holding characters from another writing system ──────
 
 def _outside_ipa_repertoire(text: str) -> List[str]:
