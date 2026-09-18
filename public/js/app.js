@@ -7012,6 +7012,7 @@ function renderClassroomSelection(courses) {
   container.innerHTML = courses.map(c => {
     const isBuilding = c.is_building === 1;
     const isPhase1 = c.language === "Detecting...";
+    const isReviewing = isBuilding && String(c.build_stage || '').toLowerCase() === 'quality_review';
     const isFailed = !isBuilding && String(c.build_stage || '').toLowerCase() === 'failed';
 
     return `<div class="card classroom-card${isPhase1 ? ' is-pending' : ''}">
@@ -7057,8 +7058,13 @@ function renderClassroomSelection(courses) {
               </div>
             ` : ''}
         </div>
-        <button class="btn ${isPhase1 ? 'btn-ghost' : 'btn-outline'} btn-full" ${isPhase1 ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
-            <span data-i18n="${isPhase1 ? 'gen.please_wait' : 'class.enter'}">${isPhase1 ? t('gen.please_wait') : t('class.enter')}</span>
+        <button class="btn ${(isPhase1 || isBuilding) ? 'btn-ghost' : 'btn-outline'} btn-full" ${(isPhase1 || isBuilding) ? 'disabled' : ''} onclick="selectClassroom('${c.id}')">
+            <span>${isReviewing
+              ? (currentLang === 'tr' ? 'İnceleme sürüyor…' : 'Review in progress…')
+              : (isBuilding
+                  ? (currentLang === 'tr' ? 'Oluşturuluyor…' : 'Building…')
+                  : (isPhase1 ? t('gen.please_wait') : t('class.enter')))}
+            </span>
         </button>
     </div>`;
   }).join('');
@@ -7140,8 +7146,8 @@ async function retryPublicationReview(cid) {
     if (res && res.success) {
       showToast(
         currentLang === 'tr'
-          ? 'Dersler yeniden üretilmeden yayın incelemesi tekrar başlatıldı.'
-          : 'Publication review restarted without regenerating lessons.',
+          ? 'Yayın incelemesi başladı. READY olmadan PDF açılamaz.'
+          : 'Publication review started. PDF stays locked until READY.',
         'success'
       );
       await showClassroomSelection();
@@ -7198,6 +7204,22 @@ async function stopCurrentActiveBuilding() {
 }
 
 async function selectClassroom(id, isLecturer = true) {
+  if (isLecturer && id) {
+    try {
+      const state = await api(`/classroom/progress?course_id=${encodeURIComponent(id)}&v=${Date.now()}`);
+      if (state && state.is_building) {
+        showNotification(
+          currentLang === 'tr'
+            ? (state.stage === 'quality_review' ? 'Yayın incelemesi hâlâ sürüyor. READY olunca sınıfa girebilirsin.' : 'Sınıf hâlâ oluşturuluyor.')
+            : (state.stage === 'quality_review' ? 'Publication review is still running. You can enter once it is READY.' : 'The classroom is still being built.'),
+          'info'
+        );
+        await showClassroomSelection();
+        return;
+      }
+    } catch (_) {}
+  }
+
   // Clear last topic if switching courses
   if (localStorage.getItem('aula_last_course') !== id) {
     localStorage.removeItem('aula_last_topic');
@@ -14129,6 +14151,38 @@ function showPdfLangPicker() {
 async function downloadCourseMaterialPDF() {
   if (!courseId) {
     showNotification(currentLang === 'tr' ? 'Lütfen önce bir sınıf seçin.' : 'Please select a classroom first.', 'error');
+    return;
+  }
+
+  // Re-check authoritative publication state. A retry request returns 200 when
+  // the review STARTS, not when the classroom is READY; stale dashboard state
+  // must never make that look exportable.
+  try {
+    const state = await api(`/classroom/progress?course_id=${encodeURIComponent(courseId)}&v=${Date.now()}`);
+    if (state && (state.is_building || String(state.stage || '').toLowerCase() !== 'completed')) {
+      const reviewing = String(state.stage || '').toLowerCase() === 'quality_review';
+      const failed = String(state.stage || '').toLowerCase() === 'failed';
+      showNotification(
+        currentLang === 'tr'
+          ? (reviewing
+              ? 'Yayın incelemesi hâlâ sürüyor. READY olunca PDF açılacak.'
+              : failed
+                ? `PDF kilitli: ${state.message || 'yayın incelemesi başarısız oldu.'}`
+                : 'Bu sınıf henüz READY değil.')
+          : (reviewing
+              ? 'Publication review is still running. PDF unlocks when the classroom is READY.'
+              : failed
+                ? `PDF locked: ${state.message || 'publication review failed.'}`
+                : 'This classroom is not READY yet.'),
+        failed ? 'error' : 'info'
+      );
+      return;
+    }
+  } catch (e) {
+    showNotification(
+      currentLang === 'tr' ? 'Yayın durumu doğrulanamadı; PDF açılmadı.' : 'Could not verify publication state; PDF was not opened.',
+      'error'
+    );
     return;
   }
 
