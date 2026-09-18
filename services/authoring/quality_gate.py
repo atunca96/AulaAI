@@ -769,6 +769,34 @@ def _assessment_evidence_records(content: Dict[str, Any], *, track: str) -> List
     return compact
 
 
+def _assessment_evidence_digest(content: Dict[str, Any], *, track: str) -> List[str]:
+    """Compact read-only lesson evidence for assessment verification.
+
+    Assessment reviewers never patch lesson evidence, so JSON patch paths, role
+    labels and track metadata are prompt overhead. Preserve the complete
+    learner-visible semantic values, but serialize them as deduplicated
+    field/value strings. This keeps semantic coverage while cutting provider
+    input cost substantially.
+    """
+    out: List[str] = []
+    seen = set()
+    for rec in _assessment_evidence_records(content, track=track):
+        field = str(rec.get("field") or "").strip()
+        value = rec.get("value")
+        if isinstance(value, list):
+            value_text = " | ".join(str(v).strip() for v in value if str(v).strip())
+        else:
+            value_text = str(value or "").strip()
+        if not field or not value_text:
+            continue
+        row = f"{field}: {value_text}"
+        if row in seen:
+            continue
+        seen.add(row)
+        out.append(row)
+    return out
+
+
 _LESSON_REVIEW_SYSTEM = """You are AulaAI's independent publication editor.
 The course was authored by another model. Your job is to find and correct
 learner-visible errors, not to praise or rewrite stylistically.
@@ -1636,8 +1664,8 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         # Assessment verification needs the taught claims and examples, not UI
         # metadata. Records keep exact wording while remaining compact.
         evidence.append({
-            "topic_id": str(topic["id"]), "title": str(topic.get("title") or ""),
-            "records": _review_records(topic["content"]),
+            "title": str(topic.get("title") or ""),
+            "evidence": _assessment_evidence_digest(topic["content"], track=track),
         })
     payload = {
         "language": language, "level": level, "unit": unit_title,
