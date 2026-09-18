@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gemini targeted repairs must not spend their output budget on hidden reasoning."""
+"""Gemini repair calls must use the smallest mandatory reasoning mode."""
 
 from __future__ import annotations
 
@@ -75,8 +75,8 @@ finally:
 
 assert response37.ok and response37.data == {"ok": True}
 assert response38.ok and response38.data == {"ok": True}
-assert requests[0].get("reasoning") == {"max_tokens": 0}, requests[0].get("reasoning")
+assert requests[0].get("reasoning") == {"effort": "low"}, requests[0].get("reasoning")
 assert requests[1].get("reasoning") == {"effort": "low"}, requests[1].get("reasoning")
 assert requests[1]["max_tokens"] == 3200
 assert requests[1]["response_format"]["type"] == "json_schema"
-print("[GEMINI-REASONING] 3.7 disables thinking; mandatory 3.8 repairs use low reasoning")
+print("[GEMINI-REASONING] mandatory Gemini reasoning maps historical none to low")
