@@ -59,17 +59,19 @@ def fake_audit(current_topic, *, language, track):
     findings = []
     target = content["pages"][0]["items"][0]["target"]
     prompt = content["pages"][1]["prompt"]
-    if target == BAD_TARGET:
+    if target.strip() == BAD_TARGET:
         findings.append(A.Finding(
             "instructional_prose_in_target_field", A.BLOCK,
             path="", field="target", role="target",
             detail="reads as en", value=BAD_TARGET,
         ))
-    if prompt == BAD_PROMPT:
+    # The controller runs deterministic text normalization each round, which
+    # may add Spanish opening punctuation. Match the defect, not the byte string.
+    if "Which family member" in prompt:
         findings.append(A.Finding(
             "stem_in_instructional_language", A.BLOCK,
             path="pages[1]", field="prompt", role="target",
-            detail="stem reads as en", value=BAD_PROMPT,
+            detail="stem reads as en", value=prompt,
         ))
     return findings
 
@@ -82,48 +84,30 @@ def fake_call(**kwargs):
     if stage.startswith("review_lesson:"):
         return {"topics": [{"topic_id": "family", "verdict": "ok", "patches": []}]}
 
-    if stage == "review_blocker_retry:Family Members":
-        blockers = payload["topics"][0]["deterministic_blockers"]
-        paths = {
-            tuple(path)
-            for blocker in blockers
-            for path in blocker.get("repair_paths", [])
-        }
-        assert ("pages", 0, "items", 0, "target") in paths
-        assert ("pages", 1, "prompt") in paths
-        # Simulate a provider that fixes only one of the two exact blockers.
-        return {
-            "topics": [{
-                "topic_id": "family",
-                "verdict": "fix",
-                "patches": [{
-                    "path": ["pages", "0", "items", "0", "target"],
-                    "old": BAD_TARGET,
-                    "value": GOOD_TARGET,
-                    "reason": "Target fields must contain taught-language material.",
-                }],
-            }]
-        }
-
-    if stage == "review_exact_blocker_retry:Family Members":
+    # The controller dispatches one bounded exact-field repair per finding, so
+    # each payload carries exactly one blocker and its exact repair path.
+    if stage.startswith("converge_exact_field:Family Members:"):
         row = payload["topics"][0]
         blockers = row["deterministic_blockers"]
-        assert len(blockers) == 1
-        assert blockers[0]["code"] == "stem_in_instructional_language"
+        assert len(blockers) == 1, blockers
+        code = blockers[0]["code"]
+        if code == "instructional_prose_in_target_field":
+            assert blockers[0]["repair_paths"] == [["pages", 0, "items", 0, "target"]]
+            assert [rec["path"] for rec in row["records"]] == [
+                ["pages", 0, "items", 0, "target"]]
+            return {"topics": [{"topic_id": "family", "verdict": "fix", "patches": [{
+                "path": ["pages", "0", "items", "0", "target"],
+                "old": BAD_TARGET, "value": GOOD_TARGET,
+                "reason": "Target fields must contain taught-language material.",
+            }]}]}
+        assert code == "stem_in_instructional_language", code
         assert blockers[0]["repair_paths"] == [["pages", 1, "prompt"]]
         assert [rec["path"] for rec in row["records"]] == [["pages", 1, "prompt"]]
-        return {
-            "topics": [{
-                "topic_id": "family",
-                "verdict": "fix",
-                "patches": [{
-                    "path": ["pages", "1", "prompt"],
-                    "old": BAD_PROMPT,
-                    "value": GOOD_PROMPT,
-                    "reason": "The stem must be in the taught language.",
-                }],
-            }]
-        }
+        return {"topics": [{"topic_id": "family", "verdict": "fix", "patches": [{
+            "path": ["pages", "1", "prompt"],
+            "old": row["records"][0]["value"], "value": GOOD_PROMPT,
+            "reason": "The stem must be written in the taught language.",
+        }]}]}
 
     raise AssertionError(f"unexpected stage {stage}")
 
@@ -150,7 +134,7 @@ assert topic["content"]["pages"][0]["items"][0]["target"] == GOOD_TARGET
 assert topic["content"]["pages"][1]["prompt"] == GOOD_PROMPT
 assert [stage for stage, _ in calls] == [
     "review_lesson:Family and Descriptions:Family Members",
-    "review_blocker_retry:Family Members",
-    "review_exact_blocker_retry:Family Members",
-]
+    "converge_exact_field:Family Members:",
+    "converge_exact_field:Family Members:pages[1]",
+], [stage for stage, _ in calls]
 print("[EXACT-BLOCKER-REPAIR] deterministic blocker paths are mandatory and rechecked")

@@ -25,6 +25,7 @@ classroom from being marked ready.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import re
@@ -1414,6 +1415,25 @@ def _repair_name_gender_page_exact(*, topic: Dict[str, Any], page: Dict[str, Any
                 f"on page {page_index}; the keyed answer is immutable here"
             )
 
+    # A person the new stem no longer introduces must not survive in the
+    # rationale. The renderer rule reads names off the stem, so a stale
+    # "Ana is feminine" next to a stem about «mujer» would pass the contract
+    # while still teaching the inference this repair exists to remove.
+    dropped = RC.personal_name_tokens(page, before_stem) - \
+        RC.personal_name_tokens(probe, str(probe.get(stem_key) or ""))
+    if dropped:
+        leftover = sorted(
+            name for name in dropped
+            for key in list(en_keys) + list(tr_keys)
+            if name in RC.personal_name_tokens(probe, str(probe.get(key) or ""))
+        )
+        if leftover:
+            raise QualityGateError(
+                f"{topic.get('title')}: name/gender page repair left {leftover} "
+                f"in the rationale after removing it from the stem on page "
+                f"{page_index}"
+            )
+
     if all(page.get(key) == value for key, value in updates.items()):
         return 0
     page.update(updates)
@@ -2053,6 +2073,332 @@ def _repair_bilingual_counterpart(*, topic: Dict[str, Any], content: Dict[str, A
     return 1
 
 
+# ── Bounded convergence controller ───────────────────────────────────────────
+# Every production failure so far — malformed reviewer paths, MCQ option/
+# distractor inconsistency, a missing EN/TR counterpart, renderer hidden-world
+# inference, the name/gender page repair — was a different defect meeting the
+# same orchestration bug: a hand-rolled chain of "call, re-audit, raise" in
+# which one class had no strategy that could express its fix, and the only
+# fallback was re-reviewing the whole unit and arriving at the identical answer.
+#
+# The safety logic per class stays exactly where it is. What is unified is the
+# contract around it: detect the exact blocker, classify it into one of the
+# strategies below, repair the smallest surface that class owns, re-run the
+# authoritative validators, and continue. A repair is never "successful"
+# because a rule was disabled or a blocker allowlisted — only because
+# `_audit_topic`, `_missing_bilingual_pairs` and `_topic_render_blockers` say
+# so on the next round.
+#
+# "Until clean" is bounded by a fingerprint, not a retry count: topic, path,
+# blocker code/reason and a digest of the object that blocker lives on. Seeing
+# the same fingerprint again means the last strategy changed nothing, so that
+# strategy is not called again for it. Another bounded strategy may take over;
+# when none is left the gate fails closed with the exact diagnostic.
+
+_NON_REPAIRABLE_CODES = frozenset({"not_a_lesson", "not_an_object"})
+_CONVERGENCE_MAX_ROUNDS = 24
+
+
+def _content_digest(node: Any) -> str:
+    try:
+        payload = json.dumps(node, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        payload = repr(node)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _blocker_page_index(where: Any) -> Optional[int]:
+    prefix = _finding_path_prefix(where)
+    if len(prefix) >= 2 and prefix[0] == "pages" and isinstance(prefix[1], int):
+        return prefix[1]
+    return None
+
+
+def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
+                           canonical: str) -> List[Dict[str, Any]]:
+    """Every blocker on one topic, ordered cheapest-and-most-structural first.
+
+    Ordering is deterministic so two runs over the same content dispatch the
+    same strategies in the same order: structural MCQ defects, then the rest of
+    the deterministic audit, then bilingual completeness, then the renderer
+    contract. A blocker with no strategy is reported with none, and the
+    controller fails closed on it rather than inventing a repair.
+    """
+    content = topic.get("content")
+    if not isinstance(content, dict):
+        return [{"kind": "structural", "code": "unreadable_content", "where": "",
+                 "reason": "topic content is not an object", "strategies": []}]
+
+    structural: List[Dict[str, Any]] = []
+    other: List[Dict[str, Any]] = []
+    for finding in A.blocking(_audit_topic(topic, language=language, track=track)):
+        row = {
+            "kind": "audit",
+            "code": finding.code,
+            "where": str(finding.path or ""),
+            "reason": str(finding.detail or finding.field or ""),
+            "finding": finding,
+        }
+        if finding.code in _NON_REPAIRABLE_CODES:
+            row["strategies"] = []
+            structural.append(row)
+        elif finding.code in _MCQ_STRUCTURAL_CODES:
+            row["strategies"] = ["mcq_structural", "exact_field"]
+            structural.append(row)
+        else:
+            row["strategies"] = ["exact_field"]
+            other.append(row)
+
+    bilingual: List[Dict[str, Any]] = []
+    if canonical not in ("English", "Turkish"):
+        for slot in _missing_bilingual_slots(content):
+            bilingual.append({
+                "kind": "bilingual",
+                "code": "missing_bilingual_counterpart",
+                "where": ".".join(map(str, slot["path"])),
+                "reason": str(slot["field"]),
+                "slot": slot,
+                "strategies": ["bilingual_counterpart"],
+            })
+
+    # One blocker per (page, reason), carrying every locale row for it: the
+    # repair is page-level, and both locales' rows are the evidence it reads.
+    render: List[Dict[str, Any]] = []
+    grouped: Dict[Tuple[Any, str], List[Dict[str, Any]]] = {}
+    for row in _topic_render_blockers(content):
+        grouped.setdefault((row.get("page_index"), str(row.get("why") or "")),
+                           []).append(row)
+    for (page_index, why), rows in grouped.items():
+        render.append({
+            "kind": "render",
+            "code": "render_contract",
+            "where": f"pages[{page_index}]",
+            "reason": why,
+            "render_rows": rows,
+            "strategies": (
+                ["render_name_gender"] if why == _name_gender_reason()
+                else ["render_stem"]
+            ),
+        })
+
+    return structural + other + bilingual + render
+
+
+def _blocker_fingerprint(topic: Dict[str, Any], blocker: Dict[str, Any]) -> str:
+    """Stable identity of "this blocker, on this content".
+
+    The digest covers the object the blocker actually lives on — the page for a
+    page-scoped defect, the counterpart slot for a bilingual gap — so repairing
+    page 2 does not make page 5's untouched blocker look new.
+    """
+    content = topic.get("content")
+    scope: Any = content
+    page_index = _blocker_page_index(blocker.get("where"))
+    if page_index is not None and isinstance(content, dict):
+        pages = content.get("pages")
+        if isinstance(pages, list) and 0 <= page_index < len(pages):
+            scope = pages[page_index]
+    elif blocker.get("kind") == "bilingual":
+        scope = blocker.get("slot")
+    return "|".join((
+        str(topic.get("id")), str(blocker.get("where")), str(blocker.get("code")),
+        str(blocker.get("reason")), _content_digest(scope),
+    ))
+
+
+def _name_gender_reason() -> str:
+    from services.authoring import render_contract as RC
+    return RC.NAME_GENDER_REASON
+
+
+def _strategy_mcq_structural(*, topic, blocker, language, level, track, budget,
+                             unit_title):
+    return _repair_mcq_structural_blockers(
+        topic=topic, language=language, level=level, track=track,
+        budget=budget, blockers=[blocker["finding"]],
+    )
+
+
+def _strategy_bilingual_counterpart(*, topic, blocker, language, level, track,
+                                    budget, unit_title):
+    content = topic["content"]
+    _ensure_bilingual_slots(content)
+    return _repair_bilingual_counterpart(
+        topic=topic, content=content, slot=blocker["slot"], language=language,
+        level=level, track=track, budget=budget, unit_title=unit_title,
+        profile=S.profile_for_language(language),
+    )
+
+
+def _strategy_render_name_gender(*, topic, blocker, language, level, track,
+                                 budget, unit_title):
+    rows = blocker["render_rows"]
+    pages = (topic.get("content") or {}).get("pages")
+    index = rows[0].get("page_index")
+    if not isinstance(pages, list) or not isinstance(index, int) or \
+            not 0 <= index < len(pages) or not isinstance(pages[index], dict):
+        return 0
+    return _repair_name_gender_page_exact(
+        topic=topic, page=pages[index], page_index=index, language=language,
+        level=level, budget=budget, blockers=rows,
+    )
+
+
+def _strategy_render_stem(*, topic, blocker, language, level, track, budget,
+                          unit_title):
+    return _repair_topic_render_stems_exact(
+        topic=topic, language=language, level=level, budget=budget,
+        blockers=blocker["render_rows"],
+    )
+
+
+def _strategy_exact_field(*, topic, blocker, language, level, track, budget,
+                          unit_title):
+    """One bounded exact-path repair for a single deterministic finding."""
+    finding = blocker.get("finding")
+    content = topic["content"]
+    if finding is None:
+        return 0
+    rows = _findings_with_repair_paths(content, [finding])
+    records = _records_for_findings(content, [finding])
+    if not records or not any(row.get("repair_paths") for row in rows):
+        # No exact learner-visible path resolves, so there is nothing this
+        # strategy can express. The controller records it as attempted and
+        # fails closed unless another strategy owns the blocker.
+        return 0
+    profile = S.profile_for_language(language)
+    data = _call_review(
+        model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
+        payload={
+            "language": language, "level": level, "unit": unit_title,
+            "regional_variety": profile.variety if profile else "",
+            "instruction_track": track,
+            "topics": [{
+                "topic_id": str(topic["id"]),
+                "title": str(topic.get("title") or ""),
+                "records": records,
+                "deterministic_blockers": rows,
+                "render_contract_blockers": [],
+            }],
+            "instruction": (
+                "Patch EVERY listed repair_path exactly. Do not edit unrelated "
+                "fields. Return this one topic only."
+            ),
+        },
+        max_tokens=1600, effort="low", budget=budget,
+        stage=f"converge_exact_field:{topic.get('title')}:{blocker.get('where')}",
+        response_schema=_LESSON_REVIEW_SCHEMA,
+        response_name="converge_exact_field_repair",
+    )
+    out = data.get("topics")
+    if not isinstance(out, list) or len(out) != 1 or \
+            str(out[0].get("topic_id") or "") != str(topic["id"]):
+        raise QualityGateError(
+            f"exact-field repair coverage failed for {topic.get('title')}"
+        )
+    patches = []
+    for patch in (out[0].get("patches") or []):
+        if not isinstance(patch, dict):
+            raise QualityGateError("exact-field repair patch is not an object")
+        patch = dict(patch)
+        patch["topic_id"] = str(topic["id"])
+        patches.append(patch)
+    return _apply_patches({str(topic["id"]): topic}, patches)
+
+
+# Every strategy here is an existing, narrow repair. There is deliberately no
+# general "fix this lesson" entry: a class without a strategy fails closed.
+_REPAIR_STRATEGIES = {
+    "mcq_structural": _strategy_mcq_structural,
+    "bilingual_counterpart": _strategy_bilingual_counterpart,
+    "render_name_gender": _strategy_render_name_gender,
+    "render_stem": _strategy_render_stem,
+    "exact_field": _strategy_exact_field,
+}
+
+
+def _convergence_diagnostic(topic: Dict[str, Any], blockers: Sequence[Dict[str, Any]],
+                            attempted: Sequence[Any]) -> str:
+    rows = [
+        {
+            "code": b.get("code"),
+            "where": b.get("where"),
+            "reason": b.get("reason"),
+            "strategies": b.get("strategies"),
+        }
+        for b in blockers[:8]
+    ]
+    return (
+        f"{topic.get('title')}: publication blockers are not converging; "
+        f"unresolved={rows}; strategies_tried={len(attempted)}"
+    )
+
+
+def converge_topic(*, topic: Dict[str, Any], language: str, level: str, track: str,
+                   budget: ReviewBudget, unit_title: str = "") -> int:
+    """Repair one topic until the authoritative validators pass, or fail closed.
+
+    Bounded by fingerprints rather than by a retry count. Re-detection happens
+    from scratch after every repair, so a defect that turns into a different
+    repairable class is dispatched as that class instead of being reported as
+    the old one. The unit is never re-reviewed as a fallback: nothing here
+    re-sends a lesson that has already passed.
+    """
+    canonical = S.canonical_language(language)
+    attempted: set = set()
+    applied = 0
+
+    for _round in range(_CONVERGENCE_MAX_ROUNDS):
+        # Cheap deterministic normalization first, every round: it costs
+        # nothing and can remove a blocker before any model call is considered.
+        if isinstance(topic.get("content"), dict):
+            R.repair_lesson(topic["content"], language=language)
+
+        blockers = _detect_topic_blockers(
+            topic, language=language, track=track, canonical=canonical
+        )
+        if not blockers:
+            return applied
+
+        for blocker in blockers:
+            if not blocker.get("strategies"):
+                # Structural / non-repairable invariant: never repaired, never
+                # allowlisted, reported exactly as the validators saw it.
+                raise QualityGateError(
+                    f"{topic.get('title')}: non-repairable publication blocker "
+                    f"{blocker.get('code')!r} at {blocker.get('where')!r}"
+                    + (f": {blocker['reason']}" if blocker.get("reason") else "")
+                )
+
+        dispatched = False
+        for blocker in blockers:
+            fingerprint = _blocker_fingerprint(topic, blocker)
+            for name in blocker["strategies"]:
+                if (fingerprint, name) in attempted:
+                    continue
+                attempted.add((fingerprint, name))
+                applied += _REPAIR_STRATEGIES[name](
+                    topic=topic, blocker=blocker, language=language, level=level,
+                    track=track, budget=budget, unit_title=unit_title,
+                )
+                dispatched = True
+                break
+            if dispatched:
+                # Re-detect from scratch: this repair may have cleared other
+                # blockers, or produced a different repairable class.
+                break
+
+        if not dispatched:
+            raise QualityGateError(
+                _convergence_diagnostic(topic, blockers, attempted)
+            )
+
+    raise QualityGateError(
+        f"{topic.get('title')}: publication repair exceeded "
+        f"{_CONVERGENCE_MAX_ROUNDS} bounded rounds without converging"
+    )
+
+
 def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                         language: str, level: str, track: str,
                         budget: ReviewBudget,
@@ -2146,225 +2492,17 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             patches.append(patch)
         applied += _apply_patches(by_id, patches)
 
-        # Any deterministic defect the broad editor did not cure gets one narrow
-        # pass over only this lesson. Keep reasoning minimal so the response
-        # budget is available for the strict JSON patch itself.
-        blockers = A.blocking(_audit_topic(topic, language=language, track=track))
-        render_blockers = _topic_render_blockers(topic.get("content"))
-        if blockers or render_blockers:
-            blocker_records = _records_for_findings(topic["content"], blockers)
-            render_records = (
-                _records_for_render_blockers(topic["content"], render_blockers)
-                if render_blockers else []
-            )
-            exact_records = []
-            seen_record_paths = set()
-            for rec in blocker_records + render_records:
-                marker = tuple(rec.get("path") or [])
-                if marker and marker not in seen_record_paths:
-                    seen_record_paths.add(marker)
-                    exact_records.append(rec)
-            targeted = {
-                "language": language, "level": level, "unit": unit_title,
-                "regional_variety": profile.variety if profile else "",
-                "instruction_track": track,
-                "topics": [{
-                    "topic_id": str(topic["id"]),
-                    "title": str(topic.get("title") or ""),
-                    "records": exact_records or _review_records(topic["content"]),
-                    "deterministic_blockers": _findings_with_repair_paths(
-                        topic["content"], blockers
-                    ),
-                    "render_contract_blockers": render_blockers,
-                }],
-                "instruction": (
-                    "Fix every deterministic and renderer-contract blocker. "
-                    "Each deterministic blocker may contain repair_paths resolved from the "
-                    "auditor to exact learner-visible fields. Every listed repair_path is "
-                    "mandatory: patch that exact path, not a nearby field. For any MCQ whose "
-                    "answer depends on an unstated identity/biographical inference, rewrite "
-                    "the smallest learner-visible fields so exactly one answer is derivable "
-                    "from explicit stem or taught evidence. Return this one topic only."
-                ),
-            }
-            retry = _call_review(
-                model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                max_tokens=3200, effort="low", budget=budget,
-                stage=f"review_blocker_retry:{topic.get('title')}",
-                response_schema=_LESSON_REVIEW_SCHEMA,
-                response_name="lesson_blocker_repair",
-            )
-            rows2 = retry.get("topics")
-            if not isinstance(rows2, list) or len(rows2) != 1 or \
-                    str(rows2[0].get("topic_id") or "") != str(topic["id"]):
-                raise QualityGateError(
-                    f"blocker retry coverage failed for {topic.get('title')}"
-                )
-            retry_patches = []
-            for patch in (rows2[0].get("patches") or []):
-                if not isinstance(patch, dict):
-                    raise QualityGateError("blocker retry patch is not an object")
-                patch = dict(patch)
-                patch_id = str(patch.get("topic_id") or str(topic["id"]))
-                if patch_id != str(topic["id"]):
-                    raise QualityGateError("blocker retry patch changed topic id")
-                patch["topic_id"] = str(topic["id"])
-                retry_patches.append(patch)
-            applied += _apply_patches(by_id, retry_patches)
-
-            still = A.blocking(_audit_topic(topic, language=language, track=track))
-
-            # A semantic patch to `options` or `answer` can leave the item's
-            # three option-set fields disagreeing. That class is structural, so
-            # repair it as one tuple here rather than sending it back into a
-            # path-at-a-time pass that cannot express the fix.
-            if still and _mcq_structural_codes(still):
-                applied += _repair_mcq_structural_blockers(
-                    topic=topic, language=language, level=level, track=track,
-                    budget=budget, blockers=still,
-                )
-                R.repair_lesson(topic["content"], language=language)
-                still = A.blocking(
-                    _audit_topic(topic, language=language, track=track)
-                )
-
-            if still:
-                # The first semantic pass may repair most blockers but miss one
-                # exact field. Do not turn a repairable path into a publication
-                # refusal. Give only the still-bad exact records one final bounded
-                # pass, then fail closed if the deterministic auditor still objects.
-                remaining_records = _records_for_findings(topic["content"], still)
-                remaining_payload = _findings_with_repair_paths(topic["content"], still)
-                if remaining_records and any(row.get("repair_paths") for row in remaining_payload):
-                    exact_retry_payload = {
-                        "language": language, "level": level, "unit": unit_title,
-                        "regional_variety": profile.variety if profile else "",
-                        "instruction_track": track,
-                        "topics": [{
-                            "topic_id": str(topic["id"]),
-                            "title": str(topic.get("title") or ""),
-                            "records": remaining_records,
-                            "deterministic_blockers": remaining_payload,
-                            "render_contract_blockers": [],
-                        }],
-                        "instruction": (
-                            "The previous repair left these deterministic blockers. "
-                            "Patch EVERY listed repair_path exactly. Do not edit unrelated "
-                            "fields. Return this one topic only."
-                        ),
-                    }
-                    exact_retry = _call_review(
-                        model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM,
-                        payload=exact_retry_payload,
-                        max_tokens=2800, effort="low", budget=budget,
-                        stage=f"review_exact_blocker_retry:{topic.get('title')}",
-                        response_schema=_LESSON_REVIEW_SCHEMA,
-                        response_name="lesson_exact_blocker_repair",
-                    )
-                    exact_rows = exact_retry.get("topics")
-                    if not isinstance(exact_rows, list) or len(exact_rows) != 1 or \
-                            str(exact_rows[0].get("topic_id") or "") != str(topic["id"]):
-                        raise QualityGateError(
-                            f"exact blocker retry coverage failed for {topic.get('title')}"
-                        )
-                    exact_patches = []
-                    for patch in (exact_rows[0].get("patches") or []):
-                        if not isinstance(patch, dict):
-                            raise QualityGateError("exact blocker retry patch is not an object")
-                        patch = dict(patch)
-                        patch["topic_id"] = str(topic["id"])
-                        exact_patches.append(patch)
-                    applied += _apply_patches(by_id, exact_patches)
-                    still = A.blocking(
-                        _audit_topic(topic, language=language, track=track)
-                    )
-                if still:
-                    detail = [
-                        {
-                            "code": f.code,
-                            "path": f.path,
-                            "field": f.field,
-                            "repair_paths": _repair_paths_for_finding(
-                                topic["content"], f
-                            ),
-                        }
-                        for f in still[:8]
-                    ]
-                    raise QualityGateError(
-                        f"{topic.get('title')}: deterministic blockers remain after exact repair: "
-                        f"{A.summarise(still)}; unresolved={detail}"
-                    )
-            still_render = _topic_render_blockers(topic.get("content"))
-            if still_render:
-                applied += _repair_topic_render_stems_exact(
-                    topic=topic,
-                    language=language,
-                    level=level,
-                    budget=budget,
-                    blockers=still_render,
-                )
-                R.repair_lesson(topic["content"], language=language)
-                still_render = _topic_render_blockers(topic.get("content"))
-
-            if still_render:
-                detail = "; ".join(
-                    f"page {row['page_index']} {row['locale']}: {row['why']}"
-                    for row in still_render[:4]
-                )
-                raise QualityGateError(
-                    f"{topic.get('title')}: renderer-contract blockers remain after "
-                    f"dedicated exact stem repair — {detail}"
-                )
-
-        # Bilingual completeness is a publication invariant but not every missing
-        # counterpart is represented as an audit.py blocker.
-        if canonical not in ("English", "Turkish"):
-            missing_pairs = _missing_bilingual_pairs(topic.get("content"))
-            if missing_pairs:
-                targeted = {
-                    "language": language, "level": level, "unit": unit_title,
-                    "regional_variety": profile.variety if profile else "",
-                    "instruction_track": track,
-                    "topics": [{
-                        "topic_id": str(topic["id"]),
-                        "title": str(topic.get("title") or ""),
-                        "records": _review_records(topic["content"]),
-                        "deterministic_blockers": [],
-                        "missing_bilingual_pairs": missing_pairs,
-                    }],
-                    "instruction": (
-                        "Fix every listed missing bilingual counterpart. Patch only the "
-                        "existing empty counterpart paths from their non-empty semantic pair. "
-                        "Return this one topic only."
-                    ),
-                }
-                retry = _call_review(
-                    model=REPAIR_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
-                    max_tokens=2400, effort="low", budget=budget,
-                    stage=f"review_bilingual_retry:{topic.get('title')}",
-                    response_schema=_LESSON_REVIEW_SCHEMA,
-                    response_name="lesson_bilingual_repair",
-                )
-                rows2 = retry.get("topics")
-                if not isinstance(rows2, list) or len(rows2) != 1 or \
-                        str(rows2[0].get("topic_id") or "") != str(topic["id"]):
-                    raise QualityGateError(
-                        f"bilingual retry coverage failed for {topic.get('title')}"
-                    )
-                retry_patches = []
-                for patch in (rows2[0].get("patches") or []):
-                    if not isinstance(patch, dict):
-                        raise QualityGateError("bilingual retry patch is not an object")
-                    patch = dict(patch)
-                    patch["topic_id"] = str(topic["id"])
-                    retry_patches.append(patch)
-                applied += _apply_patches(by_id, retry_patches)
-                remaining = _missing_bilingual_pairs(topic.get("content"))
-                if remaining:
-                    raise QualityGateError(
-                        f"{topic.get('title')}: incomplete EN/TR field pairs after targeted repair: "
-                        + ", ".join(remaining[:8])
-                    )
+        # Everything the broad editor did not cure goes to the bounded
+        # convergence controller: detect the exact blocker, dispatch it to the
+        # one narrow strategy that owns its class, re-run the authoritative
+        # validators, repeat until clean or provably non-progressing. This
+        # replaces the old hand-rolled chain of blocker retry -> exact retry ->
+        # render repair -> bilingual retry, each of which could only express
+        # part of the problem and whose only fallback was re-reviewing the unit.
+        applied += converge_topic(
+            topic=topic, language=language, level=level, track=track,
+            budget=budget, unit_title=unit_title,
+        )
 
         # Reached only when this lesson cleared every check above, so a retry of
         # the unit resumes at the first lesson that has not passed yet.
@@ -2903,6 +3041,16 @@ def repair_final_publication_blockers(*, units: List[Dict[str, Any]],
                 applied += _apply_patches({str(topic["id"]): topic}, patches)
 
             R.repair_lesson(content, language=language)
+
+            # The final proof may still name a repairable blocker. Hand exactly
+            # that topic — not the course, not the unit — back to the bounded
+            # dispatcher, then prove it again below. Assessments keep their own
+            # cardinality-preserving path and are never sent here.
+            if not topic.get("is_assessment"):
+                applied += converge_topic(
+                    topic=topic, language=language, level=level, track=track,
+                    budget=budget, unit_title=str(unit.get("title") or ""),
+                )
 
             post = A.blocking(_audit_topic(topic, language=language, track=track))
             if post:

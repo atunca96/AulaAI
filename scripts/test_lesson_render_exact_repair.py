@@ -66,8 +66,6 @@ def fake_call(**kwargs):
     calls.append((stage,kwargs["payload"]))
     if stage.startswith("review_lesson:"):
         return {"topics":[{"topic_id":"countries","verdict":"ok","patches":[]}]}
-    if stage == "review_blocker_retry:Countries and Nationalities":
-        return {"topics":[{"topic_id":"countries","verdict":"fix","patches":[]}]}
     if stage == "review_render_exact:Countries and Nationalities:pages.0.prompt":
         payload=kwargs["payload"]
         assert payload["current_value"] == BAD
@@ -103,7 +101,6 @@ assert topic["content"]["pages"][0]["prompt"] == GOOD
 stages=[s for s,_ in calls]
 assert stages == [
     "review_lesson:Personal Identity and Origins:Countries and Nationalities",
-    "review_blocker_retry:Countries and Nationalities",
     "review_render_exact:Countries and Nationalities:pages.0.prompt",
 ], stages
 print("[RENDER-EXACT-REPAIR] residual lesson renderer blocker repaired before refusal")

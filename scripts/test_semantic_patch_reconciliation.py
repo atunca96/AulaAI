@@ -42,15 +42,15 @@ def fake_call(**kwargs):
                 "reason":"Already correct after deterministic repair."
             }]
         }]}
-    if kwargs["stage"].startswith("review_bilingual_retry:"):
-        return {"topics":[{
-            "topic_id":"t1","verdict":"fix","patches":[{
-                "path":["pages","0","text_tr"],
-                "old":"",
-                "value":"Bu ifadeleri derste kullanın.",
-                "reason":"Fill the missing Turkish counterpart."
-            }]
-        }]}
+    # The missing counterpart is dispatched to the exact bilingual strategy:
+    # one call for that one slot, with the source field as immutable evidence.
+    if kwargs["stage"].startswith("review_bilingual_exact:"):
+        payload=kwargs["payload"]
+        assert payload["path"]==["pages",0,"text_tr"], payload["path"]
+        assert payload["source_field"]=="text"
+        assert payload["target_locale"]=="tr"
+        return {"value":"Bu ifadeleri derste kullanın.",
+                "reason":"Fill the missing Turkish counterpart."}
     raise AssertionError(kwargs["stage"])
 
 try:
@@ -73,5 +73,6 @@ finally:
 assert topic["content"]["pages"][1]["items"][0]["explanation_tr"] ==        "Her ortamda kullanılabilen genel bir vedalaşma ifadesidir."
 assert topic["content"]["pages"][0]["text_tr"] == "Bu ifadeleri derste kullanın."
 assert applied == 1, applied
-assert calls == ["review_lesson:Unit 1:Greetings and Farewells", "review_bilingual_retry:Greetings and Farewells"], calls
+assert calls == ["review_lesson:Unit 1:Greetings and Farewells",
+                 "review_bilingual_exact:Greetings and Farewells:pages.0.text_tr"], calls
 print("[SEMANTIC-PATCH] idempotent stale patch + bilingual repair regression PASSED")

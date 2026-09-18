@@ -33,12 +33,21 @@ def _log(msg):
 
 def _run_quality_units_serially(*, units, reviewer, stage, on_complete,
                                 quality_error_cls):
-    """Run quality-unit work fail-fast, with one bounded retry per unit.
+    """Run quality-unit work fail-fast, one unit at a time.
 
     The old max_workers=1 ThreadPoolExecutor still submitted every unit up front.
     If unit N failed, executor shutdown waited for already-queued N+1.. units,
     hiding the real terminal error behind later successful model-call logs and
     wasting review budget. Serial execution makes the failure boundary exact.
+
+    There is deliberately no whole-unit retry here any more. Convergence is the
+    reviewer's own job now: `converge_topic` dispatches each blocker to the
+    strategy that owns it and stops the moment a fingerprint repeats, so a
+    second blind pass over the unit could only re-derive the same answer at
+    full price. In production it did exactly that — the same malformed patch,
+    the same renderer refusal, twice — while re-sending lessons that had
+    already passed. Removing it is what pays for the extra bounded repairs
+    inside the controller without touching the review ceiling.
     """
     total = len(units)
     applied = 0
@@ -46,30 +55,11 @@ def _run_quality_units_serially(*, units, reviewer, stage, on_complete,
     for unit in units:
         try:
             applied += reviewer(unit)
-        except quality_error_cls as first_error:
-            message = str(first_error)
-            lowered = message.casefold()
-            hard_budget_failure = any(token in lowered for token in (
-                "budget", "ceiling", "no publication-review budget", "headroom",
-            ))
-            if hard_budget_failure:
-                _log(
-                    f"[QUALITY-GATE] {stage} hard-failed for {unit['title']}: "
-                    f"{message}"
-                )
-                raise
+        except quality_error_cls as failure:
             _log(
-                f"[QUALITY-GATE] {stage} first attempt failed for {unit['title']}: "
-                f"{message}; retrying this unit once."
+                f"[QUALITY-GATE] {stage} failed for {unit['title']}: {failure}"
             )
-            try:
-                applied += reviewer(unit)
-            except quality_error_cls as retry_error:
-                _log(
-                    f"[QUALITY-GATE] {stage} retry failed for {unit['title']}: "
-                    f"{retry_error}"
-                )
-                raise
+            raise
         done += 1
         _log(
             f"[QUALITY-GATE] {stage} {done}/{total} complete "

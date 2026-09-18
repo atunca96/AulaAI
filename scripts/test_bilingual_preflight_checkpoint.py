@@ -280,9 +280,9 @@ finally:
     Q.review_unit_lessons = orig_lessons
 
 assert len(calls) == 1, calls
-# Both lessons reach broad review bilingually complete, on the first attempt and
-# on the unit's one bounded retry.
-assert reviewed == ["Countries and Nationalities", "A Family Photograph"] * 2, reviewed
+# Both lessons reach broad review bilingually complete, and the unit is not
+# blindly re-reviewed after the failure.
+assert reviewed == ["Countries and Nationalities", "A Family Photograph"], reviewed
 
 persisted = stored("bilingual-ch1-countries")
 assert persisted["pages"][5]["text_tr"] == COUNTERPART, persisted["pages"][5]

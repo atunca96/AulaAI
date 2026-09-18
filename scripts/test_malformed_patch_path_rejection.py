@@ -235,12 +235,11 @@ assert calls == [
     # Broad review proposes the malformed path; it is rejected on its own and
     # the lesson continues into its deterministic/render re-audit.
     "review_lesson:Everyday Basics:Numbers 0 to 30 and Contact Information",
-    # The blocker retry repeats the identical malformed path — the shape that
-    # aborted publication before — and is rejected the same way.
-    "review_blocker_retry:Numbers 0 to 30 and Contact Information",
+    # The convergence controller then dispatches the residual renderer blocker
+    # straight to the strategy that owns it — no broad blocker retry in between,
+    # which is where the malformed path used to be proposed a second time.
     "review_render_exact:Numbers 0 to 30 and Contact Information:pages.0.prompt",
     "review_lesson:Everyday Basics:Talking About My Family",
-    "review_blocker_retry:Talking About My Family",
     "review_render_name_gender:Talking About My Family:pages.4.prompt",
 ], calls
 assert resumed == [], resumed

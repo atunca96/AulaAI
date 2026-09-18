@@ -85,7 +85,11 @@ for is_tr in (True, False):
     assert not ok and why == RC.NAME_GENDER_REASON, (is_tr, ok, why)
 
 stem_only = agreement_page()
-stem_only["prompt"] = FIXED_STEM  # a correct Spanish stem with an explicit cue
+# What a stem-only repair actually produces: the question is rewritten and a
+# Spanish gender cue is added, but the person stays and the rationale is
+# untouched. The renderer reads both, so it refuses again — which is why this
+# class needs the page-level repair.
+stem_only["prompt"] = "Ana es una mujer. Ana es ___. (alto)"
 for is_tr in (True, False):
     ok, why = RC.page_is_renderable(stem_only, is_tr)
     assert not ok and why == RC.NAME_GENDER_REASON, (

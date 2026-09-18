@@ -57,15 +57,14 @@ def fake_call(**kwargs):
         payload=kwargs["payload"]
         assert payload["topics"][0]["render_contract_blockers"]
         return {"topics":[{"topic_id":"lesson-1","verdict":"ok","patches":[]}]}
-    if stage.startswith("review_blocker_retry:"):
+    # The renderer blocker is now dispatched to the strategy that owns it: one
+    # bounded exact stem repair for that page, with both locale rows as evidence.
+    if stage.startswith("review_render_exact:"):
         payload=kwargs["payload"]
-        assert payload["topics"][0]["render_contract_blockers"]
-        return {"topics":[{"topic_id":"lesson-1","verdict":"fix","patches":[{
-            "path":["pages","1","prompt"],
-            "old":None,
-            "value":good_prompt,
-            "reason":"Make nationality explicit rather than inferred from birthplace."
-        }]}]}
+        assert payload["path"]==["pages",1,"prompt"], payload["path"]
+        assert len(payload["renderer_contract_blockers"])==2
+        return {"value":good_prompt,
+                "reason":"Make nationality explicit rather than inferred from birthplace."}
     raise AssertionError(stage)
 
 try:
@@ -90,6 +89,6 @@ assert topic["content"]["pages"][1]["prompt"]==good_prompt
 assert not Q._topic_render_blockers(topic["content"])
 assert [stage for stage,_ in calls]==[
     "review_lesson:Professions and Family:Professions and Occupations",
-    "review_blocker_retry:Professions and Occupations",
-]
+    "review_render_exact:Professions and Occupations:pages.1.prompt",
+], [stage for stage,_ in calls]
 print("[REVIEW-RECONCILE] nullable-old + lesson renderer repair regression PASSED")

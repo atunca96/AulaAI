@@ -104,28 +104,96 @@ _NAME_WORDS = re.compile(r"\b(isim|ismi|adi|adinin|name)\b")
 # this blocker to the repair that can actually clear it.
 NAME_GENDER_REASON = "answer depends on gender inferred from a personal name"
 
-# A rationale is one statement. "Ana is a feminine name" is the reasoning this
-# rule exists to refuse; "the visible noun is feminine" and "the question names
-# the noun" are two ordinary statements that happen to use the same two words.
+# What this rule refuses is a RELATION, not two words in a box: the rationale
+# offers a particular person's NAME as the evidence for a gender.
 #
-# Scoping to a statement is what makes the defect repairable at all. The escape
-# below asks the STEM for an explicit gender word, and that list can only ever
-# cover a few languages — a Spanish item whose stem says `mujer` does not match
-# it, and never will without a brittle per-language lexicon. So the only route
-# out is the explanation, and an adjective-agreement item's corrected
-# explanation MUST say "feminine"/"disil" because that is the grammar it
-# teaches. Matching those two words anywhere in the same field meant any
-# innocent use of "name"/"ad" put the page straight back into the same refusal
-# with no edit available that could clear it. Requiring them in one statement
-# keeps the unsafe rationale refused and lets a corrected one through.
+# Matching "name-word near gender-word" was wrong in both directions, and
+# Turkish is where both show. `isim` is the ordinary grammatical term for a
+# noun, so the perfectly safe "«mujer» dişil bir isim olduğu için" — the exact
+# rationale a corrected adjective-agreement item has to write — was refused with
+# no edit available that could clear it. Meanwhile Turkish is agglutinative, so
+# the genuinely unsafe "Ayşe kadın ismidir" was ACCEPTED: `ismidir` is not
+# `\bismi\b`. Widening the lexicon would only trade one direction for the other,
+# and it would have to be widened again for every taught language.
+#
+# So the predicate is the relation itself. A statement is unsafe when it claims
+# a gender AND refers to a person the item names — the proper-name token the
+# stem puts in front of the learner. "Ayşe kadın ismidir" names Ayşe; "dişil
+# isim «mujer»" names nobody. The name-word list is kept, but only for the
+# weaker case where the rationale says "the name is feminine" without repeating
+# it, and even then the item must actually introduce a person.
 _STATEMENT_SPLIT = re.compile(r"[.!?;:\n\r…]+")
+_WORD_TOKEN = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+# Fields whose contents are taught vocabulary rather than a person: a capitalised
+# token that is also an option, a key or a glossed term is a word the lesson
+# teaches, not somebody's name.
+_LEXICAL_KEYS = ("answer", "options", "choices", "distractors", "term", "word",
+                 "target", "translation", "translation_tr", "translation_en")
 
 
-def _name_gender_rationale(folded: str, name_words: "re.Pattern[str]",
-                           gender_words: "re.Pattern[str]") -> bool:
-    """Whether one statement justifies the gender BY the personal name."""
-    for statement in _STATEMENT_SPLIT.split(folded or ""):
-        if name_words.search(statement) and gender_words.search(statement):
+def _lexical_tokens(page: Dict[str, Any]) -> set:
+    out = set()
+    for key in _LEXICAL_KEYS:
+        value = page.get(key)
+        if isinstance(value, dict):
+            value = list(value.values())
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+        for item in value:
+            out.update(_WORD_TOKEN.findall(_fold(item)))
+    # Anything the material quotes is being mentioned as language, not as a
+    # person: «mujer», "alta", 'el'.
+    return out
+
+
+def _quoted_tokens(text: Any) -> set:
+    out = set()
+    for quoted in re.findall(r"[«\"'‘“]([^»\"'’”]{1,40})[»\"'’”]",
+                             str(text or "")):
+        out.update(_WORD_TOKEN.findall(_fold(quoted)))
+    return out
+
+
+def personal_name_tokens(page: Dict[str, Any], stem: str) -> set:
+    """Folded tokens of the people this item names.
+
+    A personal name is a proper noun the item introduces as a person. Taught
+    vocabulary and quoted language are excluded, so a Spanish item about «mujer»
+    or an item whose key is `España` introduces nobody.
+    """
+    if not isinstance(page, dict):
+        return set()
+    skip = _lexical_tokens(page) | _quoted_tokens(stem)
+    for key in _V57_EXPLANATION_KEYS:
+        skip |= _quoted_tokens(page.get(key))
+    names = set()
+    for raw in _WORD_TOKEN.findall(str(stem or "")):
+        if len(raw) < 3 or not raw[:1].isupper() or raw.isupper():
+            continue
+        folded = _fold(raw)
+        if folded and folded not in skip:
+            names.add(folded)
+    return names
+
+
+def _name_gender_rationale(explanation: Any, name_words: "re.Pattern[str]",
+                           gender_words: "re.Pattern[str]", names: set) -> bool:
+    """Whether one statement grounds a gender claim in a person the item names."""
+    if not names:
+        # No person is introduced, so no gender claim in the rationale can be
+        # reasoning from a personal name. Grammatical terminology is free.
+        return False
+    for statement in _STATEMENT_SPLIT.split(str(explanation or "")):
+        folded = _fold(statement)
+        if not gender_words.search(folded):
+            continue
+        tokens = set(_WORD_TOKEN.findall(folded))
+        if tokens & names:
+            return True
+        # "The name is feminine" — the rationale points at the person the item
+        # names without repeating it. Only reachable because a name exists.
+        if name_words.search(folded):
             return True
     return False
 
@@ -178,7 +246,10 @@ def unsafe_reason(page: Dict[str, Any], stem: str, is_tr: bool) -> str:
     prompt, expl = _fold(stem), _fold(explanation)
 
     explicit_gender = bool(_GENDER_WORDS.search(prompt))
-    if _name_gender_rationale(expl, _NAME_WORDS, _GENDER_WORDS) and not explicit_gender:
+    if not explicit_gender and _name_gender_rationale(
+        explanation, _NAME_WORDS, _GENDER_WORDS,
+        personal_name_tokens(page, stem),
+    ):
         return NAME_GENDER_REASON
 
     if _has_biography_marker(prompt, _BIOGRAPHY) and _IDENTITY.search(expl):
@@ -267,8 +338,9 @@ def hidden_world_reason(page: Dict[str, Any]) -> str:
     # Per explanation field, not over their concatenation: each locale's reader
     # sees only their own rationale, and joining them let a name word in one
     # locale pair with a grammar word in the other and refuse both exports.
+    names = personal_name_tokens(page, _v57_stem(page))
     if not explicit_gender and any(
-        _name_gender_rationale(_fold(page.get(key)), _V57_NAME_WORDS, _V57_GENDER_WORDS)
+        _name_gender_rationale(page.get(key), _V57_NAME_WORDS, _V57_GENDER_WORDS, names)
         for key in _V57_EXPLANATION_KEYS
     ):
         return NAME_GENDER_REASON
