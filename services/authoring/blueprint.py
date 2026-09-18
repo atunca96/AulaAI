@@ -115,13 +115,13 @@ class CoursePlan:
 
 
 # ── Shape rules ──────────────────────────────────────────────────────────────
-# Sizes chosen so a full course lands inside the cost ceiling with headroom.
-# `project_classroom_cost` puts 40 lessons at ~$0.56 of the $0.60 allowance, so
-# the hard cap sits below that rather than at it.
-
-MIN_UNITS, MAX_UNITS = 3, 10
-MIN_TOPICS_PER_UNIT, MAX_TOPICS_PER_UNIT = 2, 6
-MAX_LESSONS = 36
+# Sizes chosen so a full synchronous Terra course stays inside the $0.60
+# classroom ceiling. Terra's discounted $1/$6 route is asynchronous batch;
+# the live request/response route is $2/$12, which makes twelve authored
+# lessons the largest conservative course shape this pipeline can promise.
+MIN_UNITS, MAX_UNITS = 3, 6
+MIN_TOPICS_PER_UNIT, MAX_TOPICS_PER_UNIT = 2, 4
+MAX_LESSONS = 12
 
 
 def validate_plan(plan: CoursePlan) -> List[str]:
