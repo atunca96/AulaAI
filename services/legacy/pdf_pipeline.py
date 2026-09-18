@@ -551,6 +551,16 @@ def enrich_classroom_phase2(course_id, pdf_path, manual_toc_path=None, source_ma
         except Exception as ua_err:
             _log(f"[UNIT-ASSESSMENT] phase skipped: {ua_err}")
 
+        # ── PHASE 2c: FAIL-CLOSED PUBLICATION QUALITY GATE ──
+        # Generation is cheap and broad; review is narrow and independent.
+        # Every unit is reviewed by GPT-5.6 Luna, all ten assessment questions
+        # are adversarially checked, and one compact Terra pass verifies rules,
+        # IPA and MCQs. A failed/incomplete review aborts publication rather
+        # than silently shipping a classroom we did not actually verify.
+        _run_publication_quality_gate(
+            course_id, language, level, material_language, gen_id=gen_id
+        )
+
         _log(f"Phase 2 Complete for {course_id}.")
         if generation_cost is not None:
             try:
@@ -606,6 +616,10 @@ def _repair_missing_phonetics(course_id, language):
                 if len(examples) < 16:
                     examples.append((term, phonetic))
             else:
+                # Keep an explicit typed slot so the semantic quality gate can
+                # repair it later even if the batch completion returns no safe
+                # transcription for this term.
+                entry.setdefault("phonetic", "")
                 missing.setdefault(term, []).append(entry)
 
     for topic_id, raw in rows:
@@ -655,7 +669,14 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
         term = str(item.get("term") or "").strip()
         phonetic = str(item.get("phonetic") or "").strip()
         if term in allowed and phonetic and len(phonetic) <= 120:
-            mapping[term] = phonetic
+            # Never persist look-alike Unicode as if it were valid IPA. The
+            # publication reviewer can correct a rejected transcription from
+            # the word itself; this batch step may only store already-clean IPA.
+            from services.authoring import schema as _authoring_schema
+            if not _authoring_schema.stray_ipa_codepoints(phonetic):
+                mapping[term] = phonetic
+            else:
+                _log(f"[PHONETIC-COMPLETE] rejected non-IPA completion for {term!r}: {phonetic!r}")
 
     filled = 0
     for term, entries in missing.items():
@@ -681,6 +702,108 @@ Existing class examples:\n{calibration}\n\nTerms missing phonetics:\n""" + "\n".
     if filled:
         bump_version()
     return filled
+
+
+def _run_publication_quality_gate(course_id, language, level, material_language, gen_id=None):
+    """Review, patch and re-audit every learner-visible field before READY."""
+    from services.authoring import quality_gate as Q
+
+    budget = Q.ReviewBudget()
+    with db_connection() as db:
+        chapters = db.execute(
+            "SELECT id, title, number FROM chapters WHERE course_id = ? ORDER BY number",
+            (course_id,),
+        ).fetchall()
+        units = []
+        for chapter in chapters:
+            rows = db.execute(
+                "SELECT id, title, type, content, sort_order FROM topics "
+                "WHERE chapter_id = ? ORDER BY sort_order",
+                (chapter[0],),
+            ).fetchall()
+            lesson_topics = []
+            assessment_topic = None
+            all_topics = []
+            for row in rows:
+                try:
+                    content = json.loads(row[3] or "{}") if isinstance(row[3], str) else (row[3] or {})
+                except Exception:
+                    content = {}
+                topic = {
+                    "id": row[0], "title": row[1], "type": row[2],
+                    "content": content,
+                    "is_assessment": row[2] == UNIT_ASSESSMENT_TYPE,
+                }
+                all_topics.append(topic)
+                if topic["is_assessment"]:
+                    assessment_topic = topic
+                else:
+                    lesson_topics.append(topic)
+            if lesson_topics:
+                units.append({
+                    "chapter_id": chapter[0], "title": chapter[1],
+                    "number": chapter[2], "lessons": lesson_topics,
+                    "assessment": assessment_topic, "topics": all_topics,
+                })
+
+    if not units:
+        raise Q.QualityGateError("publication gate found no units")
+    if any(unit.get("assessment") is None for unit in units):
+        missing = [unit["title"] for unit in units if unit.get("assessment") is None]
+        raise Q.QualityGateError(
+            "publication gate refuses a course with missing unit assessment(s): "
+            + ", ".join(missing)
+        )
+
+    _log(f"[QUALITY-GATE] reviewing {len(units)} unit(s) with {Q.LUNA_REVIEW_MODEL}.")
+    lesson_patches = 0
+    assessment_patches = 0
+    for unit in units:
+        lesson_patches += Q.review_unit_lessons(
+            unit_title=unit["title"], topics=unit["lessons"],
+            language=language, level=level, track=material_language,
+            budget=budget,
+        )
+    for unit in units:
+        assessment_patches += Q.review_unit_assessment(
+            unit_title=unit["title"], assessment_topic=unit["assessment"],
+            lesson_topics=unit["lessons"], language=language, level=level,
+            track=material_language, budget=budget,
+        )
+
+    terra_patches = Q.final_terra_verify(
+        units=[{"title": u["title"], "topics": u["topics"]} for u in units],
+        language=language, level=level, track=material_language, budget=budget,
+    )
+
+    # Persist only after the entire gate passes. If any reviewer fails, no
+    # partially edited mixture is written and the outer build marks the class
+    # failed instead of ready.
+    with db_connection() as db:
+        for unit in units:
+            for topic in unit["topics"]:
+                db.execute(
+                    "UPDATE topics SET content = ? WHERE id = ?",
+                    (json.dumps(topic["content"], ensure_ascii=False), topic["id"]),
+                )
+        db.execute(
+            "UPDATE courses SET build_stage = 'quality_review', build_message = ? "
+            "WHERE id = ? AND (generation_id = ? OR generation_id IS NULL OR ? = 'LEGACY')",
+            ("Yayın kalitesi doğrulandı.", course_id, gen_id, gen_id),
+        )
+        db.commit()
+    bump_version()
+    _log(
+        f"[QUALITY-GATE] PASS lesson_patches={lesson_patches} "
+        f"assessment_patches={assessment_patches} terra_patches={terra_patches}; "
+        + Q.gate_summary(budget)
+    )
+    return {
+        "lesson_patches": lesson_patches,
+        "assessment_patches": assessment_patches,
+        "terra_patches": terra_patches,
+        "review_cost": budget.spent,
+    }
 
 
 UNIT_ASSESSMENT_TYPE = "unit_assessment"
