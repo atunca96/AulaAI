@@ -198,9 +198,14 @@ def call_model(messages: List[Dict[str, Any]], *, max_tokens: int,
         payload["provider"] = {"order": ["Google AI Studio", "Google"], "allow_fallbacks": True}
         payload["reasoning"] = {"effort": "low"}
     elif target == "openai/gpt-5.6-terra":
-        # Flex keeps Terra inside the classroom cost envelope. Do not silently
-        # fall through to the 2x-priced standard endpoint.
-        payload["provider"] = {"order": ["OpenAI Flex"], "allow_fallbacks": False}
+        # Terra's Flex endpoint is currently the only endpoint at or below this
+        # price. Pin by price rather than by an endpoint display name: OpenRouter
+        # guarantees max_price as a hard routing ceiling, so a provider rename
+        # cannot silently move this workload onto the 2x-priced standard route.
+        payload["provider"] = {
+            "sort": "throughput",
+            "max_price": {"prompt": 1.0, "completion": 6.0},
+        }
         payload["reasoning"] = {"effort": "low"}
 
     seconds = timeout or (180 if max_tokens > 8000 else (120 if max_tokens > 3000 else 60))
