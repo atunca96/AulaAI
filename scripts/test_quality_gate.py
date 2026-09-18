@@ -112,7 +112,7 @@ def test_transport_strict_schema_and_content_blocks():
             body = {
                 "choices": [{
                     "finish_reason": "stop",
-                    "message": {"content": [{"type": "text", "text": "{\\\"ok\\\":true}"}]},
+                    "message": {"content": [{"type": "text", "text": '{"ok":true}'}]},
                 }],
                 "usage": {
                     "prompt_tokens": 100,
