@@ -170,6 +170,81 @@ def test_prompts():
           "A1 forbids what C2 requires")
 
 
+def test_bilingual_authoring_contract():
+    print("\n[3b] lesson and assessment wire shapes carry both instructional languages")
+    lesson = P.lesson_schema_block("Spanish", "tr")
+    assessment = P.assessment_schema_block("Spanish", "tr")
+    for field in ('"title"', '"title_tr"', '"text"', '"text_tr"',
+                  '"example_en"', '"example_tr"', '"explanation"', '"explanation_tr"',
+                  '"line_en"', '"line_tr"'):
+        check(field in lesson, f"lesson schema includes {field}")
+    for field in ('"translation_en"', '"translation_tr"', '"why"', '"why_tr"'):
+        check(field in assessment, f"assessment schema includes {field}")
+
+    raw = {
+        "prompt": "¿Cómo saludas por la mañana?",
+        "answer": "Buenos días",
+        "distractors": ["Buenas noches", "Hasta luego", "De nada"],
+        "translation_en": "How do you greet someone in the morning?",
+        "translation_tr": "Sabah birini nasıl selamlarsın?",
+        "why": "It is the standard morning greeting.",
+        "why_tr": "Sabah kullanılan standart selamlamadır.",
+    }
+    item = E._clean_item(raw, track="tr")
+    check(item.get("translation") == raw["translation_en"],
+          "generic translation alias stays English")
+    check(item.get("translation_en") == raw["translation_en"],
+          "English assessment gloss survives normalisation")
+    check(item.get("translation_tr") == raw["translation_tr"],
+          "Turkish assessment gloss survives normalisation")
+    check(item.get("why") == raw["why"] and item.get("why_tr") == raw["why_tr"],
+          "both rationale tracks survive normalisation")
+
+
+def test_assessment_shortfall_topup():
+    print("\n[3c] a near-complete assessment gets one bounded shortfall retry")
+    original = E.T.call_model
+    calls = []
+
+    bank = [
+        ("¿Qué dices al llegar por la mañana?", "Buenos días",
+         ["Buenas noches", "Hasta luego", "De nada"]),
+        ("¿Qué dices cuando alguien te da las gracias?", "De nada",
+         ["Buenos días", "Hasta mañana", "Mucho gusto"]),
+        ("¿Qué dices al despedirte?", "Hasta luego",
+         ["Buenos días", "Por favor", "Mucho gusto"]),
+    ]
+
+    def provider(messages, *, max_tokens, temperature=0.6, model="", cache_system=True,
+                 timeout=None, attempts=3):
+        idx = min(len(calls), len(bank) - 1)
+        prompt, answer, distractors = bank[idx]
+        calls.append(str(messages[-1]["content"]))
+        data = {"items": [{
+            "prompt": prompt, "answer": answer, "distractors": distractors,
+            "translation_en": f"English gloss {idx}",
+            "translation_tr": f"Türkçe karşılık {idx}",
+            "why": "The taught expression fits the situation.",
+            "why_tr": "Öğretilen ifade bu duruma uygundur.",
+            "evidence": "lesson", "material_section": "greetings",
+            "cognitive_task": "situational_decision",
+        }]}
+        return T.Response(data=data, input_tokens=1800, output_tokens=350, model=model)
+
+    try:
+        E.T.call_model = provider
+        result = E.generate_assessment(
+            title="Greetings", content="Buenos días. De nada. Hasta luego.",
+            count=3, language="Spanish", level="A1", track="tr",
+            ledger=B.BuildLedger(1.0), seed=1)
+    finally:
+        E.T.call_model = original
+
+    check(len(calls) == 3, "only the unresolved shortfall caused the third call")
+    check(result.attempts == 3, "the result records three bounded attempts")
+    check(len(result.items) == 3, "the third attempt completes the requested count")
+
+
 # ── 4. Course planning ───────────────────────────────────────────────────────
 
 def test_planning():
@@ -248,7 +323,7 @@ def test_curriculum_titles_are_bilingual():
 
 def test_budget():
     print("\n[5] the sixty-cent ceiling")
-    check(B.MODEL == "google/gemini-3.8-flash", f"the model is pinned ({B.MODEL})")
+    check(B.MODEL == "openai/gpt-5.6-terra", f"the model is pinned ({B.MODEL})")
 
     for lessons, units in ((14, 6), (20, 8), (30, 10), (BP.MAX_LESSONS, BP.MAX_UNITS)):
         projected = B.project_classroom_cost(lessons=lessons, units=units)
@@ -414,6 +489,8 @@ def main():
     test_no_false_positives()
     test_repair_is_a_no_op_on_correct_material()
     test_prompts()
+    test_bilingual_authoring_contract()
+    test_assessment_shortfall_topup()
     test_planning()
     test_curriculum_titles_are_bilingual()
     test_budget()
