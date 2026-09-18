@@ -1735,10 +1735,12 @@ def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
     for rec in _review_records(content):
         field = str(rec.get("field") or "")
         value = rec.get("value")
-        if field in _RISK_RULE_FIELDS:
+        if field in ("rule", "rule_tr", "analysis", "analysis_tr"):
             out.append(rec)
             continue
-        if field in ("text", "text_tr") and isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value):
+        if field in (
+            "text", "text_tr", "explanation", "explanation_en", "explanation_tr"
+        ) and isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value):
             out.append(rec)
     return out
 
