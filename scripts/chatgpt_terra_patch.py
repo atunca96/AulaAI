@@ -116,9 +116,7 @@ new = '''def generate_unit_assessment(unit_title, unit_topics, language, level="
         return []
     return items[:int(count)]
 '''
-assert old in s
-s = s.replace(old, new, 1)
-p.write_text(s, encoding="utf-8")
+start = s.index("def generate_unit_assessment(")\nend = s.index("\\ndef ai_generate_activity_batch", start)\ns = s[:start] + new + s[end:]\np.write_text(s, encoding="utf-8")
 
 # 4) Teach the bilingual finisher how to fill either missing instructional track.
 p = Path("services/bilingual_finisher.py")
