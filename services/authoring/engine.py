@@ -285,6 +285,35 @@ def _clean_item(raw: Any, *, track: str) -> Optional[Dict[str, Any]]:
     return item
 
 
+def _assessment_item_renderable(item: Dict[str, Any]) -> tuple[bool, str]:
+    """Use the exact PDF renderer contract before an assessment item is kept.
+
+    Generation items store rationales as why/why_tr; persisted assessment pages
+    expose those same strings as explanation/explanation_tr. Build that exact
+    page shape here so a question the renderer would later refuse never counts
+    toward the requested 10/10 in the first place.
+    """
+    from services.authoring import render_contract as RC
+
+    page = {
+        "type": "mcq",
+        "stem_scope": "target_complete",
+        "assessment_scope": "unit",
+        "prompt": item.get("prompt", ""),
+        "options": list(item.get("options") or []),
+        "answer": item.get("answer", ""),
+        "distractors": list(item.get("distractors") or []),
+        "explanation": item.get("why", ""),
+        "explanation_tr": item.get("why_tr", ""),
+    }
+    reasons = []
+    for is_tr in RC.EXPORT_LOCALES:
+        ok, why = RC.page_is_renderable(page, is_tr)
+        if not ok and why not in reasons:
+            reasons.append(why)
+    return (not reasons, "; ".join(reasons))
+
+
 def _shuffle_options(items: Sequence[Dict[str, Any]], seed: Optional[int] = None) -> None:
     import random
     rng = random.Random(seed)
@@ -364,6 +393,14 @@ def generate_assessment(*, title: str, content: str, count: int, language: str, 
             blocking = A.blocking(findings)
             if blocking:
                 rejected.extend(blocking)
+                continue
+            renderable, render_reason = _assessment_item_renderable(item)
+            if not renderable:
+                rejected.append(A.Finding(
+                    "renderer_contract", A.BLOCK,
+                    path="prompt", field="prompt", role="target",
+                    detail=render_reason, value=str(item.get("prompt") or ""),
+                ))
                 continue
             if any(_same_target(item, k) for k in kept):
                 continue
