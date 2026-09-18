@@ -42,7 +42,7 @@ def fake_call(**kwargs):
                 "reason":"Already correct after deterministic repair."
             }]
         }]}
-    if kwargs["stage"].startswith("terra_bilingual_retry:"):
+    if kwargs["stage"].startswith("luna_bilingual_retry:"):
         return {"topics":[{
             "topic_id":"t1","verdict":"fix","patches":[{
                 "path":["pages","0","text_tr"],
@@ -73,5 +73,5 @@ finally:
 assert topic["content"]["pages"][1]["items"][0]["explanation_tr"] ==        "Her ortamda kullanılabilen genel bir vedalaşma ifadesidir."
 assert topic["content"]["pages"][0]["text_tr"] == "Bu ifadeleri derste kullanın."
 assert applied == 1, applied
-assert calls == ["luna_lessons:Unit 1", "terra_bilingual_retry:Greetings and Farewells"], calls
+assert calls == ["luna_lessons:Unit 1", "luna_bilingual_retry:Greetings and Farewells"], calls
 print("[SEMANTIC-PATCH] idempotent stale patch + bilingual repair regression PASSED")
