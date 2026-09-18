@@ -372,6 +372,10 @@ For every question check:
 - the stem is grammatical, natural, unambiguous and CEFR-appropriate;
 - distractors are plausible learner errors, not nonsense giveaways;
 - the item tests taught material and does not require outside knowledge;
+- if the payload contains render_contract_blockers, EVERY listed blocker is mandatory:
+  repair that question so its answer follows only from facts explicitly stated in the stem
+  or taught evidence and so the same stored item remains renderable in both export locales.
+  Never solve a blocker by deleting, renumbering or weakening the ten-question assessment;
 - compare each assessment item with ALL lesson MCQs/evidence in the unit. A repeated
   or paraphrased question may never contradict the answer taught earlier. If the
   same fact was asked earlier, preserve the taught fact and repair the assessment;
@@ -565,6 +569,58 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
     return applied
 
 
+
+def _assessment_render_blockers(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Renderer-contract failures for assessment MCQs, with learner-visible context.
+
+    The semantic examiner used to review the ten questions without being told
+    that a later deterministic renderer rule would reject one of them. That is
+    how a semantically reviewed assessment could still fail closed only at the
+    final boundary. Feed these exact deterministic reasons into the examiner so
+    the bad item can be repaired before publication rather than merely refused.
+    """
+    from services.authoring import render_contract as RC
+
+    pages = content.get("pages") if isinstance(content, dict) else None
+    blockers: List[Dict[str, Any]] = []
+    question_no = 0
+    for page_index, page in enumerate(pages or []):
+        if not isinstance(page, dict) or str(page.get("type") or "").casefold() != "mcq":
+            continue
+        question_no += 1
+        for is_tr in RC.EXPORT_LOCALES:
+            ok, why = RC.page_is_renderable(page, is_tr)
+            if ok:
+                continue
+            blockers.append({
+                "question": question_no,
+                "page_index": page_index,
+                "title": str(page.get("title") or f"Question {question_no}"),
+                "locale": "tr" if is_tr else "en",
+                "why": why,
+                "stem": RC.resolve_stem(page, is_tr),
+                "answer": str(page.get("answer") or ""),
+                "explanation": str(
+                    page.get("explanation_tr") if is_tr else page.get("explanation_en")
+                    or page.get("explanation") or page.get("why_tr") if is_tr else page.get("why")
+                    or ""
+                ),
+            })
+    return blockers
+
+
+def _checked_all_ten(data: Dict[str, Any], *, unit_title: str, stage: str) -> None:
+    checked = data.get("checked_questions")
+    try:
+        normalized = sorted({int(v) for v in (checked or [])})
+    except (TypeError, ValueError):
+        normalized = []
+    if normalized != list(range(1, 11)):
+        raise QualityGateError(
+            f"{unit_title}: {stage} did not explicitly verify all 10 questions"
+        )
+
+
 def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
                            lesson_topics: List[Dict[str, Any]], language: str,
                            level: str, track: str, budget: ReviewBudget) -> int:
@@ -594,6 +650,10 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         "assessment_topic_id": str(assessment_topic["id"]),
         "assessment_records": _review_records(content),
         "unit_evidence": evidence,
+        # These are deterministic facts about what the renderer would refuse,
+        # not semantic guesses. Give them to Luna up front so it can repair the
+        # item instead of letting the final gate discover the same problem too late.
+        "render_contract_blockers": _assessment_render_blockers(content),
     }
     data = _call_review(
         model=LUNA_REVIEW_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM, payload=payload,
@@ -601,15 +661,7 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
         stage=f"luna_assessment:{unit_title}",
         response_schema=_ASSESSMENT_REVIEW_SCHEMA, response_name="assessment_review",
     )
-    checked = data.get("checked_questions")
-    try:
-        checked_normalized = sorted({int(v) for v in (checked or [])})
-    except (TypeError, ValueError):
-        checked_normalized = []
-    if checked_normalized != list(range(1, 11)):
-        raise QualityGateError(
-            f"{unit_title}: assessment reviewer did not explicitly verify all 10 questions"
-        )
+    _checked_all_ten(data, unit_title=unit_title, stage="assessment reviewer")
     by_id = {str(assessment_topic["id"]): assessment_topic}
     applied = _apply_patches(by_id, data.get("patches") or [])
 
@@ -621,6 +673,59 @@ def review_unit_assessment(*, unit_title: str, assessment_topic: Dict[str, Any],
             f"{unit_title}: assessment has deterministic blockers after review: "
             f"{A.summarise(blockers)}"
         )
+
+    # A renderer-contract blocker is deterministic but not necessarily an
+    # audit.py blocker. The fresh production classroom exposed exactly that
+    # gap: Luna reviewed all ten items, then the final boundary correctly
+    # refused one hidden-world inference. Give the exact rejected item and
+    # reason one bounded Terra repair pass while the full unit evidence is still
+    # available. Fail closed if it cannot make all ten renderable.
+    render_blockers = _assessment_render_blockers(content)
+    if render_blockers:
+        retry_payload = {
+            "language": language, "level": level, "unit": unit_title,
+            "regional_variety": (S.profile_for_language(language).variety
+                                 if S.profile_for_language(language) else ""),
+            "instruction_track": track,
+            "assessment_topic_id": str(assessment_topic["id"]),
+            "assessment_records": _review_records(content),
+            "unit_evidence": evidence,
+            "render_contract_blockers": render_blockers,
+            "instruction": (
+                "Fix every listed render-contract blocker. Preserve exactly ten questions. "
+                "Do not delete or renumber an item. Make the smallest evidence-grounded patch "
+                "so each answer is derivable from explicit stem/taught facts and the same item "
+                "renders in both English and Turkish export modes."
+            ),
+        }
+        retry = _call_review(
+            model=TERRA_VERIFY_MODEL, system=_ASSESSMENT_REVIEW_SYSTEM,
+            payload=retry_payload, max_tokens=2600, effort="high", budget=budget,
+            stage=f"terra_assessment_render_retry:{unit_title}",
+            response_schema=_ASSESSMENT_REVIEW_SCHEMA,
+            response_name="assessment_render_repair",
+        )
+        _checked_all_ten(retry, unit_title=unit_title,
+                         stage="assessment render-contract repair")
+        applied += _apply_patches(by_id, retry.get("patches") or [])
+
+        R.repair_lesson(content, language=language)
+        post_findings = A.audit_lesson(content, language=language, track=track)
+        post_blockers = A.blocking(post_findings)
+        if post_blockers:
+            raise QualityGateError(
+                f"{unit_title}: assessment repair introduced deterministic blockers: "
+                f"{A.summarise(post_blockers)}"
+            )
+        remaining_render_blockers = _assessment_render_blockers(content)
+        if remaining_render_blockers:
+            detail = "; ".join(
+                f"Q{row['question']} {row['locale']}: {row['why']}"
+                for row in remaining_render_blockers[:4]
+            )
+            raise QualityGateError(
+                f"{unit_title}: renderer-contract blockers remain after targeted repair — {detail}"
+            )
     return applied
 
 
