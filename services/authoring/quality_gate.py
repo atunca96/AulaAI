@@ -2540,23 +2540,40 @@ def _strategy_explanation_grounding(*, topic, blocker, language, level, track,
     )
     new_en = str(data.get("explanation_en") or "").strip()
     new_tr = str(data.get("explanation_tr") or "").strip()
-    if not new_en or not new_tr:
+
+    def _grounding_clear(en_text: str, tr_text: str) -> bool:
+        if not en_text or not tr_text:
+            return False
+        probe = copy.deepcopy(page)
+        probe[en_key] = en_text
+        probe[tr_key] = tr_text
+        return not _explanation_grounding_blockers({"pages": [probe]})
+
+    # The model is the preferred repair because it can preserve a useful
+    # pedagogical rationale. But grounding is a repairable publication defect,
+    # so a bad candidate must not terminate the classroom. Fall back to a
+    # deterministic evidence-only rationale that introduces no outside person
+    # or fact. The keyed answer is learner-visible evidence and remains fixed.
+    if not _grounding_clear(new_en, new_tr):
+        answer = str(page.get("answer") or "").strip()
+        shown = f"‘{answer}’" if answer else "the keyed option"
+        shown_tr = f"‘{answer}’" if answer else "işaretli seçenek"
+        new_en = (
+            f"The correct answer is {shown} because it matches the information "
+            "explicitly given in the question."
+        )
+        new_tr = (
+            f"Doğru cevap {shown_tr}; çünkü soruda açıkça verilen bilgiyle eşleşir."
+        )
+
+    if not _grounding_clear(new_en, new_tr):
         return 0
 
-    candidate = copy.deepcopy(page)
-    candidate[en_key] = new_en
-    candidate[tr_key] = new_tr
-
-    # Accept only a candidate that clears both the grounding proof and the
-    # actual renderer contract; otherwise leave the original page untouched so
-    # the convergence controller can report honest non-progress.
-    if _explanation_grounding_blockers({"pages": [candidate]}):
-        return 0
-    for is_tr in RC.EXPORT_LOCALES:
-        ok, _why = RC.page_is_renderable(candidate, is_tr)
-        if not ok:
-            return 0
-
+    # This strategy owns only explanation grounding. Commit that proven local
+    # repair even if another independent renderer rule still rejects the page;
+    # the convergence controller immediately re-detects from scratch and sends
+    # the remaining blocker to its own strategy. Requiring this one repair to
+    # make the entire page renderable made genuine progress look like failure.
     changed = 0
     if new_en != page[en_key]:
         page[en_key] = new_en
