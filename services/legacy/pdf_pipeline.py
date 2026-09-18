@@ -874,8 +874,12 @@ def _run_publication_quality_gate(course_id, language, level, material_language,
                 )
                 db.commit()
 
-    _log(f"[QUALITY-GATE] assessment review running with {review_workers} concurrent unit worker(s).")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=review_workers) as pool:
+    # Assessment payloads are the largest review calls. Run them one at a time:
+    # concurrent worst-case budget reservations can reject a healthy third unit
+    # even though the first two calls release their reservations seconds later.
+    assessment_workers = 1
+    _log(f"[QUALITY-GATE] assessment review running with {assessment_workers} concurrent unit worker(s).")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=assessment_workers) as pool:
         future_map = {pool.submit(_review_assessment, unit): unit for unit in units}
         done = 0
         for future in concurrent.futures.as_completed(future_map):
