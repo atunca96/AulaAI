@@ -239,8 +239,11 @@ def _assessment_rules(language: str, level: str) -> str:
   carries that feature. 'Which word has a silent h', answered by *hotel* among *gato*,
   *mesa* and *casa*, is not a question — only one option has an h at all.
 - The stem contains every fact needed to answer, never the answer itself, and never an
-  inference the text does not state. No arithmetic: this is a language platform, so
-  numbers, prices and times are asked communicatively, never calculated."""
+  inference the text does not state. NEVER infer a person's gender from their name; if gender
+  matters, state it explicitly in the stem or test the grammatical form without a person-name
+  scenario. Likewise, never infer nationality/identity from birthplace or residence, profession
+  from workplace, or a character trait from a one-off behaviour. No arithmetic: this is a
+  language platform, so numbers, prices and times are asked communicatively, never calculated."""
 
 
 # ── Lesson generation ────────────────────────────────────────────────────────
