@@ -75,3 +75,4 @@ assert t2["content"]["pages"][0]["prompt"]=="¿Tú de dónde eres?"
 assert Q._duplicate_mcq_occurrences(units)==[]
 assert len(calls)==1
 print("[DUPLICATE-STEM-REPAIR] cross-topic duplicate repaired before final publication proof")
+# qa cross-topic duplicate stem repair
