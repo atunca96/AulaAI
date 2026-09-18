@@ -2,7 +2,7 @@ name: qa-universal-v37
 
 on:
   push:
-    branches: [qa-universal-v37-work, qa-speed-quality-v38, chatgpt-publication-grade-gate]
+    branches: [qa-universal-v37-work, qa-speed-quality-v38]
 
 jobs:
   verify:
@@ -11,7 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build exact production image
         run: docker build -t aulaai-v37-qa .
-      # Docker build itself runs scripts/run_build_pipeline.py, which executes
-      # the complete production verification matrix, byte-compiles every runtime
-      # module and imports every entry point. Historical post-build commands
-      # referenced files that no longer exist and only made a green image look red.
+      - name: Verify integrity self-test inside image
+        run: docker run --rm aulaai-v37-qa python scripts/test_material_release_integrity_v37.py
+      - name: Verify patched sources compile inside image
+        run: docker run --rm aulaai-v37-qa python -m py_compile server.py worker.py runtime_bootstrap.py services/ai_engine.py services/bilingual_finisher.py services/pdf_renderer_v12.py services/material_quality_guard.py services/legacy/pdf_pipeline.py
