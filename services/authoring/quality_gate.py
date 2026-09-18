@@ -385,6 +385,39 @@ def _slash_alternative_variants(value: Any) -> List[str]:
     return out
 
 
+def _embedded_meta_insertion_cleaner(a: Any, b: Any) -> Optional[str]:
+    """Return the clean candidate when one value is the other plus one
+    suspicious CamelCase-style insertion inside an existing word.
+
+    Example production corruption:
+    "İspanyStandardolum" vs "İspanyolum".
+    We only reconcile when removing exactly one alphabetic insertion of at
+    least four characters from the longer candidate reproduces the shorter
+    candidate byte-for-byte, and the insertion begins with an uppercase letter
+    inside a surrounding alphabetic token. This is narrow enough to avoid
+    choosing between genuinely different rewrites.
+    """
+    if not isinstance(a, str) or not isinstance(b, str) or a == b:
+        return None
+
+    long_value, short_value = (a, b) if len(a) > len(b) else (b, a)
+    delta = len(long_value) - len(short_value)
+    if delta < 4 or delta > 32:
+        return None
+
+    for start in range(1, len(long_value) - delta):
+        chunk = long_value[start:start + delta]
+        if not chunk.isalpha() or not chunk[0].isupper():
+            continue
+        before = long_value[start - 1]
+        after = long_value[start + delta]
+        if not (before.isalpha() and after.isalpha()):
+            continue
+        if long_value[:start] + long_value[start + delta:] == short_value:
+            return short_value
+    return None
+
+
 def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[Any]) -> int:
     # Normalize duplicates before mutating content, so an ambiguous first
     # proposal cannot be written and then make the concrete duplicate stale.
@@ -424,6 +457,12 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                 normalized[prev_i] = raw
                 continue
             if prev_value in _slash_alternative_variants(new_value):
+                continue
+            cleaned = _embedded_meta_insertion_cleaner(prev_value, new_value)
+            if cleaned is not None:
+                if cleaned == new_value:
+                    normalized[prev_i] = raw
+                # else previous already is the clean concrete candidate.
                 continue
         normalized.append(raw)
 
@@ -466,6 +505,8 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
                     resolved = proposed
                 elif previous in _slash_alternative_variants(proposed):
                     resolved = previous
+                else:
+                    resolved = _embedded_meta_insertion_cleaner(previous, proposed)
             if resolved is not None:
                 print(
                     f"[QUALITY-PATCH] RESOLVE slash-alternative duplicate at "
