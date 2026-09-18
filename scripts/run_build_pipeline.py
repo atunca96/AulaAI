@@ -40,6 +40,7 @@ if hasattr(sys.stdout, "reconfigure"):
 VERIFICATION_STEPS = [
     "scripts/test_authoring_audit.py",
     "scripts/test_authoring_core.py",
+    "scripts/test_quality_gate.py",
     "scripts/test_language_matrix.py",
     "scripts/smoke_test_pdf_renderer.py",
     "scripts/test_micro_quality_polish.py",
@@ -70,6 +71,7 @@ COMPILE_TARGETS = [
     "services/authoring/repair.py",
     "services/authoring/budget.py",
     "services/authoring/publish.py",
+    "services/authoring/quality_gate.py",
     "services/authoring/legacy_text.py",
     "services/bilingual_finisher.py",
     "services/pdf_renderer_v12.py",
