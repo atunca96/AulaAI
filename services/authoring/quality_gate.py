@@ -702,7 +702,10 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
         render_blockers = _topic_render_blockers(topic.get("content"))
         if blockers or render_blockers:
             blocker_records = _records_for_findings(topic["content"], blockers)
-            render_records = _records_for_render_blockers(topic["content"], render_blockers)
+            render_records = (
+                _records_for_render_blockers(topic["content"], render_blockers)
+                if render_blockers else []
+            )
             exact_records = []
             seen_record_paths = set()
             for rec in blocker_records + render_records:
