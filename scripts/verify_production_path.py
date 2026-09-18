@@ -254,7 +254,14 @@ def main():
     from services.legacy import pdf_pipeline as P
 
     def stub_reviews(mutate=None):
-        def lessons(*, unit_title, topics, language, level, track, budget):
+        def lessons(*, unit_title, topics, language, level, track, budget,
+                    unit_topic_titles=()):
+            return 0
+
+        def risks(*, unit_title, topics, language, level, track, budget):
+            return 0
+
+        def phonetics(*, units, language, level, track, budget):
             return 0
 
         def assessment(*, unit_title, assessment_topic, lesson_topics,
@@ -266,7 +273,9 @@ def main():
         def terra(*, units, language, level, track, budget):
             return 0
         Q.review_unit_lessons = lessons
+        Q.review_unit_risk_claims = risks
         Q.review_unit_assessment = assessment
+        Q.repair_cross_topic_phonetic_conflicts = phonetics
         Q.final_terra_verify = terra
 
     def stored_assessment(course_id, unit_no):
