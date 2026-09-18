@@ -307,6 +307,17 @@ def _normalise_option(text: Any) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", folded, flags=re.UNICODE)).strip()
 
 
+def option_identity(text: Any) -> str:
+    """Public name for the identity two options are condemned as duplicates by.
+
+    Structural MCQ repair has to deduplicate an option list by exactly the
+    identity `duplicate_options` is raised on. Re-implementing the rule in the
+    repair module would let the two drift, and a "repair" that deduplicates by a
+    different notion leaves the blocker standing. Exposed, never re-derived.
+    """
+    return _normalise_option(text)
+
+
 def _fold_diacritics(text: Any) -> str:
     decomposed = unicodedata.normalize("NFKD", str(text or "").casefold().strip())
     stripped = "".join(c for c in decomposed if unicodedata.category(c) != "Mn")

@@ -1240,6 +1240,230 @@ def _repair_topic_render_stems_exact(*, topic: Dict[str, Any], language: str,
 
     return applied
 
+
+# One MCQ's key, its option list and its stored distractors are a single
+# structure. Every code below is that structure disagreeing with itself, so they
+# are repaired together or not at all: patching `options` alone can clear
+# duplicate_options while leaving distractor_count standing, which is exactly
+# how course 6c2c5f8c-28ed-4400-a620-75b4e42fadd4 stalled. distractor_count also
+# resolves to no exact repair path at all (`distractors` is usually derived, not
+# stored), so the path-at-a-time residual loop can never reach it.
+_MCQ_STRUCTURAL_CODES = frozenset({
+    "duplicate_options", "distractor_count", "empty_option",
+    "answer_not_in_options", "option_distractor_mismatch",
+})
+
+_MCQ_OPTION_SET_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "answer": {"type": "string", "minLength": 1},
+        # Cardinality is stated in the system prompt and enforced by
+        # _mcq_option_set_updates. `maxItems` is deliberately not in the wire
+        # schema: `minItems`/`minLength` are already proven against the provider
+        # this gate calls, `maxItems` is not, and the validator is the authority
+        # either way.
+        "options": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 4,
+        },
+        "distractors": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 3,
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["answer", "options", "distractors", "reason"],
+}
+
+_MCQ_OPTION_SET_REPAIR_SYSTEM = """You repair the option set of exactly ONE
+multiple-choice item that failed AulaAI's deterministic publication audit.
+
+The item's answer, options and distractors no longer describe one coherent
+four-way choice: options repeat, are empty, do not contain the key, or do not
+match the stored distractors.
+
+Hard contract:
+- Return the COMPLETE tuple: one answer, exactly four options, exactly three
+  distractors. Partial answers are rejected.
+- `answer` MUST stay the same answer the item already keys, character for
+  character where possible. You are repairing the choices, not the fact.
+- The four options are the answer plus the three distractors, in the order a
+  learner should read them. `distractors` MUST be exactly the three options
+  that are not the answer.
+- Every option must be distinct to a learner: not a repeat, not the same word
+  with only a diacritic or punctuation changed.
+- Reuse the item's existing usable options wherever they are still correct.
+  Write a replacement only for a slot the item genuinely lost.
+- Every distractor must be a plausible but clearly WRONG answer to this exact
+  stem, written in the taught language at the same CEFR level, in the same
+  form and register as the other options.
+- Do not reveal the key, do not add labels, commentary or markdown.
+- Return JSON only:
+  {"answer":"...","options":["...","...","...","..."],
+   "distractors":["...","...","..."],"reason":"brief reason"}.
+"""
+
+
+def _mcq_structural_codes(findings: Iterable[A.Finding]) -> List[str]:
+    return sorted({f.code for f in findings if f.code in _MCQ_STRUCTURAL_CODES})
+
+
+def _mcq_option_set_updates(page: Dict[str, Any], candidate: Any, *,
+                            language: str, track: str) -> Optional[Dict[str, Any]]:
+    """Validate one answer/options/distractors tuple against this exact page.
+
+    Returns the field assignments to write, or None when the tuple is not
+    provably a coherent four-way choice. The proof is the auditor itself, run
+    over the page as it would look after the write, so nothing can be accepted
+    here that the gate would refuse two lines later.
+    """
+    if not isinstance(candidate, dict):
+        return None
+    answer = candidate.get("answer")
+    options = candidate.get("options")
+    distractors = candidate.get("distractors")
+    if not isinstance(answer, str) or not answer.strip():
+        return None
+    if not isinstance(options, list) or len(options) != 4:
+        return None
+    if not isinstance(distractors, list) or len(distractors) != 3:
+        return None
+    if not all(isinstance(v, str) and v.strip() for v in options + distractors):
+        return None
+    answer = answer.strip()
+    options = [v.strip() for v in options]
+    distractors = [v.strip() for v in distractors]
+
+    keys = [A.option_identity(v) for v in options]
+    if not all(keys) or len(set(keys)) != 4:
+        return None
+    answer_key = A.option_identity(answer)
+    if not answer_key or answer_key not in keys:
+        return None
+    if sorted(k for k in keys if k != answer_key) != \
+            sorted(A.option_identity(d) for d in distractors):
+        return None
+
+    # The key is the taught fact, not part of this defect class. A repair that
+    # silently rekeys the item would change what the lesson teaches under cover
+    # of fixing its shape, so an item that already has a usable key keeps it.
+    existing_answer = str(page.get("answer") or "").strip()
+    if existing_answer and A.option_identity(existing_answer) != answer_key:
+        return None
+
+    # Write into the key this page already publishes; never invent a `options`
+    # field next to a `choices` one, or a `distractors` field the auditor is
+    # happy to derive.
+    option_key = "options"
+    if not isinstance(page.get("options"), list) or not page.get("options"):
+        if isinstance(page.get("choices"), list) and page.get("choices"):
+            option_key = "choices"
+    updates: Dict[str, Any] = {"answer": answer, option_key: options}
+    if isinstance(page.get("distractors"), list):
+        updates["distractors"] = distractors
+
+    probe = dict(page)
+    probe.update(updates)
+    if _mcq_structural_codes(A.blocking(
+        A.audit_item(probe, language=language, track=track)
+    )):
+        return None
+    return updates
+
+
+def _repair_mcq_structural_blockers(*, topic: Dict[str, Any], language: str,
+                                    level: str, track: str, budget: ReviewBudget,
+                                    blockers: Sequence[A.Finding]) -> int:
+    """Repair MCQ option-set blockers atomically, one page at a time.
+
+    Deterministic first: when the page's own surviving text still holds three
+    usable wrong choices, the whole tuple is rebuilt with no model call and
+    nothing invented. Only a page that genuinely lost a choice costs one small
+    bounded call scoped to that single item, which must return the complete
+    tuple. Either way the write is all three fields at once, after the auditor
+    has been re-run over the result — a half-applied structural repair is how a
+    consistent item becomes an inconsistent one.
+    """
+    from services.authoring import render_contract as RC
+
+    content = topic.get("content")
+    pages = content.get("pages") if isinstance(content, dict) else None
+    if not isinstance(pages, list):
+        return 0
+
+    by_page: Dict[int, List[A.Finding]] = {}
+    for finding in blockers or []:
+        if finding.code not in _MCQ_STRUCTURAL_CODES:
+            continue
+        prefix = _finding_path_prefix(finding.path)
+        if len(prefix) != 2 or prefix[0] != "pages" or not isinstance(prefix[1], int):
+            continue
+        by_page.setdefault(prefix[1], []).append(finding)
+
+    profile = S.profile_for_language(language)
+    applied = 0
+    for page_index, page_findings in sorted(by_page.items()):
+        if page_index < 0 or page_index >= len(pages):
+            continue
+        page = pages[page_index]
+        if not isinstance(page, dict):
+            continue
+
+        updates = _mcq_option_set_updates(
+            page, R.rebuild_mcq_option_set(page), language=language, track=track
+        )
+        if updates is None:
+            payload = {
+                "taught_language": language,
+                "level": level,
+                "regional_variety": profile.variety if profile else "",
+                "topic_title": str(topic.get("title") or ""),
+                "path": ["pages", page_index],
+                "stem": RC.resolve_stem(page, str(track).casefold() == "tr"),
+                "current_answer": str(page.get("answer") or ""),
+                "current_options": page.get("options") or page.get("choices") or [],
+                "current_distractors": page.get("distractors") or [],
+                "blockers": [f.as_dict() for f in page_findings],
+                "immutable_page_context": {
+                    key: page[key]
+                    for key in ("type", "title", "title_tr", "prompt", "question",
+                                "stem", "why", "why_tr", "translation",
+                                "translation_tr")
+                    if page.get(key) not in (None, "", [])
+                },
+            }
+            data = _call_review(
+                model=REPAIR_MODEL,
+                system=_MCQ_OPTION_SET_REPAIR_SYSTEM,
+                payload=payload,
+                max_tokens=900,
+                effort="low",
+                budget=budget,
+                stage=f"review_mcq_option_set:{topic.get('title')}:pages.{page_index}",
+                response_schema=_MCQ_OPTION_SET_REPAIR_SCHEMA,
+                response_name="mcq_option_set_repair",
+            )
+            updates = _mcq_option_set_updates(
+                page, data, language=language, track=track
+            )
+            if updates is None:
+                raise QualityGateError(
+                    f"{topic.get('title')}: MCQ option-set repair returned an "
+                    f"inconsistent tuple for page {page_index} "
+                    f"({', '.join(_mcq_structural_codes(page_findings))})"
+                )
+
+        if all(page.get(key) == value for key, value in updates.items()):
+            continue
+        page.update(updates)
+        applied += 1
+
+    return applied
+
+
 def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
                                    language: str, level: str, track: str,
                                    budget: ReviewBudget) -> int:
@@ -1268,6 +1492,23 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
             )
             if not blockers:
                 continue
+
+            # MCQ option-set defects are structural, not editorial: they live in
+            # three fields that must agree, and distractor_count resolves to no
+            # exact repair path at all. Settle them atomically before the broad
+            # repair call — deterministically when the page still holds the text
+            # to do it, and never by relaxing what the auditor accepts.
+            if _mcq_structural_codes(blockers):
+                applied += _repair_mcq_structural_blockers(
+                    topic=topic, language=language, level=level, track=track,
+                    budget=budget, blockers=blockers,
+                )
+                R.repair_lesson(content, language=language)
+                blockers = A.blocking(
+                    _audit_topic(topic, language=language, track=track)
+                )
+                if not blockers:
+                    continue
 
             records = _records_for_findings(content, blockers)
             blocker_rows = _findings_with_repair_paths(content, blockers)
@@ -1327,6 +1568,20 @@ def repair_deterministic_preflight(*, units: List[Dict[str, Any]],
             still = A.blocking(
                 _audit_topic(topic, language=language, track=track)
             )
+
+            # The broad repair can also reintroduce an option-set inconsistency
+            # while fixing something else — it patches fields independently.
+            # Settle that class atomically again before the path-at-a-time loop,
+            # which by construction cannot resolve it.
+            if still and _mcq_structural_codes(still):
+                applied += _repair_mcq_structural_blockers(
+                    topic=topic, language=language, level=level, track=track,
+                    budget=budget, blockers=still,
+                )
+                R.repair_lesson(content, language=language)
+                still = A.blocking(
+                    _audit_topic(topic, language=language, track=track)
+                )
 
             # A multi-path repair can return syntactically valid JSON yet leave
             # some exact fields untouched. Do not throw away the whole retry at
@@ -1616,6 +1871,21 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
             applied += _apply_patches(by_id, retry_patches)
 
             still = A.blocking(_audit_topic(topic, language=language, track=track))
+
+            # A semantic patch to `options` or `answer` can leave the item's
+            # three option-set fields disagreeing. That class is structural, so
+            # repair it as one tuple here rather than sending it back into a
+            # path-at-a-time pass that cannot express the fix.
+            if still and _mcq_structural_codes(still):
+                applied += _repair_mcq_structural_blockers(
+                    topic=topic, language=language, level=level, track=track,
+                    budget=budget, blockers=still,
+                )
+                R.repair_lesson(topic["content"], language=language)
+                still = A.blocking(
+                    _audit_topic(topic, language=language, track=track)
+                )
+
             if still:
                 # The first semantic pass may repair most blockers but miss one
                 # exact field. Do not turn a repairable path into a publication

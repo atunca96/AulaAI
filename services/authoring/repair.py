@@ -28,7 +28,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from services.authoring import schema as S
 
-__all__ = ["repair_lesson", "repair_item", "repair_text", "open_spanish_punctuation"]
+__all__ = ["repair_lesson", "repair_item", "repair_text", "open_spanish_punctuation",
+           "rebuild_mcq_option_set"]
 
 
 # ── Opening punctuation ──────────────────────────────────────────────────────
@@ -187,3 +188,83 @@ def repair_item(item: Dict[str, Any], *, language: str = "") -> Dict[str, Any]:
 
 def repair_all(items, *, language: str = "") -> List[Dict[str, Any]]:
     return [repair_item(item, language=language) for item in (items or [])]
+
+
+# ── MCQ option-set shape ─────────────────────────────────────────────────────
+# Deliberately NOT part of repair_lesson/repair_item. Those normalise text and
+# run over every field of every page; this rebuilds one MCQ's answer/options/
+# distractors as a single consistent tuple. Mixing the two would mean every
+# text pass silently restructured assessment items, and a structural rebuild
+# that only half-applied would create the very inconsistency the auditor exists
+# to catch. Callers apply the returned tuple atomically or not at all.
+
+def rebuild_mcq_option_set(item: Any) -> Optional[Dict[str, Any]]:
+    """Rebuild one MCQ's option set from the strings the item already carries.
+
+    `duplicate_options`, `distractor_count`, `empty_option`,
+    `answer_not_in_options` and `option_distractor_mismatch` are all the same
+    defect seen from different sides: the answer, the options and the stored
+    distractors have stopped describing one coherent four-way choice. Repairing
+    `options` alone cannot settle them, because the other two fields are what
+    the remaining findings are computed from.
+
+    Returns ``{"answer", "options", "distractors"}`` with four options distinct
+    under `audit.option_identity`, the answer among them, and exactly the other
+    three as distractors — but only when the item's own surviving text contains
+    three usable wrong choices. Nothing is invented and no option is reworded:
+    when the item is one short, this returns None and the caller must obtain the
+    missing content some other way. Idempotent — a healthy item rebuilds to
+    itself, order included.
+    """
+    from services.authoring import audit as A
+
+    if not isinstance(item, dict):
+        return None
+    answer = str(item.get("answer") or "").strip()
+    if not answer:
+        # Without a key there is no fact to keep the option set consistent with,
+        # and choosing one would be inventing the answer to the question.
+        return None
+    answer_key = A.option_identity(answer)
+    if not answer_key:
+        return None
+
+    raw_options = item.get("options")
+    if not isinstance(raw_options, list) or not raw_options:
+        raw_options = item.get("choices") if isinstance(item.get("choices"), list) else []
+    raw_distractors = item.get("distractors")
+    if not isinstance(raw_distractors, list):
+        raw_distractors = []
+
+    # Learner-visible order is the option order; stored distractors only
+    # contribute choices the option list lost. First spelling of an identity
+    # wins, so a repair never silently reworks an option the learner has read.
+    wrong: List[str] = []
+    wrong_keys: set = set()
+    answer_position: Optional[int] = None
+    for source in (raw_options, raw_distractors):
+        for raw in source:
+            text = str(raw or "").strip()
+            if not text:
+                continue
+            key = A.option_identity(text)
+            if not key:
+                continue
+            if key == answer_key:
+                if answer_position is None and source is raw_options:
+                    answer_position = len(wrong)
+                continue
+            if key in wrong_keys:
+                continue
+            wrong_keys.add(key)
+            wrong.append(text)
+
+    if len(wrong) < 3:
+        return None
+    wrong = wrong[:3]
+
+    # Put the key back exactly where the learner already saw it; an item whose
+    # options never contained it gets it first rather than at a guessed slot.
+    position = 0 if answer_position is None else min(answer_position, 3)
+    options = wrong[:position] + [answer] + wrong[position:]
+    return {"answer": answer, "options": options, "distractors": list(wrong)}

@@ -26,6 +26,8 @@ def walk(node):
 for name, schema in (
     ("lesson_review", Q._LESSON_REVIEW_SCHEMA),
     ("assessment_review", Q._ASSESSMENT_REVIEW_SCHEMA),
+    ("exact_target_repair", Q._EXACT_TARGET_REPAIR_SCHEMA),
+    ("mcq_option_set_repair", Q._MCQ_OPTION_SET_REPAIR_SCHEMA),
 ):
     assert not any("oneOf" in obj for obj in walk(schema)), (
         f"{name} contains oneOf, rejected by OpenAI Structured Outputs"
