@@ -2330,6 +2330,14 @@ def _detect_topic_blockers(topic: Dict[str, Any], *, language: str, track: str,
     if not isinstance(content, dict):
         return [{"kind": "structural", "code": "unreadable_content", "where": "",
                  "reason": "topic content is not an object", "strategies": []}]
+    if content.get("_review_required"):
+        return [{
+            "kind": "structural",
+            "code": "review_required_lesson",
+            "where": "",
+            "reason": str(content.get("_reason") or "lesson generation did not complete"),
+            "strategies": [],
+        }]
 
     structural: List[Dict[str, Any]] = []
     other: List[Dict[str, Any]] = []
@@ -2736,7 +2744,23 @@ _ABSOLUTE_RISK_RE = re.compile(
 
 
 def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Compact learner-visible claims that deserve a dedicated factual pass."""
+    """Compact learner-visible claims that deserve a dedicated factual pass.
+
+    Grammar/theory page prose is itself a pedagogical rule surface even when it
+    contains no obvious absolute keyword. Include those text/explanation fields
+    so broad category claims such as "X does not depend on Y" cannot bypass the
+    risk reviewer merely because they were authored as prose instead of a rule.
+    """
+    pages = content.get("pages") if isinstance(content, dict) else None
+    risk_page_indexes = set()
+    if isinstance(pages, list):
+        for index, page in enumerate(pages):
+            if not isinstance(page, dict):
+                continue
+            ptype = str(page.get("type") or "").strip().casefold()
+            if ptype in ("grammar", "theory"):
+                risk_page_indexes.add(index)
+
     out: List[Dict[str, Any]] = []
     for rec in _review_records(content):
         field = str(rec.get("field") or "")
@@ -2746,8 +2770,14 @@ def _risk_review_records(content: Dict[str, Any]) -> List[Dict[str, Any]]:
             continue
         if field in (
             "text", "text_tr", "explanation", "explanation_en", "explanation_tr"
-        ) and isinstance(value, str) and _ABSOLUTE_RISK_RE.search(value):
-            out.append(rec)
+        ) and isinstance(value, str):
+            path = rec.get("path") or []
+            on_risk_page = (
+                len(path) >= 2 and path[0] == "pages"
+                and isinstance(path[1], int) and path[1] in risk_page_indexes
+            )
+            if on_risk_page or _ABSOLUTE_RISK_RE.search(value):
+                out.append(rec)
     return out
 
 
