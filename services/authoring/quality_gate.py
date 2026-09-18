@@ -341,7 +341,17 @@ def _apply_patches(topics_by_id: Dict[str, Dict[str, Any]], patches: Sequence[An
         if marker in seen:
             raise QualityGateError(f"duplicate semantic patch for {topic_id} {path!r}")
         seen.add(marker)
-        _set_path(content, path, raw.get("value"), old=raw.get("old"))
+        current = _get_path(content, path)
+        proposed = raw.get("value")
+        old = raw.get("old")
+        # Reviewers occasionally emit a patch for a field that deterministic
+        # repair already filled after the review records were prepared. If the
+        # proposed value is byte-for-byte the value already present, the patch is
+        # an idempotent no-op, not a stale-write conflict. Any real disagreement
+        # still fails closed below.
+        if current == proposed and current != old:
+            continue
+        _set_path(content, path, proposed, old=old)
         applied += 1
     return applied
 
@@ -608,6 +618,58 @@ def review_unit_lessons(*, unit_title: str, topics: List[Dict[str, Any]],
                 f"{topic.get('title')}: deterministic blockers remain after semantic repair: "
                 f"{A.summarise(still)}"
             )
+
+    # Bilingual completeness is a publication invariant but not every missing
+    # counterpart is represented as an audit.py blocker. Repair any remaining
+    # exact EN/TR slot gaps before leaving the unit review. This is deliberately
+    # bounded to one Terra pass per affected topic and still fails closed.
+    if canonical not in ("English", "Turkish"):
+        for topic in topics:
+            missing_pairs = _missing_bilingual_pairs(topic.get("content"))
+            if not missing_pairs:
+                continue
+            targeted = {
+                "language": language, "level": level, "unit": unit_title,
+                "regional_variety": profile.variety if profile else "",
+                "instruction_track": track,
+                "topics": [{
+                    "topic_id": str(topic["id"]),
+                    "title": str(topic.get("title") or ""),
+                    "records": _review_records(topic["content"]),
+                    "deterministic_blockers": [],
+                    "missing_bilingual_pairs": missing_pairs,
+                }],
+                "instruction": (
+                    "Fix every listed missing bilingual counterpart. Patch only the "
+                    "existing empty counterpart paths from their non-empty semantic pair. "
+                    "Return this one topic only."
+                ),
+            }
+            retry = _call_review(
+                model=TERRA_VERIFY_MODEL, system=_LESSON_REVIEW_SYSTEM, payload=targeted,
+                max_tokens=2200, effort="high", budget=budget,
+                stage=f"terra_bilingual_retry:{topic.get('title')}",
+                response_schema=_LESSON_REVIEW_SCHEMA, response_name="lesson_bilingual_repair",
+            )
+            rows2 = retry.get("topics")
+            if not isinstance(rows2, list) or len(rows2) != 1 or                     str(rows2[0].get("topic_id") or "") != str(topic["id"]):
+                raise QualityGateError(
+                    f"bilingual retry coverage failed for {topic.get('title')}"
+                )
+            retry_patches = []
+            for patch in (rows2[0].get("patches") or []):
+                if not isinstance(patch, dict):
+                    raise QualityGateError("bilingual retry patch is not an object")
+                patch = dict(patch)
+                patch["topic_id"] = str(topic["id"])
+                retry_patches.append(patch)
+            applied += _apply_patches(by_id, retry_patches)
+            remaining = _missing_bilingual_pairs(topic.get("content"))
+            if remaining:
+                raise QualityGateError(
+                    f"{topic.get('title')}: incomplete EN/TR field pairs after targeted repair: "
+                    + ", ".join(remaining[:8])
+                )
     return applied
 
 
